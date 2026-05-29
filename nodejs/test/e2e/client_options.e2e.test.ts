@@ -291,6 +291,7 @@ describe("Client options", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             enableConfigDiscovery: true,
+            enableOnDemandInstructionDiscovery: true,
             includeSubAgentStreamingEvents: false,
         });
 
@@ -300,6 +301,7 @@ describe("Client options", async () => {
                 method: string;
                 params: {
                     enableConfigDiscovery?: boolean;
+                    enableOnDemandInstructionDiscovery?: boolean;
                     includeSubAgentStreamingEvents?: boolean;
                 };
             }[];
@@ -307,6 +309,7 @@ describe("Client options", async () => {
         const createRequests = updated.requests.filter((r) => r.method === "session.create");
         expect(createRequests).toHaveLength(1);
         expect(createRequests[0].params.enableConfigDiscovery).toBe(true);
+        expect(createRequests[0].params.enableOnDemandInstructionDiscovery).toBe(true);
         expect(createRequests[0].params.includeSubAgentStreamingEvents).toBe(false);
 
         await session.disconnect();

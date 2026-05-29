@@ -254,6 +254,7 @@ class TestClientOptions:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 enable_config_discovery=True,
+                enable_on_demand_instruction_discovery=True,
                 include_sub_agent_streaming_events=False,
             )
             try:
@@ -264,6 +265,7 @@ class TestClientOptions:
                 )
                 params = create_request["params"]
                 assert params["enableConfigDiscovery"] is True
+                assert params["enableOnDemandInstructionDiscovery"] is True
                 assert params["includeSubAgentStreamingEvents"] is False
             finally:
                 await session.disconnect()

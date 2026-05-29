@@ -433,6 +433,50 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("forwards enableOnDemandInstructionDiscovery in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({
+            enableOnDemandInstructionDiscovery: false,
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({ enableOnDemandInstructionDiscovery: false })
+        );
+    });
+
+    it("forwards enableOnDemandInstructionDiscovery in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, {
+            enableOnDemandInstructionDiscovery: false,
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({
+                enableOnDemandInstructionDiscovery: false,
+                sessionId: session.sessionId,
+            })
+        );
+        spy.mockRestore();
+    });
+
     it("defaults includeSubAgentStreamingEvents to true in session.create when not specified", async () => {
         const client = new CopilotClient();
         await client.start();
