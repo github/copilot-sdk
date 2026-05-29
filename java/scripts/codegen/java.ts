@@ -98,6 +98,34 @@ async function getApiSchemaPath(): Promise<string> {
 
 // ── File writing ─────────────────────────────────────────────────────────────
 
+/**
+ * Deletes all auto-generated Java files directly inside `relativeDir` (non-recursive).
+ * Only files containing the AUTO_GENERATED_HEADER marker are removed so that any
+ * hand-written files accidentally placed in the generated tree are preserved.
+ * This is used to clean the session-events package directory before regenerating, so
+ * that event classes removed from the schema (e.g. manually-added stubs for
+ * not-yet-published endpoints) cannot linger and violate the sealed SessionEvent
+ * permits clause.
+ */
+async function cleanGeneratedFilesInDirectory(relativeDir: string): Promise<void> {
+    const fullDir = path.join(REPO_ROOT, relativeDir);
+    let entries: fs.Dirent[];
+    try {
+        entries = await fs.readdir(fullDir, { withFileTypes: true });
+    } catch {
+        return; // directory doesn't exist yet — nothing to clean
+    }
+    for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith(".java")) continue;
+        const fullPath = path.join(fullDir, entry.name);
+        const content = await fs.readFile(fullPath, "utf-8");
+        if (content.includes(AUTO_GENERATED_HEADER)) {
+            await fs.unlink(fullPath);
+            console.log(`  🗑 Removed stale: ${path.join(relativeDir, entry.name)}`);
+        }
+    }
+}
+
 async function writeGeneratedFile(relativePath: string, content: string): Promise<string> {
     const fullPath = path.join(REPO_ROOT, relativePath);
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
@@ -360,6 +388,11 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     const variants = extractEventVariants(schema);
     const packageName = "com.github.copilot.generated";
     const packageDir = `src/generated/java/com/github/copilot/generated`;
+
+    // Remove any stale auto-generated files before regenerating so that event classes
+    // no longer present in the schema (e.g. manually added stubs for unpublished endpoints)
+    // cannot linger and violate the sealed SessionEvent permits clause.
+    await cleanGeneratedFilesInDirectory(packageDir);
 
     // Generate base SessionEvent class
     await generateSessionEventBaseClass(variants, packageName, packageDir);
