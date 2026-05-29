@@ -3224,6 +3224,11 @@ fn resume_session_config_serializes_bucket_b_fields() {
     // `ResumeSessionConfig::into_wire`.
 }
 
+// Wire-format coverage for `enable_on_demand_instruction_discovery` lives in
+// the in-crate unit tests alongside `SessionConfig::into_wire` /
+// `ResumeSessionConfig::into_wire` (the wire conversion is crate-private and
+// the public config types are intentionally not `Serialize`).
+
 // =====================================================================
 // Slash commands (§ 4.1)
 // =====================================================================

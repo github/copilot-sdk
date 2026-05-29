@@ -127,6 +127,46 @@ impl From<PathBuf> for CliProgram {
     }
 }
 
+/// `true` when this build of the SDK has the Copilot CLI embedded in
+/// its binary — i.e. the `bundled-cli` cargo feature is on **and** the
+/// target platform is one for which `build.rs` shipped an archive.
+///
+/// Useful for branching on bundling presence without forcing the lazy
+/// extraction triggered by [`install_bundled_cli`].
+pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
+
+/// Returns the path to the bundled Copilot CLI, extracting it from the
+/// embedded archive on first call.
+///
+/// This is the same path [`Client::start`] resolves to when
+/// [`ClientOptions::program`] is [`CliProgram::Resolve`], no
+/// `COPILOT_CLI_PATH` override is set, and no
+/// [`ClientOptions::bundled_cli_extract_dir`] is configured — exposing
+/// it directly so callers (health checks, diagnostics, version probes)
+/// can reach the bundled binary without spinning up a full [`Client`].
+///
+/// Subsequent calls return the cached result. Extraction is skipped
+/// when the target file already exists.
+///
+/// Returns `None` when the `bundled-cli` feature is off, the target
+/// platform isn't supported by `build.rs`, or extraction failed (the
+/// failure is logged via `tracing::warn!`). When `None` is returned for
+/// the "feature off" reason, [`HAS_BUNDLED_CLI`] is also `false`.
+///
+/// This deliberately does not fall back to the build-time-extracted
+/// dev-cache path used when `bundled-cli` is off — callers that want
+/// that resolution should continue to use [`CliProgram::Resolve`].
+pub fn install_bundled_cli() -> Option<PathBuf> {
+    #[cfg(feature = "bundled-cli")]
+    {
+        embeddedcli::path()
+    }
+    #[cfg(not(feature = "bundled-cli"))]
+    {
+        None
+    }
+}
+
 /// Options for starting a [`Client`].
 ///
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]

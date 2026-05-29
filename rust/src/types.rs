@@ -4402,6 +4402,7 @@ mod tests {
         cfg.enable_session_telemetry = Some(false);
         cfg.reasoning_summary = Some(ReasoningSummary::Concise);
         cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::Export);
+        cfg.enable_on_demand_instruction_discovery = Some(false);
         cfg.cloud = Some(CloudSessionOptions::with_repository(
             CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
         ));
@@ -4418,6 +4419,7 @@ mod tests {
         assert_eq!(wire_json["enableSessionTelemetry"], false);
         assert_eq!(wire_json["reasoningSummary"], "concise");
         assert_eq!(wire_json["remoteSession"], "export");
+        assert_eq!(wire_json["enableOnDemandInstructionDiscovery"], false);
         assert_eq!(wire_json["cloud"]["repository"]["owner"], "github");
         assert_eq!(wire_json["cloud"]["repository"]["name"], "copilot-sdk");
         assert_eq!(wire_json["cloud"]["repository"]["branch"], "main");
@@ -4431,6 +4433,11 @@ mod tests {
         assert!(empty_json.get("enableSessionTelemetry").is_none());
         assert!(empty_json.get("reasoningSummary").is_none());
         assert!(empty_json.get("remoteSession").is_none());
+        assert!(
+            empty_json
+                .get("enableOnDemandInstructionDiscovery")
+                .is_none()
+        );
         assert!(empty_json.get("cloud").is_none());
     }
 
@@ -4478,6 +4485,7 @@ mod tests {
         cfg.enable_session_telemetry = Some(false);
         cfg.reasoning_summary = Some(ReasoningSummary::Detailed);
         cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::On);
+        cfg.enable_on_demand_instruction_discovery = Some(false);
 
         let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
         let wire_json = serde_json::to_value(&wire).unwrap();
@@ -4489,6 +4497,7 @@ mod tests {
         assert_eq!(wire_json["enableSessionTelemetry"], false);
         assert_eq!(wire_json["reasoningSummary"], "detailed");
         assert_eq!(wire_json["remoteSession"], "on");
+        assert_eq!(wire_json["enableOnDemandInstructionDiscovery"], false);
 
         // Unset remote_session is omitted on the wire.
         let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
@@ -4497,6 +4506,11 @@ mod tests {
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("reasoningSummary").is_none());
         assert!(empty_json.get("remoteSession").is_none());
+        assert!(
+            empty_json
+                .get("enableOnDemandInstructionDiscovery")
+                .is_none()
+        );
     }
 
     #[test]
@@ -4544,6 +4558,7 @@ mod tests {
             .with_mcp_servers(HashMap::new())
             .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
+            .with_enable_on_demand_instruction_discovery(true)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
@@ -4572,6 +4587,7 @@ mod tests {
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.mcp_oauth_token_storage.as_deref(), Some("persistent"));
         assert_eq!(cfg.enable_config_discovery, Some(true));
+        assert_eq!(cfg.enable_on_demand_instruction_discovery, Some(true));
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])
@@ -4606,6 +4622,7 @@ mod tests {
             .with_mcp_servers(HashMap::new())
             .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
+            .with_enable_on_demand_instruction_discovery(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
@@ -4634,6 +4651,7 @@ mod tests {
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.mcp_oauth_token_storage.as_deref(), Some("persistent"));
         assert_eq!(cfg.enable_config_discovery, Some(true));
+        assert_eq!(cfg.enable_on_demand_instruction_discovery, Some(false));
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])

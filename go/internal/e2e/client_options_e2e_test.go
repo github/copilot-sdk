@@ -159,9 +159,10 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			EnableConfigDiscovery:          true,
-			IncludeSubAgentStreamingEvents: copilot.Bool(false),
-			OnPermissionRequest:            copilot.PermissionHandler.ApproveAll,
+			EnableConfigDiscovery:              true,
+			EnableOnDemandInstructionDiscovery: copilot.Bool(true),
+			IncludeSubAgentStreamingEvents:     copilot.Bool(false),
+			OnPermissionRequest:                copilot.PermissionHandler.ApproveAll,
 		})
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
@@ -186,6 +187,9 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 		if v, ok := params["enableConfigDiscovery"].(bool); !ok || v != true {
 			t.Errorf("Expected session.create.params.enableConfigDiscovery=true, got %v", params["enableConfigDiscovery"])
+		}
+		if v, ok := params["enableOnDemandInstructionDiscovery"].(bool); !ok || v != true {
+			t.Errorf("Expected session.create.params.enableOnDemandInstructionDiscovery=true, got %v", params["enableOnDemandInstructionDiscovery"])
 		}
 		if v, ok := params["includeSubAgentStreamingEvents"].(bool); !ok || v != false {
 			t.Errorf("Expected session.create.params.includeSubAgentStreamingEvents=false, got %v", params["includeSubAgentStreamingEvents"])
