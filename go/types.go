@@ -601,15 +601,28 @@ type SessionConfig struct {
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
-	// EnableOnDemandInstructionDiscovery, when set, requests on-demand discovery
-	// of custom instruction files after the agent successfully reads or views
-	// files. Discovered instruction files are treated as model instructions and
-	// may influence agent behavior. Runtime-gated: only takes effect when custom
+	// EnableOnDemandInstructionDiscovery, when set, requests the runtime to
+	// discover custom instruction files on demand as the agent works. After the
+	// agent successfully reads or views a file inside the repository, the
+	// runtime scans any not-yet-scanned directories from the directory
+	// containing that file up to the repository root for recognized instruction
+	// files (such as AGENTS.md, CLAUDE.md, and .github/copilot-instructions.md).
+	// A discovered file is applied only if it has no applyTo glob, or its
+	// applyTo glob matches the accessed file's repository-relative path or name;
+	// each file is delivered at most once. This is in addition to the
+	// instruction files loaded
+	// up front at session start. Discovered files are delivered to the model as
+	// additional instruction context (hidden follow-up messages) and do not
+	// modify the system prompt. Runtime-gated: only takes effect when custom
 	// instructions are enabled and the connected runtime supports and enables
-	// on-demand custom instruction discovery. Enable only for trusted
-	// repositories or workspaces; discovered instruction files may be stored or
-	// replayed with session history. When nil (the default), the option is
-	// omitted from the wire payload and the runtime treats the setting as off.
+	// on-demand instruction discovery. Otherwise the runtime accepts the option
+	// but performs no on-demand instruction discovery. Enable only for trusted
+	// repositories or workspaces; discovered instruction files influence agent
+	// behavior and may be stored or replayed with session history. Do not enable
+	// for untrusted content, CI jobs processing untrusted forks, or directories
+	// writable by untrusted users or processes. When nil (the default), the
+	// option is omitted from the wire payload and the runtime treats the setting
+	// as off.
 	EnableOnDemandInstructionDiscovery *bool
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.

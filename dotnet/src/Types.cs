@@ -2140,20 +2140,28 @@ public class SessionConfig
     public bool? EnableConfigDiscovery { get; set; }
 
     /// <summary>
-    /// When <see langword="true"/>, requests on-demand discovery of custom instruction
-    /// files after the agent successfully reads or views files. Discovered instruction
-    /// files are treated as model instructions and may influence agent behavior.
+    /// When <see langword="true"/>, requests the runtime to discover custom instruction
+    /// files on demand as the agent works. After the agent successfully reads or views a
+    /// file inside the repository, the runtime scans any not-yet-scanned directories from
+    /// the directory containing that file up to the repository root for recognized
+    /// instruction files (such as <c>AGENTS.md</c>, <c>CLAUDE.md</c>, and
+    /// <c>.github/copilot-instructions.md</c>). A discovered file is applied only if it
+    /// has no <c>applyTo</c> glob, or its <c>applyTo</c> glob matches the accessed file's
+    /// repository-relative path or name; each file is delivered at most once. This is in
+    /// addition to the instruction files loaded up front at session
+    /// start. Discovered files are delivered to the model as additional instruction
+    /// context (hidden follow-up messages) and do not modify the system prompt.
     /// <para>
     /// Runtime-gated: only takes effect when custom instructions are enabled and the
-    /// connected runtime supports and enables on-demand custom instruction discovery.
+    /// connected runtime supports and enables on-demand instruction discovery.
     /// Otherwise the runtime accepts the option but performs no on-demand instruction
     /// discovery.
     /// </para>
     /// <para>
     /// Security: enable only for trusted repositories or workspaces. Discovered
-    /// instruction files may be stored or replayed with session history. Do not enable
-    /// for untrusted content, CI jobs processing untrusted forks, or directories
-    /// writable by untrusted users or processes.
+    /// instruction files influence agent behavior and may be stored or replayed with
+    /// session history. Do not enable for untrusted content, CI jobs processing
+    /// untrusted forks, or directories writable by untrusted users or processes.
     /// </para>
     /// </summary>
     public bool? EnableOnDemandInstructionDiscovery { get; set; }
