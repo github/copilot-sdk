@@ -10,7 +10,8 @@ use super::session_events::{
     AbortReason, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule,
     ReasoningSummary, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval,
 };
-use crate::types::{RequestId, SessionEvent, SessionId};
+use crate::types::SessionEvent;
+use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
@@ -245,6 +246,9 @@ pub mod rpc_methods {
     pub const SESSION_EXTENSIONS_DISABLE: &str = "session.extensions.disable";
     /// `session.extensions.reload`
     pub const SESSION_EXTENSIONS_RELOAD: &str = "session.extensions.reload";
+    /// `session.extensions.sendAttachmentsToMessage`
+    pub const SESSION_EXTENSIONS_SENDATTACHMENTSTOMESSAGE: &str =
+        "session.extensions.sendAttachmentsToMessage";
     /// `session.tools.handlePendingToolCall`
     pub const SESSION_TOOLS_HANDLEPENDINGTOOLCALL: &str = "session.tools.handlePendingToolCall";
     /// `session.tools.initializeAndValidate`
@@ -9702,6 +9706,76 @@ pub struct WorkspaceSummary {
     pub updated_at: Option<String>,
 }
 
+/// Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an <extension_context> XML block.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendAttachmentExtensionContext {
+    /// Provider-local canvas identifier when the push was bound to a canvas instance
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
+    /// ISO timestamp captured by the runtime when the push was accepted
+    pub captured_at: String,
+    /// Owning extension identifier. Runtime-derived from the caller's connection when produced via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent transports.
+    pub extension_id: String,
+    /// Open canvas instance identifier when the push was bound to a canvas instance
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
+    /// Caller-supplied JSON payload
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
+    /// Human-readable composer pill label
+    pub title: String,
+    /// Attachment type discriminator
+    pub r#type: SendAttachmentExtensionContextType,
+}
+
+/// Slim input shape for extension_context attachments; identity fields are runtime-derived.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionContextPushInput {
+    /// Caller-supplied JSON payload
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
+    /// Human-readable composer pill label
+    pub title: String,
+    /// Attachment type discriminator
+    pub r#type: ExtensionContextPushInputType,
+}
+
+/// Parameters for session.extensions.sendAttachmentsToMessage.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendAttachmentsToMessageParams {
+    /// Attachments to push into the next user-message turn. extension_context entries take the slim shape; standard variants take their full SendAttachment shape.
+    pub attachments: Vec<serde_json::Value>,
+    /// Optional canvas instance binding the push for provenance. When supplied, the runtime resolves the canvas, verifies it is owned by the calling extension, and stamps canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs and those fields stay unset on the attachment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15301,4 +15375,20 @@ pub enum WorkspacesWorkspaceDetailsHostType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SendAttachmentExtensionContextType {
+    #[serde(rename = "extension_context")]
+    #[default]
+    ExtensionContext,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtensionContextPushInputType {
+    #[serde(rename = "extension_context")]
+    #[default]
+    ExtensionContext,
 }

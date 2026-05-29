@@ -93,7 +93,8 @@ export type SessionEvent =
   | ExtensionsLoadedEvent
   | CanvasOpenedEvent
   | CanvasRegistryChangedEvent
-  | McpAppToolCallCompleteEvent;
+  | McpAppToolCallCompleteEvent
+  | ExtensionsAttachmentsPushedEvent;
 /**
  * Hosting platform type of the repository (github or ado)
  */
@@ -198,7 +199,8 @@ export type UserMessageAttachment =
   | UserMessageAttachmentDirectory
   | UserMessageAttachmentSelection
   | UserMessageAttachmentGithubReference
-  | UserMessageAttachmentBlob;
+  | UserMessageAttachmentBlob
+  | UserMessageAttachmentExtensionContext;
 /**
  * Type of GitHub reference
  */
@@ -2323,6 +2325,41 @@ export interface UserMessageAttachmentBlob {
    * Attachment type discriminator
    */
   type: "blob";
+}
+/**
+ * Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an <extension_context> XML block.
+ */
+export interface UserMessageAttachmentExtensionContext {
+  /**
+   * Provider-local canvas identifier when the push was bound to a canvas instance
+   */
+  canvasId?: string;
+  /**
+   * ISO timestamp captured by the runtime when the push was accepted
+   */
+  capturedAt: string;
+  /**
+   * Owning extension identifier. Runtime-derived from the caller's connection when produced via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent transports.
+   */
+  extensionId: string;
+  /**
+   * Open canvas instance identifier when the push was bound to a canvas instance
+   */
+  instanceId?: string;
+  /**
+   * Caller-supplied JSON payload
+   */
+  payload?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Human-readable composer pill label
+   */
+  title: string;
+  /**
+   * Attachment type discriminator
+   */
+  type: "extension_context";
 }
 /**
  * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
@@ -7013,4 +7050,43 @@ export interface McpAppToolCallCompleteToolMetaUI {
    */
   visibility?: string[];
   [k: string]: unknown | undefined;
+}
+/**
+ * Session event "session.extensions.attachments_pushed".
+ */
+export interface ExtensionsAttachmentsPushedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ExtensionsAttachmentsPushedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.extensions.attachments_pushed".
+   */
+  type: "session.extensions.attachments_pushed";
+}
+/**
+ * Schema for the `ExtensionsAttachmentsPushedData` type.
+ */
+export interface ExtensionsAttachmentsPushedData {
+  /**
+   * Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.
+   */
+  attachments: UserMessageAttachment[];
 }

@@ -1241,6 +1241,9 @@ class ExtensionStatus(Enum):
     RUNNING = "running"
     STARTING = "starting"
 
+class ExtensionContextPushInputType(Enum):
+    EXTENSION_CONTEXT = "extension_context"
+
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExtensionsDisableRequest:
@@ -3791,6 +3794,93 @@ class Plugin:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SendAttachmentFileLineRange:
+    """Optional line range to scope the attachment to a specific section of the file"""
+
+    end: int
+    """End line number (1-based, inclusive)"""
+
+    start: int
+    """Start line number (1-based)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SendAttachmentFileLineRange':
+        assert isinstance(obj, dict)
+        end = from_int(obj.get("end"))
+        start = from_int(obj.get("start"))
+        return SendAttachmentFileLineRange(end, start)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["end"] = from_int(self.end)
+        result["start"] = from_int(self.start)
+        return result
+
+class SendAttachmentGithubReferenceTypeEnum(Enum):
+    """Type of GitHub reference"""
+
+    DISCUSSION = "discussion"
+    ISSUE = "issue"
+    PR = "pr"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SendAttachmentSelectionDetailsEnd:
+    """End position of the selection"""
+
+    character: int
+    """End character offset within the line (0-based)"""
+
+    line: int
+    """End line number (0-based)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetailsEnd':
+        assert isinstance(obj, dict)
+        character = from_int(obj.get("character"))
+        line = from_int(obj.get("line"))
+        return SendAttachmentSelectionDetailsEnd(character, line)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["character"] = from_int(self.character)
+        result["line"] = from_int(self.line)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SendAttachmentSelectionDetailsStart:
+    """Start position of the selection"""
+
+    character: int
+    """Start character offset within the line (0-based)"""
+
+    line: int
+    """Start line number (0-based)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetailsStart':
+        assert isinstance(obj, dict)
+        character = from_int(obj.get("character"))
+        line = from_int(obj.get("line"))
+        return SendAttachmentSelectionDetailsStart(character, line)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["character"] = from_int(self.character)
+        result["line"] = from_int(self.line)
+        return result
+
+class PushAttachmentType(Enum):
+    BLOB = "blob"
+    DIRECTORY = "directory"
+    EXTENSION_CONTEXT = "extension_context"
+    FILE = "file"
+    GITHUB_REFERENCE = "github_reference"
+    SELECTION = "selection"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 class QueuePendingItemsKind(Enum):
     """Whether this item is a queued user message or a queued slash command / model change"""
 
@@ -4128,92 +4218,6 @@ class SendAgentMode(Enum):
     PLAN = "plan"
     SHELL = "shell"
 
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SendAttachmentFileLineRange:
-    """Optional line range to scope the attachment to a specific section of the file"""
-
-    end: int
-    """End line number (1-based, inclusive)"""
-
-    start: int
-    """Start line number (1-based)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentFileLineRange':
-        assert isinstance(obj, dict)
-        end = from_int(obj.get("end"))
-        start = from_int(obj.get("start"))
-        return SendAttachmentFileLineRange(end, start)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["end"] = from_int(self.end)
-        result["start"] = from_int(self.start)
-        return result
-
-class SendAttachmentGithubReferenceTypeEnum(Enum):
-    """Type of GitHub reference"""
-
-    DISCUSSION = "discussion"
-    ISSUE = "issue"
-    PR = "pr"
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SendAttachmentSelectionDetailsEnd:
-    """End position of the selection"""
-
-    character: int
-    """End character offset within the line (0-based)"""
-
-    line: int
-    """End line number (0-based)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetailsEnd':
-        assert isinstance(obj, dict)
-        character = from_int(obj.get("character"))
-        line = from_int(obj.get("line"))
-        return SendAttachmentSelectionDetailsEnd(character, line)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["character"] = from_int(self.character)
-        result["line"] = from_int(self.line)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SendAttachmentSelectionDetailsStart:
-    """Start position of the selection"""
-
-    character: int
-    """Start character offset within the line (0-based)"""
-
-    line: int
-    """Start line number (0-based)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetailsStart':
-        assert isinstance(obj, dict)
-        character = from_int(obj.get("character"))
-        line = from_int(obj.get("line"))
-        return SendAttachmentSelectionDetailsStart(character, line)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["character"] = from_int(self.character)
-        result["line"] = from_int(self.line)
-        return result
-
-class SendAttachmentType(Enum):
-    BLOB = "blob"
-    DIRECTORY = "directory"
-    FILE = "file"
-    GITHUB_REFERENCE = "github_reference"
-    SELECTION = "selection"
-
 class SendAttachmentBlobType(Enum):
     BLOB = "blob"
 
@@ -4226,6 +4230,41 @@ class SendAttachmentGithubReferenceType(Enum):
 
 class SendAttachmentSelectionType(Enum):
     SELECTION = "selection"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SendAttachmentsToMessageParams:
+    """Parameters for session.extensions.sendAttachmentsToMessage."""
+
+    attachments: list[PushAttachment]
+    """Attachments to push into the next user-message turn. extension_context entries take the
+    slim shape; standard variants take their full SendAttachment shape.
+    """
+    session_id: str
+    """Target session identifier"""
+
+    instance_id: str | None = None
+    """Optional canvas instance binding the push for provenance. When supplied, the runtime
+    resolves the canvas, verifies it is owned by the calling extension, and stamps
+    canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs
+    and those fields stay unset on the attachment.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SendAttachmentsToMessageParams':
+        assert isinstance(obj, dict)
+        attachments = from_list(_load_PushAttachment, obj.get("attachments"))
+        session_id = from_str(obj.get("sessionId"))
+        instance_id = from_union([from_str, from_none], obj.get("instanceId"))
+        return SendAttachmentsToMessageParams(attachments, session_id, instance_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attachments"] = from_list(lambda x: (x).to_dict(), self.attachments)
+        result["sessionId"] = from_str(self.session_id)
+        if self.instance_id is not None:
+            result["instanceId"] = from_union([from_str, from_none], self.instance_id)
+        return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class SendMode(Enum):
@@ -4324,6 +4363,36 @@ class SessionBulkDeleteResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["freedBytes"] = from_dict(from_int, self.freed_bytes)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionExtensionsSendAttachmentsToMessageRequest:
+    """Parameters for session.extensions.sendAttachmentsToMessage."""
+
+    attachments: list[PushAttachment]
+    """Attachments to push into the next user-message turn. extension_context entries take the
+    slim shape; standard variants take their full SendAttachment shape.
+    """
+    instance_id: str | None = None
+    """Optional canvas instance binding the push for provenance. When supplied, the runtime
+    resolves the canvas, verifies it is owned by the calling extension, and stamps
+    canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs
+    and those fields stay unset on the attachment.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionExtensionsSendAttachmentsToMessageRequest':
+        assert isinstance(obj, dict)
+        attachments = from_list(_load_PushAttachment, obj.get("attachments"))
+        instance_id = from_union([from_str, from_none], obj.get("instanceId"))
+        return SessionExtensionsSendAttachmentsToMessageRequest(attachments, instance_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attachments"] = from_list(lambda x: (x).to_dict(), self.attachments)
+        if self.instance_id is not None:
+            result["instanceId"] = from_union([from_str, from_none], self.instance_id)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -7670,6 +7739,90 @@ class Extension:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class ExtensionContextPushInput:
+    """Slim input shape for extension_context attachments; identity fields are runtime-derived."""
+
+    title: str
+    """Human-readable composer pill label"""
+
+    type: ClassVar[str] = "extension_context"
+    """Attachment type discriminator"""
+
+    payload: Any = None
+    """Caller-supplied JSON payload"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExtensionContextPushInput':
+        assert isinstance(obj, dict)
+        title = from_str(obj.get("title"))
+        payload = obj.get("payload")
+        return ExtensionContextPushInput(title, payload)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["title"] = from_str(self.title)
+        result["type"] = self.type
+        if self.payload is not None:
+            result["payload"] = self.payload
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SendAttachmentExtensionContext:
+    """Structured context contributed by an extension. Composer pills displayed in the host are
+    forwarded back through session.send.attachments, then rendered into the model prompt as
+    an <extension_context> XML block.
+    """
+    captured_at: str
+    """ISO timestamp captured by the runtime when the push was accepted"""
+
+    extension_id: str
+    """Owning extension identifier. Runtime-derived from the caller's connection when produced
+    via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent
+    transports.
+    """
+    title: str
+    """Human-readable composer pill label"""
+
+    type: ClassVar[str] = "extension_context"
+    """Attachment type discriminator"""
+
+    canvas_id: str | None = None
+    """Provider-local canvas identifier when the push was bound to a canvas instance"""
+
+    instance_id: str | None = None
+    """Open canvas instance identifier when the push was bound to a canvas instance"""
+
+    payload: Any = None
+    """Caller-supplied JSON payload"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SendAttachmentExtensionContext':
+        assert isinstance(obj, dict)
+        captured_at = from_str(obj.get("capturedAt"))
+        extension_id = from_str(obj.get("extensionId"))
+        title = from_str(obj.get("title"))
+        canvas_id = from_union([from_str, from_none], obj.get("canvasId"))
+        instance_id = from_union([from_str, from_none], obj.get("instanceId"))
+        payload = obj.get("payload")
+        return SendAttachmentExtensionContext(captured_at, extension_id, title, canvas_id, instance_id, payload)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["capturedAt"] = from_str(self.captured_at)
+        result["extensionId"] = from_str(self.extension_id)
+        result["title"] = from_str(self.title)
+        result["type"] = self.type
+        if self.canvas_id is not None:
+            result["canvasId"] = from_union([from_str, from_none], self.canvas_id)
+        if self.instance_id is not None:
+            result["instanceId"] = from_union([from_str, from_none], self.instance_id)
+        if self.payload is not None:
+            result["payload"] = self.payload
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class ExternalToolTextResultForLlmBinaryResultsForLlm:
     """Binary result returned by a tool for the model"""
 
@@ -10263,6 +10416,30 @@ class PluginList:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class SendAttachmentSelectionDetails:
+    """Position range of the selection within the file"""
+
+    end: SendAttachmentSelectionDetailsEnd
+    """End position of the selection"""
+
+    start: SendAttachmentSelectionDetailsStart
+    """Start position of the selection"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetails':
+        assert isinstance(obj, dict)
+        end = SendAttachmentSelectionDetailsEnd.from_dict(obj.get("end"))
+        start = SendAttachmentSelectionDetailsStart.from_dict(obj.get("start"))
+        return SendAttachmentSelectionDetails(end, start)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["end"] = to_class(SendAttachmentSelectionDetailsEnd, self.end)
+        result["start"] = to_class(SendAttachmentSelectionDetailsStart, self.start)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class QueuePendingItems:
     """Schema for the `QueuePendingItems` type."""
 
@@ -10345,30 +10522,6 @@ class ScheduleStopResult:
         result: dict = {}
         if self.entry is not None:
             result["entry"] = from_union([lambda x: to_class(ScheduleEntry, x), from_none], self.entry)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SendAttachmentSelectionDetails:
-    """Position range of the selection within the file"""
-
-    end: SendAttachmentSelectionDetailsEnd
-    """End position of the selection"""
-
-    start: SendAttachmentSelectionDetailsStart
-    """Start position of the selection"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetails':
-        assert isinstance(obj, dict)
-        end = SendAttachmentSelectionDetailsEnd.from_dict(obj.get("end"))
-        start = SendAttachmentSelectionDetailsStart.from_dict(obj.get("start"))
-        return SendAttachmentSelectionDetails(end, start)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["end"] = to_class(SendAttachmentSelectionDetailsEnd, self.end)
-        result["start"] = to_class(SendAttachmentSelectionDetailsStart, self.start)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -12857,33 +13010,6 @@ class PermissionsConfigureAdditionalContentExclusionPolicy:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class QueuePendingItemsResult:
-    """Snapshot of the session's pending queued items and immediate-steering messages."""
-
-    items: list[QueuePendingItems]
-    """Pending queued items in submission order. Includes user messages, queued slash commands,
-    and queued model changes; omits internal system items.
-    """
-    steering_messages: list[str]
-    """Display text for messages currently in the immediate steering queue (interjections sent
-    during a running turn).
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'QueuePendingItemsResult':
-        assert isinstance(obj, dict)
-        items = from_list(QueuePendingItems.from_dict, obj.get("items"))
-        steering_messages = from_list(from_str, obj.get("steeringMessages"))
-        return QueuePendingItemsResult(items, steering_messages)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["items"] = from_list(lambda x: to_class(QueuePendingItems, x), self.items)
-        result["steeringMessages"] = from_list(from_str, self.steering_messages)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class SendAttachmentSelection:
     """Code selection attachment from an editor"""
 
@@ -12918,6 +13044,33 @@ class SendAttachmentSelection:
         result["selection"] = to_class(SendAttachmentSelectionDetails, self.selection)
         result["text"] = from_str(self.text)
         result["type"] = self.type
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class QueuePendingItemsResult:
+    """Snapshot of the session's pending queued items and immediate-steering messages."""
+
+    items: list[QueuePendingItems]
+    """Pending queued items in submission order. Includes user messages, queued slash commands,
+    and queued model changes; omits internal system items.
+    """
+    steering_messages: list[str]
+    """Display text for messages currently in the immediate steering queue (interjections sent
+    during a running turn).
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'QueuePendingItemsResult':
+        assert isinstance(obj, dict)
+        items = from_list(QueuePendingItems.from_dict, obj.get("items"))
+        steering_messages = from_list(from_str, obj.get("steeringMessages"))
+        return QueuePendingItemsResult(items, steering_messages)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["items"] = from_list(lambda x: to_class(QueuePendingItems, x), self.items)
+        result["steeringMessages"] = from_list(from_str, self.steering_messages)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -15722,6 +15875,7 @@ class RPC:
     execute_command_params: ExecuteCommandParams
     execute_command_result: ExecuteCommandResult
     extension: Extension
+    extension_context_push_input: ExtensionContextPushInput
     extension_list: ExtensionList
     extensions_disable_request: ExtensionsDisableRequest
     extensions_enable_request: ExtensionsEnableRequest
@@ -15971,6 +16125,7 @@ class RPC:
     plan_update_request: PlanUpdateRequest
     plugin: Plugin
     plugin_list: PluginList
+    push_attachment: PushAttachment
     queued_command_handled: QueuedCommandHandled
     queued_command_not_handled: QueuedCommandNotHandled
     queued_command_result: QueuedCommandResult
@@ -15997,6 +16152,7 @@ class RPC:
     send_attachment: SendAttachment
     send_attachment_blob: SendAttachmentBlob
     send_attachment_directory: SendAttachmentDirectory
+    send_attachment_extension_context: SendAttachmentExtensionContext
     send_attachment_file: SendAttachmentFile
     send_attachment_file_line_range: SendAttachmentFileLineRange
     send_attachment_github_reference: SendAttachmentGithubReference
@@ -16005,6 +16161,7 @@ class RPC:
     send_attachment_selection_details: SendAttachmentSelectionDetails
     send_attachment_selection_details_end: SendAttachmentSelectionDetailsEnd
     send_attachment_selection_details_start: SendAttachmentSelectionDetailsStart
+    send_attachments_to_message_params: SendAttachmentsToMessageParams
     send_mode: SendMode
     send_request: SendRequest
     send_result: SendResult
@@ -16015,6 +16172,7 @@ class RPC:
     session_context: SessionContext
     session_context_host_type: HostType
     session_enrich_metadata_result: SessionEnrichMetadataResult
+    session_extensions_send_attachments_to_message_request: SessionExtensionsSendAttachmentsToMessageRequest
     session_fs_append_file_request: SessionFSAppendFileRequest
     session_fs_error: SessionFSError
     session_fs_error_code: SessionFSErrorCode
@@ -16308,6 +16466,7 @@ class RPC:
         execute_command_params = ExecuteCommandParams.from_dict(obj.get("ExecuteCommandParams"))
         execute_command_result = ExecuteCommandResult.from_dict(obj.get("ExecuteCommandResult"))
         extension = Extension.from_dict(obj.get("Extension"))
+        extension_context_push_input = ExtensionContextPushInput.from_dict(obj.get("ExtensionContextPushInput"))
         extension_list = ExtensionList.from_dict(obj.get("ExtensionList"))
         extensions_disable_request = ExtensionsDisableRequest.from_dict(obj.get("ExtensionsDisableRequest"))
         extensions_enable_request = ExtensionsEnableRequest.from_dict(obj.get("ExtensionsEnableRequest"))
@@ -16557,6 +16716,7 @@ class RPC:
         plan_update_request = PlanUpdateRequest.from_dict(obj.get("PlanUpdateRequest"))
         plugin = Plugin.from_dict(obj.get("Plugin"))
         plugin_list = PluginList.from_dict(obj.get("PluginList"))
+        push_attachment = _load_PushAttachment(obj.get("PushAttachment"))
         queued_command_handled = QueuedCommandHandled.from_dict(obj.get("QueuedCommandHandled"))
         queued_command_not_handled = QueuedCommandNotHandled.from_dict(obj.get("QueuedCommandNotHandled"))
         queued_command_result = _load_QueuedCommandResult(obj.get("QueuedCommandResult"))
@@ -16583,6 +16743,7 @@ class RPC:
         send_attachment = _load_SendAttachment(obj.get("SendAttachment"))
         send_attachment_blob = SendAttachmentBlob.from_dict(obj.get("SendAttachmentBlob"))
         send_attachment_directory = SendAttachmentDirectory.from_dict(obj.get("SendAttachmentDirectory"))
+        send_attachment_extension_context = SendAttachmentExtensionContext.from_dict(obj.get("SendAttachmentExtensionContext"))
         send_attachment_file = SendAttachmentFile.from_dict(obj.get("SendAttachmentFile"))
         send_attachment_file_line_range = SendAttachmentFileLineRange.from_dict(obj.get("SendAttachmentFileLineRange"))
         send_attachment_github_reference = SendAttachmentGithubReference.from_dict(obj.get("SendAttachmentGithubReference"))
@@ -16591,6 +16752,7 @@ class RPC:
         send_attachment_selection_details = SendAttachmentSelectionDetails.from_dict(obj.get("SendAttachmentSelectionDetails"))
         send_attachment_selection_details_end = SendAttachmentSelectionDetailsEnd.from_dict(obj.get("SendAttachmentSelectionDetailsEnd"))
         send_attachment_selection_details_start = SendAttachmentSelectionDetailsStart.from_dict(obj.get("SendAttachmentSelectionDetailsStart"))
+        send_attachments_to_message_params = SendAttachmentsToMessageParams.from_dict(obj.get("SendAttachmentsToMessageParams"))
         send_mode = SendMode(obj.get("SendMode"))
         send_request = SendRequest.from_dict(obj.get("SendRequest"))
         send_result = SendResult.from_dict(obj.get("SendResult"))
@@ -16601,6 +16763,7 @@ class RPC:
         session_context = SessionContext.from_dict(obj.get("SessionContext"))
         session_context_host_type = HostType(obj.get("SessionContextHostType"))
         session_enrich_metadata_result = SessionEnrichMetadataResult.from_dict(obj.get("SessionEnrichMetadataResult"))
+        session_extensions_send_attachments_to_message_request = SessionExtensionsSendAttachmentsToMessageRequest.from_dict(obj.get("SessionExtensionsSendAttachmentsToMessageRequest"))
         session_fs_append_file_request = SessionFSAppendFileRequest.from_dict(obj.get("SessionFsAppendFileRequest"))
         session_fs_error = SessionFSError.from_dict(obj.get("SessionFsError"))
         session_fs_error_code = SessionFSErrorCode(obj.get("SessionFsErrorCode"))
@@ -16802,7 +16965,7 @@ class RPC:
         session_context_info = from_union([SessionContextInfo.from_dict, from_none], obj.get("SessionContextInfo"))
         task_progress = from_union([TaskProgress.from_dict, from_none], obj.get("TaskProgress"))
         workspace_summary = from_union([WorkspaceSummary.from_dict, from_none], obj.get("WorkspaceSummary"))
-        return RPC(abort_request, abort_result, account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agent_select_request, agent_select_result, allow_all_permission_set_result, allow_all_permission_state, api_key_auth_info, auth_info, auth_info_type, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_instance_availability, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_session_context, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, discovered_canvas, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_request, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_source, installed_plugin_source_github, installed_plugin_source_local, installed_plugin_source_url, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, lsp_initialize_request, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_oauth_login_request, mcp_oauth_login_result, mcp_remove_git_hub_result, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_list, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_current_context_tier, model_list, model_list_request, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_env_value_mode, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_allow_all_request, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_allow_all_request, permissions_set_allow_all_source, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_mode, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachment, send_attachment_blob, send_attachment_directory, send_attachment_file, send_attachment_file_line_range, send_attachment_github_reference, send_attachment_github_reference_type, send_attachment_selection, send_attachment_selection_details, send_attachment_selection_details_end, send_attachment_selection_details_start, send_mode, send_request, send_result, server_skill, server_skill_list, session_auth_status, session_bulk_delete_result, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_github, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_mcp_apps_call_tool_result, session_metadata, session_metadata_snapshot, session_mode, session_model_list, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_prune_old_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, session_update_options_params, session_update_options_result, session_working_directory_context, session_working_directory_context_host_type, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_checkpoints, workspaces_create_file_request, workspaces_diff_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_info, task_progress, workspace_summary)
+        return RPC(abort_request, abort_result, account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agent_select_request, agent_select_result, allow_all_permission_set_result, allow_all_permission_state, api_key_auth_info, auth_info, auth_info_type, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_instance_availability, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_session_context, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, discovered_canvas, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_request, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_source, installed_plugin_source_github, installed_plugin_source_local, installed_plugin_source_url, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, lsp_initialize_request, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_oauth_login_request, mcp_oauth_login_result, mcp_remove_git_hub_result, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_list, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_current_context_tier, model_list, model_list_request, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_env_value_mode, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_allow_all_request, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_allow_all_request, permissions_set_allow_all_source, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, push_attachment, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_mode, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachment, send_attachment_blob, send_attachment_directory, send_attachment_extension_context, send_attachment_file, send_attachment_file_line_range, send_attachment_github_reference, send_attachment_github_reference_type, send_attachment_selection, send_attachment_selection_details, send_attachment_selection_details_end, send_attachment_selection_details_start, send_attachments_to_message_params, send_mode, send_request, send_result, server_skill, server_skill_list, session_auth_status, session_bulk_delete_result, session_context, session_context_host_type, session_enrich_metadata_result, session_extensions_send_attachments_to_message_request, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_github, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_mcp_apps_call_tool_result, session_metadata, session_metadata_snapshot, session_mode, session_model_list, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_prune_old_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, session_update_options_params, session_update_options_result, session_working_directory_context, session_working_directory_context_host_type, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_checkpoints, workspaces_create_file_request, workspaces_diff_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_info, task_progress, workspace_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -16894,6 +17057,7 @@ class RPC:
         result["ExecuteCommandParams"] = to_class(ExecuteCommandParams, self.execute_command_params)
         result["ExecuteCommandResult"] = to_class(ExecuteCommandResult, self.execute_command_result)
         result["Extension"] = to_class(Extension, self.extension)
+        result["ExtensionContextPushInput"] = to_class(ExtensionContextPushInput, self.extension_context_push_input)
         result["ExtensionList"] = to_class(ExtensionList, self.extension_list)
         result["ExtensionsDisableRequest"] = to_class(ExtensionsDisableRequest, self.extensions_disable_request)
         result["ExtensionsEnableRequest"] = to_class(ExtensionsEnableRequest, self.extensions_enable_request)
@@ -17143,6 +17307,7 @@ class RPC:
         result["PlanUpdateRequest"] = to_class(PlanUpdateRequest, self.plan_update_request)
         result["Plugin"] = to_class(Plugin, self.plugin)
         result["PluginList"] = to_class(PluginList, self.plugin_list)
+        result["PushAttachment"] = (self.push_attachment).to_dict()
         result["QueuedCommandHandled"] = to_class(QueuedCommandHandled, self.queued_command_handled)
         result["QueuedCommandNotHandled"] = to_class(QueuedCommandNotHandled, self.queued_command_not_handled)
         result["QueuedCommandResult"] = (self.queued_command_result).to_dict()
@@ -17169,6 +17334,7 @@ class RPC:
         result["SendAttachment"] = (self.send_attachment).to_dict()
         result["SendAttachmentBlob"] = to_class(SendAttachmentBlob, self.send_attachment_blob)
         result["SendAttachmentDirectory"] = to_class(SendAttachmentDirectory, self.send_attachment_directory)
+        result["SendAttachmentExtensionContext"] = to_class(SendAttachmentExtensionContext, self.send_attachment_extension_context)
         result["SendAttachmentFile"] = to_class(SendAttachmentFile, self.send_attachment_file)
         result["SendAttachmentFileLineRange"] = to_class(SendAttachmentFileLineRange, self.send_attachment_file_line_range)
         result["SendAttachmentGithubReference"] = to_class(SendAttachmentGithubReference, self.send_attachment_github_reference)
@@ -17177,6 +17343,7 @@ class RPC:
         result["SendAttachmentSelectionDetails"] = to_class(SendAttachmentSelectionDetails, self.send_attachment_selection_details)
         result["SendAttachmentSelectionDetailsEnd"] = to_class(SendAttachmentSelectionDetailsEnd, self.send_attachment_selection_details_end)
         result["SendAttachmentSelectionDetailsStart"] = to_class(SendAttachmentSelectionDetailsStart, self.send_attachment_selection_details_start)
+        result["SendAttachmentsToMessageParams"] = to_class(SendAttachmentsToMessageParams, self.send_attachments_to_message_params)
         result["SendMode"] = to_enum(SendMode, self.send_mode)
         result["SendRequest"] = to_class(SendRequest, self.send_request)
         result["SendResult"] = to_class(SendResult, self.send_result)
@@ -17187,6 +17354,7 @@ class RPC:
         result["SessionContext"] = to_class(SessionContext, self.session_context)
         result["SessionContextHostType"] = to_enum(HostType, self.session_context_host_type)
         result["SessionEnrichMetadataResult"] = to_class(SessionEnrichMetadataResult, self.session_enrich_metadata_result)
+        result["SessionExtensionsSendAttachmentsToMessageRequest"] = to_class(SessionExtensionsSendAttachmentsToMessageRequest, self.session_extensions_send_attachments_to_message_request)
         result["SessionFsAppendFileRequest"] = to_class(SessionFSAppendFileRequest, self.session_fs_append_file_request)
         result["SessionFsError"] = to_class(SessionFSError, self.session_fs_error)
         result["SessionFsErrorCode"] = to_enum(SessionFSErrorCode, self.session_fs_error_code)
@@ -17530,7 +17698,7 @@ def _load_QueuedCommandResult(obj: Any) -> "QueuedCommandResult":
         case _: raise ValueError(f"Unknown QueuedCommandResult handled: {kind!r}")
 
 # A user message attachment — a file, directory, code selection, blob, or GitHub reference
-SendAttachment = SendAttachmentFile | SendAttachmentDirectory | SendAttachmentSelection | SendAttachmentGithubReference | SendAttachmentBlob
+SendAttachment = SendAttachmentFile | SendAttachmentDirectory | SendAttachmentSelection | SendAttachmentGithubReference | SendAttachmentBlob | SendAttachmentExtensionContext
 
 def _load_SendAttachment(obj: Any) -> "SendAttachment":
     assert isinstance(obj, dict)
@@ -17541,6 +17709,7 @@ def _load_SendAttachment(obj: Any) -> "SendAttachment":
         case "selection": return SendAttachmentSelection.from_dict(obj)
         case "github_reference": return SendAttachmentGithubReference.from_dict(obj)
         case "blob": return SendAttachmentBlob.from_dict(obj)
+        case "extension_context": return SendAttachmentExtensionContext.from_dict(obj)
         case _: raise ValueError(f"Unknown SendAttachment type: {kind!r}")
 
 # Result of invoking the slash command (text output, prompt to send to the agent, or completion).
@@ -17566,6 +17735,21 @@ def _load_TaskInfo(obj: Any) -> "TaskInfo":
         case "agent": return TaskAgentInfo.from_dict(obj)
         case "shell": return TaskShellInfo.from_dict(obj)
         case _: raise ValueError(f"Unknown TaskInfo type: {kind!r}")
+
+# Schema for the `PushAttachment` type.
+PushAttachment = ExtensionContextPushInput | SendAttachmentFile | SendAttachmentDirectory | SendAttachmentSelection | SendAttachmentGithubReference | SendAttachmentBlob
+
+def _load_PushAttachment(obj: Any) -> "PushAttachment":
+    assert isinstance(obj, dict)
+    kind = obj.get("type")
+    match kind:
+        case "extension_context": return ExtensionContextPushInput.from_dict(obj)
+        case "file": return SendAttachmentFile.from_dict(obj)
+        case "directory": return SendAttachmentDirectory.from_dict(obj)
+        case "selection": return SendAttachmentSelection.from_dict(obj)
+        case "github_reference": return SendAttachmentGithubReference.from_dict(obj)
+        case "blob": return SendAttachmentBlob.from_dict(obj)
+        case _: raise ValueError(f"Unknown PushAttachment type: {kind!r}")
 
 
 CanvasActionInvokeResult = Any
@@ -18415,6 +18599,12 @@ class ExtensionsApi:
     async def reload(self, *, timeout: float | None = None) -> None:
         "Reloads extension definitions and processes for the session."
         await self._client.request("session.extensions.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
+
+    async def send_attachments_to_message(self, params: SessionExtensionsSendAttachmentsToMessageRequest, *, timeout: float | None = None) -> None:
+        "Push attachments into the next user-message turn from an extension. The host should surface them as composer pills and forward them via the next session.send call. Callable only by extension-owned connections.\n\nArgs:\n    params: Parameters for session.extensions.sendAttachmentsToMessage."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        await self._client.request("session.extensions.sendAttachmentsToMessage", params_dict, **_timeout_kwargs(timeout))
 
 
 # Experimental: this API group is experimental and may change or be removed.

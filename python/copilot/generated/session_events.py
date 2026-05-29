@@ -208,6 +208,7 @@ class SessionEventType(Enum):
     SESSION_CANVAS_OPENED = "session.canvas.opened"
     SESSION_CANVAS_REGISTRY_CHANGED = "session.canvas.registry_changed"
     MCP_APP_TOOL_CALL_COMPLETE = "mcp_app.tool_call_complete"
+    SESSION_EXTENSIONS_ATTACHMENTS_PUSHED = "session.extensions.attachments_pushed"
     UNKNOWN = "unknown"
 
     @classmethod
@@ -3668,6 +3669,25 @@ class SessionErrorData:
 
 
 @dataclass
+class SessionExtensionsAttachmentsPushedData:
+    "Schema for the `ExtensionsAttachmentsPushedData` type."
+    attachments: list[UserMessageAttachment]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionExtensionsAttachmentsPushedData":
+        assert isinstance(obj, dict)
+        attachments = from_list(_load_UserMessageAttachment, obj.get("attachments"))
+        return SessionExtensionsAttachmentsPushedData(
+            attachments=attachments,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attachments"] = from_list(lambda x: x.to_dict(), self.attachments)
+        return result
+
+
+@dataclass
 class SessionExtensionsLoadedData:
     "Schema for the `ExtensionsLoadedData` type."
     extensions: list[ExtensionsLoadedExtension]
@@ -6084,6 +6104,50 @@ class UserMessageAttachmentDirectory:
 
 
 @dataclass
+class UserMessageAttachmentExtensionContext:
+    "Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an <extension_context> XML block."
+    captured_at: str
+    extension_id: str
+    title: str
+    type: ClassVar[str] = "extension_context"
+    canvas_id: str | None = None
+    instance_id: str | None = None
+    payload: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UserMessageAttachmentExtensionContext":
+        assert isinstance(obj, dict)
+        captured_at = from_str(obj.get("capturedAt"))
+        extension_id = from_str(obj.get("extensionId"))
+        title = from_str(obj.get("title"))
+        canvas_id = from_union([from_none, from_str], obj.get("canvasId"))
+        instance_id = from_union([from_none, from_str], obj.get("instanceId"))
+        payload = obj.get("payload")
+        return UserMessageAttachmentExtensionContext(
+            captured_at=captured_at,
+            extension_id=extension_id,
+            title=title,
+            canvas_id=canvas_id,
+            instance_id=instance_id,
+            payload=payload,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["capturedAt"] = from_str(self.captured_at)
+        result["extensionId"] = from_str(self.extension_id)
+        result["title"] = from_str(self.title)
+        result["type"] = self.type
+        if self.canvas_id is not None:
+            result["canvasId"] = from_union([from_none, from_str], self.canvas_id)
+        if self.instance_id is not None:
+            result["instanceId"] = from_union([from_none, from_str], self.instance_id)
+        if self.payload is not None:
+            result["payload"] = self.payload
+        return result
+
+
+@dataclass
 class UserMessageAttachmentFile:
     "File attachment"
     display_name: str
@@ -6640,6 +6704,7 @@ def _load_UserMessageAttachment(obj: Any) -> "UserMessageAttachment":
         case "selection": return UserMessageAttachmentSelection.from_dict(obj)
         case "github_reference": return UserMessageAttachmentGithubReference.from_dict(obj)
         case "blob": return UserMessageAttachmentBlob.from_dict(obj)
+        case "extension_context": return UserMessageAttachmentExtensionContext.from_dict(obj)
         case _: raise ValueError(f"Unknown UserMessageAttachment type: {kind!r}")
 
 
@@ -6663,7 +6728,7 @@ ToolExecutionCompleteContent = ToolExecutionCompleteContentText | ToolExecutionC
 
 
 # A user message attachment — a file, directory, code selection, blob, or GitHub reference
-UserMessageAttachment = UserMessageAttachmentFile | UserMessageAttachmentDirectory | UserMessageAttachmentSelection | UserMessageAttachmentGithubReference | UserMessageAttachmentBlob
+UserMessageAttachment = UserMessageAttachmentFile | UserMessageAttachmentDirectory | UserMessageAttachmentSelection | UserMessageAttachmentGithubReference | UserMessageAttachmentBlob | UserMessageAttachmentExtensionContext
 
 
 # Derived user-facing permission prompt details for UI consumers
@@ -7051,7 +7116,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | McpAppToolCallCompleteData | SessionExtensionsAttachmentsPushedData | RawSessionEventData | Data
 
 
 @dataclass
@@ -7164,6 +7229,7 @@ class SessionEvent:
             case SessionEventType.SESSION_CANVAS_OPENED: data = SessionCanvasOpenedData.from_dict(data_obj)
             case SessionEventType.SESSION_CANVAS_REGISTRY_CHANGED: data = SessionCanvasRegistryChangedData.from_dict(data_obj)
             case SessionEventType.MCP_APP_TOOL_CALL_COMPLETE: data = McpAppToolCallCompleteData.from_dict(data_obj)
+            case SessionEventType.SESSION_EXTENSIONS_ATTACHMENTS_PUSHED: data = SessionExtensionsAttachmentsPushedData.from_dict(data_obj)
             case _: data = RawSessionEventData.from_dict(data_obj)
         return SessionEvent(
             data=data,

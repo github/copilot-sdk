@@ -2409,6 +2409,38 @@ impl<'a> SessionRpcExtensions<'a> {
             .await?;
         Ok(())
     }
+
+    /// Push attachments into the next user-message turn from an extension. The host should surface them as composer pills and forward them via the next session.send call. Callable only by extension-owned connections.
+    ///
+    /// Wire method: `session.extensions.sendAttachmentsToMessage`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for session.extensions.sendAttachmentsToMessage.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn send_attachments_to_message(
+        &self,
+        params: SendAttachmentsToMessageParams,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_EXTENSIONS_SENDATTACHMENTSTOMESSAGE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 /// `session.fleet.*` RPCs.

@@ -183,6 +183,8 @@ pub enum SessionEventType {
     SessionCanvasRegistryChanged,
     #[serde(rename = "mcp_app.tool_call_complete")]
     McpAppToolCallComplete,
+    #[serde(rename = "session.extensions.attachments_pushed")]
+    SessionExtensionsAttachmentsPushed,
     /// Unknown event type for forward compatibility.
     #[default]
     #[serde(other)]
@@ -369,6 +371,8 @@ pub enum SessionEventData {
     SessionCanvasRegistryChanged(SessionCanvasRegistryChangedData),
     #[serde(rename = "mcp_app.tool_call_complete")]
     McpAppToolCallComplete(McpAppToolCallCompleteData),
+    #[serde(rename = "session.extensions.attachments_pushed")]
+    SessionExtensionsAttachmentsPushed(SessionExtensionsAttachmentsPushedData),
 }
 
 /// A session event with typed data payload.
@@ -3317,6 +3321,14 @@ pub struct McpAppToolCallCompleteData {
     pub tool_meta: Option<McpAppToolCallCompleteToolMeta>,
     /// MCP tool name that was invoked
     pub tool_name: String,
+}
+
+/// Session event "session.extensions.attachments_pushed".
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExtensionsAttachmentsPushedData {
+    /// Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.
+    pub attachments: Vec<serde_json::Value>,
 }
 
 /// Hosting platform type of the repository (github or ado)

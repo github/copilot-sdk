@@ -1001,7 +1001,8 @@ export type SendAttachment =
   | SendAttachmentDirectory
   | SendAttachmentSelection
   | SendAttachmentGithubReference
-  | SendAttachmentBlob;
+  | SendAttachmentBlob
+  | SendAttachmentExtensionContext;
 /**
  * Type of GitHub reference
  *
@@ -1377,6 +1378,20 @@ export type WorkspacesWorkspaceDetailsHostType =
   | "github"
   /** Workspace repository is hosted on Azure DevOps. */
   | "ado";
+/**
+ * Schema for the `PushAttachment` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachment".
+ */
+/** @experimental */
+export type PushAttachment =
+  | ExtensionContextPushInput
+  | SendAttachmentFile
+  | SendAttachmentDirectory
+  | SendAttachmentSelection
+  | SendAttachmentGithubReference
+  | SendAttachmentBlob;
 
 /**
  * Parameters for aborting the current turn
@@ -6862,6 +6877,45 @@ export interface SendAttachmentBlob {
   displayName?: string;
 }
 /**
+ * Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an <extension_context> XML block.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SendAttachmentExtensionContext".
+ */
+/** @experimental */
+export interface SendAttachmentExtensionContext {
+  /**
+   * Attachment type discriminator
+   */
+  type: "extension_context";
+  /**
+   * Owning extension identifier. Runtime-derived from the caller's connection when produced via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent transports.
+   */
+  extensionId: string;
+  /**
+   * Provider-local canvas identifier when the push was bound to a canvas instance
+   */
+  canvasId?: string;
+  /**
+   * Open canvas instance identifier when the push was bound to a canvas instance
+   */
+  instanceId?: string;
+  /**
+   * Human-readable composer pill label
+   */
+  title: string;
+  /**
+   * Caller-supplied JSON payload
+   */
+  payload?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * ISO timestamp captured by the runtime when the push was accepted
+   */
+  capturedAt: string;
+}
+/**
  * Parameters for sending a user message to the session
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -10211,6 +10265,50 @@ export interface WorkspacesSaveLargePasteResult {
   } | null;
 }
 /**
+ * Slim input shape for extension_context attachments; identity fields are runtime-derived.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionContextPushInput".
+ */
+/** @experimental */
+export interface ExtensionContextPushInput {
+  /**
+   * Attachment type discriminator
+   */
+  type: "extension_context";
+  /**
+   * Human-readable composer pill label
+   */
+  title: string;
+  /**
+   * Caller-supplied JSON payload
+   */
+  payload?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for session.extensions.sendAttachmentsToMessage.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SendAttachmentsToMessageParams".
+ */
+/** @experimental */
+export interface SendAttachmentsToMessageParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Optional canvas instance binding the push for provenance. When supplied, the runtime resolves the canvas, verifies it is owned by the calling extension, and stamps canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs and those fields stay unset on the attachment.
+   */
+  instanceId?: string;
+  /**
+   * Attachments to push into the next user-message turn. extension_context entries take the slim shape; standard variants take their full SendAttachment shape.
+   */
+  attachments: PushAttachment[];
+}
+/**
  * Standard MCP CallToolResult
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -10219,6 +10317,23 @@ export interface WorkspacesSaveLargePasteResult {
 /** @experimental */
 export interface SessionMcpAppsCallToolResult {
   [k: string]: unknown | undefined;
+}
+/**
+ * Parameters for session.extensions.sendAttachmentsToMessage.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionExtensionsSendAttachmentsToMessageRequest".
+ */
+/** @experimental */
+export interface SessionExtensionsSendAttachmentsToMessageRequest {
+  /**
+   * Optional canvas instance binding the push for provenance. When supplied, the runtime resolves the canvas, verifies it is owned by the calling extension, and stamps canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs and those fields stay unset on the attachment.
+   */
+  instanceId?: string;
+  /**
+   * Attachments to push into the next user-message turn. extension_context entries take the slim shape; standard variants take their full SendAttachment shape.
+   */
+  attachments: PushAttachment[];
 }
 /**
  * Identifies the target session.
@@ -11253,6 +11368,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.extensions.reload", { sessionId }),
+            /**
+             * Push attachments into the next user-message turn from an extension. The host should surface them as composer pills and forward them via the next session.send call. Callable only by extension-owned connections.
+             *
+             * @param params Parameters for session.extensions.sendAttachmentsToMessage.
+             */
+            sendAttachmentsToMessage: async (params: SessionExtensionsSendAttachmentsToMessageRequest): Promise<void> =>
+                connection.sendRequest("session.extensions.sendAttachmentsToMessage", { sessionId, ...params }),
         },
         /** @experimental */
         tools: {

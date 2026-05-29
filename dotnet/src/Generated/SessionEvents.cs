@@ -71,6 +71,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionCustomNotificationEvent), "session.custom_notification")]
 [JsonDerivedType(typeof(SessionErrorEvent), "session.error")]
 [JsonDerivedType(typeof(SessionExtensionsLoadedEvent), "session.extensions_loaded")]
+[JsonDerivedType(typeof(SessionExtensionsAttachmentsPushedEvent), "session.extensions.attachments_pushed")]
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
 [JsonDerivedType(typeof(SessionIdleEvent), "session.idle")]
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
@@ -1282,6 +1283,19 @@ public sealed partial class McpAppToolCallCompleteEvent : SessionEvent
     /// <summary>The <c>mcp_app.tool_call_complete</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required McpAppToolCallCompleteData Data { get; set; }
+}
+
+/// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
+/// <remarks>Represents the <c>session.extensions.attachments_pushed</c> event.</remarks>
+public sealed partial class SessionExtensionsAttachmentsPushedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.extensions.attachments_pushed";
+
+    /// <summary>The <c>session.extensions.attachments_pushed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionExtensionsAttachmentsPushedData Data { get; set; }
 }
 
 /// <summary>Session initialization metadata including context and configuration.</summary>
@@ -3393,6 +3407,14 @@ public sealed partial class McpAppToolCallCompleteData
     public required string ToolName { get; set; }
 }
 
+/// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
+public sealed partial class SessionExtensionsAttachmentsPushedData
+{
+    /// <summary>Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.</summary>
+    [JsonPropertyName("attachments")]
+    public required UserMessageAttachment[] Attachments { get; set; }
+}
+
 /// <summary>Working directory and git context at session start.</summary>
 /// <remarks>Nested data type for <c>WorkingDirectoryContext</c>.</remarks>
 public sealed partial class WorkingDirectoryContext
@@ -3801,6 +3823,42 @@ public sealed partial class UserMessageAttachmentBlob : UserMessageAttachment
     public required string MimeType { get; set; }
 }
 
+/// <summary>Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an &lt;extension_context&gt; XML block.</summary>
+/// <remarks>The <c>extension_context</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
+public sealed partial class UserMessageAttachmentExtensionContext : UserMessageAttachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "extension_context";
+
+    /// <summary>Provider-local canvas identifier when the push was bound to a canvas instance.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("canvasId")]
+    public string? CanvasId { get; set; }
+
+    /// <summary>ISO timestamp captured by the runtime when the push was accepted.</summary>
+    [JsonPropertyName("capturedAt")]
+    public required string CapturedAt { get; set; }
+
+    /// <summary>Owning extension identifier. Runtime-derived from the caller's connection when produced via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent transports.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Open canvas instance identifier when the push was bound to a canvas instance.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("instanceId")]
+    public string? InstanceId { get; set; }
+
+    /// <summary>Caller-supplied JSON payload.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("payload")]
+    public JsonElement? Payload { get; set; }
+
+    /// <summary>Human-readable composer pill label.</summary>
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
+}
+
 /// <summary>A user message attachment — a file, directory, code selection, blob, or GitHub reference.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
@@ -3811,6 +3869,7 @@ public sealed partial class UserMessageAttachmentBlob : UserMessageAttachment
 [JsonDerivedType(typeof(UserMessageAttachmentSelection), "selection")]
 [JsonDerivedType(typeof(UserMessageAttachmentGithubReference), "github_reference")]
 [JsonDerivedType(typeof(UserMessageAttachmentBlob), "blob")]
+[JsonDerivedType(typeof(UserMessageAttachmentExtensionContext), "extension_context")]
 public partial class UserMessageAttachment
 {
     /// <summary>The type discriminator.</summary>
@@ -8410,6 +8469,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(SessionErrorData))]
 [JsonSerializable(typeof(SessionErrorEvent))]
 [JsonSerializable(typeof(SessionEvent))]
+[JsonSerializable(typeof(SessionExtensionsAttachmentsPushedData))]
+[JsonSerializable(typeof(SessionExtensionsAttachmentsPushedEvent))]
 [JsonSerializable(typeof(SessionExtensionsLoadedData))]
 [JsonSerializable(typeof(SessionExtensionsLoadedEvent))]
 [JsonSerializable(typeof(SessionHandoffData))]
@@ -8531,6 +8592,7 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(UserMessageAttachment))]
 [JsonSerializable(typeof(UserMessageAttachmentBlob))]
 [JsonSerializable(typeof(UserMessageAttachmentDirectory))]
+[JsonSerializable(typeof(UserMessageAttachmentExtensionContext))]
 [JsonSerializable(typeof(UserMessageAttachmentFile))]
 [JsonSerializable(typeof(UserMessageAttachmentFileLineRange))]
 [JsonSerializable(typeof(UserMessageAttachmentGithubReference))]
