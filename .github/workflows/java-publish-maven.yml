@@ -232,4 +232,4 @@ jobs:
       - name: Trigger changelog generation
         run: gh workflow run release-changelog.lock.yml -f tag="java/v${{ needs.publish-maven.outputs.version }}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
