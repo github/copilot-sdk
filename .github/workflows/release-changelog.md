@@ -117,6 +117,11 @@ Use the `create-pull-request` output to submit your changes. The PR should:
 
 Use the `update-release` output to replace the auto-generated release notes with your nicely formatted changelog. **Do not include the version heading** (`## [vX.Y.Z](...) (date)`) in the release notes — the release already has a title showing the version. Start directly with the feature sections or other changes list.
 
+**IMPORTANT — Preserving the Installation section:**
+The release body may contain an Installation section delimited by `<!-- INSTALLATION_SECTION -->` and `<!-- END_INSTALLATION_SECTION -->` HTML comments. In the case of Java, this section includes Maven/Gradle dependency snippets and a "View on Maven Central" link. You **MUST** preserve this entire section (from the opening comment through the closing comment, inclusive) exactly as it appears in the existing release body. Place your generated changelog content **after** the Installation section.
+
+**URL reconstruction:** If the Maven Central URL in the Installation section appears corrupted or contains the word "redacted", reconstruct it. Extract the version from the release tag (e.g., `java/v1.0.0` → `1.0.0`), and rebuild the URL as: `https://central.sonatype.com/artifact/com.github/copilot-sdk-java/{VERSION}`. The `<!-- maven_central_url -->` HTML comment in the section contains the intended URL pattern.
+
 ## Example Output
 
 Here is an example of what a changelog entry should look like, based on real commits from this repo. **Follow this style exactly.**
