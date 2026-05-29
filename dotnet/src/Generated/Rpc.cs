@@ -73,7 +73,7 @@ public sealed class ModelBillingTokenPricesLongContext
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
-    /// <summary>Maximum context window tokens for the long context tier.</summary>
+    /// <summary>Prompt token budget (max_prompt_tokens) for the long context tier. The total context window is this value plus the model's max_output_tokens.</summary>
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
@@ -97,7 +97,7 @@ public sealed class ModelBillingTokenPrices
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
-    /// <summary>Maximum context window tokens for the default tier.</summary>
+    /// <summary>Prompt token budget (max_prompt_tokens) for the default tier. The total context window is this value plus the model's max_output_tokens.</summary>
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
@@ -7040,7 +7040,7 @@ public sealed class MetadataContextInfoResultContextInfo
     [JsonPropertyName("conversationTokens")]
     public long ConversationTokens { get; set; }
 
-    /// <summary>Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.</summary>
+    /// <summary>Total context limit for /context display: promptTokenLimit + outputTokenLimit (the model's full max_output_tokens reserved on top of the prompt budget).</summary>
     [JsonPropertyName("limit")]
     public long Limit { get; set; }
 

@@ -2306,7 +2306,8 @@ type ModelBillingTokenPrices struct {
 	BatchSize *int64 `json:"batchSize,omitempty"`
 	// AI Credits cost per billing batch of cached tokens
 	CachePrice *float64 `json:"cachePrice,omitempty"`
-	// Maximum context window tokens for the default tier
+	// Prompt token budget (max_prompt_tokens) for the default tier. The total context window is
+	// this value plus the model's max_output_tokens.
 	ContextMax *int64 `json:"contextMax,omitempty"`
 	// AI Credits cost per billing batch of input tokens
 	InputPrice *float64 `json:"inputPrice,omitempty"`
@@ -2320,7 +2321,8 @@ type ModelBillingTokenPrices struct {
 type ModelBillingTokenPricesLongContext struct {
 	// AI Credits cost per billing batch of cached tokens
 	CachePrice *float64 `json:"cachePrice,omitempty"`
-	// Maximum context window tokens for the long context tier
+	// Prompt token budget (max_prompt_tokens) for the long context tier. The total context
+	// window is this value plus the model's max_output_tokens.
 	ContextMax *int64 `json:"contextMax,omitempty"`
 	// AI Credits cost per billing batch of input tokens
 	InputPrice *float64 `json:"inputPrice,omitempty"`
@@ -4187,8 +4189,8 @@ type SessionContextInfo struct {
 	CompactionThreshold int64 `json:"compactionThreshold"`
 	// Tokens consumed by user/assistant/tool messages
 	ConversationTokens int64 `json:"conversationTokens"`
-	// Total context limit for /context display. promptTokenLimit + min(32k or 64k,
-	// outputTokenLimit) depending on model.
+	// Total context limit for /context display: promptTokenLimit + outputTokenLimit (the
+	// model's full max_output_tokens reserved on top of the prompt budget).
 	Limit int64 `json:"limit"`
 	// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes
 	// deferred tools)

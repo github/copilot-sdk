@@ -2287,8 +2287,8 @@ class SessionContextInfo:
     """Tokens consumed by user/assistant/tool messages"""
 
     limit: int
-    """Total context limit for /context display. promptTokenLimit + min(32k or 64k,
-    outputTokenLimit) depending on model.
+    """Total context limit for /context display: promptTokenLimit + outputTokenLimit (the
+    model's full max_output_tokens reserved on top of the prompt budget).
     """
     mcp_tools_tokens: int
     """Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes
@@ -2541,8 +2541,9 @@ class ModelBillingTokenPricesLongContext:
     """AI Credits cost per billing batch of cached tokens"""
 
     context_max: int | None = None
-    """Maximum context window tokens for the long context tier"""
-
+    """Prompt token budget (max_prompt_tokens) for the long context tier. The total context
+    window is this value plus the model's max_output_tokens.
+    """
     input_price: float | None = None
     """AI Credits cost per billing batch of input tokens"""
 
@@ -9048,8 +9049,9 @@ class ModelBillingTokenPrices:
     """AI Credits cost per billing batch of cached tokens"""
 
     context_max: int | None = None
-    """Maximum context window tokens for the default tier"""
-
+    """Prompt token budget (max_prompt_tokens) for the default tier. The total context window is
+    this value plus the model's max_output_tokens.
+    """
     input_price: float | None = None
     """AI Credits cost per billing batch of input tokens"""
 

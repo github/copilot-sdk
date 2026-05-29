@@ -694,7 +694,7 @@ export type SessionContextInfo = {
    */
   compactionThreshold: number;
   /**
-   * Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.
+   * Total context limit for /context display: promptTokenLimit + outputTokenLimit (the model's full max_output_tokens reserved on top of the prompt budget).
    */
   limit: number;
   /**
@@ -4773,7 +4773,7 @@ export interface ModelBillingTokenPrices {
    */
   batchSize?: number;
   /**
-   * Maximum context window tokens for the default tier
+   * Prompt token budget (max_prompt_tokens) for the default tier. The total context window is this value plus the model's max_output_tokens.
    */
   contextMax?: number;
   longContext?: ModelBillingTokenPricesLongContext;
@@ -4798,7 +4798,7 @@ export interface ModelBillingTokenPricesLongContext {
    */
   cachePrice?: number;
   /**
-   * Maximum context window tokens for the long context tier
+   * Prompt token budget (max_prompt_tokens) for the long context tier. The total context window is this value plus the model's max_output_tokens.
    */
   contextMax?: number;
 }
