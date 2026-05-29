@@ -286,7 +286,7 @@ Do not pass `cloud` again on resume. The saved session metadata determines that 
 
 ## Org policies and entitlements
 
-Cloud session creation can fail when the user or organization is not entitled to cloud-agent execution or when organization-level policies block the flow. In particular, policies for remote control or viewing sessions from cloud surfaces can prevent Mission Control from creating the cloud task.
+Cloud session creation can fail when the user or organization is not entitled to cloud-agent execution or when organization-level policies block the flow. In particular, policies for cloud sandbox can prevent clients from creating the cloud task.
 
 When this happens, the runtime reports a `"policy_blocked"` failure reason for cloud task creation. Treat this as an authorization or policy outcome, not as a transient infrastructure failure.
 
