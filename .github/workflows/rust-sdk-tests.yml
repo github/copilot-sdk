@@ -159,6 +159,9 @@ jobs:
           toolchain: "1.94.0"
 
       - uses: Swatinem/rust-cache@v2
+        # Cache is only an optimization; the Windows bundled smoke test should
+        # not fail when rust-cache's post-job save flakes after a successful build.
+        continue-on-error: ${{ runner.os == 'Windows' }}
         with:
           workspaces: "rust"
           key: bundled-cli
