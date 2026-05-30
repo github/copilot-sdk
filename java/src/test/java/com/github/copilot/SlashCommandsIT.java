@@ -33,12 +33,11 @@ class SlashCommandsIT {
 
     @BeforeAll
     static void setup() throws Exception {
-        CopilotClientOptions options = new CopilotClientOptions()
-                .setUseLoggedInUser(true);
+        CopilotClientOptions options = new CopilotClientOptions().setUseLoggedInUser(true);
         client = new CopilotClient(options);
         client.start().get(30, TimeUnit.SECONDS);
-        session = client.createSession(new SessionConfig()
-                .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
+        session = client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                .get(30, TimeUnit.SECONDS);
     }
 
     @AfterAll
@@ -53,21 +52,19 @@ class SlashCommandsIT {
 
     @Test
     void listCommandsReturnsAtLeast20() throws Exception {
-        SessionCommandsListResult result =
-                session.getRpc().commands.list().get(15, TimeUnit.SECONDS);
+        SessionCommandsListResult result = session.getRpc().commands.list().get(15, TimeUnit.SECONDS);
 
         assertNotNull(result, "commands.list result must not be null");
         assertNotNull(result.commands(), "commands list must not be null");
-        assertTrue(result.commands().size() >= 20,
-                "Expected at least 20 commands but got " + result.commands().size());
+        assertTrue(result.commands().size() >= 20, "Expected at least 20 commands but got " + result.commands().size());
 
         Pattern namePattern = Pattern.compile("^[a-z].*$");
 
         // Print every command so we can pick one for the next iteration
         System.out.println("=== Available slash commands ===");
         for (SlashCommandInfo cmd : result.commands()) {
-            System.out.printf("  /%s  kind=%s  desc=%s  aliases=%s%n",
-                    cmd.name(), cmd.kind(), cmd.description(), cmd.aliases());
+            System.out.printf("  /%s  kind=%s  desc=%s  aliases=%s%n", cmd.name(), cmd.kind(), cmd.description(),
+                    cmd.aliases());
             assertTrue(namePattern.matcher(cmd.name()).matches(),
                     "Command name should match /^[a-z].*$/ but was: " + cmd.name());
         }
