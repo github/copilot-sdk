@@ -36,26 +36,32 @@ jobs:
     name: Preflight checks
     runs-on: ubuntu-latest
     steps:
-      - name: Verify GITHUB_TOKEN can create releases
+      - name: Verify JAVA_RELEASE_TOKEN can push to repository
         run: |
-          # Test that the token has contents:write by checking repo permissions
-          PERMS=$(gh api repos/${{ github.repository }} --jq '.permissions.push // false')
-          if [ "$PERMS" != "true" ]; then
-            echo "::error::GITHUB_TOKEN lacks push/write permission on this repository. GitHub Release creation will fail."
+          # JAVA_RELEASE_TOKEN is used by actions/checkout and for:
+          #   - git push origin main (doc updates)
+          #   - mvn release:prepare -DpushChanges=true (release commits + tags)
+          #   - git revert + push (rollback on failure)
+          # It must have push (contents:write) permission on this repo.
+          PUSH=$(gh api repos/${{ github.repository }} --jq '.permissions.push // false')
+          if [ "$PUSH" != "true" ]; then
+            echo "::error::JAVA_RELEASE_TOKEN lacks push permission on ${{ github.repository }}. It is required for pushing release commits and tags to main."
             exit 1
           fi
-          echo "GITHUB_TOKEN permissions OK"
+          echo "JAVA_RELEASE_TOKEN push access OK"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_TOKEN }}
 
-      - name: Verify JAVA_RELEASE_GITHUB_TOKEN is valid
+      - name: Verify JAVA_RELEASE_GITHUB_TOKEN can trigger workflows
         run: |
-          # Test that the token can authenticate and trigger workflows
-          USER=$(gh api user --jq '.login' 2>&1) || {
-            echo "::error::JAVA_RELEASE_GITHUB_TOKEN is invalid or expired. Changelog trigger will fail."
+          # JAVA_RELEASE_GITHUB_TOKEN is used for:
+          #   - gh workflow run release-changelog.lock.yml (requires actions:write)
+          # Verify it can access the actions API on this repo.
+          gh api repos/${{ github.repository }}/actions/workflows --jq '.total_count' > /dev/null 2>&1 || {
+            echo "::error::JAVA_RELEASE_GITHUB_TOKEN cannot access workflows API on ${{ github.repository }}. It needs actions:write to trigger changelog generation."
             exit 1
           }
-          echo "JAVA_RELEASE_GITHUB_TOKEN is valid (authenticated as: ${USER})"
+          echo "JAVA_RELEASE_GITHUB_TOKEN workflow access OK"
         env:
           GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
 
