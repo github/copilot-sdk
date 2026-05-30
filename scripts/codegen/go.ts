@@ -47,6 +47,7 @@ import {
     resolveObjectSchema,
     resolveRef,
     resolveSchema,
+    REPO_ROOT,
     rewriteSharedDefinitionReferences,
     writeGeneratedFile,
     type ApiSchema,
@@ -3437,12 +3438,127 @@ function collectGoSharedSessionEventAliasNames(
         for (const value of values ?? []) {
             constNames.add(`${typeName}${goEnumConstSuffix(value)}`);
         }
+
+        // Detect anyOf unions with a string-const discriminator property. The
+        // api/rpc generator synthesizes an enum (named `<TypeName><DiscProp>`)
+        // and per-variant consts for these (e.g. `Attachment` → `AttachmentType`
+        // + `AttachmentTypeFile`, ...). They aren't top-level $defs, so we have
+        // to surface them explicitly here so the public `copilot` alias file
+        // re-exports them alongside the union and its variant structs.
+        const synthesized = collectGoSharedAnyOfDiscriminatorAliasNames(typeName, schema, definitions);
+        if (synthesized) {
+            typeNames.add(synthesized.enumName);
+            for (const constName of synthesized.constNames) {
+                constNames.add(constName);
+            }
+        }
     }
 
     return {
         typeNames: [...typeNames].sort(compareGoTypeNames),
         constNames: [...constNames].sort(compareGoTypeNames),
     };
+}
+
+/**
+ * For a shared definition that is an `anyOf` discriminated union with a
+ * string-const discriminator property (e.g. `Attachment` with `type: "file" |
+ * "directory" | ...`), return the synthesized Go discriminator enum name and
+ * per-variant const names that the api/rpc generator emits via
+ * `emitGoFlatDiscriminatedUnion`. Returns `undefined` when the definition does
+ * not match the const-discriminator pattern.
+ */
+function collectGoSharedAnyOfDiscriminatorAliasNames(
+    unionTypeName: string,
+    schema: JSONSchema7,
+    definitions: Record<string, unknown>
+): { enumName: string; constNames: string[] } | undefined {
+    const variants = Array.isArray(schema.anyOf) ? schema.anyOf : undefined;
+    if (!variants || variants.length === 0) return undefined;
+
+    const resolvedVariants: JSONSchema7[] = [];
+    for (const variant of variants) {
+        const resolved = resolveSharedAnyOfVariant(variant, definitions);
+        if (!resolved || !resolved.properties) return undefined;
+        resolvedVariants.push(resolved);
+    }
+
+    const firstVariant = resolvedVariants[0];
+    for (const [propName, propSchemaRaw] of Object.entries(firstVariant.properties!)) {
+        if (typeof propSchemaRaw !== "object" || propSchemaRaw === null) continue;
+        const firstPropSchema = propSchemaRaw as JSONSchema7;
+        if (typeof firstPropSchema.const !== "string") continue;
+
+        const collectedValues: string[] = [];
+        let valid = true;
+        for (const variant of resolvedVariants) {
+            if (!(variant.required || []).includes(propName)) { valid = false; break; }
+            const variantProp = variant.properties?.[propName];
+            if (typeof variantProp !== "object" || variantProp === null) { valid = false; break; }
+            const variantConst = (variantProp as JSONSchema7).const;
+            if (typeof variantConst !== "string") { valid = false; break; }
+            collectedValues.push(variantConst);
+        }
+        if (!valid || collectedValues.length === 0) continue;
+
+        const enumName = `${unionTypeName}${toGoFieldName(propName)}`;
+        const constNames = [...new Set(collectedValues)].map(
+            (value) => `${enumName}${goEnumConstSuffix(value)}`
+        );
+        return { enumName, constNames };
+    }
+    return undefined;
+}
+
+function resolveSharedAnyOfVariant(
+    variant: JSONSchema7 | boolean,
+    definitions: Record<string, unknown>
+): JSONSchema7 | undefined {
+    if (typeof variant !== "object" || variant === null) return undefined;
+    if (typeof variant.$ref === "string") {
+        // Local $ref like "#/$defs/AttachmentFile" or "#/definitions/AttachmentFile".
+        const localMatch = /^#\/(?:\$defs|definitions)\/(.+)$/.exec(variant.$ref);
+        if (!localMatch) return undefined;
+        const target = definitions[decodeURIComponent(localMatch[1])];
+        if (!target || typeof target !== "object" || Array.isArray(target)) return undefined;
+        return target as JSONSchema7;
+    }
+    return variant;
+}
+
+/**
+ * Scan hand-written `.go` files under `go/` and return every top-level exported
+ * type or const name they declare. We use this to exclude those names from the
+ * session-events alias file: when a schema-shared definition (e.g. `ContextTier`)
+ * collides with a hand-written declaration of the same name in the public
+ * `copilot` package, the hand-written declaration must win — emitting an alias
+ * would produce a duplicate package-scope identifier and fail `go build`.
+ *
+ * Generated files use the `z*.go` naming convention; we skip them so that this
+ * scanner never reads (or depends on the output of) its own emit. Test files
+ * are scanned too because they share the package namespace, so a hand-written
+ * test-only declaration would also collide with an alias of the same name.
+ */
+async function collectHandWrittenGoPublicNames(): Promise<Set<string>> {
+    const goDir = path.join(REPO_ROOT, "go");
+    const names = new Set<string>();
+    let entries: string[];
+    try {
+        entries = await fs.readdir(goDir);
+    } catch {
+        return names;
+    }
+    for (const entry of entries) {
+        if (!entry.endsWith(".go")) continue;
+        if (entry.startsWith("z")) continue;
+        const filePath = path.join(goDir, entry);
+        const stat = await fs.stat(filePath);
+        if (!stat.isFile()) continue;
+        const content = await fs.readFile(filePath, "utf-8");
+        for (const name of collectGoTopLevelNames(content, "type")) names.add(name);
+        for (const name of collectGoTopLevelNames(content, "const")) names.add(name);
+    }
+    return names;
 }
 
 function assertNoGoRpcSessionEventConflicts(rpcGeneratedTypeCode: string): void {
@@ -3531,9 +3647,19 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
             }
         }
     }
+    // Names of public type/const declarations that already exist in hand-written
+    // Go files under `go/`. We must not re-export schema-generated names that
+    // collide with these, because Go disallows two top-level identifiers with
+    // the same name in a single package (`copilot`). The hand-written
+    // declaration always wins. Without this filter, schema-shared definitions
+    // like `ContextTier` (defined as a shared schema definition and emitted in
+    // the rpc package) would generate `copilot.ContextTier = rpc.ContextTier`
+    // aliases that clash with the existing hand-written `copilot.ContextTier`.
+    const handWrittenPublicNames = await collectHandWrittenGoPublicNames();
+    const aliasExcludes = new Set<string>([...internalTypesInSession, ...handWrittenPublicNames]);
     const aliasOutPath = await writeGeneratedFile(
         "go/zsession_events.go",
-        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames, internalTypesInSession)
+        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames, aliasExcludes)
     );
     console.log(`  ✓ ${aliasOutPath}`);
 
