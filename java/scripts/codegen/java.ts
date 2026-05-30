@@ -141,6 +141,273 @@ function resolveRef(schema: JSONSchema7 | undefined): JSONSchema7 | undefined {
     return schema;
 }
 
+/** Extract the definition name from a $ref string (e.g., "#/definitions/Foo" → "Foo") */
+function extractRefName(schema: JSONSchema7 | null | undefined): string | null {
+    if (!schema?.$ref) return null;
+    // Handle cross-schema refs
+    const crossMatch = schema.$ref.match(/^[^#]+#\/definitions\/(.+)$/);
+    if (crossMatch) return crossMatch[1];
+    return schema.$ref.replace(/^#\/definitions\//, "");
+}
+
+// ── Discriminated union support ─────────────────────────────────────────────
+
+interface DiscriminatorInfo {
+    property: string;
+    mapping: Map<string, { value: unknown; schema: JSONSchema7 }>;
+}
+
+/**
+ * Find a discriminator property shared by all variants in an anyOf.
+ * A discriminator is a property with a `const` value that uniquely identifies each variant.
+ */
+function findDiscriminator(variants: JSONSchema7[]): DiscriminatorInfo | null {
+    if (variants.length === 0) return null;
+    const firstVariant = variants[0];
+    if (!firstVariant.properties) return null;
+
+    for (const [propName, propSchema] of Object.entries(firstVariant.properties).sort(([a], [b]) => a.localeCompare(b))) {
+        if (typeof propSchema !== "object") continue;
+        const schema = propSchema as JSONSchema7;
+        if (schema.const === undefined) continue;
+
+        const mapping = new Map<string, { value: unknown; schema: JSONSchema7 }>();
+        let isValidDiscriminator = true;
+
+        for (const variant of variants) {
+            if (!variant.properties) { isValidDiscriminator = false; break; }
+            const variantProp = variant.properties[propName];
+            if (typeof variantProp !== "object") { isValidDiscriminator = false; break; }
+            const variantSchema = variantProp as JSONSchema7;
+            if (variantSchema.const === undefined) { isValidDiscriminator = false; break; }
+            const key = String(variantSchema.const);
+            if (mapping.has(key)) { isValidDiscriminator = false; break; }
+            mapping.set(key, { value: variantSchema.const, schema: variant });
+        }
+
+        if (isValidDiscriminator && mapping.size === variants.length) {
+            return { property: propName, mapping };
+        }
+    }
+    return null;
+}
+
+/**
+ * Resolve anyOf variants, handling $ref to definitions.
+ */
+function resolveAnyOfVariants(anyOf: JSONSchema7[]): JSONSchema7[] {
+    return anyOf
+        .map((v) => {
+            if (v.$ref) {
+                const name = v.$ref.replace(/^#\/definitions\//, "");
+                return currentDefinitions[name] ?? v;
+            }
+            return v;
+        })
+        .filter((v) => v.type !== "null");
+}
+
+/**
+ * Generate a polymorphic base class and variant subclasses for a discriminated union result type.
+ */
+async function generatePolymorphicResultClass(
+    className: string,
+    schema: JSONSchema7,
+    packageName: string,
+    packageDir: string
+): Promise<void> {
+    const anyOf = schema.anyOf as JSONSchema7[];
+    const variants = resolveAnyOfVariants(anyOf);
+    const discriminator = findDiscriminator(variants);
+
+    if (!discriminator) {
+        console.warn(`[codegen] Cannot find discriminator for ${className} — skipping polymorphic generation`);
+        return;
+    }
+
+    // Collect variant info
+    interface VariantInfo {
+        discriminatorValue: string;
+        variantClassName: string;
+        schema: JSONSchema7;
+    }
+
+    const variantInfos: VariantInfo[] = [];
+    for (const [discValue, { schema: variantSchema }] of discriminator.mapping) {
+        const variantClassName = (variantSchema as JSONSchema7 & { title?: string }).title ?? `${className}${toPascalCase(discValue)}`;
+        variantInfos.push({ discriminatorValue: discValue, variantClassName, schema: variantSchema });
+    }
+
+    // Generate the abstract base class
+    const baseLines: string[] = [];
+    baseLines.push(COPYRIGHT);
+    baseLines.push("");
+    baseLines.push(AUTO_GENERATED_HEADER);
+    baseLines.push(GENERATED_FROM_API);
+    baseLines.push("");
+    baseLines.push(`package ${packageName};`);
+    baseLines.push("");
+    baseLines.push(`import com.fasterxml.jackson.annotation.JsonIgnoreProperties;`);
+    baseLines.push(`import com.fasterxml.jackson.annotation.JsonSubTypes;`);
+    baseLines.push(`import com.fasterxml.jackson.annotation.JsonTypeInfo;`);
+    baseLines.push(`import javax.annotation.processing.Generated;`);
+    baseLines.push("");
+    if (schema.description) {
+        baseLines.push(`/**`);
+        baseLines.push(` * ${schema.description}`);
+        baseLines.push(` *`);
+        baseLines.push(` * @since 1.0.0`);
+        baseLines.push(` */`);
+    }
+    baseLines.push(`@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "${discriminator.property}", visible = true)`);
+    baseLines.push(`@JsonSubTypes({`);
+    for (let i = 0; i < variantInfos.length; i++) {
+        const v = variantInfos[i];
+        const comma = i < variantInfos.length - 1 ? "," : "";
+        baseLines.push(`    @JsonSubTypes.Type(value = ${v.variantClassName}.class, name = "${v.discriminatorValue}")${comma}`);
+    }
+    baseLines.push(`})`);
+    baseLines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
+    baseLines.push(GENERATED_ANNOTATION);
+    baseLines.push(`public abstract class ${className} {`);
+    baseLines.push("");
+    baseLines.push(`    /**`);
+    baseLines.push(`     * Returns the discriminator value for this variant.`);
+    baseLines.push(`     *`);
+    baseLines.push(`     * @return the ${discriminator.property} discriminator`);
+    baseLines.push(`     */`);
+    baseLines.push(`    public abstract String get${toPascalCase(discriminator.property)}();`);
+    baseLines.push(`}`);
+    baseLines.push("");
+
+    await writeGeneratedFile(`${packageDir}/${className}.java`, baseLines.join("\n"));
+
+    // Generate each variant subclass
+    for (const variant of variantInfos) {
+        await generatePolymorphicVariantClass(variant.variantClassName, variant.schema, variant.discriminatorValue, discriminator.property, className, packageName, packageDir);
+    }
+}
+
+/**
+ * Generate a single variant subclass of a polymorphic result type.
+ */
+async function generatePolymorphicVariantClass(
+    className: string,
+    schema: JSONSchema7,
+    discriminatorValue: string,
+    discriminatorProperty: string,
+    baseClassName: string,
+    packageName: string,
+    packageDir: string
+): Promise<void> {
+    const allImports = new Set<string>([
+        "com.fasterxml.jackson.annotation.JsonIgnoreProperties",
+        "com.fasterxml.jackson.annotation.JsonInclude",
+        "com.fasterxml.jackson.annotation.JsonProperty",
+        "javax.annotation.processing.Generated",
+    ]);
+    const nestedTypes = new Map<string, JavaClassDef>();
+
+    // Collect fields (excluding the discriminator property)
+    interface FieldInfo {
+        jsonName: string;
+        javaName: string;
+        javaType: string;
+        description?: string;
+    }
+
+    const fields: FieldInfo[] = [];
+    if (schema.properties) {
+        for (const [propName, propSchema] of Object.entries(schema.properties)) {
+            if (propName === discriminatorProperty) continue;
+            if (typeof propSchema !== "object") continue;
+            const prop = propSchema as JSONSchema7;
+            const result = schemaTypeToJava(prop, false, className, propName, nestedTypes);
+            for (const imp of result.imports) allImports.add(imp);
+            fields.push({
+                jsonName: propName,
+                javaName: toCamelCase(propName),
+                javaType: result.javaType,
+                description: prop.description,
+            });
+        }
+    }
+
+    const lines: string[] = [];
+    lines.push(COPYRIGHT);
+    lines.push("");
+    lines.push(AUTO_GENERATED_HEADER);
+    lines.push(GENERATED_FROM_API);
+    lines.push("");
+    lines.push(`package ${packageName};`);
+    lines.push("");
+
+    // Placeholder for imports
+    const importPlaceholderIdx = lines.length;
+    lines.push("__IMPORTS__");
+    lines.push("");
+
+    if (schema.description) {
+        lines.push(`/**`);
+        lines.push(` * ${schema.description}`);
+        lines.push(` *`);
+        lines.push(` * @since 1.0.0`);
+        lines.push(` */`);
+    } else {
+        lines.push(`/**`);
+        lines.push(` * Variant {@code ${discriminatorValue}} of {@link ${baseClassName}}.`);
+        lines.push(` *`);
+        lines.push(` * @since 1.0.0`);
+        lines.push(` */`);
+    }
+    lines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
+    lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
+    lines.push(GENERATED_ANNOTATION);
+    lines.push(`public final class ${className} extends ${baseClassName} {`);
+    lines.push("");
+
+    // Discriminator field
+    lines.push(`    @JsonProperty("${discriminatorProperty}")`);
+    lines.push(`    private final String ${toCamelCase(discriminatorProperty)} = "${discriminatorValue}";`);
+    lines.push("");
+    lines.push(`    @Override`);
+    lines.push(`    public String get${toPascalCase(discriminatorProperty)}() { return ${toCamelCase(discriminatorProperty)}; }`);
+    lines.push("");
+
+    // Other fields
+    for (const field of fields) {
+        if (field.description) {
+            lines.push(`    /** ${field.description} */`);
+        }
+        lines.push(`    @JsonProperty("${field.jsonName}")`);
+        lines.push(`    private ${field.javaType} ${field.javaName};`);
+        lines.push("");
+    }
+
+    // Getters and setters
+    for (const field of fields) {
+        lines.push(`    public ${field.javaType} get${field.javaName.charAt(0).toUpperCase() + field.javaName.slice(1)}() { return ${field.javaName}; }`);
+        lines.push(`    public void set${field.javaName.charAt(0).toUpperCase() + field.javaName.slice(1)}(${field.javaType} ${field.javaName}) { this.${field.javaName} = ${field.javaName}; }`);
+        lines.push("");
+    }
+
+    // Render nested types
+    for (const [, nested] of nestedTypes) {
+        lines.push(...renderNestedType(nested, 1, new Map(), allImports));
+    }
+
+    if (lines[lines.length - 1] === "") lines.pop();
+    lines.push(`}`);
+    lines.push("");
+
+    // Replace import placeholder
+    const sortedImports = [...allImports].sort();
+    const importLines = sortedImports.map((i) => `import ${i};`).join("\n");
+    lines[importPlaceholderIdx] = importLines;
+
+    await writeGeneratedFile(`${packageDir}/${className}.java`, lines.join("\n"));
+}
+
 function schemaTypeToJava(
     schema: JSONSchema7,
     required: boolean,
@@ -727,6 +994,13 @@ async function generatePendingStandaloneTypes(
                 await generateStandaloneEnum(name, schema, packageName, packageDir, headerComment);
             } else if (schema.type === "object" && schema.properties) {
                 await generateStandaloneRecord(name, schema, packageName, packageDir, headerComment);
+            } else if (schema.anyOf && Array.isArray(schema.anyOf)) {
+                const variants = resolveAnyOfVariants(schema.anyOf as JSONSchema7[]);
+                if (variants.length > 1 && findDiscriminator(variants)) {
+                    await generatePolymorphicResultClass(name, schema, packageName, packageDir);
+                } else {
+                    console.warn(`[codegen] Cannot generate standalone type for ${name}: anyOf without discriminator`);
+                }
             } else {
                 console.warn(`[codegen] Cannot generate standalone type for ${name}: type=${schema.type}`);
             }
@@ -970,12 +1244,34 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
 
             // Generate result class — resolve $ref if result is a reference
             let resultSchema = method.result as JSONSchema7 | null;
+            const resultRefName = extractRefName(resultSchema);
             if (resultSchema?.$ref) resultSchema = resolveRef(resultSchema) as JSONSchema7;
-            if (resultSchema && typeof resultSchema === "object" && resultSchema.properties) {
-                const resultClassName = `${className}Result`;
-                if (!generatedClasses.has(resultClassName)) {
-                    generatedClasses.set(resultClassName, true);
-                    allFiles.push(await generateRpcDataClass(resultClassName, resultSchema, packageName, packageDir, method.rpcMethod, "result"));
+            if (resultSchema && typeof resultSchema === "object") {
+                if (resultSchema.properties && Object.keys(resultSchema.properties).length > 0) {
+                    // Object with properties → generate a record class
+                    const resultClassName = `${className}Result`;
+                    if (!generatedClasses.has(resultClassName)) {
+                        generatedClasses.set(resultClassName, true);
+                        allFiles.push(await generateRpcDataClass(resultClassName, resultSchema, packageName, packageDir, method.rpcMethod, "result"));
+                    }
+                } else if (resultRefName && resultSchema.type === "string" && resultSchema.enum) {
+                    // String enum → register for standalone generation
+                    pendingStandaloneTypes.set(resultRefName, resultSchema);
+                } else if (resultRefName && resultSchema.anyOf && Array.isArray(resultSchema.anyOf)) {
+                    // anyOf discriminated union → generate polymorphic hierarchy
+                    const variants = resolveAnyOfVariants(resultSchema.anyOf as JSONSchema7[]);
+                    if (variants.length > 1 && findDiscriminator(variants)) {
+                        if (!generatedClasses.has(resultRefName)) {
+                            generatedClasses.set(resultRefName, true);
+                            await generatePolymorphicResultClass(resultRefName, resultSchema, packageName, packageDir);
+                        }
+                    }
+                } else if (resultRefName && resultSchema.type === "object" && !resultSchema.properties) {
+                    // Empty named object → generate empty record
+                    if (!generatedClasses.has(resultRefName)) {
+                        generatedClasses.set(resultRefName, true);
+                        allFiles.push(await generateRpcDataClass(resultRefName, resultSchema, packageName, packageDir, method.rpcMethod, "result"));
+                    }
                 }
             }
         }
@@ -1092,11 +1388,43 @@ function apiClassName(prefix: string, path: string[]): string {
 
 /**
  * Derive the result class name for an RPC method.
- * If the result schema has no properties we use Void; if no result schema we also use Void.
+ * Handles $ref to named definitions (enums, anyOf unions, objects with properties).
+ * Falls back to Void for null results or schemas with no meaningful type.
  */
 function wrapperResultClassName(method: RpcMethodNode): string {
-    let result = method.result;
-    if (result?.$ref) result = resolveRef(result) as JSONSchema7;
+    const originalResult = method.result;
+    if (!originalResult) return "Void";
+
+    // If result is a $ref, use the definition name directly
+    const refName = extractRefName(originalResult);
+    if (refName) {
+        const resolved = currentDefinitions[refName];
+        if (resolved) {
+            // String enum → use the definition name
+            if (resolved.type === "string" && resolved.enum) {
+                return refName;
+            }
+            // anyOf discriminated union → use the definition name
+            if (resolved.anyOf && Array.isArray(resolved.anyOf)) {
+                const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[]);
+                if (variants.length > 1 && findDiscriminator(variants)) {
+                    return refName;
+                }
+            }
+            // Object with properties → use MethodNameResult
+            if (resolved.type === "object" && resolved.properties && Object.keys(resolved.properties).length > 0) {
+                return rpcMethodToClassName(method.rpcMethod) + "Result";
+            }
+            // Empty object (no properties) that is a named definition → use definition name
+            if (resolved.type === "object" && !resolved.properties) {
+                return refName;
+            }
+        }
+    }
+
+    // Inline result schema with properties
+    let result = originalResult;
+    if (result.$ref) result = resolveRef(result) as JSONSchema7;
     if (
         result &&
         typeof result === "object" &&
