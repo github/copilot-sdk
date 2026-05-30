@@ -11,7 +11,6 @@ client the original work to satisfy.
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
 import pytest
@@ -25,7 +24,7 @@ from copilot.generated.rpc import (
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext, get_final_assistant_message
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -33,9 +32,6 @@ PENDING_WORK_TIMEOUT = 60.0
 
 
 def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> CopilotClient:
-    github_token = (
-        "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
-    )
     if use_stdio:
         connection = RuntimeConnection.for_stdio(path=ctx.cli_path)
     else:
@@ -46,7 +42,7 @@ def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> C
         connection=connection,
         working_directory=ctx.work_dir,
         env=ctx.get_env(),
-        github_token=github_token,
+        github_token=DEFAULT_GITHUB_TOKEN,
     )
 
 
@@ -439,6 +435,31 @@ class TestPendingWorkResume:
     async def test_should_keep_pending_external_tool_handleable_on_warm_resume_when_continuependingwork_is_false(  # noqa: E501
         self, ctx: E2ETestContext
     ):
+        await self._assert_pending_external_tool_handleable_on_resume(
+            ctx,
+            disconnect_original_client=False,
+            expected_session_was_active=True,
+            expected_handle_result=True,
+        )
+
+    async def test_should_keep_pending_external_tool_handleable_on_cold_resume_when_continuependingwork_is_false(  # noqa: E501
+        self, ctx: E2ETestContext
+    ):
+        await self._assert_pending_external_tool_handleable_on_resume(
+            ctx,
+            disconnect_original_client=True,
+            expected_session_was_active=False,
+            expected_handle_result=False,
+        )
+
+    async def _assert_pending_external_tool_handleable_on_resume(
+        self,
+        ctx: E2ETestContext,
+        *,
+        disconnect_original_client: bool,
+        expected_session_was_active: bool,
+        expected_handle_result: bool,
+    ):
         from copilot.generated.session_events import SessionResumeData
 
         tool_started: asyncio.Future = asyncio.get_event_loop().create_future()
@@ -479,7 +500,8 @@ class TestPendingWorkResume:
                 tool_events = await tool_request_task
                 assert (await asyncio.wait_for(tool_started, PENDING_WORK_TIMEOUT)) == "beta"
 
-                await suspended_client.force_stop()
+                if disconnect_original_client:
+                    await suspended_client.force_stop()
 
                 resumed_client = CopilotClient(
                     connection=RuntimeConnection.for_uri(
@@ -487,33 +509,62 @@ class TestPendingWorkResume:
                     )
                 )
                 try:
+                    # In warm mode the original client still owns the tool registration;
+                    # re-registering it from the resumed client would cause a name-clash.
+                    # In cold mode the original is gone, so we register a fresh throwing
+                    # handler to assert the runtime doesn't re-invoke the tool on resume
+                    # (orphan auto-completion happens internally).
+                    async def resumed_external_tool(args):
+                        raise AssertionError(
+                            "Resumed-session handler should not be invoked"
+                        )
+
+                    resume_tools = (
+                        [_make_pending_tool("resume_external_tool", resumed_external_tool)]
+                        if disconnect_original_client
+                        else None
+                    )
                     session2 = await resumed_client.resume_session(
                         session_id,
                         on_permission_request=PermissionHandler.approve_all,
                         continue_pending_work=False,
+                        tools=resume_tools,
                     )
 
-                    # Verify resume event: continue_pending_work=False and session_was_active=True
                     messages = await session2.get_events()
                     resume_events = [m for m in messages if isinstance(m.data, SessionResumeData)]
                     assert len(resume_events) == 1, "Expected exactly one session.resume event"
                     resume_event = resume_events[0]
                     assert resume_event.data.continue_pending_work is False
-                    assert resume_event.data.session_was_active is True
+                    assert (
+                        resume_event.data.session_was_active is expected_session_was_active
+                    )
 
-                    # The pending tool call should still be satisfiable
+                    # Warm: the runtime still has the pending request, so HandlePendingToolCall
+                    # succeeds and the result is fed into the assistant's reply.
+                    # Cold: the runtime auto-completed the orphaned tool call with a synthetic
+                    # interrupt result during resume, so HandlePendingToolCall reports
+                    # success=False. The session should still be healthy for new turns.
                     tool_result = await session2.rpc.tools.handle_pending_tool_call(
                         HandlePendingToolCallRequest(
                             request_id=tool_events["resume_external_tool"].data.request_id,
                             result="EXTERNAL_RESUMED_BETA",
                         )
                     )
-                    assert tool_result.success
-
-                    # continue_pending_work=False may interrupt agent continuation before
-                    # a final assistant message, but the pending call should still accept
-                    # an explicit completion.
+                    assert tool_result.success is expected_handle_result
                     assert invocation_count == 1
+
+                    if expected_handle_result:
+                        answer = await get_final_assistant_message(
+                            session2, timeout=PENDING_WORK_TIMEOUT
+                        )
+                        assert "EXTERNAL_RESUMED_BETA" in (answer.data.content or "")
+                    else:
+                        follow_up = await session2.send_and_wait(
+                            "Reply with exactly: COLD_RESUMED_FOLLOWUP",
+                            timeout=PENDING_WORK_TIMEOUT,
+                        )
+                        assert "COLD_RESUMED_FOLLOWUP" in (follow_up.data.content or "")
 
                     await session2.disconnect()
                 finally:
@@ -521,6 +572,7 @@ class TestPendingWorkResume:
             finally:
                 if not release_original.done():
                     release_original.set_result("ORIGINAL_SHOULD_NOT_WIN")
+                await _safe_force_stop(suspended_client)
         finally:
             await _safe_force_stop(server)
 
