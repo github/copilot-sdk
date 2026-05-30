@@ -598,6 +598,45 @@ func (r RawSessionEventData) MarshalJSON() ([]byte, error) {
 	return r.Raw, nil
 }
 
+func (r *UserMessageData) UnmarshalJSON(data []byte) error {
+	type rawUserMessageData struct {
+		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
+		Attachments                      []json.RawMessage     `json:"attachments,omitempty"`
+		Content                          string                `json:"content"`
+		InteractionID                    *string               `json:"interactionId,omitempty"`
+		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
+		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitempty"`
+		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
+		Source                           *string               `json:"source,omitempty"`
+		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitempty"`
+		TransformedContent               *string               `json:"transformedContent,omitempty"`
+	}
+	var raw rawUserMessageData
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AgentMode = raw.AgentMode
+	if raw.Attachments != nil {
+		r.Attachments = make([]Attachment, 0, len(raw.Attachments))
+		for _, rawItem := range raw.Attachments {
+			value, err := unmarshalAttachment(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Attachments = append(r.Attachments, value)
+		}
+	}
+	r.Content = raw.Content
+	r.InteractionID = raw.InteractionID
+	r.IsAutopilotContinuation = raw.IsAutopilotContinuation
+	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths
+	r.ParentAgentTaskID = raw.ParentAgentTaskID
+	r.Source = raw.Source
+	r.SupportedNativeDocumentMIMETypes = raw.SupportedNativeDocumentMIMETypes
+	r.TransformedContent = raw.TransformedContent
+	return nil
+}
+
 func unmarshalToolExecutionCompleteContent(data []byte) (ToolExecutionCompleteContent, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -1508,6 +1547,26 @@ func (r PermissionApproved) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r *PermissionApprovedForLocation) UnmarshalJSON(data []byte) error {
+	type rawPermissionApprovedForLocation struct {
+		Approval    json.RawMessage `json:"approval"`
+		LocationKey string          `json:"locationKey"`
+	}
+	var raw rawPermissionApprovedForLocation
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Approval != nil {
+		value, err := unmarshalUserToolSessionApproval(raw.Approval)
+		if err != nil {
+			return err
+		}
+		r.Approval = value
+	}
+	r.LocationKey = raw.LocationKey
+	return nil
+}
+
 func (r PermissionApprovedForLocation) MarshalJSON() ([]byte, error) {
 	type alias PermissionApprovedForLocation
 	return json.Marshal(struct {
@@ -1517,6 +1576,24 @@ func (r PermissionApprovedForLocation) MarshalJSON() ([]byte, error) {
 		Kind:  r.Kind(),
 		alias: alias(r),
 	})
+}
+
+func (r *PermissionApprovedForSession) UnmarshalJSON(data []byte) error {
+	type rawPermissionApprovedForSession struct {
+		Approval json.RawMessage `json:"approval"`
+	}
+	var raw rawPermissionApprovedForSession
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Approval != nil {
+		value, err := unmarshalUserToolSessionApproval(raw.Approval)
+		if err != nil {
+			return err
+		}
+		r.Approval = value
+	}
+	return nil
 }
 
 func (r PermissionApprovedForSession) MarshalJSON() ([]byte, error) {
@@ -1734,4 +1811,25 @@ func (r *CustomNotificationPayload) UnmarshalJSON(data []byte) error {
 		}
 	}
 	return errors.New("data did not match any union variant for CustomNotificationPayload")
+}
+
+func (r *SessionExtensionsAttachmentsPushedData) UnmarshalJSON(data []byte) error {
+	type rawSessionExtensionsAttachmentsPushedData struct {
+		Attachments []json.RawMessage `json:"attachments"`
+	}
+	var raw rawSessionExtensionsAttachmentsPushedData
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Attachments != nil {
+		r.Attachments = make([]Attachment, 0, len(raw.Attachments))
+		for _, rawItem := range raw.Attachments {
+			value, err := unmarshalAttachment(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Attachments = append(r.Attachments, value)
+		}
+	}
+	return nil
 }

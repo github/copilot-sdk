@@ -1034,6 +1034,57 @@ function pushGoEncodingBlock(blockLines: string[], ctx: GoCodegenCtx): void {
     ctx.encoding.push(block);
 }
 
+function registerGoExternalUnionUnmarshalers(
+    schema: JSONSchema7,
+    ctx: GoCodegenCtx,
+    externalSchemas?: Record<string, JSONSchema7>
+): void {
+    if (!externalSchemas) return;
+
+    const externalRefs = collectExternalSchemaRefNames(schema);
+    for (const [schemaFile, refNames] of externalRefs) {
+        const externalSchema = externalSchemas[schemaFile];
+        const externalImport = EXTERNAL_SCHEMA_GO_IMPORT[schemaFile];
+        if (!externalSchema || !externalImport || externalImport.packageName !== ctx.packageName) continue;
+
+        const externalDefinitions = collectDefinitionCollections(externalSchema as Record<string, unknown>);
+        const definitions: Record<string, JSONSchema7> = {
+            ...Object.fromEntries(
+                Object.entries(externalDefinitions.$defs ?? {}).filter(([, value]) => typeof value === "object" && value !== null)
+            ) as Record<string, JSONSchema7>,
+            ...Object.fromEntries(
+                Object.entries(externalDefinitions.definitions ?? {}).filter(([, value]) => typeof value === "object" && value !== null)
+            ) as Record<string, JSONSchema7>,
+        };
+        const planningCtx: GoCodegenCtx = {
+            structs: [],
+            encoding: [],
+            enums: [],
+            enumsByName: new Map(),
+            discriminatedUnions: new Map(),
+            generatedNames: new Set(),
+            definitions: externalDefinitions,
+            wrapComments: ctx.wrapComments,
+            discriminatedUnionRawVariantSuffix: ctx.discriminatedUnionRawVariantSuffix,
+            packageName: ctx.packageName,
+        };
+
+        for (const refName of refNames) {
+            const definition = definitions[refName];
+            if (!definition) continue;
+
+            const typeName = goDefinitionName(refName);
+            const plan = planGoUnion(typeName, definition, planningCtx, true);
+            if (!plan || plan.kind === "flattenedObject" || plan.kind === "wrapper") continue;
+
+            ctx.discriminatedUnions.set(typeName, {
+                typeName,
+                unmarshalFuncName: goUnexportedFunctionName("unmarshal", typeName),
+            });
+        }
+    }
+}
+
 function pushGoStructUnmarshalJSON(lines: string[], typeName: string, fields: GoStructField[], ctx: GoCodegenCtx): void {
     const unionFields = fields
         .map((field) => ({ field, unionField: goDiscriminatedUnionField(field.goType, ctx) }))
@@ -2992,7 +3043,11 @@ function goDeclaredTypeName(code: string): string {
 /**
  * Generate the complete Go session-events file content.
  */
-export function generateGoSessionEventsCode(schema: JSONSchema7, packageName: string): GoGeneratedTypeCode {
+export function generateGoSessionEventsCode(
+    schema: JSONSchema7,
+    packageName: string,
+    externalSchemas?: Record<string, JSONSchema7>
+): GoGeneratedTypeCode {
     const variants = extractGoEventVariants(schema);
     const ctx: GoCodegenCtx = {
         structs: [],
@@ -3006,6 +3061,7 @@ export function generateGoSessionEventsCode(schema: JSONSchema7, packageName: st
         discriminatedUnionRawVariantSuffix: "",
         packageName,
     };
+    registerGoExternalUnionUnmarshalers(schema, ctx, externalSchemas);
     const envelopeProperties = getGoSharedEventEnvelopeProperties(schema, ctx);
     const sessionEventStructFields = [
         ...envelopeProperties.map((property) => ({
@@ -3574,17 +3630,24 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
     const processed = propagateInternalVisibility(postProcessSchema(schema));
-    const sharedDefinitions = apiSchema
+    const processedApiSchema = apiSchema
+        ? propagateInternalVisibility(postProcessSchema(cloneSchemaForCodegen(apiSchema as JSONSchema7)) as JSONSchema7)
+        : undefined;
+    const sharedDefinitions = processedApiSchema
         ? findSharedSchemaDefinitions(
             processed as unknown as Record<string, unknown>,
-            postProcessSchema(cloneSchemaForCodegen(apiSchema as JSONSchema7)) as unknown as Record<string, unknown>
+            processedApiSchema as unknown as Record<string, unknown>
         )
         : new Set<string>();
     const reachableDefinitions = collectReachableDefinitionNames(processed as unknown as Record<string, unknown>);
     const sharedSessionEventDefinitions = new Set([...sharedDefinitions].filter((name) => reachableDefinitions.has(name)));
     const sessionSchema = rewriteSharedDefinitionReferences(processed, sharedDefinitions, "api.schema.json", true);
 
-    const generatedSessionCode = generateGoSessionEventsCode(sessionSchema, "rpc");
+    const generatedSessionCode = generateGoSessionEventsCode(
+        sessionSchema,
+        "rpc",
+        processedApiSchema ? { "api.schema.json": processedApiSchema } : undefined
+    );
     let generatedTypeCode = stripTrailingGoWhitespace(generatedSessionCode.typeCode);
     // Annotate internal session-event types (driven by the JSON Schema definition's
     // `visibility: "internal"` flag). Matches what the RPC generator does below;
