@@ -36,26 +36,52 @@ jobs:
     name: Preflight checks
     runs-on: ubuntu-latest
     steps:
-      - name: Verify GITHUB_TOKEN can create releases
+      - name: Verify JAVA_RELEASE_TOKEN can push to repository
         run: |
-          # Test that the token has contents:write by checking repo permissions
-          PERMS=$(gh api repos/${{ github.repository }} --jq '.permissions.push // false')
-          if [ "$PERMS" != "true" ]; then
-            echo "::error::GITHUB_TOKEN lacks push/write permission on this repository. GitHub Release creation will fail."
+          # JAVA_RELEASE_TOKEN is used by actions/checkout and for:
+          #   - git push origin main (doc updates)
+          #   - mvn release:prepare -DpushChanges=true (release commits + tags)
+          #   - git revert + push (rollback on failure)
+          # It must have push (contents:write) permission on this repo.
+          PUSH=$(gh api repos/${{ github.repository }} --jq '.permissions.push // false')
+          if [ "$PUSH" != "true" ]; then
+            echo "::error::JAVA_RELEASE_TOKEN lacks push permission on ${{ github.repository }}. It is required for pushing release commits and tags to main."
             exit 1
           fi
-          echo "GITHUB_TOKEN permissions OK"
+          echo "JAVA_RELEASE_TOKEN push access OK"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_TOKEN }}
 
-      - name: Verify JAVA_RELEASE_GITHUB_TOKEN is valid
+      - name: Verify JAVA_RELEASE_GITHUB_TOKEN can trigger workflows
         run: |
-          # Test that the token can authenticate and trigger workflows
-          USER=$(gh api user --jq '.login' 2>&1) || {
-            echo "::error::JAVA_RELEASE_GITHUB_TOKEN is invalid or expired. Changelog trigger will fail."
+          # JAVA_RELEASE_GITHUB_TOKEN is used for:
+          #   - gh workflow run release-changelog.lock.yml (requires actions:write)
+          # Check the token's OAuth scopes for 'workflow' (classic PAT) or
+          # attempt a workflow dispatch with a non-existent ref to verify write access
+          # (fine-grained PAT — these don't expose scopes via X-OAuth-Scopes).
+          SCOPES=$(gh api -i user 2>&1 | grep -i '^x-oauth-scopes:' | tr '[:upper:]' '[:lower:]' || true)
+          if echo "$SCOPES" | grep -q 'workflow'; then
+            echo "JAVA_RELEASE_GITHUB_TOKEN has 'workflow' scope (classic PAT)"
+          elif [ -z "$SCOPES" ]; then
+            # Fine-grained PAT: no X-OAuth-Scopes header returned.
+            # Attempt a workflow dispatch against a non-existent ref. If the token
+            # has actions:write, the API returns 422 (validation failed on ref).
+            # If it lacks the permission, the API returns 403.
+            HTTP_CODE=$(gh api -X POST \
+              "repos/${{ github.repository }}/actions/workflows/release-changelog.lock.yml/dispatches" \
+              -f ref="preflight-check-nonexistent-ref" \
+              -f 'inputs[tag]=preflight-check' \
+              --silent -i 2>&1 | head -1 | grep -oE '[0-9]{3}' || echo "000")
+            if [ "$HTTP_CODE" = "403" ] || [ "$HTTP_CODE" = "000" ]; then
+              echo "::error::JAVA_RELEASE_GITHUB_TOKEN lacks actions:write permission on ${{ github.repository }}. It cannot trigger the changelog generation workflow."
+              exit 1
+            fi
+            # 422 = has write access but ref doesn't exist (expected), 204 would mean it dispatched (shouldn't happen with fake ref)
+            echo "JAVA_RELEASE_GITHUB_TOKEN actions:write access OK (fine-grained PAT, dispatch returned HTTP ${HTTP_CODE})"
+          else
+            echo "::error::JAVA_RELEASE_GITHUB_TOKEN lacks 'workflow' scope. Found scopes: ${SCOPES}. It needs this scope to trigger changelog generation via gh workflow run."
             exit 1
-          }
-          echo "JAVA_RELEASE_GITHUB_TOKEN is valid (authenticated as: ${USER})"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
 
