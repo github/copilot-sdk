@@ -93,6 +93,7 @@ export type SessionEvent =
   | ExtensionsLoadedEvent
   | CanvasOpenedEvent
   | CanvasRegistryChangedEvent
+  | ExtensionsAttachmentsPushedEvent
   | McpAppToolCallCompleteEvent;
 /**
  * Hosting platform type of the repository (github or ado)
@@ -102,6 +103,14 @@ export type WorkingDirectoryContextHostType =
   | "github"
   /** Repository is hosted on Azure DevOps. */
   | "ado";
+/**
+ * Allowed values for the `ContextTier` enumeration.
+ */
+export type ContextTier =
+  /** Default context tier with standard context window size. */
+  | "default"
+  /** Extended context tier with a larger context window. */
+  | "long_context";
 /**
  * Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
  */
@@ -191,18 +200,19 @@ export type UserMessageAgentMode =
   /** The agent is in shell-focused UI mode. */
   | "shell";
 /**
- * A user message attachment — a file, directory, code selection, blob, or GitHub reference
+ * A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload
  */
-export type UserMessageAttachment =
-  | UserMessageAttachmentFile
-  | UserMessageAttachmentDirectory
-  | UserMessageAttachmentSelection
-  | UserMessageAttachmentGithubReference
-  | UserMessageAttachmentBlob;
+export type Attachment =
+  | AttachmentFile
+  | AttachmentDirectory
+  | AttachmentSelection
+  | AttachmentGithubReference
+  | AttachmentBlob
+  | AttachmentExtensionContext;
 /**
  * Type of GitHub reference
  */
-export type UserMessageAttachmentGithubReferenceType =
+export type AttachmentGithubReferenceType =
   /** GitHub issue reference. */
   | "issue"
   /** GitHub pull request reference. */
@@ -580,11 +590,7 @@ export interface StartData {
   /**
    * Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
    */
-  contextTier?: /** Default context tier with standard context window size. */
-    | "default"
-    /** Extended context tier with a larger context window. */
-    | "long_context"
-    | null;
+  contextTier?: ContextTier | null;
   /**
    * Version string of the Copilot application
    */
@@ -699,11 +705,7 @@ export interface ResumeData {
   /**
    * Context tier currently selected at resume time; null when no tier is active
    */
-  contextTier?: /** Default context tier with standard context window size. */
-    | "default"
-    /** Extended context tier with a larger context window. */
-    | "long_context"
-    | null;
+  contextTier?: ContextTier | null;
   /**
    * When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
    */
@@ -1196,11 +1198,7 @@ export interface ModelChangeData {
   /**
    * Context tier after the model change; null explicitly clears a previously selected tier
    */
-  contextTier?: /** Default context tier with standard context window size. */
-    | "default"
-    /** Extended context tier with a larger context window. */
-    | "long_context"
-    | null;
+  contextTier?: ContextTier | null;
   /**
    * Newly selected model identifier
    */
@@ -2140,7 +2138,7 @@ export interface UserMessageData {
   /**
    * Files, selections, or GitHub references attached to the message
    */
-  attachments?: UserMessageAttachment[];
+  attachments?: Attachment[];
   /**
    * The user's message text as displayed in the timeline
    */
@@ -2177,12 +2175,12 @@ export interface UserMessageData {
 /**
  * File attachment
  */
-export interface UserMessageAttachmentFile {
+export interface AttachmentFile {
   /**
    * User-facing display name for the attachment
    */
   displayName: string;
-  lineRange?: UserMessageAttachmentFileLineRange;
+  lineRange?: AttachmentFileLineRange;
   /**
    * Absolute file path
    */
@@ -2195,7 +2193,7 @@ export interface UserMessageAttachmentFile {
 /**
  * Optional line range to scope the attachment to a specific section of the file
  */
-export interface UserMessageAttachmentFileLineRange {
+export interface AttachmentFileLineRange {
   /**
    * End line number (1-based, inclusive)
    */
@@ -2208,7 +2206,7 @@ export interface UserMessageAttachmentFileLineRange {
 /**
  * Directory attachment
  */
-export interface UserMessageAttachmentDirectory {
+export interface AttachmentDirectory {
   /**
    * User-facing display name for the attachment
    */
@@ -2225,7 +2223,7 @@ export interface UserMessageAttachmentDirectory {
 /**
  * Code selection attachment from an editor
  */
-export interface UserMessageAttachmentSelection {
+export interface AttachmentSelection {
   /**
    * User-facing display name for the selection
    */
@@ -2234,7 +2232,7 @@ export interface UserMessageAttachmentSelection {
    * Absolute path to the file containing the selection
    */
   filePath: string;
-  selection: UserMessageAttachmentSelectionDetails;
+  selection: AttachmentSelectionDetails;
   /**
    * The selected text content
    */
@@ -2247,14 +2245,14 @@ export interface UserMessageAttachmentSelection {
 /**
  * Position range of the selection within the file
  */
-export interface UserMessageAttachmentSelectionDetails {
-  end: UserMessageAttachmentSelectionDetailsEnd;
-  start: UserMessageAttachmentSelectionDetailsStart;
+export interface AttachmentSelectionDetails {
+  end: AttachmentSelectionDetailsEnd;
+  start: AttachmentSelectionDetailsStart;
 }
 /**
  * End position of the selection
  */
-export interface UserMessageAttachmentSelectionDetailsEnd {
+export interface AttachmentSelectionDetailsEnd {
   /**
    * End character offset within the line (0-based)
    */
@@ -2267,7 +2265,7 @@ export interface UserMessageAttachmentSelectionDetailsEnd {
 /**
  * Start position of the selection
  */
-export interface UserMessageAttachmentSelectionDetailsStart {
+export interface AttachmentSelectionDetailsStart {
   /**
    * Start character offset within the line (0-based)
    */
@@ -2280,12 +2278,12 @@ export interface UserMessageAttachmentSelectionDetailsStart {
 /**
  * GitHub issue, pull request, or discussion reference
  */
-export interface UserMessageAttachmentGithubReference {
+export interface AttachmentGithubReference {
   /**
    * Issue, pull request, or discussion number
    */
   number: number;
-  referenceType: UserMessageAttachmentGithubReferenceType;
+  referenceType: AttachmentGithubReferenceType;
   /**
    * Current state of the referenced item (e.g., open, closed, merged)
    */
@@ -2306,7 +2304,7 @@ export interface UserMessageAttachmentGithubReference {
 /**
  * Blob attachment with inline base64-encoded data
  */
-export interface UserMessageAttachmentBlob {
+export interface AttachmentBlob {
   /**
    * Base64-encoded content
    */
@@ -2323,6 +2321,41 @@ export interface UserMessageAttachmentBlob {
    * Attachment type discriminator
    */
   type: "blob";
+}
+/**
+ * Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an <extension_context> XML block.
+ */
+export interface AttachmentExtensionContext {
+  /**
+   * Provider-local canvas identifier when the push was bound to a canvas instance
+   */
+  canvasId?: string;
+  /**
+   * ISO 8601 timestamp captured by the runtime when the push was accepted
+   */
+  capturedAt: string;
+  /**
+   * Owning extension identifier. Runtime-derived from the caller's connection when produced via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent transports.
+   */
+  extensionId: string;
+  /**
+   * Open canvas instance identifier when the push was bound to a canvas instance
+   */
+  instanceId?: string;
+  /**
+   * Caller-supplied JSON payload
+   */
+  payload?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Human-readable composer pill label
+   */
+  title: string;
+  /**
+   * Attachment type discriminator
+   */
+  type: "extension_context";
 }
 /**
  * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
@@ -6918,6 +6951,45 @@ export interface CanvasRegistryChangedCanvasAction {
    * Action name
    */
   name: string;
+}
+/**
+ * Session event "session.extensions.attachments_pushed".
+ */
+export interface ExtensionsAttachmentsPushedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ExtensionsAttachmentsPushedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.extensions.attachments_pushed".
+   */
+  type: "session.extensions.attachments_pushed";
+}
+/**
+ * Schema for the `ExtensionsAttachmentsPushedData` type.
+ */
+export interface ExtensionsAttachmentsPushedData {
+  /**
+   * Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.
+   */
+  attachments: Attachment[];
 }
 /**
  * Session event "mcp_app.tool_call_complete". MCP App view called a tool on a connected MCP server (SEP-1865)

@@ -48,6 +48,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `runtime.*` sub-namespace.
+    pub fn runtime(&self) -> ClientRpcRuntime<'a> {
+        ClientRpcRuntime {
+            client: self.client,
+        }
+    }
+
     /// `secrets.*` sub-namespace.
     pub fn secrets(&self) -> ClientRpcSecrets<'a> {
         ClientRpcSecrets {
@@ -409,6 +416,26 @@ impl<'a> ClientRpcModels<'a> {
             .call(rpc_methods::MODELS_LIST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `runtime.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcRuntime<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcRuntime<'a> {
+    /// Gracefully shuts down an SDK-owned runtime. The response is sent only after cleanup completes; callers may then terminate the owned runtime process.
+    ///
+    /// Wire method: `runtime.shutdown`.
+    pub async fn shutdown(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::RUNTIME_SHUTDOWN, Some(wire_params))
+            .await?;
+        Ok(())
     }
 }
 
@@ -2409,6 +2436,38 @@ impl<'a> SessionRpcExtensions<'a> {
             .await?;
         Ok(())
     }
+
+    /// Push attachments into the next user-message turn from an extension. The host should surface them as composer pills and forward them via the next session.send call. Callable only by extension-owned connections.
+    ///
+    /// Wire method: `session.extensions.sendAttachmentsToMessage`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for session.extensions.sendAttachmentsToMessage.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn send_attachments_to_message(
+        &self,
+        params: SendAttachmentsToMessageParams,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_EXTENSIONS_SENDATTACHMENTSTOMESSAGE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 /// `session.fleet.*` RPCs.
@@ -3468,7 +3527,7 @@ impl<'a> SessionRpcModel<'a> {
     ///
     /// # Returns
     ///
-    /// The currently selected model, reasoning effort, and context tier for the session.
+    /// The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
     ///
     /// <div class="warning">
     ///

@@ -311,6 +311,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionExtensionsAttachmentsPushed:
+		var d SessionExtensionsAttachmentsPushedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionExtensionsLoaded:
 		var d SessionExtensionsLoadedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -590,159 +596,6 @@ func (r RawSessionEventData) MarshalJSON() ([]byte, error) {
 		return []byte("null"), nil
 	}
 	return r.Raw, nil
-}
-
-func unmarshalUserMessageAttachment(data []byte) (UserMessageAttachment, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Type UserMessageAttachmentType `json:"type"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Type {
-	case UserMessageAttachmentTypeBlob:
-		var d UserMessageAttachmentBlob
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case UserMessageAttachmentTypeDirectory:
-		var d UserMessageAttachmentDirectory
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case UserMessageAttachmentTypeFile:
-		var d UserMessageAttachmentFile
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case UserMessageAttachmentTypeGithubReference:
-		var d UserMessageAttachmentGithubReference
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case UserMessageAttachmentTypeSelection:
-		var d UserMessageAttachmentSelection
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawUserMessageAttachment{Discriminator: raw.Type, Raw: data}, nil
-	}
-}
-
-func (r RawUserMessageAttachment) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Type UserMessageAttachmentType `json:"type"`
-	}{
-		Type: r.Discriminator,
-	})
-}
-
-func (r UserMessageAttachmentBlob) MarshalJSON() ([]byte, error) {
-	type alias UserMessageAttachmentBlob
-	return json.Marshal(struct {
-		Type UserMessageAttachmentType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r UserMessageAttachmentDirectory) MarshalJSON() ([]byte, error) {
-	type alias UserMessageAttachmentDirectory
-	return json.Marshal(struct {
-		Type UserMessageAttachmentType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r UserMessageAttachmentFile) MarshalJSON() ([]byte, error) {
-	type alias UserMessageAttachmentFile
-	return json.Marshal(struct {
-		Type UserMessageAttachmentType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r UserMessageAttachmentGithubReference) MarshalJSON() ([]byte, error) {
-	type alias UserMessageAttachmentGithubReference
-	return json.Marshal(struct {
-		Type UserMessageAttachmentType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r UserMessageAttachmentSelection) MarshalJSON() ([]byte, error) {
-	type alias UserMessageAttachmentSelection
-	return json.Marshal(struct {
-		Type UserMessageAttachmentType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r *UserMessageData) UnmarshalJSON(data []byte) error {
-	type rawUserMessageData struct {
-		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
-		Attachments                      []json.RawMessage     `json:"attachments,omitempty"`
-		Content                          string                `json:"content"`
-		InteractionID                    *string               `json:"interactionId,omitempty"`
-		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
-		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitempty"`
-		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
-		Source                           *string               `json:"source,omitempty"`
-		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitempty"`
-		TransformedContent               *string               `json:"transformedContent,omitempty"`
-	}
-	var raw rawUserMessageData
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	r.AgentMode = raw.AgentMode
-	if raw.Attachments != nil {
-		r.Attachments = make([]UserMessageAttachment, 0, len(raw.Attachments))
-		for _, rawItem := range raw.Attachments {
-			value, err := unmarshalUserMessageAttachment(rawItem)
-			if err != nil {
-				return err
-			}
-			r.Attachments = append(r.Attachments, value)
-		}
-	}
-	r.Content = raw.Content
-	r.InteractionID = raw.InteractionID
-	r.IsAutopilotContinuation = raw.IsAutopilotContinuation
-	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths
-	r.ParentAgentTaskID = raw.ParentAgentTaskID
-	r.Source = raw.Source
-	r.SupportedNativeDocumentMIMETypes = raw.SupportedNativeDocumentMIMETypes
-	r.TransformedContent = raw.TransformedContent
-	return nil
 }
 
 func unmarshalToolExecutionCompleteContent(data []byte) (ToolExecutionCompleteContent, error) {

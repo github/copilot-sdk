@@ -71,6 +71,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionCustomNotificationEvent), "session.custom_notification")]
 [JsonDerivedType(typeof(SessionErrorEvent), "session.error")]
 [JsonDerivedType(typeof(SessionExtensionsLoadedEvent), "session.extensions_loaded")]
+[JsonDerivedType(typeof(SessionExtensionsAttachmentsPushedEvent), "session.extensions.attachments_pushed")]
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
 [JsonDerivedType(typeof(SessionIdleEvent), "session.idle")]
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
@@ -1271,6 +1272,19 @@ public sealed partial class SessionCanvasRegistryChangedEvent : SessionEvent
     public required SessionCanvasRegistryChangedData Data { get; set; }
 }
 
+/// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
+/// <remarks>Represents the <c>session.extensions.attachments_pushed</c> event.</remarks>
+public sealed partial class SessionExtensionsAttachmentsPushedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.extensions.attachments_pushed";
+
+    /// <summary>The <c>session.extensions.attachments_pushed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionExtensionsAttachmentsPushedData Data { get; set; }
+}
+
 /// <summary>MCP App view called a tool on a connected MCP server (SEP-1865).</summary>
 /// <remarks>Represents the <c>mcp_app.tool_call_complete</c> event.</remarks>
 public sealed partial class McpAppToolCallCompleteEvent : SessionEvent
@@ -1300,7 +1314,7 @@ public sealed partial class SessionStartData
     /// <summary>Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("contextTier")]
-    public SessionStartDataContextTier? ContextTier { get; set; }
+    public ContextTier? ContextTier { get; set; }
 
     /// <summary>Version string of the Copilot application.</summary>
     [JsonPropertyName("copilotVersion")]
@@ -1364,7 +1378,7 @@ public sealed partial class SessionResumeData
     /// <summary>Context tier currently selected at resume time; null when no tier is active.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("contextTier")]
-    public SessionResumeDataContextTier? ContextTier { get; set; }
+    public ContextTier? ContextTier { get; set; }
 
     /// <summary>When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1580,7 +1594,7 @@ public sealed partial class SessionModelChangeData
     /// <summary>Context tier after the model change; null explicitly clears a previously selected tier.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("contextTier")]
-    public SessionModelChangeDataContextTier? ContextTier { get; set; }
+    public ContextTier? ContextTier { get; set; }
 
     /// <summary>Newly selected model identifier.</summary>
     [JsonPropertyName("newModel")]
@@ -2024,7 +2038,7 @@ public sealed partial class UserMessageData
     /// <summary>Files, selections, or GitHub references attached to the message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("attachments")]
-    public UserMessageAttachment[]? Attachments { get; set; }
+    public Attachment[]? Attachments { get; set; }
 
     /// <summary>The user's message text as displayed in the timeline.</summary>
     [JsonPropertyName("content")]
@@ -3353,6 +3367,14 @@ public sealed partial class SessionCanvasRegistryChangedData
     public required CanvasRegistryChangedCanvas[] Canvases { get; set; }
 }
 
+/// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
+public sealed partial class SessionExtensionsAttachmentsPushedData
+{
+    /// <summary>Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.</summary>
+    [JsonPropertyName("attachments")]
+    public required Attachment[] Attachments { get; set; }
+}
+
 /// <summary>MCP App view called a tool on a connected MCP server (SEP-1865).</summary>
 public sealed partial class McpAppToolCallCompleteData
 {
@@ -3634,8 +3656,8 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
 }
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
-/// <remarks>Nested data type for <c>UserMessageAttachmentFileLineRange</c>.</remarks>
-public sealed partial class UserMessageAttachmentFileLineRange
+/// <remarks>Nested data type for <c>AttachmentFileLineRange</c>.</remarks>
+public sealed partial class AttachmentFileLineRange
 {
     /// <summary>End line number (1-based, inclusive).</summary>
     [JsonPropertyName("end")]
@@ -3647,8 +3669,8 @@ public sealed partial class UserMessageAttachmentFileLineRange
 }
 
 /// <summary>File attachment.</summary>
-/// <remarks>The <c>file</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public sealed partial class UserMessageAttachmentFile : UserMessageAttachment
+/// <remarks>The <c>file</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentFile : Attachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3661,7 +3683,7 @@ public sealed partial class UserMessageAttachmentFile : UserMessageAttachment
     /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("lineRange")]
-    public UserMessageAttachmentFileLineRange? LineRange { get; set; }
+    public AttachmentFileLineRange? LineRange { get; set; }
 
     /// <summary>Absolute file path.</summary>
     [JsonPropertyName("path")]
@@ -3669,8 +3691,8 @@ public sealed partial class UserMessageAttachmentFile : UserMessageAttachment
 }
 
 /// <summary>Directory attachment.</summary>
-/// <remarks>The <c>directory</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public sealed partial class UserMessageAttachmentDirectory : UserMessageAttachment
+/// <remarks>The <c>directory</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentDirectory : Attachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3686,8 +3708,8 @@ public sealed partial class UserMessageAttachmentDirectory : UserMessageAttachme
 }
 
 /// <summary>End position of the selection.</summary>
-/// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsEnd</c>.</remarks>
-public sealed partial class UserMessageAttachmentSelectionDetailsEnd
+/// <remarks>Nested data type for <c>AttachmentSelectionDetailsEnd</c>.</remarks>
+public sealed partial class AttachmentSelectionDetailsEnd
 {
     /// <summary>End character offset within the line (0-based).</summary>
     [JsonPropertyName("character")]
@@ -3699,8 +3721,8 @@ public sealed partial class UserMessageAttachmentSelectionDetailsEnd
 }
 
 /// <summary>Start position of the selection.</summary>
-/// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsStart</c>.</remarks>
-public sealed partial class UserMessageAttachmentSelectionDetailsStart
+/// <remarks>Nested data type for <c>AttachmentSelectionDetailsStart</c>.</remarks>
+public sealed partial class AttachmentSelectionDetailsStart
 {
     /// <summary>Start character offset within the line (0-based).</summary>
     [JsonPropertyName("character")]
@@ -3712,21 +3734,21 @@ public sealed partial class UserMessageAttachmentSelectionDetailsStart
 }
 
 /// <summary>Position range of the selection within the file.</summary>
-/// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetails</c>.</remarks>
-public sealed partial class UserMessageAttachmentSelectionDetails
+/// <remarks>Nested data type for <c>AttachmentSelectionDetails</c>.</remarks>
+public sealed partial class AttachmentSelectionDetails
 {
     /// <summary>End position of the selection.</summary>
     [JsonPropertyName("end")]
-    public required UserMessageAttachmentSelectionDetailsEnd End { get; set; }
+    public required AttachmentSelectionDetailsEnd End { get; set; }
 
     /// <summary>Start position of the selection.</summary>
     [JsonPropertyName("start")]
-    public required UserMessageAttachmentSelectionDetailsStart Start { get; set; }
+    public required AttachmentSelectionDetailsStart Start { get; set; }
 }
 
 /// <summary>Code selection attachment from an editor.</summary>
-/// <remarks>The <c>selection</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public sealed partial class UserMessageAttachmentSelection : UserMessageAttachment
+/// <remarks>The <c>selection</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentSelection : Attachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3742,7 +3764,7 @@ public sealed partial class UserMessageAttachmentSelection : UserMessageAttachme
 
     /// <summary>Position range of the selection within the file.</summary>
     [JsonPropertyName("selection")]
-    public required UserMessageAttachmentSelectionDetails Selection { get; set; }
+    public required AttachmentSelectionDetails Selection { get; set; }
 
     /// <summary>The selected text content.</summary>
     [JsonPropertyName("text")]
@@ -3750,8 +3772,8 @@ public sealed partial class UserMessageAttachmentSelection : UserMessageAttachme
 }
 
 /// <summary>GitHub issue, pull request, or discussion reference.</summary>
-/// <remarks>The <c>github_reference</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public sealed partial class UserMessageAttachmentGithubReference : UserMessageAttachment
+/// <remarks>The <c>github_reference</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGithubReference : Attachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3763,7 +3785,7 @@ public sealed partial class UserMessageAttachmentGithubReference : UserMessageAt
 
     /// <summary>Type of GitHub reference.</summary>
     [JsonPropertyName("referenceType")]
-    public required UserMessageAttachmentGithubReferenceType ReferenceType { get; set; }
+    public required AttachmentGithubReferenceType ReferenceType { get; set; }
 
     /// <summary>Current state of the referenced item (e.g., open, closed, merged).</summary>
     [JsonPropertyName("state")]
@@ -3779,8 +3801,8 @@ public sealed partial class UserMessageAttachmentGithubReference : UserMessageAt
 }
 
 /// <summary>Blob attachment with inline base64-encoded data.</summary>
-/// <remarks>The <c>blob</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public sealed partial class UserMessageAttachmentBlob : UserMessageAttachment
+/// <remarks>The <c>blob</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentBlob : Attachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3801,17 +3823,56 @@ public sealed partial class UserMessageAttachmentBlob : UserMessageAttachment
     public required string MimeType { get; set; }
 }
 
-/// <summary>A user message attachment — a file, directory, code selection, blob, or GitHub reference.</summary>
+/// <summary>Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an &lt;extension_context&gt; XML block.</summary>
+/// <remarks>The <c>extension_context</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentExtensionContext : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "extension_context";
+
+    /// <summary>Provider-local canvas identifier when the push was bound to a canvas instance.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("canvasId")]
+    public string? CanvasId { get; set; }
+
+    /// <summary>ISO 8601 timestamp captured by the runtime when the push was accepted.</summary>
+    [JsonPropertyName("capturedAt")]
+    public required DateTimeOffset CapturedAt { get; set; }
+
+    /// <summary>Owning extension identifier. Runtime-derived from the caller's connection when produced via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent transports.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Open canvas instance identifier when the push was bound to a canvas instance.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("instanceId")]
+    public string? InstanceId { get; set; }
+
+    /// <summary>Caller-supplied JSON payload.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("payload")]
+    public JsonElement? Payload { get; set; }
+
+    /// <summary>Human-readable composer pill label.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
+}
+
+/// <summary>A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(UserMessageAttachmentFile), "file")]
-[JsonDerivedType(typeof(UserMessageAttachmentDirectory), "directory")]
-[JsonDerivedType(typeof(UserMessageAttachmentSelection), "selection")]
-[JsonDerivedType(typeof(UserMessageAttachmentGithubReference), "github_reference")]
-[JsonDerivedType(typeof(UserMessageAttachmentBlob), "blob")]
-public partial class UserMessageAttachment
+[JsonDerivedType(typeof(AttachmentFile), "file")]
+[JsonDerivedType(typeof(AttachmentDirectory), "directory")]
+[JsonDerivedType(typeof(AttachmentSelection), "selection")]
+[JsonDerivedType(typeof(AttachmentGithubReference), "github_reference")]
+[JsonDerivedType(typeof(AttachmentBlob), "blob")]
+[JsonDerivedType(typeof(AttachmentExtensionContext), "extension_context")]
+public partial class Attachment
 {
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("type")]
@@ -5955,42 +6016,42 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
     }
 }
 
-/// <summary>Defines the allowed values.</summary>
+/// <summary>Allowed values for the `ContextTier` enumeration.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct SessionStartDataContextTier : IEquatable<SessionStartDataContextTier>
+public readonly struct ContextTier : IEquatable<ContextTier>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="SessionStartDataContextTier"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SessionStartDataContextTier"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="ContextTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ContextTier"/>.</param>
     [JsonConstructor]
-    public SessionStartDataContextTier(string value)
+    public ContextTier(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="SessionStartDataContextTier"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="ContextTier"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>Default context tier with standard context window size.</summary>
-    public static SessionStartDataContextTier Default { get; } = new("default");
+    public static ContextTier Default { get; } = new("default");
 
     /// <summary>Extended context tier with a larger context window.</summary>
-    public static SessionStartDataContextTier LongContext { get; } = new("long_context");
+    public static ContextTier LongContext { get; } = new("long_context");
 
-    /// <summary>Returns a value indicating whether two <see cref="SessionStartDataContextTier"/> instances are equivalent.</summary>
-    public static bool operator ==(SessionStartDataContextTier left, SessionStartDataContextTier right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="ContextTier"/> instances are equivalent.</summary>
+    public static bool operator ==(ContextTier left, ContextTier right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="SessionStartDataContextTier"/> instances are not equivalent.</summary>
-    public static bool operator !=(SessionStartDataContextTier left, SessionStartDataContextTier right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SessionStartDataContextTier other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="ContextTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(ContextTier left, ContextTier right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(SessionStartDataContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is ContextTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -5998,20 +6059,20 @@ public readonly struct SessionStartDataContextTier : IEquatable<SessionStartData
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{SessionStartDataContextTier}"/> for serializing <see cref="SessionStartDataContextTier"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{ContextTier}"/> for serializing <see cref="ContextTier"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SessionStartDataContextTier>
+    public sealed class Converter : JsonConverter<ContextTier>
     {
         /// <inheritdoc />
-        public override SessionStartDataContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override ContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SessionStartDataContextTier value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, ContextTier value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionStartDataContextTier));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ContextTier));
         }
     }
 }
@@ -6076,67 +6137,6 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
         public override void Write(Utf8JsonWriter writer, ReasoningSummary value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ReasoningSummary));
-        }
-    }
-}
-
-/// <summary>Defines the allowed values.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SessionResumeDataContextTier : IEquatable<SessionResumeDataContextTier>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SessionResumeDataContextTier"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SessionResumeDataContextTier"/>.</param>
-    [JsonConstructor]
-    public SessionResumeDataContextTier(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SessionResumeDataContextTier"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Default context tier with standard context window size.</summary>
-    public static SessionResumeDataContextTier Default { get; } = new("default");
-
-    /// <summary>Extended context tier with a larger context window.</summary>
-    public static SessionResumeDataContextTier LongContext { get; } = new("long_context");
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionResumeDataContextTier"/> instances are equivalent.</summary>
-    public static bool operator ==(SessionResumeDataContextTier left, SessionResumeDataContextTier right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionResumeDataContextTier"/> instances are not equivalent.</summary>
-    public static bool operator !=(SessionResumeDataContextTier left, SessionResumeDataContextTier right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SessionResumeDataContextTier other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SessionResumeDataContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SessionResumeDataContextTier}"/> for serializing <see cref="SessionResumeDataContextTier"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SessionResumeDataContextTier>
-    {
-        /// <inheritdoc />
-        public override SessionResumeDataContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SessionResumeDataContextTier value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionResumeDataContextTier));
         }
     }
 }
@@ -6268,67 +6268,6 @@ public readonly struct AutopilotObjectiveChangedStatus : IEquatable<AutopilotObj
         public override void Write(Utf8JsonWriter writer, AutopilotObjectiveChangedStatus value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutopilotObjectiveChangedStatus));
-        }
-    }
-}
-
-/// <summary>Defines the allowed values.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SessionModelChangeDataContextTier : IEquatable<SessionModelChangeDataContextTier>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SessionModelChangeDataContextTier"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SessionModelChangeDataContextTier"/>.</param>
-    [JsonConstructor]
-    public SessionModelChangeDataContextTier(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SessionModelChangeDataContextTier"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Default context tier with standard context window size.</summary>
-    public static SessionModelChangeDataContextTier Default { get; } = new("default");
-
-    /// <summary>Extended context tier with a larger context window.</summary>
-    public static SessionModelChangeDataContextTier LongContext { get; } = new("long_context");
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionModelChangeDataContextTier"/> instances are equivalent.</summary>
-    public static bool operator ==(SessionModelChangeDataContextTier left, SessionModelChangeDataContextTier right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionModelChangeDataContextTier"/> instances are not equivalent.</summary>
-    public static bool operator !=(SessionModelChangeDataContextTier left, SessionModelChangeDataContextTier right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SessionModelChangeDataContextTier other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SessionModelChangeDataContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SessionModelChangeDataContextTier}"/> for serializing <see cref="SessionModelChangeDataContextTier"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SessionModelChangeDataContextTier>
-    {
-        /// <inheritdoc />
-        public override SessionModelChangeDataContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SessionModelChangeDataContextTier value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionModelChangeDataContextTier));
         }
     }
 }
@@ -6714,42 +6653,42 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
 /// <summary>Type of GitHub reference.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<UserMessageAttachmentGithubReferenceType>
+public readonly struct AttachmentGithubReferenceType : IEquatable<AttachmentGithubReferenceType>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="UserMessageAttachmentGithubReferenceType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="UserMessageAttachmentGithubReferenceType"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="AttachmentGithubReferenceType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AttachmentGithubReferenceType"/>.</param>
     [JsonConstructor]
-    public UserMessageAttachmentGithubReferenceType(string value)
+    public AttachmentGithubReferenceType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="UserMessageAttachmentGithubReferenceType"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="AttachmentGithubReferenceType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>GitHub issue reference.</summary>
-    public static UserMessageAttachmentGithubReferenceType Issue { get; } = new("issue");
+    public static AttachmentGithubReferenceType Issue { get; } = new("issue");
 
     /// <summary>GitHub pull request reference.</summary>
-    public static UserMessageAttachmentGithubReferenceType Pr { get; } = new("pr");
+    public static AttachmentGithubReferenceType Pr { get; } = new("pr");
 
     /// <summary>GitHub discussion reference.</summary>
-    public static UserMessageAttachmentGithubReferenceType Discussion { get; } = new("discussion");
+    public static AttachmentGithubReferenceType Discussion { get; } = new("discussion");
 
-    /// <summary>Returns a value indicating whether two <see cref="UserMessageAttachmentGithubReferenceType"/> instances are equivalent.</summary>
-    public static bool operator ==(UserMessageAttachmentGithubReferenceType left, UserMessageAttachmentGithubReferenceType right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="AttachmentGithubReferenceType"/> instances are equivalent.</summary>
+    public static bool operator ==(AttachmentGithubReferenceType left, AttachmentGithubReferenceType right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="UserMessageAttachmentGithubReferenceType"/> instances are not equivalent.</summary>
-    public static bool operator !=(UserMessageAttachmentGithubReferenceType left, UserMessageAttachmentGithubReferenceType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is UserMessageAttachmentGithubReferenceType other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="AttachmentGithubReferenceType"/> instances are not equivalent.</summary>
+    public static bool operator !=(AttachmentGithubReferenceType left, AttachmentGithubReferenceType right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(UserMessageAttachmentGithubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is AttachmentGithubReferenceType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AttachmentGithubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -6757,20 +6696,20 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{UserMessageAttachmentGithubReferenceType}"/> for serializing <see cref="UserMessageAttachmentGithubReferenceType"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{AttachmentGithubReferenceType}"/> for serializing <see cref="AttachmentGithubReferenceType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<UserMessageAttachmentGithubReferenceType>
+    public sealed class Converter : JsonConverter<AttachmentGithubReferenceType>
     {
         /// <inheritdoc />
-        public override UserMessageAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override AttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, UserMessageAttachmentGithubReferenceType value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, AttachmentGithubReferenceType value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageAttachmentGithubReferenceType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AttachmentGithubReferenceType));
         }
     }
 }
@@ -8284,6 +8223,17 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(AssistantUsageData))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
 [JsonSerializable(typeof(AssistantUsageQuotaSnapshot))]
+[JsonSerializable(typeof(Attachment))]
+[JsonSerializable(typeof(AttachmentBlob))]
+[JsonSerializable(typeof(AttachmentDirectory))]
+[JsonSerializable(typeof(AttachmentExtensionContext))]
+[JsonSerializable(typeof(AttachmentFile))]
+[JsonSerializable(typeof(AttachmentFileLineRange))]
+[JsonSerializable(typeof(AttachmentGithubReference))]
+[JsonSerializable(typeof(AttachmentSelection))]
+[JsonSerializable(typeof(AttachmentSelectionDetails))]
+[JsonSerializable(typeof(AttachmentSelectionDetailsEnd))]
+[JsonSerializable(typeof(AttachmentSelectionDetailsStart))]
 [JsonSerializable(typeof(AutoModeSwitchCompletedData))]
 [JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedData))]
@@ -8410,6 +8360,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(SessionErrorData))]
 [JsonSerializable(typeof(SessionErrorEvent))]
 [JsonSerializable(typeof(SessionEvent))]
+[JsonSerializable(typeof(SessionExtensionsAttachmentsPushedData))]
+[JsonSerializable(typeof(SessionExtensionsAttachmentsPushedEvent))]
 [JsonSerializable(typeof(SessionExtensionsLoadedData))]
 [JsonSerializable(typeof(SessionExtensionsLoadedEvent))]
 [JsonSerializable(typeof(SessionHandoffData))]
@@ -8528,16 +8480,6 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(UserInputCompletedEvent))]
 [JsonSerializable(typeof(UserInputRequestedData))]
 [JsonSerializable(typeof(UserInputRequestedEvent))]
-[JsonSerializable(typeof(UserMessageAttachment))]
-[JsonSerializable(typeof(UserMessageAttachmentBlob))]
-[JsonSerializable(typeof(UserMessageAttachmentDirectory))]
-[JsonSerializable(typeof(UserMessageAttachmentFile))]
-[JsonSerializable(typeof(UserMessageAttachmentFileLineRange))]
-[JsonSerializable(typeof(UserMessageAttachmentGithubReference))]
-[JsonSerializable(typeof(UserMessageAttachmentSelection))]
-[JsonSerializable(typeof(UserMessageAttachmentSelectionDetails))]
-[JsonSerializable(typeof(UserMessageAttachmentSelectionDetailsEnd))]
-[JsonSerializable(typeof(UserMessageAttachmentSelectionDetailsStart))]
 [JsonSerializable(typeof(UserMessageData))]
 [JsonSerializable(typeof(UserMessageEvent))]
 [JsonSerializable(typeof(UserToolSessionApproval))]

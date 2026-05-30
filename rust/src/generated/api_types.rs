@@ -7,8 +7,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::session_events::{
-    AbortReason, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule,
-    ReasoningSummary, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval,
+    AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest,
+    PermissionRule, ReasoningSummary, SessionMode, ShutdownType, SkillSource,
+    UserToolSessionApproval,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -48,6 +49,8 @@ pub mod rpc_methods {
     pub const SKILLS_DISCOVER: &str = "skills.discover";
     /// `user.settings.reload`
     pub const USER_SETTINGS_RELOAD: &str = "user.settings.reload";
+    /// `runtime.shutdown`
+    pub const RUNTIME_SHUTDOWN: &str = "runtime.shutdown";
     /// `sessionFs.setProvider`
     pub const SESSIONFS_SETPROVIDER: &str = "sessionFs.setProvider";
     /// `sessions.fork`
@@ -245,6 +248,9 @@ pub mod rpc_methods {
     pub const SESSION_EXTENSIONS_DISABLE: &str = "session.extensions.disable";
     /// `session.extensions.reload`
     pub const SESSION_EXTENSIONS_RELOAD: &str = "session.extensions.reload";
+    /// `session.extensions.sendAttachmentsToMessage`
+    pub const SESSION_EXTENSIONS_SENDATTACHMENTSTOMESSAGE: &str =
+        "session.extensions.sendAttachmentsToMessage";
     /// `session.tools.handlePendingToolCall`
     pub const SESSION_TOOLS_HANDLEPENDINGTOOLCALL: &str = "session.tools.handlePendingToolCall";
     /// `session.tools.initializeAndValidate`
@@ -1141,6 +1147,215 @@ pub struct ApiKeyAuthInfo {
     pub r#type: ApiKeyAuthInfoType,
 }
 
+/// Blob attachment with inline base64-encoded data
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentBlob {
+    /// Base64-encoded content
+    pub data: String,
+    /// User-facing display name for the attachment
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// MIME type of the inline data
+    pub mime_type: String,
+    /// Attachment type discriminator
+    pub r#type: AttachmentBlobType,
+}
+
+/// Directory attachment
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentDirectory {
+    /// User-facing display name for the attachment
+    pub display_name: String,
+    /// Absolute directory path
+    pub path: String,
+    /// Attachment type discriminator
+    pub r#type: AttachmentDirectoryType,
+}
+
+/// Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an <extension_context> XML block.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentExtensionContext {
+    /// Provider-local canvas identifier when the push was bound to a canvas instance
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
+    /// ISO 8601 timestamp captured by the runtime when the push was accepted
+    pub captured_at: String,
+    /// Owning extension identifier. Runtime-derived from the caller's connection when produced via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent transports.
+    pub extension_id: String,
+    /// Open canvas instance identifier when the push was bound to a canvas instance
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
+    /// Caller-supplied JSON payload
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
+    /// Human-readable composer pill label
+    pub title: String,
+    /// Attachment type discriminator
+    pub r#type: AttachmentExtensionContextType,
+}
+
+/// Optional line range to scope the attachment to a specific section of the file
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentFileLineRange {
+    /// End line number (1-based, inclusive)
+    pub end: i64,
+    /// Start line number (1-based)
+    pub start: i64,
+}
+
+/// File attachment
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentFile {
+    /// User-facing display name for the attachment
+    pub display_name: String,
+    /// Optional line range to scope the attachment to a specific section of the file
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_range: Option<AttachmentFileLineRange>,
+    /// Absolute file path
+    pub path: String,
+    /// Attachment type discriminator
+    pub r#type: AttachmentFileType,
+}
+
+/// GitHub issue, pull request, or discussion reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGithubReference {
+    /// Issue, pull request, or discussion number
+    pub number: i64,
+    /// Type of GitHub reference
+    pub reference_type: AttachmentGithubReferenceType,
+    /// Current state of the referenced item (e.g., open, closed, merged)
+    pub state: String,
+    /// Title of the referenced item
+    pub title: String,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGithubReferenceType,
+    /// URL to the referenced item on GitHub
+    pub url: String,
+}
+
+/// End position of the selection
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentSelectionDetailsEnd {
+    /// End character offset within the line (0-based)
+    pub character: i64,
+    /// End line number (0-based)
+    pub line: i64,
+}
+
+/// Start position of the selection
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentSelectionDetailsStart {
+    /// Start character offset within the line (0-based)
+    pub character: i64,
+    /// Start line number (0-based)
+    pub line: i64,
+}
+
+/// Position range of the selection within the file
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentSelectionDetails {
+    /// End position of the selection
+    pub end: AttachmentSelectionDetailsEnd,
+    /// Start position of the selection
+    pub start: AttachmentSelectionDetailsStart,
+}
+
+/// Code selection attachment from an editor
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentSelection {
+    /// User-facing display name for the selection
+    pub display_name: String,
+    /// Absolute path to the file containing the selection
+    pub file_path: String,
+    /// Position range of the selection within the file
+    pub selection: AttachmentSelectionDetails,
+    /// The selected text content
+    pub text: String,
+    /// Attachment type discriminator
+    pub r#type: AttachmentSelectionType,
+}
+
 /// Canvas action that the agent or host can invoke. To discover the input schema for a particular action, call the list_canvas_capabilities tool.
 ///
 /// <div class="warning">
@@ -1783,7 +1998,7 @@ pub struct CopilotApiTokenAuthInfo {
     pub r#type: CopilotApiTokenAuthInfoType,
 }
 
-/// The currently selected model, reasoning effort, and context tier for the session.
+/// The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
 ///
 /// <div class="warning">
 ///
@@ -1794,9 +2009,9 @@ pub struct CopilotApiTokenAuthInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrentModel {
-    /// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
+    /// Context tier for models that support multiple context-window sizes.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<ModelCurrentContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// Currently active model identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
@@ -1928,7 +2143,7 @@ pub struct EventLogReadRequest {
     pub cursor: Option<String>,
     /// Maximum number of events to return in this batch (1–1000, default 200).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max: Option<i32>,
+    pub max: Option<i64>,
     /// Either '*' to receive all event types, or a non-empty list of event types to receive
     #[serde(skip_serializing_if = "Option::is_none")]
     pub types: Option<serde_json::Value>,
@@ -2043,6 +2258,25 @@ pub struct Extension {
     pub source: ExtensionSource,
     /// Current status: running, disabled, failed, or starting
     pub status: ExtensionStatus,
+}
+
+/// Slim input shape for extension_context attachments; identity fields are runtime-derived.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionContextPushInput {
+    /// Caller-supplied JSON payload (required, may be null but not undefined)
+    pub payload: serde_json::Value,
+    /// Human-readable composer pill label
+    pub title: String,
+    /// Attachment type discriminator
+    pub r#type: ExtensionContextPushInputType,
 }
 
 /// Extensions discovered for the session, with their current status.
@@ -4051,7 +4285,7 @@ pub struct ModelsListRequest {
 pub struct ModelSwitchToRequest {
     /// Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<ModelSwitchToRequestContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// Override individual model capabilities resolved by the runtime
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
@@ -5689,6 +5923,185 @@ pub struct PluginList {
     pub plugins: Vec<Plugin>,
 }
 
+/// Blob attachment with inline base64-encoded data
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentBlob {
+    /// Base64-encoded content
+    pub data: String,
+    /// User-facing display name for the attachment
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// MIME type of the inline data
+    pub mime_type: String,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentBlobType,
+}
+
+/// Directory attachment
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentDirectory {
+    /// User-facing display name for the attachment
+    pub display_name: String,
+    /// Absolute directory path
+    pub path: String,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentDirectoryType,
+}
+
+/// Optional line range to scope the attachment to a specific section of the file
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentFileLineRange {
+    /// End line number (1-based, inclusive)
+    pub end: i64,
+    /// Start line number (1-based)
+    pub start: i64,
+}
+
+/// File attachment
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentFile {
+    /// User-facing display name for the attachment
+    pub display_name: String,
+    /// Optional line range to scope the attachment to a specific section of the file
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_range: Option<PushAttachmentFileLineRange>,
+    /// Absolute file path
+    pub path: String,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentFileType,
+}
+
+/// GitHub issue, pull request, or discussion reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGithubReference {
+    /// Issue, pull request, or discussion number
+    pub number: i64,
+    /// Type of GitHub reference
+    pub reference_type: PushAttachmentGithubReferenceType,
+    /// Current state of the referenced item (e.g., open, closed, merged)
+    pub state: String,
+    /// Title of the referenced item
+    pub title: String,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGithubReferenceType,
+    /// URL to the referenced item on GitHub
+    pub url: String,
+}
+
+/// End position of the selection
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentSelectionDetailsEnd {
+    /// End character offset within the line (0-based)
+    pub character: i64,
+    /// End line number (0-based)
+    pub line: i64,
+}
+
+/// Start position of the selection
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentSelectionDetailsStart {
+    /// Start character offset within the line (0-based)
+    pub character: i64,
+    /// Start line number (0-based)
+    pub line: i64,
+}
+
+/// Position range of the selection within the file
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentSelectionDetails {
+    /// End position of the selection
+    pub end: PushAttachmentSelectionDetailsEnd,
+    /// Start position of the selection
+    pub start: PushAttachmentSelectionDetailsStart,
+}
+
+/// Code selection attachment from an editor
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentSelection {
+    /// User-facing display name for the selection
+    pub display_name: String,
+    /// Absolute path to the file containing the selection
+    pub file_path: String,
+    /// Position range of the selection within the file
+    pub selection: PushAttachmentSelectionDetails,
+    /// The selected text content
+    pub text: String,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentSelectionType,
+}
+
 /// Schema for the `QueuedCommandHandled` type.
 ///
 /// <div class="warning">
@@ -5982,7 +6395,7 @@ pub struct SecretsAddFilterValuesResult {
     pub ok: bool,
 }
 
-/// Blob attachment with inline base64-encoded data
+/// Parameters for session.extensions.sendAttachmentsToMessage.
 ///
 /// <div class="warning">
 ///
@@ -5992,173 +6405,12 @@ pub struct SecretsAddFilterValuesResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SendAttachmentBlob {
-    /// Base64-encoded content
-    pub data: String,
-    /// User-facing display name for the attachment
+pub struct SendAttachmentsToMessageParams {
+    /// Attachments to push into the next user-message turn. extension_context entries take the slim shape; standard variants take their full AttachmentSchema shape.
+    pub attachments: Vec<serde_json::Value>,
+    /// Optional canvas instance binding the push for provenance. When supplied, the runtime resolves the canvas, verifies it is owned by the calling extension, and stamps canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs and those fields stay unset on the attachment.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub display_name: Option<String>,
-    /// MIME type of the inline data
-    pub mime_type: String,
-    /// Attachment type discriminator
-    pub r#type: SendAttachmentBlobType,
-}
-
-/// Directory attachment
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAttachmentDirectory {
-    /// User-facing display name for the attachment
-    pub display_name: String,
-    /// Absolute directory path
-    pub path: String,
-    /// Attachment type discriminator
-    pub r#type: SendAttachmentDirectoryType,
-}
-
-/// Optional line range to scope the attachment to a specific section of the file
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAttachmentFileLineRange {
-    /// End line number (1-based, inclusive)
-    pub end: i64,
-    /// Start line number (1-based)
-    pub start: i64,
-}
-
-/// File attachment
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAttachmentFile {
-    /// User-facing display name for the attachment
-    pub display_name: String,
-    /// Optional line range to scope the attachment to a specific section of the file
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_range: Option<SendAttachmentFileLineRange>,
-    /// Absolute file path
-    pub path: String,
-    /// Attachment type discriminator
-    pub r#type: SendAttachmentFileType,
-}
-
-/// GitHub issue, pull request, or discussion reference
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAttachmentGithubReference {
-    /// Issue, pull request, or discussion number
-    pub number: i64,
-    /// Type of GitHub reference
-    pub reference_type: SendAttachmentGithubReferenceType,
-    /// Current state of the referenced item (e.g., open, closed, merged)
-    pub state: String,
-    /// Title of the referenced item
-    pub title: String,
-    /// Attachment type discriminator
-    pub r#type: SendAttachmentGithubReferenceType,
-    /// URL to the referenced item on GitHub
-    pub url: String,
-}
-
-/// End position of the selection
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAttachmentSelectionDetailsEnd {
-    /// End character offset within the line (0-based)
-    pub character: i64,
-    /// End line number (0-based)
-    pub line: i64,
-}
-
-/// Start position of the selection
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAttachmentSelectionDetailsStart {
-    /// Start character offset within the line (0-based)
-    pub character: i64,
-    /// Start line number (0-based)
-    pub line: i64,
-}
-
-/// Position range of the selection within the file
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAttachmentSelectionDetails {
-    /// End position of the selection
-    pub end: SendAttachmentSelectionDetailsEnd,
-    /// Start position of the selection
-    pub start: SendAttachmentSelectionDetailsStart,
-}
-
-/// Code selection attachment from an editor
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAttachmentSelection {
-    /// User-facing display name for the selection
-    pub display_name: String,
-    /// Absolute path to the file containing the selection
-    pub file_path: String,
-    /// Position range of the selection within the file
-    pub selection: SendAttachmentSelectionDetails,
-    /// The selected text content
-    pub text: String,
-    /// Attachment type discriminator
-    pub r#type: SendAttachmentSelectionType,
+    pub instance_id: Option<String>,
 }
 
 /// Parameters for sending a user message to the session
@@ -10104,7 +10356,7 @@ pub struct SessionModelGetCurrentParams {
     pub session_id: SessionId,
 }
 
-/// The currently selected model, reasoning effort, and context tier for the session.
+/// The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
 ///
 /// <div class="warning">
 ///
@@ -10115,9 +10367,9 @@ pub struct SessionModelGetCurrentParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelGetCurrentResult {
-    /// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
+    /// Context tier for models that support multiple context-window sizes.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<ModelCurrentContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// Currently active model identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
@@ -12996,6 +13248,71 @@ pub enum ApiKeyAuthInfoType {
     ApiKey,
 }
 
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentBlobType {
+    #[serde(rename = "blob")]
+    #[default]
+    Blob,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentDirectoryType {
+    #[serde(rename = "directory")]
+    #[default]
+    Directory,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentExtensionContextType {
+    #[serde(rename = "extension_context")]
+    #[default]
+    ExtensionContext,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentFileType {
+    #[serde(rename = "file")]
+    #[default]
+    File,
+}
+
+/// Type of GitHub reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGithubReferenceType {
+    /// GitHub issue reference.
+    #[serde(rename = "issue")]
+    Issue,
+    /// GitHub pull request reference.
+    #[serde(rename = "pr")]
+    Pr,
+    /// GitHub discussion reference.
+    #[serde(rename = "discussion")]
+    Discussion,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentSelectionType {
+    #[serde(rename = "selection")]
+    #[default]
+    Selection,
+}
+
 /// Authentication type
 ///
 /// <div class="warning">
@@ -13155,28 +13472,6 @@ pub enum CopilotApiTokenAuthInfoType {
     CopilotApiToken,
 }
 
-/// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ModelCurrentContextTier {
-    /// Use the model's default context window.
-    #[serde(rename = "default")]
-    Default,
-    /// Pin the session to the long-context tier when supported.
-    #[serde(rename = "long_context")]
-    LongContext,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Server transport type: stdio, http, sse (deprecated), or memory
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiscoveredMcpServerType {
@@ -13298,6 +13593,14 @@ pub enum ExtensionStatus {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtensionContextPushInputType {
+    #[serde(rename = "extension_context")]
+    #[default]
+    ExtensionContext,
 }
 
 /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
@@ -13927,20 +14230,6 @@ pub enum ModelPolicyState {
     Unknown,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ModelSwitchToRequestContextTier {
-    /// Use the model's default context window.
-    #[serde(rename = "default")]
-    Default,
-    /// Pin the session to the long-context tier when supported.
-    #[serde(rename = "long_context")]
-    LongContext,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).
 ///
 /// <div class="warning">
@@ -14541,6 +14830,63 @@ pub enum PermissionsSetApproveAllSource {
     Unknown,
 }
 
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentBlobType {
+    #[serde(rename = "blob")]
+    #[default]
+    Blob,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentDirectoryType {
+    #[serde(rename = "directory")]
+    #[default]
+    Directory,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentFileType {
+    #[serde(rename = "file")]
+    #[default]
+    File,
+}
+
+/// Type of GitHub reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGithubReferenceType {
+    /// GitHub issue reference.
+    #[serde(rename = "issue")]
+    Issue,
+    /// GitHub pull request reference.
+    #[serde(rename = "pr")]
+    Pr,
+    /// GitHub discussion reference.
+    #[serde(rename = "discussion")]
+    Discussion,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentSelectionType {
+    #[serde(rename = "selection")]
+    #[default]
+    Selection,
+}
+
 /// Whether this item is a queued user message or a queued slash command / model change
 ///
 /// <div class="warning">
@@ -14614,63 +14960,6 @@ pub enum SendAgentMode {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// Attachment type discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SendAttachmentBlobType {
-    #[serde(rename = "blob")]
-    #[default]
-    Blob,
-}
-
-/// Attachment type discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SendAttachmentDirectoryType {
-    #[serde(rename = "directory")]
-    #[default]
-    Directory,
-}
-
-/// Attachment type discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SendAttachmentFileType {
-    #[serde(rename = "file")]
-    #[default]
-    File,
-}
-
-/// Type of GitHub reference
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SendAttachmentGithubReferenceType {
-    /// GitHub issue reference.
-    #[serde(rename = "issue")]
-    Issue,
-    /// GitHub pull request reference.
-    #[serde(rename = "pr")]
-    Pr,
-    /// GitHub discussion reference.
-    #[serde(rename = "discussion")]
-    Discussion,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Attachment type discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SendAttachmentSelectionType {
-    #[serde(rename = "selection")]
-    #[default]
-    Selection,
 }
 
 /// How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.

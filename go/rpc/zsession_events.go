@@ -53,93 +53,94 @@ func (r RawSessionEventData) Type() SessionEventType {
 type SessionEventType string
 
 const (
-	SessionEventTypeAbort                            SessionEventType = "abort"
-	SessionEventTypeAssistantIntent                  SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantMessage                 SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta            SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantMessageStart            SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantReasoning               SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta          SessionEventType = "assistant.reasoning_delta"
-	SessionEventTypeAssistantStreamingDelta          SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantTurnEnd                 SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantTurnStart               SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantUsage                   SessionEventType = "assistant.usage"
-	SessionEventTypeAutoModeSwitchCompleted          SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeAutoModeSwitchRequested          SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeCapabilitiesChanged              SessionEventType = "capabilities.changed"
-	SessionEventTypeCommandCompleted                 SessionEventType = "command.completed"
-	SessionEventTypeCommandExecute                   SessionEventType = "command.execute"
-	SessionEventTypeCommandQueued                    SessionEventType = "command.queued"
-	SessionEventTypeCommandsChanged                  SessionEventType = "commands.changed"
-	SessionEventTypeElicitationCompleted             SessionEventType = "elicitation.completed"
-	SessionEventTypeElicitationRequested             SessionEventType = "elicitation.requested"
-	SessionEventTypeExitPlanModeCompleted            SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeExitPlanModeRequested            SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExternalToolCompleted            SessionEventType = "external_tool.completed"
-	SessionEventTypeExternalToolRequested            SessionEventType = "external_tool.requested"
-	SessionEventTypeHookEnd                          SessionEventType = "hook.end"
-	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
-	SessionEventTypeHookStart                        SessionEventType = "hook.start"
-	SessionEventTypeMcpAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMcpOauthCompleted                SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMcpOauthRequired                 SessionEventType = "mcp.oauth_required"
-	SessionEventTypeModelCallFailure                 SessionEventType = "model.call_failure"
-	SessionEventTypePendingMessagesModified          SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted              SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested              SessionEventType = "permission.requested"
-	SessionEventTypeSamplingCompleted                SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested                SessionEventType = "sampling.requested"
-	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
-	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
-	SessionEventTypeSessionCanvasOpened              SessionEventType = "session.canvas.opened"
-	SessionEventTypeSessionCanvasRegistryChanged     SessionEventType = "session.canvas.registry_changed"
-	SessionEventTypeSessionCompactionComplete        SessionEventType = "session.compaction_complete"
-	SessionEventTypeSessionCompactionStart           SessionEventType = "session.compaction_start"
-	SessionEventTypeSessionContextChanged            SessionEventType = "session.context_changed"
-	SessionEventTypeSessionCustomAgentsUpdated       SessionEventType = "session.custom_agents_updated"
-	SessionEventTypeSessionCustomNotification        SessionEventType = "session.custom_notification"
-	SessionEventTypeSessionError                     SessionEventType = "session.error"
-	SessionEventTypeSessionExtensionsLoaded          SessionEventType = "session.extensions_loaded"
-	SessionEventTypeSessionHandoff                   SessionEventType = "session.handoff"
-	SessionEventTypeSessionIdle                      SessionEventType = "session.idle"
-	SessionEventTypeSessionInfo                      SessionEventType = "session.info"
-	SessionEventTypeSessionMcpServersLoaded          SessionEventType = "session.mcp_servers_loaded"
-	SessionEventTypeSessionMcpServerStatusChanged    SessionEventType = "session.mcp_server_status_changed"
-	SessionEventTypeSessionModeChanged               SessionEventType = "session.mode_changed"
-	SessionEventTypeSessionModelChange               SessionEventType = "session.model_change"
-	SessionEventTypeSessionPermissionsChanged        SessionEventType = "session.permissions_changed"
-	SessionEventTypeSessionPlanChanged               SessionEventType = "session.plan_changed"
-	SessionEventTypeSessionRemoteSteerableChanged    SessionEventType = "session.remote_steerable_changed"
-	SessionEventTypeSessionResume                    SessionEventType = "session.resume"
-	SessionEventTypeSessionScheduleCancelled         SessionEventType = "session.schedule_cancelled"
-	SessionEventTypeSessionScheduleCreated           SessionEventType = "session.schedule_created"
-	SessionEventTypeSessionShutdown                  SessionEventType = "session.shutdown"
-	SessionEventTypeSessionSkillsLoaded              SessionEventType = "session.skills_loaded"
-	SessionEventTypeSessionSnapshotRewind            SessionEventType = "session.snapshot_rewind"
-	SessionEventTypeSessionStart                     SessionEventType = "session.start"
-	SessionEventTypeSessionTaskComplete              SessionEventType = "session.task_complete"
-	SessionEventTypeSessionTitleChanged              SessionEventType = "session.title_changed"
-	SessionEventTypeSessionToolsUpdated              SessionEventType = "session.tools_updated"
-	SessionEventTypeSessionTruncation                SessionEventType = "session.truncation"
-	SessionEventTypeSessionUsageInfo                 SessionEventType = "session.usage_info"
-	SessionEventTypeSessionWarning                   SessionEventType = "session.warning"
-	SessionEventTypeSessionWorkspaceFileChanged      SessionEventType = "session.workspace_file_changed"
-	SessionEventTypeSkillInvoked                     SessionEventType = "skill.invoked"
-	SessionEventTypeSubagentCompleted                SessionEventType = "subagent.completed"
-	SessionEventTypeSubagentDeselected               SessionEventType = "subagent.deselected"
-	SessionEventTypeSubagentFailed                   SessionEventType = "subagent.failed"
-	SessionEventTypeSubagentSelected                 SessionEventType = "subagent.selected"
-	SessionEventTypeSubagentStarted                  SessionEventType = "subagent.started"
-	SessionEventTypeSystemMessage                    SessionEventType = "system.message"
-	SessionEventTypeSystemNotification               SessionEventType = "system.notification"
-	SessionEventTypeToolExecutionComplete            SessionEventType = "tool.execution_complete"
-	SessionEventTypeToolExecutionPartialResult       SessionEventType = "tool.execution_partial_result"
-	SessionEventTypeToolExecutionProgress            SessionEventType = "tool.execution_progress"
-	SessionEventTypeToolExecutionStart               SessionEventType = "tool.execution_start"
-	SessionEventTypeToolUserRequested                SessionEventType = "tool.user_requested"
-	SessionEventTypeUserInputCompleted               SessionEventType = "user_input.completed"
-	SessionEventTypeUserInputRequested               SessionEventType = "user_input.requested"
-	SessionEventTypeUserMessage                      SessionEventType = "user.message"
+	SessionEventTypeAbort                              SessionEventType = "abort"
+	SessionEventTypeAssistantIntent                    SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage                   SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta              SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart              SessionEventType = "assistant.message_start"
+	SessionEventTypeAssistantReasoning                 SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta            SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantStreamingDelta            SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantTurnEnd                   SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnStart                 SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage                     SessionEventType = "assistant.usage"
+	SessionEventTypeAutoModeSwitchCompleted            SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeAutoModeSwitchRequested            SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeCapabilitiesChanged                SessionEventType = "capabilities.changed"
+	SessionEventTypeCommandCompleted                   SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute                     SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued                      SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged                    SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted               SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested               SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted              SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested              SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted              SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested              SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                            SessionEventType = "hook.end"
+	SessionEventTypeHookProgress                       SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                          SessionEventType = "hook.start"
+	SessionEventTypeMcpAppToolCallComplete             SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMcpOauthCompleted                  SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMcpOauthRequired                   SessionEventType = "mcp.oauth_required"
+	SessionEventTypeModelCallFailure                   SessionEventType = "model.call_failure"
+	SessionEventTypePendingMessagesModified            SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted                SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested                SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted                  SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested                  SessionEventType = "sampling.requested"
+	SessionEventTypeSessionAutopilotObjectiveChanged   SessionEventType = "session.autopilot_objective_changed"
+	SessionEventTypeSessionBackgroundTasksChanged      SessionEventType = "session.background_tasks_changed"
+	SessionEventTypeSessionCanvasOpened                SessionEventType = "session.canvas.opened"
+	SessionEventTypeSessionCanvasRegistryChanged       SessionEventType = "session.canvas.registry_changed"
+	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionCompactionStart             SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionContextChanged              SessionEventType = "session.context_changed"
+	SessionEventTypeSessionCustomAgentsUpdated         SessionEventType = "session.custom_agents_updated"
+	SessionEventTypeSessionCustomNotification          SessionEventType = "session.custom_notification"
+	SessionEventTypeSessionError                       SessionEventType = "session.error"
+	SessionEventTypeSessionExtensionsAttachmentsPushed SessionEventType = "session.extensions.attachments_pushed"
+	SessionEventTypeSessionExtensionsLoaded            SessionEventType = "session.extensions_loaded"
+	SessionEventTypeSessionHandoff                     SessionEventType = "session.handoff"
+	SessionEventTypeSessionIdle                        SessionEventType = "session.idle"
+	SessionEventTypeSessionInfo                        SessionEventType = "session.info"
+	SessionEventTypeSessionMcpServersLoaded            SessionEventType = "session.mcp_servers_loaded"
+	SessionEventTypeSessionMcpServerStatusChanged      SessionEventType = "session.mcp_server_status_changed"
+	SessionEventTypeSessionModeChanged                 SessionEventType = "session.mode_changed"
+	SessionEventTypeSessionModelChange                 SessionEventType = "session.model_change"
+	SessionEventTypeSessionPermissionsChanged          SessionEventType = "session.permissions_changed"
+	SessionEventTypeSessionPlanChanged                 SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionRemoteSteerableChanged      SessionEventType = "session.remote_steerable_changed"
+	SessionEventTypeSessionResume                      SessionEventType = "session.resume"
+	SessionEventTypeSessionScheduleCancelled           SessionEventType = "session.schedule_cancelled"
+	SessionEventTypeSessionScheduleCreated             SessionEventType = "session.schedule_created"
+	SessionEventTypeSessionShutdown                    SessionEventType = "session.shutdown"
+	SessionEventTypeSessionSkillsLoaded                SessionEventType = "session.skills_loaded"
+	SessionEventTypeSessionSnapshotRewind              SessionEventType = "session.snapshot_rewind"
+	SessionEventTypeSessionStart                       SessionEventType = "session.start"
+	SessionEventTypeSessionTaskComplete                SessionEventType = "session.task_complete"
+	SessionEventTypeSessionTitleChanged                SessionEventType = "session.title_changed"
+	SessionEventTypeSessionToolsUpdated                SessionEventType = "session.tools_updated"
+	SessionEventTypeSessionTruncation                  SessionEventType = "session.truncation"
+	SessionEventTypeSessionUsageInfo                   SessionEventType = "session.usage_info"
+	SessionEventTypeSessionWarning                     SessionEventType = "session.warning"
+	SessionEventTypeSessionWorkspaceFileChanged        SessionEventType = "session.workspace_file_changed"
+	SessionEventTypeSkillInvoked                       SessionEventType = "skill.invoked"
+	SessionEventTypeSubagentCompleted                  SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentDeselected                 SessionEventType = "subagent.deselected"
+	SessionEventTypeSubagentFailed                     SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected                   SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentStarted                    SessionEventType = "subagent.started"
+	SessionEventTypeSystemMessage                      SessionEventType = "system.message"
+	SessionEventTypeSystemNotification                 SessionEventType = "system.notification"
+	SessionEventTypeToolExecutionComplete              SessionEventType = "tool.execution_complete"
+	SessionEventTypeToolExecutionPartialResult         SessionEventType = "tool.execution_partial_result"
+	SessionEventTypeToolExecutionProgress              SessionEventType = "tool.execution_progress"
+	SessionEventTypeToolExecutionStart                 SessionEventType = "tool.execution_start"
+	SessionEventTypeToolUserRequested                  SessionEventType = "tool.user_requested"
+	SessionEventTypeUserInputCompleted                 SessionEventType = "user_input.completed"
+	SessionEventTypeUserInputRequested                 SessionEventType = "user_input.requested"
+	SessionEventTypeUserMessage                        SessionEventType = "user.message"
 )
 
 // Agent intent description for current activity or plan
@@ -651,7 +652,7 @@ type SessionModelChangeData struct {
 	// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
 	Cause *string `json:"cause,omitempty"`
 	// Context tier after the model change; null explicitly clears a previously selected tier
-	ContextTier *SessionModelChangeDataContextTier `json:"contextTier,omitempty"`
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Newly selected model identifier
 	NewModel string `json:"newModel"`
 	// Model that was previously selected, if any
@@ -969,6 +970,17 @@ func (*SessionCustomAgentsUpdatedData) Type() SessionEventType {
 	return SessionEventTypeSessionCustomAgentsUpdated
 }
 
+// Schema for the `ExtensionsAttachmentsPushedData` type.
+type SessionExtensionsAttachmentsPushedData struct {
+	// Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.
+	Attachments []Attachment `json:"attachments"`
+}
+
+func (*SessionExtensionsAttachmentsPushedData) sessionEventData() {}
+func (*SessionExtensionsAttachmentsPushedData) Type() SessionEventType {
+	return SessionEventTypeSessionExtensionsAttachmentsPushed
+}
+
 // Schema for the `ExtensionsLoadedData` type.
 type SessionExtensionsLoadedData struct {
 	// Array of discovered extensions and their status
@@ -1029,7 +1041,7 @@ type UserMessageData struct {
 	// The agent mode that was active when this message was sent
 	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
 	// Files, selections, or GitHub references attached to the message
-	Attachments []UserMessageAttachment `json:"attachments,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
 	// The user's message text as displayed in the timeline
 	Content string `json:"content"`
 	// CAPI interaction ID for correlating this user message with its turn
@@ -1088,7 +1100,7 @@ type SessionStartData struct {
 	// Working directory and git context at session start
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
 	// Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
-	ContextTier *SessionStartDataContextTier `json:"contextTier,omitempty"`
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Version string of the Copilot application
 	CopilotVersion string `json:"copilotVersion"`
 	// When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
@@ -1121,7 +1133,7 @@ type SessionResumeData struct {
 	// Updated working directory and git context at resume time
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
 	// Context tier currently selected at resume time; null when no tier is active
-	ContextTier *SessionResumeDataContextTier `json:"contextTier,omitempty"`
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
 	ContinuePendingWork *bool `json:"continuePendingWork,omitempty"`
 	// Total number of persisted events in the session at the time of resume
@@ -2848,133 +2860,6 @@ type ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation struct {
 type ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone struct {
 }
 
-// A user message attachment — a file, directory, code selection, blob, or GitHub reference
-type UserMessageAttachment interface {
-	userMessageAttachment()
-	Type() UserMessageAttachmentType
-}
-
-type RawUserMessageAttachment struct {
-	Discriminator UserMessageAttachmentType
-	Raw           json.RawMessage
-}
-
-func (RawUserMessageAttachment) userMessageAttachment() {}
-func (r RawUserMessageAttachment) Type() UserMessageAttachmentType {
-	return r.Discriminator
-}
-
-// Blob attachment with inline base64-encoded data
-type UserMessageAttachmentBlob struct {
-	// Base64-encoded content
-	Data string `json:"data"`
-	// User-facing display name for the attachment
-	DisplayName *string `json:"displayName,omitempty"`
-	// MIME type of the inline data
-	MIMEType string `json:"mimeType"`
-}
-
-func (UserMessageAttachmentBlob) userMessageAttachment() {}
-func (UserMessageAttachmentBlob) Type() UserMessageAttachmentType {
-	return UserMessageAttachmentTypeBlob
-}
-
-// Directory attachment
-type UserMessageAttachmentDirectory struct {
-	// User-facing display name for the attachment
-	DisplayName string `json:"displayName"`
-	// Absolute directory path
-	Path string `json:"path"`
-}
-
-func (UserMessageAttachmentDirectory) userMessageAttachment() {}
-func (UserMessageAttachmentDirectory) Type() UserMessageAttachmentType {
-	return UserMessageAttachmentTypeDirectory
-}
-
-// File attachment
-type UserMessageAttachmentFile struct {
-	// User-facing display name for the attachment
-	DisplayName string `json:"displayName"`
-	// Optional line range to scope the attachment to a specific section of the file
-	LineRange *UserMessageAttachmentFileLineRange `json:"lineRange,omitempty"`
-	// Absolute file path
-	Path string `json:"path"`
-}
-
-func (UserMessageAttachmentFile) userMessageAttachment() {}
-func (UserMessageAttachmentFile) Type() UserMessageAttachmentType {
-	return UserMessageAttachmentTypeFile
-}
-
-// GitHub issue, pull request, or discussion reference
-type UserMessageAttachmentGithubReference struct {
-	// Issue, pull request, or discussion number
-	Number int64 `json:"number"`
-	// Type of GitHub reference
-	ReferenceType UserMessageAttachmentGithubReferenceType `json:"referenceType"`
-	// Current state of the referenced item (e.g., open, closed, merged)
-	State string `json:"state"`
-	// Title of the referenced item
-	Title string `json:"title"`
-	// URL to the referenced item on GitHub
-	URL string `json:"url"`
-}
-
-func (UserMessageAttachmentGithubReference) userMessageAttachment() {}
-func (UserMessageAttachmentGithubReference) Type() UserMessageAttachmentType {
-	return UserMessageAttachmentTypeGithubReference
-}
-
-// Code selection attachment from an editor
-type UserMessageAttachmentSelection struct {
-	// User-facing display name for the selection
-	DisplayName string `json:"displayName"`
-	// Absolute path to the file containing the selection
-	FilePath string `json:"filePath"`
-	// Position range of the selection within the file
-	Selection UserMessageAttachmentSelectionDetails `json:"selection"`
-	// The selected text content
-	Text string `json:"text"`
-}
-
-func (UserMessageAttachmentSelection) userMessageAttachment() {}
-func (UserMessageAttachmentSelection) Type() UserMessageAttachmentType {
-	return UserMessageAttachmentTypeSelection
-}
-
-// Optional line range to scope the attachment to a specific section of the file
-type UserMessageAttachmentFileLineRange struct {
-	// End line number (1-based, inclusive)
-	End int64 `json:"end"`
-	// Start line number (1-based)
-	Start int64 `json:"start"`
-}
-
-// Position range of the selection within the file
-type UserMessageAttachmentSelectionDetails struct {
-	// End position of the selection
-	End UserMessageAttachmentSelectionDetailsEnd `json:"end"`
-	// Start position of the selection
-	Start UserMessageAttachmentSelectionDetailsStart `json:"start"`
-}
-
-// End position of the selection
-type UserMessageAttachmentSelectionDetailsEnd struct {
-	// End character offset within the line (0-based)
-	Character int64 `json:"character"`
-	// End line number (0-based)
-	Line int64 `json:"line"`
-}
-
-// Start position of the selection
-type UserMessageAttachmentSelectionDetailsStart struct {
-	// Start character offset within the line (0-based)
-	Character int64 `json:"character"`
-	// Start line number (0-based)
-	Line int64 `json:"line"`
-}
-
 // Working directory and git context at session start
 type WorkingDirectoryContext struct {
 	// Base commit of current git branch at session start time
@@ -3269,33 +3154,6 @@ const (
 	PlanChangedOperationUpdate PlanChangedOperation = "update"
 )
 
-type SessionModelChangeDataContextTier string
-
-const (
-	// Default context tier with standard context window size.
-	SessionModelChangeDataContextTierDefault SessionModelChangeDataContextTier = "default"
-	// Extended context tier with a larger context window.
-	SessionModelChangeDataContextTierLongContext SessionModelChangeDataContextTier = "long_context"
-)
-
-type SessionResumeDataContextTier string
-
-const (
-	// Default context tier with standard context window size.
-	SessionResumeDataContextTierDefault SessionResumeDataContextTier = "default"
-	// Extended context tier with a larger context window.
-	SessionResumeDataContextTierLongContext SessionResumeDataContextTier = "long_context"
-)
-
-type SessionStartDataContextTier string
-
-const (
-	// Default context tier with standard context window size.
-	SessionStartDataContextTierDefault SessionStartDataContextTier = "default"
-	// Extended context tier with a larger context window.
-	SessionStartDataContextTierLongContext SessionStartDataContextTier = "long_context"
-)
-
 // What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
 type SkillInvokedTrigger string
 
@@ -3386,29 +3244,6 @@ const (
 	UserMessageAgentModeShell UserMessageAgentMode = "shell"
 )
 
-// Type of GitHub reference
-type UserMessageAttachmentGithubReferenceType string
-
-const (
-	// GitHub discussion reference.
-	UserMessageAttachmentGithubReferenceTypeDiscussion UserMessageAttachmentGithubReferenceType = "discussion"
-	// GitHub issue reference.
-	UserMessageAttachmentGithubReferenceTypeIssue UserMessageAttachmentGithubReferenceType = "issue"
-	// GitHub pull request reference.
-	UserMessageAttachmentGithubReferenceTypePr UserMessageAttachmentGithubReferenceType = "pr"
-)
-
-// Type discriminator for UserMessageAttachment.
-type UserMessageAttachmentType string
-
-const (
-	UserMessageAttachmentTypeBlob            UserMessageAttachmentType = "blob"
-	UserMessageAttachmentTypeDirectory       UserMessageAttachmentType = "directory"
-	UserMessageAttachmentTypeFile            UserMessageAttachmentType = "file"
-	UserMessageAttachmentTypeGithubReference UserMessageAttachmentType = "github_reference"
-	UserMessageAttachmentTypeSelection       UserMessageAttachmentType = "selection"
-)
-
 // Hosting platform type of the repository (github or ado)
 type WorkingDirectoryContextHostType string
 
@@ -3431,17 +3266,6 @@ const (
 
 // Type aliases for convenience.
 type (
-	Attachment               = UserMessageAttachment
-	AttachmentType           = UserMessageAttachmentType
 	PermissionRequestCommand = PermissionRequestShellCommand
 	PossibleURL              = PermissionRequestShellPossibleURL
-)
-
-// Constant aliases for convenience.
-const (
-	AttachmentTypeBlob            = UserMessageAttachmentTypeBlob
-	AttachmentTypeDirectory       = UserMessageAttachmentTypeDirectory
-	AttachmentTypeFile            = UserMessageAttachmentTypeFile
-	AttachmentTypeGithubReference = UserMessageAttachmentTypeGithubReference
-	AttachmentTypeSelection       = UserMessageAttachmentTypeSelection
 )

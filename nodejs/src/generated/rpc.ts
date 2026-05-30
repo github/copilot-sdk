@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
 
 /**
  * Where the agent definition was loaded from
@@ -265,18 +265,6 @@ export type ContentFilterMode =
   | "markdown"
   /** Remove characters that can hide directives. */
   | "hidden_characters";
-/**
- * Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCurrentContextTier".
- */
-/** @experimental */
-export type ModelCurrentContextTier =
-  /** Use the model's default context window. */
-  | "default"
-  /** Pin the session to the long-context tier when supported. */
-  | "long_context";
 /**
  * Server transport type: stdio, http, sse (deprecated), or memory
  *
@@ -948,6 +936,34 @@ export type PermissionsSetApproveAllSource =
   /** Allow-all was enabled through an RPC caller. */
   | "rpc";
 /**
+ * Schema for the `PushAttachment` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachment".
+ */
+/** @experimental */
+export type PushAttachment =
+  | PushAttachmentFile
+  | PushAttachmentDirectory
+  | PushAttachmentSelection
+  | PushAttachmentGithubReference
+  | PushAttachmentBlob
+  | ExtensionContextPushInput;
+/**
+ * Type of GitHub reference
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGithubReferenceType".
+ */
+/** @experimental */
+export type PushAttachmentGithubReferenceType =
+  /** GitHub issue reference. */
+  | "issue"
+  /** GitHub pull request reference. */
+  | "pr"
+  /** GitHub discussion reference. */
+  | "discussion";
+/**
  * Whether this item is a queued user message or a queued slash command / model change
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -989,33 +1005,6 @@ export type SendAgentMode =
   | "autopilot"
   /** The agent is in shell-focused UI mode. */
   | "shell";
-/**
- * A user message attachment — a file, directory, code selection, blob, or GitHub reference
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachment".
- */
-/** @experimental */
-export type SendAttachment =
-  | SendAttachmentFile
-  | SendAttachmentDirectory
-  | SendAttachmentSelection
-  | SendAttachmentGithubReference
-  | SendAttachmentBlob;
-/**
- * Type of GitHub reference
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentGithubReferenceType".
- */
-/** @experimental */
-export type SendAttachmentGithubReferenceType =
-  /** GitHub issue reference. */
-  | "issue"
-  /** GitHub pull request reference. */
-  | "pr"
-  /** GitHub discussion reference. */
-  | "discussion";
 /**
  * How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
  *
@@ -2826,7 +2815,7 @@ export interface ConnectResult {
   version: string;
 }
 /**
- * The currently selected model, reasoning effort, and context tier for the session.
+ * The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CurrentModel".
@@ -2841,7 +2830,7 @@ export interface CurrentModel {
    * Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
    */
   reasoningEffort?: string;
-  contextTier?: ModelCurrentContextTier;
+  contextTier?: ContextTier;
 }
 /**
  * Lightweight metadata for a currently initialized session tool
@@ -3049,6 +3038,29 @@ export interface Extension {
    * Process ID if the extension is running
    */
   pid?: number;
+}
+/**
+ * Slim input shape for extension_context attachments; identity fields are runtime-derived.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionContextPushInput".
+ */
+/** @experimental */
+export interface ExtensionContextPushInput {
+  /**
+   * Attachment type discriminator
+   */
+  type: "extension_context";
+  /**
+   * Human-readable composer pill label
+   */
+  title: string;
+  /**
+   * Caller-supplied JSON payload (required, may be null but not undefined)
+   */
+  payload: {
+    [k: string]: unknown | undefined;
+  };
 }
 /**
  * Extensions discovered for the session, with their current status.
@@ -4952,11 +4964,7 @@ export interface ModelSwitchToRequest {
   /**
    * Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.
    */
-  contextTier?: /** Use the model's default context window. */
-    | "default"
-    /** Pin the session to the long-context tier when supported. */
-    | "long_context"
-    | null;
+  contextTier?: ContextTier | null;
 }
 /**
  * The model identifier active on the session after the switch.
@@ -6438,6 +6446,192 @@ export interface PluginList {
   plugins: Plugin[];
 }
 /**
+ * File attachment
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentFile".
+ */
+/** @experimental */
+export interface PushAttachmentFile {
+  /**
+   * Attachment type discriminator
+   */
+  type: "file";
+  /**
+   * Absolute file path
+   */
+  path: string;
+  /**
+   * User-facing display name for the attachment
+   */
+  displayName: string;
+  lineRange?: PushAttachmentFileLineRange;
+}
+/**
+ * Optional line range to scope the attachment to a specific section of the file
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentFileLineRange".
+ */
+/** @experimental */
+export interface PushAttachmentFileLineRange {
+  /**
+   * Start line number (1-based)
+   */
+  start: number;
+  /**
+   * End line number (1-based, inclusive)
+   */
+  end: number;
+}
+/**
+ * Directory attachment
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentDirectory".
+ */
+/** @experimental */
+export interface PushAttachmentDirectory {
+  /**
+   * Attachment type discriminator
+   */
+  type: "directory";
+  /**
+   * Absolute directory path
+   */
+  path: string;
+  /**
+   * User-facing display name for the attachment
+   */
+  displayName: string;
+}
+/**
+ * Code selection attachment from an editor
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentSelection".
+ */
+/** @experimental */
+export interface PushAttachmentSelection {
+  /**
+   * Attachment type discriminator
+   */
+  type: "selection";
+  /**
+   * Absolute path to the file containing the selection
+   */
+  filePath: string;
+  /**
+   * User-facing display name for the selection
+   */
+  displayName: string;
+  /**
+   * The selected text content
+   */
+  text: string;
+  selection: PushAttachmentSelectionDetails;
+}
+/**
+ * Position range of the selection within the file
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentSelectionDetails".
+ */
+/** @experimental */
+export interface PushAttachmentSelectionDetails {
+  start: PushAttachmentSelectionDetailsStart;
+  end: PushAttachmentSelectionDetailsEnd;
+}
+/**
+ * Start position of the selection
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentSelectionDetailsStart".
+ */
+/** @experimental */
+export interface PushAttachmentSelectionDetailsStart {
+  /**
+   * Start line number (0-based)
+   */
+  line: number;
+  /**
+   * Start character offset within the line (0-based)
+   */
+  character: number;
+}
+/**
+ * End position of the selection
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentSelectionDetailsEnd".
+ */
+/** @experimental */
+export interface PushAttachmentSelectionDetailsEnd {
+  /**
+   * End line number (0-based)
+   */
+  line: number;
+  /**
+   * End character offset within the line (0-based)
+   */
+  character: number;
+}
+/**
+ * GitHub issue, pull request, or discussion reference
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGithubReference".
+ */
+/** @experimental */
+export interface PushAttachmentGithubReference {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_reference";
+  /**
+   * Issue, pull request, or discussion number
+   */
+  number: number;
+  /**
+   * Title of the referenced item
+   */
+  title: string;
+  referenceType: PushAttachmentGithubReferenceType;
+  /**
+   * Current state of the referenced item (e.g., open, closed, merged)
+   */
+  state: string;
+  /**
+   * URL to the referenced item on GitHub
+   */
+  url: string;
+}
+/**
+ * Blob attachment with inline base64-encoded data
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentBlob".
+ */
+/** @experimental */
+export interface PushAttachmentBlob {
+  /**
+   * Attachment type discriminator
+   */
+  type: "blob";
+  /**
+   * Base64-encoded content
+   */
+  data: string;
+  /**
+   * MIME type of the inline data
+   */
+  mimeType: string;
+  /**
+   * User-facing display name for the attachment
+   */
+  displayName?: string;
+}
+/**
  * Schema for the `QueuePendingItems` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6676,190 +6870,21 @@ export interface SecretsAddFilterValuesResult {
   ok: true;
 }
 /**
- * File attachment
+ * Parameters for session.extensions.sendAttachmentsToMessage.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentFile".
+ * via the `definition` "SendAttachmentsToMessageParams".
  */
 /** @experimental */
-export interface SendAttachmentFile {
+export interface SendAttachmentsToMessageParams {
   /**
-   * Attachment type discriminator
+   * Optional canvas instance binding the push for provenance. When supplied, the runtime resolves the canvas, verifies it is owned by the calling extension, and stamps canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs and those fields stay unset on the attachment.
    */
-  type: "file";
+  instanceId?: string;
   /**
-   * Absolute file path
+   * Attachments to push into the next user-message turn. extension_context entries take the slim shape; standard variants take their full AttachmentSchema shape.
    */
-  path: string;
-  /**
-   * User-facing display name for the attachment
-   */
-  displayName: string;
-  lineRange?: SendAttachmentFileLineRange;
-}
-/**
- * Optional line range to scope the attachment to a specific section of the file
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentFileLineRange".
- */
-/** @experimental */
-export interface SendAttachmentFileLineRange {
-  /**
-   * Start line number (1-based)
-   */
-  start: number;
-  /**
-   * End line number (1-based, inclusive)
-   */
-  end: number;
-}
-/**
- * Directory attachment
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentDirectory".
- */
-/** @experimental */
-export interface SendAttachmentDirectory {
-  /**
-   * Attachment type discriminator
-   */
-  type: "directory";
-  /**
-   * Absolute directory path
-   */
-  path: string;
-  /**
-   * User-facing display name for the attachment
-   */
-  displayName: string;
-}
-/**
- * Code selection attachment from an editor
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentSelection".
- */
-/** @experimental */
-export interface SendAttachmentSelection {
-  /**
-   * Attachment type discriminator
-   */
-  type: "selection";
-  /**
-   * Absolute path to the file containing the selection
-   */
-  filePath: string;
-  /**
-   * User-facing display name for the selection
-   */
-  displayName: string;
-  /**
-   * The selected text content
-   */
-  text: string;
-  selection: SendAttachmentSelectionDetails;
-}
-/**
- * Position range of the selection within the file
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentSelectionDetails".
- */
-/** @experimental */
-export interface SendAttachmentSelectionDetails {
-  start: SendAttachmentSelectionDetailsStart;
-  end: SendAttachmentSelectionDetailsEnd;
-}
-/**
- * Start position of the selection
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentSelectionDetailsStart".
- */
-/** @experimental */
-export interface SendAttachmentSelectionDetailsStart {
-  /**
-   * Start line number (0-based)
-   */
-  line: number;
-  /**
-   * Start character offset within the line (0-based)
-   */
-  character: number;
-}
-/**
- * End position of the selection
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentSelectionDetailsEnd".
- */
-/** @experimental */
-export interface SendAttachmentSelectionDetailsEnd {
-  /**
-   * End line number (0-based)
-   */
-  line: number;
-  /**
-   * End character offset within the line (0-based)
-   */
-  character: number;
-}
-/**
- * GitHub issue, pull request, or discussion reference
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentGithubReference".
- */
-/** @experimental */
-export interface SendAttachmentGithubReference {
-  /**
-   * Attachment type discriminator
-   */
-  type: "github_reference";
-  /**
-   * Issue, pull request, or discussion number
-   */
-  number: number;
-  /**
-   * Title of the referenced item
-   */
-  title: string;
-  referenceType: SendAttachmentGithubReferenceType;
-  /**
-   * Current state of the referenced item (e.g., open, closed, merged)
-   */
-  state: string;
-  /**
-   * URL to the referenced item on GitHub
-   */
-  url: string;
-}
-/**
- * Blob attachment with inline base64-encoded data
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAttachmentBlob".
- */
-/** @experimental */
-export interface SendAttachmentBlob {
-  /**
-   * Attachment type discriminator
-   */
-  type: "blob";
-  /**
-   * Base64-encoded content
-   */
-  data: string;
-  /**
-   * MIME type of the inline data
-   */
-  mimeType: string;
-  /**
-   * User-facing display name for the attachment
-   */
-  displayName?: string;
+  attachments: PushAttachment[];
 }
 /**
  * Parameters for sending a user message to the session
@@ -6880,7 +6905,7 @@ export interface SendRequest {
   /**
    * Optional attachments (files, directories, selections, blobs, GitHub references) to include with the message
    */
-  attachments?: SendAttachment[];
+  attachments?: Attachment[];
   mode?: SendMode;
   /**
    * If true, adds the message to the front of the queue instead of the end
@@ -10379,6 +10404,13 @@ export function createServerRpc(connection: MessageConnection) {
                     connection.sendRequest("user.settings.reload", {}),
             },
         },
+        runtime: {
+            /**
+             * Gracefully shuts down an SDK-owned runtime. The response is sent only after cleanup completes; callers may then terminate the owned runtime process.
+             */
+            shutdown: async (): Promise<void> =>
+                connection.sendRequest("runtime.shutdown", {}),
+        },
         sessionFs: {
             /**
              * Registers an SDK client as the session filesystem provider.
@@ -10706,7 +10738,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Gets the currently selected model for the session.
              *
-             * @returns The currently selected model, reasoning effort, and context tier for the session.
+             * @returns The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
              */
             getCurrent: async (): Promise<CurrentModel> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
@@ -11253,6 +11285,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.extensions.reload", { sessionId }),
+            /**
+             * Push attachments into the next user-message turn from an extension. The host should surface them as composer pills and forward them via the next session.send call. Callable only by extension-owned connections.
+             *
+             * @param params Parameters for session.extensions.sendAttachmentsToMessage.
+             */
+            sendAttachmentsToMessage: async (params: SendAttachmentsToMessageParams): Promise<void> =>
+                connection.sendRequest("session.extensions.sendAttachmentsToMessage", { sessionId, ...params }),
         },
         /** @experimental */
         tools: {
