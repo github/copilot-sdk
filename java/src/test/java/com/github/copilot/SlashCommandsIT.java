@@ -24,7 +24,8 @@ import com.github.copilot.rpc.SessionConfig;
  * Failsafe integration test that exercises slash commands against the live
  * Copilot CLI (not the replay proxy).
  * <p>
- * Requires the CLI to be installed and the user to be signed in.
+ * Requires the CLI to be installed and the user to be signed in. Uses
+ * {@link TestUtil#findCliPath()} so the test harness binary is found in CI.
  */
 class SlashCommandsIT {
 
@@ -33,7 +34,8 @@ class SlashCommandsIT {
 
     @BeforeAll
     static void setup() throws Exception {
-        CopilotClientOptions options = new CopilotClientOptions().setUseLoggedInUser(true);
+        String cliPath = TestUtil.findCliPath();
+        CopilotClientOptions options = new CopilotClientOptions().setCliPath(cliPath).setUseLoggedInUser(true);
         client = new CopilotClient(options);
         client.start().get(30, TimeUnit.SECONDS);
         session = client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
