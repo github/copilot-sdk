@@ -3510,7 +3510,7 @@ pub struct MetadataContextInfoResultContextInfo {
     pub compaction_threshold: i64,
     /// Tokens consumed by user/assistant/tool messages
     pub conversation_tokens: i64,
-    /// Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.
+    /// Total context limit for /context display: promptTokenLimit + outputTokenLimit (the model's full max_output_tokens reserved on top of the prompt budget).
     pub limit: i64,
     /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
     pub mcp_tools_tokens: i64,
@@ -3733,7 +3733,7 @@ pub struct ModelBillingTokenPricesLongContext {
     /// AI Credits cost per billing batch of cached tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_price: Option<f64>,
-    /// Maximum context window tokens for the long context tier
+    /// Prompt token budget (max_prompt_tokens) for the long context tier. The total context window is this value plus the model's max_output_tokens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_max: Option<i64>,
     /// AI Credits cost per billing batch of input tokens
@@ -3754,7 +3754,7 @@ pub struct ModelBillingTokenPrices {
     /// AI Credits cost per billing batch of cached tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_price: Option<f64>,
-    /// Maximum context window tokens for the default tier
+    /// Prompt token budget (max_prompt_tokens) for the default tier. The total context window is this value plus the model's max_output_tokens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_max: Option<i64>,
     /// AI Credits cost per billing batch of input tokens
@@ -6347,7 +6347,7 @@ pub struct SessionContextInfo {
     pub compaction_threshold: i64,
     /// Tokens consumed by user/assistant/tool messages
     pub conversation_tokens: i64,
-    /// Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.
+    /// Total context limit for /context display: promptTokenLimit + outputTokenLimit (the model's full max_output_tokens reserved on top of the prompt budget).
     pub limit: i64,
     /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
     pub mcp_tools_tokens: i64,
@@ -12084,7 +12084,7 @@ pub struct SessionMetadataContextInfoResultContextInfo {
     pub compaction_threshold: i64,
     /// Tokens consumed by user/assistant/tool messages
     pub conversation_tokens: i64,
-    /// Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.
+    /// Total context limit for /context display: promptTokenLimit + outputTokenLimit (the model's full max_output_tokens reserved on top of the prompt budget).
     pub limit: i64,
     /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
     pub mcp_tools_tokens: i64,
