@@ -128,20 +128,6 @@ async def _safe_force_stop(client: CopilotClient) -> None:
 
 
 class TestPendingWorkResume:
-    # Skipped after the runtime 1.0.56 bump. Runtime PR #9040 (commit b8e1220b45)
-    # changed SDKServer.handleConnectionClosed to tear down the session when the last
-    # RPC client disconnects, so the in-memory pending permission request is gone
-    # before the resumed client can satisfy it and handle_pending_permission_request
-    # returns success=False. This test models same-process force_stop+resume; it
-    # needs to be redesigned to either keep an owner connected (warm resume) or to
-    # model a true process restart against the persisted session state.
-    @pytest.mark.skip(
-        reason=(
-            "Runtime 1.0.56 cleans up the session on last-client disconnect "
-            "(copilot-agent-runtime PR #9040), so the in-memory pending request "
-            "is gone before resume can satisfy it. Test needs redesign."
-        )
-    )
     async def test_should_continue_pending_permission_request_after_resume(
         self, ctx: E2ETestContext
     ):
@@ -222,19 +208,6 @@ class TestPendingWorkResume:
         finally:
             await _safe_force_stop(server)
 
-    # Skipped for the same reason as
-    # test_should_continue_pending_permission_request_after_resume: runtime 1.0.56
-    # (copilot-agent-runtime PR #9040) tears down the session when the last RPC
-    # client disconnects, so the in-memory pending external tool call is gone before
-    # the resumed client can satisfy it. Needs redesign to keep an owner connected
-    # (warm) or to model true process-restart resume from persisted state.
-    @pytest.mark.skip(
-        reason=(
-            "Runtime 1.0.56 cleans up the session on last-client disconnect "
-            "(copilot-agent-runtime PR #9040), so the in-memory pending tool call "
-            "is gone before resume can satisfy it. Test needs redesign."
-        )
-    )
     async def test_should_continue_pending_external_tool_request_after_resume(
         self, ctx: E2ETestContext
     ):
