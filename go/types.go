@@ -859,16 +859,6 @@ type LargeToolOutputConfig struct {
 	OutputDirectory string `json:"outputDir,omitempty"`
 }
 
-// ContextTier identifies a context window tier for models that support tiered context windows.
-type ContextTier string
-
-const (
-	// ContextTierDefault is the default context tier with standard context window size.
-	ContextTierDefault ContextTier = "default"
-	// ContextTierLongContext is the extended context tier with a larger context window.
-	ContextTierLongContext ContextTier = "long_context"
-)
-
 // SessionFsCapabilities declares optional provider capabilities.
 type SessionFsCapabilities struct {
 	// Sqlite indicates whether the provider supports SQLite query/exists operations.

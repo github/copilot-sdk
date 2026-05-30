@@ -120,7 +120,7 @@ func main() {
 	session.Send(ctx, copilot.MessageOptions{
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
-            &copilot.UserMessageAttachmentFile{
+            &copilot.AttachmentFile{
                 DisplayName: "screenshot.png",
                 Path:        path,
 			},
@@ -146,7 +146,7 @@ path := "/absolute/path/to/screenshot.png"
 session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
-        &copilot.UserMessageAttachmentFile{
+        &copilot.AttachmentFile{
             DisplayName: "screenshot.png",
             Path:        path,
         },
@@ -179,9 +179,9 @@ public static class ImageInputExample
         await session.SendAsync(new MessageOptions
         {
             Prompt = "Describe what you see in this image",
-            Attachments = new List<UserMessageAttachment>
+            Attachments = new List<Attachment>
             {
-                new UserMessageAttachmentFile
+                new AttachmentFile
                 {
                     Path = "/absolute/path/to/screenshot.png",
                     DisplayName = "screenshot.png",
@@ -208,9 +208,9 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 await session.SendAsync(new MessageOptions
 {
     Prompt = "Describe what you see in this image",
-    Attachments = new List<UserMessageAttachment>
+    Attachments = new List<Attachment>
     {
-        new UserMessageAttachmentFile
+        new AttachmentFile
         {
             Path = "/absolute/path/to/screenshot.png",
             DisplayName = "screenshot.png",
@@ -344,7 +344,7 @@ func main() {
 	session.Send(ctx, copilot.MessageOptions{
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
-            &copilot.UserMessageAttachmentBlob{
+            &copilot.AttachmentBlob{
                 Data:        base64ImageData,
                 MIMEType:    mimeType,
 				DisplayName: &displayName,
@@ -361,7 +361,7 @@ displayName := "screenshot.png"
 session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
-        &copilot.UserMessageAttachmentBlob{
+        &copilot.AttachmentBlob{
             Data:        base64ImageData, // base64-encoded string
             MIMEType:    mimeType,
             DisplayName: &displayName,
@@ -396,9 +396,9 @@ public static class BlobAttachmentExample
         await session.SendAsync(new MessageOptions
         {
             Prompt = "Describe what you see in this image",
-            Attachments = new List<UserMessageAttachment>
+            Attachments = new List<Attachment>
             {
-                new UserMessageAttachmentBlob
+                new AttachmentBlob
                 {
                     Data = base64ImageData,
                     MimeType = "image/png",
@@ -415,9 +415,9 @@ public static class BlobAttachmentExample
 await session.SendAsync(new MessageOptions
 {
     Prompt = "Describe what you see in this image",
-    Attachments = new List<UserMessageAttachment>
+    Attachments = new List<Attachment>
     {
-        new UserMessageAttachmentBlob
+        new AttachmentBlob
         {
             Data = base64ImageData,
             MimeType = "image/png",

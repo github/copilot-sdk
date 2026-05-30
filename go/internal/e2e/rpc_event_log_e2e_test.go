@@ -29,7 +29,7 @@ func TestRpcEventLogE2E(t *testing.T) {
 		waitForRPCCondition(t, rpcEventLogTimeout, "persisted session.plan_changed event", func() (bool, error) {
 			var err error
 			read, err = session.RPC.EventLog.Read(t.Context(), &rpc.EventLogReadRequest{
-				Max:    rpcPtr(int32(100)),
+				Max:    rpcPtr(int64(100)),
 				WaitMs: rpcPtr(int32(0)),
 			})
 			if err != nil {
@@ -67,7 +67,7 @@ func TestRpcEventLogE2E(t *testing.T) {
 			}
 			read, err = session.RPC.EventLog.Read(t.Context(), &rpc.EventLogReadRequest{
 				Cursor: &tail.Cursor,
-				Max:    rpcPtr(int32(10)),
+				Max:    rpcPtr(int64(10)),
 				WaitMs: rpcPtr(int32(0)),
 			})
 			return err == nil && read.CursorStatus == rpc.EventsCursorStatusOk && len(read.Events) == 0, err
@@ -131,7 +131,7 @@ func TestRpcEventLogE2E(t *testing.T) {
 			go func() {
 				result, err := session.RPC.EventLog.Read(t.Context(), &rpc.EventLogReadRequest{
 					Cursor: &tail.Cursor,
-					Max:    rpcPtr(int32(10)),
+					Max:    rpcPtr(int64(10)),
 					WaitMs: rpcPtr(int32(5000)),
 					Types:  &rpc.EventLogTypes{StringArray: []string{string(copilot.SessionEventTypeSessionTitleChanged)}},
 				})

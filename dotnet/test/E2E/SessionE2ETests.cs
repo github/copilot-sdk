@@ -715,7 +715,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             Prompt = "Describe this image",
             Attachments =
             [
-                new UserMessageAttachmentBlob
+                new AttachmentBlob
                 {
                     Data = pngBase64,
                     MimeType = "image/png",
@@ -740,17 +740,17 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             Prompt = "Read the attached file and reply with its contents.",
             Attachments =
             [
-                new UserMessageAttachmentFile
+                new AttachmentFile
                 {
                     DisplayName = "attached-file.txt",
                     Path = filePath,
-                    LineRange = new UserMessageAttachmentFileLineRange { Start = 1, End = 1 },
+                    LineRange = new AttachmentFileLineRange { Start = 1, End = 1 },
                 },
             ],
         });
 
         var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
-        var attachment = Assert.IsType<UserMessageAttachmentFile>(Assert.Single(userMessage.Data.Attachments!));
+        var attachment = Assert.IsType<AttachmentFile>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("attached-file.txt", attachment.DisplayName);
         Assert.Equal(filePath, attachment.Path);
         Assert.Equal(1, attachment.LineRange!.Start);
@@ -771,7 +771,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             Prompt = "List the attached directory.",
             Attachments =
             [
-                new UserMessageAttachmentDirectory
+                new AttachmentDirectory
                 {
                     DisplayName = "attached-directory",
                     Path = directoryPath,
@@ -780,7 +780,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         });
 
         var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
-        var attachment = Assert.IsType<UserMessageAttachmentDirectory>(Assert.Single(userMessage.Data.Attachments!));
+        var attachment = Assert.IsType<AttachmentDirectory>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("attached-directory", attachment.DisplayName);
         Assert.Equal(directoryPath, attachment.Path);
     }
@@ -798,22 +798,22 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             Prompt = "Summarize the selected code.",
             Attachments =
             [
-                new UserMessageAttachmentSelection
+                new AttachmentSelection
                 {
                     DisplayName = "selected-file.cs",
                     FilePath = filePath,
                     Text = "string Value = \"SELECTION_SENTINEL\";",
-                    Selection = new UserMessageAttachmentSelectionDetails
+                    Selection = new AttachmentSelectionDetails
                     {
-                        Start = new UserMessageAttachmentSelectionDetailsStart { Line = 1, Character = 10 },
-                        End = new UserMessageAttachmentSelectionDetailsEnd { Line = 1, Character = 45 },
+                        Start = new AttachmentSelectionDetailsStart { Line = 1, Character = 10 },
+                        End = new AttachmentSelectionDetailsEnd { Line = 1, Character = 45 },
                     },
                 },
             ],
         });
 
         var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
-        var attachment = Assert.IsType<UserMessageAttachmentSelection>(Assert.Single(userMessage.Data.Attachments!));
+        var attachment = Assert.IsType<AttachmentSelection>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("selected-file.cs", attachment.DisplayName);
         Assert.Equal(filePath, attachment.FilePath);
         Assert.Equal("string Value = \"SELECTION_SENTINEL\";", attachment.Text);
@@ -833,10 +833,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             Prompt = "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
             Attachments =
             [
-                new UserMessageAttachmentGithubReference
+                new AttachmentGithubReference
                 {
                     Number = 1234,
-                    ReferenceType = UserMessageAttachmentGithubReferenceType.Issue,
+                    ReferenceType = AttachmentGithubReferenceType.Issue,
                     State = "open",
                     Title = "Add E2E attachment coverage",
                     Url = "https://github.com/github/copilot-sdk/issues/1234",
@@ -845,9 +845,9 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         });
 
         var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
-        var attachment = Assert.IsType<UserMessageAttachmentGithubReference>(Assert.Single(userMessage.Data.Attachments!));
+        var attachment = Assert.IsType<AttachmentGithubReference>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal(1234, attachment.Number);
-        Assert.Equal(UserMessageAttachmentGithubReferenceType.Issue, attachment.ReferenceType);
+        Assert.Equal(AttachmentGithubReferenceType.Issue, attachment.ReferenceType);
         Assert.Equal("open", attachment.State);
         Assert.Equal("Add E2E attachment coverage", attachment.Title);
         Assert.Equal("https://github.com/github/copilot-sdk/issues/1234", attachment.Url);

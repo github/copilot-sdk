@@ -253,7 +253,7 @@ The SDK supports image attachments via the `Attachments` field in `MessageOption
 _, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
-        &copilot.UserMessageAttachmentFile{
+        &copilot.AttachmentFile{
             DisplayName: "image.jpg",
             Path:        "/path/to/image.jpg",
         },
@@ -265,7 +265,7 @@ mimeType := "image/png"
 _, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
-        &copilot.UserMessageAttachmentBlob{
+        &copilot.AttachmentBlob{
             Data:     base64ImageData,
             MIMEType: mimeType,
         },

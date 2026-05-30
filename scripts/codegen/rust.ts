@@ -1561,12 +1561,22 @@ function generateApiTypesCode(
 			names.add(typeName);
 		}
 	}
+	// api_types.rs always needs RequestId/SessionId from crate::types. Merge them into
+	// the same import group as any other crate::types refs (e.g. SessionEvent) so the
+	// generator emits a single `use crate::types::{...};` line that matches what
+	// rustfmt would otherwise produce after merging adjacent imports.
+	let cratesTypesImports = externalImports.get("crate::types");
+	if (!cratesTypesImports) {
+		cratesTypesImports = new Set<string>();
+		externalImports.set("crate::types", cratesTypesImports);
+	}
+	cratesTypesImports.add("RequestId");
+	cratesTypesImports.add("SessionId");
 	for (const [module, typeNames] of [...externalImports].sort(([left], [right]) =>
 		left.localeCompare(right),
 	)) {
 		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
 	}
-	out.push("use crate::types::{RequestId, SessionId};");
 	out.push("");
 
 	// Method constants

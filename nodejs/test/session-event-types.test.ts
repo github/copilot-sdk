@@ -48,7 +48,7 @@ import type {
     // *Data shapes — these must also be reachable so that consumers can
     // narrow or annotate intermediate values.
     UserMessageAgentMode,
-    UserMessageAttachment,
+    Attachment,
     WorkingDirectoryContextHostType,
 } from "../src/index.js";
 
@@ -174,7 +174,7 @@ describe("Session event type exports (#1156)", () => {
         // must round-trip through the package root too, otherwise consumers
         // annotating intermediate values would still need a deep import.
         assertImportable<UserMessageAgentMode>();
-        assertImportable<UserMessageAttachment>();
+        assertImportable<Attachment>();
         assertImportable<WorkingDirectoryContextHostType>();
 
         expect(true).toBe(true);

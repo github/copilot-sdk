@@ -181,6 +181,8 @@ pub enum SessionEventType {
     SessionCanvasOpened,
     #[serde(rename = "session.canvas.registry_changed")]
     SessionCanvasRegistryChanged,
+    #[serde(rename = "session.extensions.attachments_pushed")]
+    SessionExtensionsAttachmentsPushed,
     #[serde(rename = "mcp_app.tool_call_complete")]
     McpAppToolCallComplete,
     /// Unknown event type for forward compatibility.
@@ -367,6 +369,8 @@ pub enum SessionEventData {
     SessionCanvasOpened(SessionCanvasOpenedData),
     #[serde(rename = "session.canvas.registry_changed")]
     SessionCanvasRegistryChanged(SessionCanvasRegistryChangedData),
+    #[serde(rename = "session.extensions.attachments_pushed")]
+    SessionExtensionsAttachmentsPushed(SessionExtensionsAttachmentsPushedData),
     #[serde(rename = "mcp_app.tool_call_complete")]
     McpAppToolCallComplete(McpAppToolCallCompleteData),
 }
@@ -439,7 +443,7 @@ pub struct SessionStartData {
     pub context: Option<WorkingDirectoryContext>,
     /// Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<SessionStartDataContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// Version string of the Copilot application
     pub copilot_version: String,
     /// When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
@@ -479,7 +483,7 @@ pub struct SessionResumeData {
     pub context: Option<WorkingDirectoryContext>,
     /// Context tier currently selected at resume time; null when no tier is active
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<SessionResumeDataContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_pending_work: Option<bool>,
@@ -638,7 +642,7 @@ pub struct SessionModelChangeData {
     pub cause: Option<String>,
     /// Context tier after the model change; null explicitly clears a previously selected tier
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<SessionModelChangeDataContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// Newly selected model identifier
     pub new_model: String,
     /// Model that was previously selected, if any
@@ -3264,6 +3268,14 @@ pub struct SessionCanvasRegistryChangedData {
     pub canvases: Vec<CanvasRegistryChangedCanvas>,
 }
 
+/// Session event "session.extensions.attachments_pushed".
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExtensionsAttachmentsPushedData {
+    /// Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.
+    pub attachments: Vec<serde_json::Value>,
+}
+
 /// Set when the underlying tools/call threw an error before returning a CallToolResult
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3334,8 +3346,9 @@ pub enum WorkingDirectoryContextHostType {
     Unknown,
 }
 
+/// Allowed values for the `ContextTier` enumeration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SessionStartDataContextTier {
+pub enum ContextTier {
     /// Default context tier with standard context window size.
     #[serde(rename = "default")]
     Default,
@@ -3360,20 +3373,6 @@ pub enum ReasoningSummary {
     /// Request a detailed summary of the model's reasoning.
     #[serde(rename = "detailed")]
     Detailed,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SessionResumeDataContextTier {
-    /// Default context tier with standard context window size.
-    #[serde(rename = "default")]
-    Default,
-    /// Extended context tier with a larger context window.
-    #[serde(rename = "long_context")]
-    LongContext,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -3413,20 +3412,6 @@ pub enum AutopilotObjectiveChangedStatus {
     /// Objective was completed by the agent.
     #[serde(rename = "completed")]
     Completed,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SessionModelChangeDataContextTier {
-    /// Default context tier with standard context window size.
-    #[serde(rename = "default")]
-    Default,
-    /// Extended context tier with a larger context window.
-    #[serde(rename = "long_context")]
-    LongContext,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

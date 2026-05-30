@@ -1384,198 +1384,6 @@ public sealed class SendResult
     public string MessageId { get; set; } = string.Empty;
 }
 
-/// <summary>A user message attachment — a file, directory, code selection, blob, or GitHub reference.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(SendAttachmentFile), "file")]
-[JsonDerivedType(typeof(SendAttachmentDirectory), "directory")]
-[JsonDerivedType(typeof(SendAttachmentSelection), "selection")]
-[JsonDerivedType(typeof(SendAttachmentGithubReference), "github_reference")]
-[JsonDerivedType(typeof(SendAttachmentBlob), "blob")]
-public partial class SendAttachment
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("type")]
-    public virtual string Type { get; set; } = string.Empty;
-}
-
-
-/// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SendAttachmentFileLineRange
-{
-    /// <summary>End line number (1-based, inclusive).</summary>
-    [JsonPropertyName("end")]
-    public long End { get; set; }
-
-    /// <summary>Start line number (1-based).</summary>
-    [JsonPropertyName("start")]
-    public long Start { get; set; }
-}
-
-/// <summary>File attachment.</summary>
-/// <remarks>The <c>file</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class SendAttachmentFile : SendAttachment
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "file";
-
-    /// <summary>User-facing display name for the attachment.</summary>
-    [JsonPropertyName("displayName")]
-    public required string DisplayName { get; set; }
-
-    /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("lineRange")]
-    public SendAttachmentFileLineRange? LineRange { get; set; }
-
-    /// <summary>Absolute file path.</summary>
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-}
-
-/// <summary>Directory attachment.</summary>
-/// <remarks>The <c>directory</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class SendAttachmentDirectory : SendAttachment
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "directory";
-
-    /// <summary>User-facing display name for the attachment.</summary>
-    [JsonPropertyName("displayName")]
-    public required string DisplayName { get; set; }
-
-    /// <summary>Absolute directory path.</summary>
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-}
-
-/// <summary>End position of the selection.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SendAttachmentSelectionDetailsEnd
-{
-    /// <summary>End character offset within the line (0-based).</summary>
-    [JsonPropertyName("character")]
-    public long Character { get; set; }
-
-    /// <summary>End line number (0-based).</summary>
-    [JsonPropertyName("line")]
-    public long Line { get; set; }
-}
-
-/// <summary>Start position of the selection.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SendAttachmentSelectionDetailsStart
-{
-    /// <summary>Start character offset within the line (0-based).</summary>
-    [JsonPropertyName("character")]
-    public long Character { get; set; }
-
-    /// <summary>Start line number (0-based).</summary>
-    [JsonPropertyName("line")]
-    public long Line { get; set; }
-}
-
-/// <summary>Position range of the selection within the file.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SendAttachmentSelectionDetails
-{
-    /// <summary>End position of the selection.</summary>
-    [JsonPropertyName("end")]
-    public SendAttachmentSelectionDetailsEnd End { get => field ??= new(); set; }
-
-    /// <summary>Start position of the selection.</summary>
-    [JsonPropertyName("start")]
-    public SendAttachmentSelectionDetailsStart Start { get => field ??= new(); set; }
-}
-
-/// <summary>Code selection attachment from an editor.</summary>
-/// <remarks>The <c>selection</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class SendAttachmentSelection : SendAttachment
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "selection";
-
-    /// <summary>User-facing display name for the selection.</summary>
-    [JsonPropertyName("displayName")]
-    public required string DisplayName { get; set; }
-
-    /// <summary>Absolute path to the file containing the selection.</summary>
-    [JsonPropertyName("filePath")]
-    public required string FilePath { get; set; }
-
-    /// <summary>Position range of the selection within the file.</summary>
-    [JsonPropertyName("selection")]
-    public required SendAttachmentSelectionDetails Selection { get; set; }
-
-    /// <summary>The selected text content.</summary>
-    [JsonPropertyName("text")]
-    public required string Text { get; set; }
-}
-
-/// <summary>GitHub issue, pull request, or discussion reference.</summary>
-/// <remarks>The <c>github_reference</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class SendAttachmentGithubReference : SendAttachment
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "github_reference";
-
-    /// <summary>Issue, pull request, or discussion number.</summary>
-    [JsonPropertyName("number")]
-    public required long Number { get; set; }
-
-    /// <summary>Type of GitHub reference.</summary>
-    [JsonPropertyName("referenceType")]
-    public required SendAttachmentGithubReferenceType ReferenceType { get; set; }
-
-    /// <summary>Current state of the referenced item (e.g., open, closed, merged).</summary>
-    [JsonPropertyName("state")]
-    public required string State { get; set; }
-
-    /// <summary>Title of the referenced item.</summary>
-    [JsonPropertyName("title")]
-    public required string Title { get; set; }
-
-    /// <summary>URL to the referenced item on GitHub.</summary>
-    [JsonPropertyName("url")]
-    public required string Url { get; set; }
-}
-
-/// <summary>Blob attachment with inline base64-encoded data.</summary>
-/// <remarks>The <c>blob</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class SendAttachmentBlob : SendAttachment
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "blob";
-
-    /// <summary>Base64-encoded content.</summary>
-    [Base64String]
-    [JsonPropertyName("data")]
-    public required string Data { get; set; }
-
-    /// <summary>User-facing display name for the attachment.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("displayName")]
-    public string? DisplayName { get; set; }
-
-    /// <summary>MIME type of the inline data.</summary>
-    [JsonPropertyName("mimeType")]
-    public required string MimeType { get; set; }
-}
-
 /// <summary>Parameters for sending a user message to the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SendRequest
@@ -1586,7 +1394,7 @@ internal sealed class SendRequest
 
     /// <summary>Optional attachments (files, directories, selections, blobs, GitHub references) to include with the message.</summary>
     [JsonPropertyName("attachments")]
-    public IList<SendAttachment>? Attachments { get; set; }
+    public IList<Attachment>? Attachments { get; set; }
 
     /// <summary>If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.</summary>
     [JsonPropertyName("billable")]
@@ -2485,13 +2293,13 @@ internal sealed class CanvasActionInvokeRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>The currently selected model, reasoning effort, and context tier for the session.</summary>
+/// <summary>The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class CurrentModel
 {
-    /// <summary>Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
+    /// <summary>Context tier for models that support multiple context-window sizes.</summary>
     [JsonPropertyName("contextTier")]
-    public ModelCurrentContextTier? ContextTier { get; set; }
+    public ContextTier? ContextTier { get; set; }
 
     /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("modelId")]
@@ -2590,7 +2398,7 @@ internal sealed class ModelSwitchToRequest
 {
     /// <summary>Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.</summary>
     [JsonPropertyName("contextTier")]
-    public ModelSwitchToRequestContextTier? ContextTier { get; set; }
+    public ContextTier? ContextTier { get; set; }
 
     /// <summary>Override individual model capabilities resolved by the runtime.</summary>
     [JsonPropertyName("modelCapabilities")]
@@ -4823,6 +4631,236 @@ internal sealed class ExtensionsDisableRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionExtensionsReloadRequest
 {
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Schema for the `PushAttachment` type.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PushAttachmentFile), "file")]
+[JsonDerivedType(typeof(PushAttachmentDirectory), "directory")]
+[JsonDerivedType(typeof(PushAttachmentSelection), "selection")]
+[JsonDerivedType(typeof(PushAttachmentGithubReference), "github_reference")]
+[JsonDerivedType(typeof(PushAttachmentBlob), "blob")]
+[JsonDerivedType(typeof(PushAttachmentExtensionContext), "extension_context")]
+public partial class PushAttachment
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
+/// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PushAttachmentFileLineRange
+{
+    /// <summary>End line number (1-based, inclusive).</summary>
+    [JsonPropertyName("end")]
+    public long End { get; set; }
+
+    /// <summary>Start line number (1-based).</summary>
+    [JsonPropertyName("start")]
+    public long Start { get; set; }
+}
+
+/// <summary>File attachment.</summary>
+/// <remarks>The <c>file</c> variant of <see cref="PushAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PushAttachmentFile : PushAttachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "file";
+
+    /// <summary>User-facing display name for the attachment.</summary>
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; set; }
+
+    /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("lineRange")]
+    public PushAttachmentFileLineRange? LineRange { get; set; }
+
+    /// <summary>Absolute file path.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+}
+
+/// <summary>Directory attachment.</summary>
+/// <remarks>The <c>directory</c> variant of <see cref="PushAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PushAttachmentDirectory : PushAttachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "directory";
+
+    /// <summary>User-facing display name for the attachment.</summary>
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; set; }
+
+    /// <summary>Absolute directory path.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+}
+
+/// <summary>End position of the selection.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PushAttachmentSelectionDetailsEnd
+{
+    /// <summary>End character offset within the line (0-based).</summary>
+    [JsonPropertyName("character")]
+    public long Character { get; set; }
+
+    /// <summary>End line number (0-based).</summary>
+    [JsonPropertyName("line")]
+    public long Line { get; set; }
+}
+
+/// <summary>Start position of the selection.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PushAttachmentSelectionDetailsStart
+{
+    /// <summary>Start character offset within the line (0-based).</summary>
+    [JsonPropertyName("character")]
+    public long Character { get; set; }
+
+    /// <summary>Start line number (0-based).</summary>
+    [JsonPropertyName("line")]
+    public long Line { get; set; }
+}
+
+/// <summary>Position range of the selection within the file.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PushAttachmentSelectionDetails
+{
+    /// <summary>End position of the selection.</summary>
+    [JsonPropertyName("end")]
+    public PushAttachmentSelectionDetailsEnd End { get => field ??= new(); set; }
+
+    /// <summary>Start position of the selection.</summary>
+    [JsonPropertyName("start")]
+    public PushAttachmentSelectionDetailsStart Start { get => field ??= new(); set; }
+}
+
+/// <summary>Code selection attachment from an editor.</summary>
+/// <remarks>The <c>selection</c> variant of <see cref="PushAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PushAttachmentSelection : PushAttachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "selection";
+
+    /// <summary>User-facing display name for the selection.</summary>
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; set; }
+
+    /// <summary>Absolute path to the file containing the selection.</summary>
+    [JsonPropertyName("filePath")]
+    public required string FilePath { get; set; }
+
+    /// <summary>Position range of the selection within the file.</summary>
+    [JsonPropertyName("selection")]
+    public required PushAttachmentSelectionDetails Selection { get; set; }
+
+    /// <summary>The selected text content.</summary>
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
+}
+
+/// <summary>GitHub issue, pull request, or discussion reference.</summary>
+/// <remarks>The <c>github_reference</c> variant of <see cref="PushAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PushAttachmentGithubReference : PushAttachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_reference";
+
+    /// <summary>Issue, pull request, or discussion number.</summary>
+    [JsonPropertyName("number")]
+    public required long Number { get; set; }
+
+    /// <summary>Type of GitHub reference.</summary>
+    [JsonPropertyName("referenceType")]
+    public required PushAttachmentGithubReferenceType ReferenceType { get; set; }
+
+    /// <summary>Current state of the referenced item (e.g., open, closed, merged).</summary>
+    [JsonPropertyName("state")]
+    public required string State { get; set; }
+
+    /// <summary>Title of the referenced item.</summary>
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
+
+    /// <summary>URL to the referenced item on GitHub.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Blob attachment with inline base64-encoded data.</summary>
+/// <remarks>The <c>blob</c> variant of <see cref="PushAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PushAttachmentBlob : PushAttachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "blob";
+
+    /// <summary>Base64-encoded content.</summary>
+    [Base64String]
+    [JsonPropertyName("data")]
+    public required string Data { get; set; }
+
+    /// <summary>User-facing display name for the attachment.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>MIME type of the inline data.</summary>
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+}
+
+/// <summary>Slim input shape for extension_context attachments; identity fields are runtime-derived.</summary>
+/// <remarks>The <c>extension_context</c> variant of <see cref="PushAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PushAttachmentExtensionContext : PushAttachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "extension_context";
+
+    /// <summary>Caller-supplied JSON payload (required, may be null but not undefined).</summary>
+    [JsonPropertyName("payload")]
+    public required JsonElement Payload { get; set; }
+
+    /// <summary>Human-readable composer pill label.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
+}
+
+/// <summary>Parameters for session.extensions.sendAttachmentsToMessage.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SendAttachmentsToMessageParams
+{
+    /// <summary>Attachments to push into the next user-message turn. extension_context entries take the slim shape; standard variants take their full AttachmentSchema shape.</summary>
+    [JsonPropertyName("attachments")]
+    public IList<PushAttachment> Attachments { get => field ??= []; set; }
+
+    /// <summary>Optional canvas instance binding the push for provenance. When supplied, the runtime resolves the canvas, verifies it is owned by the calling extension, and stamps canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs and those fields stay unset on the attachment.</summary>
+    [JsonPropertyName("instanceId")]
+    public string? InstanceId { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -7517,7 +7555,7 @@ internal sealed class EventLogReadRequest
 
     /// <summary>Maximum number of events to return in this batch (1–1000, default 200).</summary>
     [JsonPropertyName("max")]
-    public int? Max { get; set; }
+    public long? Max { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -9405,72 +9443,6 @@ public readonly struct SendAgentMode : IEquatable<SendAgentMode>
 }
 
 
-/// <summary>Type of GitHub reference.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SendAttachmentGithubReferenceType : IEquatable<SendAttachmentGithubReferenceType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SendAttachmentGithubReferenceType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SendAttachmentGithubReferenceType"/>.</param>
-    [JsonConstructor]
-    public SendAttachmentGithubReferenceType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SendAttachmentGithubReferenceType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>GitHub issue reference.</summary>
-    public static SendAttachmentGithubReferenceType Issue { get; } = new("issue");
-
-    /// <summary>GitHub pull request reference.</summary>
-    public static SendAttachmentGithubReferenceType Pr { get; } = new("pr");
-
-    /// <summary>GitHub discussion reference.</summary>
-    public static SendAttachmentGithubReferenceType Discussion { get; } = new("discussion");
-
-    /// <summary>Returns a value indicating whether two <see cref="SendAttachmentGithubReferenceType"/> instances are equivalent.</summary>
-    public static bool operator ==(SendAttachmentGithubReferenceType left, SendAttachmentGithubReferenceType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SendAttachmentGithubReferenceType"/> instances are not equivalent.</summary>
-    public static bool operator !=(SendAttachmentGithubReferenceType left, SendAttachmentGithubReferenceType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SendAttachmentGithubReferenceType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SendAttachmentGithubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SendAttachmentGithubReferenceType}"/> for serializing <see cref="SendAttachmentGithubReferenceType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SendAttachmentGithubReferenceType>
-    {
-        /// <inheritdoc />
-        public override SendAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SendAttachmentGithubReferenceType value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAttachmentGithubReferenceType));
-        }
-    }
-}
-
-
 /// <summary>How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -9736,131 +9708,6 @@ public readonly struct CanvasInstanceAvailability : IEquatable<CanvasInstanceAva
         public override void Write(Utf8JsonWriter writer, CanvasInstanceAvailability value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CanvasInstanceAvailability));
-        }
-    }
-}
-
-
-/// <summary>Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ModelCurrentContextTier : IEquatable<ModelCurrentContextTier>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ModelCurrentContextTier"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ModelCurrentContextTier"/>.</param>
-    [JsonConstructor]
-    public ModelCurrentContextTier(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ModelCurrentContextTier"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Use the model's default context window.</summary>
-    public static ModelCurrentContextTier Default { get; } = new("default");
-
-    /// <summary>Pin the session to the long-context tier when supported.</summary>
-    public static ModelCurrentContextTier LongContext { get; } = new("long_context");
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelCurrentContextTier"/> instances are equivalent.</summary>
-    public static bool operator ==(ModelCurrentContextTier left, ModelCurrentContextTier right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelCurrentContextTier"/> instances are not equivalent.</summary>
-    public static bool operator !=(ModelCurrentContextTier left, ModelCurrentContextTier right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ModelCurrentContextTier other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ModelCurrentContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ModelCurrentContextTier}"/> for serializing <see cref="ModelCurrentContextTier"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ModelCurrentContextTier>
-    {
-        /// <inheritdoc />
-        public override ModelCurrentContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ModelCurrentContextTier value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCurrentContextTier));
-        }
-    }
-}
-
-
-/// <summary>Defines the allowed values.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ModelSwitchToRequestContextTier : IEquatable<ModelSwitchToRequestContextTier>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ModelSwitchToRequestContextTier"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ModelSwitchToRequestContextTier"/>.</param>
-    [JsonConstructor]
-    public ModelSwitchToRequestContextTier(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ModelSwitchToRequestContextTier"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Use the model's default context window.</summary>
-    public static ModelSwitchToRequestContextTier Default { get; } = new("default");
-
-    /// <summary>Pin the session to the long-context tier when supported.</summary>
-    public static ModelSwitchToRequestContextTier LongContext { get; } = new("long_context");
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelSwitchToRequestContextTier"/> instances are equivalent.</summary>
-    public static bool operator ==(ModelSwitchToRequestContextTier left, ModelSwitchToRequestContextTier right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelSwitchToRequestContextTier"/> instances are not equivalent.</summary>
-    public static bool operator !=(ModelSwitchToRequestContextTier left, ModelSwitchToRequestContextTier right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ModelSwitchToRequestContextTier other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ModelSwitchToRequestContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ModelSwitchToRequestContextTier}"/> for serializing <see cref="ModelSwitchToRequestContextTier"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ModelSwitchToRequestContextTier>
-    {
-        /// <inheritdoc />
-        public override ModelSwitchToRequestContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ModelSwitchToRequestContextTier value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelSwitchToRequestContextTier));
         }
     }
 }
@@ -11390,6 +11237,72 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
 }
 
 
+/// <summary>Type of GitHub reference.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PushAttachmentGithubReferenceType : IEquatable<PushAttachmentGithubReferenceType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PushAttachmentGithubReferenceType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PushAttachmentGithubReferenceType"/>.</param>
+    [JsonConstructor]
+    public PushAttachmentGithubReferenceType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PushAttachmentGithubReferenceType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>GitHub issue reference.</summary>
+    public static PushAttachmentGithubReferenceType Issue { get; } = new("issue");
+
+    /// <summary>GitHub pull request reference.</summary>
+    public static PushAttachmentGithubReferenceType Pr { get; } = new("pr");
+
+    /// <summary>GitHub discussion reference.</summary>
+    public static PushAttachmentGithubReferenceType Discussion { get; } = new("discussion");
+
+    /// <summary>Returns a value indicating whether two <see cref="PushAttachmentGithubReferenceType"/> instances are equivalent.</summary>
+    public static bool operator ==(PushAttachmentGithubReferenceType left, PushAttachmentGithubReferenceType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PushAttachmentGithubReferenceType"/> instances are not equivalent.</summary>
+    public static bool operator !=(PushAttachmentGithubReferenceType left, PushAttachmentGithubReferenceType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PushAttachmentGithubReferenceType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PushAttachmentGithubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PushAttachmentGithubReferenceType}"/> for serializing <see cref="PushAttachmentGithubReferenceType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PushAttachmentGithubReferenceType>
+    {
+        /// <inheritdoc />
+        public override PushAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PushAttachmentGithubReferenceType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PushAttachmentGithubReferenceType));
+        }
+    }
+}
+
+
 /// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -12884,6 +12797,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Runtime APIs.</summary>
+    public ServerRuntimeApi Runtime =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>SessionFs APIs.</summary>
     public ServerSessionFsApi SessionFs =>
         field ??
@@ -13183,6 +13102,24 @@ public sealed class ServerUserSettingsApi
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         await CopilotClient.InvokeRpcAsync(_rpc, "user.settings.reload", [], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Runtime APIs.</summary>
+public sealed class ServerRuntimeApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerRuntimeApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Gracefully shuts down an SDK-owned runtime. The response is sent only after cleanup completes; callers may then terminate the owned runtime process.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        await CopilotClient.InvokeRpcAsync(_rpc, "runtime.shutdown", [], cancellationToken);
     }
 }
 
@@ -13700,7 +13637,7 @@ public sealed class SessionRpc
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of sending a user message.</returns>
     [Experimental(Diagnostics.Experimental)]
-    public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<SendAttachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, object? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
+    public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<Attachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, object? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         _session.ThrowIfDisposed();
@@ -13900,7 +13837,7 @@ public sealed class ModelApi
 
     /// <summary>Gets the currently selected model for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The currently selected model, reasoning effort, and context tier for the session.</returns>
+    /// <returns>The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.</returns>
     public async Task<CurrentModel> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -13917,7 +13854,7 @@ public sealed class ModelApi
     /// <param name="contextTier">Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, ModelSwitchToRequestContextTier? contextTier = null, CancellationToken cancellationToken = default)
+    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modelId);
         _session.ThrowIfDisposed();
@@ -14953,6 +14890,19 @@ public sealed class ExtensionsApi
         var request = new SessionExtensionsReloadRequest { SessionId = _session.SessionId };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.extensions.reload", [request], cancellationToken);
     }
+
+    /// <summary>Push attachments into the next user-message turn from an extension. The host should surface them as composer pills and forward them via the next session.send call. Callable only by extension-owned connections.</summary>
+    /// <param name="attachments">Attachments to push into the next user-message turn. extension_context entries take the slim shape; standard variants take their full AttachmentSchema shape.</param>
+    /// <param name="instanceId">Optional canvas instance binding the push for provenance. When supplied, the runtime resolves the canvas, verifies it is owned by the calling extension, and stamps canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs and those fields stay unset on the attachment.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SendAttachmentsToMessageAsync(IList<PushAttachment> attachments, string? instanceId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(attachments);
+        _session.ThrowIfDisposed();
+
+        var request = new SendAttachmentsToMessageParams { SessionId = _session.SessionId, Attachments = attachments, InstanceId = instanceId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.extensions.sendAttachmentsToMessage", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Tools APIs.</summary>
@@ -15865,7 +15815,7 @@ public sealed class EventLogApi
     /// <param name="agentScope">Agent-scope filter: 'primary' returns only main-agent events plus events whose type starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns events from all agents (matching wildcard-subscription behavior). Default is 'all' to preserve wildcard semantics for catch-up callers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Batch of session events returned by a read, with cursor and continuation metadata.</returns>
-    public async Task<EventsReadResult> ReadAsync(string? cursor = null, int? max = null, TimeSpan? waitMs = null, object? types = null, EventsAgentScope? agentScope = null, CancellationToken cancellationToken = default)
+    public async Task<EventsReadResult> ReadAsync(string? cursor = null, long? max = null, TimeSpan? waitMs = null, object? types = null, EventsAgentScope? agentScope = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
@@ -16250,6 +16200,18 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsageTokenDetail")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageData), TypeInfoPropertyName = "SessionEventsAssistantUsageData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageEvent), TypeInfoPropertyName = "SessionEventsAssistantUsageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.Attachment), TypeInfoPropertyName = "SessionEventsAttachment")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentBlob), TypeInfoPropertyName = "SessionEventsAttachmentBlob")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentDirectory), TypeInfoPropertyName = "SessionEventsAttachmentDirectory")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentExtensionContext), TypeInfoPropertyName = "SessionEventsAttachmentExtensionContext")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentFile), TypeInfoPropertyName = "SessionEventsAttachmentFile")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentFileLineRange), TypeInfoPropertyName = "SessionEventsAttachmentFileLineRange")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentGithubReference), TypeInfoPropertyName = "SessionEventsAttachmentGithubReference")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentGithubReferenceType), TypeInfoPropertyName = "SessionEventsAttachmentGithubReferenceType")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentSelection), TypeInfoPropertyName = "SessionEventsAttachmentSelection")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetails")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsEnd")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsStart")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
@@ -16274,6 +16236,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.CommandsChangedEvent), TypeInfoPropertyName = "SessionEventsCommandsChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsed), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsed")]
 [JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.ContextTier), TypeInfoPropertyName = "SessionEventsContextTier")]
 [JsonSerializable(typeof(GitHub.Copilot.CustomAgentsUpdatedAgent), TypeInfoPropertyName = "SessionEventsCustomAgentsUpdatedAgent")]
 [JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedAction), TypeInfoPropertyName = "SessionEventsElicitationCompletedAction")]
 [JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedData), TypeInfoPropertyName = "SessionEventsElicitationCompletedData")]
@@ -16441,17 +16404,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.UserInputRequestedData), TypeInfoPropertyName = "SessionEventsUserInputRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.UserInputRequestedEvent), TypeInfoPropertyName = "SessionEventsUserInputRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.UserMessageAgentMode), TypeInfoPropertyName = "SessionEventsUserMessageAgentMode")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachment), TypeInfoPropertyName = "SessionEventsUserMessageAttachment")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentBlob), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentBlob")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentDirectory), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentDirectory")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentFile), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFile")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentFileLineRange), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFileLineRange")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentGithubReference), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReference")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentGithubReferenceType), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReferenceType")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelection), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelection")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetails")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsEnd")]
-[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsStart")]
 [JsonSerializable(typeof(GitHub.Copilot.UserMessageData), TypeInfoPropertyName = "SessionEventsUserMessageData")]
 [JsonSerializable(typeof(GitHub.Copilot.UserMessageEvent), TypeInfoPropertyName = "SessionEventsUserMessageEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApproval), TypeInfoPropertyName = "SessionEventsUserToolSessionApproval")]
@@ -16686,6 +16638,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PlanUpdateRequest))]
 [JsonSerializable(typeof(Plugin))]
 [JsonSerializable(typeof(PluginList))]
+[JsonSerializable(typeof(PushAttachment))]
+[JsonSerializable(typeof(PushAttachmentFileLineRange))]
+[JsonSerializable(typeof(PushAttachmentSelectionDetails))]
+[JsonSerializable(typeof(PushAttachmentSelectionDetailsEnd))]
+[JsonSerializable(typeof(PushAttachmentSelectionDetailsStart))]
 [JsonSerializable(typeof(QueuePendingItems))]
 [JsonSerializable(typeof(QueuePendingItemsResult))]
 [JsonSerializable(typeof(QueueRemoveMostRecentResult))]
@@ -16704,11 +16661,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ScheduleStopResult))]
 [JsonSerializable(typeof(SecretsAddFilterValuesRequest))]
 [JsonSerializable(typeof(SecretsAddFilterValuesResult))]
-[JsonSerializable(typeof(SendAttachment))]
-[JsonSerializable(typeof(SendAttachmentFileLineRange))]
-[JsonSerializable(typeof(SendAttachmentSelectionDetails))]
-[JsonSerializable(typeof(SendAttachmentSelectionDetailsEnd))]
-[JsonSerializable(typeof(SendAttachmentSelectionDetailsStart))]
+[JsonSerializable(typeof(SendAttachmentsToMessageParams))]
 [JsonSerializable(typeof(SendRequest))]
 [JsonSerializable(typeof(SendResult))]
 [JsonSerializable(typeof(ServerSkill))]

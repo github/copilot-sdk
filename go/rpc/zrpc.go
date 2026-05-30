@@ -328,6 +328,178 @@ type AllowAllPermissionState struct {
 	Enabled bool `json:"enabled"`
 }
 
+// A user message attachment — a file, directory, code selection, blob, GitHub reference, or
+// extension-supplied context payload
+// Experimental: Attachment is part of an experimental API and may change or be removed.
+type Attachment interface {
+	attachment()
+	Type() AttachmentType
+}
+
+type RawAttachmentData struct {
+	Discriminator AttachmentType
+	Raw           json.RawMessage
+}
+
+func (RawAttachmentData) attachment() {}
+func (r RawAttachmentData) Type() AttachmentType {
+	return r.Discriminator
+}
+
+// Blob attachment with inline base64-encoded data
+// Experimental: AttachmentBlob is part of an experimental API and may change or be removed.
+type AttachmentBlob struct {
+	// Base64-encoded content
+	Data string `json:"data"`
+	// User-facing display name for the attachment
+	DisplayName *string `json:"displayName,omitempty"`
+	// MIME type of the inline data
+	MIMEType string `json:"mimeType"`
+}
+
+func (AttachmentBlob) attachment() {}
+func (AttachmentBlob) Type() AttachmentType {
+	return AttachmentTypeBlob
+}
+
+// Directory attachment
+// Experimental: AttachmentDirectory is part of an experimental API and may change or be
+// removed.
+type AttachmentDirectory struct {
+	// User-facing display name for the attachment
+	DisplayName string `json:"displayName"`
+	// Absolute directory path
+	Path string `json:"path"`
+}
+
+func (AttachmentDirectory) attachment() {}
+func (AttachmentDirectory) Type() AttachmentType {
+	return AttachmentTypeDirectory
+}
+
+// Structured context contributed by an extension. Composer pills displayed in the host are
+// forwarded back through session.send.attachments, then rendered into the model prompt as
+// an <extension_context> XML block.
+// Experimental: AttachmentExtensionContext is part of an experimental API and may change or
+// be removed.
+type AttachmentExtensionContext struct {
+	// Provider-local canvas identifier when the push was bound to a canvas instance
+	CanvasID *string `json:"canvasId,omitempty"`
+	// ISO 8601 timestamp captured by the runtime when the push was accepted
+	CapturedAt time.Time `json:"capturedAt"`
+	// Owning extension identifier. Runtime-derived from the caller's connection when produced
+	// via session.extensions.sendAttachmentsToMessage; preserved verbatim on subsequent
+	// transports.
+	ExtensionID string `json:"extensionId"`
+	// Open canvas instance identifier when the push was bound to a canvas instance
+	InstanceID *string `json:"instanceId,omitempty"`
+	// Caller-supplied JSON payload
+	Payload any `json:"payload,omitempty"`
+	// Human-readable composer pill label
+	Title string `json:"title"`
+}
+
+func (AttachmentExtensionContext) attachment() {}
+func (AttachmentExtensionContext) Type() AttachmentType {
+	return AttachmentTypeExtensionContext
+}
+
+// File attachment
+// Experimental: AttachmentFile is part of an experimental API and may change or be removed.
+type AttachmentFile struct {
+	// User-facing display name for the attachment
+	DisplayName string `json:"displayName"`
+	// Optional line range to scope the attachment to a specific section of the file
+	LineRange *AttachmentFileLineRange `json:"lineRange,omitempty"`
+	// Absolute file path
+	Path string `json:"path"`
+}
+
+func (AttachmentFile) attachment() {}
+func (AttachmentFile) Type() AttachmentType {
+	return AttachmentTypeFile
+}
+
+// GitHub issue, pull request, or discussion reference
+// Experimental: AttachmentGithubReference is part of an experimental API and may change or
+// be removed.
+type AttachmentGithubReference struct {
+	// Issue, pull request, or discussion number
+	Number int64 `json:"number"`
+	// Type of GitHub reference
+	ReferenceType AttachmentGithubReferenceType `json:"referenceType"`
+	// Current state of the referenced item (e.g., open, closed, merged)
+	State string `json:"state"`
+	// Title of the referenced item
+	Title string `json:"title"`
+	// URL to the referenced item on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGithubReference) attachment() {}
+func (AttachmentGithubReference) Type() AttachmentType {
+	return AttachmentTypeGithubReference
+}
+
+// Code selection attachment from an editor
+// Experimental: AttachmentSelection is part of an experimental API and may change or be
+// removed.
+type AttachmentSelection struct {
+	// User-facing display name for the selection
+	DisplayName string `json:"displayName"`
+	// Absolute path to the file containing the selection
+	FilePath string `json:"filePath"`
+	// Position range of the selection within the file
+	Selection AttachmentSelectionDetails `json:"selection"`
+	// The selected text content
+	Text string `json:"text"`
+}
+
+func (AttachmentSelection) attachment() {}
+func (AttachmentSelection) Type() AttachmentType {
+	return AttachmentTypeSelection
+}
+
+// Optional line range to scope the attachment to a specific section of the file
+// Experimental: AttachmentFileLineRange is part of an experimental API and may change or be
+// removed.
+type AttachmentFileLineRange struct {
+	// End line number (1-based, inclusive)
+	End int64 `json:"end"`
+	// Start line number (1-based)
+	Start int64 `json:"start"`
+}
+
+// Position range of the selection within the file
+// Experimental: AttachmentSelectionDetails is part of an experimental API and may change or
+// be removed.
+type AttachmentSelectionDetails struct {
+	// End position of the selection
+	End AttachmentSelectionDetailsEnd `json:"end"`
+	// Start position of the selection
+	Start AttachmentSelectionDetailsStart `json:"start"`
+}
+
+// End position of the selection
+// Experimental: AttachmentSelectionDetailsEnd is part of an experimental API and may change
+// or be removed.
+type AttachmentSelectionDetailsEnd struct {
+	// End character offset within the line (0-based)
+	Character int64 `json:"character"`
+	// End line number (0-based)
+	Line int64 `json:"line"`
+}
+
+// Start position of the selection
+// Experimental: AttachmentSelectionDetailsStart is part of an experimental API and may
+// change or be removed.
+type AttachmentSelectionDetailsStart struct {
+	// Start character offset within the line (0-based)
+	Character int64 `json:"character"`
+	// Start line number (0-based)
+	Line int64 `json:"line"`
+}
+
 // The new auth credentials to install on the session. When omitted or `undefined`, the call
 // is a no-op and the session's existing credentials are preserved. The runtime stores the
 // value verbatim and uses it for outbound model/API requests; it does NOT re-validate or
@@ -904,12 +1076,13 @@ type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 	Unlimited         *bool    `json:"unlimited,omitempty"`
 }
 
-// The currently selected model, reasoning effort, and context tier for the session.
+// The currently selected model, reasoning effort, and context tier for the session. The
+// context tier reflects `Session.getContextTier()`, restored from the session journal on
+// resume.
 // Experimental: CurrentModel is part of an experimental API and may change or be removed.
 type CurrentModel struct {
-	// Context tier currently pinned for the session, when one is set. Reflects
-	// `Session.getContextTier()`, restored from the session journal on resume.
-	ContextTier *ModelCurrentContextTier `json:"contextTier,omitempty"`
+	// Context tier for models that support multiple context-window sizes.
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
 	// Reasoning effort level currently applied to the active model, when one is set. Reads
@@ -1001,7 +1174,7 @@ type EventLogReadRequest struct {
 	// beginning of the session's persisted history.
 	Cursor *string `json:"cursor,omitempty"`
 	// Maximum number of events to return in this batch (1–1000, default 200).
-	Max *int32 `json:"max,omitempty"`
+	Max *int64 `json:"max,omitempty"`
 	// Either '*' to receive all event types, or a non-empty list of event types to receive
 	Types *EventLogTypes `json:"types,omitempty"`
 	// Milliseconds to wait for new events when the cursor is at the tail of history. 0
@@ -2470,7 +2643,7 @@ type ModelSwitchToRequest struct {
 	// Explicit context tier for the selected model. `"default"` / `"long_context"` pin the
 	// tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier
 	// untouched.
-	ContextTier *ModelSwitchToRequestContextTier `json:"contextTier,omitempty"`
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Override individual model capabilities resolved by the runtime
 	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	// Model identifier to switch to
@@ -3698,6 +3871,167 @@ type PluginList struct {
 	Plugins []Plugin `json:"plugins"`
 }
 
+// Schema for the `PushAttachment` type.
+// Experimental: PushAttachment is part of an experimental API and may change or be removed.
+type PushAttachment interface {
+	pushAttachment()
+	Type() PushAttachmentType
+}
+
+type RawPushAttachmentData struct {
+	Discriminator PushAttachmentType
+	Raw           json.RawMessage
+}
+
+func (RawPushAttachmentData) pushAttachment() {}
+func (r RawPushAttachmentData) Type() PushAttachmentType {
+	return r.Discriminator
+}
+
+// Slim input shape for extension_context attachments; identity fields are runtime-derived.
+// Experimental: ExtensionContextPushInput is part of an experimental API and may change or
+// be removed.
+type ExtensionContextPushInput struct {
+	// Caller-supplied JSON payload (required, may be null but not undefined)
+	Payload any `json:"payload"`
+	// Human-readable composer pill label
+	Title string `json:"title"`
+}
+
+func (ExtensionContextPushInput) pushAttachment() {}
+func (ExtensionContextPushInput) Type() PushAttachmentType {
+	return PushAttachmentTypeExtensionContext
+}
+
+// Blob attachment with inline base64-encoded data
+// Experimental: PushAttachmentBlob is part of an experimental API and may change or be
+// removed.
+type PushAttachmentBlob struct {
+	// Base64-encoded content
+	Data string `json:"data"`
+	// User-facing display name for the attachment
+	DisplayName *string `json:"displayName,omitempty"`
+	// MIME type of the inline data
+	MIMEType string `json:"mimeType"`
+}
+
+func (PushAttachmentBlob) pushAttachment() {}
+func (PushAttachmentBlob) Type() PushAttachmentType {
+	return PushAttachmentTypeBlob
+}
+
+// Directory attachment
+// Experimental: PushAttachmentDirectory is part of an experimental API and may change or be
+// removed.
+type PushAttachmentDirectory struct {
+	// User-facing display name for the attachment
+	DisplayName string `json:"displayName"`
+	// Absolute directory path
+	Path string `json:"path"`
+}
+
+func (PushAttachmentDirectory) pushAttachment() {}
+func (PushAttachmentDirectory) Type() PushAttachmentType {
+	return PushAttachmentTypeDirectory
+}
+
+// File attachment
+// Experimental: PushAttachmentFile is part of an experimental API and may change or be
+// removed.
+type PushAttachmentFile struct {
+	// User-facing display name for the attachment
+	DisplayName string `json:"displayName"`
+	// Optional line range to scope the attachment to a specific section of the file
+	LineRange *PushAttachmentFileLineRange `json:"lineRange,omitempty"`
+	// Absolute file path
+	Path string `json:"path"`
+}
+
+func (PushAttachmentFile) pushAttachment() {}
+func (PushAttachmentFile) Type() PushAttachmentType {
+	return PushAttachmentTypeFile
+}
+
+// GitHub issue, pull request, or discussion reference
+// Experimental: PushAttachmentGithubReference is part of an experimental API and may change
+// or be removed.
+type PushAttachmentGithubReference struct {
+	// Issue, pull request, or discussion number
+	Number int64 `json:"number"`
+	// Type of GitHub reference
+	ReferenceType PushAttachmentGithubReferenceType `json:"referenceType"`
+	// Current state of the referenced item (e.g., open, closed, merged)
+	State string `json:"state"`
+	// Title of the referenced item
+	Title string `json:"title"`
+	// URL to the referenced item on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGithubReference) pushAttachment() {}
+func (PushAttachmentGithubReference) Type() PushAttachmentType {
+	return PushAttachmentTypeGithubReference
+}
+
+// Code selection attachment from an editor
+// Experimental: PushAttachmentSelection is part of an experimental API and may change or be
+// removed.
+type PushAttachmentSelection struct {
+	// User-facing display name for the selection
+	DisplayName string `json:"displayName"`
+	// Absolute path to the file containing the selection
+	FilePath string `json:"filePath"`
+	// Position range of the selection within the file
+	Selection PushAttachmentSelectionDetails `json:"selection"`
+	// The selected text content
+	Text string `json:"text"`
+}
+
+func (PushAttachmentSelection) pushAttachment() {}
+func (PushAttachmentSelection) Type() PushAttachmentType {
+	return PushAttachmentTypeSelection
+}
+
+// Optional line range to scope the attachment to a specific section of the file
+// Experimental: PushAttachmentFileLineRange is part of an experimental API and may change
+// or be removed.
+type PushAttachmentFileLineRange struct {
+	// End line number (1-based, inclusive)
+	End int64 `json:"end"`
+	// Start line number (1-based)
+	Start int64 `json:"start"`
+}
+
+// Position range of the selection within the file
+// Experimental: PushAttachmentSelectionDetails is part of an experimental API and may
+// change or be removed.
+type PushAttachmentSelectionDetails struct {
+	// End position of the selection
+	End PushAttachmentSelectionDetailsEnd `json:"end"`
+	// Start position of the selection
+	Start PushAttachmentSelectionDetailsStart `json:"start"`
+}
+
+// End position of the selection
+// Experimental: PushAttachmentSelectionDetailsEnd is part of an experimental API and may
+// change or be removed.
+type PushAttachmentSelectionDetailsEnd struct {
+	// End character offset within the line (0-based)
+	Character int64 `json:"character"`
+	// End line number (0-based)
+	Line int64 `json:"line"`
+}
+
+// Start position of the selection
+// Experimental: PushAttachmentSelectionDetailsStart is part of an experimental API and may
+// change or be removed.
+type PushAttachmentSelectionDetailsStart struct {
+	// Start character offset within the line (0-based)
+	Character int64 `json:"character"`
+	// Start line number (0-based)
+	Line int64 `json:"line"`
+}
+
 // Result of the queued command execution.
 // Experimental: QueuedCommandResult is part of an experimental API and may change or be
 // removed.
@@ -3851,6 +4185,9 @@ type RemoteSessionConnectionResult struct {
 	SessionID string `json:"sessionId"`
 }
 
+type RuntimeShutdownResult struct {
+}
+
 // Schema for the `ScheduleEntry` type.
 // Experimental: ScheduleEntry is part of an experimental API and may change or be removed.
 type ScheduleEntry struct {
@@ -3905,150 +4242,18 @@ type SecretsAddFilterValuesResult struct {
 	Ok bool `json:"ok"`
 }
 
-// A user message attachment — a file, directory, code selection, blob, or GitHub reference
-// Experimental: SendAttachment is part of an experimental API and may change or be removed.
-type SendAttachment interface {
-	sendAttachment()
-	Type() SendAttachmentType
-}
-
-type RawSendAttachmentData struct {
-	Discriminator SendAttachmentType
-	Raw           json.RawMessage
-}
-
-func (RawSendAttachmentData) sendAttachment() {}
-func (r RawSendAttachmentData) Type() SendAttachmentType {
-	return r.Discriminator
-}
-
-// Blob attachment with inline base64-encoded data
-// Experimental: SendAttachmentBlob is part of an experimental API and may change or be
-// removed.
-type SendAttachmentBlob struct {
-	// Base64-encoded content
-	Data string `json:"data"`
-	// User-facing display name for the attachment
-	DisplayName *string `json:"displayName,omitempty"`
-	// MIME type of the inline data
-	MIMEType string `json:"mimeType"`
-}
-
-func (SendAttachmentBlob) sendAttachment() {}
-func (SendAttachmentBlob) Type() SendAttachmentType {
-	return SendAttachmentTypeBlob
-}
-
-// Directory attachment
-// Experimental: SendAttachmentDirectory is part of an experimental API and may change or be
-// removed.
-type SendAttachmentDirectory struct {
-	// User-facing display name for the attachment
-	DisplayName string `json:"displayName"`
-	// Absolute directory path
-	Path string `json:"path"`
-}
-
-func (SendAttachmentDirectory) sendAttachment() {}
-func (SendAttachmentDirectory) Type() SendAttachmentType {
-	return SendAttachmentTypeDirectory
-}
-
-// File attachment
-// Experimental: SendAttachmentFile is part of an experimental API and may change or be
-// removed.
-type SendAttachmentFile struct {
-	// User-facing display name for the attachment
-	DisplayName string `json:"displayName"`
-	// Optional line range to scope the attachment to a specific section of the file
-	LineRange *SendAttachmentFileLineRange `json:"lineRange,omitempty"`
-	// Absolute file path
-	Path string `json:"path"`
-}
-
-func (SendAttachmentFile) sendAttachment() {}
-func (SendAttachmentFile) Type() SendAttachmentType {
-	return SendAttachmentTypeFile
-}
-
-// GitHub issue, pull request, or discussion reference
-// Experimental: SendAttachmentGithubReference is part of an experimental API and may change
-// or be removed.
-type SendAttachmentGithubReference struct {
-	// Issue, pull request, or discussion number
-	Number int64 `json:"number"`
-	// Type of GitHub reference
-	ReferenceType SendAttachmentGithubReferenceType `json:"referenceType"`
-	// Current state of the referenced item (e.g., open, closed, merged)
-	State string `json:"state"`
-	// Title of the referenced item
-	Title string `json:"title"`
-	// URL to the referenced item on GitHub
-	URL string `json:"url"`
-}
-
-func (SendAttachmentGithubReference) sendAttachment() {}
-func (SendAttachmentGithubReference) Type() SendAttachmentType {
-	return SendAttachmentTypeGithubReference
-}
-
-// Code selection attachment from an editor
-// Experimental: SendAttachmentSelection is part of an experimental API and may change or be
-// removed.
-type SendAttachmentSelection struct {
-	// User-facing display name for the selection
-	DisplayName string `json:"displayName"`
-	// Absolute path to the file containing the selection
-	FilePath string `json:"filePath"`
-	// Position range of the selection within the file
-	Selection SendAttachmentSelectionDetails `json:"selection"`
-	// The selected text content
-	Text string `json:"text"`
-}
-
-func (SendAttachmentSelection) sendAttachment() {}
-func (SendAttachmentSelection) Type() SendAttachmentType {
-	return SendAttachmentTypeSelection
-}
-
-// Optional line range to scope the attachment to a specific section of the file
-// Experimental: SendAttachmentFileLineRange is part of an experimental API and may change
-// or be removed.
-type SendAttachmentFileLineRange struct {
-	// End line number (1-based, inclusive)
-	End int64 `json:"end"`
-	// Start line number (1-based)
-	Start int64 `json:"start"`
-}
-
-// Position range of the selection within the file
-// Experimental: SendAttachmentSelectionDetails is part of an experimental API and may
+// Parameters for session.extensions.sendAttachmentsToMessage.
+// Experimental: SendAttachmentsToMessageParams is part of an experimental API and may
 // change or be removed.
-type SendAttachmentSelectionDetails struct {
-	// End position of the selection
-	End SendAttachmentSelectionDetailsEnd `json:"end"`
-	// Start position of the selection
-	Start SendAttachmentSelectionDetailsStart `json:"start"`
-}
-
-// End position of the selection
-// Experimental: SendAttachmentSelectionDetailsEnd is part of an experimental API and may
-// change or be removed.
-type SendAttachmentSelectionDetailsEnd struct {
-	// End character offset within the line (0-based)
-	Character int64 `json:"character"`
-	// End line number (0-based)
-	Line int64 `json:"line"`
-}
-
-// Start position of the selection
-// Experimental: SendAttachmentSelectionDetailsStart is part of an experimental API and may
-// change or be removed.
-type SendAttachmentSelectionDetailsStart struct {
-	// Start character offset within the line (0-based)
-	Character int64 `json:"character"`
-	// Start line number (0-based)
-	Line int64 `json:"line"`
+type SendAttachmentsToMessageParams struct {
+	// Attachments to push into the next user-message turn. extension_context entries take the
+	// slim shape; standard variants take their full AttachmentSchema shape.
+	Attachments []PushAttachment `json:"attachments"`
+	// Optional canvas instance binding the push for provenance. When supplied, the runtime
+	// resolves the canvas, verifies it is owned by the calling extension, and stamps
+	// canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs
+	// and those fields stay unset on the attachment.
+	InstanceID *string `json:"instanceId,omitempty"`
 }
 
 // Parameters for sending a user message to the session
@@ -4059,7 +4264,7 @@ type SendRequest struct {
 	AgentMode *SendAgentMode `json:"agentMode,omitempty"`
 	// Optional attachments (files, directories, selections, blobs, GitHub references) to
 	// include with the message
-	Attachments []SendAttachment `json:"attachments,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
 	// If false, this message will not trigger a Premium Request Unit charge. User messages
 	// default to billable.
 	Billable *bool `json:"billable,omitempty"`
@@ -4230,6 +4435,11 @@ type SessionExtensionsEnableResult struct {
 // Experimental: SessionExtensionsReloadResult is part of an experimental API and may change
 // or be removed.
 type SessionExtensionsReloadResult struct {
+}
+
+// Experimental: SessionExtensionsSendAttachmentsToMessageResult is part of an experimental
+// API and may change or be removed.
+type SessionExtensionsSendAttachmentsToMessageResult struct {
 }
 
 // File path, content to append, and optional mode for the client-provided session
@@ -6858,6 +7068,32 @@ const (
 	AgentRegistrySpawnValidationErrorReasonYoloNotAllowed AgentRegistrySpawnValidationErrorReason = "yolo-not-allowed"
 )
 
+// Type of GitHub reference
+// Experimental: AttachmentGithubReferenceType is part of an experimental API and may change
+// or be removed.
+type AttachmentGithubReferenceType string
+
+const (
+	// GitHub discussion reference.
+	AttachmentGithubReferenceTypeDiscussion AttachmentGithubReferenceType = "discussion"
+	// GitHub issue reference.
+	AttachmentGithubReferenceTypeIssue AttachmentGithubReferenceType = "issue"
+	// GitHub pull request reference.
+	AttachmentGithubReferenceTypePr AttachmentGithubReferenceType = "pr"
+)
+
+// Type discriminator for Attachment.
+type AttachmentType string
+
+const (
+	AttachmentTypeBlob             AttachmentType = "blob"
+	AttachmentTypeDirectory        AttachmentType = "directory"
+	AttachmentTypeExtensionContext AttachmentType = "extension_context"
+	AttachmentTypeFile             AttachmentType = "file"
+	AttachmentTypeGithubReference  AttachmentType = "github_reference"
+	AttachmentTypeSelection        AttachmentType = "selection"
+)
+
 // Type discriminator for AuthInfo.
 // Experimental: AuthInfoType is part of an experimental API and may change or be removed.
 type AuthInfoType string
@@ -6910,6 +7146,17 @@ const (
 	ContentFilterModeMarkdown ContentFilterMode = "markdown"
 	// Leave MCP tool result content unchanged.
 	ContentFilterModeNone ContentFilterMode = "none"
+)
+
+// Context tier for models that support multiple context-window sizes.
+// Experimental: ContextTier is part of an experimental API and may change or be removed.
+type ContextTier string
+
+const (
+	// Use the model's default context window.
+	ContextTierDefault ContextTier = "default"
+	// Pin the session to the long-context tier when supported.
+	ContextTierLongContext ContextTier = "long_context"
 )
 
 // Authentication host (always the public GitHub host).
@@ -7317,19 +7564,6 @@ const (
 	MetadataSnapshotRemoteMetadataTaskTypeCli MetadataSnapshotRemoteMetadataTaskType = "cli"
 )
 
-// Context tier currently pinned for the session, when one is set. Reflects
-// `Session.getContextTier()`, restored from the session journal on resume.
-// Experimental: ModelCurrentContextTier is part of an experimental API and may change or be
-// removed.
-type ModelCurrentContextTier string
-
-const (
-	// Use the model's default context window.
-	ModelCurrentContextTierDefault ModelCurrentContextTier = "default"
-	// Pin the session to the long-context tier when supported.
-	ModelCurrentContextTierLongContext ModelCurrentContextTier = "long_context"
-)
-
 // Model capability category for grouping in the model picker
 type ModelPickerCategory string
 
@@ -7366,15 +7600,6 @@ const (
 	ModelPolicyStateEnabled ModelPolicyState = "enabled"
 	// No explicit policy is configured for the model.
 	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
-)
-
-type ModelSwitchToRequestContextTier string
-
-const (
-	// Use the model's default context window.
-	ModelSwitchToRequestContextTierDefault ModelSwitchToRequestContextTier = "default"
-	// Pin the session to the long-context tier when supported.
-	ModelSwitchToRequestContextTierLongContext ModelSwitchToRequestContextTier = "long_context"
 )
 
 // How env values are passed to MCP servers (`direct` inlines literal values; `indirect`
@@ -7542,6 +7767,32 @@ const (
 	PermissionsSetApproveAllSourceSlashCommand PermissionsSetApproveAllSource = "slash_command"
 )
 
+// Type of GitHub reference
+// Experimental: PushAttachmentGithubReferenceType is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGithubReferenceType string
+
+const (
+	// GitHub discussion reference.
+	PushAttachmentGithubReferenceTypeDiscussion PushAttachmentGithubReferenceType = "discussion"
+	// GitHub issue reference.
+	PushAttachmentGithubReferenceTypeIssue PushAttachmentGithubReferenceType = "issue"
+	// GitHub pull request reference.
+	PushAttachmentGithubReferenceTypePr PushAttachmentGithubReferenceType = "pr"
+)
+
+// Type discriminator for PushAttachment.
+type PushAttachmentType string
+
+const (
+	PushAttachmentTypeBlob             PushAttachmentType = "blob"
+	PushAttachmentTypeDirectory        PushAttachmentType = "directory"
+	PushAttachmentTypeExtensionContext PushAttachmentType = "extension_context"
+	PushAttachmentTypeFile             PushAttachmentType = "file"
+	PushAttachmentTypeGithubReference  PushAttachmentType = "github_reference"
+	PushAttachmentTypeSelection        PushAttachmentType = "selection"
+)
+
 // Whether this item is a queued user message or a queued slash command / model change
 // Experimental: QueuePendingItemsKind is part of an experimental API and may change or be
 // removed.
@@ -7597,31 +7848,6 @@ const (
 	SendAgentModePlan SendAgentMode = "plan"
 	// The agent is in shell-focused UI mode.
 	SendAgentModeShell SendAgentMode = "shell"
-)
-
-// Type of GitHub reference
-// Experimental: SendAttachmentGithubReferenceType is part of an experimental API and may
-// change or be removed.
-type SendAttachmentGithubReferenceType string
-
-const (
-	// GitHub discussion reference.
-	SendAttachmentGithubReferenceTypeDiscussion SendAttachmentGithubReferenceType = "discussion"
-	// GitHub issue reference.
-	SendAttachmentGithubReferenceTypeIssue SendAttachmentGithubReferenceType = "issue"
-	// GitHub pull request reference.
-	SendAttachmentGithubReferenceTypePr SendAttachmentGithubReferenceType = "pr"
-)
-
-// Type discriminator for SendAttachment.
-type SendAttachmentType string
-
-const (
-	SendAttachmentTypeBlob            SendAttachmentType = "blob"
-	SendAttachmentTypeDirectory       SendAttachmentType = "directory"
-	SendAttachmentTypeFile            SendAttachmentType = "file"
-	SendAttachmentTypeGithubReference SendAttachmentType = "github_reference"
-	SendAttachmentTypeSelection       SendAttachmentType = "selection"
 )
 
 // How to deliver the message. `enqueue` (default) appends to the message queue. `immediate`
@@ -8279,6 +8505,24 @@ func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (
 	return &result, nil
 }
 
+type ServerRuntimeApi serverApi
+
+// Shutdown gracefully shuts down an SDK-owned runtime. The response is sent only after
+// cleanup completes; callers may then terminate the owned runtime process.
+//
+// RPC method: runtime.shutdown.
+func (a *ServerRuntimeApi) Shutdown(ctx context.Context) (*RuntimeShutdownResult, error) {
+	raw, err := a.client.Request("runtime.shutdown", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result RuntimeShutdownResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type ServerSecretsApi serverApi
 
 // AddFilterValues registers secret values for redaction in session logs and exports. The
@@ -8814,6 +9058,7 @@ type ServerRpc struct {
 	AgentRegistry *ServerAgentRegistryApi
 	Mcp           *ServerMcpApi
 	Models        *ServerModelsApi
+	Runtime       *ServerRuntimeApi
 	Secrets       *ServerSecretsApi
 	SessionFs     *ServerSessionFsApi
 	Sessions      *ServerSessionsApi
@@ -8849,6 +9094,7 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r.AgentRegistry = (*ServerAgentRegistryApi)(&r.common)
 	r.Mcp = (*ServerMcpApi)(&r.common)
 	r.Models = (*ServerModelsApi)(&r.common)
+	r.Runtime = (*ServerRuntimeApi)(&r.common)
 	r.Secrets = (*ServerSecretsApi)(&r.common)
 	r.SessionFs = (*ServerSessionFsApi)(&r.common)
 	r.Sessions = (*ServerSessionsApi)(&r.common)
@@ -9519,6 +9765,32 @@ func (a *ExtensionsApi) Reload(ctx context.Context) (*SessionExtensionsReloadRes
 		return nil, err
 	}
 	var result SessionExtensionsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SendAttachmentsToMessage push attachments into the next user-message turn from an
+// extension. The host should surface them as composer pills and forward them via the next
+// session.send call. Callable only by extension-owned connections.
+//
+// RPC method: session.extensions.sendAttachmentsToMessage.
+//
+// Parameters: Parameters for session.extensions.sendAttachmentsToMessage.
+func (a *ExtensionsApi) SendAttachmentsToMessage(ctx context.Context, params *SendAttachmentsToMessageParams) (*SessionExtensionsSendAttachmentsToMessageResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["attachments"] = params.Attachments
+		if params.InstanceID != nil {
+			req["instanceId"] = *params.InstanceID
+		}
+	}
+	raw, err := a.client.Request("session.extensions.sendAttachmentsToMessage", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionExtensionsSendAttachmentsToMessageResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10289,7 +10561,9 @@ type ModelApi sessionApi
 //
 // RPC method: session.model.getCurrent.
 //
-// Returns: The currently selected model, reasoning effort, and context tier for the session.
+// Returns: The currently selected model, reasoning effort, and context tier for the
+// session. The context tier reflects `Session.getContextTier()`, restored from the session
+// journal on resume.
 func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.model.getCurrent", req)

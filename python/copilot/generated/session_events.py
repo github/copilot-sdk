@@ -207,6 +207,7 @@ class SessionEventType(Enum):
     SESSION_EXTENSIONS_LOADED = "session.extensions_loaded"
     SESSION_CANVAS_OPENED = "session.canvas.opened"
     SESSION_CANVAS_REGISTRY_CHANGED = "session.canvas.registry_changed"
+    SESSION_EXTENSIONS_ATTACHMENTS_PUSHED = "session.extensions.attachments_pushed"
     MCP_APP_TOOL_CALL_COMPLETE = "mcp_app.tool_call_complete"
     UNKNOWN = "unknown"
 
@@ -851,6 +852,297 @@ class _AssistantUsageQuotaSnapshot:
         result["usedRequests"] = to_int(self._used_requests)
         if self._reset_date is not None:
             result["resetDate"] = from_union([from_none, to_datetime], self._reset_date)
+        return result
+
+
+@dataclass
+class AttachmentBlob:
+    "Blob attachment with inline base64-encoded data"
+    data: str
+    mime_type: str
+    type: ClassVar[str] = "blob"
+    display_name: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentBlob":
+        assert isinstance(obj, dict)
+        data = from_str(obj.get("data"))
+        mime_type = from_str(obj.get("mimeType"))
+        display_name = from_union([from_none, from_str], obj.get("displayName"))
+        return AttachmentBlob(
+            data=data,
+            mime_type=mime_type,
+            display_name=display_name,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["data"] = from_str(self.data)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = self.type
+        if self.display_name is not None:
+            result["displayName"] = from_union([from_none, from_str], self.display_name)
+        return result
+
+
+@dataclass
+class AttachmentDirectory:
+    "Directory attachment"
+    display_name: str
+    path: str
+    type: ClassVar[str] = "directory"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentDirectory":
+        assert isinstance(obj, dict)
+        display_name = from_str(obj.get("displayName"))
+        path = from_str(obj.get("path"))
+        return AttachmentDirectory(
+            display_name=display_name,
+            path=path,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["displayName"] = from_str(self.display_name)
+        result["path"] = from_str(self.path)
+        result["type"] = self.type
+        return result
+
+
+@dataclass
+class AttachmentExtensionContext:
+    "Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an <extension_context> XML block."
+    captured_at: datetime
+    extension_id: str
+    title: str
+    type: ClassVar[str] = "extension_context"
+    canvas_id: str | None = None
+    instance_id: str | None = None
+    payload: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentExtensionContext":
+        assert isinstance(obj, dict)
+        captured_at = from_datetime(obj.get("capturedAt"))
+        extension_id = from_str(obj.get("extensionId"))
+        title = from_str(obj.get("title"))
+        canvas_id = from_union([from_none, from_str], obj.get("canvasId"))
+        instance_id = from_union([from_none, from_str], obj.get("instanceId"))
+        payload = obj.get("payload")
+        return AttachmentExtensionContext(
+            captured_at=captured_at,
+            extension_id=extension_id,
+            title=title,
+            canvas_id=canvas_id,
+            instance_id=instance_id,
+            payload=payload,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["capturedAt"] = to_datetime(self.captured_at)
+        result["extensionId"] = from_str(self.extension_id)
+        result["title"] = from_str(self.title)
+        result["type"] = self.type
+        if self.canvas_id is not None:
+            result["canvasId"] = from_union([from_none, from_str], self.canvas_id)
+        if self.instance_id is not None:
+            result["instanceId"] = from_union([from_none, from_str], self.instance_id)
+        if self.payload is not None:
+            result["payload"] = self.payload
+        return result
+
+
+@dataclass
+class AttachmentFile:
+    "File attachment"
+    display_name: str
+    path: str
+    type: ClassVar[str] = "file"
+    line_range: AttachmentFileLineRange | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentFile":
+        assert isinstance(obj, dict)
+        display_name = from_str(obj.get("displayName"))
+        path = from_str(obj.get("path"))
+        line_range = from_union([from_none, AttachmentFileLineRange.from_dict], obj.get("lineRange"))
+        return AttachmentFile(
+            display_name=display_name,
+            path=path,
+            line_range=line_range,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["displayName"] = from_str(self.display_name)
+        result["path"] = from_str(self.path)
+        result["type"] = self.type
+        if self.line_range is not None:
+            result["lineRange"] = from_union([from_none, lambda x: to_class(AttachmentFileLineRange, x)], self.line_range)
+        return result
+
+
+@dataclass
+class AttachmentFileLineRange:
+    "Optional line range to scope the attachment to a specific section of the file"
+    end: int
+    start: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentFileLineRange":
+        assert isinstance(obj, dict)
+        end = from_int(obj.get("end"))
+        start = from_int(obj.get("start"))
+        return AttachmentFileLineRange(
+            end=end,
+            start=start,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["end"] = to_int(self.end)
+        result["start"] = to_int(self.start)
+        return result
+
+
+@dataclass
+class AttachmentGithubReference:
+    "GitHub issue, pull request, or discussion reference"
+    number: int
+    reference_type: AttachmentGithubReferenceType
+    state: str
+    title: str
+    type: ClassVar[str] = "github_reference"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGithubReference":
+        assert isinstance(obj, dict)
+        number = from_int(obj.get("number"))
+        reference_type = parse_enum(AttachmentGithubReferenceType, obj.get("referenceType"))
+        state = from_str(obj.get("state"))
+        title = from_str(obj.get("title"))
+        url = from_str(obj.get("url"))
+        return AttachmentGithubReference(
+            number=number,
+            reference_type=reference_type,
+            state=state,
+            title=title,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["number"] = to_int(self.number)
+        result["referenceType"] = to_enum(AttachmentGithubReferenceType, self.reference_type)
+        result["state"] = from_str(self.state)
+        result["title"] = from_str(self.title)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentSelection:
+    "Code selection attachment from an editor"
+    display_name: str
+    file_path: str
+    selection: AttachmentSelectionDetails
+    text: str
+    type: ClassVar[str] = "selection"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentSelection":
+        assert isinstance(obj, dict)
+        display_name = from_str(obj.get("displayName"))
+        file_path = from_str(obj.get("filePath"))
+        selection = AttachmentSelectionDetails.from_dict(obj.get("selection"))
+        text = from_str(obj.get("text"))
+        return AttachmentSelection(
+            display_name=display_name,
+            file_path=file_path,
+            selection=selection,
+            text=text,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["displayName"] = from_str(self.display_name)
+        result["filePath"] = from_str(self.file_path)
+        result["selection"] = to_class(AttachmentSelectionDetails, self.selection)
+        result["text"] = from_str(self.text)
+        result["type"] = self.type
+        return result
+
+
+@dataclass
+class AttachmentSelectionDetails:
+    "Position range of the selection within the file"
+    end: AttachmentSelectionDetailsEnd
+    start: AttachmentSelectionDetailsStart
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentSelectionDetails":
+        assert isinstance(obj, dict)
+        end = AttachmentSelectionDetailsEnd.from_dict(obj.get("end"))
+        start = AttachmentSelectionDetailsStart.from_dict(obj.get("start"))
+        return AttachmentSelectionDetails(
+            end=end,
+            start=start,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["end"] = to_class(AttachmentSelectionDetailsEnd, self.end)
+        result["start"] = to_class(AttachmentSelectionDetailsStart, self.start)
+        return result
+
+
+@dataclass
+class AttachmentSelectionDetailsEnd:
+    "End position of the selection"
+    character: int
+    line: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentSelectionDetailsEnd":
+        assert isinstance(obj, dict)
+        character = from_int(obj.get("character"))
+        line = from_int(obj.get("line"))
+        return AttachmentSelectionDetailsEnd(
+            character=character,
+            line=line,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["character"] = to_int(self.character)
+        result["line"] = to_int(self.line)
+        return result
+
+
+@dataclass
+class AttachmentSelectionDetailsStart:
+    "Start position of the selection"
+    character: int
+    line: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentSelectionDetailsStart":
+        assert isinstance(obj, dict)
+        character = from_int(obj.get("character"))
+        line = from_int(obj.get("line"))
+        return AttachmentSelectionDetailsStart(
+            character=character,
+            line=line,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["character"] = to_int(self.character)
+        result["line"] = to_int(self.line)
         return result
 
 
@@ -3668,6 +3960,25 @@ class SessionErrorData:
 
 
 @dataclass
+class SessionExtensionsAttachmentsPushedData:
+    "Schema for the `ExtensionsAttachmentsPushedData` type."
+    attachments: list[Attachment]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionExtensionsAttachmentsPushedData":
+        assert isinstance(obj, dict)
+        attachments = from_list(_load_Attachment, obj.get("attachments"))
+        return SessionExtensionsAttachmentsPushedData(
+            attachments=attachments,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attachments"] = from_list(lambda x: x.to_dict(), self.attachments)
+        return result
+
+
+@dataclass
 class SessionExtensionsLoadedData:
     "Schema for the `ExtensionsLoadedData` type."
     extensions: list[ExtensionsLoadedExtension]
@@ -3862,7 +4173,7 @@ class SessionModelChangeData:
     "Model change details including previous and new model identifiers"
     new_model: str
     cause: str | None = None
-    context_tier: SessionModelChangeDataContextTier | None = None
+    context_tier: ContextTier | None = None
     previous_model: str | None = None
     previous_reasoning_effort: str | None = None
     previous_reasoning_summary: ReasoningSummary | None = None
@@ -3874,7 +4185,7 @@ class SessionModelChangeData:
         assert isinstance(obj, dict)
         new_model = from_str(obj.get("newModel"))
         cause = from_union([from_none, from_str], obj.get("cause"))
-        context_tier = from_union([from_none, lambda x: parse_enum(SessionModelChangeDataContextTier, x)], obj.get("contextTier"))
+        context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         previous_model = from_union([from_none, from_str], obj.get("previousModel"))
         previous_reasoning_effort = from_union([from_none, from_str], obj.get("previousReasoningEffort"))
         previous_reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("previousReasoningSummary"))
@@ -3897,7 +4208,7 @@ class SessionModelChangeData:
         if self.cause is not None:
             result["cause"] = from_union([from_none, from_str], self.cause)
         if self.context_tier is not None:
-            result["contextTier"] = from_union([from_none, lambda x: to_enum(SessionModelChangeDataContextTier, x)], self.context_tier)
+            result["contextTier"] = from_union([from_none, lambda x: to_enum(ContextTier, x)], self.context_tier)
         if self.previous_model is not None:
             result["previousModel"] = from_union([from_none, from_str], self.previous_model)
         if self.previous_reasoning_effort is not None:
@@ -3979,7 +4290,7 @@ class SessionResumeData:
     resume_time: datetime
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
-    context_tier: SessionResumeDataContextTier | None = None
+    context_tier: ContextTier | None = None
     continue_pending_work: bool | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
@@ -3994,7 +4305,7 @@ class SessionResumeData:
         resume_time = from_datetime(obj.get("resumeTime"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
-        context_tier = from_union([from_none, lambda x: parse_enum(SessionResumeDataContextTier, x)], obj.get("contextTier"))
+        context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         continue_pending_work = from_union([from_none, from_bool], obj.get("continuePendingWork"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
@@ -4024,7 +4335,7 @@ class SessionResumeData:
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.context_tier is not None:
-            result["contextTier"] = from_union([from_none, lambda x: to_enum(SessionResumeDataContextTier, x)], self.context_tier)
+            result["contextTier"] = from_union([from_none, lambda x: to_enum(ContextTier, x)], self.context_tier)
         if self.continue_pending_work is not None:
             result["continuePendingWork"] = from_union([from_none, from_bool], self.continue_pending_work)
         if self.reasoning_effort is not None:
@@ -4230,7 +4541,7 @@ class SessionStartData:
     version: int
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
-    context_tier: SessionStartDataContextTier | None = None
+    context_tier: ContextTier | None = None
     detached_from_spawning_parent_session_id: str | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
@@ -4247,7 +4558,7 @@ class SessionStartData:
         version = from_int(obj.get("version"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
-        context_tier = from_union([from_none, lambda x: parse_enum(SessionStartDataContextTier, x)], obj.get("contextTier"))
+        context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
@@ -4281,7 +4592,7 @@ class SessionStartData:
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.context_tier is not None:
-            result["contextTier"] = from_union([from_none, lambda x: to_enum(SessionStartDataContextTier, x)], self.context_tier)
+            result["contextTier"] = from_union([from_none, lambda x: to_enum(ContextTier, x)], self.context_tier)
         if self.detached_from_spawning_parent_session_id is not None:
             result["detachedFromSpawningParentSessionId"] = from_union([from_none, from_str], self.detached_from_spawning_parent_session_id)
         if self.reasoning_effort is not None:
@@ -6029,258 +6340,11 @@ class UserInputRequestedData:
 
 
 @dataclass
-class UserMessageAttachmentBlob:
-    "Blob attachment with inline base64-encoded data"
-    data: str
-    mime_type: str
-    type: ClassVar[str] = "blob"
-    display_name: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentBlob":
-        assert isinstance(obj, dict)
-        data = from_str(obj.get("data"))
-        mime_type = from_str(obj.get("mimeType"))
-        display_name = from_union([from_none, from_str], obj.get("displayName"))
-        return UserMessageAttachmentBlob(
-            data=data,
-            mime_type=mime_type,
-            display_name=display_name,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["data"] = from_str(self.data)
-        result["mimeType"] = from_str(self.mime_type)
-        result["type"] = self.type
-        if self.display_name is not None:
-            result["displayName"] = from_union([from_none, from_str], self.display_name)
-        return result
-
-
-@dataclass
-class UserMessageAttachmentDirectory:
-    "Directory attachment"
-    display_name: str
-    path: str
-    type: ClassVar[str] = "directory"
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentDirectory":
-        assert isinstance(obj, dict)
-        display_name = from_str(obj.get("displayName"))
-        path = from_str(obj.get("path"))
-        return UserMessageAttachmentDirectory(
-            display_name=display_name,
-            path=path,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["displayName"] = from_str(self.display_name)
-        result["path"] = from_str(self.path)
-        result["type"] = self.type
-        return result
-
-
-@dataclass
-class UserMessageAttachmentFile:
-    "File attachment"
-    display_name: str
-    path: str
-    type: ClassVar[str] = "file"
-    line_range: UserMessageAttachmentFileLineRange | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentFile":
-        assert isinstance(obj, dict)
-        display_name = from_str(obj.get("displayName"))
-        path = from_str(obj.get("path"))
-        line_range = from_union([from_none, UserMessageAttachmentFileLineRange.from_dict], obj.get("lineRange"))
-        return UserMessageAttachmentFile(
-            display_name=display_name,
-            path=path,
-            line_range=line_range,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["displayName"] = from_str(self.display_name)
-        result["path"] = from_str(self.path)
-        result["type"] = self.type
-        if self.line_range is not None:
-            result["lineRange"] = from_union([from_none, lambda x: to_class(UserMessageAttachmentFileLineRange, x)], self.line_range)
-        return result
-
-
-@dataclass
-class UserMessageAttachmentFileLineRange:
-    "Optional line range to scope the attachment to a specific section of the file"
-    end: int
-    start: int
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentFileLineRange":
-        assert isinstance(obj, dict)
-        end = from_int(obj.get("end"))
-        start = from_int(obj.get("start"))
-        return UserMessageAttachmentFileLineRange(
-            end=end,
-            start=start,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["end"] = to_int(self.end)
-        result["start"] = to_int(self.start)
-        return result
-
-
-@dataclass
-class UserMessageAttachmentGithubReference:
-    "GitHub issue, pull request, or discussion reference"
-    number: int
-    reference_type: UserMessageAttachmentGithubReferenceType
-    state: str
-    title: str
-    type: ClassVar[str] = "github_reference"
-    url: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentGithubReference":
-        assert isinstance(obj, dict)
-        number = from_int(obj.get("number"))
-        reference_type = parse_enum(UserMessageAttachmentGithubReferenceType, obj.get("referenceType"))
-        state = from_str(obj.get("state"))
-        title = from_str(obj.get("title"))
-        url = from_str(obj.get("url"))
-        return UserMessageAttachmentGithubReference(
-            number=number,
-            reference_type=reference_type,
-            state=state,
-            title=title,
-            url=url,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["number"] = to_int(self.number)
-        result["referenceType"] = to_enum(UserMessageAttachmentGithubReferenceType, self.reference_type)
-        result["state"] = from_str(self.state)
-        result["title"] = from_str(self.title)
-        result["type"] = self.type
-        result["url"] = from_str(self.url)
-        return result
-
-
-@dataclass
-class UserMessageAttachmentSelection:
-    "Code selection attachment from an editor"
-    display_name: str
-    file_path: str
-    selection: UserMessageAttachmentSelectionDetails
-    text: str
-    type: ClassVar[str] = "selection"
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentSelection":
-        assert isinstance(obj, dict)
-        display_name = from_str(obj.get("displayName"))
-        file_path = from_str(obj.get("filePath"))
-        selection = UserMessageAttachmentSelectionDetails.from_dict(obj.get("selection"))
-        text = from_str(obj.get("text"))
-        return UserMessageAttachmentSelection(
-            display_name=display_name,
-            file_path=file_path,
-            selection=selection,
-            text=text,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["displayName"] = from_str(self.display_name)
-        result["filePath"] = from_str(self.file_path)
-        result["selection"] = to_class(UserMessageAttachmentSelectionDetails, self.selection)
-        result["text"] = from_str(self.text)
-        result["type"] = self.type
-        return result
-
-
-@dataclass
-class UserMessageAttachmentSelectionDetails:
-    "Position range of the selection within the file"
-    end: UserMessageAttachmentSelectionDetailsEnd
-    start: UserMessageAttachmentSelectionDetailsStart
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentSelectionDetails":
-        assert isinstance(obj, dict)
-        end = UserMessageAttachmentSelectionDetailsEnd.from_dict(obj.get("end"))
-        start = UserMessageAttachmentSelectionDetailsStart.from_dict(obj.get("start"))
-        return UserMessageAttachmentSelectionDetails(
-            end=end,
-            start=start,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["end"] = to_class(UserMessageAttachmentSelectionDetailsEnd, self.end)
-        result["start"] = to_class(UserMessageAttachmentSelectionDetailsStart, self.start)
-        return result
-
-
-@dataclass
-class UserMessageAttachmentSelectionDetailsEnd:
-    "End position of the selection"
-    character: int
-    line: int
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentSelectionDetailsEnd":
-        assert isinstance(obj, dict)
-        character = from_int(obj.get("character"))
-        line = from_int(obj.get("line"))
-        return UserMessageAttachmentSelectionDetailsEnd(
-            character=character,
-            line=line,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["character"] = to_int(self.character)
-        result["line"] = to_int(self.line)
-        return result
-
-
-@dataclass
-class UserMessageAttachmentSelectionDetailsStart:
-    "Start position of the selection"
-    character: int
-    line: int
-
-    @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentSelectionDetailsStart":
-        assert isinstance(obj, dict)
-        character = from_int(obj.get("character"))
-        line = from_int(obj.get("line"))
-        return UserMessageAttachmentSelectionDetailsStart(
-            character=character,
-            line=line,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["character"] = to_int(self.character)
-        result["line"] = to_int(self.line)
-        return result
-
-
-@dataclass
 class UserMessageData:
     "Schema for the `UserMessageData` type."
     content: str
     agent_mode: UserMessageAgentMode | None = None
-    attachments: list[UserMessageAttachment] | None = None
+    attachments: list[Attachment] | None = None
     interaction_id: str | None = None
     is_autopilot_continuation: bool | None = None
     native_document_path_fallback_paths: list[str] | None = None
@@ -6294,7 +6358,7 @@ class UserMessageData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
-        attachments = from_union([from_none, lambda x: from_list(_load_UserMessageAttachment, x)], obj.get("attachments"))
+        attachments = from_union([from_none, lambda x: from_list(_load_Attachment, x)], obj.get("attachments"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         is_autopilot_continuation = from_union([from_none, from_bool], obj.get("isAutopilotContinuation"))
         native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("nativeDocumentPathFallbackPaths"))
@@ -6554,6 +6618,19 @@ class WorkingDirectoryContext:
         return result
 
 
+def _load_Attachment(obj: Any) -> "Attachment":
+    assert isinstance(obj, dict)
+    kind = obj.get("type")
+    match kind:
+        case "file": return AttachmentFile.from_dict(obj)
+        case "directory": return AttachmentDirectory.from_dict(obj)
+        case "selection": return AttachmentSelection.from_dict(obj)
+        case "github_reference": return AttachmentGithubReference.from_dict(obj)
+        case "blob": return AttachmentBlob.from_dict(obj)
+        case "extension_context": return AttachmentExtensionContext.from_dict(obj)
+        case _: raise ValueError(f"Unknown Attachment type: {kind!r}")
+
+
 def _load_PermissionPromptRequest(obj: Any) -> "PermissionPromptRequest":
     assert isinstance(obj, dict)
     kind = obj.get("kind")
@@ -6631,18 +6708,6 @@ def _load_ToolExecutionCompleteContent(obj: Any) -> "ToolExecutionCompleteConten
         case _: raise ValueError(f"Unknown ToolExecutionCompleteContent type: {kind!r}")
 
 
-def _load_UserMessageAttachment(obj: Any) -> "UserMessageAttachment":
-    assert isinstance(obj, dict)
-    kind = obj.get("type")
-    match kind:
-        case "file": return UserMessageAttachmentFile.from_dict(obj)
-        case "directory": return UserMessageAttachmentDirectory.from_dict(obj)
-        case "selection": return UserMessageAttachmentSelection.from_dict(obj)
-        case "github_reference": return UserMessageAttachmentGithubReference.from_dict(obj)
-        case "blob": return UserMessageAttachmentBlob.from_dict(obj)
-        case _: raise ValueError(f"Unknown UserMessageAttachment type: {kind!r}")
-
-
 def _load_UserToolSessionApproval(obj: Any) -> "UserToolSessionApproval":
     assert isinstance(obj, dict)
     kind = obj.get("kind")
@@ -6662,8 +6727,8 @@ def _load_UserToolSessionApproval(obj: Any) -> "UserToolSessionApproval":
 ToolExecutionCompleteContent = ToolExecutionCompleteContentText | ToolExecutionCompleteContentTerminal | ToolExecutionCompleteContentImage | ToolExecutionCompleteContentAudio | ToolExecutionCompleteContentResourceLink | ToolExecutionCompleteContentResource
 
 
-# A user message attachment — a file, directory, code selection, blob, or GitHub reference
-UserMessageAttachment = UserMessageAttachmentFile | UserMessageAttachmentDirectory | UserMessageAttachmentSelection | UserMessageAttachmentGithubReference | UserMessageAttachmentBlob
+# A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload
+Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGithubReference | AttachmentBlob | AttachmentExtensionContext
 
 
 # Derived user-facing permission prompt details for UI consumers
@@ -6720,6 +6785,16 @@ class AssistantUsageApiEndpoint(Enum):
     WS_RESPONSES = "ws:/responses"
 
 
+class AttachmentGithubReferenceType(Enum):
+    "Type of GitHub reference"
+    # GitHub issue reference.
+    ISSUE = "issue"
+    # GitHub pull request reference.
+    PR = "pr"
+    # GitHub discussion reference.
+    DISCUSSION = "discussion"
+
+
 class AutoModeSwitchResponse(Enum):
     "The user's auto-mode-switch choice"
     # Switch models for this request.
@@ -6758,6 +6833,14 @@ class CanvasOpenedAvailability(Enum):
     READY = "ready"
     # Provider has gone away; the instance is awaiting rebinding.
     STALE = "stale"
+
+
+class ContextTier(Enum):
+    "Allowed values for the `ContextTier` enumeration."
+    # Default context tier with standard context window size.
+    DEFAULT = "default"
+    # Extended context tier with a larger context window.
+    LONG_CONTEXT = "long_context"
 
 
 class ElicitationCompletedAction(Enum):
@@ -6924,27 +7007,6 @@ class SessionMode(Enum):
     AUTOPILOT = "autopilot"
 
 
-class SessionModelChangeDataContextTier(Enum):
-    # Default context tier with standard context window size.
-    DEFAULT = "default"
-    # Extended context tier with a larger context window.
-    LONG_CONTEXT = "long_context"
-
-
-class SessionResumeDataContextTier(Enum):
-    # Default context tier with standard context window size.
-    DEFAULT = "default"
-    # Extended context tier with a larger context window.
-    LONG_CONTEXT = "long_context"
-
-
-class SessionStartDataContextTier(Enum):
-    # Default context tier with standard context window size.
-    DEFAULT = "default"
-    # Extended context tier with a larger context window.
-    LONG_CONTEXT = "long_context"
-
-
 class ShutdownType(Enum):
     "Whether the session ended normally (\"routine\") or due to a crash/fatal error (\"error\")"
     # The session ended normally.
@@ -7025,16 +7087,6 @@ class UserMessageAgentMode(Enum):
     SHELL = "shell"
 
 
-class UserMessageAttachmentGithubReferenceType(Enum):
-    "Type of GitHub reference"
-    # GitHub issue reference.
-    ISSUE = "issue"
-    # GitHub pull request reference.
-    PR = "pr"
-    # GitHub discussion reference.
-    DISCUSSION = "discussion"
-
-
 class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
     # Repository is hosted on GitHub.
@@ -7051,7 +7103,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -7163,6 +7215,7 @@ class SessionEvent:
             case SessionEventType.SESSION_EXTENSIONS_LOADED: data = SessionExtensionsLoadedData.from_dict(data_obj)
             case SessionEventType.SESSION_CANVAS_OPENED: data = SessionCanvasOpenedData.from_dict(data_obj)
             case SessionEventType.SESSION_CANVAS_REGISTRY_CHANGED: data = SessionCanvasRegistryChangedData.from_dict(data_obj)
+            case SessionEventType.SESSION_EXTENSIONS_ATTACHMENTS_PUSHED: data = SessionExtensionsAttachmentsPushedData.from_dict(data_obj)
             case SessionEventType.MCP_APP_TOOL_CALL_COMPLETE: data = McpAppToolCallCompleteData.from_dict(data_obj)
             case _: data = RawSessionEventData.from_dict(data_obj)
         return SessionEvent(

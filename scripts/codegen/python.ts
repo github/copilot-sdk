@@ -1133,6 +1133,48 @@ function toPyFieldName(propName: string, propSchema: JSONSchema7, ctx: PyCodegen
     return toSnakeCase(isPyDurationProperty(propSchema, ctx) ? stripDurationMillisecondsSuffix(propName) : propName);
 }
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function removeRequiredAnyDefaultsForPython(
+    code: string,
+    definitions: Record<string, JSONSchema7>,
+    definitionCollections: DefinitionCollections
+): string {
+    const requiredFieldsByClass = new Map<string, Set<string>>();
+
+    for (const [definitionName, schema] of Object.entries(definitions)) {
+        const resolved = resolveObjectSchema(schema, definitionCollections) ?? resolveSchema(schema, definitionCollections);
+        if (!resolved || !isObjectSchema(resolved) || !resolved.properties || !Array.isArray(resolved.required)) {
+            continue;
+        }
+
+        const requiredFields = resolved.required.map(toSnakeCase);
+        for (const className of new Set([definitionName, toPascalCase(definitionName)])) {
+            const fields = requiredFieldsByClass.get(className) ?? new Set<string>();
+            for (const field of requiredFields) {
+                fields.add(field);
+            }
+            requiredFieldsByClass.set(className, fields);
+        }
+    }
+
+    const classBlockRe = /(@dataclass\r?\nclass\s+(\w+):[\s\S]*?)(?=^@dataclass|^class\s+\w|^def\s+\w|\Z)/gm;
+    return code.replace(classBlockRe, (block: string, _classPrefix: string, className: string) => {
+        const requiredFields = requiredFieldsByClass.get(className);
+        if (!requiredFields) {
+            return block;
+        }
+
+        let updatedBlock = block;
+        for (const field of requiredFields) {
+            updatedBlock = updatedBlock.replace(new RegExp(`^(    ${escapeRegExp(field)}: Any) = None$`, "m"), "$1");
+        }
+        return updatedBlock;
+    });
+}
+
 function toPascalCase(s: string): string {
     return s
         .split(/[._]/)
@@ -1347,13 +1389,6 @@ const PY_SESSION_EVENT_TYPE_RENAMES: Record<string, string> = {
     SessionShutdownDataShutdownType: "ShutdownType",
     SessionSkillsLoadedDataSkillsItem: "SkillsLoadedSkill",
     UserMessageDataAgentMode: "UserMessageAgentMode",
-    UserMessageDataAttachmentsItem: "UserMessageAttachment",
-    UserMessageDataAttachmentsItemLineRange: "UserMessageAttachmentFileLineRange",
-    UserMessageDataAttachmentsItemReferenceType: "UserMessageAttachmentGithubReferenceType",
-    UserMessageDataAttachmentsItemSelection: "UserMessageAttachmentSelectionDetails",
-    UserMessageDataAttachmentsItemSelectionEnd: "UserMessageAttachmentSelectionDetailsEnd",
-    UserMessageDataAttachmentsItemSelectionStart: "UserMessageAttachmentSelectionDetailsStart",
-    UserMessageDataAttachmentsItemType: "UserMessageAttachmentType",
 };
 
 function postProcessPythonSessionEventCode(code: string): string {
@@ -2793,6 +2828,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
             return `${prefix}${updatedBody}${suffix}`;
         }
     );
+    typesCode = removeRequiredAnyDefaultsForPython(typesCode, allDefinitions, allDefinitionCollections);
     // Fix bare except: to use Exception (required by ruff/pylint)
     typesCode = typesCode.replace(/except:/g, "except Exception:");
     // Remove unnecessary pass when class has methods (quicktype generates pass for empty schemas)
