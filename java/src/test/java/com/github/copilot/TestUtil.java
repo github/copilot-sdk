@@ -76,8 +76,8 @@ public final class TestUtil {
         Path current = Paths.get(System.getProperty("user.dir"));
         while (current != null) {
             // Test harness platform-specific binary
-            Path platformBinary = current
-                    .resolve("test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/" + binaryName);
+            Path platformBinary = current.resolve(
+                    "test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/" + binaryName);
             if (platformBinary.toFile().exists()) {
                 return platformBinary.toString();
             }
