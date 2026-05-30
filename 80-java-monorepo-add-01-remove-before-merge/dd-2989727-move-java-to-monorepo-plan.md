@@ -177,7 +177,7 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 
 ### ⌛ Phase 06-01: Cutover and Cleanup: part 2
 
-1. Re-activate JaCoCo after Steve's https://github.com/github/copilot-sdk/pull/1492
+1. ✅ Re-activate JaCoCo after Steve's https://github.com/github/copilot-sdk/pull/1492
 
 2. Bring changelog concept to parity compared between standalone and monorepo See https://github.com/github/copilot-sdk-partners/issues/122
 
