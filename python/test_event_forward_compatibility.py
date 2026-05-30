@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytest
 
 from copilot.generated.session_events import (
+    AttachmentGithubReferenceType,
     Data,
     ElicitationCompletedAction,
     ElicitationRequestedMode,
@@ -23,7 +24,6 @@ from copilot.generated.session_events import (
     SessionEventType,
     SessionTaskCompleteData,
     UserMessageAgentMode,
-    AttachmentGithubReferenceType,
     session_event_from_dict,
     session_event_to_dict,
 )
