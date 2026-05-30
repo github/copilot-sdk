@@ -32,8 +32,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    name: Preflight checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify GITHUB_TOKEN can create releases
+        run: |
+          # Test that the token has contents:write by checking repo permissions
+          PERMS=$(gh api repos/${{ github.repository }} --jq '.permissions.push // false')
+          if [ "$PERMS" != "true" ]; then
+            echo "::error::GITHUB_TOKEN lacks push/write permission on this repository. GitHub Release creation will fail."
+            exit 1
+          fi
+          echo "GITHUB_TOKEN permissions OK"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify JAVA_RELEASE_GITHUB_TOKEN is valid
+        run: |
+          # Test that the token can authenticate and trigger workflows
+          USER=$(gh api user --jq '.login' 2>&1) || {
+            echo "::error::JAVA_RELEASE_GITHUB_TOKEN is invalid or expired. Changelog trigger will fail."
+            exit 1
+          }
+          echo "JAVA_RELEASE_GITHUB_TOKEN is valid (authenticated as: ${USER})"
+        env:
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
+
   publish-maven:
     name: Publish Java SDK to Maven Central
+    needs: preflight
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -177,7 +205,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: publish-maven
+    needs: [preflight, publish-maven]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     defaults:
