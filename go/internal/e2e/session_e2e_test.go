@@ -1103,7 +1103,7 @@ func TestSessionBlobAttachmentE2E(t *testing.T) {
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Describe this image",
 			Attachments: []copilot.Attachment{
-				&copilot.UserMessageAttachmentBlob{
+				&copilot.AttachmentBlob{
 					Data:        data,
 					MIMEType:    mimeType,
 					DisplayName: &displayName,
@@ -1256,7 +1256,7 @@ func getEventMessage(evt copilot.SessionEvent) string {
 }
 
 // TestSessionAttachments mirrors the C# Should_Send_With_*_Attachment tests in SessionTests.cs.
-// Each subtest exercises a different UserMessageAttachment shape end-to-end through SendAndWait
+// Each subtest exercises a different Attachment shape end-to-end through SendAndWait
 // and verifies the resulting user.message event captured by GetEvents.
 func TestSessionAttachmentsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
@@ -1286,17 +1286,17 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		path := filePath
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Read the attached file and reply with its contents.",
-			Attachments: []copilot.Attachment{&copilot.UserMessageAttachmentFile{
+			Attachments: []copilot.Attachment{&copilot.AttachmentFile{
 				DisplayName: displayName,
 				Path:        path,
-				LineRange:   &copilot.UserMessageAttachmentFileLineRange{Start: 1, End: 1},
+				LineRange:   &copilot.AttachmentFileLineRange{Start: 1, End: 1},
 			}},
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment, ok := lastUserAttachment(t, session).(*copilot.UserMessageAttachmentFile)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.AttachmentFile)
 		if !ok {
 			t.Fatalf("Expected file attachment, got %T", lastUserAttachment(t, session))
 		}
@@ -1333,7 +1333,7 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		path := directoryPath
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "List the attached directory.",
-			Attachments: []copilot.Attachment{&copilot.UserMessageAttachmentDirectory{
+			Attachments: []copilot.Attachment{&copilot.AttachmentDirectory{
 				DisplayName: displayName,
 				Path:        path,
 			}},
@@ -1342,7 +1342,7 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment, ok := lastUserAttachment(t, session).(*copilot.UserMessageAttachmentDirectory)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.AttachmentDirectory)
 		if !ok {
 			t.Fatalf("Expected directory attachment, got %T", lastUserAttachment(t, session))
 		}
@@ -1374,13 +1374,13 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		text := `string Value = "SELECTION_SENTINEL";`
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Summarize the selected code.",
-			Attachments: []copilot.Attachment{&copilot.UserMessageAttachmentSelection{
+			Attachments: []copilot.Attachment{&copilot.AttachmentSelection{
 				DisplayName: displayName,
 				FilePath:    filePathCopy,
 				Text:        text,
-				Selection: copilot.UserMessageAttachmentSelectionDetails{
-					Start: copilot.UserMessageAttachmentSelectionDetailsStart{Line: 1, Character: 10},
-					End:   copilot.UserMessageAttachmentSelectionDetailsEnd{Line: 1, Character: 45},
+				Selection: copilot.AttachmentSelectionDetails{
+					Start: copilot.AttachmentSelectionDetailsStart{Line: 1, Character: 10},
+					End:   copilot.AttachmentSelectionDetailsEnd{Line: 1, Character: 45},
 				},
 			}},
 		})
@@ -1388,7 +1388,7 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment, ok := lastUserAttachment(t, session).(*copilot.UserMessageAttachmentSelection)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.AttachmentSelection)
 		if !ok {
 			t.Fatalf("Expected selection attachment, got %T", lastUserAttachment(t, session))
 		}
@@ -1420,13 +1420,13 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		}
 
 		number := int64(1234)
-		referenceType := copilot.UserMessageAttachmentGithubReferenceTypeIssue
+		referenceType := copilot.AttachmentGithubReferenceTypeIssue
 		state := "open"
 		title := "Add E2E attachment coverage"
 		url := "https://github.com/github/copilot-sdk/issues/1234"
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
-			Attachments: []copilot.Attachment{&copilot.UserMessageAttachmentGithubReference{
+			Attachments: []copilot.Attachment{&copilot.AttachmentGithubReference{
 				Number:        number,
 				ReferenceType: referenceType,
 				State:         state,
@@ -1438,14 +1438,14 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment, ok := lastUserAttachment(t, session).(*copilot.UserMessageAttachmentGithubReference)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.AttachmentGithubReference)
 		if !ok {
 			t.Fatalf("Expected GitHub reference attachment, got %T", lastUserAttachment(t, session))
 		}
 		if attachment.Number != 1234 {
 			t.Errorf("Expected Number=1234, got %v", attachment.Number)
 		}
-		if attachment.ReferenceType != copilot.UserMessageAttachmentGithubReferenceTypeIssue {
+		if attachment.ReferenceType != copilot.AttachmentGithubReferenceTypeIssue {
 			t.Errorf("Expected ReferenceType=Issue, got %v", attachment.ReferenceType)
 		}
 		if attachment.State != "open" {

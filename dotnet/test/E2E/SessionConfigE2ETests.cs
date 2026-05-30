@@ -492,7 +492,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Prompt = "What color is this pixel? Reply in one word.",
             Attachments =
             [
-                new UserMessageAttachmentBlob
+                new AttachmentBlob
                 {
                     Data = pngBase64,
                     MimeType = "image/png",
@@ -517,7 +517,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Prompt = "Summarize the attached file",
             Attachments =
             [
-                new UserMessageAttachmentFile
+                new AttachmentFile
                 {
                     Path = attachedPath,
                     DisplayName = "attached.txt",

@@ -11,7 +11,8 @@ use super::session_events::{
     PermissionRule, ReasoningSummary, SessionMode, ShutdownType, SkillSource,
     UserToolSessionApproval,
 };
-use crate::types::{RequestId, SessionEvent, SessionId};
+use crate::types::SessionEvent;
+use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {

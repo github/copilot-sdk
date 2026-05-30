@@ -35,6 +35,7 @@ type (
 	AttachmentSelectionDetails                                     = rpc.AttachmentSelectionDetails
 	AttachmentSelectionDetailsEnd                                  = rpc.AttachmentSelectionDetailsEnd
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
+	AttachmentType                                                 = rpc.AttachmentType
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
@@ -262,6 +263,7 @@ type (
 	UserToolSessionApprovalCustomTool                              = rpc.UserToolSessionApprovalCustomTool
 	UserToolSessionApprovalExtensionManagement                     = rpc.UserToolSessionApprovalExtensionManagement
 	UserToolSessionApprovalExtensionPermissionAccess               = rpc.UserToolSessionApprovalExtensionPermissionAccess
+	UserToolSessionApprovalKind                                    = rpc.UserToolSessionApprovalKind
 	UserToolSessionApprovalMcp                                     = rpc.UserToolSessionApprovalMcp
 	UserToolSessionApprovalMemory                                  = rpc.UserToolSessionApprovalMemory
 	UserToolSessionApprovalRead                                    = rpc.UserToolSessionApprovalRead
@@ -285,6 +287,12 @@ const (
 	AttachmentGithubReferenceTypeDiscussion                            = rpc.AttachmentGithubReferenceTypeDiscussion
 	AttachmentGithubReferenceTypeIssue                                 = rpc.AttachmentGithubReferenceTypeIssue
 	AttachmentGithubReferenceTypePr                                    = rpc.AttachmentGithubReferenceTypePr
+	AttachmentTypeBlob                                                 = rpc.AttachmentTypeBlob
+	AttachmentTypeDirectory                                            = rpc.AttachmentTypeDirectory
+	AttachmentTypeExtensionContext                                     = rpc.AttachmentTypeExtensionContext
+	AttachmentTypeFile                                                 = rpc.AttachmentTypeFile
+	AttachmentTypeGithubReference                                      = rpc.AttachmentTypeGithubReference
+	AttachmentTypeSelection                                            = rpc.AttachmentTypeSelection
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
 	AutoModeSwitchResponseYesAlways                                    = rpc.AutoModeSwitchResponseYesAlways
@@ -505,6 +513,14 @@ const (
 	UserMessageAgentModeInteractive                                    = rpc.UserMessageAgentModeInteractive
 	UserMessageAgentModePlan                                           = rpc.UserMessageAgentModePlan
 	UserMessageAgentModeShell                                          = rpc.UserMessageAgentModeShell
+	UserToolSessionApprovalKindCommands                                = rpc.UserToolSessionApprovalKindCommands
+	UserToolSessionApprovalKindCustomTool                              = rpc.UserToolSessionApprovalKindCustomTool
+	UserToolSessionApprovalKindExtensionManagement                     = rpc.UserToolSessionApprovalKindExtensionManagement
+	UserToolSessionApprovalKindExtensionPermissionAccess               = rpc.UserToolSessionApprovalKindExtensionPermissionAccess
+	UserToolSessionApprovalKindMcp                                     = rpc.UserToolSessionApprovalKindMcp
+	UserToolSessionApprovalKindMemory                                  = rpc.UserToolSessionApprovalKindMemory
+	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead
+	UserToolSessionApprovalKindWrite                                   = rpc.UserToolSessionApprovalKindWrite
 	WorkingDirectoryContextHostTypeAdo                                 = rpc.WorkingDirectoryContextHostTypeAdo
 	WorkingDirectoryContextHostTypeGithub                              = rpc.WorkingDirectoryContextHostTypeGithub
 	WorkspaceFileChangedOperationCreate                                = rpc.WorkspaceFileChangedOperationCreate

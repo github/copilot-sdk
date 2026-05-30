@@ -231,7 +231,7 @@ public class CloneTests
         var original = new MessageOptions
         {
             Prompt = "Hello",
-            Attachments = [new UserMessageAttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
+            Attachments = [new AttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
             Mode = "chat",
         };
 
@@ -247,12 +247,12 @@ public class CloneTests
     {
         var original = new MessageOptions
         {
-            Attachments = [new UserMessageAttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
+            Attachments = [new AttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
         };
 
         var clone = original.Clone();
 
-        clone.Attachments!.Add(new UserMessageAttachmentFile { Path = "/other.txt", DisplayName = "other.txt" });
+        clone.Attachments!.Add(new AttachmentFile { Path = "/other.txt", DisplayName = "other.txt" });
 
         Assert.Single(original.Attachments!);
     }

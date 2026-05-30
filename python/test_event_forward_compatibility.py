@@ -23,7 +23,7 @@ from copilot.generated.session_events import (
     SessionEventType,
     SessionTaskCompleteData,
     UserMessageAgentMode,
-    UserMessageAttachmentGithubReferenceType,
+    AttachmentGithubReferenceType,
     session_event_from_dict,
     session_event_to_dict,
 )
@@ -115,7 +115,7 @@ class TestEventForwardCompatibility:
         assert ElicitationCompletedAction.ACCEPT.value == "accept"
         assert UserMessageAgentMode.INTERACTIVE.value == "interactive"
         assert ElicitationRequestedMode.FORM.value == "form"
-        assert UserMessageAttachmentGithubReferenceType.PR.value == "pr"
+        assert AttachmentGithubReferenceType.PR.value == "pr"
 
         schema = ElicitationRequestedSchema(
             properties={"answer": {"type": "string"}}, type="object"

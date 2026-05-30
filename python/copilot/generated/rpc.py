@@ -7701,7 +7701,7 @@ class Extension:
 class ExtensionContextPushInput:
     """Slim input shape for extension_context attachments; identity fields are runtime-derived."""
 
-    payload: Any = None
+    payload: Any
     """Caller-supplied JSON payload (required, may be null but not undefined)"""
 
     title: str

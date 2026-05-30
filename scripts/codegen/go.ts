@@ -3286,16 +3286,8 @@ export function generateGoSessionEventsCode(schema: JSONSchema7, packageName: st
     const TYPE_ALIASES: Record<string, string> = {
         PermissionRequestCommand: "PermissionRequestShellCommand",
         PossibleURL: "PermissionRequestShellPossibleURL",
-        Attachment: "UserMessageAttachment",
-        AttachmentType: "UserMessageAttachmentType",
     };
-    const CONST_ALIASES: Record<string, string> = {
-        AttachmentTypeFile: "UserMessageAttachmentTypeFile",
-        AttachmentTypeDirectory: "UserMessageAttachmentTypeDirectory",
-        AttachmentTypeSelection: "UserMessageAttachmentTypeSelection",
-        AttachmentTypeGithubReference: "UserMessageAttachmentTypeGithubReference",
-        AttachmentTypeBlob: "UserMessageAttachmentTypeBlob",
-    };
+    const CONST_ALIASES: Record<string, string> = {};
     const generatedTypeNames = new Set(collectGoTopLevelNames(joinGoCode(out), "type"));
     const generatedConstNames = new Set(collectGoTopLevelNames(joinGoCode(out), "const"));
     const typeAliases = Object.entries(TYPE_ALIASES)

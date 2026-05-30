@@ -1705,7 +1705,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string SessionId { get; init; } = string.Empty;
         public string Prompt { get; init; } = string.Empty;
         public string? DisplayPrompt { get; init; }
-        public IList<UserMessageAttachment>? Attachments { get; init; }
+        public IList<Attachment>? Attachments { get; init; }
         public string? Mode { get; init; }
         [JsonPropertyName("agentMode")]
         public AgentMode? AgentMode { get; init; }
@@ -1776,7 +1776,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SessionStartHookOutput))]
     [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
     [JsonSerializable(typeof(SystemMessageTransformSection))]
-    [JsonSerializable(typeof(UserMessageAttachment))]
+    [JsonSerializable(typeof(Attachment))]
     [JsonSerializable(typeof(UserPromptSubmittedHookInput))]
     [JsonSerializable(typeof(UserPromptSubmittedHookOutput))]
     internal partial class SessionJsonContext : JsonSerializerContext;
