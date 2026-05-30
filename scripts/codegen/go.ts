@@ -3295,20 +3295,33 @@ export function generateGoSessionEventsCode(schema: JSONSchema7, packageName: st
         AttachmentTypeGithubReference: "UserMessageAttachmentTypeGithubReference",
         AttachmentTypeBlob: "UserMessageAttachmentTypeBlob",
     };
-    out.push(`// Type aliases for convenience.`);
-    out.push(`type (`);
-    for (const [alias, target] of Object.entries(TYPE_ALIASES).sort(([left], [right]) => left.localeCompare(right))) {
-        out.push(`\t${alias} = ${target}`);
+    const generatedTypeNames = new Set(collectGoTopLevelNames(joinGoCode(out), "type"));
+    const generatedConstNames = new Set(collectGoTopLevelNames(joinGoCode(out), "const"));
+    const typeAliases = Object.entries(TYPE_ALIASES)
+        .filter(([alias, target]) => generatedTypeNames.has(target) && !generatedTypeNames.has(alias))
+        .sort(([left], [right]) => left.localeCompare(right));
+    const constAliases = Object.entries(CONST_ALIASES)
+        .filter(([alias, target]) => generatedConstNames.has(target) && !generatedConstNames.has(alias))
+        .sort(([left], [right]) => left.localeCompare(right));
+    if (typeAliases.length > 0) {
+        out.push(`// Type aliases for convenience.`);
+        out.push(`type (`);
+        for (const [alias, target] of typeAliases) {
+            out.push(`\t${alias} = ${target}`);
+        }
+        out.push(`)`);
+        out.push(``);
     }
-    out.push(`)`);
-    out.push(``);
-    out.push(`// Constant aliases for convenience.`);
-    out.push(`const (`);
-    for (const [alias, target] of Object.entries(CONST_ALIASES).sort(([left], [right]) => left.localeCompare(right))) {
-        out.push(`\t${alias} = ${target}`);
+
+    if (constAliases.length > 0) {
+        out.push(`// Constant aliases for convenience.`);
+        out.push(`const (`);
+        for (const [alias, target] of constAliases) {
+            out.push(`\t${alias} = ${target}`);
+        }
+        out.push(`)`);
+        out.push(``);
     }
-    out.push(`)`);
-    out.push(``);
 
     const encodingOut: string[] = [...sessionEncoding];
     if (encodingOut.length > 0) encodingOut.push("");
