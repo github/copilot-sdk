@@ -4,6 +4,9 @@ Copilot SDK - Python Client for GitHub Copilot CLI
 JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 from ._mode import (
     BUILTIN_TOOLS_ISOLATED,
     CopilotClientMode,
@@ -145,7 +148,13 @@ from .tools import (
     define_tool,
 )
 
-__version__ = "0.1.0"
+try:
+    __version__ = _pkg_version("github-copilot-sdk")
+except PackageNotFoundError:
+    # No installed package metadata (e.g. running from a source checkout that
+    # was never installed). Use a sentinel that can never masquerade as a real
+    # release rather than a hardcoded version that would silently go stale.
+    __version__ = "0.0.0.dev0"
 
 __all__ = [
     "AutoModeSwitchHandler",
