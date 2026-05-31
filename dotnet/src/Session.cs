@@ -1576,14 +1576,40 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <code>
     /// await session.SetModelAsync("gpt-4.1");
     /// await session.SetModelAsync("claude-sonnet-4.6", "high");
+    /// await session.SetModelAsync("gpt-4.1", new SetModelOptions { ContextTier = ContextTier.LongContext });
     /// </code>
     /// </example>
-    public async Task SetModelAsync(string model, string? reasoningEffort, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
+    public Task SetModelAsync(string model, string? reasoningEffort, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
+    {
+        return SetModelAsync(
+            model,
+            new SetModelOptions
+            {
+                ReasoningEffort = reasoningEffort,
+                ModelCapabilities = modelCapabilities,
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Changes the model for this session.
+    /// The new model takes effect for the next message. Conversation history is preserved.
+    /// </summary>
+    /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="options">Settings for the new model.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    public async Task SetModelAsync(string model, SetModelOptions options, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(model);
         ThrowIfDisposed();
 
-        await Rpc.Model.SwitchToAsync(model, reasoningEffort, reasoningSummary: null, modelCapabilities: modelCapabilities, cancellationToken: cancellationToken);
+        await Rpc.Model.SwitchToAsync(
+            model,
+            options.ReasoningEffort,
+            options.ReasoningSummary,
+            options.ModelCapabilities,
+            options.ContextTier,
+            cancellationToken);
     }
 
     /// <summary>
@@ -1593,7 +1619,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        return SetModelAsync(model, reasoningEffort: null, modelCapabilities: null, cancellationToken);
+        return SetModelAsync(model, new SetModelOptions(), cancellationToken);
     }
 
     /// <summary>

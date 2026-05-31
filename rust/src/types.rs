@@ -14,6 +14,8 @@ use serde_json::Value;
 
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
 use crate::generated::api_types::OpenCanvasInstance;
+/// Context window tier for models that support tiered context windows.
+pub use crate::generated::session_events::ContextTier;
 use crate::generated::session_events::ReasoningSummary;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
@@ -3267,6 +3269,9 @@ pub struct SetModelOptions {
     /// [`ReasoningSummary::None`] to suppress summary output regardless of
     /// whether reasoning is enabled.
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Explicit context window tier for the new model. Leave unset to use
+    /// normal model behavior with no explicit tier.
+    pub context_tier: Option<ContextTier>,
     /// Override individual model capabilities resolved by the runtime. Only
     /// fields set on the override are applied; the rest fall back to the
     /// runtime-resolved values for the model.
@@ -3283,6 +3288,12 @@ impl SetModelOptions {
     /// Set [`reasoning_summary`](Self::reasoning_summary).
     pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
         self.reasoning_summary = Some(summary);
+        self
+    }
+
+    /// Set [`context_tier`](Self::context_tier).
+    pub fn with_context_tier(mut self, tier: ContextTier) -> Self {
+        self.context_tier = Some(tier);
         self
     }
 

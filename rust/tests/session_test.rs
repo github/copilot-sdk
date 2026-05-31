@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use github_copilot_sdk::ContextTier;
 use github_copilot_sdk::canvas::{CanvasDeclaration, CanvasHandler, CanvasResult};
 use github_copilot_sdk::generated::api_types::{
     CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
@@ -1290,7 +1291,8 @@ async fn set_model_sends_switch_to_request() {
                     "claude-sonnet-4",
                     Some(
                         SetModelOptions::default()
-                            .with_reasoning_summary(ReasoningSummary::Detailed),
+                            .with_reasoning_summary(ReasoningSummary::Detailed)
+                            .with_context_tier(ContextTier::LongContext),
                     ),
                 )
                 .await
@@ -1302,6 +1304,7 @@ async fn set_model_sends_switch_to_request() {
     assert_eq!(request["method"], "session.model.switchTo");
     assert_eq!(request["params"]["modelId"], "claude-sonnet-4");
     assert_eq!(request["params"]["reasoningSummary"], "detailed");
+    assert_eq!(request["params"]["contextTier"], "long_context");
     server
         .respond(
             &request,

@@ -1004,6 +1004,7 @@ describe("CopilotClient", () => {
         await session.setModel("claude-sonnet-4.6", {
             reasoningEffort: "high",
             reasoningSummary: "detailed",
+            contextTier: "long_context",
         });
 
         expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
@@ -1011,6 +1012,7 @@ describe("CopilotClient", () => {
             modelId: "claude-sonnet-4.6",
             reasoningEffort: "high",
             reasoningSummary: "detailed",
+            contextTier: "long_context",
         });
 
         spy.mockRestore();
