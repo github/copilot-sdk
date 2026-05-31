@@ -5,8 +5,14 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -15,7 +21,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.rpc.SessionCommandsListResult;
+import com.github.copilot.generated.rpc.SessionCommandsInvokeParams;
+import com.github.copilot.generated.rpc.SlashCommandAgentPromptResult;
+import com.github.copilot.generated.rpc.SlashCommandCompletedResult;
 import com.github.copilot.generated.rpc.SlashCommandInfo;
+import com.github.copilot.generated.rpc.SlashCommandInvocationResult;
+import com.github.copilot.generated.rpc.SlashCommandSelectSubcommandResult;
+import com.github.copilot.generated.rpc.SlashCommandTextResult;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
@@ -71,5 +83,101 @@ class SlashCommandsIT {
                     "Command name should match /^[a-z].*$/ but was: " + cmd.name());
         }
         System.out.println("=== Total: " + result.commands().size() + " commands ===");
+    }
+
+    @Test
+    void autoPilotToggle() throws Exception {
+        SlashCommandInvocationResult first = session.getRpc().commands
+                .invoke(new SessionCommandsInvokeParams(null, "autopilot", null)).get(15, TimeUnit.SECONDS);
+        SlashCommandInvocationResult second = session.getRpc().commands
+                .invoke(new SessionCommandsInvokeParams(null, "autopilot", null)).get(15, TimeUnit.SECONDS);
+
+        String firstOutput = extractDisplayText(first);
+        String secondOutput = extractDisplayText(second);
+
+        assertTrue(!firstOutput.isBlank(), "First /autopilot invocation should return non-empty output");
+        assertTrue(!secondOutput.isBlank(), "Second /autopilot invocation should return non-empty output");
+        assertNotEquals(firstOutput, secondOutput,
+                "Two consecutive /autopilot invocations should produce different output because mode toggles");
+
+        List<String> firstTokens = tokenizeForComparison(firstOutput);
+        List<String> secondTokens = tokenizeForComparison(secondOutput);
+        assertTrue(!firstTokens.isEmpty(), "First /autopilot output should include at least one token");
+        assertTrue(!secondTokens.isEmpty(), "Second /autopilot output should include at least one token");
+
+        List<String> commonInOrder = commonTokensInOrder(firstTokens, secondTokens);
+        assertTrue(!commonInOrder.isEmpty(),
+                "Outputs should share at least one token in the same order to indicate similar structure");
+
+        Set<String> firstOnly = new HashSet<>(firstTokens);
+        firstOnly.removeAll(new HashSet<>(secondTokens));
+        Set<String> secondOnly = new HashSet<>(secondTokens);
+        secondOnly.removeAll(new HashSet<>(firstTokens));
+        assertTrue(!firstOnly.isEmpty() || !secondOnly.isEmpty(),
+                "Outputs should differ by at least one token to reflect the toggle change");
+
+        System.out.println("First /autopilot result: " + firstOutput);
+        System.out.println("Second /autopilot result: " + secondOutput);
+    }
+
+    private static String extractDisplayText(SlashCommandInvocationResult result) {
+        assertNotNull(result, "slash command result must not be null");
+
+        if (result instanceof SlashCommandTextResult textResult) {
+            return valueOrEmpty(textResult.getText());
+        }
+        if (result instanceof SlashCommandCompletedResult completedResult) {
+            return valueOrEmpty(completedResult.getMessage());
+        }
+        if (result instanceof SlashCommandAgentPromptResult promptResult) {
+            String display = valueOrEmpty(promptResult.getDisplayPrompt());
+            if (!display.isBlank()) {
+                return display;
+            }
+            return valueOrEmpty(promptResult.getPrompt());
+        }
+        if (result instanceof SlashCommandSelectSubcommandResult selectResult) {
+            String title = valueOrEmpty(selectResult.getTitle());
+            if (!title.isBlank()) {
+                return title;
+            }
+            return valueOrEmpty(selectResult.getCommand());
+        }
+
+        return valueOrEmpty(result.getKind());
+    }
+
+    private static String valueOrEmpty(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static List<String> tokenizeForComparison(String text) {
+        List<String> tokens = new ArrayList<>();
+        Pattern wordPattern = Pattern.compile("[\\p{L}\\p{N}]+", Pattern.UNICODE_CHARACTER_CLASS);
+        var matcher = wordPattern.matcher(text.toLowerCase(Locale.ROOT));
+        while (matcher.find()) {
+            tokens.add(matcher.group());
+        }
+        return tokens;
+    }
+
+    private static List<String> commonTokensInOrder(List<String> first, List<String> second) {
+        List<String> common = new ArrayList<>();
+        int secondIndex = 0;
+
+        for (String token : first) {
+            while (secondIndex < second.size()) {
+                String candidate = second.get(secondIndex++);
+                if (token.equals(candidate)) {
+                    common.add(token);
+                    break;
+                }
+            }
+            if (secondIndex >= second.size()) {
+                break;
+            }
+        }
+
+        return common;
     }
 }
