@@ -2640,9 +2640,8 @@ type ModelsListRequest struct {
 // Experimental: ModelSwitchToRequest is part of an experimental API and may change or be
 // removed.
 type ModelSwitchToRequest struct {
-	// Explicit context tier for the selected model. `"default"` / `"long_context"` pin the
-	// tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier
-	// untouched.
+	// Explicit context tier for the selected model. `"default"` / `"long_context"` apply the
+	// requested tier; omit this field to use normal model behavior with no explicit tier.
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Override individual model capabilities resolved by the runtime
 	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`

@@ -4961,10 +4961,7 @@ export interface ModelSwitchToRequest {
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
   modelCapabilities?: ModelCapabilitiesOverride;
-  /**
-   * Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.
-   */
-  contextTier?: ContextTier | null;
+  contextTier?: ContextTier;
 }
 /**
  * The model identifier active on the session after the switch.

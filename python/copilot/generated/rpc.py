@@ -15460,9 +15460,8 @@ class ModelSwitchToRequest:
     """Model identifier to switch to"""
 
     context_tier: ContextTier | None = None
-    """Explicit context tier for the selected model. `"default"` / `"long_context"` pin the
-    tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier
-    untouched.
+    """Explicit context tier for the selected model. `"default"` / `"long_context"` apply the
+    requested tier; omit this field to use normal model behavior with no explicit tier.
     """
     model_capabilities: ModelCapabilitiesOverride | None = None
     """Override individual model capabilities resolved by the runtime"""
