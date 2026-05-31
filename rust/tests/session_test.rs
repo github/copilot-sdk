@@ -6,7 +6,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use github_copilot_sdk::ContextTier;
 use github_copilot_sdk::canvas::{CanvasDeclaration, CanvasHandler, CanvasResult};
 use github_copilot_sdk::generated::api_types::{
     CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
@@ -22,7 +21,7 @@ use github_copilot_sdk::types::{
     ElicitationResult, ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig,
     SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
-use github_copilot_sdk::{Client, tool};
+use github_copilot_sdk::{Client, ContextTier, tool};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
