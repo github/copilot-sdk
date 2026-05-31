@@ -35,8 +35,8 @@ public final class SessionModeApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
-    public CompletableFuture<Void> get() {
-        return caller.invoke("session.mode.get", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    public CompletableFuture<SessionMode> get() {
+        return caller.invoke("session.mode.get", java.util.Map.of("sessionId", this.sessionId), SessionMode.class);
     }
 
     /**

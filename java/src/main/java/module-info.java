@@ -22,5 +22,6 @@ module com.github.copilot.java {
 
     opens com.github.copilot to com.fasterxml.jackson.databind;
     opens com.github.copilot.generated to com.fasterxml.jackson.databind;
+    opens com.github.copilot.generated.rpc to com.fasterxml.jackson.databind;
     opens com.github.copilot.rpc to com.fasterxml.jackson.databind;
 }

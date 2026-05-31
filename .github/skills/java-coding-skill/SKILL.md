@@ -1,17 +1,17 @@
 ---
 name: java-coding-skill
-description: "Use this skill whenever editing `*.java` files in the `java/` SDK in order to write idiomatic, well-structured Java code for the Copilot SDK"
+description: "Use this skill whenever editing `*.java` files in the `java/` directore of the SDK in order to write idiomatic, well-structured Java code for the Copilot SDK"
 ---
 
 # Java Coding Skill
 
 ## Core Principles
 
-- The SDK is in public preview and may have breaking changes
-- Requires Java 17 or later
-- Requires GitHub Copilot CLI installed and in PATH
-- Uses `CompletableFuture` for all async operations
-- Implements `AutoCloseable` for resource cleanup (try-with-resources)
+- Requires Java 25 or later for building the jar artifact for Copilot SDK for java.
+- Uses the Multi-Relase jar feature JEP 238 https://openjdk.org/jeps/238 with `maven.compiler.release` 17 so that uses running JDK 17 can use the jar.
+- Requires GitHub Copilot CLI installed and in PATH.
+- Uses `CompletableFuture` for all async operations.
+- Implements `AutoCloseable` for resource cleanup (try-with-resources).
 
 ## Installation
 

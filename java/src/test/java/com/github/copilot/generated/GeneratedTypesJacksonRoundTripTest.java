@@ -59,9 +59,6 @@ class GeneratedTypesJacksonRoundTripTest {
         for (Class<?> cls : discoverGeneratedClasses()) {
             if (!cls.isRecord())
                 continue;
-            // Skip abstract/sealed event base class — it requires a "type" discriminator
-            if (cls == SessionEvent.class)
-                continue;
             tests.add(DynamicTest.dynamicTest("record round-trip: " + cls.getSimpleName(), () -> {
                 // Deserialize from empty JSON — all fields will be null/default
                 Object instance = MAPPER.readValue("{}", cls);

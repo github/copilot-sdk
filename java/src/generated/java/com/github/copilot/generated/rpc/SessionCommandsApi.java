@@ -48,10 +48,10 @@ public final class SessionCommandsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
-    public CompletableFuture<Void> invoke(SessionCommandsInvokeParams params) {
+    public CompletableFuture<SlashCommandInvocationResult> invoke(SessionCommandsInvokeParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.commands.invoke", _p, Void.class);
+        return caller.invoke("session.commands.invoke", _p, SlashCommandInvocationResult.class);
     }
 
     /**
