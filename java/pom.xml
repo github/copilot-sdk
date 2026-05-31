@@ -182,6 +182,24 @@
                     -->
                     <retryOnError>true</retryOnError>
                 </configuration>
+                <executions>
+                    <execution>
+                        <!--
+                            The VS Code Roslyn language server monitors .csproj
+                            files in the cloned repo at target/copilot-sdk/dotnet/
+                            and immediately re-creates obj/ metadata after the
+                            default-clean execution deletes target/. By running a
+                            second clean in post-clean, the resurrected directories
+                            are swept away and Roslyn does not recreate them again
+                            (the .csproj is already gone).
+                        -->
+                        <id>post-clean-sweep</id>
+                        <phase>post-clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
