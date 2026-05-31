@@ -21,7 +21,7 @@ use github_copilot_sdk::types::{
     ElicitationResult, ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig,
     SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
-use github_copilot_sdk::{Client, tool};
+use github_copilot_sdk::{Client, ContextTier, tool};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
@@ -1290,7 +1290,8 @@ async fn set_model_sends_switch_to_request() {
                     "claude-sonnet-4",
                     Some(
                         SetModelOptions::default()
-                            .with_reasoning_summary(ReasoningSummary::Detailed),
+                            .with_reasoning_summary(ReasoningSummary::Detailed)
+                            .with_context_tier(ContextTier::LongContext),
                     ),
                 )
                 .await
@@ -1302,6 +1303,7 @@ async fn set_model_sends_switch_to_request() {
     assert_eq!(request["method"], "session.model.switchTo");
     assert_eq!(request["params"]["modelId"], "claude-sonnet-4");
     assert_eq!(request["params"]["reasoningSummary"], "detailed");
+    assert_eq!(request["params"]["contextTier"], "long_context");
     server
         .respond(
             &request,

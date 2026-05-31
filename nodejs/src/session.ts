@@ -30,6 +30,7 @@ import type {
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
+    ContextTier,
     ReasoningEffort,
     ReasoningSummary,
     ModelCapabilitiesOverride,
@@ -1210,6 +1211,7 @@ export class CopilotSession {
         options?: {
             reasoningEffort?: ReasoningEffort;
             reasoningSummary?: ReasoningSummary;
+            contextTier?: ContextTier;
             modelCapabilities?: ModelCapabilitiesOverride;
         }
     ): Promise<void> {

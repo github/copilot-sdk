@@ -2396,7 +2396,7 @@ public sealed class ModelCapabilitiesOverride
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ModelSwitchToRequest
 {
-    /// <summary>Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.</summary>
+    /// <summary>Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier.</summary>
     [JsonPropertyName("contextTier")]
     public ContextTier? ContextTier { get; set; }
 
@@ -13851,7 +13851,7 @@ public sealed class ModelApi
     /// <param name="reasoningEffort">Reasoning effort level to use for the model. "none" disables reasoning.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
-    /// <param name="contextTier">Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.</param>
+    /// <param name="contextTier">Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
     public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, CancellationToken cancellationToken = default)

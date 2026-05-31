@@ -2391,6 +2391,34 @@ public sealed class CloudSessionOptions
 }
 
 /// <summary>
+/// Optional settings for <see cref="CopilotSession.SetModelAsync(string, SetModelOptions, CancellationToken)"/>.
+/// </summary>
+public struct SetModelOptions
+{
+    /// <summary>
+    /// Reasoning effort level for the new model.
+    /// </summary>
+    public string? ReasoningEffort { get; set; }
+
+    /// <summary>
+    /// Reasoning summary mode for models that support configurable reasoning summaries.
+    /// </summary>
+    /// <remarks>
+    /// Use <see cref="ReasoningSummary.None"/> to suppress summary output regardless of whether reasoning is enabled.
+    /// </remarks>
+    public ReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>
+    /// Explicit context window tier for models that support it.
+    /// Leave unset to use normal model behavior with no explicit tier.
+    /// </summary>
+    public ContextTier? ContextTier { get; set; }
+
+    /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
+    public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.

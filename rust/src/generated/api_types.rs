@@ -4283,7 +4283,7 @@ pub struct ModelsListRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSwitchToRequest {
-    /// Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.
+    /// Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_tier: Option<ContextTier>,
     /// Override individual model capabilities resolved by the runtime

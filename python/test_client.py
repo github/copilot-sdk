@@ -1132,10 +1132,15 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
-            await session.set_model("gpt-4.1", reasoning_summary="detailed")
+            await session.set_model(
+                "gpt-4.1",
+                reasoning_summary="detailed",
+                context_tier="long_context",
+            )
             assert captured["session.model.switchTo"]["sessionId"] == session.session_id
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
             assert captured["session.model.switchTo"]["reasoningSummary"] == "detailed"
+            assert captured["session.model.switchTo"]["contextTier"] == "long_context"
         finally:
             await client.force_stop()
 
