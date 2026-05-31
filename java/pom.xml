@@ -165,6 +165,26 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <!--
+                        The E2E test harness spawns Node.js child processes
+                        (npx tsx server.ts) whose CWD is inside
+                        target/copilot-sdk/test/harness/. On macOS, orphaned
+                        node processes can briefly hold file descriptors on
+                        the directory tree after the test JVM exits, causing
+                        the first 'mvn clean' to fail with
+                        "Failed to delete target/copilot-sdk".
+
+                        retryOnError + retryCount give the OS time to reap
+                        those processes before the clean phase gives up.
+                    -->
+                    <retryOnError>true</retryOnError>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.15.0</version>
             </plugin>
