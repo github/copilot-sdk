@@ -167,37 +167,33 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-clean-plugin</artifactId>
                 <version>3.4.1</version>
-                <configuration>
-                    <!--
-                        The E2E test harness spawns Node.js child processes
-                        (npx tsx server.ts) whose CWD is inside
-                        target/copilot-sdk/test/harness/. On macOS, orphaned
-                        node processes can briefly hold file descriptors on
-                        the directory tree after the test JVM exits, causing
-                        the first 'mvn clean' to fail with
-                        "Failed to delete target/copilot-sdk".
-
-                        retryOnError + retryCount give the OS time to reap
-                        those processes before the clean phase gives up.
-                    -->
-                    <retryOnError>true</retryOnError>
-                </configuration>
                 <executions>
                     <execution>
                         <!--
-                            The VS Code Roslyn language server monitors .csproj
-                            files in the cloned repo at target/copilot-sdk/dotnet/
-                            and immediately re-creates obj/ metadata after the
-                            default-clean execution deletes target/. By running a
-                            second clean in post-clean, the resurrected directories
-                            are swept away and Roslyn does not recreate them again
-                            (the .csproj is already gone).
+                            The default-clean execution uses failOnError=false
+                            because external processes (VS Code language servers,
+                            orphaned Node.js test-harness processes) can hold
+                            file descriptors on target/copilot-sdk/ just long
+                            enough to prevent deletion. The post-clean-sweep
+                            retries immediately afterward (by which time the
+                            transient locks have cleared) to ensure target/ is
+                            fully removed.
                         -->
+                        <id>default-clean</id>
+                        <configuration>
+                            <retryOnError>true</retryOnError>
+                            <failOnError>false</failOnError>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>post-clean-sweep</id>
                         <phase>post-clean</phase>
                         <goals>
                             <goal>clean</goal>
                         </goals>
+                        <configuration>
+                            <retryOnError>true</retryOnError>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
