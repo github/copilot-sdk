@@ -364,6 +364,14 @@
                         <project.build.finalName>${project.build.finalName}</project.build.finalName>
                         <project.build.testOutputDirectory>${project.build.testOutputDirectory}</project.build.testOutputDirectory>
                     </systemPropertyVariables>
+                    <!--
+                        Keep the integration-test JVM aligned with Surefire so
+                        tests like SlashCommandsIT resolve the pinned CLI from
+                        the cloned harness in target/copilot-sdk/nodejs.
+                    -->
+                    <environmentVariables>
+                        <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>
+                    </environmentVariables>
                 </configuration>
             </plugin>
             <plugin>
