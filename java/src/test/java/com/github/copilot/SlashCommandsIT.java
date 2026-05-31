@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.AfterAll;
@@ -118,6 +120,63 @@ class SlashCommandsIT {
 
         System.out.println("First /autopilot result: " + firstOutput);
         System.out.println("Second /autopilot result: " + secondOutput);
+    }
+
+    @Test
+    void listDirs() throws Exception {
+        SlashCommandInvocationResult result = session.getRpc().commands
+                .invoke(new SessionCommandsInvokeParams(null, "list-dirs", null)).get(15, TimeUnit.SECONDS);
+
+        String output = extractDisplayText(result);
+        assertTrue(Pattern.compile("(?s)^.*Total: [0-9]+ directories.*$").matcher(output).matches(),
+                "Expected /list-dirs output to include total directories count");
+        System.out.println("/list-dirs result:");
+        System.out.println(output);
+    }
+
+    @Test
+    void addDir() throws Exception {
+        String buildDirectory = System.getProperty("project.build.directory");
+        assertNotNull(buildDirectory, "System property 'project.build.directory' must be set by failsafe");
+
+        Path addDirPath = Path.of(buildDirectory, "addDirTest").toAbsolutePath().normalize();
+        Files.createDirectories(addDirPath);
+        String addDirPathString = addDirPath.toString();
+
+        SlashCommandInvocationResult beforeListResult = session.getRpc().commands
+                .invoke(new SessionCommandsInvokeParams(null, "list-dirs", null)).get(15, TimeUnit.SECONDS);
+        String beforeListOutput = extractDisplayText(beforeListResult);
+        System.out.println("/list-dirs (before /add-dir) result:");
+        System.out.println(beforeListOutput);
+
+        SlashCommandInvocationResult addDirResult = session.getRpc().commands
+                .invoke(new SessionCommandsInvokeParams(null, "add-dir", addDirPathString)).get(15, TimeUnit.SECONDS);
+        String addDirOutput = extractDisplayText(addDirResult);
+        System.out.println("/add-dir result:");
+        System.out.println(addDirOutput);
+
+        SlashCommandInvocationResult afterListResult = session.getRpc().commands
+                .invoke(new SessionCommandsInvokeParams(null, "list-dirs", null)).get(15, TimeUnit.SECONDS);
+        String afterListOutput = extractDisplayText(afterListResult);
+        System.out.println("/list-dirs (after /add-dir) result:");
+        System.out.println(afterListOutput);
+
+        assertTrue(afterListOutput.contains(addDirPathString),
+                "Expected /list-dirs output to contain added directory path: " + addDirPathString);
+    }
+
+    @Test
+    void usage() throws Exception {
+        SlashCommandInvocationResult result = session.getRpc().commands
+                .invoke(new SessionCommandsInvokeParams(null, "usage", null)).get(15, TimeUnit.SECONDS);
+
+        String output = extractDisplayText(result);
+        assertTrue(Pattern.compile("(?s)^.*Changes:.*$").matcher(output).matches(),
+                "Expected /usage output to include a Changes summary line");
+        assertTrue(Pattern.compile("(?s)^.*Requests:.*$").matcher(output).matches(),
+                "Expected /usage output to include a Requests/AI Units summary line");
+        System.out.println("/usage result:");
+        System.out.println(output);
     }
 
     private static String extractDisplayText(SlashCommandInvocationResult result) {
