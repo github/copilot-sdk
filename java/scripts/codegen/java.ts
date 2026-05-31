@@ -1433,6 +1433,18 @@ function wrapperResultClassName(method: RpcMethodNode): string {
     ) {
         return rpcMethodToClassName(method.rpcMethod) + "Result";
     }
+
+    // Free-form object with additionalProperties (e.g., x-opaque-json) → JsonNode
+    if (
+        result &&
+        typeof result === "object" &&
+        result.type === "object" &&
+        result.additionalProperties &&
+        !result.properties
+    ) {
+        return "JsonNode";
+    }
+
     return "Void";
 }
 
@@ -1571,7 +1583,13 @@ async function generateNamespaceApiFile(
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
         const paramsClass = wrapperParamsClassName(method);
-        if (resultClass !== "Void") allImports.add(`${packageName}.${resultClass}`);
+        if (resultClass !== "Void") {
+            if (resultClass === "JsonNode") {
+                allImports.add("com.fasterxml.jackson.databind.JsonNode");
+            } else {
+                allImports.add(`${packageName}.${resultClass}`);
+            }
+        }
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
         const { lines, needsMapper: nm } = generateApiMethod(key, method, isSession, sessionIdExpr);
@@ -1690,7 +1708,13 @@ async function generateRpcRootFile(
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
         const paramsClass = wrapperParamsClassName(method);
-        if (resultClass !== "Void") allImports.add(`${packageName}.${resultClass}`);
+        if (resultClass !== "Void") {
+            if (resultClass === "JsonNode") {
+                allImports.add("com.fasterxml.jackson.databind.JsonNode");
+            } else {
+                allImports.add(`${packageName}.${resultClass}`);
+            }
+        }
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
         const { lines, needsMapper: nm } = generateApiMethod(key, method, isSession, sessionIdExpr);
