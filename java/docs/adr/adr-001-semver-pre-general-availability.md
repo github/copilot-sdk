@@ -1,3 +1,5 @@
+Status: This ADR's pre-general-availability SemVer policy is superseded by the generally available release; see CHANGELOG and the README for the current SemVer policy.
+
 # SemVer requirements pre general-availability of Reference Implementation
 
 ## Context and Problem Statement

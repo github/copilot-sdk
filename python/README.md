@@ -2,14 +2,16 @@
 
 Python SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
-> **Note:** This SDK is in public preview and may change in breaking ways.
-
 ## Installation
 
 ```bash
-pip install -e ".[telemetry,dev]"
-# or
-uv pip install -e ".[telemetry,dev]"
+pip install github-copilot-sdk
+```
+
+To include OpenTelemetry support:
+
+```bash
+pip install "github-copilot-sdk[telemetry]"
 ```
 
 ## Run the Sample
@@ -158,8 +160,11 @@ All options are kw-only parameters:
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `session_fs` (dict | None): Connection-level session filesystem provider configuration.
+- `session_idle_timeout_seconds` (int | None): Server-wide session idle timeout in seconds. Set to `None` or `0` to disable.
 - `enable_remote_sessions` (bool): Enable remote/cloud session support (default: False).
 - `on_list_models` (callable | None): Custom handler for `list_models()`. When provided, the handler is called instead of querying the runtime.
+- `mode` (str): Client mode (default: `"copilot-cli"`).
 
 **RuntimeConnection variants:**
 
@@ -549,7 +554,7 @@ client = CopilotClient(
 
 Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `create_session`, `resume_session`, and `send` calls, and inbound when the CLI invokes tool handlers.
 
-Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `opentelemetry-api`)
+Install with telemetry extras: `pip install "github-copilot-sdk[telemetry]"` (provides `opentelemetry-api`)
 
 ## Permission Handling
 

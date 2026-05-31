@@ -13,9 +13,7 @@
 
 ## Background
 
-> ℹ️ **Public Preview:** This SDK tracks the [GitHub Copilot SDKs](https://github.com/github/copilot-sdk) for [.NET](https://github.com/github/copilot-sdk/tree/main/dotnet) and [Node.js](https://github.com/github/copilot-sdk/tree/main/nodejs). While in public preview, minor breaking changes may still occur between releases.
-
-Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build AI-powered applications and agentic workflows.
+Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build AI-powered applications and agentic workflows. The Java SDK tracks the official GitHub Copilot SDK family (TypeScript, Python, Go, .NET, and Rust).
 
 ## Installation
 
@@ -25,6 +23,8 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 - GitHub Copilot CLI 1.0.55-5. or later installed and in `PATH` (or provide custom `cliPath`)
 
 ### Maven
+
+Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```xml
 <dependency>
@@ -61,6 +61,8 @@ Snapshot builds of the next development version are published to Maven Central S
 ```
 
 ### Gradle
+
+Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
 implementation 'com.github:copilot-sdk-java:1.0.0-beta-10-java.5-SNAPSHOT'

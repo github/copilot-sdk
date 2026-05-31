@@ -2,12 +2,10 @@
 
 SDK for programmatic control of GitHub Copilot CLI.
 
-> **Note:** This SDK is in public preview and may change in breaking ways.
-
 ## Installation
 
 ```bash
-dotnet add package GitHub.Copilot
+dotnet add package GitHub.Copilot.SDK
 ```
 
 ## Run the Samples

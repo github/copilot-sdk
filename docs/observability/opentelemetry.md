@@ -115,6 +115,8 @@ let client = Client::start(ClientOptions::new()
 
 The SDK can propagate W3C Trace Context (`traceparent`/`tracestate`) on JSON-RPC payloads so that your application's spans and the CLI's spans are linked in one distributed trace. This is useful when, for example, you want to see a "handle tool call" span in your app nested inside the CLI's "execute tool" span, or show the SDK call as a child of your request-handling span.
 
+For cost attribution alongside traces, subscribe to `assistant.usage` events and inspect `apiEndpoint` (`AssistantUsageApiEndpoint`) to see whether a turn used Chat Completions, Responses, or Anthropic Messages; see [Streaming events](../features/streaming-events.md).
+
 #### SDK → CLI (outbound)
 
 For **Node.js**, provide an `onGetTraceContext` callback on the client options. This is only needed if your application already uses `@opentelemetry/api` and you want to link your spans with the CLI's spans. The SDK calls this callback before `session.create`, `session.resume`, and `session.send` RPCs:

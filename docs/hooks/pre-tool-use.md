@@ -154,6 +154,23 @@ Return `null` or `undefined` to allow the tool to execute with no changes. Other
 | `"deny"` | Tool is blocked, reason shown to user |
 | `"ask"` | User is prompted to approve (interactive mode) |
 
+### Skipping permission prompts for trusted custom tools
+
+If you define a custom tool that is safe to run without prompting, set `skipPermission: true` on the tool definition. Use this for trusted, app-owned tools whose inputs are already constrained by your application; use `onPreToolUse` when you need per-call policy checks or argument validation.
+
+```typescript
+const getWeather = defineTool("get_weather", {
+  description: "Get weather for a location.",
+  parameters: {
+    type: "object",
+    properties: { location: { type: "string" } },
+    required: ["location"],
+  },
+  skipPermission: true,
+  handler: async ({ location }) => ({ forecast: `Sunny in ${location}` }),
+});
+```
+
 ## Examples
 
 ### Allow all tools (logging only)
