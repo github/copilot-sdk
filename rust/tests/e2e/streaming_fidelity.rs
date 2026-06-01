@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use github_copilot_sdk::ResumeSessionConfig;
-use github_copilot_sdk::generated::session_events::{
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::session_events::{
     AssistantMessageData, AssistantMessageDeltaData, AssistantMessageStartData, SessionEventType,
     SessionStartData,
 };
-use github_copilot_sdk::handler::ApproveAllHandler;
 
 use super::support::{collect_until_idle, event_types, with_e2e_context};
 

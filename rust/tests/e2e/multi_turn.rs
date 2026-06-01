@@ -1,5 +1,5 @@
 use github_copilot_sdk::SessionEvent;
-use github_copilot_sdk::generated::session_events::SessionEventType;
+use github_copilot_sdk::session_events::SessionEventType;
 
 use super::support::{
     assistant_message_content, collect_until_idle, event_types, with_e2e_context,

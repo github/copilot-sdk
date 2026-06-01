@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     ExtensionsDisableRequest, ExtensionsEnableRequest, McpAppsCallToolRequest,
     McpAppsDiagnoseRequest, McpAppsListToolsRequest, McpAppsReadResourceRequest,
     McpAppsSetHostContextDetails, McpAppsSetHostContextDetailsAvailableDisplayMode,
@@ -730,10 +730,10 @@ fn create_skill(skills_dir: &std::path::Path, skill_name: &str, description: &st
 }
 
 fn assert_skill(
-    list: github_copilot_sdk::generated::api_types::SkillList,
+    list: github_copilot_sdk::rpc::SkillList,
     skill_name: &str,
     enabled: bool,
-) -> github_copilot_sdk::generated::api_types::Skill {
+) -> github_copilot_sdk::rpc::Skill {
     let skill = list
         .skills
         .into_iter()

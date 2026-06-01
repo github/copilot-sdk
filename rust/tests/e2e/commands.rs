@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     CommandsInvokeRequest, CommandsListRequest, CommandsRespondToQueuedCommandRequest,
     EnqueueCommandParams, ExecuteCommandParams, RegisterEventInterestParams,
     ReleaseEventInterestParams, SlashCommandInvocationResult, SlashCommandKind,
 };
-use github_copilot_sdk::generated::session_events::{CommandQueuedData, SessionEventType};
+use github_copilot_sdk::session_events::{CommandQueuedData, SessionEventType};
 use github_copilot_sdk::{CommandContext, CommandDefinition, CommandHandler, RequestId};
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -278,7 +278,7 @@ impl CommandHandler for RecordingCommandHandler {
 }
 
 fn assert_command(
-    commands: &[github_copilot_sdk::generated::api_types::SlashCommandInfo],
+    commands: &[github_copilot_sdk::rpc::SlashCommandInfo],
     name: &str,
     kind: SlashCommandKind,
 ) {

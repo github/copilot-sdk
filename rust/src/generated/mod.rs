@@ -1,4 +1,15 @@
-//! Auto-generated protocol types — do not edit manually.
+//! Auto-generated protocol types — **not part of the public API**.
+//!
+//! This module is an implementation detail of the SDK. Its layout, item
+//! visibility, and naming may change at any time without notice. The
+//! crate marks it `#[doc(hidden)]` for that reason.
+//!
+//! Public callers should reach the generated types through the stable
+//! re-export modules at the crate root:
+//!
+//! - [`crate::session_events`] for session event payload types
+//! - [`crate::rpc`] for JSON-RPC request/response types and typed
+//!   namespace builders
 //!
 //! Generated from the Copilot protocol JSON Schemas by `scripts/codegen/rust.ts`.
 #![allow(missing_docs)]

@@ -1,6 +1,6 @@
 use github_copilot_sdk::CustomAgentConfig;
-use github_copilot_sdk::generated::api_types::{AgentInfo, AgentSelectRequest};
-use github_copilot_sdk::generated::session_events::SessionEventType;
+use github_copilot_sdk::rpc::{AgentInfo, AgentSelectRequest};
+use github_copilot_sdk::session_events::SessionEventType;
 use serde_json::json;
 
 use super::support::{wait_for_event, with_e2e_context};

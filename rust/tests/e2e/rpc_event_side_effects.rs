@@ -1,11 +1,11 @@
-use github_copilot_sdk::generated::SessionMode;
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     HistoryTruncateRequest, ModeSetRequest, NameSetRequest, PlanUpdateRequest,
     WorkspacesCreateFileRequest,
 };
-use github_copilot_sdk::generated::session_events::{
-    PlanChangedOperation, SessionEventType, SessionModeChangedData, SessionPlanChangedData,
-    SessionSnapshotRewindData, SessionTitleChangedData, SessionWorkspaceFileChangedData,
+use github_copilot_sdk::session_events::{
+    PlanChangedOperation, SessionEventType, SessionMode, SessionModeChangedData,
+    SessionPlanChangedData, SessionSnapshotRewindData, SessionTitleChangedData,
+    SessionWorkspaceFileChangedData,
 };
 
 use super::support::{assistant_message_content, wait_for_event, with_e2e_context};

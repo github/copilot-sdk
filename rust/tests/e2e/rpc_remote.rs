@@ -1,9 +1,7 @@
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     RemoteEnableRequest, RemoteSessionMode, SessionsGetPersistedRemoteSteerableRequest,
 };
-use github_copilot_sdk::generated::session_events::{
-    SessionEventType, SessionRemoteSteerableChangedData,
-};
+use github_copilot_sdk::session_events::{SessionEventType, SessionRemoteSteerableChangedData};
 
 use super::support::{wait_for_event, with_e2e_context};
 
@@ -89,18 +87,19 @@ async fn should_notify_steerable_changed_event_and_persist_flag() {
                     .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
-                let changed = wait_for_event(session.subscribe(), "remote steerable changed", |event| {
-                    event.parsed_type() == SessionEventType::SessionRemoteSteerableChanged
-                        && event
-                            .typed_data::<SessionRemoteSteerableChangedData>()
-                            .is_some_and(|data| data.remote_steerable)
-                });
+                let changed =
+                    wait_for_event(session.subscribe(), "remote steerable changed", |event| {
+                        event.parsed_type() == SessionEventType::SessionRemoteSteerableChanged
+                            && event
+                                .typed_data::<SessionRemoteSteerableChangedData>()
+                                .is_some_and(|data| data.remote_steerable)
+                    });
 
                 session
                     .rpc()
                     .remote()
                     .notify_steerable_changed(
-                        github_copilot_sdk::generated::api_types::RemoteNotifySteerableChangedRequest {
+                        github_copilot_sdk::rpc::RemoteNotifySteerableChangedRequest {
                             remote_steerable: true,
                         },
                     )

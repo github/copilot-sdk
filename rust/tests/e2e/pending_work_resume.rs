@@ -2,11 +2,11 @@ use std::net::TcpListener;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::generated::api_types::HandlePendingToolCallRequest;
-use github_copilot_sdk::generated::session_events::{
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::rpc::HandlePendingToolCallRequest;
+use github_copilot_sdk::session_events::{
     AssistantMessageData, ExternalToolRequestedData, SessionEventType, SessionResumeData,
 };
-use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Client, Error, RequestId, ResumeSessionConfig, SessionConfig, SessionId, Tool, ToolInvocation,

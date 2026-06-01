@@ -2018,7 +2018,22 @@ function generateRpcCode(apiSchema: ApiSchema): string {
 
 function generateModRs(): string {
 	const lines: string[] = [];
-	lines.push("//! Auto-generated protocol types — do not edit manually.");
+	lines.push("//! Auto-generated protocol types — **not part of the public API**.");
+	lines.push("//!");
+	lines.push(
+		"//! This module is an implementation detail of the SDK. Its layout, item",
+	);
+	lines.push(
+		"//! visibility, and naming may change at any time without notice. The",
+	);
+	lines.push("//! crate marks it `#[doc(hidden)]` for that reason.");
+	lines.push("//!");
+	lines.push("//! Public callers should reach the generated types through the stable");
+	lines.push("//! re-export modules at the crate root:");
+	lines.push("//!");
+	lines.push("//! - [`crate::session_events`] for session event payload types");
+	lines.push("//! - [`crate::rpc`] for JSON-RPC request/response types and typed");
+	lines.push("//!   namespace builders");
 	lines.push("//!");
 	lines.push(
 		"//! Generated from the Copilot protocol JSON Schemas by `scripts/codegen/rust.ts`.",

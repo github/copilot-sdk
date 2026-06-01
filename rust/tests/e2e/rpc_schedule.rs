@@ -1,4 +1,4 @@
-use github_copilot_sdk::generated::api_types::ScheduleStopRequest;
+use github_copilot_sdk::rpc::ScheduleStopRequest;
 
 use super::support::with_e2e_context;
 

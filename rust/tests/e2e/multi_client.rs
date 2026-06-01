@@ -3,10 +3,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use async_trait::async_trait;
-use github_copilot_sdk::generated::session_events::{
+use github_copilot_sdk::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
+use github_copilot_sdk::session_events::{
     PermissionCompletedData, PermissionResult as EventPermissionResult, SessionEventType,
 };
-use github_copilot_sdk::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Client, PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionEvent,

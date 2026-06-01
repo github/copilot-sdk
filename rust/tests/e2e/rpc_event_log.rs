@@ -1,8 +1,8 @@
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     EventLogReadRequest, EventsCursorStatus, RegisterEventInterestParams,
     ReleaseEventInterestParams,
 };
-use github_copilot_sdk::generated::session_events::{
+use github_copilot_sdk::session_events::{
     PlanChangedOperation, SessionEventType, SessionPlanChangedData, SessionTitleChangedData,
 };
 use serde_json::json;
@@ -25,21 +25,17 @@ async fn should_read_persisted_events_from_beginning() {
                 session
                     .rpc()
                     .plan()
-                    .update(
-                        github_copilot_sdk::generated::api_types::PlanUpdateRequest {
-                            content: "# event log plan".to_string(),
-                        },
-                    )
+                    .update(github_copilot_sdk::rpc::PlanUpdateRequest {
+                        content: "# event log plan".to_string(),
+                    })
                     .await
                     .expect("write plan");
                 client
                     .rpc()
                     .sessions()
-                    .save(
-                        github_copilot_sdk::generated::api_types::SessionsSaveRequest {
-                            session_id: session.id().clone(),
-                        },
-                    )
+                    .save(github_copilot_sdk::rpc::SessionsSaveRequest {
+                        session_id: session.id().clone(),
+                    })
                     .await
                     .expect("save session");
 
@@ -185,7 +181,7 @@ async fn should_longpoll_with_types_filter_for_titlechanged_event() {
                     session
                         .rpc()
                         .name()
-                        .set(github_copilot_sdk::generated::api_types::NameSetRequest {
+                        .set(github_copilot_sdk::rpc::NameSetRequest {
                             name: "Rust event log title".to_string(),
                         })
                         .await

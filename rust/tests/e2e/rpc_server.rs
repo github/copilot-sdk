@@ -1,5 +1,5 @@
 use github_copilot_sdk::Client;
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     ConnectRemoteSessionParams, McpDiscoverRequest, NameSetRequest, PingRequest,
     SecretsAddFilterValuesRequest, SessionContext, SessionFsSetProviderConventions,
     SessionFsSetProviderRequest, SessionListFilter, SessionMetadata, SessionsBulkDeleteRequest,
@@ -702,10 +702,10 @@ fn create_skill_directory(
 }
 
 fn assert_server_skill(
-    list: github_copilot_sdk::generated::api_types::ServerSkillList,
+    list: github_copilot_sdk::rpc::ServerSkillList,
     skill_name: &str,
     enabled: bool,
-) -> github_copilot_sdk::generated::api_types::ServerSkill {
+) -> github_copilot_sdk::rpc::ServerSkill {
     let skill = list
         .skills
         .into_iter()

@@ -7,15 +7,15 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use github_copilot_sdk::canvas::{CanvasDeclaration, CanvasHandler, CanvasResult};
-use github_copilot_sdk::generated::api_types::{
-    CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
-    CanvasProviderOpenResult, OpenCanvasInstance,
-};
-use github_copilot_sdk::generated::session_events::ReasoningSummary;
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
 };
+use github_copilot_sdk::rpc::{
+    CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
+    CanvasProviderOpenResult, OpenCanvasInstance,
+};
+use github_copilot_sdk::session_events::ReasoningSummary;
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig,
@@ -3192,7 +3192,7 @@ fn session_config_serializes_bucket_b_fields() {
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(false);
     cfg.enable_session_telemetry = Some(false);
-    cfg.remote_session = Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::Export);
+    cfg.remote_session = Some(github_copilot_sdk::rpc::RemoteSessionMode::Export);
     cfg.cloud = Some(CloudSessionOptions::with_repository(
         CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
     ));
@@ -3218,7 +3218,7 @@ fn resume_session_config_serializes_bucket_b_fields() {
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(true);
     cfg.enable_session_telemetry = Some(false);
-    cfg.remote_session = Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::On);
+    cfg.remote_session = Some(github_copilot_sdk::rpc::RemoteSessionMode::On);
 
     let debug = format!("{cfg:?}");
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");

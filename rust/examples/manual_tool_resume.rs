@@ -2,11 +2,11 @@
 
 use std::time::Duration;
 
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     HandlePendingToolCallRequest, PermissionDecision, PermissionDecisionApproveOnce,
     PermissionDecisionApproveOnceKind, PermissionDecisionRequest,
 };
-use github_copilot_sdk::generated::session_events::{
+use github_copilot_sdk::session_events::{
     AssistantMessageData, ExternalToolRequestedData, PermissionRequestedData, SessionEventType,
 };
 use github_copilot_sdk::subscription::RecvError;

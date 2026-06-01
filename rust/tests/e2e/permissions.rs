@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::generated::api_types::PermissionsSetApproveAllRequest;
-use github_copilot_sdk::generated::session_events::{SessionEventType, ToolExecutionCompleteData};
 use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
+use github_copilot_sdk::rpc::PermissionsSetApproveAllRequest;
+use github_copilot_sdk::session_events::{SessionEventType, ToolExecutionCompleteData};
 use github_copilot_sdk::{
     PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
 };

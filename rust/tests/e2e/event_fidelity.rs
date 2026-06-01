@@ -1,4 +1,4 @@
-use github_copilot_sdk::generated::session_events::{
+use github_copilot_sdk::session_events::{
     AssistantMessageData, AssistantUsageData, SessionEventType, SessionUsageInfoData,
     ToolExecutionCompleteData, ToolExecutionStartData, UserMessageData,
 };
