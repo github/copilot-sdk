@@ -5,6 +5,8 @@
 ⚠️ **Artifact versioning plan:** Releases of this implementation track releases of the reference implementation. For each release of the reference implementation, there may follow a corresponding release of this implementation with the same number as the reference implementation. Release identifiers of the reference implementation are in the form `vMaj.Min.Micro`. For example v0.1.32. The corresponding maven version for the release will be `Maj.Min.Micro-java.N`, where `Maj`, `Min` and `Micro` are the corresponding numbers for the reference implementation release, and `N` is a monotonically increasing sequence number starting with 0 for each release. See the corresponding architectural decision record for more information in the `docs/adr` directory of the source code.
 
 📦 [View on Maven Central](https://central.sonatype.com/artifact/${GROUP_ID}/${ARTIFACT_ID}/${VERSION})
+
+📖 [Documentation](https://github.github.io/copilot-sdk-java/${VERSION}/) · [Javadoc](https://github.github.io/copilot-sdk-java/${VERSION}/apidocs/index.html)
 <!-- END_INSTALLATION_SECTION -->
 
 ## Maven
