@@ -82,7 +82,7 @@ type AgentInfo struct {
 	// MCP server configurations attached to this agent, keyed by server name. Server config
 	// shape mirrors the MCP `mcpServers` schema.
 	// Experimental: MCPServers is part of an experimental API and may change or be removed.
-	MCPServers map[string]any `json:"mcpServers,omitempty"`
+	MCPServers map[string]any `json:"mcpServers,omitzero"`
 	// Preferred model id for this agent. When omitted, inherits the outer agent's model.
 	Model *string `json:"model,omitempty"`
 	// Unique identifier of the custom agent
@@ -91,11 +91,11 @@ type AgentInfo struct {
 	// from disk; remote agents do not have a path.
 	Path *string `json:"path,omitempty"`
 	// Skill names preloaded into this agent's context. Omitted means none.
-	Skills []string `json:"skills,omitempty"`
+	Skills []string `json:"skills,omitzero"`
 	// Where the agent definition was loaded from
 	Source *AgentInfoSource `json:"source,omitempty"`
 	// Allowed tool names for this agent. Empty array means none; omitted means inherit defaults.
-	Tools []string `json:"tools,omitempty"`
+	Tools []string `json:"tools,omitzero"`
 	// Whether the agent can be selected directly by the user. Agents marked `false` are
 	// subagent-only.
 	UserInvocable *bool `json:"userInvocable,omitempty"`
@@ -981,12 +981,12 @@ type CopilotUserResponse struct {
 	// Schema for the `CopilotUserResponseEndpoints` type.
 	Endpoints             *CopilotUserResponseEndpoints             `json:"endpoints,omitempty"`
 	IsMCPEnabled          *bool                                     `json:"is_mcp_enabled,omitempty"`
-	LimitedUserQuotas     map[string]float64                        `json:"limited_user_quotas,omitempty"`
+	LimitedUserQuotas     map[string]float64                        `json:"limited_user_quotas,omitzero"`
 	LimitedUserResetDate  *string                                   `json:"limited_user_reset_date,omitempty"`
 	Login                 *string                                   `json:"login,omitempty"`
-	MonthlyQuotas         map[string]float64                        `json:"monthly_quotas,omitempty"`
-	OrganizationList      []CopilotUserResponseOrganizationListItem `json:"organization_list,omitempty"`
-	OrganizationLoginList []string                                  `json:"organization_login_list,omitempty"`
+	MonthlyQuotas         map[string]float64                        `json:"monthly_quotas,omitzero"`
+	OrganizationList      []CopilotUserResponseOrganizationListItem `json:"organization_list,omitzero"`
+	OrganizationLoginList []string                                  `json:"organization_login_list,omitzero"`
 	QuotaResetDate        *string                                   `json:"quota_reset_date,omitempty"`
 	QuotaResetDateUTC     *string                                   `json:"quota_reset_date_utc,omitempty"`
 	// Schema for the `CopilotUserResponseQuotaSnapshots` type.
@@ -1100,7 +1100,7 @@ type CurrentToolMetadata struct {
 	// Tool description
 	Description string `json:"description"`
 	// JSON Schema for tool input
-	InputSchema map[string]any `json:"input_schema,omitempty"`
+	InputSchema map[string]any `json:"input_schema,omitzero"`
 	// MCP server name for MCP-backed tools
 	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Raw MCP tool name for MCP-backed tools
@@ -1116,7 +1116,7 @@ type CurrentToolMetadata struct {
 // removed.
 type DiscoveredCanvas struct {
 	// Actions the agent or host may invoke on an open instance
-	Actions []CanvasAction `json:"actions,omitempty"`
+	Actions []CanvasAction `json:"actions,omitzero"`
 	// Provider-local canvas identifier
 	CanvasID string `json:"canvasId"`
 	// Short, single-sentence description shown to the agent in canvas catalogs.
@@ -1311,9 +1311,9 @@ func (ExternalToolTextResultForLlm) externalToolResult() {}
 // or be removed.
 type ExternalToolTextResultForLlm struct {
 	// Base64-encoded binary results returned to the model
-	BinaryResultsForLlm []ExternalToolTextResultForLlmBinaryResultsForLlm `json:"binaryResultsForLlm,omitempty"`
+	BinaryResultsForLlm []ExternalToolTextResultForLlmBinaryResultsForLlm `json:"binaryResultsForLlm,omitzero"`
 	// Structured content blocks from the tool
-	Contents []ExternalToolTextResultForLlmContent `json:"contents,omitempty"`
+	Contents []ExternalToolTextResultForLlmContent `json:"contents,omitzero"`
 	// Optional error message for failed executions
 	Error *string `json:"error,omitempty"`
 	// Execution outcome classification. Optional for back-compat; normalized to 'success' (or
@@ -1324,7 +1324,7 @@ type ExternalToolTextResultForLlm struct {
 	// Text result returned to the model
 	TextResultForLlm string `json:"textResultForLlm"`
 	// Optional tool-specific telemetry
-	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
+	ToolTelemetry map[string]any `json:"toolTelemetry,omitzero"`
 }
 
 // Binary result returned by a tool for the model
@@ -1336,7 +1336,7 @@ type ExternalToolTextResultForLlmBinaryResultsForLlm struct {
 	// Human-readable description of the binary data
 	Description *string `json:"description,omitempty"`
 	// Optional metadata from the producing tool.
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitzero"`
 	// MIME type of the binary data
 	MIMEType string `json:"mimeType"`
 	// Binary result type discriminator. Use "image" for images and "resource" for other binary
@@ -1413,7 +1413,7 @@ type ExternalToolTextResultForLlmContentResourceLink struct {
 	// Human-readable description of the resource
 	Description *string `json:"description,omitempty"`
 	// Icons associated with this resource
-	Icons []ExternalToolTextResultForLlmContentResourceLinkIcon `json:"icons,omitempty"`
+	Icons []ExternalToolTextResultForLlmContentResourceLinkIcon `json:"icons,omitzero"`
 	// MIME type of the resource content
 	MIMEType *string `json:"mimeType,omitempty"`
 	// Resource name identifier
@@ -1510,7 +1510,7 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 	// MIME type of the icon image
 	MIMEType *string `json:"mimeType,omitempty"`
 	// Available icon sizes (e.g., ['16x16', '32x32'])
-	Sizes []string `json:"sizes,omitempty"`
+	Sizes []string `json:"sizes,omitzero"`
 	// URL or path to the icon image
 	Src string `json:"src"`
 	// Theme variant this icon is intended for
@@ -1751,7 +1751,7 @@ type InstructionsGetSourcesResult struct {
 type InstructionsSources struct {
 	// Glob pattern(s) from frontmatter — when set, this instruction applies only to matching
 	// files
-	ApplyTo []string `json:"applyTo,omitempty"`
+	ApplyTo []string `json:"applyTo,omitzero"`
 	// Raw content of the instruction file
 	Content string `json:"content"`
 	// When true, this source starts disabled and must be toggled on by the user
@@ -1817,7 +1817,7 @@ type LspInitializeRequest struct {
 // removed.
 type MCPAppsCallToolRequest struct {
 	// Tool arguments
-	Arguments map[string]any `json:"arguments,omitempty"`
+	Arguments map[string]any `json:"arguments,omitzero"`
 	// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the
 	// app from this server only'), the call is rejected when this differs from `serverName`,
 	// and rejected outright when missing.
@@ -1885,7 +1885,7 @@ type MCPAppsHostContext struct {
 // be removed.
 type MCPAppsHostContextDetails struct {
 	// Display modes the host supports
-	AvailableDisplayModes []MCPAppsHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitempty"`
+	AvailableDisplayModes []MCPAppsHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitzero"`
 	// Current display mode (SEP-1865)
 	DisplayMode *MCPAppsHostContextDetailsDisplayMode `json:"displayMode,omitempty"`
 	// BCP-47 locale, e.g. 'en-US'
@@ -1945,7 +1945,7 @@ type MCPAppsResourceContent struct {
 	// Base64-encoded binary content
 	Blob *string `json:"blob,omitempty"`
 	// Resource-level metadata (CSP, permissions, etc.)
-	Meta map[string]any `json:"_meta,omitempty"`
+	Meta map[string]any `json:"_meta,omitzero"`
 	// MIME type of the content
 	MIMEType *string `json:"mimeType,omitempty"`
 	// Text content (e.g. HTML)
@@ -1959,7 +1959,7 @@ type MCPAppsResourceContent struct {
 // or be removed.
 type MCPAppsSetHostContextDetails struct {
 	// Display modes the host supports
-	AvailableDisplayModes []MCPAppsSetHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitempty"`
+	AvailableDisplayModes []MCPAppsSetHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitzero"`
 	// Current display mode (SEP-1865)
 	DisplayMode *MCPAppsSetHostContextDetailsDisplayMode `json:"displayMode,omitempty"`
 	// BCP-47 locale, e.g. 'en-US'
@@ -2238,7 +2238,7 @@ type MCPServerConfigHTTP struct {
 	// mode.
 	FilterMapping FilterMapping `json:"filterMapping,omitempty"`
 	// HTTP headers to include in requests to the remote MCP server.
-	Headers map[string]string `json:"headers,omitempty"`
+	Headers map[string]string `json:"headers,omitzero"`
 	// Whether this server is a built-in fallback used when the user has not configured their
 	// own server.
 	IsDefaultServer *bool `json:"isDefaultServer,omitempty"`
@@ -2253,7 +2253,7 @@ type MCPServerConfigHTTP struct {
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
-	Tools []string `json:"tools,omitempty"`
+	Tools []string `json:"tools,omitzero"`
 	// Remote transport type. Defaults to "http" when omitted.
 	Type *MCPServerConfigHTTPType `json:"type,omitempty"`
 	// URL of the remote MCP server endpoint.
@@ -2265,7 +2265,7 @@ func (MCPServerConfigHTTP) mCPServerConfig() {}
 // Stdio MCP server configuration launched as a child process.
 type MCPServerConfigStdio struct {
 	// Command-line arguments passed to the Stdio MCP server process.
-	Args []string `json:"args,omitempty"`
+	Args []string `json:"args,omitzero"`
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
 	Auth MCPServerAuthConfig `json:"auth,omitempty"`
 	// Executable command used to start the Stdio MCP server process.
@@ -2273,7 +2273,7 @@ type MCPServerConfigStdio struct {
 	// Working directory for the Stdio MCP server process.
 	Cwd *string `json:"cwd,omitempty"`
 	// Environment variables to pass to the Stdio MCP server process.
-	Env map[string]string `json:"env,omitempty"`
+	Env map[string]string `json:"env,omitzero"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
 	// mode.
 	FilterMapping FilterMapping `json:"filterMapping,omitempty"`
@@ -2285,7 +2285,7 @@ type MCPServerConfigStdio struct {
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
-	Tools []string `json:"tools,omitempty"`
+	Tools []string `json:"tools,omitzero"`
 }
 
 func (MCPServerConfigStdio) mCPServerConfig() {}
@@ -2462,7 +2462,7 @@ type Model struct {
 	// Policy state (if applicable)
 	Policy *ModelPolicy `json:"policy,omitempty"`
 	// Supported reasoning effort levels (only present if model supports reasoning effort)
-	SupportedReasoningEfforts []string `json:"supportedReasoningEfforts,omitempty"`
+	SupportedReasoningEfforts []string `json:"supportedReasoningEfforts,omitzero"`
 }
 
 // Billing information
@@ -2566,7 +2566,7 @@ type ModelCapabilitiesOverrideLimitsVision struct {
 	// Maximum image size in bytes
 	MaxPromptImageSize *int64 `json:"max_prompt_image_size,omitempty"`
 	// MIME types the model accepts
-	SupportedMediaTypes []string `json:"supported_media_types,omitempty"`
+	SupportedMediaTypes []string `json:"supported_media_types,omitzero"`
 }
 
 // Feature flags indicating what the model supports
@@ -3350,7 +3350,7 @@ type PermissionPathsConfig struct {
 	// directory). When `unrestricted` is true, these are still pre-populated on the
 	// UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention
 	// completion).
-	AdditionalDirectories []string `json:"additionalDirectories,omitempty"`
+	AdditionalDirectories []string `json:"additionalDirectories,omitzero"`
 	// Whether to include the system temp directory in the allowed list (defaults to true).
 	// Ignored when `unrestricted` is true.
 	IncludeTempDirectory *bool `json:"includeTempDirectory,omitempty"`
@@ -3451,8 +3451,8 @@ type PermissionsConfigureAdditionalContentExclusionPolicy struct {
 // Experimental: PermissionsConfigureAdditionalContentExclusionPolicyRule is part of an
 // experimental API and may change or be removed.
 type PermissionsConfigureAdditionalContentExclusionPolicyRule struct {
-	IfAnyMatch  []string `json:"ifAnyMatch,omitempty"`
-	IfNoneMatch []string `json:"ifNoneMatch,omitempty"`
+	IfAnyMatch  []string `json:"ifAnyMatch,omitzero"`
+	IfNoneMatch []string `json:"ifNoneMatch,omitzero"`
 	Paths       []string `json:"paths"`
 	// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
 	Source PermissionsConfigureAdditionalContentExclusionPolicyRuleSource `json:"source"`
@@ -3473,7 +3473,7 @@ type PermissionsConfigureParams struct {
 	// If specified, replaces the host-supplied GitHub Content Exclusion policies on the session
 	// (combined with natively-discovered policies when evaluating tool/file access). Omit to
 	// leave the current policies unchanged.
-	AdditionalContentExclusionPolicies []PermissionsConfigureAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitempty"`
+	AdditionalContentExclusionPolicies []PermissionsConfigureAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 	// If specified, sets whether path/URL read permission requests are auto-approved. Omit to
 	// leave the current value unchanged.
 	ApproveAllReadPermissionRequests *bool `json:"approveAllReadPermissionRequests,omitempty"`
@@ -3668,9 +3668,9 @@ type PermissionsLocationsAddToolApprovalResult struct {
 // or be removed.
 type PermissionsModifyRulesParams struct {
 	// Rules to add to the scope. Applied before `remove`/`removeAll`.
-	Add []PermissionRule `json:"add,omitempty"`
+	Add []PermissionRule `json:"add,omitzero"`
 	// Specific rules to remove from the scope. Ignored when `removeAll` is true.
-	Remove []PermissionRule `json:"remove,omitempty"`
+	Remove []PermissionRule `json:"remove,omitzero"`
 	// When true, removes every rule currently in the scope (after any `add` is applied). Useful
 	// for clearing the location scope wholesale.
 	RemoveAll *bool `json:"removeAll,omitempty"`
@@ -3799,7 +3799,7 @@ type PermissionsURLsSetUnrestrictedModeResult struct {
 type PermissionURLsConfig struct {
 	// Initial list of allowed URL/domain patterns. Patterns may include path components.
 	// Ignored when `unrestricted` is true.
-	InitialAllowed []string `json:"initialAllowed,omitempty"`
+	InitialAllowed []string `json:"initialAllowed,omitzero"`
 	// If true, the runtime allows access to all URLs without prompting. Initial allow-list is
 	// ignored when this is true.
 	Unrestricted *bool `json:"unrestricted,omitempty"`
@@ -4263,7 +4263,7 @@ type SendRequest struct {
 	AgentMode *SendAgentMode `json:"agentMode,omitempty"`
 	// Optional attachments (files, directories, selections, blobs, GitHub references) to
 	// include with the message
-	Attachments []Attachment `json:"attachments,omitempty"`
+	Attachments []Attachment `json:"attachments,omitzero"`
 	// If false, this message will not trigger a Premium Request Unit charge. User messages
 	// default to billable.
 	Billable *bool `json:"billable,omitempty"`
@@ -4279,7 +4279,7 @@ type SendRequest struct {
 	// Custom HTTP headers to include in outbound model requests for this turn. Merged with
 	// session-level provider headers; per-turn headers augment and overwrite session-level
 	// headers with the same key.
-	RequestHeaders map[string]string `json:"requestHeaders,omitempty"`
+	RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
 	// If set, the request will fail if the named tool is not available when this message is
 	// among the user messages at the start of the current exchange
 	RequiredTool *string `json:"requiredTool,omitempty"`
@@ -4645,7 +4645,7 @@ type SessionFSSqliteExistsResult struct {
 // or be removed.
 type SessionFSSqliteQueryRequest struct {
 	// Optional named bind parameters
-	Params map[string]any `json:"params,omitempty"`
+	Params map[string]any `json:"params,omitzero"`
 	// SQL query to execute
 	Query string `json:"query"`
 	// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT
@@ -4916,7 +4916,7 @@ type SessionModelList struct {
 	// Available models, ordered with the most preferred default first.
 	List []any `json:"list"`
 	// Per-quota snapshots returned alongside the model list, keyed by quota type.
-	QuotaSnapshots map[string]any `json:"quotaSnapshots,omitempty"`
+	QuotaSnapshots map[string]any `json:"quotaSnapshots,omitzero"`
 }
 
 // Experimental: SessionModeSetResult is part of an experimental API and may change or be
@@ -5202,7 +5202,7 @@ type SessionsPruneOldRequest struct {
 	// When true, only report what would be deleted without performing any deletion
 	DryRun *bool `json:"dryRun,omitempty"`
 	// Session IDs that should never be considered for pruning
-	ExcludeSessionIDs []string `json:"excludeSessionIds,omitempty"`
+	ExcludeSessionIDs []string `json:"excludeSessionIds,omitzero"`
 	// When true, named sessions (set via /rename) are also eligible for pruning
 	IncludeNamed *bool `json:"includeNamed,omitempty"`
 	// Delete sessions whose modifiedTime is at least this many days old
@@ -5293,13 +5293,13 @@ type SessionUpdateOptionsParams struct {
 	// shape; see `ContentExclusionApiResponse` in the runtime.
 	// Experimental: AdditionalContentExclusionPolicies is part of an experimental API and may
 	// change or be removed.
-	AdditionalContentExclusionPolicies []any `json:"additionalContentExclusionPolicies,omitempty"`
+	AdditionalContentExclusionPolicies []any `json:"additionalContentExclusionPolicies,omitzero"`
 	// Runtime context discriminator (e.g., `cli`, `actions`).
 	AgentContext *string `json:"agentContext,omitempty"`
 	// Whether to disable the `ask_user` tool (encourages autonomous behavior).
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// Allowlist of tool names available to this session.
-	AvailableTools []string `json:"availableTools,omitempty"`
+	AvailableTools []string `json:"availableTools,omitzero"`
 	// Identifier of the client driving the session.
 	ClientName *string `json:"clientName,omitempty"`
 	// Whether to include the `Co-authored-by` trailer in commit messages.
@@ -5311,9 +5311,9 @@ type SessionUpdateOptionsParams struct {
 	// Whether to default custom agents to local-only execution.
 	CustomAgentsLocalOnly *bool `json:"customAgentsLocalOnly,omitempty"`
 	// Instruction source IDs to exclude from the system prompt.
-	DisabledInstructionSources []string `json:"disabledInstructionSources,omitempty"`
+	DisabledInstructionSources []string `json:"disabledInstructionSources,omitzero"`
 	// Skill IDs that should be excluded from this session.
-	DisabledSkills []string `json:"disabledSkills,omitempty"`
+	DisabledSkills []string `json:"disabledSkills,omitzero"`
 	// Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK
 	// callback hook mechanism.
 	EnableFileHooks *bool `json:"enableFileHooks,omitempty"`
@@ -5342,12 +5342,12 @@ type SessionUpdateOptionsParams struct {
 	// log directory is used.
 	EventsLogDirectory *string `json:"eventsLogDirectory,omitempty"`
 	// Denylist of tool names for this session.
-	ExcludedTools []string `json:"excludedTools,omitempty"`
+	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// Map of feature-flag IDs to their boolean enabled state.
-	FeatureFlags map[string]bool `json:"featureFlags,omitempty"`
+	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
 	// Full set of installed plugins for the session. Replaces the existing list; the runtime
 	// invalidates the skills cache only when the list materially changes.
-	InstalledPlugins []SessionInstalledPlugin `json:"installedPlugins,omitempty"`
+	InstalledPlugins []SessionInstalledPlugin `json:"installedPlugins,omitzero"`
 	// Stable integration identifier used for analytics and rate-limit attribution.
 	IntegrationID *string `json:"integrationId,omitempty"`
 	// Whether experimental capabilities are enabled.
@@ -5378,9 +5378,9 @@ type SessionUpdateOptionsParams struct {
 	// Shell init profile (`None` or `NonInteractive`).
 	ShellInitProfile *string `json:"shellInitProfile,omitempty"`
 	// Per-shell process flags (e.g., `pwsh` arguments).
-	ShellProcessFlags []string `json:"shellProcessFlags,omitempty"`
+	ShellProcessFlags []string `json:"shellProcessFlags,omitzero"`
 	// Additional directories to search for skills.
-	SkillDirectories []string `json:"skillDirectories,omitempty"`
+	SkillDirectories []string `json:"skillDirectories,omitzero"`
 	// Whether to skip loading custom instruction sources.
 	SkipCustomInstructions *bool `json:"skipCustomInstructions,omitempty"`
 	// Whether to skip embedding retrieval pipeline initialization and execution.
@@ -5525,9 +5525,9 @@ type SkillsDisableRequest struct {
 // Optional project paths and additional skill directories to include in discovery.
 type SkillsDiscoverRequest struct {
 	// Optional list of project directory paths to scan for project-scoped skills
-	ProjectPaths []string `json:"projectPaths,omitempty"`
+	ProjectPaths []string `json:"projectPaths,omitzero"`
 	// Optional list of additional skill directory paths to include
-	SkillDirectories []string `json:"skillDirectories,omitempty"`
+	SkillDirectories []string `json:"skillDirectories,omitzero"`
 }
 
 // Name of the skill to enable for the session.
@@ -5551,7 +5551,7 @@ type SkillsGetInvokedResult struct {
 // removed.
 type SkillsInvokedSkill struct {
 	// Tools that should be auto-approved when this skill is active, captured at invocation time
-	AllowedTools []string `json:"allowedTools,omitempty"`
+	AllowedTools []string `json:"allowedTools,omitzero"`
 	// Full content of the skill file
 	Content string `json:"content"`
 	// Turn number when the skill was invoked
@@ -5577,7 +5577,7 @@ type SkillsLoadDiagnostics struct {
 // removed.
 type SlashCommandInfo struct {
 	// Canonical aliases without leading slashes
-	Aliases []string `json:"aliases,omitempty"`
+	Aliases []string `json:"aliases,omitzero"`
 	// Whether the command may run while an agent turn is active
 	AllowDuringAgentExecution bool `json:"allowDuringAgentExecution"`
 	// Human-readable command description
@@ -6047,7 +6047,7 @@ type Tool struct {
 	// tools)
 	NamespacedName *string `json:"namespacedName,omitempty"`
 	// JSON Schema for the tool's input parameters
-	Parameters map[string]any `json:"parameters,omitempty"`
+	Parameters map[string]any `json:"parameters,omitzero"`
 }
 
 // Built-in tools available for the requested model, with their parameters and instructions.
@@ -6147,7 +6147,7 @@ type UIElicitationResponse struct {
 	// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
 	Action UIElicitationResponseAction `json:"action"`
 	// The form values submitted by the user (present when action is 'accept')
-	Content map[string]UIElicitationFieldValue `json:"content,omitempty"`
+	Content map[string]UIElicitationFieldValue `json:"content,omitzero"`
 }
 
 // The form values submitted by the user (present when action is 'accept')
@@ -6172,7 +6172,7 @@ type UIElicitationSchema struct {
 	// Form field definitions, keyed by field name
 	Properties map[string]UIElicitationSchemaProperty `json:"properties"`
 	// List of required field names
-	Required []string `json:"required,omitempty"`
+	Required []string `json:"required,omitzero"`
 	// Schema type indicator (always 'object')
 	Type UIElicitationSchemaType `json:"type"`
 }
@@ -6200,7 +6200,7 @@ func (r RawUIElicitationSchemaPropertyData) Type() UIElicitationSchemaPropertyTy
 // or be removed.
 type UIElicitationArrayAnyOfField struct {
 	// Default values selected when the form is first shown.
-	Default []string `json:"default,omitempty"`
+	Default []string `json:"default,omitzero"`
 	// Help text describing the field.
 	Description *string `json:"description,omitempty"`
 	// Schema applied to each item in the array.
@@ -6223,7 +6223,7 @@ func (UIElicitationArrayAnyOfField) Type() UIElicitationSchemaPropertyType {
 // or be removed.
 type UIElicitationArrayEnumField struct {
 	// Default values selected when the form is first shown.
-	Default []string `json:"default,omitempty"`
+	Default []string `json:"default,omitzero"`
 	// Help text describing the field.
 	Description *string `json:"description,omitempty"`
 	// Schema applied to each item in the array.
@@ -6317,7 +6317,7 @@ type UIElicitationStringEnumField struct {
 	// Allowed string values.
 	Enum []string `json:"enum"`
 	// Optional display labels for each enum value, in the same order as `enum`.
-	EnumNames []string `json:"enumNames,omitempty"`
+	EnumNames []string `json:"enumNames,omitzero"`
 	// Human-readable label for the field.
 	Title *string `json:"title,omitempty"`
 }
@@ -6502,7 +6502,7 @@ type UsageGetMetricsResult struct {
 	// ISO 8601 timestamp when the session started
 	SessionStartTime time.Time `json:"sessionStartTime"`
 	// Session-wide per-token-type accumulated token counts
-	TokenDetails map[string]UsageMetricsTokenDetail `json:"tokenDetails,omitempty"`
+	TokenDetails map[string]UsageMetricsTokenDetail `json:"tokenDetails,omitzero"`
 	// Total time spent in model API calls (milliseconds)
 	TotalAPIDurationMs int64 `json:"totalApiDurationMs"`
 	// Session-wide accumulated nano-AI units cost
@@ -6535,7 +6535,7 @@ type UsageMetricsModelMetric struct {
 	// Request count and cost metrics for this model
 	Requests UsageMetricsModelMetricRequests `json:"requests"`
 	// Token count details per type
-	TokenDetails map[string]UsageMetricsModelMetricTokenDetail `json:"tokenDetails,omitempty"`
+	TokenDetails map[string]UsageMetricsModelMetricTokenDetail `json:"tokenDetails,omitzero"`
 	// Accumulated nano-AI units cost for this model
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Token usage metrics for this model

@@ -25,7 +25,7 @@ type CanvasDeclaration struct {
 	// Description is a short, single-sentence description shown to the agent in canvas catalogs.
 	Description string `json:"description"`
 	// InputSchema is the JSON Schema for the `input` payload accepted by `canvas.open`.
-	InputSchema map[string]any `json:"inputSchema,omitempty"`
+	InputSchema map[string]any `json:"inputSchema,omitzero"`
 	// Actions are the agent-callable actions this canvas exposes.
 	Actions []rpc.CanvasAction `json:"actions,omitempty"`
 }

@@ -152,6 +152,57 @@ func TestCustomAgentConfig_JSONIncludesModel(t *testing.T) {
 	}
 }
 
+func TestCustomAgentConfig_JSONIncludesEmptyTools(t *testing.T) {
+	cfg := CustomAgentConfig{
+		Name:   "no-tools-agent",
+		Prompt: "You are an agent without tools.",
+		Tools:  []string{},
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal CustomAgentConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal CustomAgentConfig: %v", err)
+	}
+
+	rawTools, present := decoded["tools"]
+	if !present {
+		t.Fatal("expected tools to be present for an empty non-nil slice")
+	}
+	tools, ok := rawTools.([]any)
+	if !ok {
+		t.Fatalf("expected tools array, got %T", rawTools)
+	}
+	if len(tools) != 0 {
+		t.Fatalf("expected empty tools array, got %v", tools)
+	}
+}
+
+func TestCustomAgentConfig_JSONOmitsNilTools(t *testing.T) {
+	cfg := CustomAgentConfig{
+		Name:   "all-tools-agent",
+		Prompt: "You are an agent with default tools.",
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal CustomAgentConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal CustomAgentConfig: %v", err)
+	}
+
+	if _, present := decoded["tools"]; present {
+		t.Errorf("expected tools to be omitted for nil slice, got %v", decoded["tools"])
+	}
+}
+
 func TestCustomAgentConfig_JSONOmitsModelWhenEmpty(t *testing.T) {
 	cfg := CustomAgentConfig{
 		Name:   "no-model-agent",
@@ -170,5 +221,152 @@ func TestCustomAgentConfig_JSONOmitsModelWhenEmpty(t *testing.T) {
 
 	if _, present := decoded["model"]; present {
 		t.Errorf("expected model to be omitted when empty, got %v", decoded["model"])
+	}
+}
+
+func TestTool_JSONIncludesEmptyParameters(t *testing.T) {
+	tool := Tool{
+		Name:       "accept_anything",
+		Parameters: map[string]any{},
+	}
+
+	data, err := json.Marshal(tool)
+	if err != nil {
+		t.Fatalf("failed to marshal Tool: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal Tool: %v", err)
+	}
+
+	rawParameters, present := decoded["parameters"]
+	if !present {
+		t.Fatal("expected parameters to be present for an empty non-nil map")
+	}
+	parameters, ok := rawParameters.(map[string]any)
+	if !ok {
+		t.Fatalf("expected parameters object, got %T", rawParameters)
+	}
+	if len(parameters) != 0 {
+		t.Fatalf("expected empty parameters object, got %v", parameters)
+	}
+}
+
+func TestTool_JSONOmitsNilParameters(t *testing.T) {
+	tool := Tool{Name: "no_parameters"}
+
+	data, err := json.Marshal(tool)
+	if err != nil {
+		t.Fatalf("failed to marshal Tool: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal Tool: %v", err)
+	}
+
+	if _, present := decoded["parameters"]; present {
+		t.Errorf("expected parameters to be omitted for nil map, got %v", decoded["parameters"])
+	}
+}
+
+func TestCanvasDeclaration_JSONIncludesEmptyInputSchema(t *testing.T) {
+	canvas := CanvasDeclaration{
+		ID:          "empty-input",
+		DisplayName: "Empty input",
+		Description: "Accepts any input.",
+		InputSchema: map[string]any{},
+	}
+
+	data, err := json.Marshal(canvas)
+	if err != nil {
+		t.Fatalf("failed to marshal CanvasDeclaration: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal CanvasDeclaration: %v", err)
+	}
+
+	rawInputSchema, present := decoded["inputSchema"]
+	if !present {
+		t.Fatal("expected inputSchema to be present for an empty non-nil map")
+	}
+	inputSchema, ok := rawInputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("expected inputSchema object, got %T", rawInputSchema)
+	}
+	if len(inputSchema) != 0 {
+		t.Fatalf("expected empty inputSchema object, got %v", inputSchema)
+	}
+}
+
+func TestCanvasDeclaration_JSONOmitsNilInputSchema(t *testing.T) {
+	canvas := CanvasDeclaration{
+		ID:          "no-input-schema",
+		DisplayName: "No input schema",
+		Description: "Does not declare input.",
+	}
+
+	data, err := json.Marshal(canvas)
+	if err != nil {
+		t.Fatalf("failed to marshal CanvasDeclaration: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal CanvasDeclaration: %v", err)
+	}
+
+	if _, present := decoded["inputSchema"]; present {
+		t.Errorf("expected inputSchema to be omitted for nil map, got %v", decoded["inputSchema"])
+	}
+}
+
+func TestElicitationResult_JSONIncludesEmptyContent(t *testing.T) {
+	result := ElicitationResult{
+		Action:  "accept",
+		Content: map[string]any{},
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal ElicitationResult: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal ElicitationResult: %v", err)
+	}
+
+	rawContent, present := decoded["content"]
+	if !present {
+		t.Fatal("expected content to be present for an empty non-nil map")
+	}
+	content, ok := rawContent.(map[string]any)
+	if !ok {
+		t.Fatalf("expected content object, got %T", rawContent)
+	}
+	if len(content) != 0 {
+		t.Fatalf("expected empty content object, got %v", content)
+	}
+}
+
+func TestElicitationResult_JSONOmitsNilContent(t *testing.T) {
+	result := ElicitationResult{Action: "cancel"}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal ElicitationResult: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal ElicitationResult: %v", err)
+	}
+
+	if _, present := decoded["content"]; present {
+		t.Errorf("expected content to be omitted for nil map, got %v", decoded["content"])
 	}
 }

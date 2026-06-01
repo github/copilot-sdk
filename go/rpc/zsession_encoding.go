@@ -601,14 +601,14 @@ func (r RawSessionEventData) MarshalJSON() ([]byte, error) {
 func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	type rawUserMessageData struct {
 		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
-		Attachments                      []json.RawMessage     `json:"attachments,omitempty"`
+		Attachments                      []json.RawMessage     `json:"attachments,omitzero"`
 		Content                          string                `json:"content"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
 		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
-		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitempty"`
+		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitzero"`
 		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
 		Source                           *string               `json:"source,omitempty"`
-		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitempty"`
+		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitzero"`
 		TransformedContent               *string               `json:"transformedContent,omitempty"`
 	}
 	var raw rawUserMessageData
@@ -833,7 +833,7 @@ func (r ToolExecutionCompleteContentText) MarshalJSON() ([]byte, error) {
 func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 	type rawToolExecutionCompleteResult struct {
 		Content         string                           `json:"content"`
-		Contents        []json.RawMessage                `json:"contents,omitempty"`
+		Contents        []json.RawMessage                `json:"contents,omitzero"`
 		DetailedContent *string                          `json:"detailedContent,omitempty"`
 		UIResource      *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
 	}
@@ -1729,7 +1729,7 @@ func unmarshalElicitationCompletedContent(data []byte) (ElicitationCompletedCont
 func (r *ElicitationCompletedData) UnmarshalJSON(data []byte) error {
 	type rawElicitationCompletedData struct {
 		Action    *ElicitationCompletedAction `json:"action,omitempty"`
-		Content   map[string]json.RawMessage  `json:"content,omitempty"`
+		Content   map[string]json.RawMessage  `json:"content,omitzero"`
 		RequestID string                      `json:"requestId"`
 	}
 	var raw rawElicitationCompletedData

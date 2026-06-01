@@ -370,6 +370,15 @@ function goTypeWithOptionalPointer(goType: string, ctx?: GoCodegenCtx): string {
     return goTypeIsNilable(goType, ctx) ? goType : `*${goType}`;
 }
 
+function goJSONOmitSuffix(required: boolean, goType: string): string {
+    if (required) return "";
+    return goTypeIsSlice(goType) || goTypeIsMap(goType) ? ",omitzero" : ",omitempty";
+}
+
+function goJSONTag(jsonName: string, required: boolean, goType: string): string {
+    return `json:"${jsonName}${goJSONOmitSuffix(required, goType)}"`;
+}
+
 async function formatGoFile(filePath: string): Promise<void> {
     try {
         await execFileAsync("go", ["fmt", filePath]);
@@ -564,7 +573,6 @@ function getGoSharedEventEnvelopeProperties(schema: JSONSchema7, ctx: GoCodegenC
         .map((property) => {
             const { name, schema, required } = property;
             const typeName = resolveGoPropertyType(schema, "SessionEvent", name, required && !getNullableInner(schema), ctx);
-            const omit = required ? "" : ",omitempty";
 
             return {
                 name,
@@ -572,7 +580,7 @@ function getGoSharedEventEnvelopeProperties(schema: JSONSchema7, ctx: GoCodegenC
                 required,
                 fieldName: toGoFieldName(name),
                 typeName,
-                jsonTag: `json:"${name}${omit}"`,
+                jsonTag: goJSONTag(name, required, typeName),
                 description: schema.description,
             };
         });
@@ -1195,13 +1203,12 @@ function emitGoStruct(
         const isReq = required.has(propName);
         const goName = toGoFieldName(propName);
         const goType = resolveGoPropertyType(prop, typeName, propName, isReq, ctx);
-        const omit = isReq ? "" : ",omitempty";
 
         if (prop.description) {
             pushGoCommentForContext(lines, prop.description, ctx, "\t");
         }
         pushGoFieldMarkers(lines, prop, goName, ctx);
-        const jsonTag = `json:"${propName}${omit}"`;
+        const jsonTag = goJSONTag(propName, isReq, goType);
         lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
         fields.push({ propName, goName, goType, jsonTag });
     }
@@ -1885,12 +1892,11 @@ function emitGoFlatDiscriminatedUnion(
                 }
                 const goName = toGoFieldName(propName);
                 const goType = resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx);
-                const omit = required.has(propName) ? "" : ",omitempty";
                 if (prop.description) {
                     pushGoCommentForContext(lines, prop.description, ctx, "\t");
                 }
                 pushGoFieldMarkers(lines, prop, goName, ctx);
-                const jsonTag = `json:"${propName}${omit}"`;
+                const jsonTag = goJSONTag(propName, required.has(propName), goType);
                 lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
                 fields.push({ propName, goName, goType, jsonTag });
             }
@@ -2012,12 +2018,11 @@ function emitGoRequiredFieldDiscriminatedUnion(
                 const prop = propSchema as JSONSchema7;
                 const goName = toGoFieldName(propName);
                 const goType = resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx);
-                const omit = required.has(propName) ? "" : ",omitempty";
                 if (prop.description) {
                     pushGoCommentForContext(lines, prop.description, ctx, "\t");
                 }
                 pushGoFieldMarkers(lines, prop, goName, ctx);
-                const jsonTag = `json:"${propName}${omit}"`;
+                const jsonTag = goJSONTag(propName, required.has(propName), goType);
                 lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
                 fields.push({ propName, goName, goType, jsonTag });
             }
@@ -2325,7 +2330,6 @@ function emitGoFlattenedObjectUnion(
         const mergedSchema = mergeGoFlattenedPropertySchema(typeName, propName, info.schemas, ctx);
         const requiredInAll = info.requiredInAll && info.presentCount === objectVariants.length;
         const goType = resolveGoPropertyType(mergedSchema, typeName, propName, requiredInAll, ctx);
-        const omit = requiredInAll ? "" : ",omitempty";
         const description = info.schemas.find((schema) => schema.description)?.description;
         if (description) {
             pushGoCommentForContext(lines, description, ctx, "\t");
@@ -2333,7 +2337,7 @@ function emitGoFlattenedObjectUnion(
         if (info.schemas.some((schema) => isSchemaDeprecated(schema))) {
             pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
         }
-        const jsonTag = `json:"${propName}${omit}"`;
+        const jsonTag = goJSONTag(propName, requiredInAll, goType);
         lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
         fields.push({ propName, goName, goType, jsonTag });
     }
@@ -3126,13 +3130,12 @@ export function generateGoSessionEventsCode(
             const isReq = required.has(propName);
             const goName = toGoFieldName(propName);
             const goType = resolveGoPropertyType(prop, variant.dataClassName, propName, isReq, ctx);
-            const omit = isReq ? "" : ",omitempty";
 
             if (prop.description) {
                 pushGoCommentForContext(lines, prop.description, ctx, "\t");
             }
             pushGoFieldMarkers(lines, prop, goName, ctx);
-            const jsonTag = `json:"${propName}${omit}"`;
+            const jsonTag = goJSONTag(propName, isReq, goType);
             lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
             fields.push({ propName, goName, goType, jsonTag });
         }
