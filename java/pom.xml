@@ -615,8 +615,6 @@
         </plugins>
     </build>
 
-
-
     <profiles>
         <!-- Enable dynamic agent loading on JDK 21+ so Mockito/ByteBuddy
              can attach at runtime (JEP 451). The flag does not exist on
