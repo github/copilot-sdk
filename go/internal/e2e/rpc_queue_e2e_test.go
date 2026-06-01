@@ -11,7 +11,7 @@ import (
 )
 
 // Mirrors dotnet/test/E2E/RpcQueueE2ETests.cs (snapshot category "rpc_queue").
-func TestRpcQueueE2E(t *testing.T) {
+func TestRPCQueueE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

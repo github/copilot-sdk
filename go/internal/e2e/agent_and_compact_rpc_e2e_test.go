@@ -11,7 +11,7 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-func TestAgentSelectionRpcE2E(t *testing.T) {
+func TestAgentSelectionRPCE2E(t *testing.T) {
 	cliPath := testharness.CLIPath()
 	if cliPath == "" {
 		t.Fatal("CLI not found. Run 'npm install' in the nodejs directory first.")
@@ -333,7 +333,7 @@ func agentSummaries(agents []rpc.AgentInfo) []string {
 	return summaries
 }
 
-func TestSessionCompactionRpcE2E(t *testing.T) {
+func TestSessionCompactionRPCE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

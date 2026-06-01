@@ -495,7 +495,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `BaseURL` (string): API endpoint URL (required)
 - `APIKey` (string): API key (optional for local providers like Ollama)
 - `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
-- `WireApi` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
+- `WireAPI` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
 - `Azure.APIVersion` (string): Azure API version (default: "2024-10-21")
 
 **Example with Ollama:**
@@ -802,7 +802,7 @@ confirmed, err := ui.Confirm(ctx, "Deploy to production?")
 choice, ok, err := ui.Select(ctx, "Pick an environment", []string{"staging", "production"})
 
 // Text input — returns (text, ok bool, error)
-name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UiInputOptions{
+name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UIInputOptions{
     Title:       "Release Name",
     Description: "A short name for the release",
     MinLength:   copilot.Int(1),

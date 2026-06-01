@@ -579,7 +579,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 
 		minLen := 1
 		maxLen := 20
-		value, ok, err := session.UI().Input(t.Context(), "Enter value", &copilot.UiInputOptions{
+		value, ok, err := session.UI().Input(t.Context(), "Enter value", &copilot.UIInputOptions{
 			Title:       "Value",
 			Description: "A value to test",
 			MinLength:   &minLen,

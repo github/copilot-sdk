@@ -80,9 +80,9 @@ const (
 	SessionEventTypeHookEnd                            SessionEventType = "hook.end"
 	SessionEventTypeHookProgress                       SessionEventType = "hook.progress"
 	SessionEventTypeHookStart                          SessionEventType = "hook.start"
-	SessionEventTypeMcpAppToolCallComplete             SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMcpOauthCompleted                  SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMcpOauthRequired                   SessionEventType = "mcp.oauth_required"
+	SessionEventTypeMCPAppToolCallComplete             SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMCPOauthCompleted                  SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMCPOauthRequired                   SessionEventType = "mcp.oauth_required"
 	SessionEventTypeModelCallFailure                   SessionEventType = "model.call_failure"
 	SessionEventTypePendingMessagesModified            SessionEventType = "pending_messages.modified"
 	SessionEventTypePermissionCompleted                SessionEventType = "permission.completed"
@@ -104,8 +104,8 @@ const (
 	SessionEventTypeSessionHandoff                     SessionEventType = "session.handoff"
 	SessionEventTypeSessionIdle                        SessionEventType = "session.idle"
 	SessionEventTypeSessionInfo                        SessionEventType = "session.info"
-	SessionEventTypeSessionMcpServersLoaded            SessionEventType = "session.mcp_servers_loaded"
-	SessionEventTypeSessionMcpServerStatusChanged      SessionEventType = "session.mcp_server_status_changed"
+	SessionEventTypeSessionMCPServersLoaded            SessionEventType = "session.mcp_servers_loaded"
+	SessionEventTypeSessionMCPServerStatusChanged      SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged                 SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange                 SessionEventType = "session.model_change"
 	SessionEventTypeSessionPermissionsChanged          SessionEventType = "session.permissions_changed"
@@ -614,13 +614,13 @@ func (*AssistantUsageData) sessionEventData()      {}
 func (*AssistantUsageData) Type() SessionEventType { return SessionEventTypeAssistantUsage }
 
 // MCP App view called a tool on a connected MCP server (SEP-1865)
-type McpAppToolCallCompleteData struct {
+type MCPAppToolCallCompleteData struct {
 	// Arguments passed to the tool by the app view, if any
 	Arguments map[string]any `json:"arguments,omitempty"`
 	// Wall-clock duration of the underlying tools/call in milliseconds
 	DurationMs float64 `json:"durationMs"`
 	// Set when the underlying tools/call threw an error before returning a CallToolResult
-	Error *McpAppToolCallCompleteError `json:"error,omitempty"`
+	Error *MCPAppToolCallCompleteError `json:"error,omitempty"`
 	// Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.
 	Result map[string]any `json:"result,omitempty"`
 	// Name of the MCP server hosting the tool
@@ -628,24 +628,24 @@ type McpAppToolCallCompleteData struct {
 	// True when the call completed without throwing AND the MCP CallToolResult did not set isError
 	Success bool `json:"success"`
 	// The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.
-	ToolMeta *McpAppToolCallCompleteToolMeta `json:"toolMeta,omitempty"`
+	ToolMeta *MCPAppToolCallCompleteToolMeta `json:"toolMeta,omitempty"`
 	// MCP tool name that was invoked
 	ToolName string `json:"toolName"`
 }
 
-func (*McpAppToolCallCompleteData) sessionEventData() {}
-func (*McpAppToolCallCompleteData) Type() SessionEventType {
-	return SessionEventTypeMcpAppToolCallComplete
+func (*MCPAppToolCallCompleteData) sessionEventData() {}
+func (*MCPAppToolCallCompleteData) Type() SessionEventType {
+	return SessionEventTypeMCPAppToolCallComplete
 }
 
 // MCP OAuth request completion notification
-type McpOauthCompletedData struct {
+type MCPOauthCompletedData struct {
 	// Request ID of the resolved OAuth request
 	RequestID string `json:"requestId"`
 }
 
-func (*McpOauthCompletedData) sessionEventData()      {}
-func (*McpOauthCompletedData) Type() SessionEventType { return SessionEventTypeMcpOauthCompleted }
+func (*MCPOauthCompletedData) sessionEventData()      {}
+func (*MCPOauthCompletedData) Type() SessionEventType { return SessionEventTypeMCPOauthCompleted }
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
@@ -682,7 +682,7 @@ func (*SessionRemoteSteerableChangedData) Type() SessionEventType {
 }
 
 // OAuth authentication request for an MCP server
-type McpOauthRequiredData struct {
+type MCPOauthRequiredData struct {
 	// Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth()
 	RequestID string `json:"requestId"`
 	// Display name of the MCP server that requires OAuth
@@ -690,11 +690,11 @@ type McpOauthRequiredData struct {
 	// URL of the MCP server that requires OAuth
 	ServerURL string `json:"serverUrl"`
 	// Static OAuth client configuration, if the server specifies one
-	StaticClientConfig *McpOauthRequiredStaticClientConfig `json:"staticClientConfig,omitempty"`
+	StaticClientConfig *MCPOauthRequiredStaticClientConfig `json:"staticClientConfig,omitempty"`
 }
 
-func (*McpOauthRequiredData) sessionEventData()      {}
-func (*McpOauthRequiredData) Type() SessionEventType { return SessionEventTypeMcpOauthRequired }
+func (*MCPOauthRequiredData) sessionEventData()      {}
+func (*MCPOauthRequiredData) Type() SessionEventType { return SessionEventTypeMCPOauthRequired }
 
 // Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
 type SessionCustomNotificationData struct {
@@ -868,7 +868,7 @@ func (*SamplingCompletedData) Type() SessionEventType { return SessionEventTypeS
 // Sampling request from an MCP server; contains the server name and a requestId for correlation
 type SamplingRequestedData struct {
 	// The JSON-RPC request ID from the MCP protocol
-	McpRequestID any `json:"mcpRequestId"`
+	MCPRequestID any `json:"mcpRequestId"`
 	// Unique identifier for this sampling request; used to respond via session.respondToSampling()
 	RequestID string `json:"requestId"`
 	// Name of the MCP server that initiated the sampling request
@@ -993,29 +993,29 @@ func (*SessionExtensionsLoadedData) Type() SessionEventType {
 }
 
 // Schema for the `McpServerStatusChangedData` type.
-type SessionMcpServerStatusChangedData struct {
+type SessionMCPServerStatusChangedData struct {
 	// Error message if the server entered a failed state
 	Error *string `json:"error,omitempty"`
 	// Name of the MCP server whose status changed
 	ServerName string `json:"serverName"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status McpServerStatus `json:"status"`
+	Status MCPServerStatus `json:"status"`
 }
 
-func (*SessionMcpServerStatusChangedData) sessionEventData() {}
-func (*SessionMcpServerStatusChangedData) Type() SessionEventType {
-	return SessionEventTypeSessionMcpServerStatusChanged
+func (*SessionMCPServerStatusChangedData) sessionEventData() {}
+func (*SessionMCPServerStatusChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerStatusChanged
 }
 
 // Schema for the `McpServersLoadedData` type.
-type SessionMcpServersLoadedData struct {
+type SessionMCPServersLoadedData struct {
 	// Array of MCP server status summaries
-	Servers []McpServersLoadedServer `json:"servers"`
+	Servers []MCPServersLoadedServer `json:"servers"`
 }
 
-func (*SessionMcpServersLoadedData) sessionEventData() {}
-func (*SessionMcpServersLoadedData) Type() SessionEventType {
-	return SessionEventTypeSessionMcpServersLoaded
+func (*SessionMCPServersLoadedData) sessionEventData() {}
+func (*SessionMCPServersLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServersLoaded
 }
 
 // Schema for the `SkillsLoadedData` type.
@@ -1457,9 +1457,9 @@ type ToolExecutionStartData struct {
 	// When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
 	DisplayVerbatim *bool `json:"displayVerbatim,omitempty"`
 	// Name of the MCP server hosting this tool, when the tool is an MCP tool
-	McpServerName *string `json:"mcpServerName,omitempty"`
+	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Original tool name on the MCP server, when the tool is an MCP tool
-	McpToolName *string `json:"mcpToolName,omitempty"`
+	MCPToolName *string `json:"mcpToolName,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
@@ -1604,9 +1604,9 @@ type AssistantMessageToolRequest struct {
 	// Resolved intention summary describing what this specific call does
 	IntentionSummary *string `json:"intentionSummary,omitempty"`
 	// Name of the MCP server hosting this tool, when the tool is an MCP tool
-	McpServerName *string `json:"mcpServerName,omitempty"`
+	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Original tool name on the MCP server, when the tool is an MCP tool
-	McpToolName *string `json:"mcpToolName,omitempty"`
+	MCPToolName *string `json:"mcpToolName,omitempty"`
 	// Name of the tool being invoked
 	Name string `json:"name"`
 	// Unique identifier for this tool call
@@ -1702,7 +1702,7 @@ type CapabilitiesChangedUI struct {
 	// Whether elicitation is now supported
 	Elicitation *bool `json:"elicitation,omitempty"`
 	// Whether MCP Apps (SEP-1865) UI passthrough is now supported
-	McpApps *bool `json:"mcpApps,omitempty"`
+	MCPApps *bool `json:"mcpApps,omitempty"`
 }
 
 // Schema for the `CommandsChangedCommand` type.
@@ -1844,19 +1844,19 @@ type HookEndError struct {
 }
 
 // Set when the underlying tools/call threw an error before returning a CallToolResult
-type McpAppToolCallCompleteError struct {
+type MCPAppToolCallCompleteError struct {
 	// Human-readable error message
 	Message string `json:"message"`
 }
 
 // The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.
-type McpAppToolCallCompleteToolMeta struct {
+type MCPAppToolCallCompleteToolMeta struct {
 	// Schema for the `McpAppToolCallCompleteToolMetaUI` type.
-	UI *McpAppToolCallCompleteToolMetaUI `json:"ui,omitempty"`
+	UI *MCPAppToolCallCompleteToolMetaUI `json:"ui,omitempty"`
 }
 
 // Schema for the `McpAppToolCallCompleteToolMetaUI` type.
-type McpAppToolCallCompleteToolMetaUI struct {
+type MCPAppToolCallCompleteToolMetaUI struct {
 	// `ui://` URI declared by the tool's `_meta.ui.resourceUri`
 	ResourceURI *string `json:"resourceUri,omitempty"`
 	// Tool visibility per SEP-1865 (typically a subset of `["model","app"]`)
@@ -1864,17 +1864,17 @@ type McpAppToolCallCompleteToolMetaUI struct {
 }
 
 // Static OAuth client configuration, if the server specifies one
-type McpOauthRequiredStaticClientConfig struct {
+type MCPOauthRequiredStaticClientConfig struct {
 	// OAuth client ID for the server
 	ClientID string `json:"clientId"`
 	// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
-	GrantType *McpOauthRequiredStaticClientConfigGrantType `json:"grantType,omitempty"`
+	GrantType *MCPOauthRequiredStaticClientConfigGrantType `json:"grantType,omitempty"`
 	// Whether this is a public OAuth client
 	PublicClient *bool `json:"publicClient,omitempty"`
 }
 
 // Schema for the `McpServersLoadedServer` type.
-type McpServersLoadedServer struct {
+type MCPServersLoadedServer struct {
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
@@ -1884,11 +1884,11 @@ type McpServersLoadedServer struct {
 	// Version of the plugin that supplied the effective MCP server config, only when source is plugin
 	PluginVersion *string `json:"pluginVersion,omitempty"`
 	// Configuration source: user, workspace, plugin, or builtin
-	Source *McpServerSource `json:"source,omitempty"`
+	Source *MCPServerSource `json:"source,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status McpServerStatus `json:"status"`
+	Status MCPServerStatus `json:"status"`
 	// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
-	Transport *McpServerTransport `json:"transport,omitempty"`
+	Transport *MCPServerTransport `json:"transport,omitempty"`
 }
 
 // Derived user-facing permission prompt details for UI consumers
@@ -1993,7 +1993,7 @@ func (PermissionPromptRequestHook) Kind() PermissionPromptRequestKind {
 }
 
 // MCP tool invocation permission prompt
-type PermissionPromptRequestMcp struct {
+type PermissionPromptRequestMCP struct {
 	// Arguments to pass to the MCP tool
 	Args *any `json:"args,omitempty"`
 	// Name of the MCP server providing the tool
@@ -2006,9 +2006,9 @@ type PermissionPromptRequestMcp struct {
 	ToolTitle string `json:"toolTitle"`
 }
 
-func (PermissionPromptRequestMcp) permissionPromptRequest() {}
-func (PermissionPromptRequestMcp) Kind() PermissionPromptRequestKind {
-	return PermissionPromptRequestKindMcp
+func (PermissionPromptRequestMCP) permissionPromptRequest() {}
+func (PermissionPromptRequestMCP) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindMCP
 }
 
 // Memory operation permission prompt
@@ -2181,7 +2181,7 @@ func (PermissionRequestHook) Kind() PermissionRequestKind {
 }
 
 // MCP tool invocation permission request
-type PermissionRequestMcp struct {
+type PermissionRequestMCP struct {
 	// Arguments to pass to the MCP tool
 	Args any `json:"args,omitempty"`
 	// Whether this MCP tool is read-only (no side effects)
@@ -2196,9 +2196,9 @@ type PermissionRequestMcp struct {
 	ToolTitle string `json:"toolTitle"`
 }
 
-func (PermissionRequestMcp) permissionRequest() {}
-func (PermissionRequestMcp) Kind() PermissionRequestKind {
-	return PermissionRequestKindMcp
+func (PermissionRequestMCP) permissionRequest() {}
+func (PermissionRequestMCP) Kind() PermissionRequestKind {
+	return PermissionRequestKindMCP
 }
 
 // Memory operation permission request
@@ -2254,7 +2254,7 @@ type PermissionRequestShell struct {
 	// File paths that may be read or written by the command
 	PossiblePaths []string `json:"possiblePaths"`
 	// URLs that may be accessed by the command
-	PossibleUrls []PermissionRequestShellPossibleURL `json:"possibleUrls"`
+	PossibleURLs []PermissionRequestShellPossibleURL `json:"possibleUrls"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Optional warning message about risks of running this command
@@ -3030,24 +3030,24 @@ const (
 )
 
 // Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
-type McpOauthRequiredStaticClientConfigGrantType string
+type MCPOauthRequiredStaticClientConfigGrantType string
 
 const (
-	McpOauthRequiredStaticClientConfigGrantTypeClientCredentials McpOauthRequiredStaticClientConfigGrantType = "client_credentials"
+	MCPOauthRequiredStaticClientConfigGrantTypeClientCredentials MCPOauthRequiredStaticClientConfigGrantType = "client_credentials"
 )
 
 // Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
-type McpServerTransport string
+type MCPServerTransport string
 
 const (
 	// Server communicates over streamable HTTP.
-	McpServerTransportHTTP McpServerTransport = "http"
+	MCPServerTransportHTTP MCPServerTransport = "http"
 	// Server is backed by an in-memory runtime implementation.
-	McpServerTransportMemory McpServerTransport = "memory"
+	MCPServerTransportMemory MCPServerTransport = "memory"
 	// Server communicates over Server-Sent Events (deprecated).
-	McpServerTransportSse McpServerTransport = "sse"
+	MCPServerTransportSSE MCPServerTransport = "sse"
 	// Server communicates over stdio with a local child process.
-	McpServerTransportStdio McpServerTransport = "stdio"
+	MCPServerTransportStdio MCPServerTransport = "stdio"
 )
 
 // Where the failed model call originated
@@ -3055,7 +3055,7 @@ type ModelCallFailureSource string
 
 const (
 	// Model call from MCP sampling.
-	ModelCallFailureSourceMcpSampling ModelCallFailureSource = "mcp_sampling"
+	ModelCallFailureSourceMCPSampling ModelCallFailureSource = "mcp_sampling"
 	// Model call from a sub-agent.
 	ModelCallFailureSourceSubagent ModelCallFailureSource = "subagent"
 	// Model call from the top-level agent.
@@ -3071,7 +3071,7 @@ const (
 	PermissionPromptRequestKindExtensionManagement       PermissionPromptRequestKind = "extension-management"
 	PermissionPromptRequestKindExtensionPermissionAccess PermissionPromptRequestKind = "extension-permission-access"
 	PermissionPromptRequestKindHook                      PermissionPromptRequestKind = "hook"
-	PermissionPromptRequestKindMcp                       PermissionPromptRequestKind = "mcp"
+	PermissionPromptRequestKindMCP                       PermissionPromptRequestKind = "mcp"
 	PermissionPromptRequestKindMemory                    PermissionPromptRequestKind = "memory"
 	PermissionPromptRequestKindPath                      PermissionPromptRequestKind = "path"
 	PermissionPromptRequestKindRead                      PermissionPromptRequestKind = "read"
@@ -3099,7 +3099,7 @@ const (
 	PermissionRequestKindExtensionManagement       PermissionRequestKind = "extension-management"
 	PermissionRequestKindExtensionPermissionAccess PermissionRequestKind = "extension-permission-access"
 	PermissionRequestKindHook                      PermissionRequestKind = "hook"
-	PermissionRequestKindMcp                       PermissionRequestKind = "mcp"
+	PermissionRequestKindMCP                       PermissionRequestKind = "mcp"
 	PermissionRequestKindMemory                    PermissionRequestKind = "memory"
 	PermissionRequestKindRead                      PermissionRequestKind = "read"
 	PermissionRequestKindShell                     PermissionRequestKind = "shell"
@@ -3249,9 +3249,9 @@ type WorkingDirectoryContextHostType string
 
 const (
 	// Repository is hosted on Azure DevOps.
-	WorkingDirectoryContextHostTypeAdo WorkingDirectoryContextHostType = "ado"
+	WorkingDirectoryContextHostTypeADO WorkingDirectoryContextHostType = "ado"
 	// Repository is hosted on GitHub.
-	WorkingDirectoryContextHostTypeGithub WorkingDirectoryContextHostType = "github"
+	WorkingDirectoryContextHostTypeGitHub WorkingDirectoryContextHostType = "github"
 )
 
 // Whether the file was newly created or updated

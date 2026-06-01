@@ -338,7 +338,7 @@ Verified public SDK surfaces:
 |----------|---------------------|----------------------|
 | TypeScript | `sessionFs` | `createSessionFsAdapter` / provider callbacks |
 | Python | `session_fs` | `create_session_fs_handler` |
-| Go | `SessionFs` | `CreateSessionFsProvider` |
+| Go | `SessionFS` | `CreateSessionFSProvider` |
 | .NET | `SessionFs` | `CreateSessionFsProvider` |
 | Rust | `with_session_fs(...)` | `with_session_fs_provider(...)` |
 

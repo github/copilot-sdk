@@ -134,23 +134,23 @@ func TestClient_URLParsing(t *testing.T) {
 	})
 }
 
-func TestClient_SessionFsConfig(t *testing.T) {
+func TestClient_SessionFSConfig(t *testing.T) {
 	t.Run("should throw error when InitialWorkingDirectory is missing", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for missing SessionFs.InitialWorkingDirectory")
+				t.Error("Expected panic for missing SessionFS.InitialWorkingDirectory")
 			} else {
-				matched, _ := regexp.MatchString("SessionFs.InitialWorkingDirectory is required", r.(string))
+				matched, _ := regexp.MatchString("SessionFS.InitialWorkingDirectory is required", r.(string))
 				if !matched {
-					t.Errorf("Expected panic message to contain 'SessionFs.InitialWorkingDirectory is required', got: %v", r)
+					t.Errorf("Expected panic message to contain 'SessionFS.InitialWorkingDirectory is required', got: %v", r)
 				}
 			}
 		}()
 
 		NewClient(&ClientOptions{
-			SessionFs: &SessionFsConfig{
+			SessionFS: &SessionFSConfig{
 				SessionStatePath: "/session-state",
-				Conventions:      rpc.SessionFsSetProviderConventionsPosix,
+				Conventions:      rpc.SessionFSSetProviderConventionsPosix,
 			},
 		})
 	})
@@ -158,19 +158,19 @@ func TestClient_SessionFsConfig(t *testing.T) {
 	t.Run("should throw error when SessionStatePath is missing", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for missing SessionFs.SessionStatePath")
+				t.Error("Expected panic for missing SessionFS.SessionStatePath")
 			} else {
-				matched, _ := regexp.MatchString("SessionFs.SessionStatePath is required", r.(string))
+				matched, _ := regexp.MatchString("SessionFS.SessionStatePath is required", r.(string))
 				if !matched {
-					t.Errorf("Expected panic message to contain 'SessionFs.SessionStatePath is required', got: %v", r)
+					t.Errorf("Expected panic message to contain 'SessionFS.SessionStatePath is required', got: %v", r)
 				}
 			}
 		}()
 
 		NewClient(&ClientOptions{
-			SessionFs: &SessionFsConfig{
+			SessionFS: &SessionFSConfig{
 				InitialWorkingDirectory: "/",
-				Conventions:             rpc.SessionFsSetProviderConventionsPosix,
+				Conventions:             rpc.SessionFSSetProviderConventionsPosix,
 			},
 		})
 	})
@@ -1146,10 +1146,10 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 	})
 }
 
-func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
-	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+func TestCreateSessionRequest_RequestMCPApps(t *testing.T) {
+	t.Run("sends requestMCPApps flag when EnableMCPpApps is set", func(t *testing.T) {
 		req := createSessionRequest{
-			RequestMcpApps: Bool(true),
+			RequestMCPApps: Bool(true),
 		}
 		data, err := json.Marshal(req)
 		if err != nil {
@@ -1164,7 +1164,7 @@ func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
 		}
 	})
 
-	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+	t.Run("does not send requestMcpApps when EnableMCPApps is unset", func(t *testing.T) {
 		req := createSessionRequest{}
 		data, _ := json.Marshal(req)
 		var m map[string]any
@@ -1175,11 +1175,11 @@ func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
 	})
 }
 
-func TestResumeSessionRequest_RequestMcpApps(t *testing.T) {
-	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+func TestResumeSessionRequest_RequestMCPApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMCPApps is set", func(t *testing.T) {
 		req := resumeSessionRequest{
 			SessionID:      "s1",
-			RequestMcpApps: Bool(true),
+			RequestMCPApps: Bool(true),
 		}
 		data, err := json.Marshal(req)
 		if err != nil {
@@ -1194,7 +1194,7 @@ func TestResumeSessionRequest_RequestMcpApps(t *testing.T) {
 		}
 	})
 
-	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+	t.Run("does not send requestMcpApps when RequestMCPApps is unset", func(t *testing.T) {
 		req := resumeSessionRequest{SessionID: "s1"}
 		data, _ := json.Marshal(req)
 		var m map[string]any

@@ -15,17 +15,17 @@ import { promisify } from "util";
 import wordwrap from "wordwrap";
 import {
     cloneSchemaForCodegen,
-    collectExternalSchemaRefNames,
     collectDefinitionCollections,
     collectExperimentalOnlyRpcReferencedDefinitionNames,
+    collectExternalSchemaRefNames,
     collectReachableDefinitionNames,
     collectRpcMethodReferencedDefinitionNames,
     filterNodeByVisibility,
-    fixNullableRequiredRefsInApiSchema,
     findSharedSchemaDefinitions,
+    fixNullableRequiredRefsInApiSchema,
     getApiSchemaPath,
-    getNullableInner,
     getEnumValueDescriptions,
+    getNullableInner,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     getSessionEventVariantSchemas,
@@ -44,10 +44,10 @@ import {
     postProcessSchema,
     propagateInternalVisibility,
     refTypeName,
+    REPO_ROOT,
     resolveObjectSchema,
     resolveRef,
     resolveSchema,
-    REPO_ROOT,
     rewriteSharedDefinitionReferences,
     writeGeneratedFile,
     type ApiSchema,
@@ -73,15 +73,29 @@ const EXTERNAL_SCHEMA_GO_IMPORT: Record<string, GoExternalSchemaImport> = {
 // ── Utilities ───────────────────────────────────────────────────────────────
 
 // Go initialisms that should be all-caps
-const goInitialisms = new Set(["id", "ui", "uri", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc", "mime"]);
+const goInitialisms = new Set(["id", "ui", "uri", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc", "mime", "mcp", "sse", "ado", "cli", "gh", "hmac", "fs", "utc", "sdk"]);
+const goIdentifierCasingOverrides = new Map<string, string>([
+    ["github", "GitHub"],
+    ["urls", "URLs"],
+    ["uris", "URIs"],
+    ["ids", "IDs"],
+]);
 const goCommentTextWrapLength = 90;
 const wrapGoCommentText = wordwrap(goCommentTextWrapLength);
+
+function goIdentifierWord(word: string, normalizeRest = false): string {
+    const lower = word.toLowerCase();
+    const override = goIdentifierCasingOverrides.get(lower);
+    if (override) return override;
+    if (goInitialisms.has(lower)) return word.toUpperCase();
+    return word.charAt(0).toUpperCase() + (normalizeRest ? word.slice(1).toLowerCase() : word.slice(1));
+}
 
 function toPascalCase(s: string): string {
     return s
         .split(/[^A-Za-z0-9]+/)
         .filter((word) => word.length > 0)
-        .map((w) => goInitialisms.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))
+        .map((w) => goIdentifierWord(w))
         .join("");
 }
 
@@ -96,7 +110,7 @@ function toGoSchemaTypeName(s: string): string {
 function toGoFieldName(jsonName: string): string {
     // Handle camelCase field names like "modelId" -> "ModelID"
     return splitGoIdentifierWords(jsonName)
-        .map((w) => goInitialisms.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .map((w) => goIdentifierWord(w, true))
         .join("");
 }
 
@@ -738,11 +752,7 @@ function getOrCreateGoEnum(
 
 function goEnumConstSuffix(value: string): string {
     const suffix = splitGoIdentifierWords(value)
-        .map((word) =>
-            goInitialisms.has(word.toLowerCase())
-                ? word.toUpperCase()
-                : word.charAt(0).toUpperCase() + word.slice(1)
-        )
+        .map((word) => goIdentifierWord(word))
         .join("");
     return suffix || "Value";
 }
@@ -3133,11 +3143,7 @@ export function generateGoSessionEventsCode(
         lines.push(``);
         const constName = "SessionEventType" + variant.typeName
             .split(/[._]/)
-            .map((w) =>
-                goInitialisms.has(w.toLowerCase())
-                    ? w.toUpperCase()
-                    : w.charAt(0).toUpperCase() + w.slice(1)
-            )
+            .map((w) => goIdentifierWord(w))
             .join("");
         lines.push(`func (*${variant.dataClassName}) sessionEventData() {}`);
         lines.push(`func (*${variant.dataClassName}) Type() SessionEventType { return ${constName} }`);
@@ -3155,11 +3161,7 @@ export function generateGoSessionEventsCode(
         .map((variant) => ({
             constName: "SessionEventType" + variant.typeName
                 .split(/[._]/)
-                .map((w) =>
-                    goInitialisms.has(w.toLowerCase())
-                        ? w.toUpperCase()
-                        : w.charAt(0).toUpperCase() + w.slice(1)
-                )
+                .map((w) => goIdentifierWord(w))
                 .join(""),
             typeName: variant.typeName,
         }))
@@ -3226,11 +3228,7 @@ export function generateGoSessionEventsCode(
         .map((variant) => ({
             constName: "SessionEventType" + variant.typeName
                 .split(/[._]/)
-                .map((w) =>
-                    goInitialisms.has(w.toLowerCase())
-                        ? w.toUpperCase()
-                        : w.charAt(0).toUpperCase() + w.slice(1)
-                )
+                .map((w) => goIdentifierWord(w))
                 .join(""),
             dataClassName: variant.dataClassName,
         }))
@@ -3978,15 +3976,15 @@ function emitApiGroup(
     }
 
     for (const [subGroupName, subGroupNode] of subGroups) {
-        const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        const subApiName = apiName.replace(/API$/, "") + toGoFieldName(subGroupName) + "API";
         const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
         const subGroupDeprecated = isNodeFullyDeprecated(subGroupNode as Record<string, unknown>);
         emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, unionInfos, subGroupExperimental, subGroupDeprecated);
 
         if (subGroupExperimental) {
-            pushGoExperimentalSubApiComment(lines, toPascalCase(subGroupName));
+            pushGoExperimentalSubApiComment(lines, toGoFieldName(subGroupName));
         }
-        lines.push(`func (s *${apiName}) ${toPascalCase(subGroupName)}() *${subApiName} {`);
+        lines.push(`func (s *${apiName}) ${toGoFieldName(subGroupName)}() *${subApiName} {`);
         lines.push(`\treturn (*${subApiName})(s)`);
         lines.push(`}`);
         lines.push(``);
@@ -3997,13 +3995,13 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     const groups = sortByPascalName(Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v)));
     const topLevelMethods = sortByPascalName(Object.entries(node).filter(([, v]) => isRpcMethod(v)));
 
-    const wrapperName = classPrefix + (isSession ? "SessionRpc" : "ServerRpc");
-    const apiSuffix = "Api";
+    const wrapperName = classPrefix + (isSession ? "SessionRPC" : "ServerRPC");
+    const apiSuffix = "API";
     // Lowercase the prefix so the unexported service struct stays unexported in Go.
     const prefixLower = classPrefix ? classPrefix.charAt(0).toLowerCase() + classPrefix.slice(1) : "";
     const serviceName = prefixLower
-        ? prefixLower + (isSession ? "SessionApi" : "ServerApi")
-        : (isSession ? "sessionApi" : "serverApi");
+        ? prefixLower + (isSession ? "SessionAPI" : "ServerAPI")
+        : (isSession ? "sessionAPI" : "serverAPI");
 
     // Emit the common service struct (unexported, shared by all API groups via type cast)
     lines.push(`type ${serviceName} struct {`);
@@ -4015,14 +4013,14 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     // Emit API types for groups
     for (const [groupName, groupNode] of groups) {
         const prefix = classPrefix + (isSession ? "" : "Server");
-        const apiName = prefix + toPascalCase(groupName) + apiSuffix;
+        const apiName = prefix + toGoFieldName(groupName) + apiSuffix;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
         const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
         emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, unionInfos, groupExperimental, groupDeprecated);
     }
 
     // Compute field name lengths for gofmt-compatible column alignment
-    const groupPascalNames = groups.map(([g]) => toPascalCase(g));
+    const groupPascalNames = groups.map(([g]) => toGoFieldName(g));
     const allFieldNames = ["common", ...groupPascalNames];
     const maxFieldLen = Math.max(...allFieldNames.map((n) => n.length));
     const pad = (name: string) => name.padEnd(maxFieldLen);
@@ -4040,7 +4038,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
     for (const [groupName] of groups) {
         const prefix = classPrefix + (isSession ? "" : "Server");
-        lines.push(`\t${pad(toPascalCase(groupName))} *${prefix}${toPascalCase(groupName)}${apiSuffix}`);
+        lines.push(`\t${pad(toGoFieldName(groupName))} *${prefix}${toGoFieldName(groupName)}${apiSuffix}`);
     }
     lines.push(`}`);
     lines.push(``);
@@ -4062,7 +4060,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     }
     for (const [groupName] of groups) {
         const prefix = classPrefix + (isSession ? "" : "Server");
-        lines.push(`\tr.${toPascalCase(groupName)} = (*${prefix}${toPascalCase(groupName)}${apiSuffix})(&r.common)`);
+        lines.push(`\tr.${toGoFieldName(groupName)} = (*${prefix}${toGoFieldName(groupName)}${apiSuffix})(&r.common)`);
     }
     lines.push(`\treturn r`);
     lines.push(`}`);
@@ -4192,7 +4190,7 @@ function collectClientGroups(node: Record<string, unknown>): ClientGroup[] {
 }
 
 function clientHandlerInterfaceName(groupName: string): string {
-    return `${toPascalCase(groupName)}Handler`;
+    return `${toGoFieldName(groupName)}Handler`;
 }
 
 function clientHandlerMethodName(rpcMethod: string): string {
@@ -4247,10 +4245,10 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
         lines.push(``);
     }
 
-    lines.push(`// ClientSessionApiHandlers provides all client session API handler groups for a session.`);
-    lines.push(`type ClientSessionApiHandlers struct {`);
+    lines.push(`// ClientSessionAPIHandlers provides all client session API handler groups for a session.`);
+    lines.push(`type ClientSessionAPIHandlers struct {`);
     for (const { groupName } of groups) {
-        lines.push(`\t${toPascalCase(groupName)} ${clientHandlerInterfaceName(groupName)}`);
+        lines.push(`\t${toGoFieldName(groupName)} ${clientHandlerInterfaceName(groupName)}`);
     }
     lines.push(`}`);
     lines.push(``);
@@ -4267,10 +4265,10 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
     lines.push(`}`);
     lines.push(``);
 
-    lines.push(`// RegisterClientSessionApiHandlers registers handlers for server-to-client session API calls.`);
-    lines.push(`func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionApiHandlers) {`);
+    lines.push(`// RegisterClientSessionAPIHandlers registers handlers for server-to-client session API calls.`);
+    lines.push(`func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionAPIHandlers) {`);
     for (const { groupName, methods } of groups) {
-        const handlerField = toPascalCase(groupName);
+        const handlerField = toGoFieldName(groupName);
         for (const method of methods) {
             const paramsType = resolveType(goParamsTypeName(method));
             lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);

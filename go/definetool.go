@@ -159,7 +159,7 @@ func ConvertMCPCallToolResult(value any) (ToolResult, bool) {
 			}
 			binaryResults = append(binaryResults, ToolBinaryResult{
 				Data:     data,
-				MimeType: mimeType,
+				MIMEType: mimeType,
 				Type:     "image",
 			})
 		case "resource":
@@ -175,7 +175,7 @@ func ConvertMCPCallToolResult(value any) (ToolResult, bool) {
 					uri, _ := resRaw["uri"].(string)
 					binaryResults = append(binaryResults, ToolBinaryResult{
 						Data:        blob,
-						MimeType:    mimeType,
+						MIMEType:    mimeType,
 						Type:        "resource",
 						Description: uri,
 					})

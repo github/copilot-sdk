@@ -84,8 +84,8 @@ func TestFilterMappingJSONUnion(t *testing.T) {
 	}
 }
 
-func TestMcpServerConfigJSONUnion(t *testing.T) {
-	var localConfig McpServerConfig = &McpServerConfigStdio{
+func TestMCPServerConfigJSONUnion(t *testing.T) {
+	var localConfig MCPServerConfig = &MCPServerConfigStdio{
 		Args:    []string{"-v"},
 		Command: "node",
 	}
@@ -97,16 +97,16 @@ func TestMcpServerConfigJSONUnion(t *testing.T) {
 		t.Fatalf("marshal local config = %s", raw)
 	}
 
-	decodedLocal, err := unmarshalMcpServerConfig([]byte(`{"args":["-v"],"command":"node"}`))
+	decodedLocal, err := unmarshalMCPServerConfig([]byte(`{"args":["-v"],"command":"node"}`))
 	if err != nil {
 		t.Fatalf("unmarshal local config: %v", err)
 	}
-	decodedLocalValue, ok := decodedLocal.(*McpServerConfigStdio)
+	decodedLocalValue, ok := decodedLocal.(*MCPServerConfigStdio)
 	if !ok || decodedLocalValue.Command != "node" || len(decodedLocalValue.Args) != 1 || decodedLocalValue.Args[0] != "-v" {
 		t.Fatalf("unmarshal local config = %#v", decodedLocal)
 	}
 
-	var httpConfig McpServerConfig = &McpServerConfigHTTP{URL: "https://example.com/mcp"}
+	var httpConfig MCPServerConfig = &MCPServerConfigHTTP{URL: "https://example.com/mcp"}
 	raw, err = json.Marshal(httpConfig)
 	if err != nil {
 		t.Fatalf("marshal HTTP config: %v", err)
@@ -115,21 +115,21 @@ func TestMcpServerConfigJSONUnion(t *testing.T) {
 		t.Fatalf("marshal HTTP config = %s", raw)
 	}
 
-	decodedHTTP, err := unmarshalMcpServerConfig([]byte(`{"url":"https://example.com/mcp"}`))
+	decodedHTTP, err := unmarshalMCPServerConfig([]byte(`{"url":"https://example.com/mcp"}`))
 	if err != nil {
 		t.Fatalf("unmarshal HTTP config: %v", err)
 	}
-	decodedHTTPValue, ok := decodedHTTP.(*McpServerConfigHTTP)
+	decodedHTTPValue, ok := decodedHTTP.(*MCPServerConfigHTTP)
 	if !ok || decodedHTTPValue.URL != "https://example.com/mcp" {
 		t.Fatalf("unmarshal HTTP config = %#v", decodedHTTP)
 	}
 
-	decodedRaw, err := unmarshalMcpServerConfig([]byte(`{"name":"future"}`))
+	decodedRaw, err := unmarshalMCPServerConfig([]byte(`{"name":"future"}`))
 	if err != nil {
 		t.Fatalf("unmarshal raw config: %v", err)
 	}
-	if _, ok := decodedRaw.(*RawMcpServerConfigData); !ok {
-		t.Fatalf("unmarshal raw config = %T, want *RawMcpServerConfigData", decodedRaw)
+	if _, ok := decodedRaw.(*RawMCPServerConfigData); !ok {
+		t.Fatalf("unmarshal raw config = %T, want *RawMCPServerConfigData", decodedRaw)
 	}
 }
 
@@ -195,7 +195,7 @@ func TestCommandsInvokeUnmarshalsSlashCommandInvocationResult(t *testing.T) {
 	})
 
 	input := "details"
-	result, err := NewSessionRpc(client, "session-1").Commands.Invoke(t.Context(), &CommandsInvokeRequest{
+	result, err := NewSessionRPC(client, "session-1").Commands.Invoke(t.Context(), &CommandsInvokeRequest{
 		Input: &input,
 		Name:  "help",
 	})

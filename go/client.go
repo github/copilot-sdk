@@ -52,18 +52,18 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-func validateSessionFsConfig(config *SessionFsConfig) error {
+func validateSessionFSConfig(config *SessionFSConfig) error {
 	if config == nil {
 		return nil
 	}
 	if config.InitialWorkingDirectory == "" {
-		return errors.New("SessionFs.InitialWorkingDirectory is required")
+		return errors.New("SessionFS.InitialWorkingDirectory is required")
 	}
 	if config.SessionStatePath == "" {
-		return errors.New("SessionFs.SessionStatePath is required")
+		return errors.New("SessionFS.SessionStatePath is required")
 	}
-	if config.Conventions != rpc.SessionFsSetProviderConventionsPosix && config.Conventions != rpc.SessionFsSetProviderConventionsWindows {
-		return errors.New("SessionFs.Conventions must be either 'posix' or 'windows'")
+	if config.Conventions != rpc.SessionFSSetProviderConventionsPosix && config.Conventions != rpc.SessionFSSetProviderConventionsWindows {
+		return errors.New("SessionFS.Conventions must be either 'posix' or 'windows'")
 	}
 	return nil
 }
@@ -80,7 +80,7 @@ func validateSessionFsConfig(config *SessionFsConfig) error {
 //
 //	// Or connect to an existing server
 //	client := copilot.NewClient(&copilot.ClientOptions{
-//	    CLIUrl: "localhost:3000",
+//	    Connection: copilot.UriConnection{URL: "localhost:3000"},
 //	})
 //
 //	if err := client.Start(); err != nil {
@@ -123,11 +123,11 @@ type Client struct {
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
-	RPC *rpc.ServerRpc
+	RPC *rpc.ServerRPC
 
 	// internalRPC provides SDK-internal RPC methods (handshake helpers etc.).
 	// Lowercase = not exported; external callers cannot reach it.
-	internalRPC *rpc.InternalServerRpc
+	internalRPC *rpc.InternalServerRPC
 }
 
 // NewClient creates a new Copilot runtime client with the given options.
@@ -192,7 +192,7 @@ func NewClient(options *ClientOptions) *Client {
 		if conn.URL == "" {
 			panic("UriConnection requires a non-empty URL")
 		}
-		host, port := parseCliUrl(conn.URL)
+		host, port := parseCLIURL(conn.URL)
 		client.actualHost = host
 		client.actualPort = port
 		client.isExternalServer = true
@@ -230,8 +230,8 @@ func NewClient(options *ClientOptions) *Client {
 	if opts.OnListModels != nil {
 		client.onListModels = opts.OnListModels
 	}
-	if opts.SessionFs != nil {
-		if err := validateSessionFsConfig(opts.SessionFs); err != nil {
+	if opts.SessionFS != nil {
+		if err := validateSessionFSConfig(opts.SessionFS); err != nil {
 			panic(err.Error())
 		}
 	}
@@ -266,19 +266,19 @@ func setEnvValue(env []string, key string, value string) []string {
 	return append(filtered, key+"="+value)
 }
 
-// parseCliUrl parses a CLI URL into host and port components.
+// parseCLIURL parses a CLI URL into host and port components.
 //
 // Supports formats: "host:port", "http://host:port", "https://host:port", or just "port".
 // Panics if the URL format is invalid or the port is out of range.
-func parseCliUrl(url string) (string, int) {
+func parseCLIURL(url string) (string, int) {
 	// Remove protocol if present
-	cleanUrl, _ := strings.CutPrefix(url, "https://")
-	cleanUrl, _ = strings.CutPrefix(cleanUrl, "http://")
+	cleanURL, _ := strings.CutPrefix(url, "https://")
+	cleanURL, _ = strings.CutPrefix(cleanURL, "http://")
 
 	// Parse host:port or port format
 	var host string
 	var portStr string
-	if before, after, found := strings.Cut(cleanUrl, ":"); found {
+	if before, after, found := strings.Cut(cleanURL, ":"); found {
 		host = before
 		portStr = after
 	} else {
@@ -293,7 +293,7 @@ func parseCliUrl(url string) (string, int) {
 	// Validate port
 	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 || port > 65535 {
-		panic(fmt.Sprintf("Invalid port in CLIUrl: %s", url))
+		panic(fmt.Sprintf("Invalid port in CLI URL: %s", url))
 	}
 
 	return host, port
@@ -302,7 +302,7 @@ func parseCliUrl(url string) (string, int) {
 // Start starts the CLI server (if not using an external server) and establishes
 // a connection.
 //
-// If connecting to an external server (via CLIUrl), only establishes the connection.
+// If connecting to an external server (via UriConnection), only establishes the connection.
 // Otherwise, spawns the CLI server process and then connects.
 //
 // This method is called automatically when creating a session if AutoStart is true (default).
@@ -350,19 +350,19 @@ func (c *Client) Start(ctx context.Context) error {
 	}
 
 	// If a session filesystem provider was configured, register it.
-	if c.options.SessionFs != nil {
-		req := &rpc.SessionFsSetProviderRequest{
-			InitialCwd:       c.options.SessionFs.InitialWorkingDirectory,
-			SessionStatePath: c.options.SessionFs.SessionStatePath,
-			Conventions:      c.options.SessionFs.Conventions,
+	if c.options.SessionFS != nil {
+		req := &rpc.SessionFSSetProviderRequest{
+			InitialCwd:       c.options.SessionFS.InitialWorkingDirectory,
+			SessionStatePath: c.options.SessionFS.SessionStatePath,
+			Conventions:      c.options.SessionFS.Conventions,
 		}
-		if c.options.SessionFs.Capabilities != nil {
-			sqlite := c.options.SessionFs.Capabilities.Sqlite
-			req.Capabilities = &rpc.SessionFsSetProviderCapabilities{
+		if c.options.SessionFS.Capabilities != nil {
+			sqlite := c.options.SessionFS.Capabilities.Sqlite
+			req.Capabilities = &rpc.SessionFSSetProviderCapabilities{
 				Sqlite: &sqlite,
 			}
 		}
-		_, err := c.RPC.SessionFs.SetProvider(ctx, req)
+		_, err := c.RPC.SessionFS.SetProvider(ctx, req)
 		if err != nil {
 			killErr := c.killProcess()
 			c.state = stateError
@@ -655,7 +655,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Canvases = config.Canvases
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
-	req.ExtensionSdkPath = config.ExtensionSdkPath
+	req.ExtensionSDKPath = config.ExtensionSDKPath
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -673,8 +673,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.OnAutoModeSwitchRequest != nil {
 		req.RequestAutoModeSwitch = Bool(true)
 	}
-	if config.EnableMcpApps {
-		req.RequestMcpApps = Bool(true)
+	if config.EnableMCPApps {
+		req.RequestMCPApps = Bool(true)
 	}
 
 	if config.Streaming != nil {
@@ -689,7 +689,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.RequestUserInput = Bool(true)
 	}
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
-		config.Hooks.OnPreMcpToolCall != nil ||
+		config.Hooks.OnPreMCPToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
@@ -766,23 +766,23 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		c.sessions[sessionID] = s
 		c.sessionsMux.Unlock()
 
-		if c.options.SessionFs != nil {
-			if config.CreateSessionFsProvider == nil {
+		if c.options.SessionFS != nil {
+			if config.CreateSessionFSProvider == nil {
 				c.sessionsMux.Lock()
 				delete(c.sessions, sessionID)
 				c.sessionsMux.Unlock()
-				return nil, fmt.Errorf("CreateSessionFsProvider is required in session config when SessionFs is enabled in client options")
+				return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
 			}
-			provider := config.CreateSessionFsProvider(s)
-			if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
-				if _, ok := provider.(SessionFsSqliteProvider); !ok {
+			provider := config.CreateSessionFSProvider(s)
+			if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Sqlite {
+				if _, ok := provider.(SessionFSSqliteProvider); !ok {
 					c.sessionsMux.Lock()
 					delete(c.sessions, sessionID)
 					c.sessionsMux.Unlock()
-					return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
+					return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
 				}
 			}
-			s.clientSessionApis.SessionFs = newSessionFsAdapter(provider)
+			s.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
 		}
 		return s, nil
 	}
@@ -949,7 +949,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.RequestUserInput = Bool(true)
 	}
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
-		config.Hooks.OnPreMcpToolCall != nil ||
+		config.Hooks.OnPreMCPToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
@@ -995,7 +995,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.OpenCanvases = config.OpenCanvases
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
-	req.ExtensionSdkPath = config.ExtensionSdkPath
+	req.ExtensionSDKPath = config.ExtensionSDKPath
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -1016,8 +1016,8 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.OnAutoModeSwitchRequest != nil {
 		req.RequestAutoModeSwitch = Bool(true)
 	}
-	if config.EnableMcpApps {
-		req.RequestMcpApps = Bool(true)
+	if config.EnableMCPApps {
+		req.RequestMCPApps = Bool(true)
 	}
 
 	traceparent, tracestate := getTraceContext(ctx)
@@ -1062,23 +1062,23 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
 
-	if c.options.SessionFs != nil {
-		if config.CreateSessionFsProvider == nil {
+	if c.options.SessionFS != nil {
+		if config.CreateSessionFSProvider == nil {
 			c.sessionsMux.Lock()
 			delete(c.sessions, sessionID)
 			c.sessionsMux.Unlock()
-			return nil, fmt.Errorf("CreateSessionFsProvider is required in session config when SessionFs is enabled in client options")
+			return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
 		}
-		provider := config.CreateSessionFsProvider(session)
-		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
-			if _, ok := provider.(SessionFsSqliteProvider); !ok {
+		provider := config.CreateSessionFSProvider(session)
+		if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Sqlite {
+			if _, ok := provider.(SessionFSSqliteProvider); !ok {
 				c.sessionsMux.Lock()
 				delete(c.sessions, sessionID)
 				c.sessionsMux.Unlock()
-				return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
+				return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
 			}
 		}
-		session.clientSessionApis.SessionFs = newSessionFsAdapter(provider)
+		session.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
 	}
 
 	result, err := c.client.Request("session.resume", req)
@@ -1562,7 +1562,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	if c.client == nil {
 		return fmt.Errorf("client not connected")
 	}
-	maxVersion := GetSdkProtocolVersion()
+	maxVersion := GetSDKProtocolVersion()
 
 	var serverVersion *int
 	tokenPtr := (*string)(nil)
@@ -1751,8 +1751,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 				c.state = stateDisconnected
 			}()
 		})
-		c.RPC = rpc.NewServerRpc(c.client)
-		c.internalRPC = rpc.NewInternalServerRpc(c.client)
+		c.RPC = rpc.NewServerRPC(c.client)
+		c.internalRPC = rpc.NewInternalServerRPC(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()
 
@@ -1904,8 +1904,8 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 			c.state = stateDisconnected
 		}()
 	})
-	c.RPC = rpc.NewServerRpc(c.client)
-	c.internalRPC = rpc.NewInternalServerRpc(c.client)
+	c.RPC = rpc.NewServerRPC(c.client)
+	c.internalRPC = rpc.NewInternalServerRPC(c.client)
 	c.setupNotificationHandler()
 	c.client.Start()
 
@@ -1921,14 +1921,14 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
-	rpc.RegisterClientSessionApiHandlers(c.client, func(sessionID string) *rpc.ClientSessionApiHandlers {
+	rpc.RegisterClientSessionAPIHandlers(c.client, func(sessionID string) *rpc.ClientSessionAPIHandlers {
 		c.sessionsMux.Lock()
 		defer c.sessionsMux.Unlock()
 		session := c.sessions[sessionID]
 		if session == nil {
 			return nil
 		}
-		return session.clientSessionApis
+		return session.clientSessionAPIs
 	})
 }
 

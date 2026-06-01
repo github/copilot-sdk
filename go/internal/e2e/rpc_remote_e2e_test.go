@@ -11,7 +11,7 @@ import (
 )
 
 // Mirrors dotnet/test/E2E/RpcRemoteE2ETests.cs (snapshot category "rpc_remote").
-func TestRpcRemoteE2E(t *testing.T) {
+func TestRPCRemoteE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

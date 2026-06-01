@@ -10,7 +10,7 @@ import (
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
 )
 
-func TestPreMcpToolCallHookE2E(t *testing.T) {
+func TestPreMCPToolCallHookE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -35,18 +35,18 @@ func TestPreMcpToolCallHookE2E(t *testing.T) {
 
 		var (
 			mu     sync.Mutex
-			inputs []copilot.PreMcpToolCallHookInput
+			inputs []copilot.PreMCPToolCallHookInput
 		)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			MCPServers:          metaEchoConfig(),
 			Hooks: &copilot.SessionHooks{
-				OnPreMcpToolCall: func(input copilot.PreMcpToolCallHookInput, invocation copilot.HookInvocation) (*copilot.PreMcpToolCallHookOutput, error) {
+				OnPreMCPToolCall: func(input copilot.PreMCPToolCallHookInput, invocation copilot.HookInvocation) (*copilot.PreMCPToolCallHookOutput, error) {
 					mu.Lock()
 					inputs = append(inputs, input)
 					mu.Unlock()
-					return &copilot.PreMcpToolCallHookOutput{
+					return &copilot.PreMCPToolCallHookOutput{
 						MetaToUse: map[string]any{
 							"injected": "by-hook",
 							"source":   "test",
@@ -98,18 +98,18 @@ func TestPreMcpToolCallHookE2E(t *testing.T) {
 
 		var (
 			mu     sync.Mutex
-			inputs []copilot.PreMcpToolCallHookInput
+			inputs []copilot.PreMCPToolCallHookInput
 		)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			MCPServers:          metaEchoConfig(),
 			Hooks: &copilot.SessionHooks{
-				OnPreMcpToolCall: func(input copilot.PreMcpToolCallHookInput, invocation copilot.HookInvocation) (*copilot.PreMcpToolCallHookOutput, error) {
+				OnPreMCPToolCall: func(input copilot.PreMCPToolCallHookInput, invocation copilot.HookInvocation) (*copilot.PreMCPToolCallHookOutput, error) {
 					mu.Lock()
 					inputs = append(inputs, input)
 					mu.Unlock()
-					return &copilot.PreMcpToolCallHookOutput{
+					return &copilot.PreMCPToolCallHookOutput{
 						MetaToUse: map[string]any{
 							"completely": "replaced",
 						},
@@ -154,18 +154,18 @@ func TestPreMcpToolCallHookE2E(t *testing.T) {
 
 		var (
 			mu     sync.Mutex
-			inputs []copilot.PreMcpToolCallHookInput
+			inputs []copilot.PreMCPToolCallHookInput
 		)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			MCPServers:          metaEchoConfig(),
 			Hooks: &copilot.SessionHooks{
-				OnPreMcpToolCall: func(input copilot.PreMcpToolCallHookInput, invocation copilot.HookInvocation) (*copilot.PreMcpToolCallHookOutput, error) {
+				OnPreMCPToolCall: func(input copilot.PreMCPToolCallHookInput, invocation copilot.HookInvocation) (*copilot.PreMCPToolCallHookOutput, error) {
 					mu.Lock()
 					inputs = append(inputs, input)
 					mu.Unlock()
-					return &copilot.PreMcpToolCallHookOutput{
+					return &copilot.PreMCPToolCallHookOutput{
 						MetaToUse: nil,
 					}, nil
 				},

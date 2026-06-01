@@ -81,8 +81,8 @@ type AgentInfo struct {
 	ID string `json:"id"`
 	// MCP server configurations attached to this agent, keyed by server name. Server config
 	// shape mirrors the MCP `mcpServers` schema.
-	// Experimental: McpServers is part of an experimental API and may change or be removed.
-	McpServers map[string]any `json:"mcpServers,omitempty"`
+	// Experimental: MCPServers is part of an experimental API and may change or be removed.
+	MCPServers map[string]any `json:"mcpServers,omitempty"`
 	// Preferred model id for this agent. When omitted, inherits the outer agent's model.
 	Model *string `json:"model,omitempty"`
 	// Unique identifier of the custom agent
@@ -421,13 +421,13 @@ func (AttachmentFile) Type() AttachmentType {
 }
 
 // GitHub issue, pull request, or discussion reference
-// Experimental: AttachmentGithubReference is part of an experimental API and may change or
+// Experimental: AttachmentGitHubReference is part of an experimental API and may change or
 // be removed.
-type AttachmentGithubReference struct {
+type AttachmentGitHubReference struct {
 	// Issue, pull request, or discussion number
 	Number int64 `json:"number"`
 	// Type of GitHub reference
-	ReferenceType AttachmentGithubReferenceType `json:"referenceType"`
+	ReferenceType AttachmentGitHubReferenceType `json:"referenceType"`
 	// Current state of the referenced item (e.g., open, closed, merged)
 	State string `json:"state"`
 	// Title of the referenced item
@@ -436,9 +436,9 @@ type AttachmentGithubReference struct {
 	URL string `json:"url"`
 }
 
-func (AttachmentGithubReference) attachment() {}
-func (AttachmentGithubReference) Type() AttachmentType {
-	return AttachmentTypeGithubReference
+func (AttachmentGitHubReference) attachment() {}
+func (AttachmentGitHubReference) Type() AttachmentType {
+	return AttachmentTypeGitHubReference
 }
 
 // Code selection attachment from an editor
@@ -580,8 +580,8 @@ func (EnvAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `GhCliAuthInfo` type.
-// Experimental: GhCliAuthInfo is part of an experimental API and may change or be removed.
-type GhCliAuthInfo struct {
+// Experimental: GHCLIAuthInfo is part of an experimental API and may change or be removed.
+type GHCLIAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
 	// verbatim and does not re-fetch when set.
@@ -594,9 +594,9 @@ type GhCliAuthInfo struct {
 	Token string `json:"token"`
 }
 
-func (GhCliAuthInfo) authInfo() {}
-func (GhCliAuthInfo) Type() AuthInfoType {
-	return AuthInfoTypeGhCli
+func (GHCLIAuthInfo) authInfo() {}
+func (GHCLIAuthInfo) Type() AuthInfoType {
+	return AuthInfoTypeGHCLI
 }
 
 // Schema for the `HMACAuthInfo` type.
@@ -607,14 +607,14 @@ type HMACAuthInfo struct {
 	// verbatim and does not re-fetch when set.
 	CopilotUser *CopilotUserResponse `json:"copilotUser,omitempty"`
 	// HMAC secret used to sign requests.
-	Hmac string `json:"hmac"`
+	HMAC string `json:"hmac"`
 	// Authentication host. HMAC auth always targets the public GitHub host.
 	Host HMACAuthInfoHost `json:"host"`
 }
 
 func (HMACAuthInfo) authInfo() {}
 func (HMACAuthInfo) Type() AuthInfoType {
-	return AuthInfoTypeHmac
+	return AuthInfoTypeHMAC
 }
 
 // Schema for the `TokenAuthInfo` type.
@@ -973,14 +973,14 @@ type CopilotUserResponse struct {
 	AssignedDate               *string `json:"assigned_date,omitempty"`
 	CanSignupForLimited        *bool   `json:"can_signup_for_limited,omitempty"`
 	ChatEnabled                *bool   `json:"chat_enabled,omitempty"`
-	CliRemoteControlEnabled    *bool   `json:"cli_remote_control_enabled,omitempty"`
+	CLIRemoteControlEnabled    *bool   `json:"cli_remote_control_enabled,omitempty"`
 	CloudSessionStorageEnabled *bool   `json:"cloud_session_storage_enabled,omitempty"`
 	CodexAgentEnabled          *bool   `json:"codex_agent_enabled,omitempty"`
 	CopilotignoreEnabled       *bool   `json:"copilotignore_enabled,omitempty"`
 	CopilotPlan                *string `json:"copilot_plan,omitempty"`
 	// Schema for the `CopilotUserResponseEndpoints` type.
 	Endpoints             *CopilotUserResponseEndpoints             `json:"endpoints,omitempty"`
-	IsMcpEnabled          *bool                                     `json:"is_mcp_enabled,omitempty"`
+	IsMCPEnabled          *bool                                     `json:"is_mcp_enabled,omitempty"`
 	LimitedUserQuotas     map[string]float64                        `json:"limited_user_quotas,omitempty"`
 	LimitedUserResetDate  *string                                   `json:"limited_user_reset_date,omitempty"`
 	Login                 *string                                   `json:"login,omitempty"`
@@ -988,7 +988,7 @@ type CopilotUserResponse struct {
 	OrganizationList      []CopilotUserResponseOrganizationListItem `json:"organization_list,omitempty"`
 	OrganizationLoginList []string                                  `json:"organization_login_list,omitempty"`
 	QuotaResetDate        *string                                   `json:"quota_reset_date,omitempty"`
-	QuotaResetDateUtc     *string                                   `json:"quota_reset_date_utc,omitempty"`
+	QuotaResetDateUTC     *string                                   `json:"quota_reset_date_utc,omitempty"`
 	// Schema for the `CopilotUserResponseQuotaSnapshots` type.
 	QuotaSnapshots      *CopilotUserResponseQuotaSnapshots `json:"quota_snapshots,omitempty"`
 	RestrictedTelemetry *bool                              `json:"restricted_telemetry,omitempty"`
@@ -1035,7 +1035,7 @@ type CopilotUserResponseQuotaSnapshotsChat struct {
 	QuotaRemaining    *float64 `json:"quota_remaining,omitempty"`
 	QuotaResetAt      *float64 `json:"quota_reset_at,omitempty"`
 	Remaining         *float64 `json:"remaining,omitempty"`
-	TimestampUtc      *string  `json:"timestamp_utc,omitempty"`
+	TimestampUTC      *string  `json:"timestamp_utc,omitempty"`
 	TokenBasedBilling *bool    `json:"token_based_billing,omitempty"`
 	Unlimited         *bool    `json:"unlimited,omitempty"`
 }
@@ -1053,7 +1053,7 @@ type CopilotUserResponseQuotaSnapshotsCompletions struct {
 	QuotaRemaining    *float64 `json:"quota_remaining,omitempty"`
 	QuotaResetAt      *float64 `json:"quota_reset_at,omitempty"`
 	Remaining         *float64 `json:"remaining,omitempty"`
-	TimestampUtc      *string  `json:"timestamp_utc,omitempty"`
+	TimestampUTC      *string  `json:"timestamp_utc,omitempty"`
 	TokenBasedBilling *bool    `json:"token_based_billing,omitempty"`
 	Unlimited         *bool    `json:"unlimited,omitempty"`
 }
@@ -1071,7 +1071,7 @@ type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 	QuotaRemaining    *float64 `json:"quota_remaining,omitempty"`
 	QuotaResetAt      *float64 `json:"quota_reset_at,omitempty"`
 	Remaining         *float64 `json:"remaining,omitempty"`
-	TimestampUtc      *string  `json:"timestamp_utc,omitempty"`
+	TimestampUTC      *string  `json:"timestamp_utc,omitempty"`
 	TokenBasedBilling *bool    `json:"token_based_billing,omitempty"`
 	Unlimited         *bool    `json:"unlimited,omitempty"`
 }
@@ -1102,9 +1102,9 @@ type CurrentToolMetadata struct {
 	// JSON Schema for tool input
 	InputSchema map[string]any `json:"input_schema,omitempty"`
 	// MCP server name for MCP-backed tools
-	McpServerName *string `json:"mcpServerName,omitempty"`
+	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Raw MCP tool name for MCP-backed tools
-	McpToolName *string `json:"mcpToolName,omitempty"`
+	MCPToolName *string `json:"mcpToolName,omitempty"`
 	// Model-facing tool name
 	Name string `json:"name"`
 	// Optional MCP/config namespaced tool name
@@ -1132,15 +1132,15 @@ type DiscoveredCanvas struct {
 }
 
 // Schema for the `DiscoveredMcpServer` type.
-type DiscoveredMcpServer struct {
+type DiscoveredMCPServer struct {
 	// Whether the server is enabled (not in the disabled list)
 	Enabled bool `json:"enabled"`
 	// Server name (config key)
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
-	Source McpServerSource `json:"source"`
+	Source MCPServerSource `json:"source"`
 	// Server transport type: stdio, http, sse (deprecated), or memory
-	Type *DiscoveredMcpServerType `json:"type,omitempty"`
+	Type *DiscoveredMCPServerType `json:"type,omitempty"`
 }
 
 // Slash-prefixed command string to enqueue for FIFO processing.
@@ -1700,21 +1700,21 @@ type InstalledPlugin struct {
 // Experimental: InstalledPluginSource is part of an experimental API and may change or be
 // removed.
 type InstalledPluginSource struct {
-	InstalledPluginSourceGithub *InstalledPluginSourceGithub
+	InstalledPluginSourceGitHub *InstalledPluginSourceGitHub
 	InstalledPluginSourceLocal  *InstalledPluginSourceLocal
 	InstalledPluginSourceURL    *InstalledPluginSourceURL
 	String                      *string
 }
 
 // Schema for the `InstalledPluginSourceGithub` type.
-// Experimental: InstalledPluginSourceGithub is part of an experimental API and may change
+// Experimental: InstalledPluginSourceGitHub is part of an experimental API and may change
 // or be removed.
-type InstalledPluginSourceGithub struct {
+type InstalledPluginSourceGitHub struct {
 	Path *string `json:"path,omitempty"`
 	Ref  *string `json:"ref,omitempty"`
 	Repo string  `json:"repo"`
 	// Constant value. Always "github".
-	Source InstalledPluginSourceGithubSource `json:"source"`
+	Source InstalledPluginSourceGitHubSource `json:"source"`
 }
 
 // Schema for the `InstalledPluginSourceLocal` type.
@@ -1813,9 +1813,9 @@ type LspInitializeRequest struct {
 }
 
 // MCP server, tool name, and arguments to invoke from an MCP App view.
-// Experimental: McpAppsCallToolRequest is part of an experimental API and may change or be
+// Experimental: MCPAppsCallToolRequest is part of an experimental API and may change or be
 // removed.
-type McpAppsCallToolRequest struct {
+type MCPAppsCallToolRequest struct {
 	// Tool arguments
 	Arguments map[string]any `json:"arguments,omitempty"`
 	// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the
@@ -1829,39 +1829,39 @@ type McpAppsCallToolRequest struct {
 }
 
 // Capability negotiation snapshot
-// Experimental: McpAppsDiagnoseCapability is part of an experimental API and may change or
+// Experimental: MCPAppsDiagnoseCapability is part of an experimental API and may change or
 // be removed.
-type McpAppsDiagnoseCapability struct {
+type MCPAppsDiagnoseCapability struct {
 	// Whether the runtime advertises `extensions.io.modelcontextprotocol/ui` to MCP servers
 	Advertised bool `json:"advertised"`
 	// Whether the MCP_APPS feature flag (or COPILOT_MCP_APPS env override) is on
 	FeatureFlagEnabled bool `json:"featureFlagEnabled"`
 	// Whether the session has the `mcp-apps` capability
-	SessionHasMcpApps bool `json:"sessionHasMcpApps"`
+	SessionHasMCPApps bool `json:"sessionHasMcpApps"`
 }
 
 // MCP server to diagnose MCP Apps wiring for.
-// Experimental: McpAppsDiagnoseRequest is part of an experimental API and may change or be
+// Experimental: MCPAppsDiagnoseRequest is part of an experimental API and may change or be
 // removed.
-type McpAppsDiagnoseRequest struct {
+type MCPAppsDiagnoseRequest struct {
 	// MCP server to probe
 	ServerName string `json:"serverName"`
 }
 
 // Diagnostic snapshot of MCP Apps wiring for the named server.
-// Experimental: McpAppsDiagnoseResult is part of an experimental API and may change or be
+// Experimental: MCPAppsDiagnoseResult is part of an experimental API and may change or be
 // removed.
-type McpAppsDiagnoseResult struct {
+type MCPAppsDiagnoseResult struct {
 	// Capability negotiation snapshot
-	Capability McpAppsDiagnoseCapability `json:"capability"`
+	Capability MCPAppsDiagnoseCapability `json:"capability"`
 	// What the server returned for this session
-	Server McpAppsDiagnoseServer `json:"server"`
+	Server MCPAppsDiagnoseServer `json:"server"`
 }
 
 // What the server returned for this session
-// Experimental: McpAppsDiagnoseServer is part of an experimental API and may change or be
+// Experimental: MCPAppsDiagnoseServer is part of an experimental API and may change or be
 // removed.
-type McpAppsDiagnoseServer struct {
+type MCPAppsDiagnoseServer struct {
 	// Whether the named server is currently connected
 	Connected bool `json:"connected"`
 	// Up to 5 tool names with `_meta.ui` for quick inspection
@@ -1873,27 +1873,27 @@ type McpAppsDiagnoseServer struct {
 }
 
 // Current host context advertised to MCP App guests.
-// Experimental: McpAppsHostContext is part of an experimental API and may change or be
+// Experimental: MCPAppsHostContext is part of an experimental API and may change or be
 // removed.
-type McpAppsHostContext struct {
+type MCPAppsHostContext struct {
 	// Current host context
-	Context McpAppsHostContextDetails `json:"context"`
+	Context MCPAppsHostContextDetails `json:"context"`
 }
 
 // Current host context
-// Experimental: McpAppsHostContextDetails is part of an experimental API and may change or
+// Experimental: MCPAppsHostContextDetails is part of an experimental API and may change or
 // be removed.
-type McpAppsHostContextDetails struct {
+type MCPAppsHostContextDetails struct {
 	// Display modes the host supports
-	AvailableDisplayModes []McpAppsHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitempty"`
+	AvailableDisplayModes []MCPAppsHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitempty"`
 	// Current display mode (SEP-1865)
-	DisplayMode *McpAppsHostContextDetailsDisplayMode `json:"displayMode,omitempty"`
+	DisplayMode *MCPAppsHostContextDetailsDisplayMode `json:"displayMode,omitempty"`
 	// BCP-47 locale, e.g. 'en-US'
 	Locale *string `json:"locale,omitempty"`
 	// Platform type for responsive design
-	Platform *McpAppsHostContextDetailsPlatform `json:"platform,omitempty"`
+	Platform *MCPAppsHostContextDetailsPlatform `json:"platform,omitempty"`
 	// UI theme preference per SEP-1865
-	Theme *McpAppsHostContextDetailsTheme `json:"theme,omitempty"`
+	Theme *MCPAppsHostContextDetailsTheme `json:"theme,omitempty"`
 	// IANA timezone, e.g. 'America/New_York'
 	TimeZone *string `json:"timeZone,omitempty"`
 	// Host application identifier
@@ -1901,9 +1901,9 @@ type McpAppsHostContextDetails struct {
 }
 
 // MCP server to list app-callable tools for.
-// Experimental: McpAppsListToolsRequest is part of an experimental API and may change or be
+// Experimental: MCPAppsListToolsRequest is part of an experimental API and may change or be
 // removed.
-type McpAppsListToolsRequest struct {
+type MCPAppsListToolsRequest struct {
 	// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the
 	// app from this server only'), the call is rejected when this differs from `serverName`,
 	// and rejected outright when missing.
@@ -1913,17 +1913,17 @@ type McpAppsListToolsRequest struct {
 }
 
 // App-callable tools from the named MCP server.
-// Experimental: McpAppsListToolsResult is part of an experimental API and may change or be
+// Experimental: MCPAppsListToolsResult is part of an experimental API and may change or be
 // removed.
-type McpAppsListToolsResult struct {
+type MCPAppsListToolsResult struct {
 	// App-callable tools from the server
 	Tools []map[string]any `json:"tools"`
 }
 
 // MCP server and resource URI to fetch.
-// Experimental: McpAppsReadResourceRequest is part of an experimental API and may change or
+// Experimental: MCPAppsReadResourceRequest is part of an experimental API and may change or
 // be removed.
-type McpAppsReadResourceRequest struct {
+type MCPAppsReadResourceRequest struct {
 	// Name of the MCP server hosting the resource
 	ServerName string `json:"serverName"`
 	// Resource URI (typically ui://...)
@@ -1931,17 +1931,17 @@ type McpAppsReadResourceRequest struct {
 }
 
 // Resource contents returned by the MCP server.
-// Experimental: McpAppsReadResourceResult is part of an experimental API and may change or
+// Experimental: MCPAppsReadResourceResult is part of an experimental API and may change or
 // be removed.
-type McpAppsReadResourceResult struct {
+type MCPAppsReadResourceResult struct {
 	// Resource contents returned by the server
-	Contents []McpAppsResourceContent `json:"contents"`
+	Contents []MCPAppsResourceContent `json:"contents"`
 }
 
 // Schema for the `McpAppsResourceContent` type.
-// Experimental: McpAppsResourceContent is part of an experimental API and may change or be
+// Experimental: MCPAppsResourceContent is part of an experimental API and may change or be
 // removed.
-type McpAppsResourceContent struct {
+type MCPAppsResourceContent struct {
 	// Base64-encoded binary content
 	Blob *string `json:"blob,omitempty"`
 	// Resource-level metadata (CSP, permissions, etc.)
@@ -1955,19 +1955,19 @@ type McpAppsResourceContent struct {
 }
 
 // Host context advertised to MCP App guests
-// Experimental: McpAppsSetHostContextDetails is part of an experimental API and may change
+// Experimental: MCPAppsSetHostContextDetails is part of an experimental API and may change
 // or be removed.
-type McpAppsSetHostContextDetails struct {
+type MCPAppsSetHostContextDetails struct {
 	// Display modes the host supports
-	AvailableDisplayModes []McpAppsSetHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitempty"`
+	AvailableDisplayModes []MCPAppsSetHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitempty"`
 	// Current display mode (SEP-1865)
-	DisplayMode *McpAppsSetHostContextDetailsDisplayMode `json:"displayMode,omitempty"`
+	DisplayMode *MCPAppsSetHostContextDetailsDisplayMode `json:"displayMode,omitempty"`
 	// BCP-47 locale, e.g. 'en-US'
 	Locale *string `json:"locale,omitempty"`
 	// Platform type for responsive design
-	Platform *McpAppsSetHostContextDetailsPlatform `json:"platform,omitempty"`
+	Platform *MCPAppsSetHostContextDetailsPlatform `json:"platform,omitempty"`
 	// UI theme preference per SEP-1865
-	Theme *McpAppsSetHostContextDetailsTheme `json:"theme,omitempty"`
+	Theme *MCPAppsSetHostContextDetailsTheme `json:"theme,omitempty"`
 	// IANA timezone, e.g. 'America/New_York'
 	TimeZone *string `json:"timeZone,omitempty"`
 	// Host application identifier
@@ -1975,26 +1975,26 @@ type McpAppsSetHostContextDetails struct {
 }
 
 // Host context to advertise to MCP App guests.
-// Experimental: McpAppsSetHostContextRequest is part of an experimental API and may change
+// Experimental: MCPAppsSetHostContextRequest is part of an experimental API and may change
 // or be removed.
-type McpAppsSetHostContextRequest struct {
+type MCPAppsSetHostContextRequest struct {
 	// Host context advertised to MCP App guests
-	Context McpAppsSetHostContextDetails `json:"context"`
+	Context MCPAppsSetHostContextDetails `json:"context"`
 }
 
 // The requestId previously passed to executeSampling that should be cancelled.
-// Experimental: McpCancelSamplingExecutionParams is part of an experimental API and may
+// Experimental: MCPCancelSamplingExecutionParams is part of an experimental API and may
 // change or be removed.
-type McpCancelSamplingExecutionParams struct {
+type MCPCancelSamplingExecutionParams struct {
 	// The requestId previously passed to executeSampling that should be cancelled
 	RequestID string `json:"requestId"`
 }
 
 // Indicates whether an in-flight sampling execution with the given requestId was found and
 // cancelled.
-// Experimental: McpCancelSamplingExecutionResult is part of an experimental API and may
+// Experimental: MCPCancelSamplingExecutionResult is part of an experimental API and may
 // change or be removed.
-type McpCancelSamplingExecutionResult struct {
+type MCPCancelSamplingExecutionResult struct {
 	// True if an in-flight execution with the given requestId was found and signalled to
 	// cancel. False when no such execution is in flight (already completed, never started, or
 	// cancelled by another caller).
@@ -2002,106 +2002,106 @@ type McpCancelSamplingExecutionResult struct {
 }
 
 // MCP server name and configuration to add to user configuration.
-type McpConfigAddRequest struct {
+type MCPConfigAddRequest struct {
 	// MCP server configuration (stdio process or remote HTTP/SSE)
-	Config McpServerConfig `json:"config"`
+	Config MCPServerConfig `json:"config"`
 	// Unique name for the MCP server
 	Name string `json:"name"`
 }
 
-type McpConfigAddResult struct {
+type MCPConfigAddResult struct {
 }
 
 // MCP server names to disable for new sessions.
-type McpConfigDisableRequest struct {
+type MCPConfigDisableRequest struct {
 	// Names of MCP servers to disable. Each server is added to the persisted disabled list so
 	// new sessions skip it. Already-disabled names are ignored. Active sessions keep their
 	// current connections until they end.
 	Names []string `json:"names"`
 }
 
-type McpConfigDisableResult struct {
+type MCPConfigDisableResult struct {
 }
 
 // MCP server names to enable for new sessions.
-type McpConfigEnableRequest struct {
+type MCPConfigEnableRequest struct {
 	// Names of MCP servers to enable. Each server is removed from the persisted disabled list
 	// so new sessions spawn it. Unknown or already-enabled names are ignored.
 	Names []string `json:"names"`
 }
 
-type McpConfigEnableResult struct {
+type MCPConfigEnableResult struct {
 }
 
 // User-configured MCP servers, keyed by server name.
-type McpConfigList struct {
+type MCPConfigList struct {
 	// All MCP servers from user config, keyed by name
-	Servers map[string]McpServerConfig `json:"servers"`
+	Servers map[string]MCPServerConfig `json:"servers"`
 }
 
-type McpConfigReloadResult struct {
+type MCPConfigReloadResult struct {
 }
 
 // MCP server name to remove from user configuration.
-type McpConfigRemoveRequest struct {
+type MCPConfigRemoveRequest struct {
 	// Name of the MCP server to remove
 	Name string `json:"name"`
 }
 
-type McpConfigRemoveResult struct {
+type MCPConfigRemoveResult struct {
 }
 
 // MCP server name and replacement configuration to write to user configuration.
-type McpConfigUpdateRequest struct {
+type MCPConfigUpdateRequest struct {
 	// MCP server configuration (stdio process or remote HTTP/SSE)
-	Config McpServerConfig `json:"config"`
+	Config MCPServerConfig `json:"config"`
 	// Name of the MCP server to update
 	Name string `json:"name"`
 }
 
-type McpConfigUpdateResult struct {
+type MCPConfigUpdateResult struct {
 }
 
 // Name of the MCP server to disable for the session.
-// Experimental: McpDisableRequest is part of an experimental API and may change or be
+// Experimental: MCPDisableRequest is part of an experimental API and may change or be
 // removed.
-type McpDisableRequest struct {
+type MCPDisableRequest struct {
 	// Name of the MCP server to disable
 	ServerName string `json:"serverName"`
 }
 
 // Optional working directory used as context for MCP server discovery.
-type McpDiscoverRequest struct {
+type MCPDiscoverRequest struct {
 	// Working directory used as context for discovery (e.g., plugin resolution)
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // MCP servers discovered from user, workspace, plugin, and built-in sources.
-type McpDiscoverResult struct {
+type MCPDiscoverResult struct {
 	// MCP servers discovered from all sources
-	Servers []DiscoveredMcpServer `json:"servers"`
+	Servers []DiscoveredMCPServer `json:"servers"`
 }
 
 // Name of the MCP server to enable for the session.
-// Experimental: McpEnableRequest is part of an experimental API and may change or be
+// Experimental: MCPEnableRequest is part of an experimental API and may change or be
 // removed.
-type McpEnableRequest struct {
+type MCPEnableRequest struct {
 	// Name of the MCP server to enable
 	ServerName string `json:"serverName"`
 }
 
 // Identifiers and raw MCP CreateMessageRequest params used to run a sampling inference.
-// Experimental: McpExecuteSamplingParams is part of an experimental API and may change or
+// Experimental: MCPExecuteSamplingParams is part of an experimental API and may change or
 // be removed.
-type McpExecuteSamplingParams struct {
+type MCPExecuteSamplingParams struct {
 	// The original MCP JSON-RPC request ID (string or number). Used by the runtime to correlate
 	// the inference with the originating MCP request for telemetry; this is distinct from
 	// `requestId` (which is the schema-level cancellation handle).
-	McpRequestID any `json:"mcpRequestId"`
+	MCPRequestID any `json:"mcpRequestId"`
 	// Raw MCP CreateMessageRequest params, as received in the `sampling.requested` event.
 	// Treated as opaque at the schema layer; the runtime converts the embedded MCP messages
 	// into the OpenAI chat-completion shape internally.
-	Request McpExecuteSamplingRequest `json:"request"`
+	Request MCPExecuteSamplingRequest `json:"request"`
 	// Caller-provided unique identifier for this sampling execution. Use this same ID with
 	// cancelSamplingExecution to cancel the in-flight call. Must be unique within the session
 	// for the lifetime of the call.
@@ -2113,24 +2113,24 @@ type McpExecuteSamplingParams struct {
 // Raw MCP CreateMessageRequest params, as received in the `sampling.requested` event.
 // Treated as opaque at the schema layer; the runtime converts the embedded MCP messages
 // into the OpenAI chat-completion shape internally.
-// Experimental: McpExecuteSamplingRequest is part of an experimental API and may change or
+// Experimental: MCPExecuteSamplingRequest is part of an experimental API and may change or
 // be removed.
-type McpExecuteSamplingRequest struct {
+type MCPExecuteSamplingRequest struct {
 }
 
 // MCP CreateMessageResult payload (with optional 'tools' extension), present when
 // action='success'. Treated as opaque at the schema layer; consumers should
 // construct/consume it per the MCP CreateMessageResult shape.
-// Experimental: McpExecuteSamplingResult is part of an experimental API and may change or
+// Experimental: MCPExecuteSamplingResult is part of an experimental API and may change or
 // be removed.
-type McpExecuteSamplingResult struct {
+type MCPExecuteSamplingResult struct {
 }
 
 // Remote MCP server name and optional overrides controlling reauthentication, OAuth client
 // display name, and the callback success-page copy.
-// Experimental: McpOauthLoginRequest is part of an experimental API and may change or be
+// Experimental: MCPOauthLoginRequest is part of an experimental API and may change or be
 // removed.
-type McpOauthLoginRequest struct {
+type MCPOauthLoginRequest struct {
 	// Optional override for the body text shown on the OAuth loopback callback success page.
 	// When omitted, the runtime applies a neutral fallback; callers driving interactive auth
 	// should pass surface-specific copy telling the user where to return.
@@ -2151,9 +2151,9 @@ type McpOauthLoginRequest struct {
 
 // OAuth authorization URL the caller should open, or empty when cached tokens already
 // authenticated the server.
-// Experimental: McpOauthLoginResult is part of an experimental API and may change or be
+// Experimental: MCPOauthLoginResult is part of an experimental API and may change or be
 // removed.
-type McpOauthLoginResult struct {
+type MCPOauthLoginResult struct {
 	// URL the caller should open in a browser to complete OAuth. Omitted when cached tokens
 	// were still valid and no browser interaction was needed — the server is already
 	// reconnected in that case. When present, the runtime starts the callback listener before
@@ -2164,9 +2164,9 @@ type McpOauthLoginResult struct {
 
 // Indicates whether the auto-managed `github` MCP server was removed (false when nothing to
 // remove).
-// Experimental: McpRemoveGitHubResult is part of an experimental API and may change or be
+// Experimental: MCPRemoveGitHubResult is part of an experimental API and may change or be
 // removed.
-type McpRemoveGitHubResult struct {
+type MCPRemoveGitHubResult struct {
 	// True when the auto-managed `github` MCP server was removed; false when no removal
 	// happened (e.g. user has explicitly configured a `github` server, or the server was not
 	// registered).
@@ -2174,66 +2174,66 @@ type McpRemoveGitHubResult struct {
 }
 
 // Outcome of an MCP sampling execution: success result, failure error, or cancellation.
-// Experimental: McpSamplingExecutionResult is part of an experimental API and may change or
+// Experimental: MCPSamplingExecutionResult is part of an experimental API and may change or
 // be removed.
-type McpSamplingExecutionResult struct {
+type MCPSamplingExecutionResult struct {
 	// Outcome of the sampling inference. 'success' produced a response; 'failure' encountered
 	// an error (including agent-side rejection by content filter or criteria); 'cancelled' the
 	// caller cancelled this execution via cancelSamplingExecution.
-	Action McpSamplingExecutionAction `json:"action"`
+	Action MCPSamplingExecutionAction `json:"action"`
 	// Error description, present when action='failure'.
 	Error *string `json:"error,omitempty"`
 	// MCP CreateMessageResult payload (with optional 'tools' extension), present when
 	// action='success'. Treated as opaque at the schema layer; consumers should
 	// construct/consume it per the MCP CreateMessageResult shape.
-	Result *McpExecuteSamplingResult `json:"result,omitempty"`
+	Result *MCPExecuteSamplingResult `json:"result,omitempty"`
 }
 
 // Schema for the `McpServer` type.
-// Experimental: McpServer is part of an experimental API and may change or be removed.
-type McpServer struct {
+// Experimental: MCPServer is part of an experimental API and may change or be removed.
+type MCPServer struct {
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
-	Source *McpServerSource `json:"source,omitempty"`
+	Source *MCPServerSource `json:"source,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status McpServerStatus `json:"status"`
+	Status MCPServerStatus `json:"status"`
 }
 
 // Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
-type McpServerAuthConfig interface {
-	mcpServerAuthConfig()
+type MCPServerAuthConfig interface {
+	mCPServerAuthConfig()
 }
 
-type McpServerAuthConfigBoolean bool
+type MCPServerAuthConfigBoolean bool
 
-func (McpServerAuthConfigBoolean) mcpServerAuthConfig() {}
+func (MCPServerAuthConfigBoolean) mCPServerAuthConfig() {}
 
-func (McpServerAuthConfigRedirectPort) mcpServerAuthConfig() {}
+func (MCPServerAuthConfigRedirectPort) mCPServerAuthConfig() {}
 
 // Authentication settings with optional redirect port configuration.
-type McpServerAuthConfigRedirectPort struct {
+type MCPServerAuthConfigRedirectPort struct {
 	// Fixed port for the OAuth redirect callback server.
 	RedirectPort *int32 `json:"redirectPort,omitempty"`
 }
 
 // MCP server configuration (stdio process or remote HTTP/SSE)
-type McpServerConfig interface {
-	mcpServerConfig()
+type MCPServerConfig interface {
+	mCPServerConfig()
 }
 
-type RawMcpServerConfigData struct {
+type RawMCPServerConfigData struct {
 	Raw json.RawMessage
 }
 
-func (RawMcpServerConfigData) mcpServerConfig() {}
+func (RawMCPServerConfigData) mCPServerConfig() {}
 
 // Remote MCP server configuration accessed over HTTP or SSE.
-type McpServerConfigHTTP struct {
+type MCPServerConfigHTTP struct {
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
-	Auth McpServerAuthConfig `json:"auth,omitempty"`
+	Auth MCPServerAuthConfig `json:"auth,omitempty"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
 	// mode.
 	FilterMapping FilterMapping `json:"filterMapping,omitempty"`
@@ -2245,29 +2245,29 @@ type McpServerConfigHTTP struct {
 	// OAuth client ID for a pre-registered remote MCP OAuth client.
 	OauthClientID *string `json:"oauthClientId,omitempty"`
 	// OAuth grant type to use when authenticating to the remote MCP server.
-	OauthGrantType *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
+	OauthGrantType *MCPServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 	// Whether the configured OAuth client is public and does not require a client secret.
 	OauthPublicClient *bool `json:"oauthPublicClient,omitempty"`
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
-	Oidc McpServerAuthConfig `json:"oidc,omitempty"`
+	Oidc MCPServerAuthConfig `json:"oidc,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
 	Tools []string `json:"tools,omitempty"`
 	// Remote transport type. Defaults to "http" when omitted.
-	Type *McpServerConfigHTTPType `json:"type,omitempty"`
+	Type *MCPServerConfigHTTPType `json:"type,omitempty"`
 	// URL of the remote MCP server endpoint.
 	URL string `json:"url"`
 }
 
-func (McpServerConfigHTTP) mcpServerConfig() {}
+func (MCPServerConfigHTTP) mCPServerConfig() {}
 
 // Stdio MCP server configuration launched as a child process.
-type McpServerConfigStdio struct {
+type MCPServerConfigStdio struct {
 	// Command-line arguments passed to the Stdio MCP server process.
 	Args []string `json:"args,omitempty"`
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
-	Auth McpServerAuthConfig `json:"auth,omitempty"`
+	Auth MCPServerAuthConfig `json:"auth,omitempty"`
 	// Executable command used to start the Stdio MCP server process.
 	Command string `json:"command"`
 	// Working directory for the Stdio MCP server process.
@@ -2281,40 +2281,40 @@ type McpServerConfigStdio struct {
 	// own server.
 	IsDefaultServer *bool `json:"isDefaultServer,omitempty"`
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
-	Oidc McpServerAuthConfig `json:"oidc,omitempty"`
+	Oidc MCPServerAuthConfig `json:"oidc,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
 	Tools []string `json:"tools,omitempty"`
 }
 
-func (McpServerConfigStdio) mcpServerConfig() {}
+func (MCPServerConfigStdio) mCPServerConfig() {}
 
 // MCP servers configured for the session, with their connection status.
-// Experimental: McpServerList is part of an experimental API and may change or be removed.
-type McpServerList struct {
+// Experimental: MCPServerList is part of an experimental API and may change or be removed.
+type MCPServerList struct {
 	// Configured MCP servers
-	Servers []McpServer `json:"servers"`
+	Servers []MCPServer `json:"servers"`
 }
 
 // Mode controlling how MCP server env values are resolved (`direct` or `indirect`).
-// Experimental: McpSetEnvValueModeParams is part of an experimental API and may change or
+// Experimental: MCPSetEnvValueModeParams is part of an experimental API and may change or
 // be removed.
-type McpSetEnvValueModeParams struct {
+type MCPSetEnvValueModeParams struct {
 	// How environment-variable values supplied to MCP servers are resolved. "direct" passes
 	// literal string values; "indirect" treats values as references (e.g. names of environment
 	// variables on the host) that the runtime resolves before launch. Defaults to the runtime's
 	// startup mode; clients that intentionally launch MCP servers with literal values (e.g. CLI
 	// prompt mode and ACP) set this to "direct".
-	Mode McpSetEnvValueModeDetails `json:"mode"`
+	Mode MCPSetEnvValueModeDetails `json:"mode"`
 }
 
 // Env-value mode recorded on the session after the update.
-// Experimental: McpSetEnvValueModeResult is part of an experimental API and may change or
+// Experimental: MCPSetEnvValueModeResult is part of an experimental API and may change or
 // be removed.
-type McpSetEnvValueModeResult struct {
+type MCPSetEnvValueModeResult struct {
 	// Mode recorded on the session after the update
-	Mode McpSetEnvValueModeDetails `json:"mode"`
+	Mode MCPSetEnvValueModeDetails `json:"mode"`
 }
 
 // Model identifier and token limits used to compute the context-info breakdown.
@@ -3044,33 +3044,33 @@ func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) Kin
 }
 
 // Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.
-// Experimental: PermissionDecisionApproveForLocationApprovalMcp is part of an experimental
+// Experimental: PermissionDecisionApproveForLocationApprovalMCP is part of an experimental
 // API and may change or be removed.
-type PermissionDecisionApproveForLocationApprovalMcp struct {
+type PermissionDecisionApproveForLocationApprovalMCP struct {
 	// MCP server name.
 	ServerName string `json:"serverName"`
 	// MCP tool name, or null to cover every tool on the server.
 	ToolName *string `json:"toolName"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalMcp) permissionDecisionApproveForLocationApproval() {
+func (PermissionDecisionApproveForLocationApprovalMCP) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalMcp) Kind() PermissionDecisionApproveForLocationApprovalKind {
-	return PermissionDecisionApproveForLocationApprovalKindMcp
+func (PermissionDecisionApproveForLocationApprovalMCP) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindMCP
 }
 
 // Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.
-// Experimental: PermissionDecisionApproveForLocationApprovalMcpSampling is part of an
+// Experimental: PermissionDecisionApproveForLocationApprovalMCPSampling is part of an
 // experimental API and may change or be removed.
-type PermissionDecisionApproveForLocationApprovalMcpSampling struct {
+type PermissionDecisionApproveForLocationApprovalMCPSampling struct {
 	// MCP server name.
 	ServerName string `json:"serverName"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalMcpSampling) permissionDecisionApproveForLocationApproval() {
+func (PermissionDecisionApproveForLocationApprovalMCPSampling) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalMcpSampling) Kind() PermissionDecisionApproveForLocationApprovalKind {
-	return PermissionDecisionApproveForLocationApprovalKindMcpSampling
+func (PermissionDecisionApproveForLocationApprovalMCPSampling) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindMCPSampling
 }
 
 // Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.
@@ -3187,32 +3187,32 @@ func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Kind
 }
 
 // Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.
-// Experimental: PermissionDecisionApproveForSessionApprovalMcp is part of an experimental
+// Experimental: PermissionDecisionApproveForSessionApprovalMCP is part of an experimental
 // API and may change or be removed.
-type PermissionDecisionApproveForSessionApprovalMcp struct {
+type PermissionDecisionApproveForSessionApprovalMCP struct {
 	// MCP server name.
 	ServerName string `json:"serverName"`
 	// MCP tool name, or null to cover every tool on the server.
 	ToolName *string `json:"toolName"`
 }
 
-func (PermissionDecisionApproveForSessionApprovalMcp) permissionDecisionApproveForSessionApproval() {}
-func (PermissionDecisionApproveForSessionApprovalMcp) Kind() PermissionDecisionApproveForSessionApprovalKind {
-	return PermissionDecisionApproveForSessionApprovalKindMcp
+func (PermissionDecisionApproveForSessionApprovalMCP) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalMCP) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindMCP
 }
 
 // Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.
-// Experimental: PermissionDecisionApproveForSessionApprovalMcpSampling is part of an
+// Experimental: PermissionDecisionApproveForSessionApprovalMCPSampling is part of an
 // experimental API and may change or be removed.
-type PermissionDecisionApproveForSessionApprovalMcpSampling struct {
+type PermissionDecisionApproveForSessionApprovalMCPSampling struct {
 	// MCP server name.
 	ServerName string `json:"serverName"`
 }
 
-func (PermissionDecisionApproveForSessionApprovalMcpSampling) permissionDecisionApproveForSessionApproval() {
+func (PermissionDecisionApproveForSessionApprovalMCPSampling) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalMcpSampling) Kind() PermissionDecisionApproveForSessionApprovalKind {
-	return PermissionDecisionApproveForSessionApprovalKindMcpSampling
+func (PermissionDecisionApproveForSessionApprovalMCPSampling) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindMCPSampling
 }
 
 // Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.
@@ -3490,7 +3490,7 @@ type PermissionsConfigureParams struct {
 	// If specified, replaces the session's URL-permission policy. The runtime constructs a
 	// fresh DefaultUrlManager based on these inputs. Omit to leave the current URL policy
 	// unchanged.
-	Urls *PermissionUrlsConfig `json:"urls,omitempty"`
+	URLs *PermissionURLsConfig `json:"urls,omitempty"`
 }
 
 // Indicates whether the operation succeeded.
@@ -3592,32 +3592,32 @@ func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Kind(
 }
 
 // Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type.
-// Experimental: PermissionsLocationsAddToolApprovalDetailsMcp is part of an experimental
+// Experimental: PermissionsLocationsAddToolApprovalDetailsMCP is part of an experimental
 // API and may change or be removed.
-type PermissionsLocationsAddToolApprovalDetailsMcp struct {
+type PermissionsLocationsAddToolApprovalDetailsMCP struct {
 	// MCP server name.
 	ServerName string `json:"serverName"`
 	// MCP tool name, or null to cover every tool on the server.
 	ToolName *string `json:"toolName"`
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsMcp) permissionsLocationsAddToolApprovalDetails() {}
-func (PermissionsLocationsAddToolApprovalDetailsMcp) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
-	return PermissionsLocationsAddToolApprovalDetailsKindMcp
+func (PermissionsLocationsAddToolApprovalDetailsMCP) permissionsLocationsAddToolApprovalDetails() {}
+func (PermissionsLocationsAddToolApprovalDetailsMCP) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+	return PermissionsLocationsAddToolApprovalDetailsKindMCP
 }
 
 // Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type.
-// Experimental: PermissionsLocationsAddToolApprovalDetailsMcpSampling is part of an
+// Experimental: PermissionsLocationsAddToolApprovalDetailsMCPSampling is part of an
 // experimental API and may change or be removed.
-type PermissionsLocationsAddToolApprovalDetailsMcpSampling struct {
+type PermissionsLocationsAddToolApprovalDetailsMCPSampling struct {
 	// MCP server name.
 	ServerName string `json:"serverName"`
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsMcpSampling) permissionsLocationsAddToolApprovalDetails() {
+func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) permissionsLocationsAddToolApprovalDetails() {
 }
-func (PermissionsLocationsAddToolApprovalDetailsMcpSampling) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
-	return PermissionsLocationsAddToolApprovalDetailsKindMcpSampling
+func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+	return PermissionsLocationsAddToolApprovalDetailsKindMCPSampling
 }
 
 // Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type.
@@ -3784,9 +3784,9 @@ type PermissionsSetRequiredResult struct {
 }
 
 // Indicates whether the operation succeeded.
-// Experimental: PermissionsUrlsSetUnrestrictedModeResult is part of an experimental API and
+// Experimental: PermissionsURLsSetUnrestrictedModeResult is part of an experimental API and
 // may change or be removed.
-type PermissionsUrlsSetUnrestrictedModeResult struct {
+type PermissionsURLsSetUnrestrictedModeResult struct {
 	// Whether the operation succeeded
 	Success bool `json:"success"`
 }
@@ -3794,9 +3794,9 @@ type PermissionsUrlsSetUnrestrictedModeResult struct {
 // If specified, replaces the session's URL-permission policy. The runtime constructs a
 // fresh DefaultUrlManager based on these inputs. Omit to leave the current URL policy
 // unchanged.
-// Experimental: PermissionUrlsConfig is part of an experimental API and may change or be
+// Experimental: PermissionURLsConfig is part of an experimental API and may change or be
 // removed.
-type PermissionUrlsConfig struct {
+type PermissionURLsConfig struct {
 	// Initial list of allowed URL/domain patterns. Patterns may include path components.
 	// Ignored when `unrestricted` is true.
 	InitialAllowed []string `json:"initialAllowed,omitempty"`
@@ -3806,9 +3806,9 @@ type PermissionUrlsConfig struct {
 }
 
 // Whether the URL-permission policy should run in unrestricted mode.
-// Experimental: PermissionUrlsSetUnrestrictedModeParams is part of an experimental API and
+// Experimental: PermissionURLsSetUnrestrictedModeParams is part of an experimental API and
 // may change or be removed.
-type PermissionUrlsSetUnrestrictedModeParams struct {
+type PermissionURLsSetUnrestrictedModeParams struct {
 	// Whether to allow access to all URLs without prompting. Toggles the runtime's
 	// URL-permission policy in place.
 	Enabled bool `json:"enabled"`
@@ -3952,13 +3952,13 @@ func (PushAttachmentFile) Type() PushAttachmentType {
 }
 
 // GitHub issue, pull request, or discussion reference
-// Experimental: PushAttachmentGithubReference is part of an experimental API and may change
+// Experimental: PushAttachmentGitHubReference is part of an experimental API and may change
 // or be removed.
-type PushAttachmentGithubReference struct {
+type PushAttachmentGitHubReference struct {
 	// Issue, pull request, or discussion number
 	Number int64 `json:"number"`
 	// Type of GitHub reference
-	ReferenceType PushAttachmentGithubReferenceType `json:"referenceType"`
+	ReferenceType PushAttachmentGitHubReferenceType `json:"referenceType"`
 	// Current state of the referenced item (e.g., open, closed, merged)
 	State string `json:"state"`
 	// Title of the referenced item
@@ -3967,9 +3967,9 @@ type PushAttachmentGithubReference struct {
 	URL string `json:"url"`
 }
 
-func (PushAttachmentGithubReference) pushAttachment() {}
-func (PushAttachmentGithubReference) Type() PushAttachmentType {
-	return PushAttachmentTypeGithubReference
+func (PushAttachmentGitHubReference) pushAttachment() {}
+func (PushAttachmentGitHubReference) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubReference
 }
 
 // Code selection attachment from an editor
@@ -4398,7 +4398,7 @@ type SessionContextInfo struct {
 	Limit int64 `json:"limit"`
 	// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes
 	// deferred tools)
-	McpToolsTokens int64 `json:"mcpToolsTokens"`
+	MCPToolsTokens int64 `json:"mcpToolsTokens"`
 	// The model used for token counting
 	ModelName string `json:"modelName"`
 	// Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified)
@@ -4443,9 +4443,9 @@ type SessionExtensionsSendAttachmentsToMessageResult struct {
 
 // File path, content to append, and optional mode for the client-provided session
 // filesystem.
-// Experimental: SessionFsAppendFileRequest is part of an experimental API and may change or
+// Experimental: SessionFSAppendFileRequest is part of an experimental API and may change or
 // be removed.
-type SessionFsAppendFileRequest struct {
+type SessionFSAppendFileRequest struct {
 	// Content to append
 	Content string `json:"content"`
 	// Optional POSIX-style mode for newly created files
@@ -4457,18 +4457,18 @@ type SessionFsAppendFileRequest struct {
 }
 
 // Describes a filesystem error.
-// Experimental: SessionFsError is part of an experimental API and may change or be removed.
-type SessionFsError struct {
+// Experimental: SessionFSError is part of an experimental API and may change or be removed.
+type SessionFSError struct {
 	// Error classification
-	Code SessionFsErrorCode `json:"code"`
+	Code SessionFSErrorCode `json:"code"`
 	// Free-form detail about the error, for logging/diagnostics
 	Message *string `json:"message,omitempty"`
 }
 
 // Path to test for existence in the client-provided session filesystem.
-// Experimental: SessionFsExistsRequest is part of an experimental API and may change or be
+// Experimental: SessionFSExistsRequest is part of an experimental API and may change or be
 // removed.
-type SessionFsExistsRequest struct {
+type SessionFSExistsRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
 	// Target session identifier
@@ -4476,18 +4476,18 @@ type SessionFsExistsRequest struct {
 }
 
 // Indicates whether the requested path exists in the client-provided session filesystem.
-// Experimental: SessionFsExistsResult is part of an experimental API and may change or be
+// Experimental: SessionFSExistsResult is part of an experimental API and may change or be
 // removed.
-type SessionFsExistsResult struct {
+type SessionFSExistsResult struct {
 	// Whether the path exists
 	Exists bool `json:"exists"`
 }
 
 // Directory path to create in the client-provided session filesystem, with options for
 // recursive creation and POSIX mode.
-// Experimental: SessionFsMkdirRequest is part of an experimental API and may change or be
+// Experimental: SessionFSMkdirRequest is part of an experimental API and may change or be
 // removed.
-type SessionFsMkdirRequest struct {
+type SessionFSMkdirRequest struct {
 	// Optional POSIX-style mode for newly created directories
 	Mode *int64 `json:"mode,omitempty"`
 	// Path using SessionFs conventions
@@ -4499,9 +4499,9 @@ type SessionFsMkdirRequest struct {
 }
 
 // Directory path whose entries should be listed from the client-provided session filesystem.
-// Experimental: SessionFsReaddirRequest is part of an experimental API and may change or be
+// Experimental: SessionFSReaddirRequest is part of an experimental API and may change or be
 // removed.
-type SessionFsReaddirRequest struct {
+type SessionFSReaddirRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
 	// Target session identifier
@@ -4509,30 +4509,30 @@ type SessionFsReaddirRequest struct {
 }
 
 // Names of entries in the requested directory, or a filesystem error if the read failed.
-// Experimental: SessionFsReaddirResult is part of an experimental API and may change or be
+// Experimental: SessionFSReaddirResult is part of an experimental API and may change or be
 // removed.
-type SessionFsReaddirResult struct {
+type SessionFSReaddirResult struct {
 	// Entry names in the directory
 	Entries []string `json:"entries"`
 	// Describes a filesystem error.
-	Error *SessionFsError `json:"error,omitempty"`
+	Error *SessionFSError `json:"error,omitempty"`
 }
 
 // Schema for the `SessionFsReaddirWithTypesEntry` type.
-// Experimental: SessionFsReaddirWithTypesEntry is part of an experimental API and may
+// Experimental: SessionFSReaddirWithTypesEntry is part of an experimental API and may
 // change or be removed.
-type SessionFsReaddirWithTypesEntry struct {
+type SessionFSReaddirWithTypesEntry struct {
 	// Entry name
 	Name string `json:"name"`
 	// Entry type
-	Type SessionFsReaddirWithTypesEntryType `json:"type"`
+	Type SessionFSReaddirWithTypesEntryType `json:"type"`
 }
 
 // Directory path whose entries (with type information) should be listed from the
 // client-provided session filesystem.
-// Experimental: SessionFsReaddirWithTypesRequest is part of an experimental API and may
+// Experimental: SessionFSReaddirWithTypesRequest is part of an experimental API and may
 // change or be removed.
-type SessionFsReaddirWithTypesRequest struct {
+type SessionFSReaddirWithTypesRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
 	// Target session identifier
@@ -4541,19 +4541,19 @@ type SessionFsReaddirWithTypesRequest struct {
 
 // Entries in the requested directory paired with file/directory type information, or a
 // filesystem error if the read failed.
-// Experimental: SessionFsReaddirWithTypesResult is part of an experimental API and may
+// Experimental: SessionFSReaddirWithTypesResult is part of an experimental API and may
 // change or be removed.
-type SessionFsReaddirWithTypesResult struct {
+type SessionFSReaddirWithTypesResult struct {
 	// Directory entries with type information
-	Entries []SessionFsReaddirWithTypesEntry `json:"entries"`
+	Entries []SessionFSReaddirWithTypesEntry `json:"entries"`
 	// Describes a filesystem error.
-	Error *SessionFsError `json:"error,omitempty"`
+	Error *SessionFSError `json:"error,omitempty"`
 }
 
 // Path of the file to read from the client-provided session filesystem.
-// Experimental: SessionFsReadFileRequest is part of an experimental API and may change or
+// Experimental: SessionFSReadFileRequest is part of an experimental API and may change or
 // be removed.
-type SessionFsReadFileRequest struct {
+type SessionFSReadFileRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
 	// Target session identifier
@@ -4561,20 +4561,20 @@ type SessionFsReadFileRequest struct {
 }
 
 // File content as a UTF-8 string, or a filesystem error if the read failed.
-// Experimental: SessionFsReadFileResult is part of an experimental API and may change or be
+// Experimental: SessionFSReadFileResult is part of an experimental API and may change or be
 // removed.
-type SessionFsReadFileResult struct {
+type SessionFSReadFileResult struct {
 	// File content as UTF-8 string
 	Content string `json:"content"`
 	// Describes a filesystem error.
-	Error *SessionFsError `json:"error,omitempty"`
+	Error *SessionFSError `json:"error,omitempty"`
 }
 
 // Source and destination paths for renaming or moving an entry in the client-provided
 // session filesystem.
-// Experimental: SessionFsRenameRequest is part of an experimental API and may change or be
+// Experimental: SessionFSRenameRequest is part of an experimental API and may change or be
 // removed.
-type SessionFsRenameRequest struct {
+type SessionFSRenameRequest struct {
 	// Destination path using SessionFs conventions
 	Dest string `json:"dest"`
 	// Target session identifier
@@ -4585,9 +4585,9 @@ type SessionFsRenameRequest struct {
 
 // Path to remove from the client-provided session filesystem, with options for recursive
 // removal and force.
-// Experimental: SessionFsRmRequest is part of an experimental API and may change or be
+// Experimental: SessionFSRmRequest is part of an experimental API and may change or be
 // removed.
-type SessionFsRmRequest struct {
+type SessionFSRmRequest struct {
 	// Ignore errors if the path does not exist
 	Force *bool `json:"force,omitempty"`
 	// Path using SessionFs conventions
@@ -4599,18 +4599,18 @@ type SessionFsRmRequest struct {
 }
 
 // Optional capabilities declared by the provider
-type SessionFsSetProviderCapabilities struct {
+type SessionFSSetProviderCapabilities struct {
 	// Whether the provider supports SQLite query/exists operations
 	Sqlite *bool `json:"sqlite,omitempty"`
 }
 
 // Initial working directory, session-state path layout, and path conventions used to
 // register the calling SDK client as the session filesystem provider.
-type SessionFsSetProviderRequest struct {
+type SessionFSSetProviderRequest struct {
 	// Optional capabilities declared by the provider
-	Capabilities *SessionFsSetProviderCapabilities `json:"capabilities,omitempty"`
+	Capabilities *SessionFSSetProviderCapabilities `json:"capabilities,omitempty"`
 	// Path conventions used by this filesystem
-	Conventions SessionFsSetProviderConventions `json:"conventions"`
+	Conventions SessionFSSetProviderConventions `json:"conventions"`
 	// Initial working directory for sessions
 	InitialCwd string `json:"initialCwd"`
 	// Path within each session's SessionFs where the runtime stores files for that session
@@ -4618,52 +4618,52 @@ type SessionFsSetProviderRequest struct {
 }
 
 // Indicates whether the calling client was registered as the session filesystem provider.
-type SessionFsSetProviderResult struct {
+type SessionFSSetProviderResult struct {
 	// Whether the provider was set successfully
 	Success bool `json:"success"`
 }
 
 // Identifies the target session.
-// Experimental: SessionFsSqliteExistsRequest is part of an experimental API and may change
+// Experimental: SessionFSSqliteExistsRequest is part of an experimental API and may change
 // or be removed.
-type SessionFsSqliteExistsRequest struct {
+type SessionFSSqliteExistsRequest struct {
 	// Target session identifier
 	SessionID string `json:"sessionId"`
 }
 
 // Indicates whether the per-session SQLite database already exists.
-// Experimental: SessionFsSqliteExistsResult is part of an experimental API and may change
+// Experimental: SessionFSSqliteExistsResult is part of an experimental API and may change
 // or be removed.
-type SessionFsSqliteExistsResult struct {
+type SessionFSSqliteExistsResult struct {
 	// Whether the session database already exists
 	Exists bool `json:"exists"`
 }
 
 // SQL query, query type, and optional bind parameters for executing a SQLite query against
 // the per-session database.
-// Experimental: SessionFsSqliteQueryRequest is part of an experimental API and may change
+// Experimental: SessionFSSqliteQueryRequest is part of an experimental API and may change
 // or be removed.
-type SessionFsSqliteQueryRequest struct {
+type SessionFSSqliteQueryRequest struct {
 	// Optional named bind parameters
 	Params map[string]any `json:"params,omitempty"`
 	// SQL query to execute
 	Query string `json:"query"`
 	// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT
 	// (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
-	QueryType SessionFsSqliteQueryType `json:"queryType"`
+	QueryType SessionFSSqliteQueryType `json:"queryType"`
 	// Target session identifier
 	SessionID string `json:"sessionId"`
 }
 
 // Query results including rows, columns, and rows affected, or a filesystem error if
 // execution failed.
-// Experimental: SessionFsSqliteQueryResult is part of an experimental API and may change or
+// Experimental: SessionFSSqliteQueryResult is part of an experimental API and may change or
 // be removed.
-type SessionFsSqliteQueryResult struct {
+type SessionFSSqliteQueryResult struct {
 	// Column names from the result set
 	Columns []string `json:"columns"`
 	// Describes a filesystem error.
-	Error *SessionFsError `json:"error,omitempty"`
+	Error *SessionFSError `json:"error,omitempty"`
 	// SQLite last_insert_rowid() value for INSERT.
 	LastInsertRowid *int64 `json:"lastInsertRowid,omitempty"`
 	// For SELECT: array of row objects. For others: empty array.
@@ -4673,9 +4673,9 @@ type SessionFsSqliteQueryResult struct {
 }
 
 // Path whose metadata should be returned from the client-provided session filesystem.
-// Experimental: SessionFsStatRequest is part of an experimental API and may change or be
+// Experimental: SessionFSStatRequest is part of an experimental API and may change or be
 // removed.
-type SessionFsStatRequest struct {
+type SessionFSStatRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
 	// Target session identifier
@@ -4683,13 +4683,13 @@ type SessionFsStatRequest struct {
 }
 
 // Filesystem metadata for the requested path, or a filesystem error if the stat failed.
-// Experimental: SessionFsStatResult is part of an experimental API and may change or be
+// Experimental: SessionFSStatResult is part of an experimental API and may change or be
 // removed.
-type SessionFsStatResult struct {
+type SessionFSStatResult struct {
 	// ISO 8601 timestamp of creation
 	Birthtime time.Time `json:"birthtime"`
 	// Describes a filesystem error.
-	Error *SessionFsError `json:"error,omitempty"`
+	Error *SessionFSError `json:"error,omitempty"`
 	// Whether the path is a directory
 	IsDirectory bool `json:"isDirectory"`
 	// Whether the path is a file
@@ -4701,9 +4701,9 @@ type SessionFsStatResult struct {
 }
 
 // File path, content to write, and optional mode for the client-provided session filesystem.
-// Experimental: SessionFsWriteFileRequest is part of an experimental API and may change or
+// Experimental: SessionFSWriteFileRequest is part of an experimental API and may change or
 // be removed.
-type SessionFsWriteFileRequest struct {
+type SessionFSWriteFileRequest struct {
 	// Content to write
 	Content string `json:"content"`
 	// Optional POSIX-style mode for newly created files
@@ -4738,21 +4738,21 @@ type SessionInstalledPlugin struct {
 // Experimental: SessionInstalledPluginSource is part of an experimental API and may change
 // or be removed.
 type SessionInstalledPluginSource struct {
-	SessionInstalledPluginSourceGithub *SessionInstalledPluginSourceGithub
+	SessionInstalledPluginSourceGitHub *SessionInstalledPluginSourceGitHub
 	SessionInstalledPluginSourceLocal  *SessionInstalledPluginSourceLocal
 	SessionInstalledPluginSourceURL    *SessionInstalledPluginSourceURL
 	String                             *string
 }
 
 // Schema for the `SessionInstalledPluginSourceGithub` type.
-// Experimental: SessionInstalledPluginSourceGithub is part of an experimental API and may
+// Experimental: SessionInstalledPluginSourceGitHub is part of an experimental API and may
 // change or be removed.
-type SessionInstalledPluginSourceGithub struct {
+type SessionInstalledPluginSourceGitHub struct {
 	Path *string `json:"path,omitempty"`
 	Ref  *string `json:"ref,omitempty"`
 	Repo string  `json:"repo"`
 	// Constant value. Always "github".
-	Source SessionInstalledPluginSourceGithubSource `json:"source"`
+	Source SessionInstalledPluginSourceGitHubSource `json:"source"`
 }
 
 // Schema for the `SessionInstalledPluginSourceLocal` type.
@@ -4814,28 +4814,28 @@ type SessionLspInitializeResult struct {
 }
 
 // Standard MCP CallToolResult
-// Experimental: SessionMcpAppsCallToolResult is part of an experimental API and may change
+// Experimental: SessionMCPAppsCallToolResult is part of an experimental API and may change
 // or be removed.
-type SessionMcpAppsCallToolResult map[string]any
+type SessionMCPAppsCallToolResult map[string]any
 
-// Experimental: SessionMcpAppsSetHostContextResult is part of an experimental API and may
+// Experimental: SessionMCPAppsSetHostContextResult is part of an experimental API and may
 // change or be removed.
-type SessionMcpAppsSetHostContextResult struct {
+type SessionMCPAppsSetHostContextResult struct {
 }
 
-// Experimental: SessionMcpDisableResult is part of an experimental API and may change or be
+// Experimental: SessionMCPDisableResult is part of an experimental API and may change or be
 // removed.
-type SessionMcpDisableResult struct {
+type SessionMCPDisableResult struct {
 }
 
-// Experimental: SessionMcpEnableResult is part of an experimental API and may change or be
+// Experimental: SessionMCPEnableResult is part of an experimental API and may change or be
 // removed.
-type SessionMcpEnableResult struct {
+type SessionMCPEnableResult struct {
 }
 
-// Experimental: SessionMcpReloadResult is part of an experimental API and may change or be
+// Experimental: SessionMCPReloadResult is part of an experimental API and may change or be
 // removed.
-type SessionMcpReloadResult struct {
+type SessionMCPReloadResult struct {
 }
 
 // Schema for the `SessionMetadata` type.
@@ -4971,7 +4971,7 @@ type SessionRemoteDisableResult struct {
 // be removed.
 type SessionsBulkDeleteRequest struct {
 	// Session IDs to close, deactivate, and delete from disk
-	SessionIds []string `json:"sessionIds"`
+	SessionIDs []string `json:"sessionIds"`
 }
 
 // Session IDs to test for live in-use locks.
@@ -4979,7 +4979,7 @@ type SessionsBulkDeleteRequest struct {
 // be removed.
 type SessionsCheckInUseRequest struct {
 	// Session IDs to test for live in-use locks
-	SessionIds []string `json:"sessionIds"`
+	SessionIDs []string `json:"sessionIds"`
 }
 
 // Session IDs from the input set that are currently in use by another process.
@@ -5202,7 +5202,7 @@ type SessionsPruneOldRequest struct {
 	// When true, only report what would be deleted without performing any deletion
 	DryRun *bool `json:"dryRun,omitempty"`
 	// Session IDs that should never be considered for pruning
-	ExcludeSessionIds []string `json:"excludeSessionIds,omitempty"`
+	ExcludeSessionIDs []string `json:"excludeSessionIds,omitempty"`
 	// When true, named sessions (set via /rename) are also eligible for pruning
 	IncludeNamed *bool `json:"includeNamed,omitempty"`
 	// Delete sessions whose modifiedTime is at least this many days old
@@ -6658,18 +6658,18 @@ func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionAp
 }
 
 // Schema for the `UserToolSessionApprovalMcp` type.
-// Experimental: UserToolSessionApprovalMcp is part of an experimental API and may change or
+// Experimental: UserToolSessionApprovalMCP is part of an experimental API and may change or
 // be removed.
-type UserToolSessionApprovalMcp struct {
+type UserToolSessionApprovalMCP struct {
 	// MCP server name
 	ServerName string `json:"serverName"`
 	// Optional MCP tool name, or null for all tools on the server
 	ToolName *string `json:"toolName"`
 }
 
-func (UserToolSessionApprovalMcp) userToolSessionApproval() {}
-func (UserToolSessionApprovalMcp) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindMcp
+func (UserToolSessionApprovalMCP) userToolSessionApproval() {}
+func (UserToolSessionApprovalMCP) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindMCP
 }
 
 // Schema for the `UserToolSessionApprovalMemory` type.
@@ -7068,17 +7068,17 @@ const (
 )
 
 // Type of GitHub reference
-// Experimental: AttachmentGithubReferenceType is part of an experimental API and may change
+// Experimental: AttachmentGitHubReferenceType is part of an experimental API and may change
 // or be removed.
-type AttachmentGithubReferenceType string
+type AttachmentGitHubReferenceType string
 
 const (
 	// GitHub discussion reference.
-	AttachmentGithubReferenceTypeDiscussion AttachmentGithubReferenceType = "discussion"
+	AttachmentGitHubReferenceTypeDiscussion AttachmentGitHubReferenceType = "discussion"
 	// GitHub issue reference.
-	AttachmentGithubReferenceTypeIssue AttachmentGithubReferenceType = "issue"
+	AttachmentGitHubReferenceTypeIssue AttachmentGitHubReferenceType = "issue"
 	// GitHub pull request reference.
-	AttachmentGithubReferenceTypePr AttachmentGithubReferenceType = "pr"
+	AttachmentGitHubReferenceTypePr AttachmentGitHubReferenceType = "pr"
 )
 
 // Type discriminator for Attachment.
@@ -7089,7 +7089,7 @@ const (
 	AttachmentTypeDirectory        AttachmentType = "directory"
 	AttachmentTypeExtensionContext AttachmentType = "extension_context"
 	AttachmentTypeFile             AttachmentType = "file"
-	AttachmentTypeGithubReference  AttachmentType = "github_reference"
+	AttachmentTypeGitHubReference  AttachmentType = "github_reference"
 	AttachmentTypeSelection        AttachmentType = "selection"
 )
 
@@ -7101,8 +7101,8 @@ const (
 	AuthInfoTypeAPIKey          AuthInfoType = "api-key"
 	AuthInfoTypeCopilotAPIToken AuthInfoType = "copilot-api-token"
 	AuthInfoTypeEnv             AuthInfoType = "env"
-	AuthInfoTypeGhCli           AuthInfoType = "gh-cli"
-	AuthInfoTypeHmac            AuthInfoType = "hmac"
+	AuthInfoTypeGHCLI           AuthInfoType = "gh-cli"
+	AuthInfoTypeHMAC            AuthInfoType = "hmac"
 	AuthInfoTypeToken           AuthInfoType = "token"
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
@@ -7162,21 +7162,21 @@ const (
 type CopilotAPITokenAuthInfoHost string
 
 const (
-	CopilotAPITokenAuthInfoHostHTTPSGithubCom CopilotAPITokenAuthInfoHost = "https://github.com"
+	CopilotAPITokenAuthInfoHostHTTPSGitHubCom CopilotAPITokenAuthInfoHost = "https://github.com"
 )
 
 // Server transport type: stdio, http, sse (deprecated), or memory
-type DiscoveredMcpServerType string
+type DiscoveredMCPServerType string
 
 const (
 	// Server communicates over streamable HTTP.
-	DiscoveredMcpServerTypeHTTP DiscoveredMcpServerType = "http"
+	DiscoveredMCPServerTypeHTTP DiscoveredMCPServerType = "http"
 	// Server is backed by an in-memory runtime implementation.
-	DiscoveredMcpServerTypeMemory DiscoveredMcpServerType = "memory"
+	DiscoveredMCPServerTypeMemory DiscoveredMCPServerType = "memory"
 	// Server communicates over Server-Sent Events (deprecated).
-	DiscoveredMcpServerTypeSse DiscoveredMcpServerType = "sse"
+	DiscoveredMCPServerTypeSSE DiscoveredMCPServerType = "sse"
 	// Server communicates over stdio with a local child process.
-	DiscoveredMcpServerTypeStdio DiscoveredMcpServerType = "stdio"
+	DiscoveredMCPServerTypeStdio DiscoveredMCPServerType = "stdio"
 )
 
 type EventLogTypesString string
@@ -7281,14 +7281,14 @@ const (
 type HMACAuthInfoHost string
 
 const (
-	HMACAuthInfoHostHTTPSGithubCom HMACAuthInfoHost = "https://github.com"
+	HMACAuthInfoHostHTTPSGitHubCom HMACAuthInfoHost = "https://github.com"
 )
 
 // Constant value. Always "github".
-type InstalledPluginSourceGithubSource string
+type InstalledPluginSourceGitHubSource string
 
 const (
-	InstalledPluginSourceGithubSourceGithub InstalledPluginSourceGithubSource = "github"
+	InstalledPluginSourceGitHubSourceGitHub InstalledPluginSourceGitHubSource = "github"
 )
 
 // Constant value. Always "local".
@@ -7344,180 +7344,180 @@ const (
 )
 
 // Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.
-// Experimental: McpAppsHostContextDetailsAvailableDisplayMode is part of an experimental
+// Experimental: MCPAppsHostContextDetailsAvailableDisplayMode is part of an experimental
 // API and may change or be removed.
-type McpAppsHostContextDetailsAvailableDisplayMode string
+type MCPAppsHostContextDetailsAvailableDisplayMode string
 
 const (
 	// Rendered as a fullscreen overlay
-	McpAppsHostContextDetailsAvailableDisplayModeFullscreen McpAppsHostContextDetailsAvailableDisplayMode = "fullscreen"
+	MCPAppsHostContextDetailsAvailableDisplayModeFullscreen MCPAppsHostContextDetailsAvailableDisplayMode = "fullscreen"
 	// Rendered inline within the host conversation surface
-	McpAppsHostContextDetailsAvailableDisplayModeInline McpAppsHostContextDetailsAvailableDisplayMode = "inline"
+	MCPAppsHostContextDetailsAvailableDisplayModeInline MCPAppsHostContextDetailsAvailableDisplayMode = "inline"
 	// Rendered as a picture-in-picture floating panel
-	McpAppsHostContextDetailsAvailableDisplayModePip McpAppsHostContextDetailsAvailableDisplayMode = "pip"
+	MCPAppsHostContextDetailsAvailableDisplayModePip MCPAppsHostContextDetailsAvailableDisplayMode = "pip"
 )
 
 // Current display mode (SEP-1865)
-// Experimental: McpAppsHostContextDetailsDisplayMode is part of an experimental API and may
+// Experimental: MCPAppsHostContextDetailsDisplayMode is part of an experimental API and may
 // change or be removed.
-type McpAppsHostContextDetailsDisplayMode string
+type MCPAppsHostContextDetailsDisplayMode string
 
 const (
 	// Rendered as a fullscreen overlay
-	McpAppsHostContextDetailsDisplayModeFullscreen McpAppsHostContextDetailsDisplayMode = "fullscreen"
+	MCPAppsHostContextDetailsDisplayModeFullscreen MCPAppsHostContextDetailsDisplayMode = "fullscreen"
 	// Rendered inline within the host conversation surface
-	McpAppsHostContextDetailsDisplayModeInline McpAppsHostContextDetailsDisplayMode = "inline"
+	MCPAppsHostContextDetailsDisplayModeInline MCPAppsHostContextDetailsDisplayMode = "inline"
 	// Rendered as a picture-in-picture floating panel
-	McpAppsHostContextDetailsDisplayModePip McpAppsHostContextDetailsDisplayMode = "pip"
+	MCPAppsHostContextDetailsDisplayModePip MCPAppsHostContextDetailsDisplayMode = "pip"
 )
 
 // Platform type for responsive design
-// Experimental: McpAppsHostContextDetailsPlatform is part of an experimental API and may
+// Experimental: MCPAppsHostContextDetailsPlatform is part of an experimental API and may
 // change or be removed.
-type McpAppsHostContextDetailsPlatform string
+type MCPAppsHostContextDetailsPlatform string
 
 const (
 	// Host runs as a desktop application
-	McpAppsHostContextDetailsPlatformDesktop McpAppsHostContextDetailsPlatform = "desktop"
+	MCPAppsHostContextDetailsPlatformDesktop MCPAppsHostContextDetailsPlatform = "desktop"
 	// Host runs on a mobile device
-	McpAppsHostContextDetailsPlatformMobile McpAppsHostContextDetailsPlatform = "mobile"
+	MCPAppsHostContextDetailsPlatformMobile MCPAppsHostContextDetailsPlatform = "mobile"
 	// Host runs in a web browser
-	McpAppsHostContextDetailsPlatformWeb McpAppsHostContextDetailsPlatform = "web"
+	MCPAppsHostContextDetailsPlatformWeb MCPAppsHostContextDetailsPlatform = "web"
 )
 
 // UI theme preference per SEP-1865
-// Experimental: McpAppsHostContextDetailsTheme is part of an experimental API and may
+// Experimental: MCPAppsHostContextDetailsTheme is part of an experimental API and may
 // change or be removed.
-type McpAppsHostContextDetailsTheme string
+type MCPAppsHostContextDetailsTheme string
 
 const (
 	// Dark UI theme
-	McpAppsHostContextDetailsThemeDark McpAppsHostContextDetailsTheme = "dark"
+	MCPAppsHostContextDetailsThemeDark MCPAppsHostContextDetailsTheme = "dark"
 	// Light UI theme
-	McpAppsHostContextDetailsThemeLight McpAppsHostContextDetailsTheme = "light"
+	MCPAppsHostContextDetailsThemeLight MCPAppsHostContextDetailsTheme = "light"
 )
 
 // Allowed values for the `McpAppsSetHostContextDetailsAvailableDisplayMode` enumeration.
-// Experimental: McpAppsSetHostContextDetailsAvailableDisplayMode is part of an experimental
+// Experimental: MCPAppsSetHostContextDetailsAvailableDisplayMode is part of an experimental
 // API and may change or be removed.
-type McpAppsSetHostContextDetailsAvailableDisplayMode string
+type MCPAppsSetHostContextDetailsAvailableDisplayMode string
 
 const (
 	// Rendered as a fullscreen overlay
-	McpAppsSetHostContextDetailsAvailableDisplayModeFullscreen McpAppsSetHostContextDetailsAvailableDisplayMode = "fullscreen"
+	MCPAppsSetHostContextDetailsAvailableDisplayModeFullscreen MCPAppsSetHostContextDetailsAvailableDisplayMode = "fullscreen"
 	// Rendered inline within the host conversation surface
-	McpAppsSetHostContextDetailsAvailableDisplayModeInline McpAppsSetHostContextDetailsAvailableDisplayMode = "inline"
+	MCPAppsSetHostContextDetailsAvailableDisplayModeInline MCPAppsSetHostContextDetailsAvailableDisplayMode = "inline"
 	// Rendered as a picture-in-picture floating panel
-	McpAppsSetHostContextDetailsAvailableDisplayModePip McpAppsSetHostContextDetailsAvailableDisplayMode = "pip"
+	MCPAppsSetHostContextDetailsAvailableDisplayModePip MCPAppsSetHostContextDetailsAvailableDisplayMode = "pip"
 )
 
 // Current display mode (SEP-1865)
-// Experimental: McpAppsSetHostContextDetailsDisplayMode is part of an experimental API and
+// Experimental: MCPAppsSetHostContextDetailsDisplayMode is part of an experimental API and
 // may change or be removed.
-type McpAppsSetHostContextDetailsDisplayMode string
+type MCPAppsSetHostContextDetailsDisplayMode string
 
 const (
 	// Rendered as a fullscreen overlay
-	McpAppsSetHostContextDetailsDisplayModeFullscreen McpAppsSetHostContextDetailsDisplayMode = "fullscreen"
+	MCPAppsSetHostContextDetailsDisplayModeFullscreen MCPAppsSetHostContextDetailsDisplayMode = "fullscreen"
 	// Rendered inline within the host conversation surface
-	McpAppsSetHostContextDetailsDisplayModeInline McpAppsSetHostContextDetailsDisplayMode = "inline"
+	MCPAppsSetHostContextDetailsDisplayModeInline MCPAppsSetHostContextDetailsDisplayMode = "inline"
 	// Rendered as a picture-in-picture floating panel
-	McpAppsSetHostContextDetailsDisplayModePip McpAppsSetHostContextDetailsDisplayMode = "pip"
+	MCPAppsSetHostContextDetailsDisplayModePip MCPAppsSetHostContextDetailsDisplayMode = "pip"
 )
 
 // Platform type for responsive design
-// Experimental: McpAppsSetHostContextDetailsPlatform is part of an experimental API and may
+// Experimental: MCPAppsSetHostContextDetailsPlatform is part of an experimental API and may
 // change or be removed.
-type McpAppsSetHostContextDetailsPlatform string
+type MCPAppsSetHostContextDetailsPlatform string
 
 const (
 	// Host runs as a desktop application
-	McpAppsSetHostContextDetailsPlatformDesktop McpAppsSetHostContextDetailsPlatform = "desktop"
+	MCPAppsSetHostContextDetailsPlatformDesktop MCPAppsSetHostContextDetailsPlatform = "desktop"
 	// Host runs on a mobile device
-	McpAppsSetHostContextDetailsPlatformMobile McpAppsSetHostContextDetailsPlatform = "mobile"
+	MCPAppsSetHostContextDetailsPlatformMobile MCPAppsSetHostContextDetailsPlatform = "mobile"
 	// Host runs in a web browser
-	McpAppsSetHostContextDetailsPlatformWeb McpAppsSetHostContextDetailsPlatform = "web"
+	MCPAppsSetHostContextDetailsPlatformWeb MCPAppsSetHostContextDetailsPlatform = "web"
 )
 
 // UI theme preference per SEP-1865
-// Experimental: McpAppsSetHostContextDetailsTheme is part of an experimental API and may
+// Experimental: MCPAppsSetHostContextDetailsTheme is part of an experimental API and may
 // change or be removed.
-type McpAppsSetHostContextDetailsTheme string
+type MCPAppsSetHostContextDetailsTheme string
 
 const (
 	// Dark UI theme
-	McpAppsSetHostContextDetailsThemeDark McpAppsSetHostContextDetailsTheme = "dark"
+	MCPAppsSetHostContextDetailsThemeDark MCPAppsSetHostContextDetailsTheme = "dark"
 	// Light UI theme
-	McpAppsSetHostContextDetailsThemeLight McpAppsSetHostContextDetailsTheme = "light"
+	MCPAppsSetHostContextDetailsThemeLight MCPAppsSetHostContextDetailsTheme = "light"
 )
 
 // Outcome of the sampling inference. 'success' produced a response; 'failure' encountered
 // an error (including agent-side rejection by content filter or criteria); 'cancelled' the
 // caller cancelled this execution via cancelSamplingExecution.
-// Experimental: McpSamplingExecutionAction is part of an experimental API and may change or
+// Experimental: MCPSamplingExecutionAction is part of an experimental API and may change or
 // be removed.
-type McpSamplingExecutionAction string
+type MCPSamplingExecutionAction string
 
 const (
 	// The sampling inference was cancelled before completion.
-	McpSamplingExecutionActionCancelled McpSamplingExecutionAction = "cancelled"
+	MCPSamplingExecutionActionCancelled MCPSamplingExecutionAction = "cancelled"
 	// The sampling inference failed or was rejected.
-	McpSamplingExecutionActionFailure McpSamplingExecutionAction = "failure"
+	MCPSamplingExecutionActionFailure MCPSamplingExecutionAction = "failure"
 	// The sampling inference completed and produced a result.
-	McpSamplingExecutionActionSuccess McpSamplingExecutionAction = "success"
+	MCPSamplingExecutionActionSuccess MCPSamplingExecutionAction = "success"
 )
 
 // OAuth grant type to use when authenticating to the remote MCP server.
-type McpServerConfigHTTPOauthGrantType string
+type MCPServerConfigHTTPOauthGrantType string
 
 const (
 	// Interactive browser-based authorization code flow with PKCE.
-	McpServerConfigHTTPOauthGrantTypeAuthorizationCode McpServerConfigHTTPOauthGrantType = "authorization_code"
+	MCPServerConfigHTTPOauthGrantTypeAuthorizationCode MCPServerConfigHTTPOauthGrantType = "authorization_code"
 	// Headless client credentials flow using the configured OAuth client.
-	McpServerConfigHTTPOauthGrantTypeClientCredentials McpServerConfigHTTPOauthGrantType = "client_credentials"
+	MCPServerConfigHTTPOauthGrantTypeClientCredentials MCPServerConfigHTTPOauthGrantType = "client_credentials"
 )
 
 // Remote transport type. Defaults to "http" when omitted.
-type McpServerConfigHTTPType string
+type MCPServerConfigHTTPType string
 
 const (
 	// Streamable HTTP transport.
-	McpServerConfigHTTPTypeHTTP McpServerConfigHTTPType = "http"
+	MCPServerConfigHTTPTypeHTTP MCPServerConfigHTTPType = "http"
 	// Server-Sent Events transport.
-	McpServerConfigHTTPTypeSse McpServerConfigHTTPType = "sse"
+	MCPServerConfigHTTPTypeSSE MCPServerConfigHTTPType = "sse"
 )
 
 // Configuration source: user, workspace, plugin, or builtin
-type McpServerSource string
+type MCPServerSource string
 
 const (
 	// Server bundled with the runtime.
-	McpServerSourceBuiltin McpServerSource = "builtin"
+	MCPServerSourceBuiltin MCPServerSource = "builtin"
 	// Server contributed by an installed plugin.
-	McpServerSourcePlugin McpServerSource = "plugin"
+	MCPServerSourcePlugin MCPServerSource = "plugin"
 	// Server configured in the user's global MCP configuration.
-	McpServerSourceUser McpServerSource = "user"
+	MCPServerSourceUser MCPServerSource = "user"
 	// Server configured by the current workspace.
-	McpServerSourceWorkspace McpServerSource = "workspace"
+	MCPServerSourceWorkspace MCPServerSource = "workspace"
 )
 
 // Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-// Experimental: McpServerStatus is part of an experimental API and may change or be removed.
-type McpServerStatus string
+// Experimental: MCPServerStatus is part of an experimental API and may change or be removed.
+type MCPServerStatus string
 
 const (
 	// The server is connected and available.
-	McpServerStatusConnected McpServerStatus = "connected"
+	MCPServerStatusConnected MCPServerStatus = "connected"
 	// The server is configured but disabled.
-	McpServerStatusDisabled McpServerStatus = "disabled"
+	MCPServerStatusDisabled MCPServerStatus = "disabled"
 	// The server failed to connect or initialize.
-	McpServerStatusFailed McpServerStatus = "failed"
+	MCPServerStatusFailed MCPServerStatus = "failed"
 	// The server requires authentication before it can connect.
-	McpServerStatusNeedsAuth McpServerStatus = "needs-auth"
+	MCPServerStatusNeedsAuth MCPServerStatus = "needs-auth"
 	// The server is not configured for this session.
-	McpServerStatusNotConfigured McpServerStatus = "not_configured"
+	MCPServerStatusNotConfigured MCPServerStatus = "not_configured"
 	// The server connection is still being established.
-	McpServerStatusPending McpServerStatus = "pending"
+	MCPServerStatusPending MCPServerStatus = "pending"
 )
 
 // How environment-variable values supplied to MCP servers are resolved. "direct" passes
@@ -7525,15 +7525,15 @@ const (
 // variables on the host) that the runtime resolves before launch. Defaults to the runtime's
 // startup mode; clients that intentionally launch MCP servers with literal values (e.g. CLI
 // prompt mode and ACP) set this to "direct".
-// Experimental: McpSetEnvValueModeDetails is part of an experimental API and may change or
+// Experimental: MCPSetEnvValueModeDetails is part of an experimental API and may change or
 // be removed.
-type McpSetEnvValueModeDetails string
+type MCPSetEnvValueModeDetails string
 
 const (
 	// Treat MCP server environment values as literal strings.
-	McpSetEnvValueModeDetailsDirect McpSetEnvValueModeDetails = "direct"
+	MCPSetEnvValueModeDetailsDirect MCPSetEnvValueModeDetails = "direct"
 	// Treat MCP server environment values as host-side references to resolve before launch.
-	McpSetEnvValueModeDetailsIndirect McpSetEnvValueModeDetails = "indirect"
+	MCPSetEnvValueModeDetailsIndirect MCPSetEnvValueModeDetails = "indirect"
 )
 
 // The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
@@ -7560,7 +7560,7 @@ const (
 	// Remote task originated from Copilot Coding Agent.
 	MetadataSnapshotRemoteMetadataTaskTypeCca MetadataSnapshotRemoteMetadataTaskType = "cca"
 	// Remote task originated from a CLI remote-session invocation.
-	MetadataSnapshotRemoteMetadataTaskTypeCli MetadataSnapshotRemoteMetadataTaskType = "cli"
+	MetadataSnapshotRemoteMetadataTaskTypeCLI MetadataSnapshotRemoteMetadataTaskType = "cli"
 )
 
 // Model capability category for grouping in the model picker
@@ -7638,8 +7638,8 @@ const (
 	PermissionDecisionApproveForLocationApprovalKindCustomTool                PermissionDecisionApproveForLocationApprovalKind = "custom-tool"
 	PermissionDecisionApproveForLocationApprovalKindExtensionManagement       PermissionDecisionApproveForLocationApprovalKind = "extension-management"
 	PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess PermissionDecisionApproveForLocationApprovalKind = "extension-permission-access"
-	PermissionDecisionApproveForLocationApprovalKindMcp                       PermissionDecisionApproveForLocationApprovalKind = "mcp"
-	PermissionDecisionApproveForLocationApprovalKindMcpSampling               PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
+	PermissionDecisionApproveForLocationApprovalKindMCP                       PermissionDecisionApproveForLocationApprovalKind = "mcp"
+	PermissionDecisionApproveForLocationApprovalKindMCPSampling               PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
 	PermissionDecisionApproveForLocationApprovalKindMemory                    PermissionDecisionApproveForLocationApprovalKind = "memory"
 	PermissionDecisionApproveForLocationApprovalKindRead                      PermissionDecisionApproveForLocationApprovalKind = "read"
 	PermissionDecisionApproveForLocationApprovalKindWrite                     PermissionDecisionApproveForLocationApprovalKind = "write"
@@ -7653,8 +7653,8 @@ const (
 	PermissionDecisionApproveForSessionApprovalKindCustomTool                PermissionDecisionApproveForSessionApprovalKind = "custom-tool"
 	PermissionDecisionApproveForSessionApprovalKindExtensionManagement       PermissionDecisionApproveForSessionApprovalKind = "extension-management"
 	PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess PermissionDecisionApproveForSessionApprovalKind = "extension-permission-access"
-	PermissionDecisionApproveForSessionApprovalKindMcp                       PermissionDecisionApproveForSessionApprovalKind = "mcp"
-	PermissionDecisionApproveForSessionApprovalKindMcpSampling               PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
+	PermissionDecisionApproveForSessionApprovalKindMCP                       PermissionDecisionApproveForSessionApprovalKind = "mcp"
+	PermissionDecisionApproveForSessionApprovalKindMCPSampling               PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
 	PermissionDecisionApproveForSessionApprovalKindMemory                    PermissionDecisionApproveForSessionApprovalKind = "memory"
 	PermissionDecisionApproveForSessionApprovalKindRead                      PermissionDecisionApproveForSessionApprovalKind = "read"
 	PermissionDecisionApproveForSessionApprovalKindWrite                     PermissionDecisionApproveForSessionApprovalKind = "write"
@@ -7714,8 +7714,8 @@ const (
 	PermissionsLocationsAddToolApprovalDetailsKindCustomTool                PermissionsLocationsAddToolApprovalDetailsKind = "custom-tool"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement       PermissionsLocationsAddToolApprovalDetailsKind = "extension-management"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess PermissionsLocationsAddToolApprovalDetailsKind = "extension-permission-access"
-	PermissionsLocationsAddToolApprovalDetailsKindMcp                       PermissionsLocationsAddToolApprovalDetailsKind = "mcp"
-	PermissionsLocationsAddToolApprovalDetailsKindMcpSampling               PermissionsLocationsAddToolApprovalDetailsKind = "mcp-sampling"
+	PermissionsLocationsAddToolApprovalDetailsKindMCP                       PermissionsLocationsAddToolApprovalDetailsKind = "mcp"
+	PermissionsLocationsAddToolApprovalDetailsKindMCPSampling               PermissionsLocationsAddToolApprovalDetailsKind = "mcp-sampling"
 	PermissionsLocationsAddToolApprovalDetailsKindMemory                    PermissionsLocationsAddToolApprovalDetailsKind = "memory"
 	PermissionsLocationsAddToolApprovalDetailsKindRead                      PermissionsLocationsAddToolApprovalDetailsKind = "read"
 	PermissionsLocationsAddToolApprovalDetailsKindWrite                     PermissionsLocationsAddToolApprovalDetailsKind = "write"
@@ -7743,7 +7743,7 @@ const (
 	// Allow-all was enabled by confirming autopilot behavior.
 	PermissionsSetAllowAllSourceAutopilotConfirmation PermissionsSetAllowAllSource = "autopilot_confirmation"
 	// Allow-all was enabled from a CLI command-line flag.
-	PermissionsSetAllowAllSourceCliFlag PermissionsSetAllowAllSource = "cli_flag"
+	PermissionsSetAllowAllSourceCLIFlag PermissionsSetAllowAllSource = "cli_flag"
 	// Allow-all was enabled through an RPC caller.
 	PermissionsSetAllowAllSourceRPC PermissionsSetAllowAllSource = "rpc"
 	// Allow-all was enabled by a slash command.
@@ -7759,7 +7759,7 @@ const (
 	// Allow-all was enabled by confirming autopilot behavior.
 	PermissionsSetApproveAllSourceAutopilotConfirmation PermissionsSetApproveAllSource = "autopilot_confirmation"
 	// Allow-all was enabled from a CLI command-line flag.
-	PermissionsSetApproveAllSourceCliFlag PermissionsSetApproveAllSource = "cli_flag"
+	PermissionsSetApproveAllSourceCLIFlag PermissionsSetApproveAllSource = "cli_flag"
 	// Allow-all was enabled through an RPC caller.
 	PermissionsSetApproveAllSourceRPC PermissionsSetApproveAllSource = "rpc"
 	// Allow-all was enabled by a slash command.
@@ -7767,17 +7767,17 @@ const (
 )
 
 // Type of GitHub reference
-// Experimental: PushAttachmentGithubReferenceType is part of an experimental API and may
+// Experimental: PushAttachmentGitHubReferenceType is part of an experimental API and may
 // change or be removed.
-type PushAttachmentGithubReferenceType string
+type PushAttachmentGitHubReferenceType string
 
 const (
 	// GitHub discussion reference.
-	PushAttachmentGithubReferenceTypeDiscussion PushAttachmentGithubReferenceType = "discussion"
+	PushAttachmentGitHubReferenceTypeDiscussion PushAttachmentGitHubReferenceType = "discussion"
 	// GitHub issue reference.
-	PushAttachmentGithubReferenceTypeIssue PushAttachmentGithubReferenceType = "issue"
+	PushAttachmentGitHubReferenceTypeIssue PushAttachmentGitHubReferenceType = "issue"
 	// GitHub pull request reference.
-	PushAttachmentGithubReferenceTypePr PushAttachmentGithubReferenceType = "pr"
+	PushAttachmentGitHubReferenceTypePr PushAttachmentGitHubReferenceType = "pr"
 )
 
 // Type discriminator for PushAttachment.
@@ -7788,7 +7788,7 @@ const (
 	PushAttachmentTypeDirectory        PushAttachmentType = "directory"
 	PushAttachmentTypeExtensionContext PushAttachmentType = "extension_context"
 	PushAttachmentTypeFile             PushAttachmentType = "file"
-	PushAttachmentTypeGithubReference  PushAttachmentType = "github_reference"
+	PushAttachmentTypeGitHubReference  PushAttachmentType = "github_reference"
 	PushAttachmentTypeSelection        PushAttachmentType = "selection"
 )
 
@@ -7868,65 +7868,65 @@ type SessionContextHostType string
 
 const (
 	// Session repository is hosted on Azure DevOps.
-	SessionContextHostTypeAdo SessionContextHostType = "ado"
+	SessionContextHostTypeADO SessionContextHostType = "ado"
 	// Session repository is hosted on GitHub.
-	SessionContextHostTypeGithub SessionContextHostType = "github"
+	SessionContextHostTypeGitHub SessionContextHostType = "github"
 )
 
 // Error classification
-// Experimental: SessionFsErrorCode is part of an experimental API and may change or be
+// Experimental: SessionFSErrorCode is part of an experimental API and may change or be
 // removed.
-type SessionFsErrorCode string
+type SessionFSErrorCode string
 
 const (
 	// The requested path does not exist.
-	SessionFsErrorCodeENOENT SessionFsErrorCode = "ENOENT"
+	SessionFSErrorCodeENOENT SessionFSErrorCode = "ENOENT"
 	// The filesystem operation failed for an unspecified reason.
-	SessionFsErrorCodeUNKNOWN SessionFsErrorCode = "UNKNOWN"
+	SessionFSErrorCodeUNKNOWN SessionFSErrorCode = "UNKNOWN"
 )
 
 // Entry type
-// Experimental: SessionFsReaddirWithTypesEntryType is part of an experimental API and may
+// Experimental: SessionFSReaddirWithTypesEntryType is part of an experimental API and may
 // change or be removed.
-type SessionFsReaddirWithTypesEntryType string
+type SessionFSReaddirWithTypesEntryType string
 
 const (
 	// The entry is a directory.
-	SessionFsReaddirWithTypesEntryTypeDirectory SessionFsReaddirWithTypesEntryType = "directory"
+	SessionFSReaddirWithTypesEntryTypeDirectory SessionFSReaddirWithTypesEntryType = "directory"
 	// The entry is a file.
-	SessionFsReaddirWithTypesEntryTypeFile SessionFsReaddirWithTypesEntryType = "file"
+	SessionFSReaddirWithTypesEntryTypeFile SessionFSReaddirWithTypesEntryType = "file"
 )
 
 // Path conventions used by this filesystem
-type SessionFsSetProviderConventions string
+type SessionFSSetProviderConventions string
 
 const (
 	// Paths use POSIX path conventions.
-	SessionFsSetProviderConventionsPosix SessionFsSetProviderConventions = "posix"
+	SessionFSSetProviderConventionsPosix SessionFSSetProviderConventions = "posix"
 	// Paths use Windows path conventions.
-	SessionFsSetProviderConventionsWindows SessionFsSetProviderConventions = "windows"
+	SessionFSSetProviderConventionsWindows SessionFSSetProviderConventions = "windows"
 )
 
 // How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT
 // (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
-// Experimental: SessionFsSqliteQueryType is part of an experimental API and may change or
+// Experimental: SessionFSSqliteQueryType is part of an experimental API and may change or
 // be removed.
-type SessionFsSqliteQueryType string
+type SessionFSSqliteQueryType string
 
 const (
 	// Execute DDL or multi-statement SQL without returning rows.
-	SessionFsSqliteQueryTypeExec SessionFsSqliteQueryType = "exec"
+	SessionFSSqliteQueryTypeExec SessionFSSqliteQueryType = "exec"
 	// Execute a SELECT-style query and return rows.
-	SessionFsSqliteQueryTypeQuery SessionFsSqliteQueryType = "query"
+	SessionFSSqliteQueryTypeQuery SessionFSSqliteQueryType = "query"
 	// Execute INSERT, UPDATE, or DELETE SQL and return affected-row metadata.
-	SessionFsSqliteQueryTypeRun SessionFsSqliteQueryType = "run"
+	SessionFSSqliteQueryTypeRun SessionFSSqliteQueryType = "run"
 )
 
 // Constant value. Always "github".
-type SessionInstalledPluginSourceGithubSource string
+type SessionInstalledPluginSourceGitHubSource string
 
 const (
-	SessionInstalledPluginSourceGithubSourceGithub SessionInstalledPluginSourceGithubSource = "github"
+	SessionInstalledPluginSourceGitHubSourceGitHub SessionInstalledPluginSourceGitHubSource = "github"
 )
 
 // Constant value. Always "local".
@@ -7977,9 +7977,9 @@ type SessionWorkingDirectoryContextHostType string
 
 const (
 	// The working directory repository is hosted on Azure DevOps.
-	SessionWorkingDirectoryContextHostTypeAdo SessionWorkingDirectoryContextHostType = "ado"
+	SessionWorkingDirectoryContextHostTypeADO SessionWorkingDirectoryContextHostType = "ado"
 	// The working directory repository is hosted on GitHub.
-	SessionWorkingDirectoryContextHostTypeGithub SessionWorkingDirectoryContextHostType = "github"
+	SessionWorkingDirectoryContextHostTypeGitHub SessionWorkingDirectoryContextHostType = "github"
 )
 
 // Signal to send (default: SIGTERM)
@@ -8226,7 +8226,7 @@ const (
 	UserToolSessionApprovalKindCustomTool                UserToolSessionApprovalKind = "custom-tool"
 	UserToolSessionApprovalKindExtensionManagement       UserToolSessionApprovalKind = "extension-management"
 	UserToolSessionApprovalKindExtensionPermissionAccess UserToolSessionApprovalKind = "extension-permission-access"
-	UserToolSessionApprovalKindMcp                       UserToolSessionApprovalKind = "mcp"
+	UserToolSessionApprovalKindMCP                       UserToolSessionApprovalKind = "mcp"
 	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
 	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
 	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
@@ -8267,9 +8267,9 @@ type WorkspaceSummaryHostType string
 
 const (
 	// Workspace summary repository is hosted on Azure DevOps.
-	WorkspaceSummaryHostTypeAdo WorkspaceSummaryHostType = "ado"
+	WorkspaceSummaryHostTypeADO WorkspaceSummaryHostType = "ado"
 	// Workspace summary repository is hosted on GitHub.
-	WorkspaceSummaryHostTypeGithub WorkspaceSummaryHostType = "github"
+	WorkspaceSummaryHostTypeGitHub WorkspaceSummaryHostType = "github"
 )
 
 // Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.
@@ -8279,16 +8279,16 @@ type WorkspacesWorkspaceDetailsHostType string
 
 const (
 	// Workspace repository is hosted on Azure DevOps.
-	WorkspacesWorkspaceDetailsHostTypeAdo WorkspacesWorkspaceDetailsHostType = "ado"
+	WorkspacesWorkspaceDetailsHostTypeADO WorkspacesWorkspaceDetailsHostType = "ado"
 	// Workspace repository is hosted on GitHub.
-	WorkspacesWorkspaceDetailsHostTypeGithub WorkspacesWorkspaceDetailsHostType = "github"
+	WorkspacesWorkspaceDetailsHostTypeGitHub WorkspacesWorkspaceDetailsHostType = "github"
 )
 
-type serverApi struct {
+type serverAPI struct {
 	client *jsonrpc2.Client
 }
 
-type ServerAccountApi serverApi
+type ServerAccountAPI serverAPI
 
 // GetQuota gets Copilot quota usage for the authenticated user or supplied GitHub token.
 //
@@ -8298,7 +8298,7 @@ type ServerAccountApi serverApi
 // the global auth context.
 //
 // Returns: Quota usage snapshots for the resolved user, keyed by quota type.
-func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
+func (a *ServerAccountAPI) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
 	raw, err := a.client.Request("account.getQuota", params)
 	if err != nil {
 		return nil, err
@@ -8310,9 +8310,9 @@ func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuota
 	return &result, nil
 }
 
-// Experimental: ServerAgentRegistryApi contains experimental APIs that may change or be
+// Experimental: ServerAgentRegistryAPI contains experimental APIs that may change or be
 // removed.
-type ServerAgentRegistryApi serverApi
+type ServerAgentRegistryAPI serverAPI
 
 // Spawns a managed-server child with the supplied configuration and returns a
 // discriminated-union result. The caller (typically the CLI controller) is responsible for
@@ -8324,7 +8324,7 @@ type ServerAgentRegistryApi serverApi
 // Parameters: Inputs to spawn a managed-server child via the controller's spawn delegate.
 //
 // Returns: Outcome of an agentRegistry.spawn call.
-func (a *ServerAgentRegistryApi) Spawn(ctx context.Context, params *AgentRegistrySpawnRequest) (AgentRegistrySpawnResult, error) {
+func (a *ServerAgentRegistryAPI) Spawn(ctx context.Context, params *AgentRegistrySpawnRequest) (AgentRegistrySpawnResult, error) {
 	raw, err := a.client.Request("agentRegistry.spawn", params)
 	if err != nil {
 		return nil, err
@@ -8336,7 +8336,7 @@ func (a *ServerAgentRegistryApi) Spawn(ctx context.Context, params *AgentRegistr
 	return result, nil
 }
 
-type ServerMcpApi serverApi
+type ServerMCPAPI serverAPI
 
 // Discovers MCP servers from user, workspace, plugin, and builtin sources.
 //
@@ -8345,31 +8345,31 @@ type ServerMcpApi serverApi
 // Parameters: Optional working directory used as context for MCP server discovery.
 //
 // Returns: MCP servers discovered from user, workspace, plugin, and built-in sources.
-func (a *ServerMcpApi) Discover(ctx context.Context, params *McpDiscoverRequest) (*McpDiscoverResult, error) {
+func (a *ServerMCPAPI) Discover(ctx context.Context, params *MCPDiscoverRequest) (*MCPDiscoverResult, error) {
 	raw, err := a.client.Request("mcp.discover", params)
 	if err != nil {
 		return nil, err
 	}
-	var result McpDiscoverResult
+	var result MCPDiscoverResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-type ServerMcpConfigApi serverApi
+type ServerMCPConfigAPI serverAPI
 
 // Adds an MCP server to user configuration.
 //
 // RPC method: mcp.config.add.
 //
 // Parameters: MCP server name and configuration to add to user configuration.
-func (a *ServerMcpConfigApi) Add(ctx context.Context, params *McpConfigAddRequest) (*McpConfigAddResult, error) {
+func (a *ServerMCPConfigAPI) Add(ctx context.Context, params *MCPConfigAddRequest) (*MCPConfigAddResult, error) {
 	raw, err := a.client.Request("mcp.config.add", params)
 	if err != nil {
 		return nil, err
 	}
-	var result McpConfigAddResult
+	var result MCPConfigAddResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -8381,12 +8381,12 @@ func (a *ServerMcpConfigApi) Add(ctx context.Context, params *McpConfigAddReques
 // RPC method: mcp.config.disable.
 //
 // Parameters: MCP server names to disable for new sessions.
-func (a *ServerMcpConfigApi) Disable(ctx context.Context, params *McpConfigDisableRequest) (*McpConfigDisableResult, error) {
+func (a *ServerMCPConfigAPI) Disable(ctx context.Context, params *MCPConfigDisableRequest) (*MCPConfigDisableResult, error) {
 	raw, err := a.client.Request("mcp.config.disable", params)
 	if err != nil {
 		return nil, err
 	}
-	var result McpConfigDisableResult
+	var result MCPConfigDisableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -8398,12 +8398,12 @@ func (a *ServerMcpConfigApi) Disable(ctx context.Context, params *McpConfigDisab
 // RPC method: mcp.config.enable.
 //
 // Parameters: MCP server names to enable for new sessions.
-func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *McpConfigEnableRequest) (*McpConfigEnableResult, error) {
+func (a *ServerMCPConfigAPI) Enable(ctx context.Context, params *MCPConfigEnableRequest) (*MCPConfigEnableResult, error) {
 	raw, err := a.client.Request("mcp.config.enable", params)
 	if err != nil {
 		return nil, err
 	}
-	var result McpConfigEnableResult
+	var result MCPConfigEnableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -8415,12 +8415,12 @@ func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *McpConfigEnable
 // RPC method: mcp.config.list.
 //
 // Returns: User-configured MCP servers, keyed by server name.
-func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
+func (a *ServerMCPConfigAPI) List(ctx context.Context) (*MCPConfigList, error) {
 	raw, err := a.client.Request("mcp.config.list", nil)
 	if err != nil {
 		return nil, err
 	}
-	var result McpConfigList
+	var result MCPConfigList
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -8431,12 +8431,12 @@ func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
 // config read observes disk.
 //
 // RPC method: mcp.config.reload.
-func (a *ServerMcpConfigApi) Reload(ctx context.Context) (*McpConfigReloadResult, error) {
+func (a *ServerMCPConfigAPI) Reload(ctx context.Context) (*MCPConfigReloadResult, error) {
 	raw, err := a.client.Request("mcp.config.reload", nil)
 	if err != nil {
 		return nil, err
 	}
-	var result McpConfigReloadResult
+	var result MCPConfigReloadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -8448,12 +8448,12 @@ func (a *ServerMcpConfigApi) Reload(ctx context.Context) (*McpConfigReloadResult
 // RPC method: mcp.config.remove.
 //
 // Parameters: MCP server name to remove from user configuration.
-func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *McpConfigRemoveRequest) (*McpConfigRemoveResult, error) {
+func (a *ServerMCPConfigAPI) Remove(ctx context.Context, params *MCPConfigRemoveRequest) (*MCPConfigRemoveResult, error) {
 	raw, err := a.client.Request("mcp.config.remove", params)
 	if err != nil {
 		return nil, err
 	}
-	var result McpConfigRemoveResult
+	var result MCPConfigRemoveResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -8465,23 +8465,23 @@ func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *McpConfigRemove
 // RPC method: mcp.config.update.
 //
 // Parameters: MCP server name and replacement configuration to write to user configuration.
-func (a *ServerMcpConfigApi) Update(ctx context.Context, params *McpConfigUpdateRequest) (*McpConfigUpdateResult, error) {
+func (a *ServerMCPConfigAPI) Update(ctx context.Context, params *MCPConfigUpdateRequest) (*MCPConfigUpdateResult, error) {
 	raw, err := a.client.Request("mcp.config.update", params)
 	if err != nil {
 		return nil, err
 	}
-	var result McpConfigUpdateResult
+	var result MCPConfigUpdateResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (s *ServerMcpApi) Config() *ServerMcpConfigApi {
-	return (*ServerMcpConfigApi)(s)
+func (s *ServerMCPAPI) Config() *ServerMCPConfigAPI {
+	return (*ServerMCPConfigAPI)(s)
 }
 
-type ServerModelsApi serverApi
+type ServerModelsAPI serverAPI
 
 // Lists Copilot models available to the authenticated user.
 //
@@ -8492,7 +8492,7 @@ type ServerModelsApi serverApi
 //
 // Returns: List of Copilot models available to the resolved user, including capabilities
 // and billing metadata.
-func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
+func (a *ServerModelsAPI) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
 	raw, err := a.client.Request("models.list", params)
 	if err != nil {
 		return nil, err
@@ -8504,13 +8504,13 @@ func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (
 	return &result, nil
 }
 
-type ServerRuntimeApi serverApi
+type ServerRuntimeAPI serverAPI
 
 // Shutdown gracefully shuts down an SDK-owned runtime. The response is sent only after
 // cleanup completes; callers may then terminate the owned runtime process.
 //
 // RPC method: runtime.shutdown.
-func (a *ServerRuntimeApi) Shutdown(ctx context.Context) (*RuntimeShutdownResult, error) {
+func (a *ServerRuntimeAPI) Shutdown(ctx context.Context) (*RuntimeShutdownResult, error) {
 	raw, err := a.client.Request("runtime.shutdown", nil)
 	if err != nil {
 		return nil, err
@@ -8522,7 +8522,7 @@ func (a *ServerRuntimeApi) Shutdown(ctx context.Context) (*RuntimeShutdownResult
 	return &result, nil
 }
 
-type ServerSecretsApi serverApi
+type ServerSecretsAPI serverAPI
 
 // AddFilterValues registers secret values for redaction in session logs and exports. The
 // SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).
@@ -8532,7 +8532,7 @@ type ServerSecretsApi serverApi
 // Parameters: Secret values to add to the redaction filter.
 //
 // Returns: Confirmation that the secret values were registered.
-func (a *ServerSecretsApi) AddFilterValues(ctx context.Context, params *SecretsAddFilterValuesRequest) (*SecretsAddFilterValuesResult, error) {
+func (a *ServerSecretsAPI) AddFilterValues(ctx context.Context, params *SecretsAddFilterValuesRequest) (*SecretsAddFilterValuesResult, error) {
 	raw, err := a.client.Request("secrets.addFilterValues", params)
 	if err != nil {
 		return nil, err
@@ -8544,7 +8544,7 @@ func (a *ServerSecretsApi) AddFilterValues(ctx context.Context, params *SecretsA
 	return &result, nil
 }
 
-type ServerSessionFsApi serverApi
+type ServerSessionFSAPI serverAPI
 
 // SetProvider registers an SDK client as the session filesystem provider.
 //
@@ -8555,20 +8555,20 @@ type ServerSessionFsApi serverApi
 //
 // Returns: Indicates whether the calling client was registered as the session filesystem
 // provider.
-func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFsSetProviderRequest) (*SessionFsSetProviderResult, error) {
+func (a *ServerSessionFSAPI) SetProvider(ctx context.Context, params *SessionFSSetProviderRequest) (*SessionFSSetProviderResult, error) {
 	raw, err := a.client.Request("sessionFs.setProvider", params)
 	if err != nil {
 		return nil, err
 	}
-	var result SessionFsSetProviderResult
+	var result SessionFSSetProviderResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-// Experimental: ServerSessionsApi contains experimental APIs that may change or be removed.
-type ServerSessionsApi serverApi
+// Experimental: ServerSessionsAPI contains experimental APIs that may change or be removed.
+type ServerSessionsAPI serverAPI
 
 // BulkDelete closes, deactivates, and deletes a set of sessions, returning the bytes freed
 // per session.
@@ -8578,7 +8578,7 @@ type ServerSessionsApi serverApi
 // Parameters: Session IDs to close, deactivate, and delete from disk.
 //
 // Returns: Map of sessionId -> bytes freed by removing the session's workspace directory.
-func (a *ServerSessionsApi) BulkDelete(ctx context.Context, params *SessionsBulkDeleteRequest) (*SessionBulkDeleteResult, error) {
+func (a *ServerSessionsAPI) BulkDelete(ctx context.Context, params *SessionsBulkDeleteRequest) (*SessionBulkDeleteResult, error) {
 	raw, err := a.client.Request("sessions.bulkDelete", params)
 	if err != nil {
 		return nil, err
@@ -8598,7 +8598,7 @@ func (a *ServerSessionsApi) BulkDelete(ctx context.Context, params *SessionsBulk
 // Parameters: Session IDs to test for live in-use locks.
 //
 // Returns: Session IDs from the input set that are currently in use by another process.
-func (a *ServerSessionsApi) CheckInUse(ctx context.Context, params *SessionsCheckInUseRequest) (*SessionsCheckInUseResult, error) {
+func (a *ServerSessionsAPI) CheckInUse(ctx context.Context, params *SessionsCheckInUseRequest) (*SessionsCheckInUseResult, error) {
 	raw, err := a.client.Request("sessions.checkInUse", params)
 	if err != nil {
 		return nil, err
@@ -8620,7 +8620,7 @@ func (a *ServerSessionsApi) CheckInUse(ctx context.Context, params *SessionsChec
 // Returns: Closes a session: emits shutdown, flushes pending events to disk, releases the
 // in-use lock, disposes the active session. Idempotent: succeeds even if the session is not
 // currently active.
-func (a *ServerSessionsApi) Close(ctx context.Context, params *SessionsCloseRequest) (*SessionsCloseResult, error) {
+func (a *ServerSessionsAPI) Close(ctx context.Context, params *SessionsCloseRequest) (*SessionsCloseResult, error) {
 	raw, err := a.client.Request("sessions.close", params)
 	if err != nil {
 		return nil, err
@@ -8639,7 +8639,7 @@ func (a *ServerSessionsApi) Close(ctx context.Context, params *SessionsCloseRequ
 // Parameters: Remote session connection parameters.
 //
 // Returns: Remote session connection result.
-func (a *ServerSessionsApi) Connect(ctx context.Context, params *ConnectRemoteSessionParams) (*RemoteSessionConnectionResult, error) {
+func (a *ServerSessionsAPI) Connect(ctx context.Context, params *ConnectRemoteSessionParams) (*RemoteSessionConnectionResult, error) {
 	raw, err := a.client.Request("sessions.connect", params)
 	if err != nil {
 		return nil, err
@@ -8660,7 +8660,7 @@ func (a *ServerSessionsApi) Connect(ctx context.Context, params *ConnectRemoteSe
 //
 // Returns: The enriched metadata records, with summary and context fields backfilled where
 // available. Sessions confirmed empty and unnamed are omitted.
-func (a *ServerSessionsApi) EnrichMetadata(ctx context.Context, params *SessionsEnrichMetadataRequest) (*SessionEnrichMetadataResult, error) {
+func (a *ServerSessionsAPI) EnrichMetadata(ctx context.Context, params *SessionsEnrichMetadataRequest) (*SessionEnrichMetadataResult, error) {
 	raw, err := a.client.Request("sessions.enrichMetadata", params)
 	if err != nil {
 		return nil, err
@@ -8680,7 +8680,7 @@ func (a *ServerSessionsApi) EnrichMetadata(ctx context.Context, params *Sessions
 // Parameters: UUID prefix to resolve to a unique session ID.
 //
 // Returns: Session ID matching the prefix, omitted when no unique match exists.
-func (a *ServerSessionsApi) FindByPrefix(ctx context.Context, params *SessionsFindByPrefixRequest) (*SessionsFindByPrefixResult, error) {
+func (a *ServerSessionsAPI) FindByPrefix(ctx context.Context, params *SessionsFindByPrefixRequest) (*SessionsFindByPrefixResult, error) {
 	raw, err := a.client.Request("sessions.findByPrefix", params)
 	if err != nil {
 		return nil, err
@@ -8699,7 +8699,7 @@ func (a *ServerSessionsApi) FindByPrefix(ctx context.Context, params *SessionsFi
 // Parameters: GitHub task ID to look up.
 //
 // Returns: ID of the local session bound to the given GitHub task, or omitted when none.
-func (a *ServerSessionsApi) FindByTaskId(ctx context.Context, params *SessionsFindByTaskIDRequest) (*SessionsFindByTaskIDResult, error) {
+func (a *ServerSessionsAPI) FindByTaskId(ctx context.Context, params *SessionsFindByTaskIDRequest) (*SessionsFindByTaskIDResult, error) {
 	raw, err := a.client.Request("sessions.findByTaskId", params)
 	if err != nil {
 		return nil, err
@@ -8719,7 +8719,7 @@ func (a *ServerSessionsApi) FindByTaskId(ctx context.Context, params *SessionsFi
 // optional friendly name for the new session.
 //
 // Returns: Identifier and optional friendly name assigned to the newly forked session.
-func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkRequest) (*SessionsForkResult, error) {
+func (a *ServerSessionsAPI) Fork(ctx context.Context, params *SessionsForkRequest) (*SessionsForkResult, error) {
 	raw, err := a.client.Request("sessions.fork", params)
 	if err != nil {
 		return nil, err
@@ -8738,7 +8738,7 @@ func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkReques
 // Parameters: Session ID whose event-log file path to compute.
 //
 // Returns: Absolute path to the session's events.jsonl file on disk.
-func (a *ServerSessionsApi) GetEventFilePath(ctx context.Context, params *SessionsGetEventFilePathRequest) (*SessionsGetEventFilePathResult, error) {
+func (a *ServerSessionsAPI) GetEventFilePath(ctx context.Context, params *SessionsGetEventFilePathRequest) (*SessionsGetEventFilePathResult, error) {
 	raw, err := a.client.Request("sessions.getEventFilePath", params)
 	if err != nil {
 		return nil, err
@@ -8759,7 +8759,7 @@ func (a *ServerSessionsApi) GetEventFilePath(ctx context.Context, params *Sessio
 //
 // Returns: Most-relevant session ID for the supplied context, or omitted when no sessions
 // exist.
-func (a *ServerSessionsApi) GetLastForContext(ctx context.Context, params *SessionsGetLastForContextRequest) (*SessionsGetLastForContextResult, error) {
+func (a *ServerSessionsAPI) GetLastForContext(ctx context.Context, params *SessionsGetLastForContextRequest) (*SessionsGetLastForContextResult, error) {
 	raw, err := a.client.Request("sessions.getLastForContext", params)
 	if err != nil {
 		return nil, err
@@ -8780,7 +8780,7 @@ func (a *ServerSessionsApi) GetLastForContext(ctx context.Context, params *Sessi
 //
 // Returns: The session's persisted remote-steerable flag, or omitted when no value has been
 // persisted.
-func (a *ServerSessionsApi) GetPersistedRemoteSteerable(ctx context.Context, params *SessionsGetPersistedRemoteSteerableRequest) (*SessionsGetPersistedRemoteSteerableResult, error) {
+func (a *ServerSessionsAPI) GetPersistedRemoteSteerable(ctx context.Context, params *SessionsGetPersistedRemoteSteerableRequest) (*SessionsGetPersistedRemoteSteerableResult, error) {
 	raw, err := a.client.Request("sessions.getPersistedRemoteSteerable", params)
 	if err != nil {
 		return nil, err
@@ -8797,7 +8797,7 @@ func (a *ServerSessionsApi) GetPersistedRemoteSteerable(ctx context.Context, par
 // RPC method: sessions.getSizes.
 //
 // Returns: Map of sessionId -> on-disk size in bytes for each session's workspace directory.
-func (a *ServerSessionsApi) GetSizes(ctx context.Context) (*SessionSizes, error) {
+func (a *ServerSessionsAPI) GetSizes(ctx context.Context) (*SessionSizes, error) {
 	raw, err := a.client.Request("sessions.getSizes", nil)
 	if err != nil {
 		return nil, err
@@ -8816,7 +8816,7 @@ func (a *ServerSessionsApi) GetSizes(ctx context.Context) (*SessionSizes, error)
 // Parameters: Optional metadata-load limit and filters applied to the returned sessions.
 //
 // Returns: Persisted sessions matching the filter, ordered most-recently-modified first.
-func (a *ServerSessionsApi) List(ctx context.Context, params *SessionsListRequest) (*SessionList, error) {
+func (a *ServerSessionsAPI) List(ctx context.Context, params *SessionsListRequest) (*SessionList, error) {
 	raw, err := a.client.Request("sessions.list", params)
 	if err != nil {
 		return nil, err
@@ -8836,7 +8836,7 @@ func (a *ServerSessionsApi) List(ctx context.Context, params *SessionsListReques
 // Parameters: Active session ID whose deferred repo-level hooks should be loaded.
 //
 // Returns: Queued repo-level startup prompts and the total hook command count after loading.
-func (a *ServerSessionsApi) LoadDeferredRepoHooks(ctx context.Context, params *SessionsLoadDeferredRepoHooksRequest) (*SessionLoadDeferredRepoHooksResult, error) {
+func (a *ServerSessionsAPI) LoadDeferredRepoHooks(ctx context.Context, params *SessionsLoadDeferredRepoHooksRequest) (*SessionLoadDeferredRepoHooksResult, error) {
 	raw, err := a.client.Request("sessions.loadDeferredRepoHooks", params)
 	if err != nil {
 		return nil, err
@@ -8858,7 +8858,7 @@ func (a *ServerSessionsApi) LoadDeferredRepoHooks(ctx context.Context, params *S
 //
 // Returns: Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs,
 // total bytes freed, and the dry-run flag.
-func (a *ServerSessionsApi) PruneOld(ctx context.Context, params *SessionsPruneOldRequest) (*SessionPruneResult, error) {
+func (a *ServerSessionsAPI) PruneOld(ctx context.Context, params *SessionsPruneOldRequest) (*SessionPruneResult, error) {
 	raw, err := a.client.Request("sessions.pruneOld", params)
 	if err != nil {
 		return nil, err
@@ -8878,7 +8878,7 @@ func (a *ServerSessionsApi) PruneOld(ctx context.Context, params *SessionsPruneO
 //
 // Returns: Release the in-use lock held by this process for the given session. No-op when
 // this process does not currently hold a lock for the session.
-func (a *ServerSessionsApi) ReleaseLock(ctx context.Context, params *SessionsReleaseLockRequest) (*SessionsReleaseLockResult, error) {
+func (a *ServerSessionsAPI) ReleaseLock(ctx context.Context, params *SessionsReleaseLockRequest) (*SessionsReleaseLockResult, error) {
 	raw, err := a.client.Request("sessions.releaseLock", params)
 	if err != nil {
 		return nil, err
@@ -8900,7 +8900,7 @@ func (a *ServerSessionsApi) ReleaseLock(ctx context.Context, params *SessionsRel
 // Returns: Reload all hooks (user, plugin, optionally repo) and apply them to the active
 // session. Call after installing or removing plugins so their hooks take effect
 // immediately. No-op when no active session matches the given sessionId.
-func (a *ServerSessionsApi) ReloadPluginHooks(ctx context.Context, params *SessionsReloadPluginHooksRequest) (*SessionsReloadPluginHooksResult, error) {
+func (a *ServerSessionsAPI) ReloadPluginHooks(ctx context.Context, params *SessionsReloadPluginHooksRequest) (*SessionsReloadPluginHooksResult, error) {
 	raw, err := a.client.Request("sessions.reloadPluginHooks", params)
 	if err != nil {
 		return nil, err
@@ -8920,7 +8920,7 @@ func (a *ServerSessionsApi) ReloadPluginHooks(ctx context.Context, params *Sessi
 //
 // Returns: Flush a session's pending events to disk. No-op when no writer exists for the
 // session (e.g., already closed).
-func (a *ServerSessionsApi) Save(ctx context.Context, params *SessionsSaveRequest) (*SessionsSaveResult, error) {
+func (a *ServerSessionsAPI) Save(ctx context.Context, params *SessionsSaveRequest) (*SessionsSaveResult, error) {
 	raw, err := a.client.Request("sessions.save", params)
 	if err != nil {
 		return nil, err
@@ -8943,7 +8943,7 @@ func (a *ServerSessionsApi) Save(ctx context.Context, params *SessionsSaveReques
 // Returns: Replace the manager-wide additional plugins. New session creations and
 // subsequent hook reloads see the new set; already-running sessions keep their existing
 // hook installation until the next reload.
-func (a *ServerSessionsApi) SetAdditionalPlugins(ctx context.Context, params *SessionsSetAdditionalPluginsRequest) (*SessionsSetAdditionalPluginsResult, error) {
+func (a *ServerSessionsAPI) SetAdditionalPlugins(ctx context.Context, params *SessionsSetAdditionalPluginsRequest) (*SessionsSetAdditionalPluginsResult, error) {
 	raw, err := a.client.Request("sessions.setAdditionalPlugins", params)
 	if err != nil {
 		return nil, err
@@ -8955,7 +8955,7 @@ func (a *ServerSessionsApi) SetAdditionalPlugins(ctx context.Context, params *Se
 	return &result, nil
 }
 
-type ServerSkillsApi serverApi
+type ServerSkillsAPI serverAPI
 
 // Discovers skills across global and project sources.
 //
@@ -8965,7 +8965,7 @@ type ServerSkillsApi serverApi
 // discovery.
 //
 // Returns: Skills discovered across global and project sources.
-func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRequest) (*ServerSkillList, error) {
+func (a *ServerSkillsAPI) Discover(ctx context.Context, params *SkillsDiscoverRequest) (*ServerSkillList, error) {
 	raw, err := a.client.Request("skills.discover", params)
 	if err != nil {
 		return nil, err
@@ -8977,7 +8977,7 @@ func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRe
 	return &result, nil
 }
 
-type ServerSkillsConfigApi serverApi
+type ServerSkillsConfigAPI serverAPI
 
 // SetDisabledSkills replaces the global list of disabled skills.
 //
@@ -8985,7 +8985,7 @@ type ServerSkillsConfigApi serverApi
 //
 // Parameters: Skill names to mark as disabled in global configuration, replacing any
 // previous list.
-func (a *ServerSkillsConfigApi) SetDisabledSkills(ctx context.Context, params *SkillsConfigSetDisabledSkillsRequest) (*SkillsConfigSetDisabledSkillsResult, error) {
+func (a *ServerSkillsConfigAPI) SetDisabledSkills(ctx context.Context, params *SkillsConfigSetDisabledSkillsRequest) (*SkillsConfigSetDisabledSkillsResult, error) {
 	raw, err := a.client.Request("skills.config.setDisabledSkills", params)
 	if err != nil {
 		return nil, err
@@ -8997,11 +8997,11 @@ func (a *ServerSkillsConfigApi) SetDisabledSkills(ctx context.Context, params *S
 	return &result, nil
 }
 
-func (s *ServerSkillsApi) Config() *ServerSkillsConfigApi {
-	return (*ServerSkillsConfigApi)(s)
+func (s *ServerSkillsAPI) Config() *ServerSkillsConfigAPI {
+	return (*ServerSkillsConfigAPI)(s)
 }
 
-type ServerToolsApi serverApi
+type ServerToolsAPI serverAPI
 
 // Lists built-in tools available for a model.
 //
@@ -9012,7 +9012,7 @@ type ServerToolsApi serverApi
 //
 // Returns: Built-in tools available for the requested model, with their parameters and
 // instructions.
-func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*ToolList, error) {
+func (a *ServerToolsAPI) List(ctx context.Context, params *ToolsListRequest) (*ToolList, error) {
 	raw, err := a.client.Request("tools.list", params)
 	if err != nil {
 		return nil, err
@@ -9024,15 +9024,15 @@ func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*T
 	return &result, nil
 }
 
-type ServerUserApi serverApi
+type ServerUserAPI serverAPI
 
-type ServerUserSettingsApi serverApi
+type ServerUserSettingsAPI serverAPI
 
 // Reload drops this runtime process's in-memory user settings cache so the next settings
 // read observes disk.
 //
 // RPC method: user.settings.reload.
-func (a *ServerUserSettingsApi) Reload(ctx context.Context) (*UserSettingsReloadResult, error) {
+func (a *ServerUserSettingsAPI) Reload(ctx context.Context) (*UserSettingsReloadResult, error) {
 	raw, err := a.client.Request("user.settings.reload", nil)
 	if err != nil {
 		return nil, err
@@ -9044,26 +9044,26 @@ func (a *ServerUserSettingsApi) Reload(ctx context.Context) (*UserSettingsReload
 	return &result, nil
 }
 
-func (s *ServerUserApi) Settings() *ServerUserSettingsApi {
-	return (*ServerUserSettingsApi)(s)
+func (s *ServerUserAPI) Settings() *ServerUserSettingsAPI {
+	return (*ServerUserSettingsAPI)(s)
 }
 
-// ServerRpc provides typed server-scoped RPC methods.
-type ServerRpc struct {
+// ServerRPC provides typed server-scoped RPC methods.
+type ServerRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
-	common serverApi
+	common serverAPI
 
-	Account       *ServerAccountApi
-	AgentRegistry *ServerAgentRegistryApi
-	Mcp           *ServerMcpApi
-	Models        *ServerModelsApi
-	Runtime       *ServerRuntimeApi
-	Secrets       *ServerSecretsApi
-	SessionFs     *ServerSessionFsApi
-	Sessions      *ServerSessionsApi
-	Skills        *ServerSkillsApi
-	Tools         *ServerToolsApi
-	User          *ServerUserApi
+	Account       *ServerAccountAPI
+	AgentRegistry *ServerAgentRegistryAPI
+	MCP           *ServerMCPAPI
+	Models        *ServerModelsAPI
+	Runtime       *ServerRuntimeAPI
+	Secrets       *ServerSecretsAPI
+	SessionFS     *ServerSessionFSAPI
+	Sessions      *ServerSessionsAPI
+	Skills        *ServerSkillsAPI
+	Tools         *ServerToolsAPI
+	User          *ServerUserAPI
 }
 
 // Ping checks server responsiveness and returns protocol information.
@@ -9074,7 +9074,7 @@ type ServerRpc struct {
 //
 // Returns: Server liveness response, including the echoed message, current server
 // timestamp, and protocol version.
-func (a *ServerRpc) Ping(ctx context.Context, params *PingRequest) (*PingResult, error) {
+func (a *ServerRPC) Ping(ctx context.Context, params *PingRequest) (*PingResult, error) {
 	raw, err := a.common.client.Request("ping", params)
 	if err != nil {
 		return nil, err
@@ -9086,32 +9086,32 @@ func (a *ServerRpc) Ping(ctx context.Context, params *PingRequest) (*PingResult,
 	return &result, nil
 }
 
-func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
-	r := &ServerRpc{}
-	r.common = serverApi{client: client}
-	r.Account = (*ServerAccountApi)(&r.common)
-	r.AgentRegistry = (*ServerAgentRegistryApi)(&r.common)
-	r.Mcp = (*ServerMcpApi)(&r.common)
-	r.Models = (*ServerModelsApi)(&r.common)
-	r.Runtime = (*ServerRuntimeApi)(&r.common)
-	r.Secrets = (*ServerSecretsApi)(&r.common)
-	r.SessionFs = (*ServerSessionFsApi)(&r.common)
-	r.Sessions = (*ServerSessionsApi)(&r.common)
-	r.Skills = (*ServerSkillsApi)(&r.common)
-	r.Tools = (*ServerToolsApi)(&r.common)
-	r.User = (*ServerUserApi)(&r.common)
+func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
+	r := &ServerRPC{}
+	r.common = serverAPI{client: client}
+	r.Account = (*ServerAccountAPI)(&r.common)
+	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
+	r.MCP = (*ServerMCPAPI)(&r.common)
+	r.Models = (*ServerModelsAPI)(&r.common)
+	r.Runtime = (*ServerRuntimeAPI)(&r.common)
+	r.Secrets = (*ServerSecretsAPI)(&r.common)
+	r.SessionFS = (*ServerSessionFSAPI)(&r.common)
+	r.Sessions = (*ServerSessionsAPI)(&r.common)
+	r.Skills = (*ServerSkillsAPI)(&r.common)
+	r.Tools = (*ServerToolsAPI)(&r.common)
+	r.User = (*ServerUserAPI)(&r.common)
 	return r
 }
 
-type internalServerApi struct {
+type internalServerAPI struct {
 	client *jsonrpc2.Client
 }
 
-// InternalServerRpc provides internal SDK server-scoped RPC methods (handshake helpers
+// InternalServerRPC provides internal SDK server-scoped RPC methods (handshake helpers
 // etc.). Not part of the public API.
-type InternalServerRpc struct {
+type InternalServerRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
-	common internalServerApi
+	common internalServerAPI
 }
 
 // Connect performs the SDK server connection handshake and validates the optional
@@ -9125,7 +9125,7 @@ type InternalServerRpc struct {
 // success.
 // Internal: Connect is part of the SDK's internal handshake/plumbing; external callers
 // should not use it.
-func (a *InternalServerRpc) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
+func (a *InternalServerRPC) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
 	raw, err := a.common.client.Request("connect", params)
 	if err != nil {
 		return nil, err
@@ -9137,24 +9137,24 @@ func (a *InternalServerRpc) Connect(ctx context.Context, params *ConnectRequest)
 	return &result, nil
 }
 
-func NewInternalServerRpc(client *jsonrpc2.Client) *InternalServerRpc {
-	r := &InternalServerRpc{}
-	r.common = internalServerApi{client: client}
+func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
+	r := &InternalServerRPC{}
+	r.common = internalServerAPI{client: client}
 	return r
 }
 
-type sessionApi struct {
+type sessionAPI struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-// Experimental: AgentApi contains experimental APIs that may change or be removed.
-type AgentApi sessionApi
+// Experimental: AgentAPI contains experimental APIs that may change or be removed.
+type AgentAPI sessionAPI
 
 // Deselect clears the selected custom agent and returns the session to the default agent.
 //
 // RPC method: session.agent.deselect.
-func (a *AgentApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult, error) {
+func (a *AgentAPI) Deselect(ctx context.Context) (*SessionAgentDeselectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.deselect", req)
 	if err != nil {
@@ -9172,7 +9172,7 @@ func (a *AgentApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult, e
 // RPC method: session.agent.getCurrent.
 //
 // Returns: The currently selected custom agent, or null when using the default agent.
-func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, error) {
+func (a *AgentAPI) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.getCurrent", req)
 	if err != nil {
@@ -9190,7 +9190,7 @@ func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, erro
 // RPC method: session.agent.list.
 //
 // Returns: Custom agents available to the session.
-func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
+func (a *AgentAPI) List(ctx context.Context) (*AgentList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.list", req)
 	if err != nil {
@@ -9208,7 +9208,7 @@ func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
 // RPC method: session.agent.reload.
 //
 // Returns: Custom agents available to the session after reloading definitions from disk.
-func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
+func (a *AgentAPI) Reload(ctx context.Context) (*AgentReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.reload", req)
 	if err != nil {
@@ -9228,7 +9228,7 @@ func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
 // Parameters: Name of the custom agent to select for subsequent turns.
 //
 // Returns: The newly selected custom agent.
-func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*AgentSelectResult, error) {
+func (a *AgentAPI) Select(ctx context.Context, params *AgentSelectRequest) (*AgentSelectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["name"] = params.Name
@@ -9244,15 +9244,15 @@ func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 	return &result, nil
 }
 
-// Experimental: AuthApi contains experimental APIs that may change or be removed.
-type AuthApi sessionApi
+// Experimental: AuthAPI contains experimental APIs that may change or be removed.
+type AuthAPI sessionAPI
 
 // GetStatus gets authentication status and account metadata for the session.
 //
 // RPC method: session.auth.getStatus.
 //
 // Returns: Authentication status and account metadata for the session.
-func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
+func (a *AuthAPI) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.auth.getStatus", req)
 	if err != nil {
@@ -9274,7 +9274,7 @@ func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 // unchanged.
 //
 // Returns: Indicates whether the credential update succeeded.
-func (a *AuthApi) SetCredentials(ctx context.Context, params *SessionSetCredentialsParams) (*SessionSetCredentialsResult, error) {
+func (a *AuthAPI) SetCredentials(ctx context.Context, params *SessionSetCredentialsParams) (*SessionSetCredentialsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Credentials != nil {
@@ -9292,15 +9292,15 @@ func (a *AuthApi) SetCredentials(ctx context.Context, params *SessionSetCredenti
 	return &result, nil
 }
 
-// Experimental: CanvasApi contains experimental APIs that may change or be removed.
-type CanvasApi sessionApi
+// Experimental: CanvasAPI contains experimental APIs that may change or be removed.
+type CanvasAPI sessionAPI
 
 // Closes an open canvas instance.
 //
 // RPC method: session.canvas.close.
 //
 // Parameters: Canvas close parameters.
-func (a *CanvasApi) Close(ctx context.Context, params *CanvasCloseRequest) (*SessionCanvasCloseResult, error) {
+func (a *CanvasAPI) Close(ctx context.Context, params *CanvasCloseRequest) (*SessionCanvasCloseResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["instanceId"] = params.InstanceID
@@ -9321,7 +9321,7 @@ func (a *CanvasApi) Close(ctx context.Context, params *CanvasCloseRequest) (*Ses
 // RPC method: session.canvas.list.
 //
 // Returns: Declared canvases available in this session.
-func (a *CanvasApi) List(ctx context.Context) (*CanvasList, error) {
+func (a *CanvasAPI) List(ctx context.Context) (*CanvasList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.canvas.list", req)
 	if err != nil {
@@ -9339,7 +9339,7 @@ func (a *CanvasApi) List(ctx context.Context) (*CanvasList, error) {
 // RPC method: session.canvas.listOpen.
 //
 // Returns: Live open-canvas snapshot.
-func (a *CanvasApi) ListOpen(ctx context.Context) (*CanvasListOpenResult, error) {
+func (a *CanvasAPI) ListOpen(ctx context.Context) (*CanvasListOpenResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.canvas.listOpen", req)
 	if err != nil {
@@ -9359,7 +9359,7 @@ func (a *CanvasApi) ListOpen(ctx context.Context) (*CanvasListOpenResult, error)
 // Parameters: Canvas open parameters.
 //
 // Returns: Open canvas instance snapshot.
-func (a *CanvasApi) Open(ctx context.Context, params *CanvasOpenRequest) (*OpenCanvasInstance, error) {
+func (a *CanvasAPI) Open(ctx context.Context, params *CanvasOpenRequest) (*OpenCanvasInstance, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["canvasId"] = params.CanvasID
@@ -9382,8 +9382,8 @@ func (a *CanvasApi) Open(ctx context.Context, params *CanvasOpenRequest) (*OpenC
 	return &result, nil
 }
 
-// Experimental: CanvasActionApi contains experimental APIs that may change or be removed.
-type CanvasActionApi sessionApi
+// Experimental: CanvasActionAPI contains experimental APIs that may change or be removed.
+type CanvasActionAPI sessionAPI
 
 // Invokes an action on an open canvas instance.
 //
@@ -9392,7 +9392,7 @@ type CanvasActionApi sessionApi
 // Parameters: Canvas action invocation parameters.
 //
 // Returns: Canvas action invocation result.
-func (a *CanvasActionApi) Invoke(ctx context.Context, params *CanvasActionInvokeRequest) (*CanvasActionInvokeResult, error) {
+func (a *CanvasActionAPI) Invoke(ctx context.Context, params *CanvasActionInvokeRequest) (*CanvasActionInvokeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["actionName"] = params.ActionName
@@ -9413,12 +9413,12 @@ func (a *CanvasActionApi) Invoke(ctx context.Context, params *CanvasActionInvoke
 }
 
 // Experimental: Action returns experimental APIs that may change or be removed.
-func (s *CanvasApi) Action() *CanvasActionApi {
-	return (*CanvasActionApi)(s)
+func (s *CanvasAPI) Action() *CanvasActionAPI {
+	return (*CanvasActionAPI)(s)
 }
 
-// Experimental: CommandsApi contains experimental APIs that may change or be removed.
-type CommandsApi sessionApi
+// Experimental: CommandsAPI contains experimental APIs that may change or be removed.
+type CommandsAPI sessionAPI
 
 // Enqueues a slash command for FIFO processing on the local session.
 //
@@ -9427,7 +9427,7 @@ type CommandsApi sessionApi
 // Parameters: Slash-prefixed command string to enqueue for FIFO processing.
 //
 // Returns: Indicates whether the command was accepted into the local execution queue.
-func (a *CommandsApi) Enqueue(ctx context.Context, params *EnqueueCommandParams) (*EnqueueCommandResult, error) {
+func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams) (*EnqueueCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["command"] = params.Command
@@ -9450,7 +9450,7 @@ func (a *CommandsApi) Enqueue(ctx context.Context, params *EnqueueCommandParams)
 // Parameters: Slash command name and argument string to execute synchronously.
 //
 // Returns: Error message produced while executing the command, if any.
-func (a *CommandsApi) Execute(ctx context.Context, params *ExecuteCommandParams) (*ExecuteCommandResult, error) {
+func (a *CommandsAPI) Execute(ctx context.Context, params *ExecuteCommandParams) (*ExecuteCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["args"] = params.Args
@@ -9474,7 +9474,7 @@ func (a *CommandsApi) Execute(ctx context.Context, params *ExecuteCommandParams)
 // Parameters: Pending command request ID and an optional error if the client handler failed.
 //
 // Returns: Indicates whether the pending client-handled command was completed successfully.
-func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *CommandsHandlePendingCommandRequest) (*CommandsHandlePendingCommandResult, error) {
+func (a *CommandsAPI) HandlePendingCommand(ctx context.Context, params *CommandsHandlePendingCommandRequest) (*CommandsHandlePendingCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Error != nil {
@@ -9501,7 +9501,7 @@ func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *Commands
 //
 // Returns: Result of invoking the slash command (text output, prompt to send to the agent,
 // or completion).
-func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
+func (a *CommandsAPI) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Input != nil {
@@ -9528,7 +9528,7 @@ func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest)
 //
 // Returns: Slash commands available in the session, after applying any include/exclude
 // filters.
-func (a *CommandsApi) List(ctx context.Context, params ...*CommandsListRequest) (*CommandList, error) {
+func (a *CommandsAPI) List(ctx context.Context, params ...*CommandsListRequest) (*CommandList, error) {
 	var requestParams *CommandsListRequest
 	if len(params) > 0 {
 		requestParams = params[0]
@@ -9565,7 +9565,7 @@ func (a *CommandsApi) List(ctx context.Context, params ...*CommandsListRequest) 
 // it (and whether to stop processing further queued commands).
 //
 // Returns: Indicates whether the queued-command response was matched to a pending request.
-func (a *CommandsApi) RespondToQueuedCommand(ctx context.Context, params *CommandsRespondToQueuedCommandRequest) (*CommandsRespondToQueuedCommandResult, error) {
+func (a *CommandsAPI) RespondToQueuedCommand(ctx context.Context, params *CommandsRespondToQueuedCommandRequest) (*CommandsRespondToQueuedCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -9582,8 +9582,8 @@ func (a *CommandsApi) RespondToQueuedCommand(ctx context.Context, params *Comman
 	return &result, nil
 }
 
-// Experimental: EventLogApi contains experimental APIs that may change or be removed.
-type EventLogApi sessionApi
+// Experimental: EventLogAPI contains experimental APIs that may change or be removed.
+type EventLogAPI sessionAPI
 
 // Reads a batch of session events from a cursor, optionally waiting for new events.
 //
@@ -9594,7 +9594,7 @@ type EventLogApi sessionApi
 //
 // Returns: Batch of session events returned by a read, with cursor and continuation
 // metadata.
-func (a *EventLogApi) Read(ctx context.Context, params *EventLogReadRequest) (*EventsReadResult, error) {
+func (a *EventLogAPI) Read(ctx context.Context, params *EventLogReadRequest) (*EventsReadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.AgentScope != nil {
@@ -9631,7 +9631,7 @@ func (a *EventLogApi) Read(ctx context.Context, params *EventLogReadRequest) (*E
 // Parameters: Event type to register consumer interest for, used by runtime gating logic.
 //
 // Returns: Opaque handle representing an event-type interest registration.
-func (a *EventLogApi) RegisterInterest(ctx context.Context, params *RegisterEventInterestParams) (*RegisterEventInterestResult, error) {
+func (a *EventLogAPI) RegisterInterest(ctx context.Context, params *RegisterEventInterestParams) (*RegisterEventInterestResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["eventType"] = params.EventType
@@ -9654,7 +9654,7 @@ func (a *EventLogApi) RegisterInterest(ctx context.Context, params *RegisterEven
 // Parameters: Opaque handle previously returned by `registerInterest` to release.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *EventLogApi) ReleaseInterest(ctx context.Context, params *ReleaseEventInterestParams) (*EventLogReleaseInterestResult, error) {
+func (a *EventLogAPI) ReleaseInterest(ctx context.Context, params *ReleaseEventInterestParams) (*EventLogReleaseInterestResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["handle"] = params.Handle
@@ -9678,7 +9678,7 @@ func (a *EventLogApi) ReleaseInterest(ctx context.Context, params *ReleaseEventI
 // a consumer wants to subscribe to live events going forward without first paginating
 // through the entire persisted history (which would happen if `read` were called without a
 // cursor on a long-lived session).
-func (a *EventLogApi) Tail(ctx context.Context) (*EventLogTailResult, error) {
+func (a *EventLogAPI) Tail(ctx context.Context) (*EventLogTailResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.eventLog.tail", req)
 	if err != nil {
@@ -9691,15 +9691,15 @@ func (a *EventLogApi) Tail(ctx context.Context) (*EventLogTailResult, error) {
 	return &result, nil
 }
 
-// Experimental: ExtensionsApi contains experimental APIs that may change or be removed.
-type ExtensionsApi sessionApi
+// Experimental: ExtensionsAPI contains experimental APIs that may change or be removed.
+type ExtensionsAPI sessionAPI
 
 // Disables an extension for the session.
 //
 // RPC method: session.extensions.disable.
 //
 // Parameters: Source-qualified extension identifier to disable for the session.
-func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRequest) (*SessionExtensionsDisableResult, error) {
+func (a *ExtensionsAPI) Disable(ctx context.Context, params *ExtensionsDisableRequest) (*SessionExtensionsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -9720,7 +9720,7 @@ func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRe
 // RPC method: session.extensions.enable.
 //
 // Parameters: Source-qualified extension identifier to enable for the session.
-func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequest) (*SessionExtensionsEnableResult, error) {
+func (a *ExtensionsAPI) Enable(ctx context.Context, params *ExtensionsEnableRequest) (*SessionExtensionsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -9741,7 +9741,7 @@ func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequ
 // RPC method: session.extensions.list.
 //
 // Returns: Extensions discovered for the session, with their current status.
-func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
+func (a *ExtensionsAPI) List(ctx context.Context) (*ExtensionList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.extensions.list", req)
 	if err != nil {
@@ -9757,7 +9757,7 @@ func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
 // Reloads extension definitions and processes for the session.
 //
 // RPC method: session.extensions.reload.
-func (a *ExtensionsApi) Reload(ctx context.Context) (*SessionExtensionsReloadResult, error) {
+func (a *ExtensionsAPI) Reload(ctx context.Context) (*SessionExtensionsReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.extensions.reload", req)
 	if err != nil {
@@ -9777,7 +9777,7 @@ func (a *ExtensionsApi) Reload(ctx context.Context) (*SessionExtensionsReloadRes
 // RPC method: session.extensions.sendAttachmentsToMessage.
 //
 // Parameters: Parameters for session.extensions.sendAttachmentsToMessage.
-func (a *ExtensionsApi) SendAttachmentsToMessage(ctx context.Context, params *SendAttachmentsToMessageParams) (*SessionExtensionsSendAttachmentsToMessageResult, error) {
+func (a *ExtensionsAPI) SendAttachmentsToMessage(ctx context.Context, params *SendAttachmentsToMessageParams) (*SessionExtensionsSendAttachmentsToMessageResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["attachments"] = params.Attachments
@@ -9796,8 +9796,8 @@ func (a *ExtensionsApi) SendAttachmentsToMessage(ctx context.Context, params *Se
 	return &result, nil
 }
 
-// Experimental: FleetApi contains experimental APIs that may change or be removed.
-type FleetApi sessionApi
+// Experimental: FleetAPI contains experimental APIs that may change or be removed.
+type FleetAPI sessionAPI
 
 // Starts fleet mode by submitting the fleet orchestration prompt to the session.
 //
@@ -9806,7 +9806,7 @@ type FleetApi sessionApi
 // Parameters: Optional user prompt to combine with the fleet orchestration instructions.
 //
 // Returns: Indicates whether fleet mode was successfully activated.
-func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*FleetStartResult, error) {
+func (a *FleetAPI) Start(ctx context.Context, params *FleetStartRequest) (*FleetStartResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Prompt != nil {
@@ -9824,15 +9824,15 @@ func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*Fleet
 	return &result, nil
 }
 
-// Experimental: HistoryApi contains experimental APIs that may change or be removed.
-type HistoryApi sessionApi
+// Experimental: HistoryAPI contains experimental APIs that may change or be removed.
+type HistoryAPI sessionAPI
 
 // AbortManualCompaction aborts any in-progress manual compaction on a local session.
 //
 // RPC method: session.history.abortManualCompaction.
 //
 // Returns: Indicates whether an in-progress manual compaction was aborted.
-func (a *HistoryApi) AbortManualCompaction(ctx context.Context) (*HistoryAbortManualCompactionResult, error) {
+func (a *HistoryAPI) AbortManualCompaction(ctx context.Context) (*HistoryAbortManualCompactionResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.abortManualCompaction", req)
 	if err != nil {
@@ -9851,7 +9851,7 @@ func (a *HistoryApi) AbortManualCompaction(ctx context.Context) (*HistoryAbortMa
 // RPC method: session.history.cancelBackgroundCompaction.
 //
 // Returns: Indicates whether an in-progress background compaction was cancelled.
-func (a *HistoryApi) CancelBackgroundCompaction(ctx context.Context) (*HistoryCancelBackgroundCompactionResult, error) {
+func (a *HistoryAPI) CancelBackgroundCompaction(ctx context.Context) (*HistoryCancelBackgroundCompactionResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.cancelBackgroundCompaction", req)
 	if err != nil {
@@ -9872,7 +9872,7 @@ func (a *HistoryApi) CancelBackgroundCompaction(ctx context.Context) (*HistoryCa
 //
 // Returns: Compaction outcome with the number of tokens and messages removed, summary text,
 // and the resulting context window breakdown.
-func (a *HistoryApi) Compact(ctx context.Context, params ...*HistoryCompactRequest) (*HistoryCompactResult, error) {
+func (a *HistoryAPI) Compact(ctx context.Context, params ...*HistoryCompactRequest) (*HistoryCompactResult, error) {
 	var requestParams *HistoryCompactRequest
 	if len(params) > 0 {
 		requestParams = params[0]
@@ -9900,7 +9900,7 @@ func (a *HistoryApi) Compact(ctx context.Context, params ...*HistoryCompactReque
 // RPC method: session.history.summarizeForHandoff.
 //
 // Returns: Markdown summary of the conversation context (empty when not available).
-func (a *HistoryApi) SummarizeForHandoff(ctx context.Context) (*HistorySummarizeForHandoffResult, error) {
+func (a *HistoryAPI) SummarizeForHandoff(ctx context.Context) (*HistorySummarizeForHandoffResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.summarizeForHandoff", req)
 	if err != nil {
@@ -9921,7 +9921,7 @@ func (a *HistoryApi) SummarizeForHandoff(ctx context.Context) (*HistorySummarize
 // removed.
 //
 // Returns: Number of events that were removed by the truncation.
-func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateRequest) (*HistoryTruncateResult, error) {
+func (a *HistoryAPI) Truncate(ctx context.Context, params *HistoryTruncateRequest) (*HistoryTruncateResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["eventId"] = params.EventID
@@ -9937,15 +9937,15 @@ func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateReques
 	return &result, nil
 }
 
-// Experimental: InstructionsApi contains experimental APIs that may change or be removed.
-type InstructionsApi sessionApi
+// Experimental: InstructionsAPI contains experimental APIs that may change or be removed.
+type InstructionsAPI sessionAPI
 
 // GetSources gets instruction sources loaded for the session.
 //
 // RPC method: session.instructions.getSources.
 //
 // Returns: Instruction sources loaded for the session, in merge order.
-func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourcesResult, error) {
+func (a *InstructionsAPI) GetSources(ctx context.Context) (*InstructionsGetSourcesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.instructions.getSources", req)
 	if err != nil {
@@ -9958,15 +9958,15 @@ func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourc
 	return &result, nil
 }
 
-// Experimental: LspApi contains experimental APIs that may change or be removed.
-type LspApi sessionApi
+// Experimental: LspAPI contains experimental APIs that may change or be removed.
+type LspAPI sessionAPI
 
 // Initialize loads the merged LSP configuration set for the session's working directory.
 //
 // RPC method: session.lsp.initialize.
 //
 // Parameters: Parameters for (re)loading the merged LSP configuration set.
-func (a *LspApi) Initialize(ctx context.Context, params *LspInitializeRequest) (*SessionLspInitializeResult, error) {
+func (a *LspAPI) Initialize(ctx context.Context, params *LspInitializeRequest) (*SessionLspInitializeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Force != nil {
@@ -9990,8 +9990,8 @@ func (a *LspApi) Initialize(ctx context.Context, params *LspInitializeRequest) (
 	return &result, nil
 }
 
-// Experimental: McpApi contains experimental APIs that may change or be removed.
-type McpApi sessionApi
+// Experimental: MCPAPI contains experimental APIs that may change or be removed.
+type MCPAPI sessionAPI
 
 // CancelSamplingExecution cancels an in-flight MCP sampling execution by request ID.
 //
@@ -10001,7 +10001,7 @@ type McpApi sessionApi
 //
 // Returns: Indicates whether an in-flight sampling execution with the given requestId was
 // found and cancelled.
-func (a *McpApi) CancelSamplingExecution(ctx context.Context, params *McpCancelSamplingExecutionParams) (*McpCancelSamplingExecutionResult, error) {
+func (a *MCPAPI) CancelSamplingExecution(ctx context.Context, params *MCPCancelSamplingExecutionParams) (*MCPCancelSamplingExecutionResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -10010,7 +10010,7 @@ func (a *McpApi) CancelSamplingExecution(ctx context.Context, params *McpCancelS
 	if err != nil {
 		return nil, err
 	}
-	var result McpCancelSamplingExecutionResult
+	var result MCPCancelSamplingExecutionResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10022,7 +10022,7 @@ func (a *McpApi) CancelSamplingExecution(ctx context.Context, params *McpCancelS
 // RPC method: session.mcp.disable.
 //
 // Parameters: Name of the MCP server to disable for the session.
-func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*SessionMcpDisableResult, error) {
+func (a *MCPAPI) Disable(ctx context.Context, params *MCPDisableRequest) (*SessionMCPDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["serverName"] = params.ServerName
@@ -10031,7 +10031,7 @@ func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*Sessi
 	if err != nil {
 		return nil, err
 	}
-	var result SessionMcpDisableResult
+	var result SessionMCPDisableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10043,7 +10043,7 @@ func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*Sessi
 // RPC method: session.mcp.enable.
 //
 // Parameters: Name of the MCP server to enable for the session.
-func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*SessionMcpEnableResult, error) {
+func (a *MCPAPI) Enable(ctx context.Context, params *MCPEnableRequest) (*SessionMCPEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["serverName"] = params.ServerName
@@ -10052,7 +10052,7 @@ func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*Session
 	if err != nil {
 		return nil, err
 	}
-	var result SessionMcpEnableResult
+	var result SessionMCPEnableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10068,10 +10068,10 @@ func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*Session
 //
 // Returns: Outcome of an MCP sampling execution: success result, failure error, or
 // cancellation.
-func (a *McpApi) ExecuteSampling(ctx context.Context, params *McpExecuteSamplingParams) (*McpSamplingExecutionResult, error) {
+func (a *MCPAPI) ExecuteSampling(ctx context.Context, params *MCPExecuteSamplingParams) (*MCPSamplingExecutionResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
-		req["mcpRequestId"] = params.McpRequestID
+		req["mcpRequestId"] = params.MCPRequestID
 		req["request"] = params.Request
 		req["requestId"] = params.RequestID
 		req["serverName"] = params.ServerName
@@ -10080,7 +10080,7 @@ func (a *McpApi) ExecuteSampling(ctx context.Context, params *McpExecuteSampling
 	if err != nil {
 		return nil, err
 	}
-	var result McpSamplingExecutionResult
+	var result MCPSamplingExecutionResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10092,13 +10092,13 @@ func (a *McpApi) ExecuteSampling(ctx context.Context, params *McpExecuteSampling
 // RPC method: session.mcp.list.
 //
 // Returns: MCP servers configured for the session, with their connection status.
-func (a *McpApi) List(ctx context.Context) (*McpServerList, error) {
+func (a *MCPAPI) List(ctx context.Context) (*MCPServerList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.list", req)
 	if err != nil {
 		return nil, err
 	}
-	var result McpServerList
+	var result MCPServerList
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10108,13 +10108,13 @@ func (a *McpApi) List(ctx context.Context) (*McpServerList, error) {
 // Reloads MCP server connections for the session.
 //
 // RPC method: session.mcp.reload.
-func (a *McpApi) Reload(ctx context.Context) (*SessionMcpReloadResult, error) {
+func (a *MCPAPI) Reload(ctx context.Context) (*SessionMCPReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.reload", req)
 	if err != nil {
 		return nil, err
 	}
-	var result SessionMcpReloadResult
+	var result SessionMCPReloadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10127,13 +10127,13 @@ func (a *McpApi) Reload(ctx context.Context) (*SessionMcpReloadResult, error) {
 //
 // Returns: Indicates whether the auto-managed `github` MCP server was removed (false when
 // nothing to remove).
-func (a *McpApi) RemoveGitHub(ctx context.Context) (*McpRemoveGitHubResult, error) {
+func (a *MCPAPI) RemoveGitHub(ctx context.Context) (*MCPRemoveGitHubResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.removeGitHub", req)
 	if err != nil {
 		return nil, err
 	}
-	var result McpRemoveGitHubResult
+	var result MCPRemoveGitHubResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10149,7 +10149,7 @@ func (a *McpApi) RemoveGitHub(ctx context.Context) (*McpRemoveGitHubResult, erro
 // `indirect`).
 //
 // Returns: Env-value mode recorded on the session after the update.
-func (a *McpApi) SetEnvValueMode(ctx context.Context, params *McpSetEnvValueModeParams) (*McpSetEnvValueModeResult, error) {
+func (a *MCPAPI) SetEnvValueMode(ctx context.Context, params *MCPSetEnvValueModeParams) (*MCPSetEnvValueModeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["mode"] = params.Mode
@@ -10158,15 +10158,15 @@ func (a *McpApi) SetEnvValueMode(ctx context.Context, params *McpSetEnvValueMode
 	if err != nil {
 		return nil, err
 	}
-	var result McpSetEnvValueModeResult
+	var result MCPSetEnvValueModeResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-// Experimental: McpAppsApi contains experimental APIs that may change or be removed.
-type McpAppsApi sessionApi
+// Experimental: MCPAppsAPI contains experimental APIs that may change or be removed.
+type MCPAppsAPI sessionAPI
 
 // CallTool call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check
 // that prevents an app iframe from invoking model-only tools. Returns the standard MCP
@@ -10177,7 +10177,7 @@ type McpAppsApi sessionApi
 // Parameters: MCP server, tool name, and arguments to invoke from an MCP App view.
 //
 // Returns: Standard MCP CallToolResult
-func (a *McpAppsApi) CallTool(ctx context.Context, params *McpAppsCallToolRequest) (*SessionMcpAppsCallToolResult, error) {
+func (a *MCPAppsAPI) CallTool(ctx context.Context, params *MCPAppsCallToolRequest) (*SessionMCPAppsCallToolResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Arguments != nil {
@@ -10191,7 +10191,7 @@ func (a *McpAppsApi) CallTool(ctx context.Context, params *McpAppsCallToolReques
 	if err != nil {
 		return nil, err
 	}
-	var result SessionMcpAppsCallToolResult
+	var result SessionMCPAppsCallToolResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10206,7 +10206,7 @@ func (a *McpAppsApi) CallTool(ctx context.Context, params *McpAppsCallToolReques
 // Parameters: MCP server to diagnose MCP Apps wiring for.
 //
 // Returns: Diagnostic snapshot of MCP Apps wiring for the named server.
-func (a *McpAppsApi) Diagnose(ctx context.Context, params *McpAppsDiagnoseRequest) (*McpAppsDiagnoseResult, error) {
+func (a *MCPAppsAPI) Diagnose(ctx context.Context, params *MCPAppsDiagnoseRequest) (*MCPAppsDiagnoseResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["serverName"] = params.ServerName
@@ -10215,7 +10215,7 @@ func (a *McpAppsApi) Diagnose(ctx context.Context, params *McpAppsDiagnoseReques
 	if err != nil {
 		return nil, err
 	}
-	var result McpAppsDiagnoseResult
+	var result MCPAppsDiagnoseResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10227,13 +10227,13 @@ func (a *McpAppsApi) Diagnose(ctx context.Context, params *McpAppsDiagnoseReques
 // RPC method: session.mcp.apps.getHostContext.
 //
 // Returns: Current host context advertised to MCP App guests.
-func (a *McpAppsApi) GetHostContext(ctx context.Context) (*McpAppsHostContext, error) {
+func (a *MCPAppsAPI) GetHostContext(ctx context.Context) (*MCPAppsHostContext, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.apps.getHostContext", req)
 	if err != nil {
 		return nil, err
 	}
-	var result McpAppsHostContext
+	var result MCPAppsHostContext
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10249,7 +10249,7 @@ func (a *McpAppsApi) GetHostContext(ctx context.Context) (*McpAppsHostContext, e
 // Parameters: MCP server to list app-callable tools for.
 //
 // Returns: App-callable tools from the named MCP server.
-func (a *McpAppsApi) ListTools(ctx context.Context, params *McpAppsListToolsRequest) (*McpAppsListToolsResult, error) {
+func (a *MCPAppsAPI) ListTools(ctx context.Context, params *MCPAppsListToolsRequest) (*MCPAppsListToolsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["originServerName"] = params.OriginServerName
@@ -10259,7 +10259,7 @@ func (a *McpAppsApi) ListTools(ctx context.Context, params *McpAppsListToolsRequ
 	if err != nil {
 		return nil, err
 	}
-	var result McpAppsListToolsResult
+	var result MCPAppsListToolsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10274,7 +10274,7 @@ func (a *McpAppsApi) ListTools(ctx context.Context, params *McpAppsListToolsRequ
 // Parameters: MCP server and resource URI to fetch.
 //
 // Returns: Resource contents returned by the MCP server.
-func (a *McpAppsApi) ReadResource(ctx context.Context, params *McpAppsReadResourceRequest) (*McpAppsReadResourceResult, error) {
+func (a *MCPAppsAPI) ReadResource(ctx context.Context, params *MCPAppsReadResourceRequest) (*MCPAppsReadResourceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["serverName"] = params.ServerName
@@ -10284,7 +10284,7 @@ func (a *McpAppsApi) ReadResource(ctx context.Context, params *McpAppsReadResour
 	if err != nil {
 		return nil, err
 	}
-	var result McpAppsReadResourceResult
+	var result MCPAppsReadResourceResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10297,7 +10297,7 @@ func (a *McpAppsApi) ReadResource(ctx context.Context, params *McpAppsReadResour
 // RPC method: session.mcp.apps.setHostContext.
 //
 // Parameters: Host context to advertise to MCP App guests.
-func (a *McpAppsApi) SetHostContext(ctx context.Context, params *McpAppsSetHostContextRequest) (*SessionMcpAppsSetHostContextResult, error) {
+func (a *MCPAppsAPI) SetHostContext(ctx context.Context, params *MCPAppsSetHostContextRequest) (*SessionMCPAppsSetHostContextResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["context"] = params.Context
@@ -10306,7 +10306,7 @@ func (a *McpAppsApi) SetHostContext(ctx context.Context, params *McpAppsSetHostC
 	if err != nil {
 		return nil, err
 	}
-	var result SessionMcpAppsSetHostContextResult
+	var result SessionMCPAppsSetHostContextResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10314,12 +10314,12 @@ func (a *McpAppsApi) SetHostContext(ctx context.Context, params *McpAppsSetHostC
 }
 
 // Experimental: Apps returns experimental APIs that may change or be removed.
-func (s *McpApi) Apps() *McpAppsApi {
-	return (*McpAppsApi)(s)
+func (s *MCPAPI) Apps() *MCPAppsAPI {
+	return (*MCPAppsAPI)(s)
 }
 
-// Experimental: McpOauthApi contains experimental APIs that may change or be removed.
-type McpOauthApi sessionApi
+// Experimental: MCPOauthAPI contains experimental APIs that may change or be removed.
+type MCPOauthAPI sessionAPI
 
 // Login starts OAuth authentication for a remote MCP server.
 //
@@ -10330,7 +10330,7 @@ type McpOauthApi sessionApi
 //
 // Returns: OAuth authorization URL the caller should open, or empty when cached tokens
 // already authenticated the server.
-func (a *McpOauthApi) Login(ctx context.Context, params *McpOauthLoginRequest) (*McpOauthLoginResult, error) {
+func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (*MCPOauthLoginResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.CallbackSuccessMessage != nil {
@@ -10348,7 +10348,7 @@ func (a *McpOauthApi) Login(ctx context.Context, params *McpOauthLoginRequest) (
 	if err != nil {
 		return nil, err
 	}
-	var result McpOauthLoginResult
+	var result MCPOauthLoginResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10356,12 +10356,12 @@ func (a *McpOauthApi) Login(ctx context.Context, params *McpOauthLoginRequest) (
 }
 
 // Experimental: Oauth returns experimental APIs that may change or be removed.
-func (s *McpApi) Oauth() *McpOauthApi {
-	return (*McpOauthApi)(s)
+func (s *MCPAPI) Oauth() *MCPOauthAPI {
+	return (*MCPOauthAPI)(s)
 }
 
-// Experimental: MetadataApi contains experimental APIs that may change or be removed.
-type MetadataApi sessionApi
+// Experimental: MetadataAPI contains experimental APIs that may change or be removed.
+type MetadataAPI sessionAPI
 
 // ContextInfo returns the token breakdown for the session's current context window for a
 // given model.
@@ -10372,7 +10372,7 @@ type MetadataApi sessionApi
 //
 // Returns: Token breakdown for the session's current context window, or null if
 // uninitialized.
-func (a *MetadataApi) ContextInfo(ctx context.Context, params *MetadataContextInfoRequest) (*MetadataContextInfoResult, error) {
+func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextInfoRequest) (*MetadataContextInfoResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["outputTokenLimit"] = params.OutputTokenLimit
@@ -10399,7 +10399,7 @@ func (a *MetadataApi) ContextInfo(ctx context.Context, params *MetadataContextIn
 //
 // Returns: Indicates whether the local session is currently processing a turn or background
 // continuation.
-func (a *MetadataApi) IsProcessing(ctx context.Context) (*MetadataIsProcessingResult, error) {
+func (a *MetadataAPI) IsProcessing(ctx context.Context) (*MetadataIsProcessingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.metadata.isProcessing", req)
 	if err != nil {
@@ -10423,7 +10423,7 @@ func (a *MetadataApi) IsProcessing(ctx context.Context) (*MetadataIsProcessingRe
 // token totals. Useful for hosts that want an initial estimate of context usage on session
 // resume, before the next agent turn fires `session.context_info_changed` events. Returns
 // zeros for an empty session.
-func (a *MetadataApi) RecomputeContextTokens(ctx context.Context, params *MetadataRecomputeContextTokensRequest) (*MetadataRecomputeContextTokensResult, error) {
+func (a *MetadataAPI) RecomputeContextTokens(ctx context.Context, params *MetadataRecomputeContextTokensRequest) (*MetadataRecomputeContextTokensResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["modelId"] = params.ModelID
@@ -10450,7 +10450,7 @@ func (a *MetadataApi) RecomputeContextTokens(ctx context.Context, params *Metada
 // `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline
 // UI) can react. Use this when the host has detected a cwd/branch/repo change outside the
 // session's normal lifecycle (e.g., after a shell command in interactive mode).
-func (a *MetadataApi) RecordContextChange(ctx context.Context, params *MetadataRecordContextChangeRequest) (*MetadataRecordContextChangeResult, error) {
+func (a *MetadataAPI) RecordContextChange(ctx context.Context, params *MetadataRecordContextChangeRequest) (*MetadataRecordContextChangeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["context"] = params.Context
@@ -10476,7 +10476,7 @@ func (a *MetadataApi) RecordContextChange(ctx context.Context, params *MetadataR
 // explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for
 // `process.chdir` and any related side-effects (file index, etc.); this method only updates
 // the session's own recorded path.
-func (a *MetadataApi) SetWorkingDirectory(ctx context.Context, params *MetadataSetWorkingDirectoryRequest) (*MetadataSetWorkingDirectoryResult, error) {
+func (a *MetadataAPI) SetWorkingDirectory(ctx context.Context, params *MetadataSetWorkingDirectoryRequest) (*MetadataSetWorkingDirectoryResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
@@ -10498,7 +10498,7 @@ func (a *MetadataApi) SetWorkingDirectory(ctx context.Context, params *MetadataS
 // RPC method: session.metadata.snapshot.
 //
 // Returns: Point-in-time snapshot of slow-changing session identifier and state fields
-func (a *MetadataApi) Snapshot(ctx context.Context) (*SessionMetadataSnapshot, error) {
+func (a *MetadataAPI) Snapshot(ctx context.Context) (*SessionMetadataSnapshot, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.metadata.snapshot", req)
 	if err != nil {
@@ -10511,15 +10511,15 @@ func (a *MetadataApi) Snapshot(ctx context.Context) (*SessionMetadataSnapshot, e
 	return &result, nil
 }
 
-// Experimental: ModeApi contains experimental APIs that may change or be removed.
-type ModeApi sessionApi
+// Experimental: ModeAPI contains experimental APIs that may change or be removed.
+type ModeAPI sessionAPI
 
 // Gets the current agent interaction mode.
 //
 // RPC method: session.mode.get.
 //
 // Returns: The session mode the agent is operating in
-func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
+func (a *ModeAPI) Get(ctx context.Context) (*SessionMode, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mode.get", req)
 	if err != nil {
@@ -10537,7 +10537,7 @@ func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
 // RPC method: session.mode.set.
 //
 // Parameters: Agent interaction mode to apply to the session.
-func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionModeSetResult, error) {
+func (a *ModeAPI) Set(ctx context.Context, params *ModeSetRequest) (*SessionModeSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["mode"] = params.Mode
@@ -10553,8 +10553,8 @@ func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionMode
 	return &result, nil
 }
 
-// Experimental: ModelApi contains experimental APIs that may change or be removed.
-type ModelApi sessionApi
+// Experimental: ModelAPI contains experimental APIs that may change or be removed.
+type ModelAPI sessionAPI
 
 // GetCurrent gets the currently selected model for the session.
 //
@@ -10563,7 +10563,7 @@ type ModelApi sessionApi
 // Returns: The currently selected model, reasoning effort, and context tier for the
 // session. The context tier reflects `Session.getContextTier()`, restored from the session
 // journal on resume.
-func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
+func (a *ModelAPI) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.model.getCurrent", req)
 	if err != nil {
@@ -10585,7 +10585,7 @@ func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 // Parameters: Optional listing options.
 //
 // Returns: The list of models available to this session.
-func (a *ModelApi) List(ctx context.Context, params ...*ModelListRequest) (*SessionModelList, error) {
+func (a *ModelAPI) List(ctx context.Context, params ...*ModelListRequest) (*SessionModelList, error) {
 	var requestParams *ModelListRequest
 	if len(params) > 0 {
 		requestParams = params[0]
@@ -10617,7 +10617,7 @@ func (a *ModelApi) List(ctx context.Context, params ...*ModelListRequest) (*Sess
 // Returns: Update the session's reasoning effort without changing the selected model. Use
 // `switchTo` instead when you also need to change the model. The runtime stores the effort
 // on the session and applies it to subsequent turns.
-func (a *ModelApi) SetReasoningEffort(ctx context.Context, params *ModelSetReasoningEffortRequest) (*ModelSetReasoningEffortResult, error) {
+func (a *ModelAPI) SetReasoningEffort(ctx context.Context, params *ModelSetReasoningEffortRequest) (*ModelSetReasoningEffortResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["reasoningEffort"] = params.ReasoningEffort
@@ -10641,7 +10641,7 @@ func (a *ModelApi) SetReasoningEffort(ctx context.Context, params *ModelSetReaso
 // overrides, and context tier.
 //
 // Returns: The model identifier active on the session after the switch.
-func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (*ModelSwitchToResult, error) {
+func (a *ModelAPI) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (*ModelSwitchToResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.ContextTier != nil {
@@ -10669,15 +10669,15 @@ func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (
 	return &result, nil
 }
 
-// Experimental: NameApi contains experimental APIs that may change or be removed.
-type NameApi sessionApi
+// Experimental: NameAPI contains experimental APIs that may change or be removed.
+type NameAPI sessionAPI
 
 // Gets the session's friendly name.
 //
 // RPC method: session.name.get.
 //
 // Returns: The session's friendly name, or null when not yet set.
-func (a *NameApi) Get(ctx context.Context) (*NameGetResult, error) {
+func (a *NameAPI) Get(ctx context.Context) (*NameGetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.name.get", req)
 	if err != nil {
@@ -10695,7 +10695,7 @@ func (a *NameApi) Get(ctx context.Context) (*NameGetResult, error) {
 // RPC method: session.name.set.
 //
 // Parameters: New friendly name to apply to the session.
-func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*SessionNameSetResult, error) {
+func (a *NameAPI) Set(ctx context.Context, params *NameSetRequest) (*SessionNameSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["name"] = params.Name
@@ -10720,7 +10720,7 @@ func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*SessionName
 // user-set name exists.
 //
 // Returns: Indicates whether the auto-generated summary was applied as the session's name.
-func (a *NameApi) SetAuto(ctx context.Context, params *NameSetAutoRequest) (*NameSetAutoResult, error) {
+func (a *NameAPI) SetAuto(ctx context.Context, params *NameSetAutoRequest) (*NameSetAutoResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["summary"] = params.Summary
@@ -10736,8 +10736,8 @@ func (a *NameApi) SetAuto(ctx context.Context, params *NameSetAutoRequest) (*Nam
 	return &result, nil
 }
 
-// Experimental: OptionsApi contains experimental APIs that may change or be removed.
-type OptionsApi sessionApi
+// Experimental: OptionsAPI contains experimental APIs that may change or be removed.
+type OptionsAPI sessionAPI
 
 // Update patches the genuinely-mutable subset of session options.
 //
@@ -10746,7 +10746,7 @@ type OptionsApi sessionApi
 // Parameters: Patch of mutable session options to apply to the running session.
 //
 // Returns: Indicates whether the session options patch was applied successfully.
-func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsParams) (*SessionUpdateOptionsResult, error) {
+func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsParams) (*SessionUpdateOptionsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.AdditionalContentExclusionPolicies != nil {
@@ -10890,8 +10890,8 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 	return &result, nil
 }
 
-// Experimental: PermissionsApi contains experimental APIs that may change or be removed.
-type PermissionsApi sessionApi
+// Experimental: PermissionsAPI contains experimental APIs that may change or be removed.
+type PermissionsAPI sessionAPI
 
 // Configure replaces selected permission policy fields (rules, paths, URLs, exclusions,
 // allow-all flags) on the session.
@@ -10902,7 +10902,7 @@ type PermissionsApi sessionApi
 // unchanged).
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsApi) Configure(ctx context.Context, params *PermissionsConfigureParams) (*PermissionsConfigureResult, error) {
+func (a *PermissionsAPI) Configure(ctx context.Context, params *PermissionsConfigureParams) (*PermissionsConfigureResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.AdditionalContentExclusionPolicies != nil {
@@ -10920,8 +10920,8 @@ func (a *PermissionsApi) Configure(ctx context.Context, params *PermissionsConfi
 		if params.Rules != nil {
 			req["rules"] = *params.Rules
 		}
-		if params.Urls != nil {
-			req["urls"] = *params.Urls
+		if params.URLs != nil {
+			req["urls"] = *params.URLs
 		}
 	}
 	raw, err := a.client.Request("session.permissions.configure", req)
@@ -10941,7 +10941,7 @@ func (a *PermissionsApi) Configure(ctx context.Context, params *PermissionsConfi
 // RPC method: session.permissions.getAllowAll.
 //
 // Returns: Current full allow-all permission state.
-func (a *PermissionsApi) GetAllowAll(ctx context.Context) (*AllowAllPermissionState, error) {
+func (a *PermissionsAPI) GetAllowAll(ctx context.Context) (*AllowAllPermissionState, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.permissions.getAllowAll", req)
 	if err != nil {
@@ -10963,7 +10963,7 @@ func (a *PermissionsApi) GetAllowAll(ctx context.Context) (*AllowAllPermissionSt
 //
 // Returns: Indicates whether the permission decision was applied; false when the request
 // was already resolved.
-func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, params *PermissionDecisionRequest) (*PermissionRequestResult, error) {
+func (a *PermissionsAPI) HandlePendingPermissionRequest(ctx context.Context, params *PermissionDecisionRequest) (*PermissionRequestResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -10988,7 +10988,7 @@ func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, par
 // permission rules.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsApi) ModifyRules(ctx context.Context, params *PermissionsModifyRulesParams) (*PermissionsModifyRulesResult, error) {
+func (a *PermissionsAPI) ModifyRules(ctx context.Context, params *PermissionsModifyRulesParams) (*PermissionsModifyRulesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Add != nil {
@@ -11022,7 +11022,7 @@ func (a *PermissionsApi) ModifyRules(ctx context.Context, params *PermissionsMod
 // rendered.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsApi) NotifyPromptShown(ctx context.Context, params *PermissionPromptShownNotification) (*PermissionsNotifyPromptShownResult, error) {
+func (a *PermissionsAPI) NotifyPromptShown(ctx context.Context, params *PermissionPromptShownNotification) (*PermissionsNotifyPromptShownResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["message"] = params.Message
@@ -11044,7 +11044,7 @@ func (a *PermissionsApi) NotifyPromptShown(ctx context.Context, params *Permissi
 // RPC method: session.permissions.pendingRequests.
 //
 // Returns: List of pending permission requests reconstructed from event history.
-func (a *PermissionsApi) PendingRequests(ctx context.Context) (*PendingPermissionRequestList, error) {
+func (a *PermissionsAPI) PendingRequests(ctx context.Context) (*PendingPermissionRequestList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.permissions.pendingRequests", req)
 	if err != nil {
@@ -11062,7 +11062,7 @@ func (a *PermissionsApi) PendingRequests(ctx context.Context) (*PendingPermissio
 // RPC method: session.permissions.resetSessionApprovals.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*PermissionsResetSessionApprovalsResult, error) {
+func (a *PermissionsAPI) ResetSessionApprovals(ctx context.Context) (*PermissionsResetSessionApprovalsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.permissions.resetSessionApprovals", req)
 	if err != nil {
@@ -11088,7 +11088,7 @@ func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*Permission
 // Parameters: Whether to enable full allow-all permissions for the session.
 //
 // Returns: Indicates whether the operation succeeded and reports the post-mutation state.
-func (a *PermissionsApi) SetAllowAll(ctx context.Context, params *PermissionsSetAllowAllRequest) (*AllowAllPermissionSetResult, error) {
+func (a *PermissionsAPI) SetAllowAll(ctx context.Context, params *PermissionsSetAllowAllRequest) (*AllowAllPermissionSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["enabled"] = params.Enabled
@@ -11116,7 +11116,7 @@ func (a *PermissionsApi) SetAllowAll(ctx context.Context, params *PermissionsSet
 // source.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsSetApproveAllRequest) (*PermissionsSetApproveAllResult, error) {
+func (a *PermissionsAPI) SetApproveAll(ctx context.Context, params *PermissionsSetApproveAllRequest) (*PermissionsSetApproveAllResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["enabled"] = params.Enabled
@@ -11143,7 +11143,7 @@ func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsS
 // this client.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsApi) SetRequired(ctx context.Context, params *PermissionsSetRequiredRequest) (*PermissionsSetRequiredResult, error) {
+func (a *PermissionsAPI) SetRequired(ctx context.Context, params *PermissionsSetRequiredRequest) (*PermissionsSetRequiredResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["required"] = params.Required
@@ -11159,9 +11159,9 @@ func (a *PermissionsApi) SetRequired(ctx context.Context, params *PermissionsSet
 	return &result, nil
 }
 
-// Experimental: PermissionsFolderTrustApi contains experimental APIs that may change or be
+// Experimental: PermissionsFolderTrustAPI contains experimental APIs that may change or be
 // removed.
-type PermissionsFolderTrustApi sessionApi
+type PermissionsFolderTrustAPI sessionAPI
 
 // AddTrusted adds a folder to the user's trusted folders list.
 //
@@ -11170,7 +11170,7 @@ type PermissionsFolderTrustApi sessionApi
 // Parameters: Folder path to add to trusted folders.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsFolderTrustApi) AddTrusted(ctx context.Context, params *FolderTrustAddParams) (*PermissionsFolderTrustAddTrustedResult, error) {
+func (a *PermissionsFolderTrustAPI) AddTrusted(ctx context.Context, params *FolderTrustAddParams) (*PermissionsFolderTrustAddTrustedResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -11193,7 +11193,7 @@ func (a *PermissionsFolderTrustApi) AddTrusted(ctx context.Context, params *Fold
 // Parameters: Folder path to check for trust.
 //
 // Returns: Folder trust check result.
-func (a *PermissionsFolderTrustApi) IsTrusted(ctx context.Context, params *FolderTrustCheckParams) (*FolderTrustCheckResult, error) {
+func (a *PermissionsFolderTrustAPI) IsTrusted(ctx context.Context, params *FolderTrustCheckParams) (*FolderTrustCheckResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -11210,13 +11210,13 @@ func (a *PermissionsFolderTrustApi) IsTrusted(ctx context.Context, params *Folde
 }
 
 // Experimental: FolderTrust returns experimental APIs that may change or be removed.
-func (s *PermissionsApi) FolderTrust() *PermissionsFolderTrustApi {
-	return (*PermissionsFolderTrustApi)(s)
+func (s *PermissionsAPI) FolderTrust() *PermissionsFolderTrustAPI {
+	return (*PermissionsFolderTrustAPI)(s)
 }
 
-// Experimental: PermissionsLocationsApi contains experimental APIs that may change or be
+// Experimental: PermissionsLocationsAPI contains experimental APIs that may change or be
 // removed.
-type PermissionsLocationsApi sessionApi
+type PermissionsLocationsAPI sessionAPI
 
 // AddToolApproval persists a tool approval for a permission location and applies its rules
 // to this session's live permission service.
@@ -11226,7 +11226,7 @@ type PermissionsLocationsApi sessionApi
 // Parameters: Location-scoped tool approval to persist.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsLocationsApi) AddToolApproval(ctx context.Context, params *PermissionLocationAddToolApprovalParams) (*PermissionsLocationsAddToolApprovalResult, error) {
+func (a *PermissionsLocationsAPI) AddToolApproval(ctx context.Context, params *PermissionLocationAddToolApprovalParams) (*PermissionsLocationsAddToolApprovalResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["approval"] = params.Approval
@@ -11251,7 +11251,7 @@ func (a *PermissionsLocationsApi) AddToolApproval(ctx context.Context, params *P
 // Parameters: Working directory to load persisted location permissions for.
 //
 // Returns: Summary of persisted location permissions applied to the session.
-func (a *PermissionsLocationsApi) Apply(ctx context.Context, params *PermissionLocationApplyParams) (*PermissionLocationApplyResult, error) {
+func (a *PermissionsLocationsAPI) Apply(ctx context.Context, params *PermissionLocationApplyParams) (*PermissionLocationApplyResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
@@ -11274,7 +11274,7 @@ func (a *PermissionsLocationsApi) Apply(ctx context.Context, params *PermissionL
 // Parameters: Working directory to resolve into a location-permissions key.
 //
 // Returns: Resolved location-permissions key and type.
-func (a *PermissionsLocationsApi) Resolve(ctx context.Context, params *PermissionLocationResolveParams) (*PermissionLocationResolveResult, error) {
+func (a *PermissionsLocationsAPI) Resolve(ctx context.Context, params *PermissionLocationResolveParams) (*PermissionLocationResolveResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
@@ -11291,13 +11291,13 @@ func (a *PermissionsLocationsApi) Resolve(ctx context.Context, params *Permissio
 }
 
 // Experimental: Locations returns experimental APIs that may change or be removed.
-func (s *PermissionsApi) Locations() *PermissionsLocationsApi {
-	return (*PermissionsLocationsApi)(s)
+func (s *PermissionsAPI) Locations() *PermissionsLocationsAPI {
+	return (*PermissionsLocationsAPI)(s)
 }
 
-// Experimental: PermissionsPathsApi contains experimental APIs that may change or be
+// Experimental: PermissionsPathsAPI contains experimental APIs that may change or be
 // removed.
-type PermissionsPathsApi sessionApi
+type PermissionsPathsAPI sessionAPI
 
 // Adds a directory to the session's allow-list.
 //
@@ -11306,7 +11306,7 @@ type PermissionsPathsApi sessionApi
 // Parameters: Directory path to add to the session's allowed directories.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsPathsApi) Add(ctx context.Context, params *PermissionPathsAddParams) (*PermissionsPathsAddResult, error) {
+func (a *PermissionsPathsAPI) Add(ctx context.Context, params *PermissionPathsAddParams) (*PermissionsPathsAddResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -11330,7 +11330,7 @@ func (a *PermissionsPathsApi) Add(ctx context.Context, params *PermissionPathsAd
 // Parameters: Path to evaluate against the session's allowed directories.
 //
 // Returns: Indicates whether the supplied path is within the session's allowed directories.
-func (a *PermissionsPathsApi) IsPathWithinAllowedDirectories(ctx context.Context, params *PermissionPathsAllowedCheckParams) (*PermissionPathsAllowedCheckResult, error) {
+func (a *PermissionsPathsAPI) IsPathWithinAllowedDirectories(ctx context.Context, params *PermissionPathsAllowedCheckParams) (*PermissionPathsAllowedCheckResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -11354,7 +11354,7 @@ func (a *PermissionsPathsApi) IsPathWithinAllowedDirectories(ctx context.Context
 // Parameters: Path to evaluate against the session's workspace (primary) directory.
 //
 // Returns: Indicates whether the supplied path is within the session's workspace directory.
-func (a *PermissionsPathsApi) IsPathWithinWorkspace(ctx context.Context, params *PermissionPathsWorkspaceCheckParams) (*PermissionPathsWorkspaceCheckResult, error) {
+func (a *PermissionsPathsAPI) IsPathWithinWorkspace(ctx context.Context, params *PermissionPathsWorkspaceCheckParams) (*PermissionPathsWorkspaceCheckResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -11375,7 +11375,7 @@ func (a *PermissionsPathsApi) IsPathWithinWorkspace(ctx context.Context, params 
 // RPC method: session.permissions.paths.list.
 //
 // Returns: Snapshot of the session's allow-listed directories and primary working directory.
-func (a *PermissionsPathsApi) List(ctx context.Context) (*PermissionPathsList, error) {
+func (a *PermissionsPathsAPI) List(ctx context.Context) (*PermissionPathsList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.permissions.paths.list", req)
 	if err != nil {
@@ -11396,7 +11396,7 @@ func (a *PermissionsPathsApi) List(ctx context.Context) (*PermissionPathsList, e
 // Parameters: Directory path to set as the session's new primary working directory.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsPathsApi) UpdatePrimary(ctx context.Context, params *PermissionPathsUpdatePrimaryParams) (*PermissionsPathsUpdatePrimaryResult, error) {
+func (a *PermissionsPathsAPI) UpdatePrimary(ctx context.Context, params *PermissionPathsUpdatePrimaryParams) (*PermissionsPathsUpdatePrimaryResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -11413,12 +11413,12 @@ func (a *PermissionsPathsApi) UpdatePrimary(ctx context.Context, params *Permiss
 }
 
 // Experimental: Paths returns experimental APIs that may change or be removed.
-func (s *PermissionsApi) Paths() *PermissionsPathsApi {
-	return (*PermissionsPathsApi)(s)
+func (s *PermissionsAPI) Paths() *PermissionsPathsAPI {
+	return (*PermissionsPathsAPI)(s)
 }
 
-// Experimental: PermissionsUrlsApi contains experimental APIs that may change or be removed.
-type PermissionsUrlsApi sessionApi
+// Experimental: PermissionsURLsAPI contains experimental APIs that may change or be removed.
+type PermissionsURLsAPI sessionAPI
 
 // SetUnrestrictedMode toggles the runtime's URL-permission policy between unrestricted and
 // restricted modes.
@@ -11428,7 +11428,7 @@ type PermissionsUrlsApi sessionApi
 // Parameters: Whether the URL-permission policy should run in unrestricted mode.
 //
 // Returns: Indicates whether the operation succeeded.
-func (a *PermissionsUrlsApi) SetUnrestrictedMode(ctx context.Context, params *PermissionUrlsSetUnrestrictedModeParams) (*PermissionsUrlsSetUnrestrictedModeResult, error) {
+func (a *PermissionsURLsAPI) SetUnrestrictedMode(ctx context.Context, params *PermissionURLsSetUnrestrictedModeParams) (*PermissionsURLsSetUnrestrictedModeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["enabled"] = params.Enabled
@@ -11437,25 +11437,25 @@ func (a *PermissionsUrlsApi) SetUnrestrictedMode(ctx context.Context, params *Pe
 	if err != nil {
 		return nil, err
 	}
-	var result PermissionsUrlsSetUnrestrictedModeResult
+	var result PermissionsURLsSetUnrestrictedModeResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-// Experimental: Urls returns experimental APIs that may change or be removed.
-func (s *PermissionsApi) Urls() *PermissionsUrlsApi {
-	return (*PermissionsUrlsApi)(s)
+// Experimental: URLs returns experimental APIs that may change or be removed.
+func (s *PermissionsAPI) URLs() *PermissionsURLsAPI {
+	return (*PermissionsURLsAPI)(s)
 }
 
-// Experimental: PlanApi contains experimental APIs that may change or be removed.
-type PlanApi sessionApi
+// Experimental: PlanAPI contains experimental APIs that may change or be removed.
+type PlanAPI sessionAPI
 
 // Deletes the session plan file from the workspace.
 //
 // RPC method: session.plan.delete.
-func (a *PlanApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) {
+func (a *PlanAPI) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.delete", req)
 	if err != nil {
@@ -11473,7 +11473,7 @@ func (a *PlanApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) 
 // RPC method: session.plan.read.
 //
 // Returns: Existence, contents, and resolved path of the session plan file.
-func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
+func (a *PlanAPI) Read(ctx context.Context) (*PlanReadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.read", req)
 	if err != nil {
@@ -11491,7 +11491,7 @@ func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
 // RPC method: session.plan.update.
 //
 // Parameters: Replacement contents to write to the session plan file.
-func (a *PlanApi) Update(ctx context.Context, params *PlanUpdateRequest) (*SessionPlanUpdateResult, error) {
+func (a *PlanAPI) Update(ctx context.Context, params *PlanUpdateRequest) (*SessionPlanUpdateResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["content"] = params.Content
@@ -11507,15 +11507,15 @@ func (a *PlanApi) Update(ctx context.Context, params *PlanUpdateRequest) (*Sessi
 	return &result, nil
 }
 
-// Experimental: PluginsApi contains experimental APIs that may change or be removed.
-type PluginsApi sessionApi
+// Experimental: PluginsAPI contains experimental APIs that may change or be removed.
+type PluginsAPI sessionAPI
 
 // Lists plugins installed for the session.
 //
 // RPC method: session.plugins.list.
 //
 // Returns: Plugins installed for the session, with their enabled state and version metadata.
-func (a *PluginsApi) List(ctx context.Context) (*PluginList, error) {
+func (a *PluginsAPI) List(ctx context.Context) (*PluginList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plugins.list", req)
 	if err != nil {
@@ -11528,13 +11528,13 @@ func (a *PluginsApi) List(ctx context.Context) (*PluginList, error) {
 	return &result, nil
 }
 
-// Experimental: QueueApi contains experimental APIs that may change or be removed.
-type QueueApi sessionApi
+// Experimental: QueueAPI contains experimental APIs that may change or be removed.
+type QueueAPI sessionAPI
 
 // Clears all pending queued items on the local session.
 //
 // RPC method: session.queue.clear.
-func (a *QueueApi) Clear(ctx context.Context) (*SessionQueueClearResult, error) {
+func (a *QueueAPI) Clear(ctx context.Context) (*SessionQueueClearResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.queue.clear", req)
 	if err != nil {
@@ -11553,7 +11553,7 @@ func (a *QueueApi) Clear(ctx context.Context) (*SessionQueueClearResult, error) 
 // RPC method: session.queue.pendingItems.
 //
 // Returns: Snapshot of the session's pending queued items and immediate-steering messages.
-func (a *QueueApi) PendingItems(ctx context.Context) (*QueuePendingItemsResult, error) {
+func (a *QueueAPI) PendingItems(ctx context.Context) (*QueuePendingItemsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.queue.pendingItems", req)
 	if err != nil {
@@ -11571,7 +11571,7 @@ func (a *QueueApi) PendingItems(ctx context.Context) (*QueuePendingItemsResult, 
 // RPC method: session.queue.removeMostRecent.
 //
 // Returns: Indicates whether a user-facing pending item was removed.
-func (a *QueueApi) RemoveMostRecent(ctx context.Context) (*QueueRemoveMostRecentResult, error) {
+func (a *QueueAPI) RemoveMostRecent(ctx context.Context) (*QueueRemoveMostRecentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.queue.removeMostRecent", req)
 	if err != nil {
@@ -11584,13 +11584,13 @@ func (a *QueueApi) RemoveMostRecent(ctx context.Context) (*QueueRemoveMostRecent
 	return &result, nil
 }
 
-// Experimental: RemoteApi contains experimental APIs that may change or be removed.
-type RemoteApi sessionApi
+// Experimental: RemoteAPI contains experimental APIs that may change or be removed.
+type RemoteAPI sessionAPI
 
 // Disables remote session export and steering.
 //
 // RPC method: session.remote.disable.
-func (a *RemoteApi) Disable(ctx context.Context) (*SessionRemoteDisableResult, error) {
+func (a *RemoteAPI) Disable(ctx context.Context) (*SessionRemoteDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.remote.disable", req)
 	if err != nil {
@@ -11612,7 +11612,7 @@ func (a *RemoteApi) Disable(ctx context.Context) (*SessionRemoteDisableResult, e
 //
 // Returns: GitHub URL for the session and a flag indicating whether remote steering is
 // enabled.
-func (a *RemoteApi) Enable(ctx context.Context, params *RemoteEnableRequest) (*RemoteEnableResult, error) {
+func (a *RemoteAPI) Enable(ctx context.Context, params *RemoteEnableRequest) (*RemoteEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Mode != nil {
@@ -11641,7 +11641,7 @@ func (a *RemoteApi) Enable(ctx context.Context, params *RemoteEnableRequest) (*R
 // Returns: Persist a steerability change as a `session.remote_steerable_changed` event.
 // Used by the host (CLI / SDK consumer) when it has just finished enabling or disabling
 // steering on a remote exporter that the runtime does not directly own.
-func (a *RemoteApi) NotifySteerableChanged(ctx context.Context, params *RemoteNotifySteerableChangedRequest) (*RemoteNotifySteerableChangedResult, error) {
+func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNotifySteerableChangedRequest) (*RemoteNotifySteerableChangedResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["remoteSteerable"] = params.RemoteSteerable
@@ -11657,15 +11657,15 @@ func (a *RemoteApi) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 	return &result, nil
 }
 
-// Experimental: ScheduleApi contains experimental APIs that may change or be removed.
-type ScheduleApi sessionApi
+// Experimental: ScheduleAPI contains experimental APIs that may change or be removed.
+type ScheduleAPI sessionAPI
 
 // Lists the session's currently active scheduled prompts.
 //
 // RPC method: session.schedule.list.
 //
 // Returns: Snapshot of the currently active recurring prompts for this session.
-func (a *ScheduleApi) List(ctx context.Context) (*ScheduleList, error) {
+func (a *ScheduleAPI) List(ctx context.Context) (*ScheduleList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.schedule.list", req)
 	if err != nil {
@@ -11686,7 +11686,7 @@ func (a *ScheduleApi) List(ctx context.Context) (*ScheduleList, error) {
 //
 // Returns: Remove a scheduled prompt by id. The result entry is omitted if the id was
 // unknown.
-func (a *ScheduleApi) Stop(ctx context.Context, params *ScheduleStopRequest) (*ScheduleStopResult, error) {
+func (a *ScheduleAPI) Stop(ctx context.Context, params *ScheduleStopRequest) (*ScheduleStopResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -11702,8 +11702,8 @@ func (a *ScheduleApi) Stop(ctx context.Context, params *ScheduleStopRequest) (*S
 	return &result, nil
 }
 
-// Experimental: ShellApi contains experimental APIs that may change or be removed.
-type ShellApi sessionApi
+// Experimental: ShellAPI contains experimental APIs that may change or be removed.
+type ShellAPI sessionAPI
 
 // Exec starts a shell command and streams output through session notifications.
 //
@@ -11714,7 +11714,7 @@ type ShellApi sessionApi
 //
 // Returns: Identifier of the spawned process, used to correlate streamed output and exit
 // notifications.
-func (a *ShellApi) Exec(ctx context.Context, params *ShellExecRequest) (*ShellExecResult, error) {
+func (a *ShellAPI) Exec(ctx context.Context, params *ShellExecRequest) (*ShellExecResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["command"] = params.Command
@@ -11745,7 +11745,7 @@ func (a *ShellApi) Exec(ctx context.Context, params *ShellExecRequest) (*ShellEx
 //
 // Returns: Indicates whether the signal was delivered; false if the process was unknown or
 // already exited.
-func (a *ShellApi) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKillResult, error) {
+func (a *ShellAPI) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKillResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["processId"] = params.ProcessID
@@ -11764,15 +11764,15 @@ func (a *ShellApi) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKi
 	return &result, nil
 }
 
-// Experimental: SkillsApi contains experimental APIs that may change or be removed.
-type SkillsApi sessionApi
+// Experimental: SkillsAPI contains experimental APIs that may change or be removed.
+type SkillsAPI sessionAPI
 
 // Disables a skill for the session.
 //
 // RPC method: session.skills.disable.
 //
 // Parameters: Name of the skill to disable for the session.
-func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (*SessionSkillsDisableResult, error) {
+func (a *SkillsAPI) Disable(ctx context.Context, params *SkillsDisableRequest) (*SessionSkillsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["name"] = params.Name
@@ -11793,7 +11793,7 @@ func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (
 // RPC method: session.skills.enable.
 //
 // Parameters: Name of the skill to enable for the session.
-func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*SessionSkillsEnableResult, error) {
+func (a *SkillsAPI) Enable(ctx context.Context, params *SkillsEnableRequest) (*SessionSkillsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["name"] = params.Name
@@ -11812,7 +11812,7 @@ func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*S
 // EnsureLoaded ensures the session's skill definitions have been loaded from disk.
 //
 // RPC method: session.skills.ensureLoaded.
-func (a *SkillsApi) EnsureLoaded(ctx context.Context) (*SessionSkillsEnsureLoadedResult, error) {
+func (a *SkillsAPI) EnsureLoaded(ctx context.Context) (*SessionSkillsEnsureLoadedResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.ensureLoaded", req)
 	if err != nil {
@@ -11831,7 +11831,7 @@ func (a *SkillsApi) EnsureLoaded(ctx context.Context) (*SessionSkillsEnsureLoade
 //
 // Returns: Skills invoked during this session, ordered by invocation time (most recent
 // last).
-func (a *SkillsApi) GetInvoked(ctx context.Context) (*SkillsGetInvokedResult, error) {
+func (a *SkillsAPI) GetInvoked(ctx context.Context) (*SkillsGetInvokedResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.getInvoked", req)
 	if err != nil {
@@ -11849,7 +11849,7 @@ func (a *SkillsApi) GetInvoked(ctx context.Context) (*SkillsGetInvokedResult, er
 // RPC method: session.skills.list.
 //
 // Returns: Skills available to the session, with their enabled state.
-func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
+func (a *SkillsAPI) List(ctx context.Context) (*SkillList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.list", req)
 	if err != nil {
@@ -11868,7 +11868,7 @@ func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
 //
 // Returns: Diagnostics from reloading skill definitions, with warnings and errors as
 // separate lists.
-func (a *SkillsApi) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) {
+func (a *SkillsAPI) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.reload", req)
 	if err != nil {
@@ -11881,8 +11881,8 @@ func (a *SkillsApi) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) 
 	return &result, nil
 }
 
-// Experimental: TasksApi contains experimental APIs that may change or be removed.
-type TasksApi sessionApi
+// Experimental: TasksAPI contains experimental APIs that may change or be removed.
+type TasksAPI sessionAPI
 
 // Cancels a background task.
 //
@@ -11891,7 +11891,7 @@ type TasksApi sessionApi
 // Parameters: Identifier of the background task to cancel.
 //
 // Returns: Indicates whether the background task was successfully cancelled.
-func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*TasksCancelResult, error) {
+func (a *TasksAPI) Cancel(ctx context.Context, params *TasksCancelRequest) (*TasksCancelResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -11913,7 +11913,7 @@ func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*Tas
 // RPC method: session.tasks.getCurrentPromotable.
 //
 // Returns: The first sync-waiting task that can currently be promoted to background mode.
-func (a *TasksApi) GetCurrentPromotable(ctx context.Context) (*TasksGetCurrentPromotableResult, error) {
+func (a *TasksAPI) GetCurrentPromotable(ctx context.Context) (*TasksGetCurrentPromotableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.getCurrentPromotable", req)
 	if err != nil {
@@ -11933,7 +11933,7 @@ func (a *TasksApi) GetCurrentPromotable(ctx context.Context) (*TasksGetCurrentPr
 // Parameters: Identifier of the background task to fetch progress for.
 //
 // Returns: Progress information for the task, or null when no task with that ID is tracked.
-func (a *TasksApi) GetProgress(ctx context.Context, params *TasksGetProgressRequest) (*TasksGetProgressResult, error) {
+func (a *TasksAPI) GetProgress(ctx context.Context, params *TasksGetProgressRequest) (*TasksGetProgressResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -11954,7 +11954,7 @@ func (a *TasksApi) GetProgress(ctx context.Context, params *TasksGetProgressRequ
 // RPC method: session.tasks.list.
 //
 // Returns: Background tasks currently tracked by the session.
-func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
+func (a *TasksAPI) List(ctx context.Context) (*TaskList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.list", req)
 	if err != nil {
@@ -11974,7 +11974,7 @@ func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
 //
 // Returns: The promoted task as it now exists in background mode, omitted if no promotable
 // task was waiting.
-func (a *TasksApi) PromoteCurrentToBackground(ctx context.Context) (*TasksPromoteCurrentToBackgroundResult, error) {
+func (a *TasksAPI) PromoteCurrentToBackground(ctx context.Context) (*TasksPromoteCurrentToBackgroundResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.promoteCurrentToBackground", req)
 	if err != nil {
@@ -11995,7 +11995,7 @@ func (a *TasksApi) PromoteCurrentToBackground(ctx context.Context) (*TasksPromot
 // Parameters: Identifier of the task to promote to background mode.
 //
 // Returns: Indicates whether the task was successfully promoted to background mode.
-func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromoteToBackgroundRequest) (*TasksPromoteToBackgroundResult, error) {
+func (a *TasksAPI) PromoteToBackground(ctx context.Context, params *TasksPromoteToBackgroundRequest) (*TasksPromoteToBackgroundResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -12017,7 +12017,7 @@ func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromote
 //
 // Returns: Refresh metadata for any detached background shells the runtime knows about. Use
 // after a long pause to pick up exit/output state for shells running outside the agent loop.
-func (a *TasksApi) Refresh(ctx context.Context) (*TasksRefreshResult, error) {
+func (a *TasksAPI) Refresh(ctx context.Context) (*TasksRefreshResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.refresh", req)
 	if err != nil {
@@ -12038,7 +12038,7 @@ func (a *TasksApi) Refresh(ctx context.Context) (*TasksRefreshResult, error) {
 //
 // Returns: Indicates whether the task was removed. False when the task does not exist or is
 // still running/idle.
-func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*TasksRemoveResult, error) {
+func (a *TasksAPI) Remove(ctx context.Context, params *TasksRemoveRequest) (*TasksRemoveResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -12063,7 +12063,7 @@ func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*Tas
 //
 // Returns: Indicates whether the message was delivered, with an error message when delivery
 // failed.
-func (a *TasksApi) SendMessage(ctx context.Context, params *TasksSendMessageRequest) (*TasksSendMessageResult, error) {
+func (a *TasksAPI) SendMessage(ctx context.Context, params *TasksSendMessageRequest) (*TasksSendMessageResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.FromAgentID != nil {
@@ -12091,7 +12091,7 @@ func (a *TasksApi) SendMessage(ctx context.Context, params *TasksSendMessageRequ
 // new task.
 //
 // Returns: Identifier assigned to the newly started background agent task.
-func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentRequest) (*TasksStartAgentResult, error) {
+func (a *TasksAPI) StartAgent(ctx context.Context, params *TasksStartAgentRequest) (*TasksStartAgentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["agentType"] = params.AgentType
@@ -12123,7 +12123,7 @@ func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentReques
 // turns scheduled by their completions have settled. Returns when the runtime is fully
 // drained or after an internal timeout (default 10 minutes; configurable via
 // COPILOT_TASK_WAIT_TIMEOUT_SECONDS).
-func (a *TasksApi) WaitForPending(ctx context.Context) (*TasksWaitForPendingResult, error) {
+func (a *TasksAPI) WaitForPending(ctx context.Context) (*TasksWaitForPendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.waitForPending", req)
 	if err != nil {
@@ -12136,8 +12136,8 @@ func (a *TasksApi) WaitForPending(ctx context.Context) (*TasksWaitForPendingResu
 	return &result, nil
 }
 
-// Experimental: TelemetryApi contains experimental APIs that may change or be removed.
-type TelemetryApi sessionApi
+// Experimental: TelemetryAPI contains experimental APIs that may change or be removed.
+type TelemetryAPI sessionAPI
 
 // SetFeatureOverrides sets feature override key/value pairs to attach to subsequent
 // telemetry events for the session.
@@ -12146,7 +12146,7 @@ type TelemetryApi sessionApi
 //
 // Parameters: Feature override key/value pairs to attach to subsequent telemetry events
 // from this session.
-func (a *TelemetryApi) SetFeatureOverrides(ctx context.Context, params *TelemetrySetFeatureOverridesRequest) (*SessionTelemetrySetFeatureOverridesResult, error) {
+func (a *TelemetryAPI) SetFeatureOverrides(ctx context.Context, params *TelemetrySetFeatureOverridesRequest) (*SessionTelemetrySetFeatureOverridesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["features"] = params.Features
@@ -12162,8 +12162,8 @@ func (a *TelemetryApi) SetFeatureOverrides(ctx context.Context, params *Telemetr
 	return &result, nil
 }
 
-// Experimental: ToolsApi contains experimental APIs that may change or be removed.
-type ToolsApi sessionApi
+// Experimental: ToolsAPI contains experimental APIs that may change or be removed.
+type ToolsAPI sessionAPI
 
 // GetCurrentMetadata returns lightweight metadata for the session's currently initialized
 // tools.
@@ -12171,7 +12171,7 @@ type ToolsApi sessionApi
 // RPC method: session.tools.getCurrentMetadata.
 //
 // Returns: Current lightweight tool metadata snapshot for the session.
-func (a *ToolsApi) GetCurrentMetadata(ctx context.Context) (*ToolsGetCurrentMetadataResult, error) {
+func (a *ToolsAPI) GetCurrentMetadata(ctx context.Context) (*ToolsGetCurrentMetadataResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tools.getCurrentMetadata", req)
 	if err != nil {
@@ -12192,7 +12192,7 @@ func (a *ToolsApi) GetCurrentMetadata(ctx context.Context) (*ToolsGetCurrentMeta
 // describing why it failed.
 //
 // Returns: Indicates whether the external tool call result was handled successfully.
-func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePendingToolCallRequest) (*HandlePendingToolCallResult, error) {
+func (a *ToolsAPI) HandlePendingToolCall(ctx context.Context, params *HandlePendingToolCallRequest) (*HandlePendingToolCallResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Error != nil {
@@ -12223,7 +12223,7 @@ func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePend
 // sessions and consumer flows that need an initialized tool set before `send` invoke this.
 // Default base-class implementation is a no-op for sessions that don't support tool
 // validation.
-func (a *ToolsApi) InitializeAndValidate(ctx context.Context) (*ToolsInitializeAndValidateResult, error) {
+func (a *ToolsAPI) InitializeAndValidate(ctx context.Context) (*ToolsInitializeAndValidateResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tools.initializeAndValidate", req)
 	if err != nil {
@@ -12236,8 +12236,8 @@ func (a *ToolsApi) InitializeAndValidate(ctx context.Context) (*ToolsInitializeA
 	return &result, nil
 }
 
-// Experimental: UIApi contains experimental APIs that may change or be removed.
-type UIApi sessionApi
+// Experimental: UIAPI contains experimental APIs that may change or be removed.
+type UIAPI sessionAPI
 
 // Elicitation requests structured input from a UI-capable client.
 //
@@ -12247,7 +12247,7 @@ type UIApi sessionApi
 // user.
 //
 // Returns: The elicitation response (accept with form values, decline, or cancel)
-func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (*UIElicitationResponse, error) {
+func (a *UIAPI) Elicitation(ctx context.Context, params *UIElicitationRequest) (*UIElicitationResponse, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["message"] = params.Message
@@ -12273,7 +12273,7 @@ func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (
 // response.
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
-func (a *UIApi) HandlePendingAutoModeSwitch(ctx context.Context, params *UIHandlePendingAutoModeSwitchRequest) (*UIHandlePendingResult, error) {
+func (a *UIAPI) HandlePendingAutoModeSwitch(ctx context.Context, params *UIHandlePendingAutoModeSwitchRequest) (*UIHandlePendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -12299,7 +12299,7 @@ func (a *UIApi) HandlePendingAutoModeSwitch(ctx context.Context, params *UIHandl
 //
 // Returns: Indicates whether the elicitation response was accepted; false if it was already
 // resolved by another client.
-func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
+func (a *UIAPI) HandlePendingElicitation(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -12325,7 +12325,7 @@ func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePe
 // response.
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
-func (a *UIApi) HandlePendingExitPlanMode(ctx context.Context, params *UIHandlePendingExitPlanModeRequest) (*UIHandlePendingResult, error) {
+func (a *UIAPI) HandlePendingExitPlanMode(ctx context.Context, params *UIHandlePendingExitPlanModeRequest) (*UIHandlePendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -12351,7 +12351,7 @@ func (a *UIApi) HandlePendingExitPlanMode(ctx context.Context, params *UIHandleP
 // result payload (omit to reject).
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
-func (a *UIApi) HandlePendingSampling(ctx context.Context, params *UIHandlePendingSamplingRequest) (*UIHandlePendingResult, error) {
+func (a *UIAPI) HandlePendingSampling(ctx context.Context, params *UIHandlePendingSamplingRequest) (*UIHandlePendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -12378,7 +12378,7 @@ func (a *UIApi) HandlePendingSampling(ctx context.Context, params *UIHandlePendi
 // Parameters: Request ID of a pending `user_input.requested` event and the user's response.
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
-func (a *UIApi) HandlePendingUserInput(ctx context.Context, params *UIHandlePendingUserInputRequest) (*UIHandlePendingResult, error) {
+func (a *UIAPI) HandlePendingUserInput(ctx context.Context, params *UIHandlePendingUserInputRequest) (*UIHandlePendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -12404,7 +12404,7 @@ func (a *UIApi) HandlePendingUserInput(ctx context.Context, params *UIHandlePend
 // caller still attaches the actual listener via the standard event-subscription mechanism;
 // this registration solely tells the server bridge to skip its own dispatch (so a remote
 // client doesn't race the in-process handler for the same requestId).
-func (a *UIApi) RegisterDirectAutoModeSwitchHandler(ctx context.Context) (*UIRegisterDirectAutoModeSwitchHandlerResult, error) {
+func (a *UIAPI) RegisterDirectAutoModeSwitchHandler(ctx context.Context) (*UIRegisterDirectAutoModeSwitchHandlerResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.ui.registerDirectAutoModeSwitchHandler", req)
 	if err != nil {
@@ -12427,7 +12427,7 @@ func (a *UIApi) RegisterDirectAutoModeSwitchHandler(ctx context.Context) (*UIReg
 //
 // Returns: Indicates whether the handle was active and the registration count was
 // decremented.
-func (a *UIApi) UnregisterDirectAutoModeSwitchHandler(ctx context.Context, params *UIUnregisterDirectAutoModeSwitchHandlerRequest) (*UIUnregisterDirectAutoModeSwitchHandlerResult, error) {
+func (a *UIAPI) UnregisterDirectAutoModeSwitchHandler(ctx context.Context, params *UIUnregisterDirectAutoModeSwitchHandlerRequest) (*UIUnregisterDirectAutoModeSwitchHandlerResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["handle"] = params.Handle
@@ -12443,8 +12443,8 @@ func (a *UIApi) UnregisterDirectAutoModeSwitchHandler(ctx context.Context, param
 	return &result, nil
 }
 
-// Experimental: UsageApi contains experimental APIs that may change or be removed.
-type UsageApi sessionApi
+// Experimental: UsageAPI contains experimental APIs that may change or be removed.
+type UsageAPI sessionAPI
 
 // GetMetrics gets accumulated usage metrics for the session.
 //
@@ -12452,7 +12452,7 @@ type UsageApi sessionApi
 //
 // Returns: Accumulated session usage metrics, including premium request cost, token counts,
 // model breakdown, and code-change totals.
-func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, error) {
+func (a *UsageAPI) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.usage.getMetrics", req)
 	if err != nil {
@@ -12465,15 +12465,15 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 	return &result, nil
 }
 
-// Experimental: WorkspacesApi contains experimental APIs that may change or be removed.
-type WorkspacesApi sessionApi
+// Experimental: WorkspacesAPI contains experimental APIs that may change or be removed.
+type WorkspacesAPI sessionAPI
 
 // CreateFile creates or overwrites a file in the session workspace files directory.
 //
 // RPC method: session.workspaces.createFile.
 //
 // Parameters: Relative path and UTF-8 content for the workspace file to create or overwrite.
-func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreateFileRequest) (*SessionWorkspacesCreateFileResult, error) {
+func (a *WorkspacesAPI) CreateFile(ctx context.Context, params *WorkspacesCreateFileRequest) (*SessionWorkspacesCreateFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["content"] = params.Content
@@ -12497,7 +12497,7 @@ func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreate
 // Parameters: Parameters for computing a workspace diff.
 //
 // Returns: Workspace diff result for the requested mode.
-func (a *WorkspacesApi) Diff(ctx context.Context, params *WorkspacesDiffRequest) (*WorkspaceDiffResult, error) {
+func (a *WorkspacesAPI) Diff(ctx context.Context, params *WorkspacesDiffRequest) (*WorkspaceDiffResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["mode"] = params.Mode
@@ -12519,7 +12519,7 @@ func (a *WorkspacesApi) Diff(ctx context.Context, params *WorkspacesDiffRequest)
 //
 // Returns: Current workspace metadata for the session, including its absolute filesystem
 // path when available.
-func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspaceResult, error) {
+func (a *WorkspacesAPI) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspaceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspaces.getWorkspace", req)
 	if err != nil {
@@ -12538,7 +12538,7 @@ func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspa
 //
 // Returns: Workspace checkpoints in chronological order; empty when the workspace is not
 // enabled.
-func (a *WorkspacesApi) ListCheckpoints(ctx context.Context) (*WorkspacesListCheckpointsResult, error) {
+func (a *WorkspacesAPI) ListCheckpoints(ctx context.Context) (*WorkspacesListCheckpointsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspaces.listCheckpoints", req)
 	if err != nil {
@@ -12556,7 +12556,7 @@ func (a *WorkspacesApi) ListCheckpoints(ctx context.Context) (*WorkspacesListChe
 // RPC method: session.workspaces.listFiles.
 //
 // Returns: Relative paths of files stored in the session workspace files directory.
-func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResult, error) {
+func (a *WorkspacesAPI) ListFiles(ctx context.Context) (*WorkspacesListFilesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspaces.listFiles", req)
 	if err != nil {
@@ -12577,7 +12577,7 @@ func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResu
 //
 // Returns: Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace
 // is missing.
-func (a *WorkspacesApi) ReadCheckpoint(ctx context.Context, params *WorkspacesReadCheckpointRequest) (*WorkspacesReadCheckpointResult, error) {
+func (a *WorkspacesAPI) ReadCheckpoint(ctx context.Context, params *WorkspacesReadCheckpointRequest) (*WorkspacesReadCheckpointResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["number"] = params.Number
@@ -12600,7 +12600,7 @@ func (a *WorkspacesApi) ReadCheckpoint(ctx context.Context, params *WorkspacesRe
 // Parameters: Relative path of the workspace file to read.
 //
 // Returns: Contents of the requested workspace file as a UTF-8 string.
-func (a *WorkspacesApi) ReadFile(ctx context.Context, params *WorkspacesReadFileRequest) (*WorkspacesReadFileResult, error) {
+func (a *WorkspacesAPI) ReadFile(ctx context.Context, params *WorkspacesReadFileRequest) (*WorkspacesReadFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -12623,7 +12623,7 @@ func (a *WorkspacesApi) ReadFile(ctx context.Context, params *WorkspacesReadFile
 // Parameters: Pasted content to save as a UTF-8 file in the session workspace.
 //
 // Returns: Descriptor for the saved paste file, or null when the workspace is unavailable.
-func (a *WorkspacesApi) SaveLargePaste(ctx context.Context, params *WorkspacesSaveLargePasteRequest) (*WorkspacesSaveLargePasteResult, error) {
+func (a *WorkspacesAPI) SaveLargePaste(ctx context.Context, params *WorkspacesSaveLargePasteRequest) (*WorkspacesSaveLargePasteResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["content"] = params.Content
@@ -12639,41 +12639,41 @@ func (a *WorkspacesApi) SaveLargePaste(ctx context.Context, params *WorkspacesSa
 	return &result, nil
 }
 
-// SessionRpc provides typed session-scoped RPC methods.
-type SessionRpc struct {
+// SessionRPC provides typed session-scoped RPC methods.
+type SessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
-	common sessionApi
+	common sessionAPI
 
-	Agent        *AgentApi
-	Auth         *AuthApi
-	Canvas       *CanvasApi
-	Commands     *CommandsApi
-	EventLog     *EventLogApi
-	Extensions   *ExtensionsApi
-	Fleet        *FleetApi
-	History      *HistoryApi
-	Instructions *InstructionsApi
-	Lsp          *LspApi
-	Mcp          *McpApi
-	Metadata     *MetadataApi
-	Mode         *ModeApi
-	Model        *ModelApi
-	Name         *NameApi
-	Options      *OptionsApi
-	Permissions  *PermissionsApi
-	Plan         *PlanApi
-	Plugins      *PluginsApi
-	Queue        *QueueApi
-	Remote       *RemoteApi
-	Schedule     *ScheduleApi
-	Shell        *ShellApi
-	Skills       *SkillsApi
-	Tasks        *TasksApi
-	Telemetry    *TelemetryApi
-	Tools        *ToolsApi
-	UI           *UIApi
-	Usage        *UsageApi
-	Workspaces   *WorkspacesApi
+	Agent        *AgentAPI
+	Auth         *AuthAPI
+	Canvas       *CanvasAPI
+	Commands     *CommandsAPI
+	EventLog     *EventLogAPI
+	Extensions   *ExtensionsAPI
+	Fleet        *FleetAPI
+	History      *HistoryAPI
+	Instructions *InstructionsAPI
+	Lsp          *LspAPI
+	MCP          *MCPAPI
+	Metadata     *MetadataAPI
+	Mode         *ModeAPI
+	Model        *ModelAPI
+	Name         *NameAPI
+	Options      *OptionsAPI
+	Permissions  *PermissionsAPI
+	Plan         *PlanAPI
+	Plugins      *PluginsAPI
+	Queue        *QueueAPI
+	Remote       *RemoteAPI
+	Schedule     *ScheduleAPI
+	Shell        *ShellAPI
+	Skills       *SkillsAPI
+	Tasks        *TasksAPI
+	Telemetry    *TelemetryAPI
+	Tools        *ToolsAPI
+	UI           *UIAPI
+	Usage        *UsageAPI
+	Workspaces   *WorkspacesAPI
 }
 
 // Aborts the current agent turn.
@@ -12685,7 +12685,7 @@ type SessionRpc struct {
 // Returns: Result of aborting the current turn
 // Experimental: Abort is an experimental API and may change or be removed in future
 // versions.
-func (a *SessionRpc) Abort(ctx context.Context, params *AbortRequest) (*AbortResult, error) {
+func (a *SessionRPC) Abort(ctx context.Context, params *AbortRequest) (*AbortResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
 		if params.Reason != nil {
@@ -12712,7 +12712,7 @@ func (a *SessionRpc) Abort(ctx context.Context, params *AbortRequest) (*AbortRes
 //
 // Returns: Identifier of the session event that was emitted for the log message.
 // Experimental: Log is an experimental API and may change or be removed in future versions.
-func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, error) {
+func (a *SessionRPC) Log(ctx context.Context, params *LogRequest) (*LogResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
 		if params.Ephemeral != nil {
@@ -12751,7 +12751,7 @@ func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, e
 //
 // Returns: Result of sending a user message
 // Experimental: Send is an experimental API and may change or be removed in future versions.
-func (a *SessionRpc) Send(ctx context.Context, params *SendRequest) (*SendResult, error) {
+func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
 		if params.AgentMode != nil {
@@ -12812,7 +12812,7 @@ func (a *SessionRpc) Send(ctx context.Context, params *SendRequest) (*SendResult
 // Parameters: Parameters for shutting down the session
 // Experimental: Shutdown is an experimental API and may change or be removed in future
 // versions.
-func (a *SessionRpc) Shutdown(ctx context.Context, params *ShutdownRequest) (*SessionShutdownResult, error) {
+func (a *SessionRPC) Shutdown(ctx context.Context, params *ShutdownRequest) (*SessionShutdownResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
 		if params.Reason != nil {
@@ -12838,7 +12838,7 @@ func (a *SessionRpc) Shutdown(ctx context.Context, params *ShutdownRequest) (*Se
 // RPC method: session.suspend.
 // Experimental: Suspend is an experimental API and may change or be removed in future
 // versions.
-func (a *SessionRpc) Suspend(ctx context.Context) (*SessionSuspendResult, error) {
+func (a *SessionRPC) Suspend(ctx context.Context) (*SessionSuspendResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	raw, err := a.common.client.Request("session.suspend", req)
 	if err != nil {
@@ -12851,39 +12851,39 @@ func (a *SessionRpc) Suspend(ctx context.Context) (*SessionSuspendResult, error)
 	return &result, nil
 }
 
-func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
-	r := &SessionRpc{}
-	r.common = sessionApi{client: client, sessionID: sessionID}
-	r.Agent = (*AgentApi)(&r.common)
-	r.Auth = (*AuthApi)(&r.common)
-	r.Canvas = (*CanvasApi)(&r.common)
-	r.Commands = (*CommandsApi)(&r.common)
-	r.EventLog = (*EventLogApi)(&r.common)
-	r.Extensions = (*ExtensionsApi)(&r.common)
-	r.Fleet = (*FleetApi)(&r.common)
-	r.History = (*HistoryApi)(&r.common)
-	r.Instructions = (*InstructionsApi)(&r.common)
-	r.Lsp = (*LspApi)(&r.common)
-	r.Mcp = (*McpApi)(&r.common)
-	r.Metadata = (*MetadataApi)(&r.common)
-	r.Mode = (*ModeApi)(&r.common)
-	r.Model = (*ModelApi)(&r.common)
-	r.Name = (*NameApi)(&r.common)
-	r.Options = (*OptionsApi)(&r.common)
-	r.Permissions = (*PermissionsApi)(&r.common)
-	r.Plan = (*PlanApi)(&r.common)
-	r.Plugins = (*PluginsApi)(&r.common)
-	r.Queue = (*QueueApi)(&r.common)
-	r.Remote = (*RemoteApi)(&r.common)
-	r.Schedule = (*ScheduleApi)(&r.common)
-	r.Shell = (*ShellApi)(&r.common)
-	r.Skills = (*SkillsApi)(&r.common)
-	r.Tasks = (*TasksApi)(&r.common)
-	r.Telemetry = (*TelemetryApi)(&r.common)
-	r.Tools = (*ToolsApi)(&r.common)
-	r.UI = (*UIApi)(&r.common)
-	r.Usage = (*UsageApi)(&r.common)
-	r.Workspaces = (*WorkspacesApi)(&r.common)
+func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
+	r := &SessionRPC{}
+	r.common = sessionAPI{client: client, sessionID: sessionID}
+	r.Agent = (*AgentAPI)(&r.common)
+	r.Auth = (*AuthAPI)(&r.common)
+	r.Canvas = (*CanvasAPI)(&r.common)
+	r.Commands = (*CommandsAPI)(&r.common)
+	r.EventLog = (*EventLogAPI)(&r.common)
+	r.Extensions = (*ExtensionsAPI)(&r.common)
+	r.Fleet = (*FleetAPI)(&r.common)
+	r.History = (*HistoryAPI)(&r.common)
+	r.Instructions = (*InstructionsAPI)(&r.common)
+	r.Lsp = (*LspAPI)(&r.common)
+	r.MCP = (*MCPAPI)(&r.common)
+	r.Metadata = (*MetadataAPI)(&r.common)
+	r.Mode = (*ModeAPI)(&r.common)
+	r.Model = (*ModelAPI)(&r.common)
+	r.Name = (*NameAPI)(&r.common)
+	r.Options = (*OptionsAPI)(&r.common)
+	r.Permissions = (*PermissionsAPI)(&r.common)
+	r.Plan = (*PlanAPI)(&r.common)
+	r.Plugins = (*PluginsAPI)(&r.common)
+	r.Queue = (*QueueAPI)(&r.common)
+	r.Remote = (*RemoteAPI)(&r.common)
+	r.Schedule = (*ScheduleAPI)(&r.common)
+	r.Shell = (*ShellAPI)(&r.common)
+	r.Skills = (*SkillsAPI)(&r.common)
+	r.Tasks = (*TasksAPI)(&r.common)
+	r.Telemetry = (*TelemetryAPI)(&r.common)
+	r.Tools = (*ToolsAPI)(&r.common)
+	r.UI = (*UIAPI)(&r.common)
+	r.Usage = (*UsageAPI)(&r.common)
+	r.Workspaces = (*WorkspacesAPI)(&r.common)
 	return r
 }
 
@@ -12913,8 +12913,8 @@ type CanvasHandler interface {
 	Open(request *CanvasProviderOpenRequest) (*CanvasProviderOpenResult, error)
 }
 
-// Experimental: SessionFsHandler contains experimental APIs that may change or be removed.
-type SessionFsHandler interface {
+// Experimental: SessionFSHandler contains experimental APIs that may change or be removed.
+type SessionFSHandler interface {
 	// AppendFile appends content to a file in the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.appendFile.
@@ -12923,7 +12923,7 @@ type SessionFsHandler interface {
 	// session filesystem.
 	//
 	// Returns: Describes a filesystem error.
-	AppendFile(request *SessionFsAppendFileRequest) (*SessionFsError, error)
+	AppendFile(request *SessionFSAppendFileRequest) (*SessionFSError, error)
 	// Exists checks whether a path exists in the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.exists.
@@ -12932,7 +12932,7 @@ type SessionFsHandler interface {
 	//
 	// Returns: Indicates whether the requested path exists in the client-provided session
 	// filesystem.
-	Exists(request *SessionFsExistsRequest) (*SessionFsExistsResult, error)
+	Exists(request *SessionFSExistsRequest) (*SessionFSExistsResult, error)
 	// Mkdir creates a directory in the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.mkdir.
@@ -12941,7 +12941,7 @@ type SessionFsHandler interface {
 	// options for recursive creation and POSIX mode.
 	//
 	// Returns: Describes a filesystem error.
-	Mkdir(request *SessionFsMkdirRequest) (*SessionFsError, error)
+	Mkdir(request *SessionFSMkdirRequest) (*SessionFSError, error)
 	// Readdir lists entry names in a directory from the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.readdir.
@@ -12951,7 +12951,7 @@ type SessionFsHandler interface {
 	//
 	// Returns: Names of entries in the requested directory, or a filesystem error if the read
 	// failed.
-	Readdir(request *SessionFsReaddirRequest) (*SessionFsReaddirResult, error)
+	Readdir(request *SessionFSReaddirRequest) (*SessionFSReaddirResult, error)
 	// ReaddirWithTypes lists directory entries with type information from the client-provided
 	// session filesystem.
 	//
@@ -12962,7 +12962,7 @@ type SessionFsHandler interface {
 	//
 	// Returns: Entries in the requested directory paired with file/directory type information,
 	// or a filesystem error if the read failed.
-	ReaddirWithTypes(request *SessionFsReaddirWithTypesRequest) (*SessionFsReaddirWithTypesResult, error)
+	ReaddirWithTypes(request *SessionFSReaddirWithTypesRequest) (*SessionFSReaddirWithTypesResult, error)
 	// ReadFile reads a file from the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.readFile.
@@ -12970,7 +12970,7 @@ type SessionFsHandler interface {
 	// Parameters: Path of the file to read from the client-provided session filesystem.
 	//
 	// Returns: File content as a UTF-8 string, or a filesystem error if the read failed.
-	ReadFile(request *SessionFsReadFileRequest) (*SessionFsReadFileResult, error)
+	ReadFile(request *SessionFSReadFileRequest) (*SessionFSReadFileResult, error)
 	// Renames or moves a path in the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.rename.
@@ -12979,7 +12979,7 @@ type SessionFsHandler interface {
 	// client-provided session filesystem.
 	//
 	// Returns: Describes a filesystem error.
-	Rename(request *SessionFsRenameRequest) (*SessionFsError, error)
+	Rename(request *SessionFSRenameRequest) (*SessionFSError, error)
 	// Rm removes a file or directory from the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.rm.
@@ -12988,7 +12988,7 @@ type SessionFsHandler interface {
 	// recursive removal and force.
 	//
 	// Returns: Describes a filesystem error.
-	Rm(request *SessionFsRmRequest) (*SessionFsError, error)
+	Rm(request *SessionFSRmRequest) (*SessionFSError, error)
 	// SqliteExists checks whether the per-session SQLite database already exists, without
 	// creating it.
 	//
@@ -12997,7 +12997,7 @@ type SessionFsHandler interface {
 	// Parameters: Identifies the target session.
 	//
 	// Returns: Indicates whether the per-session SQLite database already exists.
-	SqliteExists(request *SessionFsSqliteExistsRequest) (*SessionFsSqliteExistsResult, error)
+	SqliteExists(request *SessionFSSqliteExistsRequest) (*SessionFSSqliteExistsResult, error)
 	// SqliteQuery executes a SQLite query against the per-session database.
 	//
 	// RPC method: sessionFs.sqliteQuery.
@@ -13007,7 +13007,7 @@ type SessionFsHandler interface {
 	//
 	// Returns: Query results including rows, columns, and rows affected, or a filesystem error
 	// if execution failed.
-	SqliteQuery(request *SessionFsSqliteQueryRequest) (*SessionFsSqliteQueryResult, error)
+	SqliteQuery(request *SessionFSSqliteQueryRequest) (*SessionFSSqliteQueryResult, error)
 	// Stat gets metadata for a path in the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.stat.
@@ -13017,7 +13017,7 @@ type SessionFsHandler interface {
 	//
 	// Returns: Filesystem metadata for the requested path, or a filesystem error if the stat
 	// failed.
-	Stat(request *SessionFsStatRequest) (*SessionFsStatResult, error)
+	Stat(request *SessionFSStatRequest) (*SessionFSStatResult, error)
 	// WriteFile writes a file in the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.writeFile.
@@ -13026,13 +13026,13 @@ type SessionFsHandler interface {
 	// session filesystem.
 	//
 	// Returns: Describes a filesystem error.
-	WriteFile(request *SessionFsWriteFileRequest) (*SessionFsError, error)
+	WriteFile(request *SessionFSWriteFileRequest) (*SessionFSError, error)
 }
 
-// ClientSessionApiHandlers provides all client session API handler groups for a session.
-type ClientSessionApiHandlers struct {
+// ClientSessionAPIHandlers provides all client session API handler groups for a session.
+type ClientSessionAPIHandlers struct {
 	Canvas    CanvasHandler
-	SessionFs SessionFsHandler
+	SessionFS SessionFSHandler
 }
 
 func clientSessionHandlerError(err error) *jsonrpc2.Error {
@@ -13046,9 +13046,9 @@ func clientSessionHandlerError(err error) *jsonrpc2.Error {
 	return &jsonrpc2.Error{Code: -32603, Message: err.Error()}
 }
 
-// RegisterClientSessionApiHandlers registers handlers for server-to-client session API
+// RegisterClientSessionAPIHandlers registers handlers for server-to-client session API
 // calls.
-func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionApiHandlers) {
+func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionAPIHandlers) {
 	client.SetRequestHandler("canvas.close", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request CanvasProviderCloseRequest
 		if err := json.Unmarshal(params, &request); err != nil {
@@ -13107,15 +13107,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.appendFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsAppendFileRequest
+		var request SessionFSAppendFileRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.AppendFile(&request)
+		result, err := handlers.SessionFS.AppendFile(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13126,15 +13126,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.exists", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsExistsRequest
+		var request SessionFSExistsRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.Exists(&request)
+		result, err := handlers.SessionFS.Exists(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13145,15 +13145,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.mkdir", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsMkdirRequest
+		var request SessionFSMkdirRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.Mkdir(&request)
+		result, err := handlers.SessionFS.Mkdir(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13164,15 +13164,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.readdir", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsReaddirRequest
+		var request SessionFSReaddirRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.Readdir(&request)
+		result, err := handlers.SessionFS.Readdir(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13183,15 +13183,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.readdirWithTypes", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsReaddirWithTypesRequest
+		var request SessionFSReaddirWithTypesRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.ReaddirWithTypes(&request)
+		result, err := handlers.SessionFS.ReaddirWithTypes(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13202,15 +13202,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.readFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsReadFileRequest
+		var request SessionFSReadFileRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.ReadFile(&request)
+		result, err := handlers.SessionFS.ReadFile(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13221,15 +13221,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.rename", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsRenameRequest
+		var request SessionFSRenameRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.Rename(&request)
+		result, err := handlers.SessionFS.Rename(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13240,15 +13240,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.rm", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsRmRequest
+		var request SessionFSRmRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.Rm(&request)
+		result, err := handlers.SessionFS.Rm(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13259,15 +13259,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.sqliteExists", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsSqliteExistsRequest
+		var request SessionFSSqliteExistsRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.SqliteExists(&request)
+		result, err := handlers.SessionFS.SqliteExists(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13278,15 +13278,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.sqliteQuery", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsSqliteQueryRequest
+		var request SessionFSSqliteQueryRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.SqliteQuery(&request)
+		result, err := handlers.SessionFS.SqliteQuery(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13297,15 +13297,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.stat", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsStatRequest
+		var request SessionFSStatRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.Stat(&request)
+		result, err := handlers.SessionFS.Stat(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -13316,15 +13316,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.writeFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsWriteFileRequest
+		var request SessionFSWriteFileRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
+		if handlers == nil || handlers.SessionFS == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.WriteFile(&request)
+		result, err := handlers.SessionFS.WriteFile(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}

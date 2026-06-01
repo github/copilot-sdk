@@ -31,7 +31,7 @@ func TestMCPServersE2E(t *testing.T) {
 		if session.SessionID == "" {
 			t.Error("Expected non-empty session ID")
 		}
-		waitForMCPServerStatus(t, session, "test-server", rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, "test-server", rpc.MCPServerStatusConnected)
 
 		// Simple interaction to verify session works
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
@@ -107,7 +107,7 @@ func TestMCPServersE2E(t *testing.T) {
 		if session2.SessionID != sessionID {
 			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
 		}
-		waitForMCPServerStatus(t, session2, "test-server", rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session2, "test-server", rpc.MCPServerStatusConnected)
 
 		session2.Disconnect()
 	})
@@ -142,7 +142,7 @@ func TestMCPServersE2E(t *testing.T) {
 		if session.SessionID == "" {
 			t.Error("Expected non-empty session ID")
 		}
-		waitForMCPServerStatus(t, session, "env-echo", rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, "env-echo", rpc.MCPServerStatusConnected)
 
 		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Use the env-echo/get_env tool to read the TEST_SECRET environment variable. Reply with just the value, nothing else.",
@@ -174,8 +174,8 @@ func TestMCPServersE2E(t *testing.T) {
 		if session.SessionID == "" {
 			t.Error("Expected non-empty session ID")
 		}
-		waitForMCPServerStatus(t, session, "server1", rpc.McpServerStatusConnected)
-		waitForMCPServerStatus(t, session, "server2", rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, "server1", rpc.MCPServerStatusConnected)
+		waitForMCPServerStatus(t, session, "server2", rpc.MCPServerStatusConnected)
 
 		session.Disconnect()
 	})
@@ -408,7 +408,7 @@ func TestCombinedConfigurationE2E(t *testing.T) {
 		if session.SessionID == "" {
 			t.Error("Expected non-empty session ID")
 		}
-		waitForMCPServerStatus(t, session, "shared-server", rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, "shared-server", rpc.MCPServerStatusConnected)
 
 		session.Disconnect()
 	})

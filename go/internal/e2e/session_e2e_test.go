@@ -1420,13 +1420,13 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		}
 
 		number := int64(1234)
-		referenceType := copilot.AttachmentGithubReferenceTypeIssue
+		referenceType := copilot.AttachmentGitHubReferenceTypeIssue
 		state := "open"
 		title := "Add E2E attachment coverage"
 		url := "https://github.com/github/copilot-sdk/issues/1234"
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
-			Attachments: []copilot.Attachment{&copilot.AttachmentGithubReference{
+			Attachments: []copilot.Attachment{&copilot.AttachmentGitHubReference{
 				Number:        number,
 				ReferenceType: referenceType,
 				State:         state,
@@ -1438,14 +1438,14 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment, ok := lastUserAttachment(t, session).(*copilot.AttachmentGithubReference)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.AttachmentGitHubReference)
 		if !ok {
 			t.Fatalf("Expected GitHub reference attachment, got %T", lastUserAttachment(t, session))
 		}
 		if attachment.Number != 1234 {
 			t.Errorf("Expected Number=1234, got %v", attachment.Number)
 		}
-		if attachment.ReferenceType != copilot.AttachmentGithubReferenceTypeIssue {
+		if attachment.ReferenceType != copilot.AttachmentGitHubReferenceTypeIssue {
 			t.Errorf("Expected ReferenceType=Issue, got %v", attachment.ReferenceType)
 		}
 		if attachment.State != "open" {

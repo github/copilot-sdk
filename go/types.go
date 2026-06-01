@@ -111,11 +111,11 @@ type ClientOptions struct {
 	// querying the runtime. Useful in BYOK mode to return models available
 	// from your custom provider.
 	OnListModels func(ctx context.Context) ([]ModelInfo, error)
-	// SessionFs configures a custom session filesystem provider.
+	// SessionFS configures a custom session filesystem provider.
 	// When provided, the client registers as the session filesystem provider
 	// on connection, routing session-scoped file I/O through per-session
 	// handlers.
-	SessionFs *SessionFsConfig
+	SessionFS *SessionFSConfig
 	// Telemetry configures OpenTelemetry integration for the runtime.
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
 	// fields are mapped to the corresponding environment variables.
@@ -136,7 +136,7 @@ type ClientOptions struct {
 	// multi-tenant safe defaults — see [ClientMode] for details.
 	//
 	// When Mode is [ModeEmpty], NewClient requires either BaseDirectory,
-	// SessionFs, or a [UriConnection] so the runtime has persistent storage
+	// SessionFS, or a [UriConnection] so the runtime has persistent storage
 	// for session state.
 	Mode ClientMode
 }
@@ -673,8 +673,8 @@ type ErrorOccurredHookOutput struct {
 // ErrorOccurredHandler handles error-occurred hook invocations
 type ErrorOccurredHandler func(input ErrorOccurredHookInput, invocation HookInvocation) (*ErrorOccurredHookOutput, error)
 
-// PreMcpToolCallHookInput is the input for a pre-mcp-tool-call hook
-type PreMcpToolCallHookInput struct {
+// PreMCPToolCallHookInput is the input for a pre-mcp-tool-call hook
+type PreMCPToolCallHookInput struct {
 	SessionID        string    `json:"sessionId"`
 	Timestamp        time.Time `json:"-"`
 	WorkingDirectory string    `json:"cwd"`
@@ -686,8 +686,8 @@ type PreMcpToolCallHookInput struct {
 }
 
 // MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
-func (h PreMcpToolCallHookInput) MarshalJSON() ([]byte, error) {
-	type alias PreMcpToolCallHookInput
+func (h PreMCPToolCallHookInput) MarshalJSON() ([]byte, error) {
+	type alias PreMCPToolCallHookInput
 	return json.Marshal(&struct {
 		Timestamp int64 `json:"timestamp"`
 		alias
@@ -695,8 +695,8 @@ func (h PreMcpToolCallHookInput) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
-func (h *PreMcpToolCallHookInput) UnmarshalJSON(data []byte) error {
-	type alias PreMcpToolCallHookInput
+func (h *PreMCPToolCallHookInput) UnmarshalJSON(data []byte) error {
+	type alias PreMCPToolCallHookInput
 	aux := &struct {
 		Timestamp int64 `json:"timestamp"`
 		*alias
@@ -708,13 +708,13 @@ func (h *PreMcpToolCallHookInput) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// PreMcpToolCallHookOutput is the output for a pre-mcp-tool-call hook
-type PreMcpToolCallHookOutput struct {
+// PreMCPToolCallHookOutput is the output for a pre-mcp-tool-call hook
+type PreMCPToolCallHookOutput struct {
 	MetaToUse any `json:"metaToUse"`
 }
 
-// PreMcpToolCallHandler handles pre-mcp-tool-call hook invocations
-type PreMcpToolCallHandler func(input PreMcpToolCallHookInput, invocation HookInvocation) (*PreMcpToolCallHookOutput, error)
+// PreMCPToolCallHandler handles pre-mcp-tool-call hook invocations
+type PreMCPToolCallHandler func(input PreMCPToolCallHookInput, invocation HookInvocation) (*PreMCPToolCallHookOutput, error)
 
 // HookInvocation provides context about a hook invocation
 type HookInvocation struct {
@@ -730,7 +730,7 @@ type SessionHooks struct {
 	OnSessionStart        SessionStartHandler
 	OnSessionEnd          SessionEndHandler
 	OnErrorOccurred       ErrorOccurredHandler
-	OnPreMcpToolCall      PreMcpToolCallHandler
+	OnPreMCPToolCall      PreMCPToolCallHandler
 }
 
 // MCPServerConfig is implemented by MCP server configuration types.
@@ -859,23 +859,23 @@ type LargeToolOutputConfig struct {
 	OutputDirectory string `json:"outputDir,omitempty"`
 }
 
-// SessionFsCapabilities declares optional provider capabilities.
-type SessionFsCapabilities struct {
+// SessionFSCapabilities declares optional provider capabilities.
+type SessionFSCapabilities struct {
 	// Sqlite indicates whether the provider supports SQLite query/exists operations.
 	Sqlite bool
 }
 
-// SessionFsConfig configures a custom session filesystem provider.
-type SessionFsConfig struct {
+// SessionFSConfig configures a custom session filesystem provider.
+type SessionFSConfig struct {
 	// InitialWorkingDirectory is the initial working directory for sessions.
 	InitialWorkingDirectory string
 	// SessionStatePath is the path within each session's filesystem where the runtime stores
 	// session-scoped files such as events, checkpoints, and temp files.
 	SessionStatePath string
 	// Conventions identifies the path conventions used by this filesystem provider.
-	Conventions rpc.SessionFsSetProviderConventions
+	Conventions rpc.SessionFSSetProviderConventions
 	// Capabilities declares optional provider capabilities such as SQLite support.
-	Capabilities *SessionFsCapabilities
+	Capabilities *SessionFSCapabilities
 }
 
 // SessionConfig configures a new session
@@ -1036,9 +1036,9 @@ type SessionConfig struct {
 	// handler. Equivalent to calling session.On(handler) immediately after creation,
 	// but executes earlier in the lifecycle so no events are missed.
 	OnEvent SessionEventHandler
-	// CreateSessionFsProvider supplies a handler for session filesystem operations.
-	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsProvider func(session *Session) SessionFsProvider
+	// CreateSessionFSProvider supplies a handler for session filesystem operations.
+	// This takes effect only when ClientOptions.SessionFS is configured.
+	CreateSessionFSProvider func(session *Session) SessionFSProvider
 	// Commands registers slash-commands for this session. Each command appears as
 	// /name in the CLI TUI for the user to invoke. The Handler is called when the
 	// command is executed.
@@ -1053,9 +1053,9 @@ type SessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// When provided, enables autoModeSwitch.request callbacks for the session.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
-	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on this session.
+	// EnableMCPApps enables MCP Apps (SEP-1865) UI passthrough on this session.
 	//
-	// Experimental: EnableMcpApps is part of an experimental wire-protocol
+	// Experimental: EnableMCPApps is part of an experimental wire-protocol
 	// surface (SEP-1865) and may change or be removed in a future release.
 	//
 	// When true AND the runtime has MCP Apps enabled (via the MCP_APPS feature
@@ -1075,7 +1075,7 @@ type SessionConfig struct {
 	// that can display ui:// MCP App bundles. Setting it without a renderer will
 	// cause MCP servers to register UI-enabled tool variants the consumer cannot
 	// display.
-	EnableMcpApps bool
+	EnableMCPApps bool
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -1097,12 +1097,12 @@ type SessionConfig struct {
 	RequestCanvasRenderer *bool
 	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
 	RequestExtensions *bool
-	// ExtensionSdkPath optionally overrides the bundled `@github/copilot-sdk` drop
+	// ExtensionSDKPath optionally overrides the bundled `@github/copilot-sdk` drop
 	// injected into extension subprocesses. When set to an absolute path containing
 	// a valid `copilot-sdk/` folder (with `index.js` and `extension.js` at the
 	// root), the host injects the override into every forked extension; invalid or
 	// missing paths fall back to the bundled SDK silently.
-	ExtensionSdkPath *string
+	ExtensionSDKPath *string
 	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.action.invoke
 	// requests for this session. The SDK does not maintain a per-canvas registry;
 	// the handler must dispatch on CanvasProviderOpenRequest.CanvasID itself.
@@ -1184,15 +1184,15 @@ type SessionCapabilities struct {
 type UICapabilities struct {
 	// Elicitation indicates whether the host supports interactive elicitation dialogs.
 	Elicitation bool `json:"elicitation,omitempty"`
-	// McpApps indicates whether the runtime has accepted the session's MCP Apps
-	// (SEP-1865) opt-in. True when the consumer set EnableMcpApps=true on
+	// MCPApps indicates whether the runtime has accepted the session's MCP Apps
+	// (SEP-1865) opt-in. True when the consumer set EnableMCPApps=true on
 	// create/resume AND the runtime's MCP_APPS feature flag (or
 	// COPILOT_MCP_APPS=true env override) is on. Otherwise false, indicating
 	// the runtime silently dropped the opt-in.
 	//
-	// Experimental: McpApps is part of an experimental wire-protocol surface
+	// Experimental: MCPApps is part of an experimental wire-protocol surface
 	// (SEP-1865) and may change or be removed in a future release.
-	McpApps bool `json:"mcpApps,omitempty"`
+	MCPApps bool `json:"mcpApps,omitempty"`
 }
 
 // ElicitationResult is the user's response to an elicitation dialog.
@@ -1226,8 +1226,8 @@ type ElicitationContext struct {
 // If the handler returns an error the SDK auto-cancels the request.
 type ElicitationHandler func(ctx ElicitationContext) (ElicitationResult, error)
 
-// UiInputOptions configures a text input field for the Input convenience method.
-type UiInputOptions struct {
+// UIInputOptions configures a text input field for the Input convenience method.
+type UIInputOptions struct {
 	// Title label for the input field.
 	Title string
 	// Description text shown below the field.
@@ -1410,9 +1410,9 @@ type ResumeSessionConfig struct {
 	// OnEvent is an optional event handler registered before the session.resume RPC
 	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
 	OnEvent SessionEventHandler
-	// CreateSessionFsProvider supplies a handler for session filesystem operations.
-	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsProvider func(session *Session) SessionFsProvider
+	// CreateSessionFSProvider supplies a handler for session filesystem operations.
+	// This takes effect only when ClientOptions.SessionFS is configured.
+	CreateSessionFSProvider func(session *Session) SessionFSProvider
 	// Commands registers slash-commands for this session. See SessionConfig.Commands.
 	Commands []CommandDefinition
 	// OnElicitationRequest is a handler for elicitation requests from the server.
@@ -1424,12 +1424,12 @@ type ResumeSessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// See SessionConfig.OnAutoModeSwitchRequest.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
-	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on resume.
-	// See SessionConfig.EnableMcpApps.
+	// EnableMCPApps enables MCP Apps (SEP-1865) UI passthrough on resume.
+	// See SessionConfig.EnableMCPApps.
 	//
-	// Experimental: EnableMcpApps is part of an experimental wire-protocol
+	// Experimental: EnableMCPApps is part of an experimental wire-protocol
 	// surface (SEP-1865) and may change or be removed in a future release.
-	EnableMcpApps bool
+	EnableMCPApps bool
 	// Canvases declares canvases this session provides. Sent over the wire on
 	// `session.resume`. See SessionConfig.Canvases.
 	Canvases []CanvasDeclaration
@@ -1441,9 +1441,9 @@ type ResumeSessionConfig struct {
 	RequestCanvasRenderer *bool
 	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
 	RequestExtensions *bool
-	// ExtensionSdkPath optionally overrides the bundled `@github/copilot-sdk` drop
-	// injected into extension subprocesses. See SessionConfig.ExtensionSdkPath.
-	ExtensionSdkPath *string
+	// ExtensionSDKPath optionally overrides the bundled `@github/copilot-sdk` drop
+	// injected into extension subprocesses. See SessionConfig.ExtensionSDKPath.
+	ExtensionSDKPath *string
 	// CanvasHandler receives inbound canvas.* requests for this session. See SessionConfig.CanvasHandler.
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
@@ -1452,8 +1452,8 @@ type ResumeSessionConfig struct {
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
 	Type string `json:"type,omitempty"`
-	// WireApi is the API format (openai/azure only): "completions" or "responses". Defaults to "completions".
-	WireApi string `json:"wireApi,omitempty"`
+	// WireAPI is the API format (openai/azure only): "completions" or "responses". Defaults to "completions".
+	WireAPI string `json:"wireApi,omitempty"`
 	// BaseURL is the API endpoint URL
 	BaseURL string `json:"baseUrl"`
 	// APIKey is the API key. Optional for local providers like Ollama.
@@ -1496,7 +1496,7 @@ type AzureProviderOptions struct {
 // ToolBinaryResult represents binary payloads returned by tools.
 type ToolBinaryResult struct {
 	Data        string `json:"data"`
-	MimeType    string `json:"mimeType"`
+	MIMEType    string `json:"mimeType"`
 	Type        string `json:"type"`
 	Description string `json:"description,omitempty"`
 }
@@ -1705,14 +1705,14 @@ type createSessionRequest struct {
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
-	RequestMcpApps                     *bool                                  `json:"requestMcpApps,omitempty"`
+	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Cloud                              *CloudSessionOptions                   `json:"cloud,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
 	RequestCanvasRenderer              *bool                                  `json:"requestCanvasRenderer,omitempty"`
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
-	ExtensionSdkPath                   *string                                `json:"extensionSdkPath,omitempty"`
+	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
@@ -1785,14 +1785,14 @@ type resumeSessionRequest struct {
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
-	RequestMcpApps                     *bool                                  `json:"requestMcpApps,omitempty"`
+	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
 	OpenCanvases                       []rpc.OpenCanvasInstance               `json:"openCanvases,omitempty"`
 	RequestCanvasRenderer              *bool                                  `json:"requestCanvasRenderer,omitempty"`
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
-	ExtensionSdkPath                   *string                                `json:"extensionSdkPath,omitempty"`
+	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`

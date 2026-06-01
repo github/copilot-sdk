@@ -15,7 +15,7 @@ import (
 
 // Mirrors dotnet/test/RpcServerTests.cs (snapshot category "rpc_server").
 // Tests server-scoped (non-session) RPCs.
-func TestRpcServerE2E(t *testing.T) {
+func TestRPCServerE2E(t *testing.T) {
 	t.Run("should call rpc ping with typed params and result", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
@@ -161,17 +161,17 @@ func TestRpcServerE2E(t *testing.T) {
 			t.Fatalf("Start failed: %v", err)
 		}
 
-		result, err := client.RPC.SessionFs.SetProvider(t.Context(), &rpc.SessionFsSetProviderRequest{
+		result, err := client.RPC.SessionFS.SetProvider(t.Context(), &rpc.SessionFSSetProviderRequest{
 			InitialCwd:       "/",
 			SessionStatePath: "/session-state",
-			Conventions:      rpc.SessionFsSetProviderConventionsPosix,
-			Capabilities:     &rpc.SessionFsSetProviderCapabilities{Sqlite: rpcPtr(true)},
+			Conventions:      rpc.SessionFSSetProviderConventionsPosix,
+			Capabilities:     &rpc.SessionFSSetProviderCapabilities{Sqlite: rpcPtr(true)},
 		})
 		if err != nil {
-			t.Fatalf("SessionFs.SetProvider failed: %v", err)
+			t.Fatalf("SessionFS.SetProvider failed: %v", err)
 		}
 		if !result.Success {
-			t.Fatalf("Expected SessionFs.SetProvider Success=true, got %+v", result)
+			t.Fatalf("Expected SessionFS.SetProvider Success=true, got %+v", result)
 		}
 	})
 
@@ -281,7 +281,7 @@ func TestRpcServerE2E(t *testing.T) {
 			t.Fatalf("Expected non-negative size for %q, got %d", sessionID, size)
 		}
 
-		inUse, err := client.RPC.Sessions.CheckInUse(t.Context(), &rpc.SessionsCheckInUseRequest{SessionIds: []string{sessionID, missingSessionID}})
+		inUse, err := client.RPC.Sessions.CheckInUse(t.Context(), &rpc.SessionsCheckInUseRequest{SessionIDs: []string{sessionID, missingSessionID}})
 		if err != nil {
 			t.Fatalf("Sessions.CheckInUse failed: %v", err)
 		}
@@ -379,7 +379,7 @@ func TestRpcServerE2E(t *testing.T) {
 		if _, err := client.RPC.Sessions.ReleaseLock(t.Context(), &rpc.SessionsReleaseLockRequest{SessionID: sessionID}); err != nil {
 			t.Fatalf("Sessions.ReleaseLock failed: %v", err)
 		}
-		inUse, err := client.RPC.Sessions.CheckInUse(t.Context(), &rpc.SessionsCheckInUseRequest{SessionIds: []string{sessionID}})
+		inUse, err := client.RPC.Sessions.CheckInUse(t.Context(), &rpc.SessionsCheckInUseRequest{SessionIDs: []string{sessionID}})
 		if err != nil {
 			t.Fatalf("Sessions.CheckInUse failed: %v", err)
 		}
@@ -419,7 +419,7 @@ func TestRpcServerE2E(t *testing.T) {
 			OlderThanDays:     0,
 			DryRun:            rpcPtr(true),
 			IncludeNamed:      rpcPtr(true),
-			ExcludeSessionIds: []string{},
+			ExcludeSessionIDs: []string{},
 		})
 		if err != nil {
 			t.Fatalf("Sessions.PruneOld failed: %v", err)
@@ -435,7 +435,7 @@ func TestRpcServerE2E(t *testing.T) {
 		}
 
 		deleted, err := client.RPC.Sessions.BulkDelete(t.Context(), &rpc.SessionsBulkDeleteRequest{
-			SessionIds: []string{sessionID, missingSessionID},
+			SessionIDs: []string{sessionID, missingSessionID},
 		})
 		if err != nil {
 			t.Fatalf("Sessions.BulkDelete failed: %v", err)
@@ -532,12 +532,12 @@ func TestRpcServerE2E(t *testing.T) {
 		}
 
 		skillName := fmt.Sprintf("server-rpc-skill-%s", randomHex(t))
-		skillsDir := createMcpSkillsRpcDirectory(t, ctx.WorkDir, "server-rpc-skills", skillName, "Skill discovered by server-scoped RPC tests.")
+		skillsDir := createMCPSkillsRPCDirectory(t, ctx.WorkDir, "server-rpc-skills", skillName, "Skill discovered by server-scoped RPC tests.")
 
 		workingDir := ctx.WorkDir
-		mcp, err := client.RPC.Mcp.Discover(t.Context(), &rpc.McpDiscoverRequest{WorkingDirectory: &workingDir})
+		mcp, err := client.RPC.MCP.Discover(t.Context(), &rpc.MCPDiscoverRequest{WorkingDirectory: &workingDir})
 		if err != nil {
-			t.Fatalf("Mcp.Discover failed: %v", err)
+			t.Fatalf("MCP.Discover failed: %v", err)
 		}
 		if mcp.Servers == nil {
 			t.Errorf("Expected non-nil Servers")

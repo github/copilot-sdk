@@ -358,8 +358,8 @@ func TestConvertMCPCallToolResult(t *testing.T) {
 		if result.BinaryResultsForLLM[0].Data != "base64data" {
 			t.Errorf("Expected data 'base64data', got %q", result.BinaryResultsForLLM[0].Data)
 		}
-		if result.BinaryResultsForLLM[0].MimeType != "image/png" {
-			t.Errorf("Expected mimeType 'image/png', got %q", result.BinaryResultsForLLM[0].MimeType)
+		if result.BinaryResultsForLLM[0].MIMEType != "image/png" {
+			t.Errorf("Expected mimeType 'image/png', got %q", result.BinaryResultsForLLM[0].MIMEType)
 		}
 	})
 

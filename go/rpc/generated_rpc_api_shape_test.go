@@ -16,8 +16,8 @@ var (
 	_ ExternalToolResult      = (*ExternalToolTextResultForLlm)(nil)
 	_ FilterMapping           = FilterMappingEnumMap{}
 	_ FilterMapping           = ContentFilterModeMarkdown
-	_ McpServerConfig         = (*McpServerConfigHTTP)(nil)
-	_ McpServerConfig         = (*McpServerConfigStdio)(nil)
+	_ MCPServerConfig         = (*MCPServerConfigHTTP)(nil)
+	_ MCPServerConfig         = (*MCPServerConfigStdio)(nil)
 	_ UIElicitationFieldValue = UIElicitationStringValue("")
 	_ UIElicitationFieldValue = UIElicitationStringArrayValue(nil)
 	_ UIElicitationFieldValue = UIElicitationBooleanValue(false)
@@ -34,12 +34,12 @@ func TestGeneratedRPCAPIShape(t *testing.T) {
 	assertInterfaceType(t, file, "FilterMapping")
 	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "FilterMappingEnumMap").Type, "map[string]ContentFilterMode")
 
-	assertInterfaceType(t, file, "McpServerConfig")
-	assertStructFieldType(t, file, fileSet, "McpConfigAddRequest", "Config", "McpServerConfig")
-	assertStructFieldType(t, file, fileSet, "McpConfigList", "Servers", "map[string]McpServerConfig")
-	assertStructFieldType(t, file, fileSet, "McpConfigUpdateRequest", "Config", "McpServerConfig")
-	assertStructFieldType(t, file, fileSet, "McpServerConfigHTTP", "FilterMapping", "FilterMapping")
-	assertStructFieldType(t, file, fileSet, "McpServerConfigStdio", "FilterMapping", "FilterMapping")
+	assertInterfaceType(t, file, "MCPServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigAddRequest", "Config", "MCPServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigList", "Servers", "map[string]MCPServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigUpdateRequest", "Config", "MCPServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPServerConfigHTTP", "FilterMapping", "FilterMapping")
+	assertStructFieldType(t, file, fileSet, "MCPServerConfigStdio", "FilterMapping", "FilterMapping")
 
 	assertInterfaceType(t, file, "UIElicitationFieldValue")
 	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "UIElicitationStringArrayValue").Type, "[]string")

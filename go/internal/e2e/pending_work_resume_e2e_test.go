@@ -17,7 +17,7 @@ const pendingWorkTimeout = 60 * time.Second
 
 // Mirrors dotnet/test/PendingWorkResumeTests.cs (snapshot category "pending_work_resume").
 //
-// Most subtests spawn a TCP server client, connect a "suspended" client through CLIUrl,
+// Most subtests spawn a TCP server client, connect a "suspended" client through URIConnection
 // trigger pending work, then ForceStop the suspended client (preserving session state)
 // and resume from a fresh client with ContinuePendingWork=true. Warm-join coverage keeps
 // the original client connected while a second client resumes the same session.

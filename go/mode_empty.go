@@ -20,20 +20,20 @@ func validateNewClientForMode(opts *ClientOptions) {
 	}
 	// Empty mode requires durable, app-owned storage. Either:
 	//   - the app supplied a BaseDirectory the runtime can write to,
-	//   - the app supplied a SessionFs implementation,
+	//   - the app supplied a SessionFS implementation,
 	//   - or the app is connecting to an externally-managed runtime via
 	//     UriConnection (in which case the host owns storage).
 	if opts.BaseDirectory != "" {
 		return
 	}
-	if opts.SessionFs != nil {
+	if opts.SessionFS != nil {
 		return
 	}
 	if _, ok := opts.Connection.(UriConnection); ok {
 		return
 	}
-	panic("Client is in Mode=ModeEmpty but neither BaseDirectory, SessionFs, nor a UriConnection was supplied. " +
-		"Empty mode requires explicit, per-tenant storage; set ClientOptions.BaseDirectory or .SessionFs, " +
+	panic("Client is in Mode=ModeEmpty but neither BaseDirectory, SessionFS, nor a UriConnection was supplied. " +
+		"Empty mode requires explicit, per-tenant storage; set ClientOptions.BaseDirectory or .SessionFS, " +
 		"or connect to an externally-managed runtime via UriConnection.")
 }
 
@@ -45,7 +45,7 @@ func validateToolFilterList(field string, list []string) error {
 		if entry == "*" {
 			return fmt.Errorf(
 				"invalid %s entry %q: there is no bare wildcard. "+
-					"Use one or more of NewToolSet().AddBuiltIn(\"*\"), .AddMcp(\"*\"), or .AddCustom(\"*\") "+
+					"Use one or more of NewToolSet().AddBuiltIn(\"*\"), .AddMCP(\"*\"), or .AddCustom(\"*\") "+
 					"to target a specific source",
 				field, entry)
 		}

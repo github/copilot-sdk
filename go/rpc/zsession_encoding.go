@@ -197,20 +197,20 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeMcpAppToolCallComplete:
-		var d McpAppToolCallCompleteData
+	case SessionEventTypeMCPAppToolCallComplete:
+		var d MCPAppToolCallCompleteData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeMcpOauthCompleted:
-		var d McpOauthCompletedData
+	case SessionEventTypeMCPOauthCompleted:
+		var d MCPOauthCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeMcpOauthRequired:
-		var d McpOauthRequiredData
+	case SessionEventTypeMCPOauthRequired:
+		var d MCPOauthRequiredData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -341,14 +341,14 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionMcpServersLoaded:
-		var d SessionMcpServersLoadedData
+	case SessionEventTypeSessionMCPServersLoaded:
+		var d SessionMCPServersLoadedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionMcpServerStatusChanged:
-		var d SessionMcpServerStatusChangedData
+	case SessionEventTypeSessionMCPServerStatusChanged:
+		var d SessionMCPServerStatusChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -1045,8 +1045,8 @@ func unmarshalPermissionRequest(data []byte) (PermissionRequest, error) {
 			return nil, err
 		}
 		return &d, nil
-	case PermissionRequestKindMcp:
-		var d PermissionRequestMcp
+	case PermissionRequestKindMCP:
+		var d PermissionRequestMCP
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -1141,8 +1141,8 @@ func (r PermissionRequestHook) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (r PermissionRequestMcp) MarshalJSON() ([]byte, error) {
-	type alias PermissionRequestMcp
+func (r PermissionRequestMCP) MarshalJSON() ([]byte, error) {
+	type alias PermissionRequestMCP
 	return json.Marshal(struct {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
@@ -1250,8 +1250,8 @@ func unmarshalPermissionPromptRequest(data []byte) (PermissionPromptRequest, err
 			return nil, err
 		}
 		return &d, nil
-	case PermissionPromptRequestKindMcp:
-		var d PermissionPromptRequestMcp
+	case PermissionPromptRequestKindMCP:
+		var d PermissionPromptRequestMCP
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -1357,8 +1357,8 @@ func (r PermissionPromptRequestHook) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (r PermissionPromptRequestMcp) MarshalJSON() ([]byte, error) {
-	type alias PermissionPromptRequestMcp
+func (r PermissionPromptRequestMCP) MarshalJSON() ([]byte, error) {
+	type alias PermissionPromptRequestMCP
 	return json.Marshal(struct {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias

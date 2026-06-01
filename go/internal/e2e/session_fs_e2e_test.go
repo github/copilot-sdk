@@ -15,17 +15,17 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-func TestSessionFsE2E(t *testing.T) {
+func TestSessionFSE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	providerRoot := t.TempDir()
 	sessionStatePath := createSessionStatePath(t)
-	sessionFsConfig := &copilot.SessionFsConfig{
+	sessionFSConfig := &copilot.SessionFSConfig{
 		InitialWorkingDirectory: "/",
 		SessionStatePath:        sessionStatePath,
-		Conventions:             rpc.SessionFsSetProviderConventionsPosix,
+		Conventions:             rpc.SessionFSSetProviderConventionsPosix,
 	}
-	createSessionFsHandler := func(session *copilot.Session) copilot.SessionFsProvider {
-		return &testSessionFsHandler{
+	createSessionFSHandler := func(session *copilot.Session) copilot.SessionFSProvider {
+		return &testSessionFSHandler{
 			root:      providerRoot,
 			sessionID: session.SessionID,
 		}
@@ -35,7 +35,7 @@ func TestSessionFsE2E(t *testing.T) {
 	}
 
 	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.SessionFs = sessionFsConfig
+		opts.SessionFS = sessionFSConfig
 	})
 	t.Cleanup(func() { client.ForceStop() })
 
@@ -44,7 +44,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -81,7 +81,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -111,7 +111,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -158,22 +158,22 @@ func TestSessionFsE2E(t *testing.T) {
 			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort)},
 			LogLevel:   "error",
 			Env:        ctx.Env(),
-			SessionFs:  sessionFsConfig,
+			SessionFS:  sessionFSConfig,
 		})
 		t.Cleanup(func() { client2.ForceStop() })
 
 		if err := client2.Start(t.Context()); err == nil {
-			t.Fatal("Expected Start to fail when SessionFs provider is set after sessions already exist")
+			t.Fatal("Expected Start to fail when SessionFS provider is set after sessions already exist")
 		}
 	})
 
-	t.Run("should map large output handling into SessionFs", func(t *testing.T) {
+	t.Run("should map large output handling into SessionFS", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		suppliedFileContent := strings.Repeat("x", 100_000)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 			Tools: []copilot.Tool{
 				copilot.DefineTool("get_big_string", "Returns a large string",
 					func(_ struct{}, inv copilot.ToolInvocation) (string, error) {
@@ -213,12 +213,12 @@ func TestSessionFsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should succeed with compaction while using SessionFs", func(t *testing.T) {
+	t.Run("should succeed with compaction while using SessionFS", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -252,12 +252,12 @@ func TestSessionFsE2E(t *testing.T) {
 			t.Fatalf("Timed out waiting for checkpoint rewrite: %v", err)
 		}
 	})
-	t.Run("should write workspace metadata via SessionFs", func(t *testing.T) {
+	t.Run("should write workspace metadata via SessionFS", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -277,7 +277,7 @@ func TestSessionFsE2E(t *testing.T) {
 			t.Fatalf("Expected response to contain 56, got %q", content)
 		}
 
-		// WorkspaceManager should have created workspace.yaml via SessionFs
+		// WorkspaceManager should have created workspace.yaml via SessionFS
 		workspaceYamlPath := p(session.SessionID, sessionStatePath+"/workspace.yaml")
 		if err := waitForFileContent(workspaceYamlPath, "id:", 5*time.Second); err != nil {
 			t.Fatalf("Timed out waiting for workspace.yaml content: %v", err)
@@ -294,12 +294,12 @@ func TestSessionFsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should persist plan.md via SessionFs", func(t *testing.T) {
+	t.Run("should persist plan.md via SessionFS", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -339,12 +339,12 @@ func createSessionStatePath(t *testing.T) string {
 	return filepath.ToSlash(filepath.Join(t.TempDir(), "session-state"))
 }
 
-type testSessionFsHandler struct {
+type testSessionFSHandler struct {
 	root      string
 	sessionID string
 }
 
-func (h *testSessionFsHandler) ReadFile(path string) (string, error) {
+func (h *testSessionFSHandler) ReadFile(path string) (string, error) {
 	content, err := os.ReadFile(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return "", err
@@ -352,7 +352,7 @@ func (h *testSessionFsHandler) ReadFile(path string) (string, error) {
 	return string(content), nil
 }
 
-func (h *testSessionFsHandler) WriteFile(path string, content string, mode *int) error {
+func (h *testSessionFSHandler) WriteFile(path string, content string, mode *int) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 		return err
@@ -364,7 +364,7 @@ func (h *testSessionFsHandler) WriteFile(path string, content string, mode *int)
 	return os.WriteFile(fullPath, []byte(content), perm)
 }
 
-func (h *testSessionFsHandler) AppendFile(path string, content string, mode *int) error {
+func (h *testSessionFSHandler) AppendFile(path string, content string, mode *int) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 		return err
@@ -382,7 +382,7 @@ func (h *testSessionFsHandler) AppendFile(path string, content string, mode *int
 	return err
 }
 
-func (h *testSessionFsHandler) Exists(path string) (bool, error) {
+func (h *testSessionFSHandler) Exists(path string) (bool, error) {
 	_, err := os.Stat(providerPath(h.root, h.sessionID, path))
 	if err == nil {
 		return true, nil
@@ -393,13 +393,13 @@ func (h *testSessionFsHandler) Exists(path string) (bool, error) {
 	return false, err
 }
 
-func (h *testSessionFsHandler) Stat(path string) (*copilot.SessionFsFileInfo, error) {
+func (h *testSessionFSHandler) Stat(path string) (*copilot.SessionFSFileInfo, error) {
 	info, err := os.Stat(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
 	}
 	ts := info.ModTime().UTC()
-	return &copilot.SessionFsFileInfo{
+	return &copilot.SessionFSFileInfo{
 		IsFile:      !info.IsDir(),
 		IsDirectory: info.IsDir(),
 		Size:        info.Size(),
@@ -408,7 +408,7 @@ func (h *testSessionFsHandler) Stat(path string) (*copilot.SessionFsFileInfo, er
 	}, nil
 }
 
-func (h *testSessionFsHandler) MakeDirectory(path string, recursive bool, mode *int) error {
+func (h *testSessionFSHandler) MakeDirectory(path string, recursive bool, mode *int) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	perm := os.FileMode(0o777)
 	if mode != nil {
@@ -420,7 +420,7 @@ func (h *testSessionFsHandler) MakeDirectory(path string, recursive bool, mode *
 	return os.Mkdir(fullPath, perm)
 }
 
-func (h *testSessionFsHandler) ReadDirectory(path string) ([]string, error) {
+func (h *testSessionFSHandler) ReadDirectory(path string) ([]string, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
@@ -432,18 +432,18 @@ func (h *testSessionFsHandler) ReadDirectory(path string) ([]string, error) {
 	return names, nil
 }
 
-func (h *testSessionFsHandler) ReadDirectoryWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
+func (h *testSessionFSHandler) ReadDirectoryWithTypes(path string) ([]rpc.SessionFSReaddirWithTypesEntry, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
 	}
-	result := make([]rpc.SessionFsReaddirWithTypesEntry, 0, len(entries))
+	result := make([]rpc.SessionFSReaddirWithTypesEntry, 0, len(entries))
 	for _, entry := range entries {
-		entryType := rpc.SessionFsReaddirWithTypesEntryTypeFile
+		entryType := rpc.SessionFSReaddirWithTypesEntryTypeFile
 		if entry.IsDir() {
-			entryType = rpc.SessionFsReaddirWithTypesEntryTypeDirectory
+			entryType = rpc.SessionFSReaddirWithTypesEntryTypeDirectory
 		}
-		result = append(result, rpc.SessionFsReaddirWithTypesEntry{
+		result = append(result, rpc.SessionFSReaddirWithTypesEntry{
 			Name: entry.Name(),
 			Type: entryType,
 		})
@@ -451,7 +451,7 @@ func (h *testSessionFsHandler) ReadDirectoryWithTypes(path string) ([]rpc.Sessio
 	return result, nil
 }
 
-func (h *testSessionFsHandler) Remove(path string, recursive bool, force bool) error {
+func (h *testSessionFSHandler) Remove(path string, recursive bool, force bool) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	var err error
 	if recursive {
@@ -465,7 +465,7 @@ func (h *testSessionFsHandler) Remove(path string, recursive bool, force bool) e
 	return err
 }
 
-func (h *testSessionFsHandler) Rename(src string, dest string) error {
+func (h *testSessionFSHandler) Rename(src string, dest string) error {
 	destPath := providerPath(h.root, h.sessionID, dest)
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return err
@@ -525,13 +525,13 @@ func waitForFileContent(path string, needle string, timeout time.Duration) error
 	return fmt.Errorf("file %s did not contain %q", path, needle)
 }
 
-// TestSessionFsHandlerOperations mirrors the C# Should_Map_All_SessionFs_Handler_Operations test.
-// It exercises every operation on testSessionFsHandler directly to ensure the test helper
+// TestSessionFSHandlerOperations mirrors the C# Should_Map_All_SessionFS_Handler_Operations test.
+// It exercises every operation on testSessionFSHandler directly to ensure the test helper
 // implementation routes file operations correctly to the per-session provider root.
-func TestSessionFsHandlerOperationsE2E(t *testing.T) {
+func TestSessionFSHandlerOperationsE2E(t *testing.T) {
 	providerRoot := t.TempDir()
 	sessionID := "handler-session"
-	handler := &testSessionFsHandler{root: providerRoot, sessionID: sessionID}
+	handler := &testSessionFSHandler{root: providerRoot, sessionID: sessionID}
 
 	if err := handler.MakeDirectory("/workspace/nested", true, nil); err != nil {
 		t.Fatalf("Mkdir failed: %v", err)
@@ -589,7 +589,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 	}
 	var found bool
 	for _, entry := range typedEntries {
-		if entry.Name == "file.txt" && entry.Type == rpc.SessionFsReaddirWithTypesEntryTypeFile {
+		if entry.Name == "file.txt" && entry.Type == rpc.SessionFSReaddirWithTypesEntryTypeFile {
 			found = true
 			break
 		}

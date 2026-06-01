@@ -119,7 +119,7 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 	session := &Session{
 		SessionID: "session-1",
 		client:    client,
-		RPC:       rpc.NewSessionRpc(client, "session-1"),
+		RPC:       rpc.NewSessionRPC(client, "session-1"),
 	}
 	if err := session.SetModel(context.Background(), "gpt-4.1", opts); err != nil {
 		t.Fatalf("SetModel failed: %v", err)

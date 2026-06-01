@@ -20,7 +20,7 @@ type sqliteCall struct {
 	Query     string
 }
 
-// inMemorySqliteProvider is a SessionFsProvider backed by in-memory maps with a stub SQLite handler.
+// inMemorySqliteProvider is a SessionFSProvider backed by in-memory maps with a stub SQLite handler.
 // The stub returns plausible canned responses based on query type rather than executing real SQL.
 // This avoids pulling in a real SQLite dependency (which would force a go directive bump across
 // all scenario go.mod files).
@@ -83,17 +83,17 @@ func (p *inMemorySqliteProvider) Exists(path string) (bool, error) {
 	return isFile || isDir, nil
 }
 
-func (p *inMemorySqliteProvider) Stat(path string) (*copilot.SessionFsFileInfo, error) {
+func (p *inMemorySqliteProvider) Stat(path string) (*copilot.SessionFSFileInfo, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := time.Now().UTC()
 	if p.dirs[path] {
-		return &copilot.SessionFsFileInfo{
+		return &copilot.SessionFSFileInfo{
 			IsFile: false, IsDirectory: true, Size: 0, Mtime: now, Birthtime: now,
 		}, nil
 	}
 	if content, ok := p.files[path]; ok {
-		return &copilot.SessionFsFileInfo{
+		return &copilot.SessionFSFileInfo{
 			IsFile: true, IsDirectory: false, Size: int64(len(content)), Mtime: now, Birthtime: now,
 		}, nil
 	}
@@ -143,17 +143,17 @@ func (p *inMemorySqliteProvider) ReadDirectory(path string) ([]string, error) {
 	return result, nil
 }
 
-func (p *inMemorySqliteProvider) ReadDirectoryWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
+func (p *inMemorySqliteProvider) ReadDirectoryWithTypes(path string) ([]rpc.SessionFSReaddirWithTypesEntry, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	prefix := strings.TrimRight(path, "/") + "/"
-	entries := map[string]rpc.SessionFsReaddirWithTypesEntryType{}
+	entries := map[string]rpc.SessionFSReaddirWithTypesEntryType{}
 	for d := range p.dirs {
 		if strings.HasPrefix(d, prefix) {
 			rest := d[len(prefix):]
 			if rest != "" {
 				name := strings.SplitN(rest, "/", 2)[0]
-				entries[name] = rpc.SessionFsReaddirWithTypesEntryTypeDirectory
+				entries[name] = rpc.SessionFSReaddirWithTypesEntryTypeDirectory
 			}
 		}
 	}
@@ -163,14 +163,14 @@ func (p *inMemorySqliteProvider) ReadDirectoryWithTypes(path string) ([]rpc.Sess
 			if rest != "" {
 				name := strings.SplitN(rest, "/", 2)[0]
 				if _, exists := entries[name]; !exists {
-					entries[name] = rpc.SessionFsReaddirWithTypesEntryTypeFile
+					entries[name] = rpc.SessionFSReaddirWithTypesEntryTypeFile
 				}
 			}
 		}
 	}
-	result := make([]rpc.SessionFsReaddirWithTypesEntry, 0, len(entries))
+	result := make([]rpc.SessionFSReaddirWithTypesEntry, 0, len(entries))
 	for name, typ := range entries {
-		result = append(result, rpc.SessionFsReaddirWithTypesEntry{Name: name, Type: typ})
+		result = append(result, rpc.SessionFSReaddirWithTypesEntry{Name: name, Type: typ})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
@@ -195,7 +195,7 @@ func (p *inMemorySqliteProvider) Rename(src string, dest string) error {
 	return nil
 }
 
-func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFsSqliteQueryType, query string, params map[string]any) (*copilot.SessionFsSqliteQueryResult, error) {
+func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFSSqliteQueryType, query string, params map[string]any) (*copilot.SessionFSSqliteQueryResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.hadQuery = true
@@ -211,26 +211,26 @@ func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFsSqliteQueryT
 	// normally without pulling in a real SQLite dependency.
 	upper := strings.ToUpper(strings.TrimSpace(query))
 	switch queryType {
-	case rpc.SessionFsSqliteQueryTypeExec:
-		return &copilot.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
-	case rpc.SessionFsSqliteQueryTypeRun:
+	case rpc.SessionFSSqliteQueryTypeExec:
+		return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+	case rpc.SessionFSSqliteQueryTypeRun:
 		lastID := int64(1)
-		return &copilot.SessionFsSqliteQueryResult{
+		return &copilot.SessionFSSqliteQueryResult{
 			Columns:         []string{},
 			Rows:            []map[string]any{},
 			RowsAffected:    1,
 			LastInsertRowid: &lastID,
 		}, nil
-	case rpc.SessionFsSqliteQueryTypeQuery:
+	case rpc.SessionFSSqliteQueryTypeQuery:
 		if strings.Contains(upper, "SELECT") {
-			return &copilot.SessionFsSqliteQueryResult{
+			return &copilot.SessionFSSqliteQueryResult{
 				Columns: []string{"id", "name"},
 				Rows:    []map[string]any{{"id": "a1", "name": "Widget"}},
 			}, nil
 		}
-		return &copilot.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+		return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
 	}
-	return &copilot.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+	return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
 }
 
 func (p *inMemorySqliteProvider) SqliteExists() (bool, error) {
@@ -239,27 +239,27 @@ func (p *inMemorySqliteProvider) SqliteExists() (bool, error) {
 	return p.hadQuery, nil
 }
 
-func TestSessionFsSqliteE2E(t *testing.T) {
+func TestSessionFSSqliteE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	sessionStatePath := createSessionStatePath(t)
-	sessionFsConfig := &copilot.SessionFsConfig{
+	sessionFSConfig := &copilot.SessionFSConfig{
 		InitialWorkingDirectory: "/",
 		SessionStatePath:        sessionStatePath,
-		Conventions:             rpc.SessionFsSetProviderConventionsPosix,
-		Capabilities:            &copilot.SessionFsCapabilities{Sqlite: true},
+		Conventions:             rpc.SessionFSSetProviderConventionsPosix,
+		Capabilities:            &copilot.SessionFSCapabilities{Sqlite: true},
 	}
 
 	var sqliteCalls []sqliteCall
 	var providers sync.Map
 
-	createSessionFsHandler := func(session *copilot.Session) copilot.SessionFsProvider {
+	createSessionFSHandler := func(session *copilot.Session) copilot.SessionFSProvider {
 		p := newInMemorySqliteProvider(session.SessionID, &sqliteCalls)
 		providers.Store(session.SessionID, p)
 		return p
 	}
 
 	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.SessionFs = sessionFsConfig
+		opts.SessionFS = sessionFSConfig
 	})
 	t.Cleanup(func() { client.ForceStop() })
 
@@ -269,7 +269,7 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -307,7 +307,7 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsProvider: createSessionFsHandler,
+			CreateSessionFSProvider: createSessionFSHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)

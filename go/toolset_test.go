@@ -17,8 +17,8 @@ func TestToolSet_emitsSourceQualifiedStrings(t *testing.T) {
 		AddBuiltIn("*").
 		AddCustom("my_tool").
 		AddCustom("*").
-		AddMcp("github-list_issues").
-		AddMcp("*").
+		AddMCP("github-list_issues").
+		AddMCP("*").
 		ToSlice()
 	want := []string{
 		"builtin:bash",
@@ -56,7 +56,7 @@ func TestToolSet_rejectsInvalidNames(t *testing.T) {
 		fn   func()
 	}{
 		{"colon in builtin", func() { NewToolSet().AddBuiltIn("has:colon") }},
-		{"space in mcp", func() { NewToolSet().AddMcp("has space") }},
+		{"space in mcp", func() { NewToolSet().AddMCP("has space") }},
 		{"empty custom", func() { NewToolSet().AddCustom("") }},
 	}
 	for _, c := range cases {
