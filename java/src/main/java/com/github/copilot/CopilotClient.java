@@ -381,7 +381,8 @@ public final class CopilotClient implements AutoCloseable {
         // executor, so a plain whenComplete(...) here could land the awaitTermination
         // call on one of the very threads it is waiting to drain, forcing the full
         // AUTOCLOSEABLE_TIMEOUT_SECONDS timeout followed by shutdownNow().
-        return cleanupConnection(false).whenCompleteAsync((ignored, error) -> shutdownOwnedExecutor(), SHUTDOWN_DISPATCHER);
+        return cleanupConnection(false).whenCompleteAsync((ignored, error) -> shutdownOwnedExecutor(),
+                SHUTDOWN_DISPATCHER);
     }
 
     private CompletableFuture<Void> cleanupConnection(boolean gracefulRuntimeShutdown) {

@@ -79,6 +79,20 @@ class TestClientShutdown:
 
         assert calls == []
 
+    @pytest.mark.asyncio
+    async def test_force_stop_external_server_clears_process_references(self):
+        process = Mock()
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        client._is_external_server = True
+        client._process = process
+        client._cli_process = process
+
+        await client.force_stop()
+
+        process.terminate.assert_called_once()
+        assert client._process is None
+        assert client._cli_process is None
+
 
 class TestPermissionHandlerOptional:
     @pytest.mark.asyncio

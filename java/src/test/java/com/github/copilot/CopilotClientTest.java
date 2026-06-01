@@ -46,7 +46,8 @@ public class CopilotClientTest {
     void testStopRequestsRuntimeShutdownForOwnedProcess() throws Exception {
         var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
         var rpc = mock(JsonRpcClient.class);
-        when(rpc.invoke(eq("runtime.shutdown"), any(), eq(Void.class))).thenReturn(CompletableFuture.completedFuture(null));
+        when(rpc.invoke(eq("runtime.shutdown"), any(), eq(Void.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
         var process = mock(Process.class);
         when(process.isAlive()).thenReturn(true);
         when(process.waitFor(anyLong(), any(TimeUnit.class))).thenReturn(true);

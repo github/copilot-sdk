@@ -1528,15 +1528,24 @@ class CopilotClient:
             if is_running:
                 if runtime_shutdown_completed:
                     try:
-                        self._cli_process.wait(timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS)
+                        await asyncio.to_thread(
+                            self._cli_process.wait,
+                            timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS,
+                        )
                     except subprocess.TimeoutExpired:
                         self._cli_process.terminate()
                         try:
-                            self._cli_process.wait(timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS)
+                            await asyncio.to_thread(
+                                self._cli_process.wait,
+                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                            )
                         except subprocess.TimeoutExpired:
                             self._cli_process.kill()
                             try:
-                                self._cli_process.wait(timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS)
+                                await asyncio.to_thread(
+                                    self._cli_process.wait,
+                                    timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                                )
                             except subprocess.TimeoutExpired as e:
                                 errors.append(
                                     StopError(
@@ -1549,17 +1558,22 @@ class CopilotClient:
                 else:
                     self._cli_process.terminate()
                     try:
-                        self._cli_process.wait(timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS)
+                        await asyncio.to_thread(
+                            self._cli_process.wait,
+                            timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                        )
                     except subprocess.TimeoutExpired:
                         self._cli_process.kill()
                         try:
-                            self._cli_process.wait(timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS)
+                            await asyncio.to_thread(
+                                self._cli_process.wait,
+                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                            )
                         except subprocess.TimeoutExpired as e:
                             errors.append(
                                 StopError(
                                     message=(
-                                        "Timed out waiting for CLI process to exit after kill: "
-                                        f"{e}"
+                                        f"Timed out waiting for CLI process to exit after kill: {e}"
                                     )
                                 )
                             )
@@ -1602,6 +1616,8 @@ class CopilotClient:
                 if self._is_external_server:
                     if self._process is not None:
                         self._process.terminate()  # closes the TCP socket
+                    self._process = None
+                    self._cli_process = None
                 else:
                     if self._process is not None and self._process is not self._cli_process:
                         self._process.terminate()

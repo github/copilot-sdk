@@ -439,7 +439,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     "CopilotClient.StopAsync runtime shutdown complete. Elapsed={Elapsed}",
                     runtimeShutdownTimestamp);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is OperationCanceledException
+                or InvalidOperationException
+                or ObjectDisposedException
+                or IOException
+                or SocketException)
             {
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, ex,
                     "CopilotClient.StopAsync runtime shutdown failed. Elapsed={Elapsed}",
