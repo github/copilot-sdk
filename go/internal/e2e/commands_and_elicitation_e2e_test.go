@@ -33,7 +33,7 @@ func TestCommandsE2E(t *testing.T) {
 	}
 
 	client2 := copilot.NewClient(&copilot.ClientOptions{
-		Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
+		Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 	})
 	t.Cleanup(func() { client2.ForceStop() })
 
@@ -770,7 +770,7 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 
 		// Client2 joins with elicitation handler — should trigger capabilities.changed
 		client2 := copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
+			Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 		})
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -830,7 +830,7 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 
 		// Client3 (dedicated for this test) joins with elicitation handler
 		client3 := copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
+			Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 		})
 		_, err = client3.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,

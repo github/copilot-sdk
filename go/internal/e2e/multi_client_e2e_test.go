@@ -37,7 +37,7 @@ func TestMultiClientE2E(t *testing.T) {
 	}
 
 	client2 := copilot.NewClient(&copilot.ClientOptions{
-		Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
+		Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 	})
 	t.Cleanup(func() { client2.ForceStop() })
 
@@ -487,7 +487,7 @@ func TestMultiClientE2E(t *testing.T) {
 
 		// Recreate client2 for cleanup (but don't rejoin the session)
 		client2 = copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
+			Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 		})
 
 		// Now only stable_tool should be available

@@ -80,7 +80,7 @@ func validateSessionFSConfig(config *SessionFSConfig) error {
 //
 //	// Or connect to an existing server
 //	client := copilot.NewClient(&copilot.ClientOptions{
-//	    Connection: copilot.UriConnection{URL: "localhost:3000"},
+//	    Connection: copilot.URIConnection{URL: "localhost:3000"},
 //	})
 //
 //	if err := client.Start(); err != nil {
@@ -99,7 +99,7 @@ type Client struct {
 	isExternalServer bool
 	conn             net.Conn // stores net.Conn for external TCP connections
 	useStdio         bool     // resolved value from options
-	// resolved process options for the spawned runtime (zero values for UriConnection)
+	// resolved process options for the spawned runtime (zero values for URIConnection)
 	cliPath            string
 	cliArgs            []string
 	port               int
@@ -150,7 +150,7 @@ type Client struct {
 //
 //	// Connect to an already-running runtime
 //	client := copilot.NewClient(&copilot.ClientOptions{
-//	    Connection: copilot.UriConnection{URL: "localhost:8080"},
+//	    Connection: copilot.URIConnection{URL: "localhost:8080"},
 //	})
 func NewClient(options *ClientOptions) *Client {
 	opts := ClientOptions{}
@@ -188,9 +188,9 @@ func NewClient(options *ClientOptions) *Client {
 		}
 		client.port = conn.Port
 		client.tcpConnectionToken = conn.ConnectionToken
-	case UriConnection:
+	case URIConnection:
 		if conn.URL == "" {
-			panic("UriConnection requires a non-empty URL")
+			panic("URIConnection requires a non-empty URL")
 		}
 		host, port := parseCLIURL(conn.URL)
 		client.actualHost = host
@@ -204,7 +204,7 @@ func NewClient(options *ClientOptions) *Client {
 
 	// Validate auth options when connecting to an external runtime.
 	if client.isExternalServer && (opts.GitHubToken != "" || opts.UseLoggedInUser != nil) {
-		panic("GitHubToken and UseLoggedInUser cannot be used with UriConnection (external runtime manages its own auth)")
+		panic("GitHubToken and UseLoggedInUser cannot be used with URIConnection (external runtime manages its own auth)")
 	}
 
 	// Default Env to current environment if not set
@@ -293,7 +293,7 @@ func parseCLIURL(url string) (string, int) {
 	// Validate port
 	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 || port > 65535 {
-		panic(fmt.Sprintf("Invalid port in CLI URL: %s", url))
+		panic(fmt.Sprintf("Invalid port in URIConnection: %s", url))
 	}
 
 	return host, port
@@ -302,7 +302,7 @@ func parseCLIURL(url string) (string, int) {
 // Start starts the CLI server (if not using an external server) and establishes
 // a connection.
 //
-// If connecting to an external server (via UriConnection), only establishes the connection.
+// If connecting to an external server (via URIConnection), only establishes the connection.
 // Otherwise, spawns the CLI server process and then connects.
 //
 // This method is called automatically when creating a session if AutoStart is true (default).

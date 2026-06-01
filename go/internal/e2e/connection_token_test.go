@@ -72,7 +72,7 @@ func TestConnectionToken(t *testing.T) {
 		}
 
 		bad := copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.UriConnection{
+			Connection: copilot.URIConnection{
 				URL:             fmt.Sprintf("localhost:%d", port),
 				ConnectionToken: "wrong",
 			},
@@ -107,7 +107,7 @@ func TestConnectionToken(t *testing.T) {
 		}
 
 		none := copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", port)},
+			Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", port)},
 		})
 		t.Cleanup(func() { none.ForceStop() })
 

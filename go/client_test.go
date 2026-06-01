@@ -22,7 +22,7 @@ import (
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "8080"},
+			Connection: URIConnection{URL: "8080"},
 		})
 		if client.actualPort != 8080 {
 			t.Errorf("Expected port 8080, got %d", client.actualPort)
@@ -37,7 +37,7 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("should parse host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "127.0.0.1:9000"},
+			Connection: URIConnection{URL: "127.0.0.1:9000"},
 		})
 		if client.actualPort != 9000 || client.actualHost != "127.0.0.1" {
 			t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.actualPort)
@@ -46,7 +46,7 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("should parse http://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "http://localhost:7000"},
+			Connection: URIConnection{URL: "http://localhost:7000"},
 		})
 		if client.actualPort != 7000 || client.actualHost != "localhost" {
 			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
@@ -55,7 +55,7 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("should parse https://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "https://example.com:443"},
+			Connection: URIConnection{URL: "https://example.com:443"},
 		})
 		if client.actualPort != 443 || client.actualHost != "example.com" {
 			t.Errorf("Expected example.com:443, got %s:%d", client.actualHost, client.actualPort)
@@ -68,7 +68,7 @@ func TestClient_URLParsing(t *testing.T) {
 				t.Error("Expected panic for invalid URL format")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{URL: "invalid-url"}})
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "invalid-url"}})
 	})
 
 	t.Run("should panic for invalid port - too high", func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestClient_URLParsing(t *testing.T) {
 				t.Error("Expected panic")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:99999"}})
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "localhost:99999"}})
 	})
 
 	t.Run("should panic for invalid port - zero", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestClient_URLParsing(t *testing.T) {
 				t.Error("Expected panic")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:0"}})
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "localhost:0"}})
 	})
 
 	t.Run("should panic for invalid port - negative", func(t *testing.T) {
@@ -95,16 +95,16 @@ func TestClient_URLParsing(t *testing.T) {
 				t.Error("Expected panic")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:-1"}})
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "localhost:-1"}})
 	})
 
-	t.Run("should panic when UriConnection has empty URL", func(t *testing.T) {
+	t.Run("should panic when URIConnection has empty URL", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
 				t.Error("Expected panic for empty URL")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{}})
+		NewClient(&ClientOptions{Connection: URIConnection{}})
 	})
 
 	t.Run("stdio connection uses stdio transport", func(t *testing.T) {
@@ -126,10 +126,10 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("uri connection is treated as external server", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "localhost:8080"},
+			Connection: URIConnection{URL: "localhost:8080"},
 		})
 		if !client.isExternalServer {
-			t.Error("Expected isExternalServer=true for UriConnection")
+			t.Error("Expected isExternalServer=true for URIConnection")
 		}
 	})
 }
@@ -216,12 +216,12 @@ func TestClient_AuthOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("should panic when GitHubToken is used with UriConnection", func(t *testing.T) {
+	t.Run("should panic when GitHubToken is used with URIConnection", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for auth options with UriConnection")
+				t.Error("Expected panic for auth options with URIConnection")
 			} else {
-				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with UriConnection", r.(string))
+				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with URIConnection", r.(string))
 				if !matched {
 					t.Errorf("Expected panic message about auth options, got: %v", r)
 				}
@@ -229,20 +229,20 @@ func TestClient_AuthOptions(t *testing.T) {
 		}()
 
 		NewClient(&ClientOptions{
-			Connection:  UriConnection{URL: "localhost:8080"},
+			Connection:  URIConnection{URL: "localhost:8080"},
 			GitHubToken: "gho_test_token",
 		})
 	})
 
-	t.Run("should panic when UseLoggedInUser is used with UriConnection", func(t *testing.T) {
+	t.Run("should panic when UseLoggedInUser is used with URIConnection", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for auth options with UriConnection")
+				t.Error("Expected panic for auth options with URIConnection")
 			}
 		}()
 
 		NewClient(&ClientOptions{
-			Connection:      UriConnection{URL: "localhost:8080"},
+			Connection:      URIConnection{URL: "localhost:8080"},
 			UseLoggedInUser: Bool(false),
 		})
 	})
@@ -1147,7 +1147,7 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 }
 
 func TestCreateSessionRequest_RequestMCPApps(t *testing.T) {
-	t.Run("sends requestMCPApps flag when EnableMCPpApps is set", func(t *testing.T) {
+	t.Run("sends requestMCPApps flag when EnableMCPApps is set", func(t *testing.T) {
 		req := createSessionRequest{
 			RequestMCPApps: Bool(true),
 		}

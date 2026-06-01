@@ -241,19 +241,19 @@ func TestClientOptionsUnit(t *testing.T) {
 		}
 	})
 
-	t.Run("should panic when GitHubToken used with UriConnection", func(t *testing.T) {
+	t.Run("should panic when GitHubToken used with URIConnection", func(t *testing.T) {
 		assertPanics(t, func() {
 			_ = copilot.NewClient(&copilot.ClientOptions{
-				Connection:  copilot.UriConnection{URL: "localhost:8080"},
+				Connection:  copilot.URIConnection{URL: "localhost:8080"},
 				GitHubToken: "gho_test_token",
 			})
 		})
 	})
 
-	t.Run("should panic when UseLoggedInUser used with UriConnection", func(t *testing.T) {
+	t.Run("should panic when UseLoggedInUser used with URIConnection", func(t *testing.T) {
 		assertPanics(t, func() {
 			_ = copilot.NewClient(&copilot.ClientOptions{
-				Connection:      copilot.UriConnection{URL: "localhost:8080"},
+				Connection:      copilot.URIConnection{URL: "localhost:8080"},
 				UseLoggedInUser: copilot.Bool(false),
 			})
 		})

@@ -51,7 +51,7 @@ func TestSuspendE2E(t *testing.T) {
 		_, cliURL := startTcpServer(t, ctx)
 
 		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.UriConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
+			opts.Connection = copilot.URIConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
 		})
 		t.Cleanup(func() { client1.ForceStop() })
 
@@ -75,7 +75,7 @@ func TestSuspendE2E(t *testing.T) {
 		client1.ForceStop()
 
 		client2 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.UriConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
+			opts.Connection = copilot.URIConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
 		})
 		t.Cleanup(func() { client2.ForceStop() })
 

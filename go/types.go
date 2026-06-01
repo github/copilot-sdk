@@ -20,7 +20,7 @@ const (
 
 // RuntimeConnection describes how a [Client] connects to the Copilot runtime.
 //
-// Construct one with a [StdioConnection], [TcpConnection], or [UriConnection]
+// Construct one with a [StdioConnection], [TcpConnection], or [URIConnection]
 // literal and pass it via [ClientOptions.Connection]. When [ClientOptions.Connection]
 // is nil, the default is an empty [StdioConnection] (the SDK spawns the bundled
 // runtime and communicates over stdin/stdout).
@@ -58,9 +58,9 @@ type TcpConnection struct {
 
 func (TcpConnection) runtimeConnection() {}
 
-// UriConnection connects to an already-running runtime at the given URL.
+// URIConnection connects to an already-running runtime at the given URL.
 // The SDK does not spawn a process in this mode.
-type UriConnection struct {
+type URIConnection struct {
 	// URL of the runtime. Accepts "port", "host:port", or a full URL such
 	// as "http://host:port".
 	URL string
@@ -69,7 +69,7 @@ type UriConnection struct {
 	ConnectionToken string
 }
 
-func (UriConnection) runtimeConnection() {}
+func (URIConnection) runtimeConnection() {}
 
 // ClientOptions configures the [Client].
 type ClientOptions struct {
@@ -86,7 +86,7 @@ type ClientOptions struct {
 	// This does not affect where the Go SDK extracts the embedded CLI
 	// binary; use embeddedcli.Config.Dir to control that install/cache
 	// location.
-	// Ignored when connecting to an existing runtime via [UriConnection].
+	// Ignored when connecting to an existing runtime via [URIConnection].
 	BaseDirectory string
 	// LogLevel for the runtime. When empty (the default), the runtime
 	// uses its own default level; the SDK does not pass --log-level.
@@ -123,12 +123,12 @@ type ClientOptions struct {
 	// SessionIdleTimeoutSeconds configures the server-wide session idle
 	// timeout in seconds. Sessions without activity for this duration are
 	// automatically cleaned up. Set to 0 or leave unset to disable.
-	// Ignored when connecting to an existing runtime via [UriConnection].
+	// Ignored when connecting to an existing runtime via [URIConnection].
 	SessionIdleTimeoutSeconds int
 	// EnableRemoteSessions enables remote session support (Mission Control
 	// integration). When true, sessions in a GitHub repository working
 	// directory are accessible from GitHub web and mobile.
-	// Ignored when connecting to an existing runtime via [UriConnection].
+	// Ignored when connecting to an existing runtime via [URIConnection].
 	EnableRemoteSessions bool
 	// Mode controls the default tool surface and feature flags presented to
 	// sessions created by this client. The zero value ([ModeCopilotCli])
@@ -136,7 +136,7 @@ type ClientOptions struct {
 	// multi-tenant safe defaults — see [ClientMode] for details.
 	//
 	// When Mode is [ModeEmpty], NewClient requires either BaseDirectory,
-	// SessionFS, or a [UriConnection] so the runtime has persistent storage
+	// SessionFS, or a [URIConnection] so the runtime has persistent storage
 	// for session state.
 	Mode ClientMode
 }

@@ -22,19 +22,19 @@ func validateNewClientForMode(opts *ClientOptions) {
 	//   - the app supplied a BaseDirectory the runtime can write to,
 	//   - the app supplied a SessionFS implementation,
 	//   - or the app is connecting to an externally-managed runtime via
-	//     UriConnection (in which case the host owns storage).
+	//     URIConnection (in which case the host owns storage).
 	if opts.BaseDirectory != "" {
 		return
 	}
 	if opts.SessionFS != nil {
 		return
 	}
-	if _, ok := opts.Connection.(UriConnection); ok {
+	if _, ok := opts.Connection.(URIConnection); ok {
 		return
 	}
-	panic("Client is in Mode=ModeEmpty but neither BaseDirectory, SessionFS, nor a UriConnection was supplied. " +
+	panic("Client is in Mode=ModeEmpty but neither BaseDirectory, SessionFS, nor a URIConnection was supplied. " +
 		"Empty mode requires explicit, per-tenant storage; set ClientOptions.BaseDirectory or .SessionFS, " +
-		"or connect to an externally-managed runtime via UriConnection.")
+		"or connect to an externally-managed runtime via URIConnection.")
 }
 
 // validateToolFilterList rejects bare "*" entries with an actionable error

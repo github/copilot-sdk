@@ -111,10 +111,10 @@ func TestNewClient_modeEmptyAcceptsBaseDirectory(t *testing.T) {
 	}
 }
 
-func TestNewClient_modeEmptyAcceptsUriConnection(t *testing.T) {
+func TestNewClient_modeEmptyAcceptsURIConnection(t *testing.T) {
 	c := NewClient(&ClientOptions{
 		Mode:       ModeEmpty,
-		Connection: UriConnection{URL: "8080"},
+		Connection: URIConnection{URL: "8080"},
 	})
 	if c.options.Mode != ModeEmpty {
 		t.Errorf("expected ModeEmpty, got %q", c.options.Mode)
