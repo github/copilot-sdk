@@ -8325,6 +8325,10 @@ export interface SessionUpdateOptionsParams {
    */
   customAgentsLocalOnly?: boolean;
   /**
+   * When true, the selected custom agent's prompt is not injected into the user message (skill context is still injected). Used by automation triggers where the agent prompt is already in the problem statement.
+   */
+  suppressCustomAgentPrompt?: boolean;
+  /**
    * Whether to skip loading custom instruction sources.
    */
   skipCustomInstructions?: boolean;

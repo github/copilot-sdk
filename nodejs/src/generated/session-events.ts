@@ -3280,6 +3280,10 @@ export interface ToolExecutionStartData {
    */
   mcpToolName?: string;
   /**
+   * Model identifier that generated this tool call
+   */
+  model?: string;
+  /**
    * @deprecated
    * Tool call ID of the parent tool invocation when this event originates from a sub-agent
    */

@@ -1517,6 +1517,9 @@ pub struct ToolExecutionStartData {
     /// Original tool name on the MCP server, when the tool is an MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_tool_name: Option<String>,
+    /// Model identifier that generated this tool call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
     #[doc(hidden)]
     #[deprecated]

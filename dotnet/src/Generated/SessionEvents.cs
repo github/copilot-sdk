@@ -2467,6 +2467,11 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("mcpToolName")]
     public string? McpToolName { get; set; }
 
+    /// <summary>Model identifier that generated this tool call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("This member is deprecated and will be removed in a future version.")]

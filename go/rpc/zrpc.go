@@ -5385,6 +5385,10 @@ type SessionUpdateOptionsParams struct {
 	SkipCustomInstructions *bool `json:"skipCustomInstructions,omitempty"`
 	// Whether to skip embedding retrieval pipeline initialization and execution.
 	SkipEmbeddingRetrieval *bool `json:"skipEmbeddingRetrieval,omitempty"`
+	// When true, the selected custom agent's prompt is not injected into the user message
+	// (skill context is still injected). Used by automation triggers where the agent prompt is
+	// already in the problem statement.
+	SuppressCustomAgentPrompt *bool `json:"suppressCustomAgentPrompt,omitempty"`
 	// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
 	// are set.
 	ToolFilterPrecedence *OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
@@ -10868,6 +10872,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.SkipEmbeddingRetrieval != nil {
 			req["skipEmbeddingRetrieval"] = *params.SkipEmbeddingRetrieval
+		}
+		if params.SuppressCustomAgentPrompt != nil {
+			req["suppressCustomAgentPrompt"] = *params.SuppressCustomAgentPrompt
 		}
 		if params.ToolFilterPrecedence != nil {
 			req["toolFilterPrecedence"] = *params.ToolFilterPrecedence

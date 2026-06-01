@@ -14796,6 +14796,11 @@ class SessionUpdateOptionsParams:
     skip_embedding_retrieval: bool | None = None
     """Whether to skip embedding retrieval pipeline initialization and execution."""
 
+    suppress_custom_agent_prompt: bool | None = None
+    """When true, the selected custom agent's prompt is not injected into the user message
+    (skill context is still injected). Used by automation triggers where the agent prompt is
+    already in the problem statement.
+    """
     tool_filter_precedence: OptionsUpdateToolFilterPrecedence | None = None
     """Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
     are set.
@@ -14849,10 +14854,11 @@ class SessionUpdateOptionsParams:
         skill_directories = from_union([lambda x: from_list(from_str, x), from_none], obj.get("skillDirectories"))
         skip_custom_instructions = from_union([from_bool, from_none], obj.get("skipCustomInstructions"))
         skip_embedding_retrieval = from_union([from_bool, from_none], obj.get("skipEmbeddingRetrieval"))
+        suppress_custom_agent_prompt = from_union([from_bool, from_none], obj.get("suppressCustomAgentPrompt"))
         tool_filter_precedence = from_union([OptionsUpdateToolFilterPrecedence, from_none], obj.get("toolFilterPrecedence"))
         trajectory_file = from_union([from_str, from_none], obj.get("trajectoryFile"))
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
-        return SessionUpdateOptionsParams(additional_content_exclusion_policies, agent_context, ask_user_disabled, available_tools, client_name, coauthor_enabled, continue_on_auto_mode, copilot_url, custom_agents_local_only, disabled_instruction_sources, disabled_skills, enable_file_hooks, enable_host_git_operations, enable_on_demand_instruction_discovery, enable_reasoning_summaries, enable_script_safety, enable_session_store, enable_skills, enable_streaming, env_value_mode, events_log_directory, excluded_tools, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, manage_schedule_enabled, model, organization_custom_instructions, provider, reasoning_effort, running_in_interactive_mode, sandbox_config, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, skip_embedding_retrieval, tool_filter_precedence, trajectory_file, working_directory)
+        return SessionUpdateOptionsParams(additional_content_exclusion_policies, agent_context, ask_user_disabled, available_tools, client_name, coauthor_enabled, continue_on_auto_mode, copilot_url, custom_agents_local_only, disabled_instruction_sources, disabled_skills, enable_file_hooks, enable_host_git_operations, enable_on_demand_instruction_discovery, enable_reasoning_summaries, enable_script_safety, enable_session_store, enable_skills, enable_streaming, env_value_mode, events_log_directory, excluded_tools, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, manage_schedule_enabled, model, organization_custom_instructions, provider, reasoning_effort, running_in_interactive_mode, sandbox_config, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, skip_embedding_retrieval, suppress_custom_agent_prompt, tool_filter_precedence, trajectory_file, working_directory)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -14936,6 +14942,8 @@ class SessionUpdateOptionsParams:
             result["skipCustomInstructions"] = from_union([from_bool, from_none], self.skip_custom_instructions)
         if self.skip_embedding_retrieval is not None:
             result["skipEmbeddingRetrieval"] = from_union([from_bool, from_none], self.skip_embedding_retrieval)
+        if self.suppress_custom_agent_prompt is not None:
+            result["suppressCustomAgentPrompt"] = from_union([from_bool, from_none], self.suppress_custom_agent_prompt)
         if self.tool_filter_precedence is not None:
             result["toolFilterPrecedence"] = from_union([lambda x: to_enum(OptionsUpdateToolFilterPrecedence, x), from_none], self.tool_filter_precedence)
         if self.trajectory_file is not None:

@@ -1257,6 +1257,31 @@ pub struct AttachmentFile {
     pub r#type: AttachmentFileType,
 }
 
+/// GitHub issue, pull request, or discussion reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubReference {
+    /// Issue, pull request, or discussion number
+    pub number: i64,
+    /// Type of GitHub reference
+    pub reference_type: AttachmentGitHubReferenceType,
+    /// Current state of the referenced item (e.g., open, closed, merged)
+    pub state: String,
+    /// Title of the referenced item
+    pub title: String,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubReferenceType,
+    /// URL to the referenced item on GitHub
+    pub url: String,
+}
+
 /// End position of the selection
 ///
 /// <div class="warning">
@@ -2841,6 +2866,26 @@ pub struct InstalledPlugin {
     /// Version installed (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+}
+
+/// Schema for the `InstalledPluginSourceGitHub` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledPluginSourceGitHub {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
+    pub repo: String,
+    /// Constant value. Always "github".
+    pub source: InstalledPluginSourceGitHubSource,
 }
 
 /// Schema for the `InstalledPluginSourceLocal` type.
@@ -5958,6 +6003,31 @@ pub struct PushAttachmentFile {
     pub r#type: PushAttachmentFileType,
 }
 
+/// GitHub issue, pull request, or discussion reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubReference {
+    /// Issue, pull request, or discussion number
+    pub number: i64,
+    /// Type of GitHub reference
+    pub reference_type: PushAttachmentGitHubReferenceType,
+    /// Current state of the referenced item (e.g., open, closed, merged)
+    pub state: String,
+    /// Title of the referenced item
+    pub title: String,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubReferenceType,
+    /// URL to the referenced item on GitHub
+    pub url: String,
+}
+
 /// End position of the selection
 ///
 /// <div class="warning">
@@ -7048,6 +7118,26 @@ pub struct SessionInstalledPlugin {
     pub version: Option<String>,
 }
 
+/// Schema for the `SessionInstalledPluginSourceGitHub` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionInstalledPluginSourceGitHub {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
+    pub repo: String,
+    /// Constant value. Always "github".
+    pub source: SessionInstalledPluginSourceGitHubSource,
+}
+
 /// Schema for the `SessionInstalledPluginSourceLocal` type.
 ///
 /// <div class="warning">
@@ -7911,6 +8001,9 @@ pub struct SessionUpdateOptionsParams {
     /// Whether to skip embedding retrieval pipeline initialization and execution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skip_embedding_retrieval: Option<bool>,
+    /// When true, the selected custom agent's prompt is not injected into the user message (skill context is still injected). Used by automation triggers where the agent prompt is already in the problem statement.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suppress_custom_agent_prompt: Option<bool>,
     /// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_filter_precedence: Option<OptionsUpdateToolFilterPrecedence>,
@@ -9862,96 +9955,6 @@ pub struct WorkspaceSummary {
     /// ISO 8601 timestamp when the workspace was last updated
     #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
-}
-
-/// GitHub issue, pull request, or discussion reference
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AttachmentGitHubReference {
-    /// Issue, pull request, or discussion number
-    pub number: i64,
-    /// Type of GitHub reference
-    pub reference_type: AttachmentGitHubReferenceType,
-    /// Current state of the referenced item (e.g., open, closed, merged)
-    pub state: String,
-    /// Title of the referenced item
-    pub title: String,
-    /// Attachment type discriminator
-    pub r#type: AttachmentGitHubReferenceType,
-    /// URL to the referenced item on GitHub
-    pub url: String,
-}
-
-/// Schema for the `InstalledPluginSourceGitHub` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InstalledPluginSourceGitHub {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#ref: Option<String>,
-    pub repo: String,
-    /// Constant value. Always "github".
-    pub source: InstalledPluginSourceGitHubSource,
-}
-
-/// GitHub issue, pull request, or discussion reference
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PushAttachmentGitHubReference {
-    /// Issue, pull request, or discussion number
-    pub number: i64,
-    /// Type of GitHub reference
-    pub reference_type: PushAttachmentGitHubReferenceType,
-    /// Current state of the referenced item (e.g., open, closed, merged)
-    pub state: String,
-    /// Title of the referenced item
-    pub title: String,
-    /// Attachment type discriminator
-    pub r#type: PushAttachmentGitHubReferenceType,
-    /// URL to the referenced item on GitHub
-    pub url: String,
-}
-
-/// Schema for the `SessionInstalledPluginSourceGitHub` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionInstalledPluginSourceGitHub {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#ref: Option<String>,
-    pub repo: String,
-    /// Constant value. Always "github".
-    pub source: SessionInstalledPluginSourceGitHubSource,
 }
 
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
@@ -13280,6 +13283,31 @@ pub enum AttachmentFileType {
     File,
 }
 
+/// Type of GitHub reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubReferenceType {
+    /// GitHub issue reference.
+    #[serde(rename = "issue")]
+    Issue,
+    /// GitHub pull request reference.
+    #[serde(rename = "pr")]
+    Pr,
+    /// GitHub discussion reference.
+    #[serde(rename = "discussion")]
+    Discussion,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Attachment type discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttachmentSelectionType {
@@ -13692,6 +13720,14 @@ pub enum HMACAuthInfoType {
     #[serde(rename = "hmac")]
     #[default]
     Hmac,
+}
+
+/// Constant value. Always "github".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InstalledPluginSourceGitHubSource {
+    #[serde(rename = "github")]
+    #[default]
+    GitHub,
 }
 
 /// Constant value. Always "local".
@@ -14821,6 +14857,31 @@ pub enum PushAttachmentFileType {
     File,
 }
 
+/// Type of GitHub reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubReferenceType {
+    /// GitHub issue reference.
+    #[serde(rename = "issue")]
+    Issue,
+    /// GitHub pull request reference.
+    #[serde(rename = "pr")]
+    Pr,
+    /// GitHub discussion reference.
+    #[serde(rename = "discussion")]
+    Discussion,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Attachment type discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PushAttachmentSelectionType {
@@ -15028,6 +15089,14 @@ pub enum SessionFsSqliteQueryType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Constant value. Always "github".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionInstalledPluginSourceGitHubSource {
+    #[serde(rename = "github")]
+    #[default]
+    GitHub,
 }
 
 /// Constant value. Always "local".
@@ -15524,70 +15593,4 @@ pub enum WorkspacesWorkspaceDetailsHostType {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// Type of GitHub reference
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AttachmentGitHubReferenceType {
-    /// GitHub issue reference.
-    #[serde(rename = "issue")]
-    Issue,
-    /// GitHub pull request reference.
-    #[serde(rename = "pr")]
-    Pr,
-    /// GitHub discussion reference.
-    #[serde(rename = "discussion")]
-    Discussion,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Constant value. Always "github".
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstalledPluginSourceGitHubSource {
-    #[serde(rename = "github")]
-    #[default]
-    GitHub,
-}
-
-/// Type of GitHub reference
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PushAttachmentGitHubReferenceType {
-    /// GitHub issue reference.
-    #[serde(rename = "issue")]
-    Issue,
-    /// GitHub pull request reference.
-    #[serde(rename = "pr")]
-    Pr,
-    /// GitHub discussion reference.
-    #[serde(rename = "discussion")]
-    Discussion,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Constant value. Always "github".
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SessionInstalledPluginSourceGitHubSource {
-    #[serde(rename = "github")]
-    #[default]
-    GitHub,
 }

@@ -6199,6 +6199,7 @@ class ToolExecutionStartData:
     display_verbatim: bool | None = None
     mcp_server_name: str | None = None
     mcp_tool_name: str | None = None
+    model: str | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     turn_id: str | None = None
@@ -6212,6 +6213,7 @@ class ToolExecutionStartData:
         display_verbatim = from_union([from_none, from_bool], obj.get("displayVerbatim"))
         mcp_server_name = from_union([from_none, from_str], obj.get("mcpServerName"))
         mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
+        model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionStartData(
@@ -6221,6 +6223,7 @@ class ToolExecutionStartData:
             display_verbatim=display_verbatim,
             mcp_server_name=mcp_server_name,
             mcp_tool_name=mcp_tool_name,
+            model=model,
             parent_tool_call_id=parent_tool_call_id,
             turn_id=turn_id,
         )
@@ -6237,6 +6240,8 @@ class ToolExecutionStartData:
             result["mcpServerName"] = from_union([from_none, from_str], self.mcp_server_name)
         if self.mcp_tool_name is not None:
             result["mcpToolName"] = from_union([from_none, from_str], self.mcp_tool_name)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.turn_id is not None:

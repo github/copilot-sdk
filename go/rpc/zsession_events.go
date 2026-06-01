@@ -1460,6 +1460,8 @@ type ToolExecutionStartData struct {
 	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Original tool name on the MCP server, when the tool is an MCP tool
 	MCPToolName *string `json:"mcpToolName,omitempty"`
+	// Model identifier that generated this tool call
+	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
