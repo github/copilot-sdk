@@ -1,0 +1,26 @@
+# Temporary test workflow for PR #1524 — triggers site deployment on standalone repo.
+# Will be merged into java-publish-maven.yml once validated.
+name: "PR-1524: Test Site Deployment Trigger"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-site:
+    name: Deploy Documentation Site (Test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger site deployment on standalone repo
+        run: |
+          VERSION="1.0.0-beta-10-java.5"
+          TAG="java/v${VERSION}"
+          echo "Triggering site deployment for version ${VERSION} (tag: ${TAG})"
+          gh workflow run deploy-site.yml \
+            --repo github/copilot-sdk-java \
+            -f version="${VERSION}" \
+            -f publish_as_latest=true \
+            -f monorepo_tag="${TAG}"
+          echo "### Site Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "Triggered deploy-site.yml on github/copilot-sdk-java for version ${VERSION}" >> $GITHUB_STEP_SUMMARY
+        env:
+          GITHUB_TOKEN: ${{ secrets.JAVA_SITE_DEPLOY_TOKEN }}
