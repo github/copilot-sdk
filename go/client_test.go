@@ -466,6 +466,73 @@ func TestSessionRequests_ContextTier(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_EnableConfigDiscovery(t *testing.T) {
+	t.Run("create includes enableConfigDiscovery when true", func(t *testing.T) {
+		req := createSessionRequest{EnableConfigDiscovery: Bool(true)}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableConfigDiscovery"] != true {
+			t.Errorf("Expected enableConfigDiscovery to be true, got %v", m["enableConfigDiscovery"])
+		}
+	})
+
+	t.Run("create includes enableConfigDiscovery when false", func(t *testing.T) {
+		req := createSessionRequest{EnableConfigDiscovery: Bool(false)}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableConfigDiscovery"] != false {
+			t.Errorf("Expected enableConfigDiscovery to be false, got %v", m["enableConfigDiscovery"])
+		}
+	})
+
+	t.Run("create omits enableConfigDiscovery when unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableConfigDiscovery"]; ok {
+			t.Error("Expected enableConfigDiscovery to be omitted when unset")
+		}
+	})
+
+	t.Run("resume includes enableConfigDiscovery when false", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", EnableConfigDiscovery: Bool(false)}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableConfigDiscovery"] != false {
+			t.Errorf("Expected enableConfigDiscovery to be false, got %v", m["enableConfigDiscovery"])
+		}
+	})
+
+	t.Run("resume omits enableConfigDiscovery when unset", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableConfigDiscovery"]; ok {
+			t.Error("Expected enableConfigDiscovery to be omitted when unset")
+		}
+	})
+}
+
 func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	pluginDirs := []string{"/tmp/plugins/a", "/tmp/plugins/b"}
 	enabled := true
@@ -1330,6 +1397,24 @@ func TestResumeSessionRequest_ContinuePendingWork(t *testing.T) {
 		}
 		if m["continuePendingWork"] != true {
 			t.Errorf("Expected continuePendingWork to be true, got %v", m["continuePendingWork"])
+		}
+	})
+
+	t.Run("forwards continuePendingWork when false", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:           "s1",
+			ContinuePendingWork: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["continuePendingWork"] != false {
+			t.Errorf("Expected continuePendingWork to be false, got %v", m["continuePendingWork"])
 		}
 	})
 

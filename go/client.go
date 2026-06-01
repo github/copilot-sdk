@@ -607,9 +607,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ReasoningSummary = config.ReasoningSummary
 	req.ContextTier = config.ContextTier
 	req.ConfigDir = config.ConfigDirectory
-	if config.EnableConfigDiscovery {
-		req.EnableConfigDiscovery = Bool(true)
-	}
+	req.EnableConfigDiscovery = config.EnableConfigDiscovery
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
 	req.EmbeddingCacheStorage = config.EmbeddingCacheStorage
 	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
@@ -960,9 +958,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	req.WorkingDirectory = config.WorkingDirectory
 	req.ConfigDir = config.ConfigDirectory
-	if config.EnableConfigDiscovery {
-		req.EnableConfigDiscovery = Bool(true)
-	}
+	req.EnableConfigDiscovery = config.EnableConfigDiscovery
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
 	req.EmbeddingCacheStorage = config.EmbeddingCacheStorage
 	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
@@ -974,9 +970,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.SuppressResumeEvent {
 		req.DisableResume = Bool(true)
 	}
-	if config.ContinuePendingWork {
-		req.ContinuePendingWork = Bool(true)
-	}
+	req.ContinuePendingWork = config.ContinuePendingWork
 	req.MCPServers = config.MCPServers
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.EnvValueMode = "direct"

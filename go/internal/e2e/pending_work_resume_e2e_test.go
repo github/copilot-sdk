@@ -107,7 +107,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
 		session2, err := resumedClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			ContinuePendingWork: true,
+			ContinuePendingWork: copilot.Bool(true),
 			OnPermissionRequest: func(_ copilot.PermissionRequest, _ copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				return &rpc.PermissionDecisionNoResult{}, nil
 			},
@@ -200,7 +200,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
 		session2, err := resumedClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			ContinuePendingWork: true,
+			ContinuePendingWork: copilot.Bool(true),
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})
 		if err != nil {
@@ -305,7 +305,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
 		session2, err := resumedClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			ContinuePendingWork: true,
+			ContinuePendingWork: copilot.Bool(true),
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})
 		if err != nil {
@@ -379,7 +379,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
 		resumedSession, err := resumedClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			ContinuePendingWork: true,
+			ContinuePendingWork: copilot.Bool(true),
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})
 		if err != nil {
@@ -482,7 +482,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 			// to assert the runtime doesn't re-invoke the tool on resume (orphan
 			// auto-completion happens internally).
 			resumeConfig := &copilot.ResumeSessionConfig{
-				ContinuePendingWork: false,
+				ContinuePendingWork: copilot.Bool(false),
 				OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			}
 			if scenario.disconnectOriginalClient {
@@ -600,7 +600,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
 		resumedSession, err := resumedClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			ContinuePendingWork: true,
+			ContinuePendingWork: copilot.Bool(true),
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})
 		if err != nil {

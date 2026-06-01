@@ -143,7 +143,7 @@ func main() {
 	}
 	session2, err := client2.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
 		Tools:               []copilot.Tool{tool},
-		ContinuePendingWork: true,
+		ContinuePendingWork: copilot.Bool(true),
 	})
 	if err != nil {
 		panic(err)
@@ -177,7 +177,7 @@ func main() {
 	}
 	session3, err := client3.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
 		Tools:               []copilot.Tool{tool},
-		ContinuePendingWork: true,
+		ContinuePendingWork: copilot.Bool(true),
 	})
 	if err != nil {
 		panic(err)

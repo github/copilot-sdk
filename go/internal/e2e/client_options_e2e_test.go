@@ -159,7 +159,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			EnableConfigDiscovery:              true,
+			EnableConfigDiscovery:              copilot.Bool(true),
 			EnableOnDemandInstructionDiscovery: copilot.Bool(true),
 			IncludeSubAgentStreamingEvents:     copilot.Bool(false),
 			OnPermissionRequest:                copilot.PermissionHandler.ApproveAll,

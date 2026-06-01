@@ -474,7 +474,7 @@ func TestRPCServerE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SessionID:             sessionID,
 			WorkingDirectory:      workingDirectory,
-			EnableConfigDiscovery: false,
+			EnableConfigDiscovery: copilot.Bool(false),
 			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
 		})
 		if err != nil {
