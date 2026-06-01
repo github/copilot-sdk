@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     ExtensionsDisableRequest,
     ExtensionsEnableRequest,
     MCPAppsCallToolRequest,
@@ -33,13 +33,13 @@ from copilot.generated.rpc import (
     MCPExecuteSamplingParams,
     MCPRemoveGitHubResult,
     MCPSamplingExecutionAction,
-    McpServerStatus,
     MCPSetEnvValueModeDetails,
     MCPSetEnvValueModeParams,
     SkillsDisableRequest,
     SkillsEnableRequest,
     Theme,
 )
+from copilot.session_events import McpServerStatus
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext

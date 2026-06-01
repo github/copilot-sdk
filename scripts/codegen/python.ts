@@ -2691,6 +2691,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     let code = generatePythonSessionEventsCode(processed);
     const { typeNames } = collectInternalSymbols(processed);
     code = renameInternalPythonSymbols(code, typeNames);
+    code = appendPythonSessionEventsAllList(code, processed, typeNames);
 
     const outPath = await writeGeneratedFile("python/copilot/generated/session_events.py", code);
     console.log(`  ✓ ${outPath}`);
@@ -3135,8 +3136,110 @@ def _patch_model_capabilities(data: dict) -> dict:
         }
     }
 
+    finalCode = appendPythonRpcAllList(finalCode, rpcDefinitions);
+
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
+}
+
+/**
+ * Appends an `__all__` list to the generated session-events module so that
+ * ``from copilot.generated.session_events import *`` (used by the public
+ * ``copilot`` package) only re-exports schema-derived public types and not
+ * helper functions (``from_str``, ``from_int``, …) or TypeVars (``T``,
+ * ``EnumT``). Internal-marked types are omitted so they remain hidden from
+ * the SDK's public surface even though their renamed (`_`-prefixed) form is
+ * still present in the module for cross-module use.
+ */
+function appendPythonSessionEventsAllList(code: string, _schema: JSONSchema7, internalTypeNames: Set<string>): string {
+    const exported = new Set<string>();
+
+    // All top-level public classes (schema-derived and inline event payload
+    // shapes alike). The codegen only emits classes that are part of the
+    // protocol surface, so a class-presence filter is sufficient — the
+    // utility module excludes helpers like `from_str` / `to_class` because
+    // they are functions, not classes, and TypeVars are assignments.
+    const classPattern = /^class\s+([A-Za-z_]\w*)\b/gm;
+    let match: RegExpExecArray | null;
+    while ((match = classPattern.exec(code)) !== null) {
+        const name = match[1];
+        if (name.startsWith("_")) continue;
+        if (internalTypeNames.has(name)) continue;
+        exported.add(name);
+    }
+
+    // Top-level CamelCase Assign targets (e.g. `SessionEventData = X | Y |
+    // ...` discriminated-union aliases). Skip TypeVars.
+    const assignPattern = /^([A-Z][A-Za-z0-9_]*)\s*=/gm;
+    while ((match = assignPattern.exec(code)) !== null) {
+        const name = match[1];
+        if (name === "T" || name === "EnumT") continue;
+        if (internalTypeNames.has(name)) continue;
+        exported.add(name);
+    }
+
+    // Public top-level free functions named like `session_event_from_dict`
+    // — the documented entry point for parsing event payloads from raw dicts.
+    // Helper functions like `from_str` / `to_class` live in `utility` (a
+    // different module) so they don't appear here.
+    const fnPattern = /^def\s+([a-z][A-Za-z0-9_]*)\s*\(/gm;
+    while ((match = fnPattern.exec(code)) !== null) {
+        const name = match[1];
+        if (name.startsWith("_")) continue;
+        if (!name.endsWith("_from_dict") && !name.endsWith("_to_dict")) continue;
+        exported.add(name);
+    }
+
+    return code.replace(/\s*$/, "") + "\n\n" + renderPythonAllList([...exported].sort()) + "\n";
+}
+
+/**
+ * Appends an `__all__` list to the generated RPC module so that the public
+ * ``copilot.rpc`` shim can ``from .generated.rpc import *`` without leaking
+ * helper functions (``from_str``, ``from_int``, …) or TypeVars
+ * (``T``, ``EnumT``).
+ *
+ * Shared types pulled in from session-events (via ``from .session_events
+ * import …``) are intentionally excluded so each protocol type has a single
+ * canonical public location. Callers reach them through ``copilot.X`` —
+ * matching the C# codegen, which emits shared types only in
+ * ``GitHub.Copilot`` and references them from ``GitHub.Copilot.Rpc`` by
+ * fully-qualified name.
+ */
+function appendPythonRpcAllList(code: string, _definitions: { definitions: Record<string, unknown>; $defs: Record<string, unknown> }): string {
+    const exported = new Set<string>();
+
+    const classPattern = /^class\s+([A-Za-z_]\w*)\b/gm;
+    let m: RegExpExecArray | null;
+    while ((m = classPattern.exec(code)) !== null) {
+        const name = m[1];
+        if (name.startsWith("_")) continue;
+        exported.add(name);
+    }
+
+    const assignPattern = /^([A-Z][A-Za-z0-9_]*)\s*=/gm;
+    while ((m = assignPattern.exec(code)) !== null) {
+        const name = m[1];
+        if (name === "T" || name === "EnumT") continue;
+        exported.add(name);
+    }
+
+    for (const helper of ["rpc_from_dict", "rpc_to_dict"]) {
+        if (new RegExp(`^def\\s+${helper}\\b`, "m").test(code)) {
+            exported.add(helper);
+        }
+    }
+
+    return code.replace(/\s*$/, "") + "\n\n" + renderPythonAllList([...exported].sort()) + "\n";
+}
+
+function renderPythonAllList(names: string[]): string {
+    const lines: string[] = ["__all__ = ["];
+    for (const name of names) {
+        lines.push(`    ${JSON.stringify(name)},`);
+    }
+    lines.push("]");
+    return lines.join("\n");
 }
 
 function collectPythonSessionEventExportedTypeNames(schema: JSONSchema7): Set<string> {

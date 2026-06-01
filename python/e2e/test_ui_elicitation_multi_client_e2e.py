@@ -17,7 +17,7 @@ import pytest
 import pytest_asyncio
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.session_events import CapabilitiesChangedData
+from copilot.session_events import CapabilitiesChangedData
 from copilot.session import (
     ElicitationContext,
     ElicitationResult,
@@ -193,7 +193,7 @@ class TestUiElicitationMultiClient:
         self, mctx: ElicitationMultiClientContext
     ):
         """Client 1 receives `commands.changed` when client 2 joins with commands."""
-        from copilot.generated.session_events import CommandsChangedData
+        from copilot.session_events import CommandsChangedData
         from copilot.session import CommandDefinition
 
         session1 = await mctx.client1.create_session(

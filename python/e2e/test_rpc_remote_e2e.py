@@ -7,13 +7,13 @@ import time
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     RemoteEnableRequest,
     RemoteNotifySteerableChangedRequest,
     RemoteSessionMode,
     SessionsGetPersistedRemoteSteerableRequest,
 )
-from copilot.generated.session_events import SessionRemoteSteerableChangedData
+from copilot.session_events import SessionRemoteSteerableChangedData
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext

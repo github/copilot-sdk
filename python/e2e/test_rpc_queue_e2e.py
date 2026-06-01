@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     CommandsRespondToQueuedCommandRequest,
     EnqueueCommandParams,
     QueuedCommandHandled,
@@ -17,7 +17,7 @@ from copilot.generated.rpc import (
     RegisterEventInterestParams,
     ReleaseEventInterestParams,
 )
-from copilot.generated.session_events import CommandQueuedData
+from copilot.session_events import CommandQueuedData
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext

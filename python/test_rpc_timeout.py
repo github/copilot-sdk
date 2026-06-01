@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     FleetApi,
     FleetStartRequest,
     ModeApi,
@@ -13,9 +13,9 @@ from copilot.generated.rpc import (
     PlanApi,
     ServerModelsApi,
     ServerToolsApi,
-    SessionMode,
     ToolsListRequest,
 )
+from copilot.session_events import SessionMode
 
 
 class TestRpcTimeout:

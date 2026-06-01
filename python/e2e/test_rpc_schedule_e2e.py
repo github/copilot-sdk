@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from copilot.generated.rpc import ScheduleStopRequest
+from copilot.rpc import ScheduleStopRequest
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext

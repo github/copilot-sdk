@@ -159,7 +159,7 @@ class TestStreamingFidelity:
         self, ctx: E2ETestContext
     ):
         """Streaming + reasoning_effort produces delta events and session.start shows effort."""
-        from copilot.generated.session_events import SessionStartData
+        from copilot.session_events import SessionStartData
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,

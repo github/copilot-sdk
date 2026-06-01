@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     AuthInfoType,
     CopilotUserResponse,
     CopilotUserResponseEndpoints,
@@ -35,19 +35,21 @@ from copilot.generated.rpc import (
     NameSetRequest,
     PermissionsSetApproveAllRequest,
     PlanUpdateRequest,
-    SessionMode,
     SessionSetCredentialsParams,
     SessionsForkRequest,
     SessionUpdateOptionsParams,
     SessionWorkingDirectoryContext,
     ShutdownRequest,
-    ShutdownType,
     TelemetrySetFeatureOverridesRequest,
     UserAuthInfo,
     WorkspacesCreateFileRequest,
     WorkspacesReadFileRequest,
 )
-from copilot.generated.session_events import (
+from copilot.session_events import (
+    SessionMode,
+    ShutdownType,
+)
+from copilot.session_events import (
     AssistantMessageData,
     SessionContextChangedData,
     SessionShutdownData,
@@ -745,7 +747,7 @@ class TestRpcSessionState:
         import asyncio
         import uuid
 
-        from copilot.generated.session_events import (
+        from copilot.session_events import (
             SessionWorkspaceFileChangedData,
             WorkspaceFileChangedOperation,
         )
@@ -803,7 +805,7 @@ class TestRpcSessionState:
         import asyncio
         import uuid
 
-        from copilot.generated.session_events import SessionTitleChangedData
+        from copilot.session_events import SessionTitleChangedData
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,

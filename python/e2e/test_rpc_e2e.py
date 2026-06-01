@@ -3,7 +3,10 @@
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.rpc import ModelsListRequest, PingRequest
+from copilot.rpc import (
+    ModelsListRequest,
+    PingRequest,
+)
 from copilot.session import PermissionHandler
 
 from .testharness import CLI_PATH, E2ETestContext
@@ -90,7 +93,7 @@ class TestSessionRpc:
     @pytest.mark.skip(reason="session.model.switchTo not yet implemented in CLI")
     async def test_should_call_session_rpc_model_switch_to(self, ctx: E2ETestContext):
         """Test calling session.rpc.model.switchTo"""
-        from copilot.generated.rpc import ModelSwitchToRequest
+        from copilot.rpc import ModelSwitchToRequest
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all, model="claude-sonnet-4.5"
@@ -113,7 +116,8 @@ class TestSessionRpc:
     @pytest.mark.asyncio
     async def test_get_and_set_session_mode(self):
         """Test getting and setting session mode"""
-        from copilot.generated.rpc import ModeSetRequest, SessionMode
+        from copilot.rpc import ModeSetRequest
+        from copilot.session_events import SessionMode
 
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
@@ -145,7 +149,7 @@ class TestSessionRpc:
     @pytest.mark.asyncio
     async def test_read_update_and_delete_plan(self):
         """Test reading, updating, and deleting plan"""
-        from copilot.generated.rpc import PlanUpdateRequest
+        from copilot.rpc import PlanUpdateRequest
 
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
@@ -185,7 +189,7 @@ class TestSessionRpc:
     @pytest.mark.asyncio
     async def test_create_list_and_read_workspace_files(self):
         """Test creating, listing, and reading workspace files"""
-        from copilot.generated.rpc import (
+        from copilot.rpc import (
             WorkspacesCreateFileRequest,
             WorkspacesReadFileRequest,
         )

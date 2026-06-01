@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.rpc import (
+from copilot.rpc import (
     HandlePendingToolCallRequest,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
@@ -446,7 +446,7 @@ class TestPendingWorkResume:
         expected_session_was_active: bool,
         expected_handle_result: bool,
     ):
-        from copilot.generated.session_events import SessionResumeData
+        from copilot.session_events import SessionResumeData
 
         tool_started: asyncio.Future = asyncio.get_event_loop().create_future()
         release_original: asyncio.Future = asyncio.get_event_loop().create_future()
@@ -556,7 +556,7 @@ class TestPendingWorkResume:
     async def test_should_report_continuependingwork_true_in_resume_event(
         self, ctx: E2ETestContext
     ):
-        from copilot.generated.session_events import SessionResumeData
+        from copilot.session_events import SessionResumeData
 
         server = _make_subprocess_client(ctx, use_stdio=False)
         await server.start()

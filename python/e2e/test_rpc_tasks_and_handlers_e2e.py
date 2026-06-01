@@ -11,7 +11,7 @@ import asyncio
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     CommandsHandlePendingCommandRequest,
     HandlePendingToolCallRequest,
     PermissionDecisionApproveForLocation,
@@ -45,7 +45,10 @@ from copilot.generated.rpc import (
     UIUnregisterDirectAutoModeSwitchHandlerRequest,
     UIUserInputResponse,
 )
-from copilot.generated.session_events import AssistantMessageData, SessionErrorData
+from copilot.session_events import (
+    AssistantMessageData,
+    SessionErrorData,
+)
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -332,7 +335,11 @@ class TestRpcTasksAndHandlers:
 
     async def test_should_start_background_agent_and_report_task_details(self, ctx: E2ETestContext):
         """Start a background agent task and verify task details then remove it."""
-        from copilot.generated.rpc import TaskAgentInfo, TaskInfoExecutionMode, TaskInfoStatus
+        from copilot.rpc import (
+            TaskAgentInfo,
+            TaskInfoExecutionMode,
+            TaskInfoStatus,
+        )
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,

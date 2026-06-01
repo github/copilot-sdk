@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     CommandsApi,
     CommandsInvokeRequest,
     SlashCommandTextResult,

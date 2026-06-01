@@ -9,7 +9,7 @@ from copilot import (
     CanvasDeclaration,
     CanvasHandler,
 )
-from copilot.generated.rpc import (
+from copilot.rpc import (
     CanvasActionInvokeRequest,
     CanvasCloseRequest,
     CanvasOpenRequest,

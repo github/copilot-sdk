@@ -2,8 +2,11 @@ import asyncio
 from typing import TypeVar
 
 from copilot import CopilotClient, Tool
-from copilot.generated.rpc import HandlePendingToolCallRequest, PermissionDecisionRequest
-from copilot.generated.session_events import (
+from copilot.rpc import (
+    HandlePendingToolCallRequest,
+    PermissionDecisionRequest,
+)
+from copilot.session_events import (
     AssistantMessageData,
     ExternalToolRequestedData,
     PermissionRequestedData,

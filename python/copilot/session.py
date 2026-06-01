@@ -1296,7 +1296,7 @@ class CopilotSession:
             Exception: If the session has been disconnected or the connection fails.
 
         Example:
-            >>> from copilot.generated.session_events import AssistantMessageData
+            >>> from copilot.session_events import AssistantMessageData
             >>> response = await session.send_and_wait("What is 2+2?")
             >>> if response:
             ...     match response.data:
@@ -1396,7 +1396,7 @@ class CopilotSession:
             A function that, when called, unsubscribes the handler.
 
         Example:
-            >>> from copilot.generated.session_events import AssistantMessageData, SessionErrorData
+            >>> from copilot.session_events import AssistantMessageData, SessionErrorData
             >>> def handle_event(event):
             ...     match event.data:
             ...         case AssistantMessageData() as data:
@@ -2291,7 +2291,7 @@ class CopilotSession:
             Exception: If the session has been disconnected or the connection fails.
 
         Example:
-            >>> from copilot.generated.session_events import AssistantMessageData
+            >>> from copilot.session_events import AssistantMessageData
             >>> events = await session.get_events()
             >>> for event in events:
             ...     match event.data:

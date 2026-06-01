@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     CommandsInvokeRequest,
     CommandsListRequest,
     CommandsRespondToQueuedCommandRequest,

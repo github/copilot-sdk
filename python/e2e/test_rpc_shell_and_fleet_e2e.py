@@ -15,8 +15,12 @@ from pathlib import Path
 
 import pytest
 
-from copilot.generated.rpc import FleetStartRequest, ShellExecRequest, ShellKillRequest
-from copilot.generated.session_events import (
+from copilot.rpc import (
+    FleetStartRequest,
+    ShellExecRequest,
+    ShellKillRequest,
+)
+from copilot.session_events import (
     AssistantMessageData,
     SessionErrorData,
     ToolExecutionCompleteData,

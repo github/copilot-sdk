@@ -17,14 +17,14 @@ from copilot.canvas import (
     ExtensionInfo,
     OpenCanvasInstance,
 )
-from copilot.generated.rpc import (
+from copilot.rpc import (
     CanvasInstanceAvailability,
     CanvasProviderCloseRequest,
     CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest,
     CanvasProviderOpenResult,
 )
-from copilot.generated.session_events import (
+from copilot.session_events import (
     CanvasOpenedAvailability,
     SessionCanvasOpenedData,
     SessionEvent,

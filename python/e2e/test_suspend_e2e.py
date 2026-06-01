@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.rpc import PermissionDecisionUserNotAvailable
+from copilot.rpc import PermissionDecisionUserNotAvailable
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 

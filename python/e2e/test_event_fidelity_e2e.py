@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from copilot.generated.session_events import (
+from copilot.session_events import (
     AssistantMessageData,
     AssistantUsageData,
     PendingMessagesModifiedData,

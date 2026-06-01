@@ -11,15 +11,15 @@ import asyncio
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     HistoryTruncateRequest,
     ModeSetRequest,
     NameSetRequest,
     PlanUpdateRequest,
-    SessionMode,
     WorkspacesCreateFileRequest,
 )
-from copilot.generated.session_events import (
+from copilot.session_events import SessionMode
+from copilot.session_events import (
     PlanChangedOperation,
     SessionModeChangedData,
     SessionPlanChangedData,
@@ -207,7 +207,7 @@ class TestRpcEventSideEffects:
         self, ctx: E2ETestContext
     ):
         """Truncating history emits a session.snapshot_rewind event."""
-        from copilot.generated.session_events import UserMessageData
+        from copilot.session_events import UserMessageData
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
@@ -249,7 +249,7 @@ class TestRpcEventSideEffects:
 
     async def test_should_allow_session_use_after_truncate(self, ctx: E2ETestContext):
         """Session remains usable after history truncation."""
-        from copilot.generated.session_events import UserMessageData
+        from copilot.session_events import UserMessageData
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,

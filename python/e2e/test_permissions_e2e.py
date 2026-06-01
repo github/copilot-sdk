@@ -6,12 +6,12 @@ import asyncio
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionReject,
     PermissionDecisionUserNotAvailable,
 )
-from copilot.generated.session_events import (
+from copilot.session_events import (
     PermissionRequest,
     SessionIdleData,
     ToolExecutionCompleteData,
@@ -411,7 +411,7 @@ class TestPermissions:
         self, ctx: E2ETestContext
     ):
         """When set_approve_all is true, the runtime short-circuits the handler."""
-        from copilot.generated.rpc import PermissionsSetApproveAllRequest
+        from copilot.rpc import PermissionsSetApproveAllRequest
 
         handler_call_count = 0
 
@@ -452,7 +452,7 @@ class TestPermissions:
                 unsubscribe()
         finally:
             try:
-                from copilot.generated.rpc import PermissionsSetApproveAllRequest
+                from copilot.rpc import PermissionsSetApproveAllRequest
 
                 await session.rpc.permissions.set_approve_all(
                     PermissionsSetApproveAllRequest(enabled=False)

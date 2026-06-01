@@ -1,7 +1,7 @@
 import asyncio
 
 from copilot import CopilotClient
-from copilot.generated.session_events import (
+from copilot.session_events import (
     AssistantMessageData,
     AssistantReasoningData,
     ToolExecutionStartData,

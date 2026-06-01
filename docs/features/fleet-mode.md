@@ -50,7 +50,7 @@ if (result.started) {
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot.generated.rpc import FleetStartRequest
+from copilot.rpc import FleetStartRequest
 
 result = await session.rpc.fleet.start(
     FleetStartRequest(

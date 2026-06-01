@@ -6,7 +6,10 @@ import pytest
 from pydantic import BaseModel, Field
 
 from copilot import define_tool
-from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
+from copilot.rpc import (
+    PermissionDecisionApproveOnce,
+    PermissionDecisionReject,
+)
 from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
