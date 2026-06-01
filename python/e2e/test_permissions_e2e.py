@@ -11,12 +11,12 @@ from copilot.rpc import (
     PermissionDecisionReject,
     PermissionDecisionUserNotAvailable,
 )
+from copilot.session import PermissionHandler, PermissionNoResult, PermissionRequestResult
 from copilot.session_events import (
     PermissionRequest,
     SessionIdleData,
     ToolExecutionCompleteData,
 )
-from copilot.session import PermissionHandler, PermissionNoResult, PermissionRequestResult
 
 from .testharness import E2ETestContext
 from .testharness.helper import read_file, write_file

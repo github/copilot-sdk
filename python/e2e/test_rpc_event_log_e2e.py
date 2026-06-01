@@ -17,12 +17,12 @@ from copilot.rpc import (
     RegisterEventInterestParams,
     ReleaseEventInterestParams,
 )
+from copilot.session import PermissionHandler
 from copilot.session_events import (
     PlanChangedOperation,
     SessionPlanChangedData,
     SessionTitleChangedData,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

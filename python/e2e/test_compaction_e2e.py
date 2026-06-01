@@ -4,13 +4,13 @@ import asyncio
 
 import pytest
 
+from copilot.session import PermissionHandler
 from copilot.session_events import (
     SessionCompactionCompleteData,
     SessionCompactionStartData,
     SessionErrorData,
     SessionEventType,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

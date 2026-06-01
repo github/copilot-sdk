@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from copilot.session import PermissionHandler
 from copilot.session_events import (
     AssistantMessageData,
     AssistantUsageData,
@@ -15,7 +16,6 @@ from copilot.session_events import (
     ToolExecutionStartData,
     UserMessageData,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

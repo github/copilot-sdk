@@ -17,8 +17,8 @@ from copilot.rpc import (
     RegisterEventInterestParams,
     ReleaseEventInterestParams,
 )
-from copilot.session_events import CommandQueuedData
 from copilot.session import PermissionHandler
+from copilot.session_events import CommandQueuedData
 
 from .testharness import E2ETestContext
 

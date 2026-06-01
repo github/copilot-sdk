@@ -7,8 +7,8 @@ from datetime import datetime
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.session_events import SessionModelChangeData
 from copilot.session import PermissionHandler
+from copilot.session_events import SessionModelChangeData
 from copilot.tools import Tool, ToolResult
 
 from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type

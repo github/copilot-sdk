@@ -45,18 +45,16 @@ from copilot.rpc import (
     WorkspacesCreateFileRequest,
     WorkspacesReadFileRequest,
 )
-from copilot.session_events import (
-    SessionMode,
-    ShutdownType,
-)
+from copilot.session import PermissionHandler
 from copilot.session_events import (
     AssistantMessageData,
     SessionContextChangedData,
+    SessionMode,
     SessionShutdownData,
     SessionTitleChangedData,
+    ShutdownType,
     UserMessageData,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

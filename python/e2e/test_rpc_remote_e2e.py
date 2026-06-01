@@ -13,8 +13,8 @@ from copilot.rpc import (
     RemoteSessionMode,
     SessionsGetPersistedRemoteSteerableRequest,
 )
-from copilot.session_events import SessionRemoteSteerableChangedData
 from copilot.session import PermissionHandler
+from copilot.session_events import SessionRemoteSteerableChangedData
 
 from .testharness import E2ETestContext
 

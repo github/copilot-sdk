@@ -24,13 +24,13 @@ from copilot.rpc import (
     CanvasProviderOpenRequest,
     CanvasProviderOpenResult,
 )
+from copilot.session import CopilotSession
 from copilot.session_events import (
     CanvasOpenedAvailability,
     SessionCanvasOpenedData,
     SessionEvent,
     SessionEventType,
 )
-from copilot.session import CopilotSession
 
 
 def test_canvas_declaration_serializes_camelcase_and_drops_optional():

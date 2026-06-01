@@ -18,9 +18,10 @@ from copilot.rpc import (
     PlanUpdateRequest,
     WorkspacesCreateFileRequest,
 )
-from copilot.session_events import SessionMode
+from copilot.session import PermissionHandler
 from copilot.session_events import (
     PlanChangedOperation,
+    SessionMode,
     SessionModeChangedData,
     SessionPlanChangedData,
     SessionSnapshotRewindData,
@@ -28,7 +29,6 @@ from copilot.session_events import (
     SessionWorkspaceFileChangedData,
     WorkspaceFileChangedOperation,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

@@ -20,6 +20,7 @@ from copilot.rpc import (
     ShellExecRequest,
     ShellKillRequest,
 )
+from copilot.session import PermissionHandler
 from copilot.session_events import (
     AssistantMessageData,
     SessionErrorData,
@@ -27,7 +28,6 @@ from copilot.session_events import (
     ToolExecutionStartData,
     UserMessageData,
 )
-from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
 from .testharness import E2ETestContext

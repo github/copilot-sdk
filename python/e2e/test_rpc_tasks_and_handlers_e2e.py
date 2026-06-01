@@ -45,11 +45,11 @@ from copilot.rpc import (
     UIUnregisterDirectAutoModeSwitchHandlerRequest,
     UIUserInputResponse,
 )
+from copilot.session import PermissionHandler
 from copilot.session_events import (
     AssistantMessageData,
     SessionErrorData,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

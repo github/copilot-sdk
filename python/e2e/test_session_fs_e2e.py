@@ -22,11 +22,11 @@ from copilot.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
 )
+from copilot.session import PermissionHandler
 from copilot.session_events import (
     SessionCompactionCompleteData,
     SessionEvent,
 )
-from copilot.session import PermissionHandler
 from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider
 
 from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext

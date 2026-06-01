@@ -39,8 +39,8 @@ from copilot.rpc import (
     SkillsEnableRequest,
     Theme,
 )
-from copilot.session_events import McpServerStatus
 from copilot.session import PermissionHandler
+from copilot.session_events import McpServerStatus
 
 from .testharness import E2ETestContext
 
