@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use github_copilot_sdk::generated::session_events::{SessionEventType, ToolExecutionCompleteData};
 use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::session_events::{SessionEventType, ToolExecutionCompleteData};
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Error, SessionConfig, Tool, ToolInvocation, ToolResult, ToolResultExpanded,

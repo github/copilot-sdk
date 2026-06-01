@@ -155,7 +155,7 @@ class TestCommands:
             client._client.request = mock_request
 
             # Simulate a command.execute broadcast event
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
@@ -223,7 +223,7 @@ class TestCommands:
 
             client._client.request = mock_request
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
@@ -277,7 +277,7 @@ class TestCommands:
 
             client._client.request = mock_request
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
@@ -675,7 +675,7 @@ class TestOnElicitationContext:
 
             client._client.request = mock_request
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 ElicitationRequestedData,
                 SessionEvent,
                 SessionEventType,
@@ -734,7 +734,7 @@ class TestOnElicitationContext:
 
             client._client.request = mock_request
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 ElicitationRequestedData,
                 ElicitationRequestedSchema,
                 SessionEvent,
@@ -793,7 +793,7 @@ class TestCapabilitiesChanged:
             )
             session._set_capabilities({})
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 CapabilitiesChangedData,
                 CapabilitiesChangedUI,
                 SessionEvent,

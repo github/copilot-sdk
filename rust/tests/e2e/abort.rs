@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::generated::session_events::{AssistantMessageDeltaData, SessionEventType};
 use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::session_events::{AssistantMessageDeltaData, SessionEventType};
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
 use serde_json::json;

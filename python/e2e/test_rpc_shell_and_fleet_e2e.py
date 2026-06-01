@@ -15,15 +15,19 @@ from pathlib import Path
 
 import pytest
 
-from copilot.generated.rpc import FleetStartRequest, ShellExecRequest, ShellKillRequest
-from copilot.generated.session_events import (
+from copilot.rpc import (
+    FleetStartRequest,
+    ShellExecRequest,
+    ShellKillRequest,
+)
+from copilot.session import PermissionHandler
+from copilot.session_events import (
     AssistantMessageData,
     SessionErrorData,
     ToolExecutionCompleteData,
     ToolExecutionStartData,
     UserMessageData,
 )
-from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
 from .testharness import E2ETestContext

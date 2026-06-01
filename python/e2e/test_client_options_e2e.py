@@ -21,7 +21,7 @@ import socket
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.rpc import PingRequest
+from copilot.rpc import PingRequest
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext

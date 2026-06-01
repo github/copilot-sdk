@@ -15,7 +15,10 @@ import pytest_asyncio
 from pydantic import BaseModel, Field
 
 from copilot import CopilotClient, RuntimeConnection, define_tool
-from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
+from copilot.rpc import (
+    PermissionDecisionApproveOnce,
+    PermissionDecisionReject,
+)
 from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import ToolInvocation
 

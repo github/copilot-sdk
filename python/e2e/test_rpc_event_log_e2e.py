@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     EventLogReadRequest,
     EventsCursorStatus,
     NameSetRequest,
@@ -17,12 +17,12 @@ from copilot.generated.rpc import (
     RegisterEventInterestParams,
     ReleaseEventInterestParams,
 )
-from copilot.generated.session_events import (
+from copilot.session import PermissionHandler
+from copilot.session_events import (
     PlanChangedOperation,
     SessionPlanChangedData,
     SessionTitleChangedData,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     WorkspaceDiffFileChangeType, WorkspaceDiffMode, WorkspacesDiffRequest,
     WorkspacesReadCheckpointRequest, WorkspacesReadFileRequest, WorkspacesSaveLargePasteRequest,
 };

@@ -1,9 +1,9 @@
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     CommandsRespondToQueuedCommandRequest, EnqueueCommandParams, QueuePendingItems,
     QueuePendingItemsKind, RegisterEventInterestParams, ReleaseEventInterestParams,
 };
-use github_copilot_sdk::generated::session_events::{CommandQueuedData, SessionEventType};
 use github_copilot_sdk::session::Session;
+use github_copilot_sdk::session_events::{CommandQueuedData, SessionEventType};
 use serde_json::json;
 use uuid::Uuid;
 

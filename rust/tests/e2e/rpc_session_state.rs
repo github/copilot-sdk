@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use github_copilot_sdk::generated::SessionMode;
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     AuthInfoType, HistoryTruncateRequest, LspInitializeRequest, MetadataContextInfoRequest,
     MetadataRecomputeContextTokensRequest, MetadataRecordContextChangeRequest,
     MetadataSetWorkingDirectoryRequest, MetadataSnapshotCurrentMode, ModeSetRequest,
@@ -11,9 +10,10 @@ use github_copilot_sdk::generated::api_types::{
     SessionWorkingDirectoryContextHostType, SessionsForkRequest, ShutdownRequest,
     TelemetrySetFeatureOverridesRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };
-use github_copilot_sdk::generated::session_events::{
-    SessionContextChangedData, SessionEventType, SessionShutdownData, SessionTitleChangedData,
-    SessionWorkspaceFileChangedData, ShutdownType, WorkspaceFileChangedOperation,
+use github_copilot_sdk::session_events::{
+    SessionContextChangedData, SessionEventType, SessionMode, SessionShutdownData,
+    SessionTitleChangedData, SessionWorkspaceFileChangedData, ShutdownType,
+    WorkspaceFileChangedOperation,
 };
 use serde_json::json;
 

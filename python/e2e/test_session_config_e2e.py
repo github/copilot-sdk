@@ -162,7 +162,7 @@ class TestSessionConfig:
         await session.disconnect()
 
     async def test_should_use_custom_sessionid(self, ctx: E2ETestContext):
-        from copilot.generated.session_events import SessionStartData
+        from copilot.session_events import SessionStartData
 
         requested_session_id = str(uuid.uuid4())
         session = await ctx.client.create_session(

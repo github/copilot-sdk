@@ -7,14 +7,14 @@ from typing import Any
 
 import pytest
 
-from copilot.generated.session_events import (
+from copilot.session import PermissionHandler
+from copilot.session_events import (
     AssistantMessageData,
     SessionIdleData,
     ToolExecutionCompleteData,
     ToolExecutionStartData,
     UserMessageData,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

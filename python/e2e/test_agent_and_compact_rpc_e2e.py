@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.rpc import AgentSelectRequest
+from copilot.rpc import AgentSelectRequest
 from copilot.session import PermissionHandler
 
 from .testharness import CLI_PATH, E2ETestContext

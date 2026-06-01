@@ -13,7 +13,7 @@ import pytest
 import pytest_asyncio
 
 from copilot import CopilotClient, RuntimeConnection, SessionFsConfig
-from copilot.generated.rpc import (
+from copilot.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
     SessionFSSqliteQueryType,

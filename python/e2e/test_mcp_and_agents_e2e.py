@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from copilot.generated.rpc import McpServerStatus
 from copilot.session import CustomAgentConfig, MCPServerConfig, PermissionHandler
+from copilot.session_events import McpServerStatus
 
 from .testharness import E2ETestContext
 

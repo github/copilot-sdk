@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     WorkspaceDiffFileChangeType,
     WorkspaceDiffMode,
     WorkspacesDiffRequest,

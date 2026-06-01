@@ -116,7 +116,7 @@ let files = session.rpc().workspaces().list_files().await?;
 let content = session
     .rpc()
     .workspaces()
-    .read_file(github_copilot_sdk::generated::api_types::WorkspacesReadFileRequest {
+    .read_file(github_copilot_sdk::rpc::WorkspacesReadFileRequest {
         path: "plan.md".to_string(),
     })
     .await?;
@@ -126,7 +126,7 @@ let plan = session.rpc().plan().read().await?;
 session
     .rpc()
     .plan()
-    .update(github_copilot_sdk::generated::api_types::PlanUpdateRequest {
+    .update(github_copilot_sdk::rpc::PlanUpdateRequest {
         content: "Updated plan content".to_string(),
     })
     .await?;
@@ -135,7 +135,7 @@ session
 session
     .rpc()
     .fleet()
-    .start(github_copilot_sdk::generated::api_types::FleetStartRequest {
+    .start(github_copilot_sdk::rpc::FleetStartRequest {
         prompt: Some("Implement the auth module".to_string()),
     })
     .await?;
@@ -163,7 +163,7 @@ let tasks = session.rpc().tasks().list().await?.tasks;
 let forked = client
     .rpc()
     .sessions()
-    .fork(github_copilot_sdk::generated::api_types::SessionsForkRequest {
+    .fork(github_copilot_sdk::rpc::SessionsForkRequest {
         session_id: "session-id".into(),
         to_event_id: None,
     })

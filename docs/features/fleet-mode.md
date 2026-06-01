@@ -50,7 +50,7 @@ if (result.started) {
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot.generated.rpc import FleetStartRequest
+from copilot.rpc import FleetStartRequest
 
 result = await session.rpc.fleet.start(
     FleetStartRequest(
@@ -152,7 +152,7 @@ if (result.Started)
 <summary><strong>Rust</strong></summary>
 
 ```rust
-use github_copilot_sdk::generated::api_types::FleetStartRequest;
+use github_copilot_sdk::rpc::FleetStartRequest;
 
 let result = session
     .rpc()

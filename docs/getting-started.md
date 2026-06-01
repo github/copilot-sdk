@@ -413,7 +413,7 @@ import asyncio
 import sys
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 
 async def main():
     client = CopilotClient()
@@ -666,7 +666,7 @@ unsubscribeIdle();
 <!-- docs-validate: hidden -->
 ```python
 from copilot import CopilotClient, PermissionDecisionApproveOnce
-from copilot.generated.session_events import SessionEvent, SessionEventType
+from copilot.session_events import SessionEvent, SessionEventType
 
 client = CopilotClient()
 
@@ -947,7 +947,7 @@ import sys
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
 from copilot.tools import define_tool
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 from pydantic import BaseModel, Field
 
 # Define the parameters for the tool using Pydantic
@@ -1371,7 +1371,7 @@ import sys
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
 from copilot.tools import define_tool
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 from pydantic import BaseModel, Field
 
 class GetWeatherParams(BaseModel):

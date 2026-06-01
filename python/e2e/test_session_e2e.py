@@ -7,8 +7,8 @@ from datetime import datetime
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.session_events import SessionModelChangeData
 from copilot.session import PermissionHandler
+from copilot.session_events import SessionModelChangeData
 from copilot.tools import Tool, ToolResult
 
 from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
@@ -688,7 +688,7 @@ class TestSessions:
         await session.disconnect()
 
     async def test_should_send_with_file_attachment(self, ctx: E2ETestContext):
-        from copilot.generated.session_events import UserMessageData
+        from copilot.session_events import UserMessageData
 
         file_path = os.path.join(ctx.work_dir, "attached-file.txt")
         with open(file_path, "w", encoding="utf-8") as f:
@@ -726,7 +726,7 @@ class TestSessions:
         await session.disconnect()
 
     async def test_should_send_with_directory_attachment(self, ctx: E2ETestContext):
-        from copilot.generated.session_events import UserMessageData
+        from copilot.session_events import UserMessageData
 
         directory_path = os.path.join(ctx.work_dir, "attached-directory")
         os.makedirs(directory_path, exist_ok=True)
@@ -761,7 +761,7 @@ class TestSessions:
         await session.disconnect()
 
     async def test_should_send_with_selection_attachment(self, ctx: E2ETestContext):
-        from copilot.generated.session_events import UserMessageData
+        from copilot.session_events import UserMessageData
 
         file_path = os.path.join(ctx.work_dir, "selected-file.cs")
         with open(file_path, "w", encoding="utf-8") as f:
@@ -1088,7 +1088,10 @@ class TestSessions:
 
     async def test_should_send_with_mode_property(self, ctx: E2ETestContext):
         """Per-message `agent_mode` is forwarded and echoed back on user.message."""
-        from copilot.generated.session_events import UserMessageAgentMode, UserMessageData
+        from copilot.session_events import (
+            UserMessageAgentMode,
+            UserMessageData,
+        )
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,

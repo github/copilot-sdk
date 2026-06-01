@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use github_copilot_sdk::generated::session_events::{
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::session_events::{
     SessionErrorData, SessionEventType, SessionInfoData, SessionModelChangeData, SessionResumeData,
     SessionStartData, SessionWarningData, UserMessageData,
 };
-use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::types::LogLevel as SessionLogLevel;
 use github_copilot_sdk::{

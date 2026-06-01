@@ -6,7 +6,8 @@ import asyncio
 
 import pytest
 
-from copilot.generated.session_events import (
+from copilot.session import PermissionHandler
+from copilot.session_events import (
     AutoModeSwitchCompletedData,
     AutoModeSwitchRequestedData,
     AutoModeSwitchResponse,
@@ -16,7 +17,6 @@ from copilot.generated.session_events import (
     SessionIdleData,
     SessionModelChangeData,
 )
-from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

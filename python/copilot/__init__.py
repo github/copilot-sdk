@@ -7,6 +7,10 @@ JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
+from . import rpc as rpc  # noqa: F401  -- register the public ``copilot.rpc`` namespace
+
+# Register the public ``copilot.session_events`` namespace.
+from . import session_events as session_events  # noqa: F401
 from ._mode import (
     BUILTIN_TOOLS_ISOLATED,
     CopilotClientMode,
@@ -230,6 +234,8 @@ __all__ = [
     "ReasoningSummary",
     "RemoteSessionMode",
     "RuntimeConnection",
+    "rpc",
+    "session_events",
     "SessionBackgroundEvent",
     "SessionCapabilities",
     "SessionContext",

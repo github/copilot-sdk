@@ -1,8 +1,6 @@
 use std::path::Path;
 
-use github_copilot_sdk::generated::api_types::{
-    ShellExecRequest, ShellKillRequest, ShellKillSignal,
-};
+use github_copilot_sdk::rpc::{ShellExecRequest, ShellKillRequest, ShellKillSignal};
 
 use super::support::{wait_for_condition, with_e2e_context};
 

@@ -17,12 +17,12 @@ import pytest
 import pytest_asyncio
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.session_events import CapabilitiesChangedData
 from copilot.session import (
     ElicitationContext,
     ElicitationResult,
     PermissionHandler,
 )
+from copilot.session_events import CapabilitiesChangedData
 
 from .testharness.context import SNAPSHOTS_DIR, get_cli_path_for_tests
 from .testharness.proxy import CapiProxy
@@ -193,8 +193,8 @@ class TestUiElicitationMultiClient:
         self, mctx: ElicitationMultiClientContext
     ):
         """Client 1 receives `commands.changed` when client 2 joins with commands."""
-        from copilot.generated.session_events import CommandsChangedData
         from copilot.session import CommandDefinition
+        from copilot.session_events import CommandsChangedData
 
         session1 = await mctx.client1.create_session(
             on_permission_request=PermissionHandler.approve_all,

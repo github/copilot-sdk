@@ -11,7 +11,7 @@ import uuid
 
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     MCPConfigAddRequest,
     MCPConfigDisableRequest,
     MCPConfigEnableRequest,

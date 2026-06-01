@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::canvas::{CanvasDeclaration, CanvasHandler, CanvasResult};
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     CanvasAction, CanvasProviderCloseRequest, CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest, CanvasProviderOpenResult,
 };
@@ -116,14 +116,12 @@ async fn canvas_open_round_trip() {
             let open_result = session
                 .rpc()
                 .canvas()
-                .open(
-                    github_copilot_sdk::generated::api_types::CanvasOpenRequest {
-                        canvas_id: "counter".to_string(),
-                        instance_id: "counter-1".to_string(),
-                        extension_id: Some(canvas.extension_id.clone()),
-                        input: Some(json!({ "start": 41 })),
-                    },
-                )
+                .open(github_copilot_sdk::rpc::CanvasOpenRequest {
+                    canvas_id: "counter".to_string(),
+                    instance_id: "counter-1".to_string(),
+                    extension_id: Some(canvas.extension_id.clone()),
+                    input: Some(json!({ "start": 41 })),
+                })
                 .await
                 .expect("open canvas");
 
@@ -176,14 +174,12 @@ async fn canvas_invoke_action_round_trip() {
             session
                 .rpc()
                 .canvas()
-                .open(
-                    github_copilot_sdk::generated::api_types::CanvasOpenRequest {
-                        canvas_id: "counter".to_string(),
-                        instance_id: "counter-2".to_string(),
-                        extension_id: Some(canvas.extension_id.clone()),
-                        input: Some(json!({})),
-                    },
-                )
+                .open(github_copilot_sdk::rpc::CanvasOpenRequest {
+                    canvas_id: "counter".to_string(),
+                    instance_id: "counter-2".to_string(),
+                    extension_id: Some(canvas.extension_id.clone()),
+                    input: Some(json!({})),
+                })
                 .await
                 .expect("open canvas");
 
@@ -191,13 +187,11 @@ async fn canvas_invoke_action_round_trip() {
                 .rpc()
                 .canvas()
                 .action()
-                .invoke(
-                    github_copilot_sdk::generated::api_types::CanvasActionInvokeRequest {
-                        instance_id: "counter-2".to_string(),
-                        action_name: "increment".to_string(),
-                        input: Some(json!({ "delta": 1 })),
-                    },
-                )
+                .invoke(github_copilot_sdk::rpc::CanvasActionInvokeRequest {
+                    instance_id: "counter-2".to_string(),
+                    action_name: "increment".to_string(),
+                    input: Some(json!({ "delta": 1 })),
+                })
                 .await
                 .expect("invoke action");
 
@@ -237,14 +231,12 @@ async fn canvas_close_round_trip() {
             session
                 .rpc()
                 .canvas()
-                .open(
-                    github_copilot_sdk::generated::api_types::CanvasOpenRequest {
-                        canvas_id: "counter".to_string(),
-                        instance_id: "counter-3".to_string(),
-                        extension_id: Some(canvas.extension_id.clone()),
-                        input: Some(json!({})),
-                    },
-                )
+                .open(github_copilot_sdk::rpc::CanvasOpenRequest {
+                    canvas_id: "counter".to_string(),
+                    instance_id: "counter-3".to_string(),
+                    extension_id: Some(canvas.extension_id.clone()),
+                    input: Some(json!({})),
+                })
                 .await
                 .expect("open canvas");
 
@@ -253,11 +245,9 @@ async fn canvas_close_round_trip() {
             session
                 .rpc()
                 .canvas()
-                .close(
-                    github_copilot_sdk::generated::api_types::CanvasCloseRequest {
-                        instance_id: "counter-3".to_string(),
-                    },
-                )
+                .close(github_copilot_sdk::rpc::CanvasCloseRequest {
+                    instance_id: "counter-3".to_string(),
+                })
                 .await
                 .expect("close canvas");
 

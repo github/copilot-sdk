@@ -54,7 +54,7 @@ await client.stop();
 
 ```python
 from copilot import CopilotClient
-from copilot.generated.session_events import AssistantMessageData
+from copilot.session_events import AssistantMessageData
 from copilot.session import PermissionHandler
 
 client = CopilotClient({

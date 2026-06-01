@@ -6,7 +6,7 @@ import asyncio
 import os
 
 from copilot import CopilotSession
-from copilot.generated.session_events import (
+from copilot.session_events import (
     AssistantMessageData,
     SessionErrorData,
     SessionIdleData,

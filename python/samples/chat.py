@@ -1,12 +1,12 @@
 import asyncio
 
 from copilot import CopilotClient
-from copilot.generated.session_events import (
+from copilot.session import PermissionHandler
+from copilot.session_events import (
     AssistantMessageData,
     AssistantReasoningData,
     ToolExecutionStartData,
 )
-from copilot.session import PermissionHandler
 
 BLUE = "\033[34m"
 RESET = "\033[0m"

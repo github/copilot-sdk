@@ -2,11 +2,11 @@ use std::net::TcpListener;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::generated::session_events::{
-    CapabilitiesChangedData, CommandsChangedData, SessionEventType,
-};
 use github_copilot_sdk::handler::{
     ApproveAllHandler, ElicitationHandler, PermissionHandler, PermissionResult,
+};
+use github_copilot_sdk::session_events::{
+    CapabilitiesChangedData, CommandsChangedData, SessionEventType,
 };
 use github_copilot_sdk::{
     Client, CommandContext, CommandDefinition, CommandHandler, ElicitationRequest,

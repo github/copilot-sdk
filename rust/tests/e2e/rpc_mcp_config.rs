@@ -1,4 +1,4 @@
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     McpConfigAddRequest, McpConfigDisableRequest, McpConfigEnableRequest, McpConfigRemoveRequest,
     McpConfigUpdateRequest,
 };

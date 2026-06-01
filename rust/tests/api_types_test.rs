@@ -3,7 +3,7 @@
 
 #![allow(clippy::unwrap_used)]
 
-use github_copilot_sdk::generated::api_types::{
+use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
 };

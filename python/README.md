@@ -29,7 +29,7 @@ python chat.py
 import asyncio
 
 from copilot import CopilotClient
-from copilot.generated.session_events import AssistantMessageData, SessionIdleData
+from copilot.session_events import AssistantMessageData, SessionIdleData
 from copilot.session import PermissionHandler
 
 async def main():
@@ -67,7 +67,7 @@ If you need more control over the lifecycle, you can call `start()`, `stop()`, a
 import asyncio
 
 from copilot import CopilotClient
-from copilot.generated.session_events import AssistantMessageData, SessionIdleData
+from copilot.session_events import AssistantMessageData, SessionIdleData
 from copilot.session import PermissionHandler
 
 async def main():
@@ -362,7 +362,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 import asyncio
 
 from copilot import CopilotClient
-from copilot.generated.session_events import (
+from copilot.session_events import (
     AssistantMessageData,
     AssistantMessageDeltaData,
     AssistantReasoningData,
@@ -580,11 +580,11 @@ Provide your own function to inspect each request and apply custom logic (sync o
 
 ```python
 from copilot import PermissionRequest, PermissionRequestResult
-from copilot.generated.rpc import (
+from copilot.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionReject,
 )
-from copilot.generated.session_events import PermissionRequestShell
+from copilot.session_events import PermissionRequestShell
 
 
 def on_permission_request(
@@ -636,7 +636,7 @@ session events.
 Several richer variants (``PermissionDecisionApproveForSession``,
 ``PermissionDecisionApproveForLocation``, ``PermissionDecisionApprovePermanently``,
 …) are available for granting longer-lived approvals; see the generated
-``copilot.generated.rpc`` module for the full list.
+``copilot.rpc`` module for the full list.
 
 ### Resuming Sessions
 

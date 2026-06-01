@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot.generated.rpc import (
+from copilot.rpc import (
     AccountGetQuotaRequest,
     ConnectRemoteSessionParams,
     MCPDiscoverRequest,

@@ -12,7 +12,7 @@ from uuid import uuid4
 
 import pytest
 
-from copilot.generated.session_events import (
+from copilot.session_events import (
     AttachmentGitHubReferenceType,
     Data,
     ElicitationCompletedAction,

@@ -7,8 +7,8 @@ import shutil
 
 import pytest
 
-from copilot.generated.rpc import SkillSource
 from copilot.session import CustomAgentConfig, PermissionHandler
+from copilot.session_events import SkillSource
 
 from .testharness import E2ETestContext
 

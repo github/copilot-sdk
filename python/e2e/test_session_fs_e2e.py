@@ -18,12 +18,15 @@ from copilot import (
     SessionFsConfig,
     define_tool,
 )
-from copilot.generated.rpc import (
+from copilot.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
 )
-from copilot.generated.session_events import SessionCompactionCompleteData, SessionEvent
 from copilot.session import PermissionHandler
+from copilot.session_events import (
+    SessionCompactionCompleteData,
+    SessionEvent,
+)
 from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider
 
 from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
@@ -247,7 +250,7 @@ class TestSessionFs:
     async def test_should_persist_plan_md_via_sessionfs(
         self, ctx: E2ETestContext, session_fs_client: CopilotClient
     ):
-        from copilot.generated.rpc import PlanUpdateRequest
+        from copilot.rpc import PlanUpdateRequest
 
         provider_root = Path(ctx.work_dir) / "provider"
         session = await session_fs_client.create_session(
@@ -269,7 +272,7 @@ class TestSessionFs:
         await session.disconnect()
 
     async def test_should_map_all_sessionfs_handler_operations(self, ctx: E2ETestContext):
-        from copilot.generated.rpc import (
+        from copilot.rpc import (
             SessionFSAppendFileRequest,
             SessionFSExistsRequest,
             SessionFSMkdirRequest,
@@ -388,7 +391,7 @@ class TestSessionFs:
                 SessionFSStatRequest(session_id=session_id, path="/workspace/nested/missing.txt")
             )
             assert missing.error is not None
-            from copilot.generated.rpc import SessionFSErrorCode
+            from copilot.rpc import SessionFSErrorCode
 
             assert missing.error.code == SessionFSErrorCode.ENOENT
 
@@ -417,7 +420,7 @@ class TestSessionFs:
                 pass
 
     async def test_sessionfsprovider_converts_exceptions_to_rpc_errors(self):
-        from copilot.generated.rpc import (
+        from copilot.rpc import (
             SessionFSAppendFileRequest,
             SessionFSErrorCode,
             SessionFSExistsRequest,

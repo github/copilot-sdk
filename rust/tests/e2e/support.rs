@@ -288,11 +288,11 @@ where
             });
             let is_allowed_rate_limit = allow_rate_limit_error
                 && event.parsed_type()
-                    == github_copilot_sdk::generated::session_events::SessionEventType::SessionError
+                    == github_copilot_sdk::session_events::SessionEventType::SessionError
                 && event.data.get("errorType").and_then(|value| value.as_str())
                     == Some("rate_limit");
             if event.parsed_type()
-                == github_copilot_sdk::generated::session_events::SessionEventType::SessionError
+                == github_copilot_sdk::session_events::SessionEventType::SessionError
                 && !is_allowed_rate_limit
             {
                 panic!(
@@ -368,9 +368,9 @@ pub async fn collect_until_idle(mut events: EventSubscription) -> Vec<SessionEve
                 .await
                 .unwrap_or_else(|err| panic!("event stream closed while collecting events: {err}"));
             let is_idle = event.parsed_type()
-                == github_copilot_sdk::generated::session_events::SessionEventType::SessionIdle;
+                == github_copilot_sdk::session_events::SessionEventType::SessionIdle;
             if event.parsed_type()
-                == github_copilot_sdk::generated::session_events::SessionEventType::SessionError
+                == github_copilot_sdk::session_events::SessionEventType::SessionError
             {
                 panic!("session.error while collecting events: {}", event.data);
             }
@@ -395,8 +395,7 @@ pub fn event_types(events: &[SessionEvent]) -> Vec<&str> {
 #[allow(dead_code, reason = "used by follow-on E2E ports")]
 pub async fn wait_for_idle(session: &Session) -> SessionEvent {
     wait_for_event(session.subscribe(), "session.idle event", |event| {
-        event.parsed_type()
-            == github_copilot_sdk::generated::session_events::SessionEventType::SessionIdle
+        event.parsed_type() == github_copilot_sdk::session_events::SessionEventType::SessionIdle
     })
     .await
 }
@@ -417,14 +416,14 @@ pub async fn last_assistant_message(session: &Session) -> SessionEvent {
         .rev()
         .find(|event| {
             event.parsed_type()
-                == github_copilot_sdk::generated::session_events::SessionEventType::AssistantMessage
+                == github_copilot_sdk::session_events::SessionEventType::AssistantMessage
         })
         .expect("assistant.message event")
 }
 
 pub fn assistant_message_content(event: &SessionEvent) -> String {
     event
-        .typed_data::<github_copilot_sdk::generated::session_events::AssistantMessageData>()
+        .typed_data::<github_copilot_sdk::session_events::AssistantMessageData>()
         .expect("assistant.message data")
         .content
 }

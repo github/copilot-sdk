@@ -1,4 +1,4 @@
-use github_copilot_sdk::generated::api_types::{LogRequest, SessionLogLevel};
+use github_copilot_sdk::rpc::{LogRequest, SessionLogLevel};
 
 use super::support::with_e2e_context;
 

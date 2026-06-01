@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::generated::SessionMode;
-use github_copilot_sdk::generated::api_types::ModeSetRequest;
-use github_copilot_sdk::generated::session_events::{
-    AutoModeSwitchCompletedData, AutoModeSwitchRequestedData,
-    AutoModeSwitchResponse as EventAutoModeSwitchResponse, ExitPlanModeAction,
-    ExitPlanModeCompletedData, ExitPlanModeRequestedData, SessionEventType, SessionModelChangeData,
-};
 use github_copilot_sdk::handler::{
     AutoModeSwitchHandler, AutoModeSwitchResponse as HandlerAutoModeSwitchResponse,
     ExitPlanModeHandler, ExitPlanModeResult,
+};
+use github_copilot_sdk::rpc::ModeSetRequest;
+use github_copilot_sdk::session_events::{
+    AutoModeSwitchCompletedData, AutoModeSwitchRequestedData,
+    AutoModeSwitchResponse as EventAutoModeSwitchResponse, ExitPlanModeAction,
+    ExitPlanModeCompletedData, ExitPlanModeRequestedData, SessionEventType, SessionMode,
+    SessionModelChangeData,
 };
 use github_copilot_sdk::{ExitPlanModeData, SessionConfig, SessionId};
 use tokio::sync::mpsc;

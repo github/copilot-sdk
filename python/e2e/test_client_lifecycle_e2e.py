@@ -187,7 +187,8 @@ class TestClientLifecycle:
         self, ctx: E2ETestContext
     ):
         """Changing session mode emits a session.updated lifecycle event."""
-        from copilot.generated.rpc import ModeSetRequest, SessionMode
+        from copilot.rpc import ModeSetRequest
+        from copilot.session_events import SessionMode
 
         loop = asyncio.get_event_loop()
         updated: asyncio.Future = loop.create_future()
