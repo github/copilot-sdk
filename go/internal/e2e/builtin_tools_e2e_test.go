@@ -1,15 +1,23 @@
 package e2e
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
 )
+
+// Built-in tool tests spawn a real CLI subprocess and execute actual shell /
+// file tools. Under slow/concurrent CI (notably Windows) this agent loop can
+// briefly exceed the 60s SendAndWait default, so give it extra headroom while
+// still failing fast on a genuine hang.
+const sendTimeout = 120 * time.Second
 
 func TestBuiltinToolsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
@@ -27,7 +35,9 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
+		defer cancel()
+		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
 			Prompt: "Run 'echo hello && echo world'. Tell me the exact output.",
 		})
 		if err != nil {
@@ -55,7 +65,9 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
+		defer cancel()
+		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
 			Prompt: "Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content.",
 		})
 		if err != nil {
@@ -82,7 +94,9 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
+		defer cancel()
+		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
 			Prompt: "Read lines 2 through 4 of the file 'lines.txt' in this directory. Tell me what those lines contain.",
 		})
 		if err != nil {
@@ -106,7 +120,9 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
+		defer cancel()
+		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
 			Prompt: "Try to read the file 'does_not_exist.txt'. If it doesn't exist, say 'FILE_NOT_FOUND'.",
 		})
 		if err != nil {
@@ -139,7 +155,9 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
+		defer cancel()
+		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
 			Prompt: "Edit the file 'edit_me.txt': replace 'Hello World' with 'Hi Universe'. Then read it back and tell me its contents.",
 		})
 		if err != nil {
@@ -162,7 +180,9 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
+		defer cancel()
+		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
 			Prompt: "Create a file called 'new_file.txt' with the content 'Created by test'. Then read it back to confirm.",
 		})
 		if err != nil {
@@ -189,7 +209,9 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
+		defer cancel()
+		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
 			Prompt: "Search for lines starting with 'ap' in the file 'data.txt'. Tell me which lines matched.",
 		})
 		if err != nil {
@@ -223,7 +245,9 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
+		defer cancel()
+		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
 			Prompt: "Find all .ts files in this directory (recursively). List the filenames you found.",
 		})
 		if err != nil {

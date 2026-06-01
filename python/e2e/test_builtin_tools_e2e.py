@@ -14,6 +14,12 @@ from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
+# Built-in tool tests spawn a real CLI subprocess and execute actual shell /
+# file tools. Under slow/concurrent CI (notably Windows) this agent loop can
+# briefly exceed the 60s send_and_wait default, so give it extra headroom while
+# still failing fast on a genuine hang.
+SEND_TIMEOUT = 120.0
+
 
 class TestBuiltinTools:
     async def test_should_capture_exit_code_in_output(self, ctx: E2ETestContext):
@@ -22,7 +28,8 @@ class TestBuiltinTools:
         )
         try:
             message = await session.send_and_wait(
-                "Run 'echo hello && echo world'. Tell me the exact output."
+                "Run 'echo hello && echo world'. Tell me the exact output.",
+                timeout=SEND_TIMEOUT,
             )
             content = message.data.content if message else ""
             assert "hello" in content
@@ -41,7 +48,8 @@ class TestBuiltinTools:
         try:
             message = await session.send_and_wait(
                 "Run 'echo error_msg >&2; echo ok' and tell me what stderr said. "
-                "Reply with just the stderr content."
+                "Reply with just the stderr content.",
+                timeout=SEND_TIMEOUT,
             )
             assert message is not None
             assert "error_msg" in message.data.content
@@ -58,7 +66,8 @@ class TestBuiltinTools:
         try:
             message = await session.send_and_wait(
                 "Read lines 2 through 4 of the file 'lines.txt' in this directory. "
-                "Tell me what those lines contain."
+                "Tell me what those lines contain.",
+                timeout=SEND_TIMEOUT,
             )
             content = message.data.content if message else ""
             assert "line2" in content
@@ -73,7 +82,8 @@ class TestBuiltinTools:
         try:
             message = await session.send_and_wait(
                 "Try to read the file 'does_not_exist.txt'. "
-                "If it doesn't exist, say 'FILE_NOT_FOUND'."
+                "If it doesn't exist, say 'FILE_NOT_FOUND'.",
+                timeout=SEND_TIMEOUT,
             )
             content = message.data.content if message else ""
             assert re.search(
@@ -94,7 +104,8 @@ class TestBuiltinTools:
         try:
             message = await session.send_and_wait(
                 "Edit the file 'edit_me.txt': replace 'Hello World' with "
-                "'Hi Universe'. Then read it back and tell me its contents."
+                "'Hi Universe'. Then read it back and tell me its contents.",
+                timeout=SEND_TIMEOUT,
             )
             assert message is not None
             assert "Hi Universe" in message.data.content
@@ -108,7 +119,8 @@ class TestBuiltinTools:
         try:
             message = await session.send_and_wait(
                 "Create a file called 'new_file.txt' with the content "
-                "'Created by test'. Then read it back to confirm."
+                "'Created by test'. Then read it back to confirm.",
+                timeout=SEND_TIMEOUT,
             )
             assert message is not None
             assert "Created by test" in message.data.content
@@ -125,7 +137,8 @@ class TestBuiltinTools:
         try:
             message = await session.send_and_wait(
                 "Search for lines starting with 'ap' in the file 'data.txt'. "
-                "Tell me which lines matched."
+                "Tell me which lines matched.",
+                timeout=SEND_TIMEOUT,
             )
             content = message.data.content if message else ""
             assert "apple" in content
@@ -144,7 +157,8 @@ class TestBuiltinTools:
         )
         try:
             message = await session.send_and_wait(
-                "Find all .ts files in this directory (recursively). List the filenames you found."
+                "Find all .ts files in this directory (recursively). List the filenames you found.",
+                timeout=SEND_TIMEOUT,
             )
             assert message is not None
             assert "index.ts" in message.data.content
