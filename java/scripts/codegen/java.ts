@@ -86,11 +86,24 @@ function fixBrandRef(ref: string): string {
     return `${ref.slice(0, lastSlash + 1)}${fixBrandCasing(ref.slice(lastSlash + 1))}`;
 }
 
+function stableStringify(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+    }
+
+    if (value && typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+        return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`).join(",")}}`;
+    }
+
+    return JSON.stringify(value) ?? "undefined";
+}
+
 function renameBrandDefinitionKeys(defs: Record<string, unknown>): void {
     for (const oldKey of Object.keys(defs)) {
         const newKey = fixBrandCasing(oldKey);
         if (newKey === oldKey) continue;
-        if (newKey in defs && JSON.stringify(defs[newKey]) !== JSON.stringify(defs[oldKey])) {
+        if (newKey in defs && stableStringify(defs[newKey]) !== stableStringify(defs[oldKey])) {
             throw new Error(
                 `Brand-casing normalization collision: "${oldKey}" -> "${newKey}" but a different definition already exists under "${newKey}".`
             );
