@@ -108,12 +108,12 @@ func main() {
 	requestID := "req-1"
 	user := appUser{ID: "alice", GitHubToken: "gho_xxx"}
 
-	client := copilot.NewClient(&copilot.ClientOptions{
-		Mode:                      copilot.ModeEmpty,
-		BaseDirectory:             fmt.Sprintf("/var/lib/my-app/copilot/%s", runtimeInstanceID),
-		SessionIdleTimeoutSeconds: 900,
-		Connection:                copilot.UriConnection{URL: runtimeURL},
-	})
+    client := copilot.NewClient(&copilot.ClientOptions{
+        Mode:                      copilot.ModeEmpty,
+        BaseDirectory:             fmt.Sprintf("/var/lib/my-app/copilot/%s", runtimeInstanceID),
+        SessionIdleTimeoutSeconds: 900,
+        Connection:                copilot.URIConnection{URL: runtimeURL},
+    })
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		SessionID:      fmt.Sprintf("user-%s-%s", user.ID, requestID),
@@ -132,7 +132,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
     Mode:                      copilot.ModeEmpty,
     BaseDirectory:             fmt.Sprintf("/var/lib/my-app/copilot/%s", runtimeInstanceID),
     SessionIdleTimeoutSeconds: 900,
-    Connection:                copilot.UriConnection{URL: runtimeURL},
+    Connection:                copilot.URIConnection{URL: runtimeURL},
 })
 
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
@@ -352,7 +352,7 @@ Use an external runtime connection when multiple SDK clients should share one al
 |----------|-----------------------------|
 | TypeScript | `RuntimeConnection.forUri(url)` |
 | Python | `RuntimeConnection.for_uri(url)` |
-| Go | `copilot.UriConnection{URL: url}` |
+| Go | `copilot.URIConnection{URL: url}` |
 | .NET | `RuntimeConnection.ForUri(url)` |
 | Java | `setCliUrl(url)` |
 | Rust | `Transport::External { host, port, connection_token }` |
