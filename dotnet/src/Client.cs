@@ -2385,7 +2385,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? EnableHostGitOperations,
         bool? EnableSessionStore,
         bool? EnableSkills,
-        bool? SuppressResumeEvent,
+        [property: JsonPropertyName("disableResume")] bool? SuppressResumeEvent,
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,

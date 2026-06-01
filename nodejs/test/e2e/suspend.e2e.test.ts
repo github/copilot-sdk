@@ -6,7 +6,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 import { approveAll, CopilotClient, defineTool, RuntimeConnection } from "../../src/index.js";
 import type { PermissionRequest, PermissionRequestResult, SessionEvent } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 
 const SUSPEND_TIMEOUT_MS = 60_000;
 const TEST_TIMEOUT_MS = 180_000;
@@ -65,6 +65,7 @@ describe("Suspend RPC", async () => {
         const server = new CopilotClient({
             workingDirectory: workDir,
             env,
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
             connection: RuntimeConnection.forTcp({
                 path: process.env.COPILOT_CLI_PATH,
                 connectionToken: SHARED_TOKEN,
