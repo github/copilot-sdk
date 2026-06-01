@@ -292,7 +292,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
-       GithubToken: os.Getenv("GITHUB_TOKEN"),
+       GitHubToken: os.Getenv("GITHUB_TOKEN"),
    })
    ```
    </details>
@@ -303,7 +303,7 @@ var client = new CopilotClient(new CopilotClientOptions
    ```csharp
    var client = new CopilotClient(new CopilotClientOptions
    {
-       GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN")
+       GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN")
    });
    ```
    </details>

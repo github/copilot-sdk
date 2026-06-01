@@ -64,6 +64,94 @@ export async function getApiSchemaPath(cliArg?: string): Promise<string> {
     return schemaPath;
 }
 
+// ── Brand casing normalization ──────────────────────────────────────────────
+
+/**
+ * Correct the GitHub brand casing in a generated identifier or documentation
+ * string. Some schema titles/definition names and value-derived identifiers
+ * render the brand as "Github"; the correct casing is "GitHub". Wire/protocol
+ * values (e.g. "github", "github_reference") are lowercase and therefore left
+ * untouched. The replacement is idempotent: already-correct "GitHub" contains a
+ * capital "H" and no "Github" substring, so it is unaffected.
+ */
+export function fixBrandCasing(value: string): string {
+    return value.replace(/Github/g, "GitHub");
+}
+
+const BRAND_NORMALIZED_STRING_KEYS = new Set(["title", "description", "markdownDescription"]);
+
+/**
+ * Recursively normalize GitHub brand casing within a parsed JSON schema:
+ * - keys of `definitions` / `$defs` maps,
+ * - `$ref` pointers (definition-name segment only),
+ * - documentation strings (`title`, `description`, `markdownDescription`).
+ *
+ * Wire-level string values (`const`, `enum`, `default`, examples, etc.) are left
+ * untouched so protocol values such as "github" remain lowercase. The schema is
+ * mutated in place and also returned for convenience.
+ */
+export function normalizeSchemaBrandCasing<T>(schema: T): T {
+    normalizeBrandCasingNode(schema);
+    return schema;
+}
+
+function normalizeBrandCasingNode(node: unknown): void {
+    if (Array.isArray(node)) {
+        for (const item of node) normalizeBrandCasingNode(item);
+        return;
+    }
+    if (node === null || typeof node !== "object") return;
+    const obj = node as Record<string, unknown>;
+
+    for (const defsKey of ["definitions", "$defs"] as const) {
+        const defs = obj[defsKey];
+        if (defs && typeof defs === "object" && !Array.isArray(defs)) {
+            renameBrandDefinitionKeys(defs as Record<string, unknown>);
+        }
+    }
+
+    for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === "string") {
+            if (key === "$ref") {
+                obj[key] = fixBrandRef(value);
+            } else if (BRAND_NORMALIZED_STRING_KEYS.has(key)) {
+                obj[key] = fixBrandCasing(value);
+            }
+        } else {
+            normalizeBrandCasingNode(value);
+        }
+    }
+}
+
+/** Apply brand-casing only to the definition-name segment of a `$ref`. */
+function fixBrandRef(ref: string): string {
+    const lastSlash = ref.lastIndexOf("/");
+    if (lastSlash === -1) return ref;
+    const prefix = ref.slice(0, lastSlash + 1);
+    const name = ref.slice(lastSlash + 1);
+    return `${prefix}${fixBrandCasing(name)}`;
+}
+
+function renameBrandDefinitionKeys(defs: Record<string, unknown>): void {
+    for (const oldKey of Object.keys(defs)) {
+        const newKey = fixBrandCasing(oldKey);
+        if (newKey === oldKey) continue;
+        if (newKey in defs && stableStringify(defs[newKey]) !== stableStringify(defs[oldKey])) {
+            throw new Error(
+                `Brand-casing normalization collision: "${oldKey}" -> "${newKey}" but a different definition already exists under "${newKey}".`
+            );
+        }
+        defs[newKey] = defs[oldKey];
+        delete defs[oldKey];
+    }
+}
+
+/** Load a JSON schema file and normalize GitHub brand casing in titles, refs, and definition keys. */
+export async function loadSchemaJson<T>(filePath: string): Promise<T> {
+    const parsed = JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
+    return normalizeSchemaBrandCasing(parsed);
+}
+
 // ── Schema processing ───────────────────────────────────────────────────────
 
 /**

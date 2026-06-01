@@ -3251,7 +3251,7 @@ const (
 	// Repository is hosted on Azure DevOps.
 	WorkingDirectoryContextHostTypeADO WorkingDirectoryContextHostType = "ado"
 	// Repository is hosted on GitHub.
-	WorkingDirectoryContextHostTypeGithub WorkingDirectoryContextHostType = "github"
+	WorkingDirectoryContextHostTypeGitHub WorkingDirectoryContextHostType = "github"
 )
 
 // Whether the file was newly created or updated

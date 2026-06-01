@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class SendAttachmentGithubReference extends SendAttachment {
+public final class SendAttachmentGitHubReference extends SendAttachment {
 
     @JsonProperty("type")
     private final String type = "github_reference";
@@ -38,7 +38,7 @@ public final class SendAttachmentGithubReference extends SendAttachment {
 
     /** Type of GitHub reference */
     @JsonProperty("referenceType")
-    private SendAttachmentGithubReferenceType referenceType;
+    private SendAttachmentGitHubReferenceType referenceType;
 
     /** Current state of the referenced item (e.g., open, closed, merged) */
     @JsonProperty("state")
@@ -54,8 +54,8 @@ public final class SendAttachmentGithubReference extends SendAttachment {
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
 
-    public SendAttachmentGithubReferenceType getReferenceType() { return referenceType; }
-    public void setReferenceType(SendAttachmentGithubReferenceType referenceType) { this.referenceType = referenceType; }
+    public SendAttachmentGitHubReferenceType getReferenceType() { return referenceType; }
+    public void setReferenceType(SendAttachmentGitHubReferenceType referenceType) { this.referenceType = referenceType; }
 
     public String getState() { return state; }
     public void setState(String state) { this.state = state; }

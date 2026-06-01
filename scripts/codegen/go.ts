@@ -40,6 +40,7 @@ import {
     isSchemaExperimental,
     isSchemaInternal,
     isVoidSchema,
+    loadSchemaJson,
     parseExternalSchemaRef,
     postProcessSchema,
     propagateInternalVisibility,
@@ -78,6 +79,7 @@ const goIdentifierCasingOverrides = new Map<string, string>([
     ["urls", "URLs"],
     ["uris", "URIs"],
     ["ids", "IDs"],
+    ["github", "GitHub"],
 ]);
 const goCommentTextWrapLength = 90;
 const wrapGoCommentText = wordwrap(goCommentTextWrapLength);
@@ -3628,7 +3630,7 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
     console.log("Go: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
+    const schema = cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as JSONSchema7);
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     const processedApiSchema = apiSchema
         ? propagateInternalVisibility(postProcessSchema(cloneSchemaForCodegen(apiSchema as JSONSchema7)) as JSONSchema7)
@@ -3728,7 +3730,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("Go: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = propagateInternalVisibility(fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema)) as JSONSchema7) as unknown as ApiSchema;
+    const schema = propagateInternalVisibility(fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema)) as JSONSchema7) as unknown as ApiSchema;
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
@@ -4304,7 +4306,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     let apiSchemaForSharing: ApiSchema | undefined;
     try {
         const resolvedApiPath = apiSchemaPath ?? (await getApiSchemaPath());
-        apiSchemaForSharing = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedApiPath, "utf-8")) as ApiSchema));
+        apiSchemaForSharing = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedApiPath)) as ApiSchema));
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== "ENOENT" || apiSchemaPath) {
             throw err;

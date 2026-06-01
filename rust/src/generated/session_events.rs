@@ -3336,7 +3336,7 @@ pub struct McpAppToolCallCompleteData {
 pub enum WorkingDirectoryContextHostType {
     /// Repository is hosted on GitHub.
     #[serde(rename = "github")]
-    Github,
+    GitHub,
     /// Repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,

@@ -15,7 +15,7 @@ import javax.annotation.processing.Generated;
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum UserMessageAttachmentGithubReferenceType {
+public enum UserMessageAttachmentGitHubReferenceType {
     /** The {@code issue} variant. */
     ISSUE("issue"),
     /** The {@code pr} variant. */
@@ -24,14 +24,14 @@ public enum UserMessageAttachmentGithubReferenceType {
     DISCUSSION("discussion");
 
     private final String value;
-    UserMessageAttachmentGithubReferenceType(String value) { this.value = value; }
+    UserMessageAttachmentGitHubReferenceType(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static UserMessageAttachmentGithubReferenceType fromValue(String value) {
-        for (UserMessageAttachmentGithubReferenceType v : values()) {
+    public static UserMessageAttachmentGitHubReferenceType fromValue(String value) {
+        for (UserMessageAttachmentGitHubReferenceType v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown UserMessageAttachmentGithubReferenceType value: " + value);
+        throw new IllegalArgumentException("Unknown UserMessageAttachmentGitHubReferenceType value: " + value);
     }
 }

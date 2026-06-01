@@ -167,7 +167,7 @@ func main() {
 import copilot "github.com/github/copilot-sdk/go"
 
 client := copilot.NewClient(&copilot.ClientOptions{
-    GithubToken:     userAccessToken,   // Token from OAuth flow
+    GitHubToken:     userAccessToken,   // Token from OAuth flow
     UseLoggedInUser: copilot.Bool(false), // Don't use stored CLI credentials
 })
 ```

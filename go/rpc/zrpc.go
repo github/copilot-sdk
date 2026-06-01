@@ -421,13 +421,13 @@ func (AttachmentFile) Type() AttachmentType {
 }
 
 // GitHub issue, pull request, or discussion reference
-// Experimental: AttachmentGithubReference is part of an experimental API and may change or
+// Experimental: AttachmentGitHubReference is part of an experimental API and may change or
 // be removed.
-type AttachmentGithubReference struct {
+type AttachmentGitHubReference struct {
 	// Issue, pull request, or discussion number
 	Number int64 `json:"number"`
 	// Type of GitHub reference
-	ReferenceType AttachmentGithubReferenceType `json:"referenceType"`
+	ReferenceType AttachmentGitHubReferenceType `json:"referenceType"`
 	// Current state of the referenced item (e.g., open, closed, merged)
 	State string `json:"state"`
 	// Title of the referenced item
@@ -436,9 +436,9 @@ type AttachmentGithubReference struct {
 	URL string `json:"url"`
 }
 
-func (AttachmentGithubReference) attachment() {}
-func (AttachmentGithubReference) Type() AttachmentType {
-	return AttachmentTypeGithubReference
+func (AttachmentGitHubReference) attachment() {}
+func (AttachmentGitHubReference) Type() AttachmentType {
+	return AttachmentTypeGitHubReference
 }
 
 // Code selection attachment from an editor
@@ -1700,21 +1700,21 @@ type InstalledPlugin struct {
 // Experimental: InstalledPluginSource is part of an experimental API and may change or be
 // removed.
 type InstalledPluginSource struct {
-	InstalledPluginSourceGithub *InstalledPluginSourceGithub
+	InstalledPluginSourceGitHub *InstalledPluginSourceGitHub
 	InstalledPluginSourceLocal  *InstalledPluginSourceLocal
 	InstalledPluginSourceURL    *InstalledPluginSourceURL
 	String                      *string
 }
 
-// Schema for the `InstalledPluginSourceGithub` type.
-// Experimental: InstalledPluginSourceGithub is part of an experimental API and may change
+// Schema for the `InstalledPluginSourceGitHub` type.
+// Experimental: InstalledPluginSourceGitHub is part of an experimental API and may change
 // or be removed.
-type InstalledPluginSourceGithub struct {
+type InstalledPluginSourceGitHub struct {
 	Path *string `json:"path,omitempty"`
 	Ref  *string `json:"ref,omitempty"`
 	Repo string  `json:"repo"`
 	// Constant value. Always "github".
-	Source InstalledPluginSourceGithubSource `json:"source"`
+	Source InstalledPluginSourceGitHubSource `json:"source"`
 }
 
 // Schema for the `InstalledPluginSourceLocal` type.
@@ -3952,13 +3952,13 @@ func (PushAttachmentFile) Type() PushAttachmentType {
 }
 
 // GitHub issue, pull request, or discussion reference
-// Experimental: PushAttachmentGithubReference is part of an experimental API and may change
+// Experimental: PushAttachmentGitHubReference is part of an experimental API and may change
 // or be removed.
-type PushAttachmentGithubReference struct {
+type PushAttachmentGitHubReference struct {
 	// Issue, pull request, or discussion number
 	Number int64 `json:"number"`
 	// Type of GitHub reference
-	ReferenceType PushAttachmentGithubReferenceType `json:"referenceType"`
+	ReferenceType PushAttachmentGitHubReferenceType `json:"referenceType"`
 	// Current state of the referenced item (e.g., open, closed, merged)
 	State string `json:"state"`
 	// Title of the referenced item
@@ -3967,9 +3967,9 @@ type PushAttachmentGithubReference struct {
 	URL string `json:"url"`
 }
 
-func (PushAttachmentGithubReference) pushAttachment() {}
-func (PushAttachmentGithubReference) Type() PushAttachmentType {
-	return PushAttachmentTypeGithubReference
+func (PushAttachmentGitHubReference) pushAttachment() {}
+func (PushAttachmentGitHubReference) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubReference
 }
 
 // Code selection attachment from an editor
@@ -4738,21 +4738,21 @@ type SessionInstalledPlugin struct {
 // Experimental: SessionInstalledPluginSource is part of an experimental API and may change
 // or be removed.
 type SessionInstalledPluginSource struct {
-	SessionInstalledPluginSourceGithub *SessionInstalledPluginSourceGithub
+	SessionInstalledPluginSourceGitHub *SessionInstalledPluginSourceGitHub
 	SessionInstalledPluginSourceLocal  *SessionInstalledPluginSourceLocal
 	SessionInstalledPluginSourceURL    *SessionInstalledPluginSourceURL
 	String                             *string
 }
 
-// Schema for the `SessionInstalledPluginSourceGithub` type.
-// Experimental: SessionInstalledPluginSourceGithub is part of an experimental API and may
+// Schema for the `SessionInstalledPluginSourceGitHub` type.
+// Experimental: SessionInstalledPluginSourceGitHub is part of an experimental API and may
 // change or be removed.
-type SessionInstalledPluginSourceGithub struct {
+type SessionInstalledPluginSourceGitHub struct {
 	Path *string `json:"path,omitempty"`
 	Ref  *string `json:"ref,omitempty"`
 	Repo string  `json:"repo"`
 	// Constant value. Always "github".
-	Source SessionInstalledPluginSourceGithubSource `json:"source"`
+	Source SessionInstalledPluginSourceGitHubSource `json:"source"`
 }
 
 // Schema for the `SessionInstalledPluginSourceLocal` type.
@@ -7068,17 +7068,17 @@ const (
 )
 
 // Type of GitHub reference
-// Experimental: AttachmentGithubReferenceType is part of an experimental API and may change
+// Experimental: AttachmentGitHubReferenceType is part of an experimental API and may change
 // or be removed.
-type AttachmentGithubReferenceType string
+type AttachmentGitHubReferenceType string
 
 const (
 	// GitHub discussion reference.
-	AttachmentGithubReferenceTypeDiscussion AttachmentGithubReferenceType = "discussion"
+	AttachmentGitHubReferenceTypeDiscussion AttachmentGitHubReferenceType = "discussion"
 	// GitHub issue reference.
-	AttachmentGithubReferenceTypeIssue AttachmentGithubReferenceType = "issue"
+	AttachmentGitHubReferenceTypeIssue AttachmentGitHubReferenceType = "issue"
 	// GitHub pull request reference.
-	AttachmentGithubReferenceTypePr AttachmentGithubReferenceType = "pr"
+	AttachmentGitHubReferenceTypePr AttachmentGitHubReferenceType = "pr"
 )
 
 // Type discriminator for Attachment.
@@ -7089,7 +7089,7 @@ const (
 	AttachmentTypeDirectory        AttachmentType = "directory"
 	AttachmentTypeExtensionContext AttachmentType = "extension_context"
 	AttachmentTypeFile             AttachmentType = "file"
-	AttachmentTypeGithubReference  AttachmentType = "github_reference"
+	AttachmentTypeGitHubReference  AttachmentType = "github_reference"
 	AttachmentTypeSelection        AttachmentType = "selection"
 )
 
@@ -7162,7 +7162,7 @@ const (
 type CopilotAPITokenAuthInfoHost string
 
 const (
-	CopilotAPITokenAuthInfoHostHTTPSGithubCom CopilotAPITokenAuthInfoHost = "https://github.com"
+	CopilotAPITokenAuthInfoHostHTTPSGitHubCom CopilotAPITokenAuthInfoHost = "https://github.com"
 )
 
 // Server transport type: stdio, http, sse (deprecated), or memory
@@ -7281,14 +7281,14 @@ const (
 type HMACAuthInfoHost string
 
 const (
-	HMACAuthInfoHostHTTPSGithubCom HMACAuthInfoHost = "https://github.com"
+	HMACAuthInfoHostHTTPSGitHubCom HMACAuthInfoHost = "https://github.com"
 )
 
 // Constant value. Always "github".
-type InstalledPluginSourceGithubSource string
+type InstalledPluginSourceGitHubSource string
 
 const (
-	InstalledPluginSourceGithubSourceGithub InstalledPluginSourceGithubSource = "github"
+	InstalledPluginSourceGitHubSourceGitHub InstalledPluginSourceGitHubSource = "github"
 )
 
 // Constant value. Always "local".
@@ -7767,17 +7767,17 @@ const (
 )
 
 // Type of GitHub reference
-// Experimental: PushAttachmentGithubReferenceType is part of an experimental API and may
+// Experimental: PushAttachmentGitHubReferenceType is part of an experimental API and may
 // change or be removed.
-type PushAttachmentGithubReferenceType string
+type PushAttachmentGitHubReferenceType string
 
 const (
 	// GitHub discussion reference.
-	PushAttachmentGithubReferenceTypeDiscussion PushAttachmentGithubReferenceType = "discussion"
+	PushAttachmentGitHubReferenceTypeDiscussion PushAttachmentGitHubReferenceType = "discussion"
 	// GitHub issue reference.
-	PushAttachmentGithubReferenceTypeIssue PushAttachmentGithubReferenceType = "issue"
+	PushAttachmentGitHubReferenceTypeIssue PushAttachmentGitHubReferenceType = "issue"
 	// GitHub pull request reference.
-	PushAttachmentGithubReferenceTypePr PushAttachmentGithubReferenceType = "pr"
+	PushAttachmentGitHubReferenceTypePr PushAttachmentGitHubReferenceType = "pr"
 )
 
 // Type discriminator for PushAttachment.
@@ -7788,7 +7788,7 @@ const (
 	PushAttachmentTypeDirectory        PushAttachmentType = "directory"
 	PushAttachmentTypeExtensionContext PushAttachmentType = "extension_context"
 	PushAttachmentTypeFile             PushAttachmentType = "file"
-	PushAttachmentTypeGithubReference  PushAttachmentType = "github_reference"
+	PushAttachmentTypeGitHubReference  PushAttachmentType = "github_reference"
 	PushAttachmentTypeSelection        PushAttachmentType = "selection"
 )
 
@@ -7870,7 +7870,7 @@ const (
 	// Session repository is hosted on Azure DevOps.
 	SessionContextHostTypeADO SessionContextHostType = "ado"
 	// Session repository is hosted on GitHub.
-	SessionContextHostTypeGithub SessionContextHostType = "github"
+	SessionContextHostTypeGitHub SessionContextHostType = "github"
 )
 
 // Error classification
@@ -7923,10 +7923,10 @@ const (
 )
 
 // Constant value. Always "github".
-type SessionInstalledPluginSourceGithubSource string
+type SessionInstalledPluginSourceGitHubSource string
 
 const (
-	SessionInstalledPluginSourceGithubSourceGithub SessionInstalledPluginSourceGithubSource = "github"
+	SessionInstalledPluginSourceGitHubSourceGitHub SessionInstalledPluginSourceGitHubSource = "github"
 )
 
 // Constant value. Always "local".
@@ -7979,7 +7979,7 @@ const (
 	// The working directory repository is hosted on Azure DevOps.
 	SessionWorkingDirectoryContextHostTypeADO SessionWorkingDirectoryContextHostType = "ado"
 	// The working directory repository is hosted on GitHub.
-	SessionWorkingDirectoryContextHostTypeGithub SessionWorkingDirectoryContextHostType = "github"
+	SessionWorkingDirectoryContextHostTypeGitHub SessionWorkingDirectoryContextHostType = "github"
 )
 
 // Signal to send (default: SIGTERM)
@@ -8269,7 +8269,7 @@ const (
 	// Workspace summary repository is hosted on Azure DevOps.
 	WorkspaceSummaryHostTypeADO WorkspaceSummaryHostType = "ado"
 	// Workspace summary repository is hosted on GitHub.
-	WorkspaceSummaryHostTypeGithub WorkspaceSummaryHostType = "github"
+	WorkspaceSummaryHostTypeGitHub WorkspaceSummaryHostType = "github"
 )
 
 // Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.
@@ -8281,7 +8281,7 @@ const (
 	// Workspace repository is hosted on Azure DevOps.
 	WorkspacesWorkspaceDetailsHostTypeADO WorkspacesWorkspaceDetailsHostType = "ado"
 	// Workspace repository is hosted on GitHub.
-	WorkspacesWorkspaceDetailsHostTypeGithub WorkspacesWorkspaceDetailsHostType = "github"
+	WorkspacesWorkspaceDetailsHostTypeGitHub WorkspacesWorkspaceDetailsHostType = "github"
 )
 
 type serverAPI struct {

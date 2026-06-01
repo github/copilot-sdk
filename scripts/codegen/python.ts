@@ -50,6 +50,8 @@ import {
     getSessionEventVariantSchemas,
     getSharedSessionEventEnvelopeProperties,
     getEnumValueDescriptions,
+    loadSchemaJson,
+    fixBrandCasing,
     type ApiSchema,
     type DefinitionCollections,
     type EnumValueDescriptions,
@@ -1176,10 +1178,12 @@ function removeRequiredAnyDefaultsForPython(
 }
 
 function toPascalCase(s: string): string {
-    return s
-        .split(/[._]/)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join("");
+    return fixBrandCasing(
+        s
+            .split(/[._]/)
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join("")
+    );
 }
 
 function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
@@ -2682,7 +2686,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("Python: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
+    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     let code = generatePythonSessionEventsCode(processed);
     const { typeNames } = collectInternalSymbols(processed);
@@ -2699,7 +2703,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     const { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } = await import("quicktype-core");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
+    let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,
@@ -3500,7 +3504,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     await generateSessionEvents(sessionSchemaPath);
     try {
         const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
-        const sessionSchema = postProcessSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7));
+        const sessionSchema = postProcessSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedSessionPath)) as JSONSchema7));
         await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {

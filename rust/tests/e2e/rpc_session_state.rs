@@ -691,7 +691,7 @@ async fn should_call_metadata_snapshot_setworkingdirectory_and_recordcontextchan
                             cwd: subdir.display().to_string(),
                             git_root: Some(ctx.repo_root().display().to_string()),
                             head_commit: None,
-                            host_type: Some(SessionWorkingDirectoryContextHostType::Github),
+                            host_type: Some(SessionWorkingDirectoryContextHostType::GitHub),
                             repository: Some("github/copilot-sdk".to_string()),
                             repository_host: Some("github.com".to_string()),
                         },

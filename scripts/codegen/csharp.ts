@@ -46,6 +46,8 @@ import {
     getSessionEventVariantSchemas,
     getSharedSessionEventEnvelopeProperties,
     rewriteSharedDefinitionReferences,
+    loadSchemaJson,
+    fixBrandCasing,
     REPO_ROOT,
     type ApiSchema,
     type DefinitionCollections,
@@ -217,7 +219,7 @@ function xmlDocEnumMemberComment(enumValueDescriptions: EnumValueDescriptions | 
 function toPascalCase(name: string): string {
     const parts = splitCSharpIdentifierParts(name);
     if (parts.length > 1) return parts.map(toPascalCasePart).join("");
-    return name.charAt(0).toUpperCase() + name.slice(1);
+    return fixBrandCasing(name.charAt(0).toUpperCase() + name.slice(1));
 }
 
 function stripDurationMillisecondsSuffix(name: string): string {
@@ -244,7 +246,7 @@ function splitCSharpIdentifierParts(value: string): string[] {
 }
 
 function toPascalCasePart(value: string): string {
-    return value.charAt(0).toUpperCase() + value.slice(1);
+    return fixBrandCasing(value.charAt(0).toUpperCase() + value.slice(1));
 }
 
 function toCSharpIdentifier(value: string, fallback: string): string {
@@ -1408,7 +1410,7 @@ namespace GitHub.Copilot;
 export async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("C#: generating session-events...");
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
+    const schema = cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as JSONSchema7);
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     const code = generateSessionEventsCode(processed);
     const outPath = await writeGeneratedFile("dotnet/src/Generated/SessionEvents.cs", code);
@@ -2392,7 +2394,7 @@ namespace GitHub.Copilot.Rpc;
 export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("C#: generating RPC types...");
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
+    let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,
@@ -2449,7 +2451,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     await generateSessionEvents(sessionSchemaPath);
     try {
         const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
-        const sessionSchema = propagateInternalVisibility(postProcessSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7)));
+        const sessionSchema = propagateInternalVisibility(postProcessSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedSessionPath)) as JSONSchema7)));
         await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {
