@@ -1,0 +1,319 @@
+/* ===== Custom theme for GitHub Copilot SDK for Java ===== */
+/* Layered on top of Maven Fluido Skin (Bootstrap 2.x) */
+
+/* ===== Typography & Base ===== */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  color: #24292f;
+  background: #f6f8fa;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: #0969da;
+}
+
+a:hover {
+  color: #0550ae;
+}
+
+code, pre {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+/* ===== Navbar ===== */
+.navbar .navbar-inner {
+  background: #24292f;
+  background-image: none;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.navbar .brand,
+.navbar .nav > li > a,
+.navbar .nav > li > a:hover,
+.navbar .nav .dropdown-toggle {
+  color: #e6edf3;
+  text-shadow: none;
+  font-weight: 600;
+}
+
+.navbar .nav > li > a:hover,
+.navbar .nav > .active > a {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.navbar .nav .dropdown-menu {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 8px 0;
+}
+
+.navbar .nav .dropdown-menu li > a {
+  color: #24292f;
+  padding: 8px 16px;
+  font-weight: 500;
+}
+
+.navbar .nav .dropdown-menu li > a:hover {
+  background: rgba(102, 126, 234, 0.06);
+  color: #0969da;
+}
+
+/* ===== GitHub Ribbon ===== */
+.github-fork-ribbon:before {
+  background-color: #667eea !important;
+  background-image: linear-gradient(135deg, #667eea, #764ba2) !important;
+}
+
+.github-fork-ribbon:after {
+  content: 'View on GitHub' !important;
+}
+
+/* ===== Breadcrumbs ===== */
+#breadcrumbs {
+  background: #fff;
+  border-bottom: 1px solid #d0d7de;
+  padding: 10px 20px;
+}
+
+#breadcrumbs .breadcrumb {
+  background: transparent;
+  margin: 0;
+}
+
+/* ===== Left Sidebar ===== */
+#leftColumn .well {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+#leftColumn .nav-list > li > a {
+  color: #24292f;
+  border-radius: 6px;
+  margin: 2px 0;
+  font-weight: 500;
+}
+
+#leftColumn .nav-list > li > a:hover {
+  background: rgba(102, 126, 234, 0.06);
+  color: #0969da;
+}
+
+#leftColumn .nav-list > .active > a,
+#leftColumn .nav-list > .active > a:hover {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+}
+
+#leftColumn .nav-header {
+  color: #57606a;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 0.5px;
+  padding: 8px 14px 4px;
+}
+
+/* ===== Main Content ===== */
+#bodyColumn {
+  line-height: 1.7;
+}
+
+#bodyColumn h1,
+#bodyColumn h2,
+#bodyColumn h3,
+#bodyColumn h4 {
+  color: #24292f;
+  font-weight: 700;
+}
+
+#bodyColumn h2 {
+  border-bottom: 1px solid #d0d7de;
+  padding-bottom: 8px;
+  margin-top: 32px;
+}
+
+/* ===== Code Blocks ===== */
+#bodyColumn pre {
+  background: #eef1f6;
+  color: #24292f;
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-size: 0.88em;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+#bodyColumn code {
+  background: rgba(102, 126, 234, 0.1);
+  color: #24292f;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+#bodyColumn pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* ===== Alert Boxes (from markdown) ===== */
+#bodyColumn .alert,
+#bodyColumn blockquote {
+  border-radius: 10px;
+  border-left: 4px solid;
+  padding: 16px 20px;
+  margin: 20px 0;
+}
+
+#bodyColumn .alert-info,
+#bodyColumn blockquote {
+  background: rgba(102, 126, 234, 0.06);
+  border-left-color: #667eea;
+  color: #4a5067;
+}
+
+#bodyColumn .alert-warning {
+  background: #fff8c5;
+  border-left-color: #d4a72c;
+  color: #6a5300;
+}
+
+#bodyColumn .alert-danger,
+#bodyColumn .alert-error {
+  background: #ffeef0;
+  border-left-color: #cf222e;
+  color: #82071e;
+}
+
+#bodyColumn .alert-success {
+  background: #dafbe1;
+  border-left-color: #1a7f37;
+  color: #116329;
+}
+
+/* ===== Tables ===== */
+#bodyColumn table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  overflow: hidden;
+  width: 100%;
+  margin: 20px 0;
+}
+
+#bodyColumn table thead th {
+  background: #f6f8fa;
+  color: #24292f;
+  font-weight: 700;
+  border-bottom: 2px solid #d0d7de;
+  padding: 12px 16px;
+  text-align: left;
+}
+
+#bodyColumn table tbody td {
+  padding: 10px 16px;
+  border-bottom: 1px solid #eaeef2;
+}
+
+#bodyColumn table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+#bodyColumn table tbody tr:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+/* ===== Badges / Labels ===== */
+.label, .badge {
+  font-weight: 600;
+  border-radius: 100px;
+  padding: 3px 10px;
+  font-size: 0.8em;
+}
+
+.label-info, .badge-info {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+/* ===== Cards (for section-like divs) ===== */
+#bodyColumn .section {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+}
+
+#bodyColumn .section .section {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 16px;
+}
+
+/* ===== Footer ===== */
+#footer {
+  background: #fff;
+  border-top: 1px solid #d0d7de;
+  color: #57606a;
+  font-size: 0.88em;
+  padding: 24px 0;
+}
+
+#footer a {
+  color: #57606a;
+  font-weight: 500;
+}
+
+#footer a:hover {
+  color: #0969da;
+}
+
+/* ===== Powered By (add GitHub Copilot) ===== */
+#poweredBy {
+  text-align: center;
+}
+
+#poweredBy::after {
+  content: '';
+  display: block;
+  margin: 8px auto 0;
+  width: 240px;
+  height: 120px;
+  background-image: url('../images/github-copilot.jpg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 6px;
+}
+
+/* ===== Scrollbar (subtle) ===== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d0d7de;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b949e;
+}
