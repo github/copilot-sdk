@@ -421,13 +421,13 @@ func (AttachmentFile) Type() AttachmentType {
 }
 
 // GitHub issue, pull request, or discussion reference
-// Experimental: AttachmentGitHubReference is part of an experimental API and may change or
+// Experimental: AttachmentGithubReference is part of an experimental API and may change or
 // be removed.
-type AttachmentGitHubReference struct {
+type AttachmentGithubReference struct {
 	// Issue, pull request, or discussion number
 	Number int64 `json:"number"`
 	// Type of GitHub reference
-	ReferenceType AttachmentGitHubReferenceType `json:"referenceType"`
+	ReferenceType AttachmentGithubReferenceType `json:"referenceType"`
 	// Current state of the referenced item (e.g., open, closed, merged)
 	State string `json:"state"`
 	// Title of the referenced item
@@ -436,9 +436,9 @@ type AttachmentGitHubReference struct {
 	URL string `json:"url"`
 }
 
-func (AttachmentGitHubReference) attachment() {}
-func (AttachmentGitHubReference) Type() AttachmentType {
-	return AttachmentTypeGitHubReference
+func (AttachmentGithubReference) attachment() {}
+func (AttachmentGithubReference) Type() AttachmentType {
+	return AttachmentTypeGithubReference
 }
 
 // Code selection attachment from an editor
@@ -580,8 +580,8 @@ func (EnvAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `GhCliAuthInfo` type.
-// Experimental: GHCLIAuthInfo is part of an experimental API and may change or be removed.
-type GHCLIAuthInfo struct {
+// Experimental: GhCLIAuthInfo is part of an experimental API and may change or be removed.
+type GhCLIAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
 	// verbatim and does not re-fetch when set.
@@ -594,9 +594,9 @@ type GHCLIAuthInfo struct {
 	Token string `json:"token"`
 }
 
-func (GHCLIAuthInfo) authInfo() {}
-func (GHCLIAuthInfo) Type() AuthInfoType {
-	return AuthInfoTypeGHCLI
+func (GhCLIAuthInfo) authInfo() {}
+func (GhCLIAuthInfo) Type() AuthInfoType {
+	return AuthInfoTypeGhCLI
 }
 
 // Schema for the `HMACAuthInfo` type.
@@ -1700,21 +1700,21 @@ type InstalledPlugin struct {
 // Experimental: InstalledPluginSource is part of an experimental API and may change or be
 // removed.
 type InstalledPluginSource struct {
-	InstalledPluginSourceGitHub *InstalledPluginSourceGitHub
+	InstalledPluginSourceGithub *InstalledPluginSourceGithub
 	InstalledPluginSourceLocal  *InstalledPluginSourceLocal
 	InstalledPluginSourceURL    *InstalledPluginSourceURL
 	String                      *string
 }
 
 // Schema for the `InstalledPluginSourceGithub` type.
-// Experimental: InstalledPluginSourceGitHub is part of an experimental API and may change
+// Experimental: InstalledPluginSourceGithub is part of an experimental API and may change
 // or be removed.
-type InstalledPluginSourceGitHub struct {
+type InstalledPluginSourceGithub struct {
 	Path *string `json:"path,omitempty"`
 	Ref  *string `json:"ref,omitempty"`
 	Repo string  `json:"repo"`
 	// Constant value. Always "github".
-	Source InstalledPluginSourceGitHubSource `json:"source"`
+	Source InstalledPluginSourceGithubSource `json:"source"`
 }
 
 // Schema for the `InstalledPluginSourceLocal` type.
@@ -3952,13 +3952,13 @@ func (PushAttachmentFile) Type() PushAttachmentType {
 }
 
 // GitHub issue, pull request, or discussion reference
-// Experimental: PushAttachmentGitHubReference is part of an experimental API and may change
+// Experimental: PushAttachmentGithubReference is part of an experimental API and may change
 // or be removed.
-type PushAttachmentGitHubReference struct {
+type PushAttachmentGithubReference struct {
 	// Issue, pull request, or discussion number
 	Number int64 `json:"number"`
 	// Type of GitHub reference
-	ReferenceType PushAttachmentGitHubReferenceType `json:"referenceType"`
+	ReferenceType PushAttachmentGithubReferenceType `json:"referenceType"`
 	// Current state of the referenced item (e.g., open, closed, merged)
 	State string `json:"state"`
 	// Title of the referenced item
@@ -3967,9 +3967,9 @@ type PushAttachmentGitHubReference struct {
 	URL string `json:"url"`
 }
 
-func (PushAttachmentGitHubReference) pushAttachment() {}
-func (PushAttachmentGitHubReference) Type() PushAttachmentType {
-	return PushAttachmentTypeGitHubReference
+func (PushAttachmentGithubReference) pushAttachment() {}
+func (PushAttachmentGithubReference) Type() PushAttachmentType {
+	return PushAttachmentTypeGithubReference
 }
 
 // Code selection attachment from an editor
@@ -4738,21 +4738,21 @@ type SessionInstalledPlugin struct {
 // Experimental: SessionInstalledPluginSource is part of an experimental API and may change
 // or be removed.
 type SessionInstalledPluginSource struct {
-	SessionInstalledPluginSourceGitHub *SessionInstalledPluginSourceGitHub
+	SessionInstalledPluginSourceGithub *SessionInstalledPluginSourceGithub
 	SessionInstalledPluginSourceLocal  *SessionInstalledPluginSourceLocal
 	SessionInstalledPluginSourceURL    *SessionInstalledPluginSourceURL
 	String                             *string
 }
 
 // Schema for the `SessionInstalledPluginSourceGithub` type.
-// Experimental: SessionInstalledPluginSourceGitHub is part of an experimental API and may
+// Experimental: SessionInstalledPluginSourceGithub is part of an experimental API and may
 // change or be removed.
-type SessionInstalledPluginSourceGitHub struct {
+type SessionInstalledPluginSourceGithub struct {
 	Path *string `json:"path,omitempty"`
 	Ref  *string `json:"ref,omitempty"`
 	Repo string  `json:"repo"`
 	// Constant value. Always "github".
-	Source SessionInstalledPluginSourceGitHubSource `json:"source"`
+	Source SessionInstalledPluginSourceGithubSource `json:"source"`
 }
 
 // Schema for the `SessionInstalledPluginSourceLocal` type.
@@ -7068,17 +7068,17 @@ const (
 )
 
 // Type of GitHub reference
-// Experimental: AttachmentGitHubReferenceType is part of an experimental API and may change
+// Experimental: AttachmentGithubReferenceType is part of an experimental API and may change
 // or be removed.
-type AttachmentGitHubReferenceType string
+type AttachmentGithubReferenceType string
 
 const (
 	// GitHub discussion reference.
-	AttachmentGitHubReferenceTypeDiscussion AttachmentGitHubReferenceType = "discussion"
+	AttachmentGithubReferenceTypeDiscussion AttachmentGithubReferenceType = "discussion"
 	// GitHub issue reference.
-	AttachmentGitHubReferenceTypeIssue AttachmentGitHubReferenceType = "issue"
+	AttachmentGithubReferenceTypeIssue AttachmentGithubReferenceType = "issue"
 	// GitHub pull request reference.
-	AttachmentGitHubReferenceTypePr AttachmentGitHubReferenceType = "pr"
+	AttachmentGithubReferenceTypePr AttachmentGithubReferenceType = "pr"
 )
 
 // Type discriminator for Attachment.
@@ -7089,7 +7089,7 @@ const (
 	AttachmentTypeDirectory        AttachmentType = "directory"
 	AttachmentTypeExtensionContext AttachmentType = "extension_context"
 	AttachmentTypeFile             AttachmentType = "file"
-	AttachmentTypeGitHubReference  AttachmentType = "github_reference"
+	AttachmentTypeGithubReference  AttachmentType = "github_reference"
 	AttachmentTypeSelection        AttachmentType = "selection"
 )
 
@@ -7101,7 +7101,7 @@ const (
 	AuthInfoTypeAPIKey          AuthInfoType = "api-key"
 	AuthInfoTypeCopilotAPIToken AuthInfoType = "copilot-api-token"
 	AuthInfoTypeEnv             AuthInfoType = "env"
-	AuthInfoTypeGHCLI           AuthInfoType = "gh-cli"
+	AuthInfoTypeGhCLI           AuthInfoType = "gh-cli"
 	AuthInfoTypeHMAC            AuthInfoType = "hmac"
 	AuthInfoTypeToken           AuthInfoType = "token"
 	AuthInfoTypeUser            AuthInfoType = "user"
@@ -7162,7 +7162,7 @@ const (
 type CopilotAPITokenAuthInfoHost string
 
 const (
-	CopilotAPITokenAuthInfoHostHTTPSGitHubCom CopilotAPITokenAuthInfoHost = "https://github.com"
+	CopilotAPITokenAuthInfoHostHTTPSGithubCom CopilotAPITokenAuthInfoHost = "https://github.com"
 )
 
 // Server transport type: stdio, http, sse (deprecated), or memory
@@ -7281,14 +7281,14 @@ const (
 type HMACAuthInfoHost string
 
 const (
-	HMACAuthInfoHostHTTPSGitHubCom HMACAuthInfoHost = "https://github.com"
+	HMACAuthInfoHostHTTPSGithubCom HMACAuthInfoHost = "https://github.com"
 )
 
 // Constant value. Always "github".
-type InstalledPluginSourceGitHubSource string
+type InstalledPluginSourceGithubSource string
 
 const (
-	InstalledPluginSourceGitHubSourceGitHub InstalledPluginSourceGitHubSource = "github"
+	InstalledPluginSourceGithubSourceGithub InstalledPluginSourceGithubSource = "github"
 )
 
 // Constant value. Always "local".
@@ -7767,17 +7767,17 @@ const (
 )
 
 // Type of GitHub reference
-// Experimental: PushAttachmentGitHubReferenceType is part of an experimental API and may
+// Experimental: PushAttachmentGithubReferenceType is part of an experimental API and may
 // change or be removed.
-type PushAttachmentGitHubReferenceType string
+type PushAttachmentGithubReferenceType string
 
 const (
 	// GitHub discussion reference.
-	PushAttachmentGitHubReferenceTypeDiscussion PushAttachmentGitHubReferenceType = "discussion"
+	PushAttachmentGithubReferenceTypeDiscussion PushAttachmentGithubReferenceType = "discussion"
 	// GitHub issue reference.
-	PushAttachmentGitHubReferenceTypeIssue PushAttachmentGitHubReferenceType = "issue"
+	PushAttachmentGithubReferenceTypeIssue PushAttachmentGithubReferenceType = "issue"
 	// GitHub pull request reference.
-	PushAttachmentGitHubReferenceTypePr PushAttachmentGitHubReferenceType = "pr"
+	PushAttachmentGithubReferenceTypePr PushAttachmentGithubReferenceType = "pr"
 )
 
 // Type discriminator for PushAttachment.
@@ -7788,7 +7788,7 @@ const (
 	PushAttachmentTypeDirectory        PushAttachmentType = "directory"
 	PushAttachmentTypeExtensionContext PushAttachmentType = "extension_context"
 	PushAttachmentTypeFile             PushAttachmentType = "file"
-	PushAttachmentTypeGitHubReference  PushAttachmentType = "github_reference"
+	PushAttachmentTypeGithubReference  PushAttachmentType = "github_reference"
 	PushAttachmentTypeSelection        PushAttachmentType = "selection"
 )
 
@@ -7870,7 +7870,7 @@ const (
 	// Session repository is hosted on Azure DevOps.
 	SessionContextHostTypeADO SessionContextHostType = "ado"
 	// Session repository is hosted on GitHub.
-	SessionContextHostTypeGitHub SessionContextHostType = "github"
+	SessionContextHostTypeGithub SessionContextHostType = "github"
 )
 
 // Error classification
@@ -7923,10 +7923,10 @@ const (
 )
 
 // Constant value. Always "github".
-type SessionInstalledPluginSourceGitHubSource string
+type SessionInstalledPluginSourceGithubSource string
 
 const (
-	SessionInstalledPluginSourceGitHubSourceGitHub SessionInstalledPluginSourceGitHubSource = "github"
+	SessionInstalledPluginSourceGithubSourceGithub SessionInstalledPluginSourceGithubSource = "github"
 )
 
 // Constant value. Always "local".
@@ -7979,7 +7979,7 @@ const (
 	// The working directory repository is hosted on Azure DevOps.
 	SessionWorkingDirectoryContextHostTypeADO SessionWorkingDirectoryContextHostType = "ado"
 	// The working directory repository is hosted on GitHub.
-	SessionWorkingDirectoryContextHostTypeGitHub SessionWorkingDirectoryContextHostType = "github"
+	SessionWorkingDirectoryContextHostTypeGithub SessionWorkingDirectoryContextHostType = "github"
 )
 
 // Signal to send (default: SIGTERM)
@@ -8269,7 +8269,7 @@ const (
 	// Workspace summary repository is hosted on Azure DevOps.
 	WorkspaceSummaryHostTypeADO WorkspaceSummaryHostType = "ado"
 	// Workspace summary repository is hosted on GitHub.
-	WorkspaceSummaryHostTypeGitHub WorkspaceSummaryHostType = "github"
+	WorkspaceSummaryHostTypeGithub WorkspaceSummaryHostType = "github"
 )
 
 // Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.
@@ -8281,7 +8281,7 @@ const (
 	// Workspace repository is hosted on Azure DevOps.
 	WorkspacesWorkspaceDetailsHostTypeADO WorkspacesWorkspaceDetailsHostType = "ado"
 	// Workspace repository is hosted on GitHub.
-	WorkspacesWorkspaceDetailsHostTypeGitHub WorkspacesWorkspaceDetailsHostType = "github"
+	WorkspacesWorkspaceDetailsHostTypeGithub WorkspacesWorkspaceDetailsHostType = "github"
 )
 
 type serverAPI struct {

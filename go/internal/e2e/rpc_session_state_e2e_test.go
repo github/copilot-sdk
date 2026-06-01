@@ -515,7 +515,7 @@ func TestRPCSessionStateE2E(t *testing.T) {
 
 		repo := "github/copilot-sdk-e2e"
 		repoHost := "github.com"
-		hostType := rpc.SessionWorkingDirectoryContextHostTypeGitHub
+		hostType := rpc.SessionWorkingDirectoryContextHostTypeGithub
 		baseCommit := "0000000000000000000000000000000000000000"
 		headCommit := "1111111111111111111111111111111111111111"
 		if _, err := session.RPC.Metadata.RecordContextChange(t.Context(), &rpc.MetadataRecordContextChangeRequest{

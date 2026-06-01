@@ -73,9 +73,8 @@ const EXTERNAL_SCHEMA_GO_IMPORT: Record<string, GoExternalSchemaImport> = {
 // ── Utilities ───────────────────────────────────────────────────────────────
 
 // Go initialisms that should be all-caps
-const goInitialisms = new Set(["id", "ui", "uri", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc", "mime", "mcp", "sse", "ado", "cli", "gh", "hmac", "fs", "utc", "sdk"]);
+const goInitialisms = new Set(["id", "ui", "uri", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc", "mime", "mcp", "sse", "ado", "cli", "hmac", "fs", "utc", "sdk"]);
 const goIdentifierCasingOverrides = new Map<string, string>([
-    ["github", "GitHub"],
     ["urls", "URLs"],
     ["uris", "URIs"],
     ["ids", "IDs"],
