@@ -23,4 +23,4 @@ jobs:
           echo "### Site Deployment" >> $GITHUB_STEP_SUMMARY
           echo "Triggered deploy-site.yml on github/copilot-sdk-java for version ${VERSION}" >> $GITHUB_STEP_SUMMARY
         env:
-          GITHUB_TOKEN: ${{ secrets.JAVA_SITE_DEPLOY_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
