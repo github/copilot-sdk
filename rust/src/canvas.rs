@@ -140,7 +140,7 @@ pub type CanvasResult<T> = Result<T, CanvasError>;
 /// The handler receives every inbound `canvas.open` / `canvas.close` /
 /// `canvas.action.invoke` JSON-RPC request the runtime issues for this
 /// session and decides — typically by inspecting
-/// [`CanvasProviderOpenRequest::canvas_id`](crate::generated::api_types::CanvasProviderOpenRequest::canvas_id)
+/// [`CanvasProviderOpenRequest::canvas_id`](crate::rpc::CanvasProviderOpenRequest::canvas_id)
 /// — which application-side canvas should handle the call.
 ///
 /// The SDK does not maintain a per-canvas registry; multiplexing across

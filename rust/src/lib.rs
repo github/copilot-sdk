@@ -38,23 +38,18 @@ pub mod transforms;
 pub mod types;
 mod wire;
 
-/// Auto-generated protocol types from Copilot JSON Schemas.
-///
-/// This module is an implementation detail of the SDK — its layout may
-/// change at any time. Public callers should reach the generated types
-/// through the stable public re-export modules:
-///
-/// - [`session_events`] — session event payload types
-/// - [`rpc`] — JSON-RPC request/response types and typed namespace builders
-#[doc(hidden)]
-pub mod generated;
-
-/// Session event payload types (re-exported from the auto-generated module).
+/// Session event payload types — auto-generated from the protocol schema.
 pub mod session_events;
 
 /// JSON-RPC request/response types and typed namespace builders for
-/// [`Client::rpc`] and [`Session::rpc`].
+/// [`Client::rpc`] and [`session::Session::rpc`](crate::session::Session::rpc).
 pub mod rpc;
+
+// Auto-generated protocol-type modules. Crate-private so the only public
+// access path is via the `session_events` and `rpc` facade modules above —
+// callers can never depend on the implementation-detail layout under
+// `generated::*`.
+pub(crate) mod generated;
 
 /// Client-level mode ([`ClientMode`]) and the [`ToolSet`] builder for
 /// source-qualified tool filter patterns.

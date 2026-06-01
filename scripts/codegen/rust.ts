@@ -2021,14 +2021,11 @@ function generateModRs(): string {
 	lines.push("//! Auto-generated protocol types — **not part of the public API**.");
 	lines.push("//!");
 	lines.push(
-		"//! This module is an implementation detail of the SDK. Its layout, item",
+		"//! This module is crate-private. Its layout, item visibility, and",
 	);
-	lines.push(
-		"//! visibility, and naming may change at any time without notice. The",
-	);
-	lines.push("//! crate marks it `#[doc(hidden)]` for that reason.");
+	lines.push("//! naming may change at any time without notice.");
 	lines.push("//!");
-	lines.push("//! Public callers should reach the generated types through the stable");
+	lines.push("//! Public callers reach the generated types through the stable");
 	lines.push("//! re-export modules at the crate root:");
 	lines.push("//!");
 	lines.push("//! - [`crate::session_events`] for session event payload types");

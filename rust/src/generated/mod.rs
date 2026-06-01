@@ -1,10 +1,9 @@
 //! Auto-generated protocol types — **not part of the public API**.
 //!
-//! This module is an implementation detail of the SDK. Its layout, item
-//! visibility, and naming may change at any time without notice. The
-//! crate marks it `#[doc(hidden)]` for that reason.
+//! This module is crate-private. Its layout, item visibility, and
+//! naming may change at any time without notice.
 //!
-//! Public callers should reach the generated types through the stable
+//! Public callers reach the generated types through the stable
 //! re-export modules at the crate root:
 //!
 //! - [`crate::session_events`] for session event payload types

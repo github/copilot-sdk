@@ -3803,7 +3803,7 @@ pub struct SessionEvent {
 }
 
 impl SessionEvent {
-    /// Parse the string `event_type` into a typed [`SessionEventType`](crate::generated::SessionEventType) enum.
+    /// Parse the string `event_type` into a typed [`SessionEventType`](crate::session_events::SessionEventType) enum.
     ///
     /// Returns `SessionEventType::Unknown` for unrecognized event types,
     /// ensuring forward compatibility with newer CLI versions.
@@ -4167,7 +4167,7 @@ impl InputFormat {
 
 /// Re-exports of generated protocol types that are part of the SDK's
 /// public API surface. The canonical definitions live in
-/// [`crate::generated::api_types`]; they live here so the crate-root
+/// [`crate::rpc`]; they live here so the crate-root
 /// `pub use types::*` surfaces them alongside hand-written SDK types.
 pub use crate::generated::api_types::{
     Model, ModelBilling, ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
