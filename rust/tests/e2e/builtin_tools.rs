@@ -1,4 +1,18 @@
+use std::time::Duration;
+
+use github_copilot_sdk::MessageOptions;
+
 use super::support::{assistant_message_content, with_e2e_context};
+
+/// Built-in tool tests spawn a real CLI subprocess and execute actual shell /
+/// file tools. Under concurrent Windows CI load (e2e runs 4-wide on a 4-vCPU
+/// runner) this agent loop can briefly exceed the 60s `send_and_wait` default,
+/// so give it extra headroom while still failing fast on a genuine hang.
+const SEND_TIMEOUT: Duration = Duration::from_secs(120);
+
+fn message(prompt: &str) -> MessageOptions {
+    MessageOptions::from(prompt).with_wait_timeout(SEND_TIMEOUT)
+}
 
 #[tokio::test]
 async fn should_capture_exit_code_in_output() {
@@ -15,7 +29,9 @@ async fn should_capture_exit_code_in_output() {
                     .expect("create session");
 
                 let msg = session
-                    .send_and_wait("Run 'echo hello && echo world'. Tell me the exact output.")
+                    .send_and_wait(message(
+                        "Run 'echo hello && echo world'. Tell me the exact output.",
+                    ))
                     .await
                     .expect("send")
                     .expect("assistant message");
@@ -46,7 +62,7 @@ async fn should_capture_stderr_output() {
                 .expect("create session");
 
             let msg = session
-                .send_and_wait("Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content.")
+                .send_and_wait(message("Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content."))
                 .await
                 .expect("send")
                 .expect("assistant message");
@@ -73,7 +89,7 @@ async fn should_read_file_with_line_range() {
                 .expect("create session");
 
             let msg = session
-                .send_and_wait("Read lines 2 through 4 of the file 'lines.txt' in this directory. Tell me what those lines contain.")
+                .send_and_wait(message("Read lines 2 through 4 of the file 'lines.txt' in this directory. Tell me what those lines contain."))
                 .await
                 .expect("send")
                 .expect("assistant message");
@@ -103,7 +119,7 @@ async fn should_handle_nonexistent_file_gracefully() {
                     .expect("create session");
 
                 let msg = session
-                    .send_and_wait("Try to read the file 'does_not_exist.txt'. If it doesn't exist, say 'FILE_NOT_FOUND'.")
+                    .send_and_wait(message("Try to read the file 'does_not_exist.txt'. If it doesn't exist, say 'FILE_NOT_FOUND'."))
                     .await
                     .expect("send")
                     .expect("assistant message");
@@ -140,7 +156,7 @@ async fn should_edit_a_file_successfully() {
                 .expect("create session");
 
             let msg = session
-                .send_and_wait("Edit the file 'edit_me.txt': replace 'Hello World' with 'Hi Universe'. Then read it back and tell me its contents.")
+                .send_and_wait(message("Edit the file 'edit_me.txt': replace 'Hello World' with 'Hi Universe'. Then read it back and tell me its contents."))
                 .await
                 .expect("send")
                 .expect("assistant message");
@@ -165,7 +181,7 @@ async fn should_create_a_new_file() {
                 .expect("create session");
 
             let msg = session
-                .send_and_wait("Create a file called 'new_file.txt' with the content 'Created by test'. Then read it back to confirm.")
+                .send_and_wait(message("Create a file called 'new_file.txt' with the content 'Created by test'. Then read it back to confirm."))
                 .await
                 .expect("send")
                 .expect("assistant message");
@@ -195,7 +211,7 @@ async fn should_search_for_patterns_in_files() {
                     .expect("create session");
 
                 let msg = session
-                    .send_and_wait("Search for lines starting with 'ap' in the file 'data.txt'. Tell me which lines matched.")
+                    .send_and_wait(message("Search for lines starting with 'ap' in the file 'data.txt'. Tell me which lines matched."))
                     .await
                     .expect("send")
                     .expect("assistant message");
@@ -228,7 +244,7 @@ async fn should_find_files_by_pattern() {
                 .expect("create session");
 
             let msg = session
-                .send_and_wait("Find all .ts files in this directory (recursively). List the filenames you found.")
+                .send_and_wait(message("Find all .ts files in this directory (recursively). List the filenames you found."))
                 .await
                 .expect("send")
                 .expect("assistant message");
