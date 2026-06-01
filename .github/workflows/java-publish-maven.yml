@@ -288,3 +288,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
 
+  deploy-site:
+    name: Deploy Documentation Site
+    needs: [preflight, publish-maven, github-release]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger site deployment on standalone repo
+        run: |
+          VERSION="${{ needs.publish-maven.outputs.version }}"
+          TAG="java/v${VERSION}"
+          echo "Triggering site deployment for version ${VERSION} (tag: ${TAG})"
+          gh workflow run deploy-site.yml \
+            --repo github/copilot-sdk-java \
+            -f version="${VERSION}" \
+            -f publish_as_latest=true \
+            -f monorepo_tag="${TAG}"
+          echo "### Site Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "Triggered deploy-site.yml on github/copilot-sdk-java for version ${VERSION}" >> $GITHUB_STEP_SUMMARY
+        env:
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
+
