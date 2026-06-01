@@ -142,8 +142,8 @@ func unmarshalAttachment(data []byte) (Attachment, error) {
 			return nil, err
 		}
 		return &d, nil
-	case AttachmentTypeGithubReference:
-		var d AttachmentGithubReference
+	case AttachmentTypeGitHubReference:
+		var d AttachmentGitHubReference
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -214,8 +214,8 @@ func (r AttachmentFile) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (r AttachmentGithubReference) MarshalJSON() ([]byte, error) {
-	type alias AttachmentGithubReference
+func (r AttachmentGitHubReference) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubReference
 	return json.Marshal(struct {
 		Type AttachmentType `json:"type"`
 		alias
@@ -789,8 +789,8 @@ func (r *HandlePendingToolCallRequest) UnmarshalJSON(data []byte) error {
 }
 
 func (r InstalledPluginSource) MarshalJSON() ([]byte, error) {
-	if r.InstalledPluginSourceGithub != nil {
-		return json.Marshal(r.InstalledPluginSourceGithub)
+	if r.InstalledPluginSourceGitHub != nil {
+		return json.Marshal(r.InstalledPluginSourceGitHub)
 	}
 	if r.InstalledPluginSourceLocal != nil {
 		return json.Marshal(r.InstalledPluginSourceLocal)
@@ -810,9 +810,9 @@ func (r *InstalledPluginSource) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	{
-		var value InstalledPluginSourceGithub
+		var value InstalledPluginSourceGitHub
 		if err := json.Unmarshal(data, &value); err == nil {
-			*r = InstalledPluginSource{InstalledPluginSourceGithub: &value}
+			*r = InstalledPluginSource{InstalledPluginSourceGitHub: &value}
 			return nil
 		}
 	}
@@ -2226,8 +2226,8 @@ func unmarshalPushAttachment(data []byte) (PushAttachment, error) {
 			return nil, err
 		}
 		return &d, nil
-	case PushAttachmentTypeGithubReference:
-		var d PushAttachmentGithubReference
+	case PushAttachmentTypeGitHubReference:
+		var d PushAttachmentGitHubReference
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -2298,8 +2298,8 @@ func (r PushAttachmentFile) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (r PushAttachmentGithubReference) MarshalJSON() ([]byte, error) {
-	type alias PushAttachmentGithubReference
+func (r PushAttachmentGitHubReference) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubReference
 	return json.Marshal(struct {
 		Type PushAttachmentType `json:"type"`
 		alias
@@ -2389,8 +2389,8 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 }
 
 func (r SessionInstalledPluginSource) MarshalJSON() ([]byte, error) {
-	if r.SessionInstalledPluginSourceGithub != nil {
-		return json.Marshal(r.SessionInstalledPluginSourceGithub)
+	if r.SessionInstalledPluginSourceGitHub != nil {
+		return json.Marshal(r.SessionInstalledPluginSourceGitHub)
 	}
 	if r.SessionInstalledPluginSourceLocal != nil {
 		return json.Marshal(r.SessionInstalledPluginSourceLocal)
@@ -2410,9 +2410,9 @@ func (r *SessionInstalledPluginSource) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	{
-		var value SessionInstalledPluginSourceGithub
+		var value SessionInstalledPluginSourceGitHub
 		if err := json.Unmarshal(data, &value); err == nil {
-			*r = SessionInstalledPluginSource{SessionInstalledPluginSourceGithub: &value}
+			*r = SessionInstalledPluginSource{SessionInstalledPluginSourceGitHub: &value}
 			return nil
 		}
 	}

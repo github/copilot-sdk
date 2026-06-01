@@ -22,7 +22,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = UserMessageAttachmentFile.class, name = "file"),
     @JsonSubTypes.Type(value = UserMessageAttachmentDirectory.class, name = "directory"),
     @JsonSubTypes.Type(value = UserMessageAttachmentSelection.class, name = "selection"),
-    @JsonSubTypes.Type(value = UserMessageAttachmentGithubReference.class, name = "github_reference"),
+    @JsonSubTypes.Type(value = UserMessageAttachmentGitHubReference.class, name = "github_reference"),
     @JsonSubTypes.Type(value = UserMessageAttachmentBlob.class, name = "blob")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)

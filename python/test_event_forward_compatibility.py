@@ -13,7 +13,7 @@ from uuid import uuid4
 import pytest
 
 from copilot.generated.session_events import (
-    AttachmentGithubReferenceType,
+    AttachmentGitHubReferenceType,
     Data,
     ElicitationCompletedAction,
     ElicitationRequestedMode,
@@ -115,7 +115,7 @@ class TestEventForwardCompatibility:
         assert ElicitationCompletedAction.ACCEPT.value == "accept"
         assert UserMessageAgentMode.INTERACTIVE.value == "interactive"
         assert ElicitationRequestedMode.FORM.value == "form"
-        assert AttachmentGithubReferenceType.PR.value == "pr"
+        assert AttachmentGitHubReferenceType.PR.value == "pr"
 
         schema = ElicitationRequestedSchema(
             properties={"answer": {"type": "string"}}, type="object"

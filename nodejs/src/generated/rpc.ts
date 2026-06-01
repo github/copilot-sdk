@@ -416,7 +416,7 @@ export type FilterMapping =
 /** @experimental */
 export type InstalledPluginSource =
   | string
-  | InstalledPluginSourceGithub
+  | InstalledPluginSourceGitHub
   | InstalledPluginSourceUrl
   | InstalledPluginSourceLocal;
 /**
@@ -946,17 +946,17 @@ export type PushAttachment =
   | PushAttachmentFile
   | PushAttachmentDirectory
   | PushAttachmentSelection
-  | PushAttachmentGithubReference
+  | PushAttachmentGitHubReference
   | PushAttachmentBlob
   | ExtensionContextPushInput;
 /**
  * Type of GitHub reference
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PushAttachmentGithubReferenceType".
+ * via the `definition` "PushAttachmentGitHubReferenceType".
  */
 /** @experimental */
-export type PushAttachmentGithubReferenceType =
+export type PushAttachmentGitHubReferenceType =
   /** GitHub issue reference. */
   | "issue"
   /** GitHub pull request reference. */
@@ -1087,7 +1087,7 @@ export type SessionFsSqliteQueryType =
 /** @experimental */
 export type SessionInstalledPluginSource =
   | string
-  | SessionInstalledPluginSourceGithub
+  | SessionInstalledPluginSourceGitHub
   | SessionInstalledPluginSourceUrl
   | SessionInstalledPluginSourceLocal;
 /**
@@ -3598,13 +3598,13 @@ export interface InstalledPlugin {
   source?: InstalledPluginSource;
 }
 /**
- * Schema for the `InstalledPluginSourceGithub` type.
+ * Schema for the `InstalledPluginSourceGitHub` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "InstalledPluginSourceGithub".
+ * via the `definition` "InstalledPluginSourceGitHub".
  */
 /** @experimental */
-export interface InstalledPluginSourceGithub {
+export interface InstalledPluginSourceGitHub {
   /**
    * Constant value. Always "github".
    */
@@ -6577,10 +6577,10 @@ export interface PushAttachmentSelectionDetailsEnd {
  * GitHub issue, pull request, or discussion reference
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PushAttachmentGithubReference".
+ * via the `definition` "PushAttachmentGitHubReference".
  */
 /** @experimental */
-export interface PushAttachmentGithubReference {
+export interface PushAttachmentGitHubReference {
   /**
    * Attachment type discriminator
    */
@@ -6593,7 +6593,7 @@ export interface PushAttachmentGithubReference {
    * Title of the referenced item
    */
   title: string;
-  referenceType: PushAttachmentGithubReferenceType;
+  referenceType: PushAttachmentGitHubReferenceType;
   /**
    * Current state of the referenced item (e.g., open, closed, merged)
    */
@@ -7593,13 +7593,13 @@ export interface SessionInstalledPlugin {
   source?: SessionInstalledPluginSource;
 }
 /**
- * Schema for the `SessionInstalledPluginSourceGithub` type.
+ * Schema for the `SessionInstalledPluginSourceGitHub` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionInstalledPluginSourceGithub".
+ * via the `definition` "SessionInstalledPluginSourceGitHub".
  */
 /** @experimental */
-export interface SessionInstalledPluginSourceGithub {
+export interface SessionInstalledPluginSourceGitHub {
   /**
    * Constant value. Always "github".
    */

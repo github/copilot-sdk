@@ -314,7 +314,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             Branch = branch,
             Repository = "github/copilot-sdk-e2e",
             RepositoryHost = "github.com",
-            HostType = SessionWorkingDirectoryContextHostType.Github,
+            HostType = SessionWorkingDirectoryContextHostType.GitHub,
             BaseCommit = "0000000000000000000000000000000000000000",
             HeadCommit = "1111111111111111111111111111111111111111",
         };

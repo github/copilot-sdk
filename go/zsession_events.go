@@ -29,8 +29,8 @@ type (
 	AttachmentExtensionContext                                     = rpc.AttachmentExtensionContext
 	AttachmentFile                                                 = rpc.AttachmentFile
 	AttachmentFileLineRange                                        = rpc.AttachmentFileLineRange
-	AttachmentGithubReference                                      = rpc.AttachmentGithubReference
-	AttachmentGithubReferenceType                                  = rpc.AttachmentGithubReferenceType
+	AttachmentGitHubReference                                      = rpc.AttachmentGitHubReference
+	AttachmentGitHubReferenceType                                  = rpc.AttachmentGitHubReferenceType
 	AttachmentSelection                                            = rpc.AttachmentSelection
 	AttachmentSelectionDetails                                     = rpc.AttachmentSelectionDetails
 	AttachmentSelectionDetailsEnd                                  = rpc.AttachmentSelectionDetailsEnd
@@ -284,14 +284,14 @@ const (
 	AssistantUsageAPIEndpointResponses                                 = rpc.AssistantUsageAPIEndpointResponses
 	AssistantUsageAPIEndpointV1Messages                                = rpc.AssistantUsageAPIEndpointV1Messages
 	AssistantUsageAPIEndpointWsResponses                               = rpc.AssistantUsageAPIEndpointWsResponses
-	AttachmentGithubReferenceTypeDiscussion                            = rpc.AttachmentGithubReferenceTypeDiscussion
-	AttachmentGithubReferenceTypeIssue                                 = rpc.AttachmentGithubReferenceTypeIssue
-	AttachmentGithubReferenceTypePr                                    = rpc.AttachmentGithubReferenceTypePr
+	AttachmentGitHubReferenceTypeDiscussion                            = rpc.AttachmentGitHubReferenceTypeDiscussion
+	AttachmentGitHubReferenceTypeIssue                                 = rpc.AttachmentGitHubReferenceTypeIssue
+	AttachmentGitHubReferenceTypePr                                    = rpc.AttachmentGitHubReferenceTypePr
 	AttachmentTypeBlob                                                 = rpc.AttachmentTypeBlob
 	AttachmentTypeDirectory                                            = rpc.AttachmentTypeDirectory
 	AttachmentTypeExtensionContext                                     = rpc.AttachmentTypeExtensionContext
 	AttachmentTypeFile                                                 = rpc.AttachmentTypeFile
-	AttachmentTypeGithubReference                                      = rpc.AttachmentTypeGithubReference
+	AttachmentTypeGitHubReference                                      = rpc.AttachmentTypeGitHubReference
 	AttachmentTypeSelection                                            = rpc.AttachmentTypeSelection
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
@@ -522,7 +522,7 @@ const (
 	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead
 	UserToolSessionApprovalKindWrite                                   = rpc.UserToolSessionApprovalKindWrite
 	WorkingDirectoryContextHostTypeADO                                 = rpc.WorkingDirectoryContextHostTypeADO
-	WorkingDirectoryContextHostTypeGithub                              = rpc.WorkingDirectoryContextHostTypeGithub
+	WorkingDirectoryContextHostTypeGitHub                              = rpc.WorkingDirectoryContextHostTypeGitHub
 	WorkspaceFileChangedOperationCreate                                = rpc.WorkspaceFileChangedOperationCreate
 	WorkspaceFileChangedOperationUpdate                                = rpc.WorkspaceFileChangedOperationUpdate
 )

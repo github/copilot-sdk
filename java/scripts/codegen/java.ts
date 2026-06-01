@@ -29,12 +29,83 @@ const COPYRIGHT = `/*-----------------------------------------------------------
 
 // ── Naming utilities ─────────────────────────────────────────────────────────
 
+/**
+ * Correct the GitHub brand casing in a generated identifier or documentation
+ * string. Schema titles/definition names and value-derived identifiers may
+ * render the brand as "Github"; the correct casing is "GitHub". Lowercase
+ * wire/protocol values (e.g. "github") are left untouched. Idempotent.
+ */
+function fixBrandCasing(value: string): string {
+    return value.replace(/Github/g, "GitHub");
+}
+
+const BRAND_NORMALIZED_STRING_KEYS = new Set(["title", "description", "markdownDescription"]);
+
+/**
+ * Recursively normalize GitHub brand casing within a parsed JSON schema:
+ * definition-map keys, `$ref` pointers (definition-name segment only), and
+ * documentation strings. Wire-level values (`const`, `enum`, `default`, ...) are
+ * left untouched. Mutates in place and returns the schema.
+ */
+function normalizeSchemaBrandCasing<T>(schema: T): T {
+    normalizeBrandCasingNode(schema);
+    return schema;
+}
+
+function normalizeBrandCasingNode(node: unknown): void {
+    if (Array.isArray(node)) {
+        for (const item of node) normalizeBrandCasingNode(item);
+        return;
+    }
+    if (node === null || typeof node !== "object") return;
+    const obj = node as Record<string, unknown>;
+
+    for (const defsKey of ["definitions", "$defs"] as const) {
+        const defs = obj[defsKey];
+        if (defs && typeof defs === "object" && !Array.isArray(defs)) {
+            renameBrandDefinitionKeys(defs as Record<string, unknown>);
+        }
+    }
+
+    for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === "string") {
+            if (key === "$ref") {
+                obj[key] = fixBrandRef(value);
+            } else if (BRAND_NORMALIZED_STRING_KEYS.has(key)) {
+                obj[key] = fixBrandCasing(value);
+            }
+        } else {
+            normalizeBrandCasingNode(value);
+        }
+    }
+}
+
+function fixBrandRef(ref: string): string {
+    const lastSlash = ref.lastIndexOf("/");
+    if (lastSlash === -1) return ref;
+    return `${ref.slice(0, lastSlash + 1)}${fixBrandCasing(ref.slice(lastSlash + 1))}`;
+}
+
+function renameBrandDefinitionKeys(defs: Record<string, unknown>): void {
+    for (const oldKey of Object.keys(defs)) {
+        const newKey = fixBrandCasing(oldKey);
+        if (newKey === oldKey) continue;
+        if (newKey in defs && JSON.stringify(defs[newKey]) !== JSON.stringify(defs[oldKey])) {
+            throw new Error(
+                `Brand-casing normalization collision: "${oldKey}" -> "${newKey}" but a different definition already exists under "${newKey}".`
+            );
+        }
+        defs[newKey] = defs[oldKey];
+        delete defs[oldKey];
+    }
+}
+
 function toPascalCase(name: string): string {
-    return name.split(/[-_.]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
+    return fixBrandCasing(name.split(/[-_.]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(""));
 }
 
 function toJavaClassName(typeName: string): string {
-    return typeName.split(/[._]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
+    return fixBrandCasing(typeName.split(/[._]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(""));
 }
 
 /** Java reserved keywords and Object method names that cannot be used as record component names. */
@@ -618,7 +689,7 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
 async function generateSessionEvents(schemaPath: string): Promise<void> {
     console.log("\n📋 Generating session event classes...");
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = JSON.parse(schemaContent) as JSONSchema7;
+    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent) as JSONSchema7);
 
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
@@ -1190,7 +1261,7 @@ function generateRpcClass(
 async function generateRpcTypes(schemaPath: string): Promise<void> {
     console.log("\n🔌 Generating RPC types...");
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = JSON.parse(schemaContent) as Record<string, unknown> & {
+    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as Record<string, unknown> & {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;
@@ -1207,7 +1278,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     try {
         const sessionEventsSchemaPath = await getSessionEventsSchemaPath();
         const sessionEventsContent = await fs.readFile(sessionEventsSchemaPath, "utf-8");
-        const sessionEventsSchema = JSON.parse(sessionEventsContent) as JSONSchema7;
+        const sessionEventsSchema = normalizeSchemaBrandCasing(JSON.parse(sessionEventsContent) as JSONSchema7);
         crossSchemaDefinitions.set("session-events.schema.json",
             (sessionEventsSchema.definitions ?? {}) as Record<string, JSONSchema7>);
     } catch (e) {
@@ -1904,7 +1975,7 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     console.log("\n🔧 Generating RPC wrapper classes...");
 
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = JSON.parse(schemaContent) as {
+    const schema = normalizeSchemaBrandCasing(JSON.parse(schemaContent)) as {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;

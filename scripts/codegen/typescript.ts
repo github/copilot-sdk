@@ -40,6 +40,8 @@ import {
     appendPropertyMarkerTagsToDescriptions,
     getEnumValueDescriptions,
     stripOpaqueJsonMarker,
+    loadSchemaJson,
+    fixBrandCasing,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
@@ -121,7 +123,7 @@ function pushTsRpcMethodJsDoc(
 }
 
 function toPascalCase(s: string): string {
-    return s.charAt(0).toUpperCase() + s.slice(1);
+    return fixBrandCasing(s.charAt(0).toUpperCase() + s.slice(1));
 }
 
 function escapeRegExp(value: string): string {
@@ -339,7 +341,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("TypeScript: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
+    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
     const sessionEvent =
@@ -477,7 +479,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     console.log("TypeScript: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    let schema = fixNullableRequiredRefsInApiSchema(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    let schema = fixNullableRequiredRefsInApiSchema((await loadSchemaJson(resolvedPath)) as ApiSchema);
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,
@@ -930,7 +932,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     await generateSessionEvents(sessionSchemaPath);
     try {
         const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
-        const sessionSchema = propagateInternalVisibility(postProcessSchema(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7));
+        const sessionSchema = propagateInternalVisibility(postProcessSchema((await loadSchemaJson(resolvedSessionPath)) as JSONSchema7));
         await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {

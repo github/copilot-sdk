@@ -824,7 +824,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Send_With_Github_Reference_Attachment()
+    public async Task Should_Send_With_GitHub_Reference_Attachment()
     {
         var session = await CreateSessionAsync();
 
@@ -833,10 +833,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             Prompt = "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
             Attachments =
             [
-                new AttachmentGithubReference
+                new AttachmentGitHubReference
                 {
                     Number = 1234,
-                    ReferenceType = AttachmentGithubReferenceType.Issue,
+                    ReferenceType = AttachmentGitHubReferenceType.Issue,
                     State = "open",
                     Title = "Add E2E attachment coverage",
                     Url = "https://github.com/github/copilot-sdk/issues/1234",
@@ -845,9 +845,9 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         });
 
         var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
-        var attachment = Assert.IsType<AttachmentGithubReference>(Assert.Single(userMessage.Data.Attachments!));
+        var attachment = Assert.IsType<AttachmentGitHubReference>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal(1234, attachment.Number);
-        Assert.Equal(AttachmentGithubReferenceType.Issue, attachment.ReferenceType);
+        Assert.Equal(AttachmentGitHubReferenceType.Issue, attachment.ReferenceType);
         Assert.Equal("open", attachment.State);
         Assert.Equal("Add E2E attachment coverage", attachment.Title);
         Assert.Equal("https://github.com/github/copilot-sdk/issues/1234", attachment.Url);

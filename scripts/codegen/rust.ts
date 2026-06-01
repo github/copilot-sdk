@@ -40,6 +40,8 @@ import {
 	isSchemaExperimental,
 	isSchemaInternal,
 	isVoidSchema,
+	normalizeSchemaBrandCasing,
+	fixBrandCasing,
 	parseExternalSchemaRef,
 	postProcessSchema,
 	propagateInternalVisibility,
@@ -85,11 +87,13 @@ const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
 // ── Naming helpers ──────────────────────────────────────────────────────────
 
 function toPascalCase(s: string): string {
-	const name = s
-		.split(/[^A-Za-z0-9]+/)
-		.filter(Boolean)
-		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-		.join("");
+	const name = fixBrandCasing(
+		s
+			.split(/[^A-Za-z0-9]+/)
+			.filter(Boolean)
+			.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+			.join(""),
+	);
 	if (!name) return "Value";
 	return /^[0-9]/.test(name) ? `Value${name}` : name;
 }
@@ -2081,12 +2085,12 @@ async function generate(): Promise<void> {
 		schemaArgs.sessionEventsSchemaPath || (await getSessionEventsSchemaPath());
 	const apiSchemaPath = await getApiSchemaPath(schemaArgs.apiSchemaPath);
 
-	const sessionEventsRaw = JSON.parse(
-		await fs.readFile(sessionEventsSchemaPath, "utf-8"),
+	const sessionEventsRaw = normalizeSchemaBrandCasing(
+		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
 	);
-	const apiRaw = JSON.parse(
-		await fs.readFile(apiSchemaPath, "utf-8"),
-	) as ApiSchema;
+	const apiRaw = normalizeSchemaBrandCasing(
+		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+	);
 
 	const sessionEventsSchema = propagateInternalVisibility(
 		postProcessSchema(

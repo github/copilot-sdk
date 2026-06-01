@@ -377,7 +377,7 @@ cat go/types.go | grep -A 15 "type SessionHooks struct"
 ```
 
 **Must match (PascalCase for exported):**
-- `ClientOptions` fields: `CLIPath`, `CLIUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `Env`, `GithubToken`, `UseLoggedInUser`
+- `ClientOptions` fields: `CLIPath`, `CLIUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `Env`, `GitHubToken`, `UseLoggedInUser`
 - `SessionConfig` fields: `Model`, `Tools`, `Hooks`, `SystemMessage`, `MCPServers`, `AvailableTools`, `ExcludedTools`, `Streaming`, `ReasoningEffort`, `Provider`, `InfiniteSessions`, `CustomAgents`, `WorkingDirectory`
 - `Session` methods: `Send()`, `SendAndWait()`, `GetMessages()`, `Disconnect()`, `Abort()`, `ExportSession()`
 - Hook fields: `OnPreToolUse`, `OnPostToolUse`, `OnPostToolUseFailure`, `OnUserPromptSubmitted`, `OnSessionStart`, `OnSessionEnd`, `OnErrorOccurred`
@@ -395,7 +395,7 @@ cat dotnet/src/Types.cs | grep -A 15 "public class SessionHooks"
 ```
 
 **Must match (PascalCase):**
-- `CopilotClientOptions` properties: `CliPath`, `CliUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `Environment`, `GithubToken`, `UseLoggedInUser`
+- `CopilotClientOptions` properties: `CliPath`, `CliUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `Environment`, `GitHubToken`, `UseLoggedInUser`
 - `SessionConfig` properties: `Model`, `Tools`, `Hooks`, `SystemMessage`, `McpServers`, `AvailableTools`, `ExcludedTools`, `Streaming`, `ReasoningEffort`, `Provider`, `InfiniteSessions`, `CustomAgents`, `WorkingDirectory`
 - `CopilotSession` methods: `SendAsync()`, `SendAndWaitAsync()`, `GetMessagesAsync()`, `DisposeAsync()`, `AbortAsync()`, `ExportSessionAsync()`
 - Hook properties: `OnPreToolUse`, `OnPostToolUse`, `OnPostToolUseFailure`, `OnUserPromptSubmitted`, `OnSessionStart`, `OnSessionEnd`, `OnErrorOccurred`

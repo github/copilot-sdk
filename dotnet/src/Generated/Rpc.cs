@@ -4645,7 +4645,7 @@ internal sealed class SessionExtensionsReloadRequest
 [JsonDerivedType(typeof(PushAttachmentFile), "file")]
 [JsonDerivedType(typeof(PushAttachmentDirectory), "directory")]
 [JsonDerivedType(typeof(PushAttachmentSelection), "selection")]
-[JsonDerivedType(typeof(PushAttachmentGithubReference), "github_reference")]
+[JsonDerivedType(typeof(PushAttachmentGitHubReference), "github_reference")]
 [JsonDerivedType(typeof(PushAttachmentBlob), "blob")]
 [JsonDerivedType(typeof(PushAttachmentExtensionContext), "extension_context")]
 public partial class PushAttachment
@@ -4778,7 +4778,7 @@ public partial class PushAttachmentSelection : PushAttachment
 /// <summary>GitHub issue, pull request, or discussion reference.</summary>
 /// <remarks>The <c>github_reference</c> variant of <see cref="PushAttachment"/>.</remarks>
 [Experimental(Diagnostics.Experimental)]
-public partial class PushAttachmentGithubReference : PushAttachment
+public partial class PushAttachmentGitHubReference : PushAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4790,7 +4790,7 @@ public partial class PushAttachmentGithubReference : PushAttachment
 
     /// <summary>Type of GitHub reference.</summary>
     [JsonPropertyName("referenceType")]
-    public required PushAttachmentGithubReferenceType ReferenceType { get; set; }
+    public required PushAttachmentGitHubReferenceType ReferenceType { get; set; }
 
     /// <summary>Current state of the referenced item (e.g., open, closed, merged).</summary>
     [JsonPropertyName("state")]
@@ -8789,7 +8789,7 @@ public readonly struct SessionContextHostType : IEquatable<SessionContextHostTyp
     public string Value => _value ?? string.Empty;
 
     /// <summary>Session repository is hosted on GitHub.</summary>
-    public static SessionContextHostType Github { get; } = new("github");
+    public static SessionContextHostType GitHub { get; } = new("github");
 
     /// <summary>Session repository is hosted on Azure DevOps.</summary>
     public static SessionContextHostType Ado { get; } = new("ado");
@@ -9734,7 +9734,7 @@ public readonly struct WorkspacesWorkspaceDetailsHostType : IEquatable<Workspace
     public string Value => _value ?? string.Empty;
 
     /// <summary>Workspace repository is hosted on GitHub.</summary>
-    public static WorkspacesWorkspaceDetailsHostType Github { get; } = new("github");
+    public static WorkspacesWorkspaceDetailsHostType GitHub { get; } = new("github");
 
     /// <summary>Workspace repository is hosted on Azure DevOps.</summary>
     public static WorkspacesWorkspaceDetailsHostType Ado { get; } = new("ado");
@@ -11241,42 +11241,42 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct PushAttachmentGithubReferenceType : IEquatable<PushAttachmentGithubReferenceType>
+public readonly struct PushAttachmentGitHubReferenceType : IEquatable<PushAttachmentGitHubReferenceType>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="PushAttachmentGithubReferenceType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PushAttachmentGithubReferenceType"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="PushAttachmentGitHubReferenceType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PushAttachmentGitHubReferenceType"/>.</param>
     [JsonConstructor]
-    public PushAttachmentGithubReferenceType(string value)
+    public PushAttachmentGitHubReferenceType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="PushAttachmentGithubReferenceType"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="PushAttachmentGitHubReferenceType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>GitHub issue reference.</summary>
-    public static PushAttachmentGithubReferenceType Issue { get; } = new("issue");
+    public static PushAttachmentGitHubReferenceType Issue { get; } = new("issue");
 
     /// <summary>GitHub pull request reference.</summary>
-    public static PushAttachmentGithubReferenceType Pr { get; } = new("pr");
+    public static PushAttachmentGitHubReferenceType Pr { get; } = new("pr");
 
     /// <summary>GitHub discussion reference.</summary>
-    public static PushAttachmentGithubReferenceType Discussion { get; } = new("discussion");
+    public static PushAttachmentGitHubReferenceType Discussion { get; } = new("discussion");
 
-    /// <summary>Returns a value indicating whether two <see cref="PushAttachmentGithubReferenceType"/> instances are equivalent.</summary>
-    public static bool operator ==(PushAttachmentGithubReferenceType left, PushAttachmentGithubReferenceType right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="PushAttachmentGitHubReferenceType"/> instances are equivalent.</summary>
+    public static bool operator ==(PushAttachmentGitHubReferenceType left, PushAttachmentGitHubReferenceType right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="PushAttachmentGithubReferenceType"/> instances are not equivalent.</summary>
-    public static bool operator !=(PushAttachmentGithubReferenceType left, PushAttachmentGithubReferenceType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PushAttachmentGithubReferenceType other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="PushAttachmentGitHubReferenceType"/> instances are not equivalent.</summary>
+    public static bool operator !=(PushAttachmentGitHubReferenceType left, PushAttachmentGitHubReferenceType right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(PushAttachmentGithubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is PushAttachmentGitHubReferenceType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PushAttachmentGitHubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -11284,20 +11284,20 @@ public readonly struct PushAttachmentGithubReferenceType : IEquatable<PushAttach
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{PushAttachmentGithubReferenceType}"/> for serializing <see cref="PushAttachmentGithubReferenceType"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{PushAttachmentGitHubReferenceType}"/> for serializing <see cref="PushAttachmentGitHubReferenceType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PushAttachmentGithubReferenceType>
+    public sealed class Converter : JsonConverter<PushAttachmentGitHubReferenceType>
     {
         /// <inheritdoc />
-        public override PushAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override PushAttachmentGitHubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PushAttachmentGithubReferenceType value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, PushAttachmentGitHubReferenceType value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PushAttachmentGithubReferenceType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PushAttachmentGitHubReferenceType));
         }
     }
 }
@@ -12107,7 +12107,7 @@ public readonly struct WorkspaceSummaryHostType : IEquatable<WorkspaceSummaryHos
     public string Value => _value ?? string.Empty;
 
     /// <summary>Workspace summary repository is hosted on GitHub.</summary>
-    public static WorkspaceSummaryHostType Github { get; } = new("github");
+    public static WorkspaceSummaryHostType GitHub { get; } = new("github");
 
     /// <summary>Workspace summary repository is hosted on Azure DevOps.</summary>
     public static WorkspaceSummaryHostType Ado { get; } = new("ado");
@@ -12170,7 +12170,7 @@ public readonly struct SessionWorkingDirectoryContextHostType : IEquatable<Sessi
     public string Value => _value ?? string.Empty;
 
     /// <summary>The working directory repository is hosted on GitHub.</summary>
-    public static SessionWorkingDirectoryContextHostType Github { get; } = new("github");
+    public static SessionWorkingDirectoryContextHostType GitHub { get; } = new("github");
 
     /// <summary>The working directory repository is hosted on Azure DevOps.</summary>
     public static SessionWorkingDirectoryContextHostType Ado { get; } = new("ado");
@@ -16206,8 +16206,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentExtensionContext), TypeInfoPropertyName = "SessionEventsAttachmentExtensionContext")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentFile), TypeInfoPropertyName = "SessionEventsAttachmentFile")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentFileLineRange), TypeInfoPropertyName = "SessionEventsAttachmentFileLineRange")]
-[JsonSerializable(typeof(GitHub.Copilot.AttachmentGithubReference), TypeInfoPropertyName = "SessionEventsAttachmentGithubReference")]
-[JsonSerializable(typeof(GitHub.Copilot.AttachmentGithubReferenceType), TypeInfoPropertyName = "SessionEventsAttachmentGithubReferenceType")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentGitHubReference), TypeInfoPropertyName = "SessionEventsAttachmentGitHubReference")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentGitHubReferenceType), TypeInfoPropertyName = "SessionEventsAttachmentGitHubReferenceType")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelection), TypeInfoPropertyName = "SessionEventsAttachmentSelection")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetails")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsEnd")]

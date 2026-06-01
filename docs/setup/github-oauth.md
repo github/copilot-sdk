@@ -206,7 +206,7 @@ func main() {
 ```go
 func createClientForUser(userToken string) *copilot.Client {
     return copilot.NewClient(&copilot.ClientOptions{
-        GithubToken:     userToken,
+        GitHubToken:     userToken,
         UseLoggedInUser: copilot.Bool(false),
     })
 }

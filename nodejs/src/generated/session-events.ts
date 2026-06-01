@@ -206,13 +206,13 @@ export type Attachment =
   | AttachmentFile
   | AttachmentDirectory
   | AttachmentSelection
-  | AttachmentGithubReference
+  | AttachmentGitHubReference
   | AttachmentBlob
   | AttachmentExtensionContext;
 /**
  * Type of GitHub reference
  */
-export type AttachmentGithubReferenceType =
+export type AttachmentGitHubReferenceType =
   /** GitHub issue reference. */
   | "issue"
   /** GitHub pull request reference. */
@@ -2278,12 +2278,12 @@ export interface AttachmentSelectionDetailsStart {
 /**
  * GitHub issue, pull request, or discussion reference
  */
-export interface AttachmentGithubReference {
+export interface AttachmentGitHubReference {
   /**
    * Issue, pull request, or discussion number
    */
   number: number;
-  referenceType: AttachmentGithubReferenceType;
+  referenceType: AttachmentGitHubReferenceType;
   /**
    * Current state of the referenced item (e.g., open, closed, merged)
    */

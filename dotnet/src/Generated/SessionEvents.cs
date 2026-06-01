@@ -3773,7 +3773,7 @@ public sealed partial class AttachmentSelection : Attachment
 
 /// <summary>GitHub issue, pull request, or discussion reference.</summary>
 /// <remarks>The <c>github_reference</c> variant of <see cref="Attachment"/>.</remarks>
-public sealed partial class AttachmentGithubReference : Attachment
+public sealed partial class AttachmentGitHubReference : Attachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3785,7 +3785,7 @@ public sealed partial class AttachmentGithubReference : Attachment
 
     /// <summary>Type of GitHub reference.</summary>
     [JsonPropertyName("referenceType")]
-    public required AttachmentGithubReferenceType ReferenceType { get; set; }
+    public required AttachmentGitHubReferenceType ReferenceType { get; set; }
 
     /// <summary>Current state of the referenced item (e.g., open, closed, merged).</summary>
     [JsonPropertyName("state")]
@@ -3869,7 +3869,7 @@ public sealed partial class AttachmentExtensionContext : Attachment
 [JsonDerivedType(typeof(AttachmentFile), "file")]
 [JsonDerivedType(typeof(AttachmentDirectory), "directory")]
 [JsonDerivedType(typeof(AttachmentSelection), "selection")]
-[JsonDerivedType(typeof(AttachmentGithubReference), "github_reference")]
+[JsonDerivedType(typeof(AttachmentGitHubReference), "github_reference")]
 [JsonDerivedType(typeof(AttachmentBlob), "blob")]
 [JsonDerivedType(typeof(AttachmentExtensionContext), "extension_context")]
 public partial class Attachment
@@ -5975,7 +5975,7 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
     public string Value => _value ?? string.Empty;
 
     /// <summary>Repository is hosted on GitHub.</summary>
-    public static WorkingDirectoryContextHostType Github { get; } = new("github");
+    public static WorkingDirectoryContextHostType GitHub { get; } = new("github");
 
     /// <summary>Repository is hosted on Azure DevOps.</summary>
     public static WorkingDirectoryContextHostType Ado { get; } = new("ado");
@@ -6653,42 +6653,42 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
 /// <summary>Type of GitHub reference.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct AttachmentGithubReferenceType : IEquatable<AttachmentGithubReferenceType>
+public readonly struct AttachmentGitHubReferenceType : IEquatable<AttachmentGitHubReferenceType>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="AttachmentGithubReferenceType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AttachmentGithubReferenceType"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="AttachmentGitHubReferenceType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AttachmentGitHubReferenceType"/>.</param>
     [JsonConstructor]
-    public AttachmentGithubReferenceType(string value)
+    public AttachmentGitHubReferenceType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="AttachmentGithubReferenceType"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="AttachmentGitHubReferenceType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>GitHub issue reference.</summary>
-    public static AttachmentGithubReferenceType Issue { get; } = new("issue");
+    public static AttachmentGitHubReferenceType Issue { get; } = new("issue");
 
     /// <summary>GitHub pull request reference.</summary>
-    public static AttachmentGithubReferenceType Pr { get; } = new("pr");
+    public static AttachmentGitHubReferenceType Pr { get; } = new("pr");
 
     /// <summary>GitHub discussion reference.</summary>
-    public static AttachmentGithubReferenceType Discussion { get; } = new("discussion");
+    public static AttachmentGitHubReferenceType Discussion { get; } = new("discussion");
 
-    /// <summary>Returns a value indicating whether two <see cref="AttachmentGithubReferenceType"/> instances are equivalent.</summary>
-    public static bool operator ==(AttachmentGithubReferenceType left, AttachmentGithubReferenceType right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="AttachmentGitHubReferenceType"/> instances are equivalent.</summary>
+    public static bool operator ==(AttachmentGitHubReferenceType left, AttachmentGitHubReferenceType right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="AttachmentGithubReferenceType"/> instances are not equivalent.</summary>
-    public static bool operator !=(AttachmentGithubReferenceType left, AttachmentGithubReferenceType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is AttachmentGithubReferenceType other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="AttachmentGitHubReferenceType"/> instances are not equivalent.</summary>
+    public static bool operator !=(AttachmentGitHubReferenceType left, AttachmentGitHubReferenceType right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(AttachmentGithubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is AttachmentGitHubReferenceType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AttachmentGitHubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -6696,20 +6696,20 @@ public readonly struct AttachmentGithubReferenceType : IEquatable<AttachmentGith
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{AttachmentGithubReferenceType}"/> for serializing <see cref="AttachmentGithubReferenceType"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{AttachmentGitHubReferenceType}"/> for serializing <see cref="AttachmentGitHubReferenceType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<AttachmentGithubReferenceType>
+    public sealed class Converter : JsonConverter<AttachmentGitHubReferenceType>
     {
         /// <inheritdoc />
-        public override AttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override AttachmentGitHubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, AttachmentGithubReferenceType value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, AttachmentGitHubReferenceType value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AttachmentGithubReferenceType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AttachmentGitHubReferenceType));
         }
     }
 }
@@ -8229,7 +8229,7 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(AttachmentExtensionContext))]
 [JsonSerializable(typeof(AttachmentFile))]
 [JsonSerializable(typeof(AttachmentFileLineRange))]
-[JsonSerializable(typeof(AttachmentGithubReference))]
+[JsonSerializable(typeof(AttachmentGitHubReference))]
 [JsonSerializable(typeof(AttachmentSelection))]
 [JsonSerializable(typeof(AttachmentSelectionDetails))]
 [JsonSerializable(typeof(AttachmentSelectionDetailsEnd))]

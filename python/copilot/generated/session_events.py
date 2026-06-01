@@ -1008,24 +1008,24 @@ class AttachmentFileLineRange:
 
 
 @dataclass
-class AttachmentGithubReference:
+class AttachmentGitHubReference:
     "GitHub issue, pull request, or discussion reference"
     number: int
-    reference_type: AttachmentGithubReferenceType
+    reference_type: AttachmentGitHubReferenceType
     state: str
     title: str
     type: ClassVar[str] = "github_reference"
     url: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "AttachmentGithubReference":
+    def from_dict(obj: Any) -> "AttachmentGitHubReference":
         assert isinstance(obj, dict)
         number = from_int(obj.get("number"))
-        reference_type = parse_enum(AttachmentGithubReferenceType, obj.get("referenceType"))
+        reference_type = parse_enum(AttachmentGitHubReferenceType, obj.get("referenceType"))
         state = from_str(obj.get("state"))
         title = from_str(obj.get("title"))
         url = from_str(obj.get("url"))
-        return AttachmentGithubReference(
+        return AttachmentGitHubReference(
             number=number,
             reference_type=reference_type,
             state=state,
@@ -1036,7 +1036,7 @@ class AttachmentGithubReference:
     def to_dict(self) -> dict:
         result: dict = {}
         result["number"] = to_int(self.number)
-        result["referenceType"] = to_enum(AttachmentGithubReferenceType, self.reference_type)
+        result["referenceType"] = to_enum(AttachmentGitHubReferenceType, self.reference_type)
         result["state"] = from_str(self.state)
         result["title"] = from_str(self.title)
         result["type"] = self.type
@@ -6625,7 +6625,7 @@ def _load_Attachment(obj: Any) -> "Attachment":
         case "file": return AttachmentFile.from_dict(obj)
         case "directory": return AttachmentDirectory.from_dict(obj)
         case "selection": return AttachmentSelection.from_dict(obj)
-        case "github_reference": return AttachmentGithubReference.from_dict(obj)
+        case "github_reference": return AttachmentGitHubReference.from_dict(obj)
         case "blob": return AttachmentBlob.from_dict(obj)
         case "extension_context": return AttachmentExtensionContext.from_dict(obj)
         case _: raise ValueError(f"Unknown Attachment type: {kind!r}")
@@ -6728,7 +6728,7 @@ ToolExecutionCompleteContent = ToolExecutionCompleteContentText | ToolExecutionC
 
 
 # A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload
-Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGithubReference | AttachmentBlob | AttachmentExtensionContext
+Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentBlob | AttachmentExtensionContext
 
 
 # Derived user-facing permission prompt details for UI consumers
@@ -6785,7 +6785,7 @@ class AssistantUsageApiEndpoint(Enum):
     WS_RESPONSES = "ws:/responses"
 
 
-class AttachmentGithubReferenceType(Enum):
+class AttachmentGitHubReferenceType(Enum):
     "Type of GitHub reference"
     # GitHub issue reference.
     ISSUE = "issue"

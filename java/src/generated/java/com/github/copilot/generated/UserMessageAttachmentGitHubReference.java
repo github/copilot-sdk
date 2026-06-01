@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class UserMessageAttachmentGithubReference extends UserMessageAttachment {
+public final class UserMessageAttachmentGitHubReference extends UserMessageAttachment {
 
     @JsonProperty("type")
     private final String type = "github_reference";
@@ -38,7 +38,7 @@ public final class UserMessageAttachmentGithubReference extends UserMessageAttac
 
     /** Type of GitHub reference */
     @JsonProperty("referenceType")
-    private UserMessageAttachmentGithubReferenceType referenceType;
+    private UserMessageAttachmentGitHubReferenceType referenceType;
 
     /** Current state of the referenced item (e.g., open, closed, merged) */
     @JsonProperty("state")
@@ -54,8 +54,8 @@ public final class UserMessageAttachmentGithubReference extends UserMessageAttac
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
 
-    public UserMessageAttachmentGithubReferenceType getReferenceType() { return referenceType; }
-    public void setReferenceType(UserMessageAttachmentGithubReferenceType referenceType) { this.referenceType = referenceType; }
+    public UserMessageAttachmentGitHubReferenceType getReferenceType() { return referenceType; }
+    public void setReferenceType(UserMessageAttachmentGitHubReferenceType referenceType) { this.referenceType = referenceType; }
 
     public String getState() { return state; }
     public void setState(String state) { this.state = state; }
