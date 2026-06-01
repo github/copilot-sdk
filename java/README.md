@@ -161,7 +161,7 @@ This SDK tracks the official [Copilot SDK](https://github.com/github/copilot-sdk
 
 ### Development Setup
 
-Requires JDK 25 or later for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JR behavior.
+Requires JDK 25 or later for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.
 
 ```bash
 # Clone the repository
