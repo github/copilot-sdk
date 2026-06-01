@@ -16,6 +16,12 @@ namespace GitHub.Copilot.Test.E2E;
 public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "builtin_tools", output)
 {
+    // Built-in tool tests spawn a real CLI subprocess and execute actual shell /
+    // file tools. Under slow/concurrent CI (notably Windows) this agent loop can
+    // briefly exceed the 60s SendAndWaitAsync default, so give it extra headroom
+    // while still failing fast on a genuine hang.
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(120);
+
     [Fact]
     public async Task Should_Capture_Exit_Code_In_Output()
     {
@@ -23,7 +29,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Run 'echo hello && echo world'. Tell me the exact output.",
-        });
+        }, SendTimeout);
         var content = msg?.Data.Content ?? string.Empty;
         Assert.Contains("hello", content);
         Assert.Contains("world", content);
@@ -44,7 +50,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content.",
-        });
+        }, SendTimeout);
         Assert.Contains("error_msg", msg?.Data.Content ?? string.Empty);
     }
 
@@ -56,7 +62,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Read lines 2 through 4 of the file 'lines.txt' in this directory. Tell me what those lines contain.",
-        });
+        }, SendTimeout);
         var content = msg?.Data.Content ?? string.Empty;
         Assert.Contains("line2", content);
         Assert.Contains("line4", content);
@@ -69,7 +75,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Try to read the file 'does_not_exist.txt'. If it doesn't exist, say 'FILE_NOT_FOUND'.",
-        });
+        }, SendTimeout);
         var content = (msg?.Data.Content ?? string.Empty).ToUpperInvariant();
         // Match any of the common phrasings for a missing-file response.
         Assert.True(
@@ -90,7 +96,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Edit the file 'edit_me.txt': replace 'Hello World' with 'Hi Universe'. Then read it back and tell me its contents.",
-        });
+        }, SendTimeout);
         Assert.Contains("Hi Universe", msg?.Data.Content ?? string.Empty);
     }
 
@@ -101,7 +107,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Create a file called 'new_file.txt' with the content 'Created by test'. Then read it back to confirm.",
-        });
+        }, SendTimeout);
         Assert.Contains("Created by test", msg?.Data.Content ?? string.Empty);
     }
 
@@ -113,7 +119,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Search for lines starting with 'ap' in the file 'data.txt'. Tell me which lines matched.",
-        });
+        }, SendTimeout);
         var content = msg?.Data.Content ?? string.Empty;
         Assert.Contains("apple", content);
         Assert.Contains("apricot", content);
@@ -130,7 +136,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Find all .ts files in this directory (recursively). List the filenames you found.",
-        });
+        }, SendTimeout);
         Assert.Contains("index.ts", msg?.Data.Content ?? string.Empty);
     }
 }
