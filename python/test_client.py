@@ -5,7 +5,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 """
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -25,6 +25,59 @@ from copilot.client import (
 )
 from copilot.session import PermissionHandler
 from e2e.testharness import CLI_PATH
+
+
+class TestClientShutdown:
+    @pytest.mark.asyncio
+    async def test_stop_requests_runtime_shutdown_for_owned_process(self):
+        calls: list[str] = []
+        process = Mock()
+        process.poll.return_value = None
+        process.wait.return_value = 0
+
+        class Runtime:
+            async def shutdown(self, *, timeout=None):
+                calls.append("runtime.shutdown")
+
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path="copilot"))
+        client._rpc = Mock(runtime=Runtime())
+        client._process = process
+        client._cli_process = process
+        client._is_external_server = False
+
+        await client.stop()
+
+        assert calls == ["runtime.shutdown"]
+        process.terminate.assert_not_called()
+        process.kill.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_force_stop_and_external_stop_do_not_request_runtime_shutdown(self):
+        calls: list[str] = []
+        process = Mock()
+
+        class Runtime:
+            async def shutdown(self):
+                calls.append("runtime.shutdown")
+
+        force_client = CopilotClient(connection=RuntimeConnection.for_stdio(path="copilot"))
+        force_client._rpc = Mock(runtime=Runtime())
+        force_client._process = process
+        force_client._cli_process = process
+        force_client._is_external_server = False
+
+        await force_client.force_stop()
+
+        assert calls == []
+        process.kill.assert_called_once()
+
+        external_client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        external_client._rpc = Mock(runtime=Runtime())
+        external_client._is_external_server = True
+
+        await external_client.stop()
+
+        assert calls == []
 
 
 class TestPermissionHandlerOptional:

@@ -34,6 +34,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -378,8 +379,9 @@ func (c *Client) Start(ctx context.Context) error {
 //
 // This method performs graceful cleanup:
 //  1. Closes all active sessions (releases in-memory resources)
-//  2. Closes the JSON-RPC connection
-//  3. Terminates the CLI server process (if spawned by this client)
+//  2. Requests runtime shutdown for SDK-owned CLI processes
+//  3. Closes the JSON-RPC connection
+//  4. Terminates the CLI server process (if spawned by this client)
 //
 // Note: session data on disk is preserved, so sessions can be resumed later.
 // To permanently remove session data before stopping, call [Client.DeleteSession]
@@ -416,10 +418,54 @@ func (c *Client) Stop() error {
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
 
-	// Kill CLI process FIRST (this closes stdout and unblocks readLoop) - only if we spawned it
+	runtimeShutdownCompleted := false
+	if c.process != nil && !c.isExternalServer && c.RPC != nil {
+		rpcClient := c.RPC
+		runtimeShutdownStart := time.Now()
+		shutdownDone := make(chan error, 1)
+		go func() {
+			_, err := rpcClient.Runtime.Shutdown(context.Background())
+			shutdownDone <- err
+		}()
+
+		select {
+		case err := <-shutdownDone:
+			if err != nil {
+				c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown failed")
+				errs = append(errs, fmt.Errorf("failed to gracefully shut down runtime: %w", err))
+			} else {
+				runtimeShutdownCompleted = true
+				c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown complete")
+			}
+		case <-time.After(runtimeShutdownTimeout):
+			c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown timed out")
+			errs = append(errs, fmt.Errorf("timed out gracefully shutting down runtime after %s", runtimeShutdownTimeout))
+		}
+	}
+
+	// Give runtime.shutdown a bounded window to let the child exit on its own
+	// before falling back to killing it.
 	if c.process != nil && !c.isExternalServer {
-		if err := c.killProcess(); err != nil {
-			errs = append(errs, err)
+		if c.processDone != nil {
+			if runtimeShutdownCompleted {
+				select {
+				case <-c.processDone:
+					c.osProcess.Swap(nil)
+					c.process = nil
+				case <-time.After(runtimeShutdownTimeout):
+					if err := c.killProcessAndWait(); err != nil {
+						errs = append(errs, err)
+					}
+				}
+			} else {
+				if err := c.killProcessAndWait(); err != nil {
+					errs = append(errs, err)
+				}
+			}
+		} else {
+			if err := c.killProcessAndWait(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	c.process = nil
@@ -451,6 +497,13 @@ func (c *Client) Stop() error {
 	c.RPC = nil
 	c.internalRPC = nil
 	return errors.Join(errs...)
+}
+
+func (c *Client) logDebugTiming(start time.Time, message string) {
+	switch strings.ToLower(c.options.LogLevel) {
+	case "debug", "all":
+		log.Printf("%s elapsed=%s", message, time.Since(start))
+	}
 }
 
 // ForceStop forcefully stops the CLI server without graceful cleanup.
@@ -1548,6 +1601,8 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 
 // minProtocolVersion is the minimum protocol version this SDK can communicate with.
 const minProtocolVersion = 3
+const runtimeShutdownTimeout = 10 * time.Second
+const processExitTimeout = 10 * time.Second
 
 // verifyProtocolVersion sends the `connect` handshake (carrying the optional token) and
 // verifies the server's protocol version. Falls back to `ping` against legacy servers
@@ -1819,6 +1874,21 @@ func (c *Client) killProcess() error {
 	}
 	c.process = nil
 	return nil
+}
+
+func (c *Client) killProcessAndWait() error {
+	done := c.processDone
+	killErr := c.killProcess()
+	if done == nil {
+		return killErr
+	}
+
+	select {
+	case <-done:
+		return killErr
+	case <-time.After(processExitTimeout):
+		return errors.Join(killErr, fmt.Errorf("timed out waiting for CLI process to exit after kill"))
+	}
 }
 
 // monitorProcess signals when the CLI process exits and captures any exit error.
