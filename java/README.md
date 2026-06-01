@@ -161,7 +161,7 @@ This SDK tracks the official [Copilot SDK](https://github.com/github/copilot-sdk
 
 ### Development Setup
 
-Requires JDK 25 or later for development.
+Requires JDK 25 or later for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.
 
 ```bash
 # Clone the repository
@@ -172,7 +172,8 @@ cd copilot-sdk/java
 git config core.hooksPath .githooks
 
 # Build and test with JDK 25
-mvn clean verify
+mvn test-compile jar:jar
+mvn verify -Dskip.test.harness=true
 
 # Set your paths for JDK 17
 # Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
