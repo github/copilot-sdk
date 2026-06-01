@@ -22,7 +22,7 @@ import (
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "8080"},
+			Connection: URIConnection{URL: "8080"},
 		})
 		if client.actualPort != 8080 {
 			t.Errorf("Expected port 8080, got %d", client.actualPort)
@@ -37,7 +37,7 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("should parse host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "127.0.0.1:9000"},
+			Connection: URIConnection{URL: "127.0.0.1:9000"},
 		})
 		if client.actualPort != 9000 || client.actualHost != "127.0.0.1" {
 			t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.actualPort)
@@ -46,7 +46,7 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("should parse http://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "http://localhost:7000"},
+			Connection: URIConnection{URL: "http://localhost:7000"},
 		})
 		if client.actualPort != 7000 || client.actualHost != "localhost" {
 			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
@@ -55,7 +55,7 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("should parse https://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "https://example.com:443"},
+			Connection: URIConnection{URL: "https://example.com:443"},
 		})
 		if client.actualPort != 443 || client.actualHost != "example.com" {
 			t.Errorf("Expected example.com:443, got %s:%d", client.actualHost, client.actualPort)
@@ -68,7 +68,7 @@ func TestClient_URLParsing(t *testing.T) {
 				t.Error("Expected panic for invalid URL format")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{URL: "invalid-url"}})
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "invalid-url"}})
 	})
 
 	t.Run("should panic for invalid port - too high", func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestClient_URLParsing(t *testing.T) {
 				t.Error("Expected panic")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:99999"}})
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "localhost:99999"}})
 	})
 
 	t.Run("should panic for invalid port - zero", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestClient_URLParsing(t *testing.T) {
 				t.Error("Expected panic")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:0"}})
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "localhost:0"}})
 	})
 
 	t.Run("should panic for invalid port - negative", func(t *testing.T) {
@@ -95,16 +95,16 @@ func TestClient_URLParsing(t *testing.T) {
 				t.Error("Expected panic")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:-1"}})
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "localhost:-1"}})
 	})
 
-	t.Run("should panic when UriConnection has empty URL", func(t *testing.T) {
+	t.Run("should panic when URIConnection has empty URL", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
 				t.Error("Expected panic for empty URL")
 			}
 		}()
-		NewClient(&ClientOptions{Connection: UriConnection{}})
+		NewClient(&ClientOptions{Connection: URIConnection{}})
 	})
 
 	t.Run("stdio connection uses stdio transport", func(t *testing.T) {
@@ -115,9 +115,9 @@ func TestClient_URLParsing(t *testing.T) {
 	})
 
 	t.Run("tcp connection uses tcp transport", func(t *testing.T) {
-		client := NewClient(&ClientOptions{Connection: TcpConnection{Port: 8080}})
+		client := NewClient(&ClientOptions{Connection: TCPConnection{Port: 8080}})
 		if client.useStdio {
-			t.Error("Expected useStdio=false for TcpConnection")
+			t.Error("Expected useStdio=false for TCPConnection")
 		}
 		if client.port != 8080 {
 			t.Errorf("Expected port=8080, got %d", client.port)
@@ -126,31 +126,31 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("uri connection is treated as external server", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Connection: UriConnection{URL: "localhost:8080"},
+			Connection: URIConnection{URL: "localhost:8080"},
 		})
 		if !client.isExternalServer {
-			t.Error("Expected isExternalServer=true for UriConnection")
+			t.Error("Expected isExternalServer=true for URIConnection")
 		}
 	})
 }
 
-func TestClient_SessionFsConfig(t *testing.T) {
+func TestClient_SessionFSConfig(t *testing.T) {
 	t.Run("should throw error when InitialWorkingDirectory is missing", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for missing SessionFs.InitialWorkingDirectory")
+				t.Error("Expected panic for missing SessionFS.InitialWorkingDirectory")
 			} else {
-				matched, _ := regexp.MatchString("SessionFs.InitialWorkingDirectory is required", r.(string))
+				matched, _ := regexp.MatchString("SessionFS.InitialWorkingDirectory is required", r.(string))
 				if !matched {
-					t.Errorf("Expected panic message to contain 'SessionFs.InitialWorkingDirectory is required', got: %v", r)
+					t.Errorf("Expected panic message to contain 'SessionFS.InitialWorkingDirectory is required', got: %v", r)
 				}
 			}
 		}()
 
 		NewClient(&ClientOptions{
-			SessionFs: &SessionFsConfig{
+			SessionFS: &SessionFSConfig{
 				SessionStatePath: "/session-state",
-				Conventions:      rpc.SessionFsSetProviderConventionsPosix,
+				Conventions:      rpc.SessionFSSetProviderConventionsPosix,
 			},
 		})
 	})
@@ -158,19 +158,19 @@ func TestClient_SessionFsConfig(t *testing.T) {
 	t.Run("should throw error when SessionStatePath is missing", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for missing SessionFs.SessionStatePath")
+				t.Error("Expected panic for missing SessionFS.SessionStatePath")
 			} else {
-				matched, _ := regexp.MatchString("SessionFs.SessionStatePath is required", r.(string))
+				matched, _ := regexp.MatchString("SessionFS.SessionStatePath is required", r.(string))
 				if !matched {
-					t.Errorf("Expected panic message to contain 'SessionFs.SessionStatePath is required', got: %v", r)
+					t.Errorf("Expected panic message to contain 'SessionFS.SessionStatePath is required', got: %v", r)
 				}
 			}
 		}()
 
 		NewClient(&ClientOptions{
-			SessionFs: &SessionFsConfig{
+			SessionFS: &SessionFSConfig{
 				InitialWorkingDirectory: "/",
-				Conventions:             rpc.SessionFsSetProviderConventionsPosix,
+				Conventions:             rpc.SessionFSSetProviderConventionsPosix,
 			},
 		})
 	})
@@ -216,12 +216,12 @@ func TestClient_AuthOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("should panic when GitHubToken is used with UriConnection", func(t *testing.T) {
+	t.Run("should panic when GitHubToken is used with URIConnection", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for auth options with UriConnection")
+				t.Error("Expected panic for auth options with URIConnection")
 			} else {
-				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with UriConnection", r.(string))
+				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with URIConnection", r.(string))
 				if !matched {
 					t.Errorf("Expected panic message about auth options, got: %v", r)
 				}
@@ -229,20 +229,20 @@ func TestClient_AuthOptions(t *testing.T) {
 		}()
 
 		NewClient(&ClientOptions{
-			Connection:  UriConnection{URL: "localhost:8080"},
+			Connection:  URIConnection{URL: "localhost:8080"},
 			GitHubToken: "gho_test_token",
 		})
 	})
 
-	t.Run("should panic when UseLoggedInUser is used with UriConnection", func(t *testing.T) {
+	t.Run("should panic when UseLoggedInUser is used with URIConnection", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for auth options with UriConnection")
+				t.Error("Expected panic for auth options with URIConnection")
 			}
 		}()
 
 		NewClient(&ClientOptions{
-			Connection:      UriConnection{URL: "localhost:8080"},
+			Connection:      URIConnection{URL: "localhost:8080"},
 			UseLoggedInUser: Bool(false),
 		})
 	})
@@ -1146,10 +1146,10 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 	})
 }
 
-func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
-	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+func TestCreateSessionRequest_RequestMCPApps(t *testing.T) {
+	t.Run("sends requestMCPApps flag when EnableMCPApps is set", func(t *testing.T) {
 		req := createSessionRequest{
-			RequestMcpApps: Bool(true),
+			RequestMCPApps: Bool(true),
 		}
 		data, err := json.Marshal(req)
 		if err != nil {
@@ -1164,7 +1164,7 @@ func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
 		}
 	})
 
-	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+	t.Run("does not send requestMcpApps when EnableMCPApps is unset", func(t *testing.T) {
 		req := createSessionRequest{}
 		data, _ := json.Marshal(req)
 		var m map[string]any
@@ -1175,11 +1175,11 @@ func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
 	})
 }
 
-func TestResumeSessionRequest_RequestMcpApps(t *testing.T) {
-	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+func TestResumeSessionRequest_RequestMCPApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMCPApps is set", func(t *testing.T) {
 		req := resumeSessionRequest{
 			SessionID:      "s1",
-			RequestMcpApps: Bool(true),
+			RequestMCPApps: Bool(true),
 		}
 		data, err := json.Marshal(req)
 		if err != nil {
@@ -1194,7 +1194,7 @@ func TestResumeSessionRequest_RequestMcpApps(t *testing.T) {
 		}
 	})
 
-	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+	t.Run("does not send requestMcpApps when RequestMCPApps is unset", func(t *testing.T) {
 		req := resumeSessionRequest{SessionID: "s1"}
 		data, _ := json.Marshal(req)
 		var m map[string]any

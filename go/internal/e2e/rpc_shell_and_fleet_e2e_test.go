@@ -17,7 +17,7 @@ import (
 )
 
 // Mirrors dotnet/test/RpcShellAndFleetTests.cs (snapshot category "rpc_shell_and_fleet").
-func TestRpcShellAndFleetE2E(t *testing.T) {
+func TestRPCShellAndFleetE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

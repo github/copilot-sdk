@@ -69,9 +69,9 @@ func (s *ToolSet) AddCustom(name string) *ToolSet {
 	return s
 }
 
-// AddMcp adds an MCP tool pattern. Matches tools advertised by any configured
+// AddMCP adds an MCP tool pattern. Matches tools advertised by any configured
 // MCP server.
-func (s *ToolSet) AddMcp(toolName string) *ToolSet {
+func (s *ToolSet) AddMCP(toolName string) *ToolSet {
 	validateToolName("mcp", toolName)
 	s.items = append(s.items, "mcp:"+toolName)
 	return s

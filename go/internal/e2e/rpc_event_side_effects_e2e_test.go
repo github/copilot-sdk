@@ -14,7 +14,7 @@ import (
 const rpcEventSideEffectsTimeout = 30 * time.Second
 
 // Mirrors dotnet/test/RpcEventSideEffectsE2ETests.cs (snapshot category "rpc_event_side_effects").
-func TestRpcEventSideEffectsE2E(t *testing.T) {
+func TestRPCEventSideEffectsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

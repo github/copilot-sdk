@@ -11,7 +11,7 @@ import (
 )
 
 // Mirrors dotnet/test/E2E/RpcWorkspaceCheckpointsE2ETests.cs (snapshot category "rpc_workspace_checkpoints").
-func TestRpcWorkspaceCheckpointsE2E(t *testing.T) {
+func TestRPCWorkspaceCheckpointsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

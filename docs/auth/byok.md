@@ -115,7 +115,7 @@ func main() {
         Provider: &copilot.ProviderConfig{
             Type:    "openai",
             BaseURL: "https://your-resource.openai.azure.com/openai/v1/",
-            WireApi: "responses",  // Use "completions" for older models
+            WireAPI: "responses",  // Use "completions" for older models
             APIKey:  os.Getenv("FOUNDRY_API_KEY"),
         },
     })

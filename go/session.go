@@ -53,7 +53,7 @@ type Session struct {
 	SessionID             string
 	workspacePath         string
 	client                *jsonrpc2.Client
-	clientSessionApis     *rpc.ClientSessionApiHandlers
+	clientSessionAPIs     *rpc.ClientSessionAPIHandlers
 	handlers              []sessionHandler
 	nextHandlerID         uint64
 	handlerMutex          sync.RWMutex
@@ -88,7 +88,7 @@ type Session struct {
 	closeOnce sync.Once // guards eventCh close so Disconnect is safe to call more than once
 
 	// RPC provides typed session-scoped RPC methods.
-	RPC *rpc.SessionRpc
+	RPC *rpc.SessionRPC
 }
 
 // WorkspacePath returns the path to the session workspace directory when infinite
@@ -283,14 +283,14 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
 		client:            client,
-		clientSessionApis: &rpc.ClientSessionApiHandlers{},
+		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 		handlers:          make([]sessionHandler, 0),
 		toolHandlers:      make(map[string]ToolHandler),
 		commandHandlers:   make(map[string]CommandHandler),
 		eventCh:           make(chan SessionEvent, 128),
-		RPC:               rpc.NewSessionRpc(client, sessionID),
+		RPC:               rpc.NewSessionRPC(client, sessionID),
 	}
-	s.clientSessionApis.Canvas = newCanvasClientSessionAdapter(s)
+	s.clientSessionAPIs.Canvas = newCanvasClientSessionAdapter(s)
 	go s.processEvents()
 	return s
 }
@@ -652,14 +652,14 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 		return hooks.OnPreToolUse(input, invocation)
 
 	case "preMcpToolCall":
-		if hooks.OnPreMcpToolCall == nil {
+		if hooks.OnPreMCPToolCall == nil {
 			return nil, nil
 		}
-		var input PreMcpToolCallHookInput
+		var input PreMCPToolCallHookInput
 		if err := json.Unmarshal(rawInput, &input); err != nil {
 			return nil, fmt.Errorf("invalid hook input: %w", err)
 		}
-		return hooks.OnPreMcpToolCall(input, invocation)
+		return hooks.OnPreMCPToolCall(input, invocation)
 
 	case "postToolUse":
 		if hooks.OnPostToolUse == nil {
@@ -1057,7 +1057,7 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 
 // Input shows a text input dialog. Returns the entered text, or empty string and
 // false if the user declines/cancels.
-func (ui *SessionUI) Input(ctx context.Context, message string, opts *UiInputOptions) (string, bool, error) {
+func (ui *SessionUI) Input(ctx context.Context, message string, opts *UIInputOptions) (string, bool, error) {
 	if err := ui.session.assertElicitation(); err != nil {
 		return "", false, err
 	}

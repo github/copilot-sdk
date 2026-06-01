@@ -6,7 +6,7 @@ Run the Copilot SDK in server-side applications—APIs, web backends, microservi
 
 ## How it works
 
-Instead of the SDK spawning a CLI child process, you run the CLI independently in **headless server mode**. Your backend connects to it over TCP using the `Connection` option (`UriConnection`).
+Instead of the SDK spawning a CLI child process, you run the CLI independently in **headless server mode**. Your backend connects to it over TCP using the `Connection` option (`URIConnection`).
 
 ```mermaid
 flowchart TB
@@ -183,9 +183,9 @@ func main() {
 	userID := "user1"
 	message := "Hello"
 
-	client := copilot.NewClient(&copilot.ClientOptions{
-		Connection: copilot.UriConnection{URL: "localhost:4321"},
-	})
+    client := copilot.NewClient(&copilot.ClientOptions{
+        Connection: copilot.URIConnection{URL: "localhost:4321"},
+    })
 	client.Start(ctx)
 	defer client.Stop()
 
@@ -202,7 +202,7 @@ func main() {
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    Connection: copilot.UriConnection{URL: "localhost:4321"},
+    Connection: copilot.URIConnection{URL: "localhost:4321"},
 })
 client.Start(ctx)
 defer client.Stop()

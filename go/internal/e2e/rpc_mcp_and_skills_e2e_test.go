@@ -14,7 +14,7 @@ import (
 
 // Mirrors dotnet/test/RpcMcpAndSkillsTests.cs (snapshot category "rpc_mcp_and_skills").
 // Tests session-scoped MCP, skills, plugins, and extensions RPCs.
-func TestRpcMcpAndSkillsE2E(t *testing.T) {
+func TestRPCMCPAndSkillsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	// --yolo auto-approves extension permission gates at the CLI level,
 	// preventing breakage from new gates (e.g., extension-permission-access).
@@ -27,7 +27,7 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 
 	t.Run("should list and toggle session skills", func(t *testing.T) {
 		skillName := fmt.Sprintf("session-rpc-skill-%s", randomHex(t))
-		skillsDir := createMcpSkillsRpcDirectory(t, ctx.WorkDir, "session-rpc-skills", skillName, "Session skill controlled by RPC.")
+		skillsDir := createMCPSkillsRPCDirectory(t, ctx.WorkDir, "session-rpc-skills", skillName, "Session skill controlled by RPC.")
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -65,7 +65,7 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 
 	t.Run("should ensure skills are loaded and list invoked skills", func(t *testing.T) {
 		skillName := fmt.Sprintf("ensure-rpc-skill-%s", randomHex(t))
-		skillsDir := createMcpSkillsRpcDirectory(t, ctx.WorkDir, "session-rpc-skills", skillName, "Skill loaded explicitly by RPC.")
+		skillsDir := createMCPSkillsRPCDirectory(t, ctx.WorkDir, "session-rpc-skills", skillName, "Skill loaded explicitly by RPC.")
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -150,10 +150,10 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
-		waitForMCPServerStatus(t, session, serverName, rpc.McpServerStatusConnected)
-		result, err := session.RPC.Mcp.List(t.Context())
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
+		result, err := session.RPC.MCP.List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.List failed: %v", err)
+			t.Fatalf("MCP.List failed: %v", err)
 		}
 		var found bool
 		for _, server := range result.Servers {
@@ -180,36 +180,36 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
-		waitForMCPServerStatus(t, session, serverName, rpc.McpServerStatusConnected)
-		direct, err := session.RPC.Mcp.SetEnvValueMode(t.Context(), &rpc.McpSetEnvValueModeParams{Mode: rpc.McpSetEnvValueModeDetailsDirect})
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
+		direct, err := session.RPC.MCP.SetEnvValueMode(t.Context(), &rpc.MCPSetEnvValueModeParams{Mode: rpc.MCPSetEnvValueModeDetailsDirect})
 		if err != nil {
-			t.Fatalf("Mcp.SetEnvValueMode(direct) failed: %v", err)
+			t.Fatalf("MCP.SetEnvValueMode(direct) failed: %v", err)
 		}
-		if direct.Mode != rpc.McpSetEnvValueModeDetailsDirect {
+		if direct.Mode != rpc.MCPSetEnvValueModeDetailsDirect {
 			t.Fatalf("Expected direct env value mode, got %+v", direct)
 		}
-		indirect, err := session.RPC.Mcp.SetEnvValueMode(t.Context(), &rpc.McpSetEnvValueModeParams{Mode: rpc.McpSetEnvValueModeDetailsIndirect})
+		indirect, err := session.RPC.MCP.SetEnvValueMode(t.Context(), &rpc.MCPSetEnvValueModeParams{Mode: rpc.MCPSetEnvValueModeDetailsIndirect})
 		if err != nil {
-			t.Fatalf("Mcp.SetEnvValueMode(indirect) failed: %v", err)
+			t.Fatalf("MCP.SetEnvValueMode(indirect) failed: %v", err)
 		}
-		if indirect.Mode != rpc.McpSetEnvValueModeDetailsIndirect {
+		if indirect.Mode != rpc.MCPSetEnvValueModeDetailsIndirect {
 			t.Fatalf("Expected indirect env value mode, got %+v", indirect)
 		}
 
-		removeGitHub, err := session.RPC.Mcp.RemoveGitHub(t.Context())
+		removeGitHub, err := session.RPC.MCP.RemoveGitHub(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.RemoveGitHub failed: %v", err)
+			t.Fatalf("MCP.RemoveGitHub failed: %v", err)
 		}
 		if removeGitHub.Removed {
 			t.Fatalf("Expected RemoveGitHub=false for explicitly configured server, got %+v", removeGitHub)
 		}
-		servers, err := session.RPC.Mcp.List(t.Context())
+		servers, err := session.RPC.MCP.List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.List failed: %v", err)
+			t.Fatalf("MCP.List failed: %v", err)
 		}
 		var stillConnected bool
 		for _, server := range servers.Servers {
-			if server.Name == serverName && server.Status == rpc.McpServerStatusConnected {
+			if server.Name == serverName && server.Status == rpc.MCPServerStatusConnected {
 				stillConnected = true
 				break
 			}
@@ -228,27 +228,27 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
-		waitForMCPServerStatus(t, session, serverName, rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
 
-		cancelMissing, err := session.RPC.Mcp.CancelSamplingExecution(t.Context(), &rpc.McpCancelSamplingExecutionParams{RequestID: "missing-" + randomHex(t)})
+		cancelMissing, err := session.RPC.MCP.CancelSamplingExecution(t.Context(), &rpc.MCPCancelSamplingExecutionParams{RequestID: "missing-" + randomHex(t)})
 		if err != nil {
-			t.Fatalf("Mcp.CancelSamplingExecution failed: %v", err)
+			t.Fatalf("MCP.CancelSamplingExecution failed: %v", err)
 		}
 		if cancelMissing.Cancelled {
 			t.Fatal("Expected cancelling missing sampling execution to report Cancelled=false")
 		}
 
-		result, err := session.RPC.Mcp.ExecuteSampling(t.Context(), &rpc.McpExecuteSamplingParams{
+		result, err := session.RPC.MCP.ExecuteSampling(t.Context(), &rpc.MCPExecuteSamplingParams{
 			RequestID:    "sampling-" + randomHex(t),
 			ServerName:   "missing-sampling-server",
-			McpRequestID: "mcp-request-" + randomHex(t),
-			Request:      rpc.McpExecuteSamplingRequest{},
+			MCPRequestID: "mcp-request-" + randomHex(t),
+			Request:      rpc.MCPExecuteSamplingRequest{},
 		})
 		if err != nil {
-			assertRpcError(t, "Mcp.ExecuteSampling", func() error { return err }, "sampling")
+			assertRPCError(t, "MCP.ExecuteSampling", func() error { return err }, "sampling")
 			return
 		}
-		if result.Action != rpc.McpSamplingExecutionActionFailure {
+		if result.Action != rpc.MCPSamplingExecutionActionFailure {
 			t.Fatalf("Expected sampling failure action, got %+v", result)
 		}
 		if result.Result != nil || result.Error == nil || strings.TrimSpace(*result.Error) == "" {
@@ -306,8 +306,8 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should round trip mcp app host context", func(t *testing.T) {
-		mcpAppsClient := createMcpAppsClient(ctx)
+	t.Run("should round trip MCP app host context", func(t *testing.T) {
+		mcpAppsClient := createMCPAppsClient(ctx)
 		t.Cleanup(func() { mcpAppsClient.ForceStop() })
 		session, err := mcpAppsClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -316,14 +316,14 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
-		displayMode := rpc.McpAppsSetHostContextDetailsDisplayModeInline
-		platform := rpc.McpAppsSetHostContextDetailsPlatformDesktop
-		theme := rpc.McpAppsSetHostContextDetailsThemeDark
-		if _, err := session.RPC.Mcp.Apps().SetHostContext(t.Context(), &rpc.McpAppsSetHostContextRequest{
-			Context: rpc.McpAppsSetHostContextDetails{
-				AvailableDisplayModes: []rpc.McpAppsSetHostContextDetailsAvailableDisplayMode{
-					rpc.McpAppsSetHostContextDetailsAvailableDisplayModeInline,
-					rpc.McpAppsSetHostContextDetailsAvailableDisplayModeFullscreen,
+		displayMode := rpc.MCPAppsSetHostContextDetailsDisplayModeInline
+		platform := rpc.MCPAppsSetHostContextDetailsPlatformDesktop
+		theme := rpc.MCPAppsSetHostContextDetailsThemeDark
+		if _, err := session.RPC.MCP.Apps().SetHostContext(t.Context(), &rpc.MCPAppsSetHostContextRequest{
+			Context: rpc.MCPAppsSetHostContextDetails{
+				AvailableDisplayModes: []rpc.MCPAppsSetHostContextDetailsAvailableDisplayMode{
+					rpc.MCPAppsSetHostContextDetailsAvailableDisplayModeInline,
+					rpc.MCPAppsSetHostContextDetailsAvailableDisplayModeFullscreen,
 				},
 				DisplayMode: &displayMode,
 				Locale:      rpcPtr("en-GB"),
@@ -333,12 +333,12 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 				UserAgent:   rpcPtr("go-sdk-e2e"),
 			},
 		}); err != nil {
-			t.Fatalf("Mcp.Apps.SetHostContext failed: %v", err)
+			t.Fatalf("MCP.Apps.SetHostContext failed: %v", err)
 		}
 
-		result, err := session.RPC.Mcp.Apps().GetHostContext(t.Context())
+		result, err := session.RPC.MCP.Apps().GetHostContext(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.Apps.GetHostContext failed: %v", err)
+			t.Fatalf("MCP.Apps.GetHostContext failed: %v", err)
 		}
 		if result.Context.DisplayMode == nil || string(*result.Context.DisplayMode) != "inline" ||
 			result.Context.Locale == nil || *result.Context.Locale != "en-GB" ||
@@ -362,7 +362,7 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 			servers[serverName] = stdio
 		}
 
-		mcpAppsClient := createMcpAppsClient(ctx)
+		mcpAppsClient := createMCPAppsClient(ctx)
 		t.Cleanup(func() { mcpAppsClient.ForceStop() })
 		session, err := mcpAppsClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -371,31 +371,31 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
-		waitForMCPServerStatus(t, session, serverName, rpc.McpServerStatusConnected)
-		waitForMCPServerStatus(t, session, otherServerName, rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
+		waitForMCPServerStatus(t, session, otherServerName, rpc.MCPServerStatusConnected)
 
-		diagnose, err := session.RPC.Mcp.Apps().Diagnose(t.Context(), &rpc.McpAppsDiagnoseRequest{ServerName: serverName})
+		diagnose, err := session.RPC.MCP.Apps().Diagnose(t.Context(), &rpc.MCPAppsDiagnoseRequest{ServerName: serverName})
 		if err != nil {
-			t.Fatalf("Mcp.Apps.Diagnose failed: %v", err)
+			t.Fatalf("MCP.Apps.Diagnose failed: %v", err)
 		}
 		if !diagnose.Server.Connected || diagnose.Server.ToolCount < 1 {
 			t.Fatalf("Expected connected MCP app diagnose result with tools, got %+v", diagnose)
 		}
 
-		assertMcpAppsResultOrImplementedError(t, "Mcp.Apps.ListTools(self)", func() (any, error) {
-			return session.RPC.Mcp.Apps().ListTools(t.Context(), &rpc.McpAppsListToolsRequest{
+		assertMCPAppsResultOrImplementedError(t, "MCP.Apps.ListTools(self)", func() (any, error) {
+			return session.RPC.MCP.Apps().ListTools(t.Context(), &rpc.MCPAppsListToolsRequest{
 				ServerName:       serverName,
 				OriginServerName: serverName,
 			})
 		})
-		assertMcpAppsResultOrImplementedError(t, "Mcp.Apps.ListTools(other)", func() (any, error) {
-			return session.RPC.Mcp.Apps().ListTools(t.Context(), &rpc.McpAppsListToolsRequest{
+		assertMCPAppsResultOrImplementedError(t, "MCP.Apps.ListTools(other)", func() (any, error) {
+			return session.RPC.MCP.Apps().ListTools(t.Context(), &rpc.MCPAppsListToolsRequest{
 				ServerName:       serverName,
 				OriginServerName: otherServerName,
 			})
 		})
-		assertMcpAppsResultOrImplementedError(t, "Mcp.Apps.CallTool", func() (any, error) {
-			return session.RPC.Mcp.Apps().CallTool(t.Context(), &rpc.McpAppsCallToolRequest{
+		assertMCPAppsResultOrImplementedError(t, "MCP.Apps.CallTool", func() (any, error) {
+			return session.RPC.MCP.Apps().CallTool(t.Context(), &rpc.MCPAppsCallToolRequest{
 				ServerName:       serverName,
 				OriginServerName: serverName,
 				ToolName:         "get_env",
@@ -406,7 +406,7 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 
 	t.Run("should report error when mcp app resource is not available", func(t *testing.T) {
 		const serverName = "rpc-apps-resource-server"
-		mcpAppsClient := createMcpAppsClient(ctx)
+		mcpAppsClient := createMCPAppsClient(ctx)
 		t.Cleanup(func() { mcpAppsClient.ForceStop() })
 		session, err := mcpAppsClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -415,9 +415,9 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
-		waitForMCPServerStatus(t, session, serverName, rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
 
-		_, err = session.RPC.Mcp.Apps().ReadResource(t.Context(), &rpc.McpAppsReadResourceRequest{
+		_, err = session.RPC.MCP.Apps().ReadResource(t.Context(), &rpc.MCPAppsReadResourceRequest{
 			ServerName: serverName,
 			URI:        "ui://missing-resource",
 		})
@@ -439,20 +439,20 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
-		assertRpcError(t, "Mcp.Enable", func() error {
-			_, e := session.RPC.Mcp.Enable(t.Context(), &rpc.McpEnableRequest{ServerName: "missing-server"})
+		assertRPCError(t, "MCP.Enable", func() error {
+			_, e := session.RPC.MCP.Enable(t.Context(), &rpc.MCPEnableRequest{ServerName: "missing-server"})
 			return e
 		}, "no mcp host initialized")
-		assertRpcError(t, "Mcp.Disable", func() error {
-			_, e := session.RPC.Mcp.Disable(t.Context(), &rpc.McpDisableRequest{ServerName: "missing-server"})
+		assertRPCError(t, "MCP.Disable", func() error {
+			_, e := session.RPC.MCP.Disable(t.Context(), &rpc.MCPDisableRequest{ServerName: "missing-server"})
 			return e
 		}, "no mcp host initialized")
-		assertRpcError(t, "Mcp.Reload", func() error {
-			_, e := session.RPC.Mcp.Reload(t.Context())
+		assertRPCError(t, "MCP.Reload", func() error {
+			_, e := session.RPC.MCP.Reload(t.Context())
 			return e
 		}, "mcp config reload not available")
-		assertRpcError(t, "Mcp.Oauth.Login", func() error {
-			_, e := session.RPC.Mcp.Oauth().Login(t.Context(), &rpc.McpOauthLoginRequest{ServerName: "missing-server"})
+		assertRPCError(t, "MCP.Oauth.Login", func() error {
+			_, e := session.RPC.MCP.Oauth().Login(t.Context(), &rpc.MCPOauthLoginRequest{ServerName: "missing-server"})
 			return e
 		}, "mcp host is not available")
 	})
@@ -466,10 +466,10 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
-		waitForMCPServerStatus(t, session, serverName, rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
 
-		assertRpcError(t, "Mcp.Oauth.Login", func() error {
-			_, e := session.RPC.Mcp.Oauth().Login(t.Context(), &rpc.McpOauthLoginRequest{ServerName: "missing-server"})
+		assertRPCError(t, "MCP.Oauth.Login", func() error {
+			_, e := session.RPC.MCP.Oauth().Login(t.Context(), &rpc.MCPOauthLoginRequest{ServerName: "missing-server"})
 			return e
 		}, "is not configured")
 	})
@@ -483,13 +483,13 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
-		waitForMCPServerStatus(t, session, serverName, rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
 
 		force := true
 		clientName := "SDK E2E"
 		callback := "Done"
-		assertRpcError(t, "Mcp.Oauth.Login", func() error {
-			_, e := session.RPC.Mcp.Oauth().Login(t.Context(), &rpc.McpOauthLoginRequest{
+		assertRPCError(t, "MCP.Oauth.Login", func() error {
+			_, e := session.RPC.MCP.Oauth().Login(t.Context(), &rpc.MCPOauthLoginRequest{
 				ServerName:             serverName,
 				ForceReauth:            &force,
 				ClientName:             &clientName,
@@ -507,24 +507,24 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
-		assertRpcError(t, "Extensions.Enable", func() error {
+		assertRPCError(t, "Extensions.Enable", func() error {
 			_, e := session.RPC.Extensions.Enable(t.Context(), &rpc.ExtensionsEnableRequest{ID: "missing-extension"})
 			return e
 		}, "extensions not available")
-		assertRpcError(t, "Extensions.Disable", func() error {
+		assertRPCError(t, "Extensions.Disable", func() error {
 			_, e := session.RPC.Extensions.Disable(t.Context(), &rpc.ExtensionsDisableRequest{ID: "missing-extension"})
 			return e
 		}, "extensions not available")
-		assertRpcError(t, "Extensions.Reload", func() error {
+		assertRPCError(t, "Extensions.Reload", func() error {
 			_, e := session.RPC.Extensions.Reload(t.Context())
 			return e
 		}, "extensions not available")
 	})
 }
 
-// createMcpSkillsRpcDirectory creates a unique skills directory containing a single
+// createMCPSkillsRPCDirectory creates a unique skills directory containing a single
 // SKILL.md and returns the parent directory suitable for SkillDirectories.
-func createMcpSkillsRpcDirectory(t *testing.T, workDir, baseName, skillName, description string) string {
+func createMCPSkillsRPCDirectory(t *testing.T, workDir, baseName, skillName, description string) string {
 	t.Helper()
 	skillsDir := filepath.Join(workDir, baseName, randomHex(t))
 	if err := os.MkdirAll(skillsDir, 0755); err != nil {
@@ -570,13 +570,13 @@ func assertSkillState(t *testing.T, list *rpc.SkillList, name string, enabled bo
 	return matched
 }
 
-func createMcpAppsClient(ctx *testharness.TestContext) *copilot.Client {
+func createMCPAppsClient(ctx *testharness.TestContext) *copilot.Client {
 	return ctx.NewClient(func(opts *copilot.ClientOptions) {
 		opts.Env = append(opts.Env, "COPILOT_MCP_APPS=true", "MCP_APPS=true")
 	})
 }
 
-func assertMcpAppsResultOrImplementedError(t *testing.T, name string, action func() (any, error)) {
+func assertMCPAppsResultOrImplementedError(t *testing.T, name string, action func() (any, error)) {
 	t.Helper()
 	result, err := action()
 	if err == nil {
@@ -584,11 +584,11 @@ func assertMcpAppsResultOrImplementedError(t *testing.T, name string, action fun
 			t.Fatalf("%s returned nil result", name)
 		}
 		switch value := result.(type) {
-		case *rpc.McpAppsListToolsResult:
+		case *rpc.MCPAppsListToolsResult:
 			if value.Tools == nil {
 				t.Fatalf("%s returned nil Tools", name)
 			}
-		case *rpc.SessionMcpAppsCallToolResult:
+		case *rpc.SessionMCPAppsCallToolResult:
 			if value == nil {
 				t.Fatalf("%s returned nil CallTool result", name)
 			}
@@ -603,7 +603,7 @@ func assertMcpAppsResultOrImplementedError(t *testing.T, name string, action fun
 	}
 }
 
-func assertRpcError(t *testing.T, name string, action func() error, expectedSubstring string) {
+func assertRPCError(t *testing.T, name string, action func() error, expectedSubstring string) {
 	t.Helper()
 	err := action()
 	if err == nil {

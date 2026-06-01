@@ -231,7 +231,7 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 		opt(options)
 	}
 
-	_, externalRuntime := options.Connection.(copilot.UriConnection)
+	_, externalRuntime := options.Connection.(copilot.URIConnection)
 	if options.GitHubToken == "" && !externalRuntime {
 		options.GitHubToken = defaultGitHubToken
 	}

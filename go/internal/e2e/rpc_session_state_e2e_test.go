@@ -15,7 +15,7 @@ import (
 //
 // Reuses snapshot files in test/snapshots/rpc_session_state/. Tests that don't issue
 // LLM calls don't need snapshots.
-func TestRpcSessionStateE2E(t *testing.T) {
+func TestRPCSessionStateE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -1097,9 +1097,9 @@ func TestRpcSessionStateE2E(t *testing.T) {
 			t.Errorf("session.history.truncate should be implemented; error suggests it isn't: %v", err)
 		}
 
-		_, err = session.RPC.Mcp.Oauth().Login(t.Context(), &rpc.McpOauthLoginRequest{ServerName: "missing-server"})
+		_, err = session.RPC.MCP.Oauth().Login(t.Context(), &rpc.MCPOauthLoginRequest{ServerName: "missing-server"})
 		if err == nil {
-			t.Fatal("Expected Mcp.Oauth.Login with unknown server to fail")
+			t.Fatal("Expected MCP.Oauth.Login with unknown server to fail")
 		}
 		if strings.Contains(strings.ToLower(err.Error()), "unhandled method session.mcp.oauth.login") {
 			t.Errorf("session.mcp.oauth.login should be implemented; error suggests it isn't: %v", err)

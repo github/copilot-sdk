@@ -44,7 +44,7 @@ func TestClientE2E(t *testing.T) {
 
 	t.Run("should start and connect to server using tcp", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.TcpConnection{Path: cliPath},
+			Connection: copilot.TCPConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 

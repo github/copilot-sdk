@@ -17,12 +17,12 @@ import (
 // Go's ClientOptions is a plain struct with no setter validation; equivalent behavior is covered
 // in package-level unit tests.
 func TestClientOptionsE2E(t *testing.T) {
-	t.Run("should listen on configured tcp port", func(t *testing.T) {
+	t.Run("should listen on configured TCP port", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
-		port := getAvailableTcpPort(t)
+		port := getAvailableTCPPort(t)
 
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath, Port: port}
+			opts.Connection = copilot.TCPConnection{Path: ctx.CLIPath, Port: port}
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -241,19 +241,19 @@ func TestClientOptionsUnit(t *testing.T) {
 		}
 	})
 
-	t.Run("should panic when GitHubToken used with UriConnection", func(t *testing.T) {
+	t.Run("should panic when GitHubToken used with URIConnection", func(t *testing.T) {
 		assertPanics(t, func() {
 			_ = copilot.NewClient(&copilot.ClientOptions{
-				Connection:  copilot.UriConnection{URL: "localhost:8080"},
+				Connection:  copilot.URIConnection{URL: "localhost:8080"},
 				GitHubToken: "gho_test_token",
 			})
 		})
 	})
 
-	t.Run("should panic when UseLoggedInUser used with UriConnection", func(t *testing.T) {
+	t.Run("should panic when UseLoggedInUser used with URIConnection", func(t *testing.T) {
 		assertPanics(t, func() {
 			_ = copilot.NewClient(&copilot.ClientOptions{
-				Connection:      copilot.UriConnection{URL: "localhost:8080"},
+				Connection:      copilot.URIConnection{URL: "localhost:8080"},
 				UseLoggedInUser: copilot.Bool(false),
 			})
 		})
@@ -278,7 +278,7 @@ func TestClientOptionsUnit(t *testing.T) {
 	})
 }
 
-func getAvailableTcpPort(t *testing.T) int {
+func getAvailableTCPPort(t *testing.T) int {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

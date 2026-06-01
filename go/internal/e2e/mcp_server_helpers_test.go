@@ -30,13 +30,13 @@ func testMCPServers(t *testing.T, serverNames ...string) map[string]copilot.MCPS
 	return mcpServers
 }
 
-func waitForMCPServerStatus(t *testing.T, session *copilot.Session, serverName string, expectedStatus rpc.McpServerStatus) {
+func waitForMCPServerStatus(t *testing.T, session *copilot.Session, serverName string, expectedStatus rpc.MCPServerStatus) {
 	t.Helper()
 
 	var lastStatus string
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
-		result, err := session.RPC.Mcp.List(t.Context())
+		result, err := session.RPC.MCP.List(t.Context())
 		if err != nil {
 			lastStatus = err.Error()
 		} else {

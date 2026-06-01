@@ -136,7 +136,7 @@ func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 	session := newTestCanvasSession("s1")
 	session.registerCanvasHandler(handler)
 
-	openResp, err := session.clientSessionApis.Canvas.Open(&rpc.CanvasProviderOpenRequest{
+	openResp, err := session.clientSessionAPIs.Canvas.Open(&rpc.CanvasProviderOpenRequest{
 		SessionID:   "s1",
 		ExtensionID: "project:echo",
 		CanvasID:    "echo",
@@ -156,7 +156,7 @@ func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 		t.Fatalf("response URL not propagated: %+v", openResp)
 	}
 
-	actionResp, err := session.clientSessionApis.Canvas.Invoke(&rpc.CanvasProviderInvokeActionRequest{
+	actionResp, err := session.clientSessionAPIs.Canvas.Invoke(&rpc.CanvasProviderInvokeActionRequest{
 		SessionID:   "s1",
 		ExtensionID: "project:echo",
 		CanvasID:    "echo",
@@ -178,7 +178,7 @@ func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 		t.Fatalf("unexpected action result: %#v", actionResp)
 	}
 
-	closeResp, err := session.clientSessionApis.Canvas.Close(&rpc.CanvasProviderCloseRequest{
+	closeResp, err := session.clientSessionAPIs.Canvas.Close(&rpc.CanvasProviderCloseRequest{
 		SessionID:   "s1",
 		ExtensionID: "project:echo",
 		CanvasID:    "echo",
@@ -198,7 +198,7 @@ func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 func TestCanvasAdapter_NoHandler_ReturnsUnsetError(t *testing.T) {
 	session := newTestCanvasSession("s1")
 
-	_, err := session.clientSessionApis.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
+	_, err := session.clientSessionAPIs.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
 	assertCanvasJSONRPCError(t, err, "canvas_handler_unset", "")
 }
 
@@ -208,7 +208,7 @@ func TestCanvasAdapter_HandlerCanvasError_Wired(t *testing.T) {
 		openErr: NewCanvasError("permission_denied", "nope"),
 	})
 
-	_, err := session.clientSessionApis.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
+	_, err := session.clientSessionAPIs.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
 	assertCanvasJSONRPCError(t, err, "permission_denied", "nope")
 }
 
@@ -218,11 +218,11 @@ func TestCanvasAdapter_HandlerGenericError_WrappedAsCanvasHandlerError(t *testin
 		openErr: errors.New("boom"),
 	})
 
-	_, err := session.clientSessionApis.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
+	_, err := session.clientSessionAPIs.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
 	assertCanvasJSONRPCError(t, err, "canvas_handler_error", "boom")
 }
 
-func TestCanvasRegisterClientSessionApiHandlers_RawJSONRoundTrip(t *testing.T) {
+func TestCanvasRegisterClientSessionAPIHandlers_RawJSONRoundTrip(t *testing.T) {
 	clientToServerReader, clientToServerWriter := io.Pipe()
 	serverToClientReader, serverToClientWriter := io.Pipe()
 
@@ -233,9 +233,9 @@ func TestCanvasRegisterClientSessionApiHandlers_RawJSONRoundTrip(t *testing.T) {
 		openResult:   rpc.CanvasProviderOpenResult{Status: strPtr("ready")},
 		actionResult: map[string]any{"count": float64(2)},
 	})
-	rpc.RegisterClientSessionApiHandlers(server, func(sessionID string) *rpc.ClientSessionApiHandlers {
+	rpc.RegisterClientSessionAPIHandlers(server, func(sessionID string) *rpc.ClientSessionAPIHandlers {
 		if sessionID == "s1" {
-			return session.clientSessionApis
+			return session.clientSessionAPIs
 		}
 		return nil
 	})
@@ -417,9 +417,9 @@ func assertCanvasJSONRPCError(t *testing.T, err error, wantCode, wantMessage str
 func newTestCanvasSession(sessionID string) *Session {
 	session := &Session{
 		SessionID:         sessionID,
-		clientSessionApis: &rpc.ClientSessionApiHandlers{},
+		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 	}
-	session.clientSessionApis.Canvas = newCanvasClientSessionAdapter(session)
+	session.clientSessionAPIs.Canvas = newCanvasClientSessionAdapter(session)
 	return session
 }
 

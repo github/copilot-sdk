@@ -136,17 +136,17 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 - `Connection` (RuntimeConnection): How the SDK connects to the runtime. Construct via one of:
   - `StdioConnection{Path, Args}` — spawn a runtime over stdio (the default if `Connection` is nil)
-  - `TcpConnection{Port, ConnectionToken, Path, Args}` — spawn a runtime that listens on TCP
-  - `UriConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
+  - `TCPConnection{Port, ConnectionToken, Path, Args}` — spawn a runtime that listens on TCP
+  - `URIConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
 
   When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
 - `WorkingDirectory` (string): Working directory for the runtime process
-- `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `UriConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
+- `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `UriConnection`.
-- `EnableRemoteSessions` (bool): Enable remote session support (Mission Control integration). Ignored with `UriConnection`.
+- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `URIConnection`.
+- `EnableRemoteSessions` (bool): Enable remote session support (Mission Control integration). Ignored with `URIConnection`.
 - `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the runtime. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 
 **SessionConfig:**
@@ -495,7 +495,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `BaseURL` (string): API endpoint URL (required)
 - `APIKey` (string): API key (optional for local providers like Ollama)
 - `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
-- `WireApi` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
+- `WireAPI` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
 - `Azure.APIVersion` (string): Azure API version (default: "2024-10-21")
 
 **Example with Ollama:**
@@ -802,7 +802,7 @@ confirmed, err := ui.Confirm(ctx, "Deploy to production?")
 choice, ok, err := ui.Select(ctx, "Pick an environment", []string{"staging", "production"})
 
 // Text input — returns (text, ok bool, error)
-name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UiInputOptions{
+name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UIInputOptions{
     Title:       "Release Name",
     Description: "A short name for the release",
     MinLength:   copilot.Int(1),

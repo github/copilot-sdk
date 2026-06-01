@@ -843,7 +843,7 @@ func TestPermissionsE2E(t *testing.T) {
 				IncludeTempDirectory:  &includeTemp,
 				Unrestricted:          &unrestricted,
 			},
-			Urls: &rpc.PermissionUrlsConfig{
+			URLs: &rpc.PermissionURLsConfig{
 				InitialAllowed: []string{"https://example.invalid/permissions-configure"},
 				Unrestricted:   &unrestricted,
 			},
@@ -971,18 +971,18 @@ func TestPermissionsE2E(t *testing.T) {
 			t.Fatalf("Expected ModifyRules(remove) Success=true")
 		}
 
-		enableUrls, err := session.RPC.Permissions.Urls().SetUnrestrictedMode(t.Context(), &rpc.PermissionUrlsSetUnrestrictedModeParams{Enabled: true})
+		enableURLs, err := session.RPC.Permissions.URLs().SetUnrestrictedMode(t.Context(), &rpc.PermissionURLsSetUnrestrictedModeParams{Enabled: true})
 		if err != nil {
-			t.Fatalf("Permissions.Urls.SetUnrestrictedMode(true) failed: %v", err)
+			t.Fatalf("Permissions.URLs.SetUnrestrictedMode(true) failed: %v", err)
 		}
-		if !enableUrls.Success {
+		if !enableURLs.Success {
 			t.Fatalf("Expected SetUnrestrictedMode(true) Success=true")
 		}
-		disableUrls, err := session.RPC.Permissions.Urls().SetUnrestrictedMode(t.Context(), &rpc.PermissionUrlsSetUnrestrictedModeParams{Enabled: false})
+		disableURLs, err := session.RPC.Permissions.URLs().SetUnrestrictedMode(t.Context(), &rpc.PermissionURLsSetUnrestrictedModeParams{Enabled: false})
 		if err != nil {
-			t.Fatalf("Permissions.Urls.SetUnrestrictedMode(false) failed: %v", err)
+			t.Fatalf("Permissions.URLs.SetUnrestrictedMode(false) failed: %v", err)
 		}
-		if !disableUrls.Success {
+		if !disableURLs.Success {
 			t.Fatalf("Expected SetUnrestrictedMode(false) Success=true")
 		}
 	})

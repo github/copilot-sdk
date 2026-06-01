@@ -12,7 +12,7 @@ import (
 const rpcEventLogTimeout = 30 * time.Second
 
 // Mirrors dotnet/test/E2E/RpcEventLogE2ETests.cs (snapshot category "rpc_event_log").
-func TestRpcEventLogE2E(t *testing.T) {
+func TestRPCEventLogE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

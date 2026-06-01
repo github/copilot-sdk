@@ -11,7 +11,7 @@ import (
 )
 
 // Mirrors dotnet/test/RpcTasksAndHandlersTests.cs (snapshot category "rpc_tasks_and_handlers").
-func TestRpcTasksAndHandlersE2E(t *testing.T) {
+func TestRPCTasksAndHandlersE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

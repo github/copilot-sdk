@@ -2,11 +2,11 @@
 
 package copilot
 
-// SdkProtocolVersion is the SDK protocol version.
+// SDKProtocolVersion is the SDK protocol version.
 // This must match the version expected by the copilot-agent-runtime server.
-const SdkProtocolVersion = 3
+const SDKProtocolVersion = 3
 
-// GetSdkProtocolVersion returns the SDK protocol version.
-func GetSdkProtocolVersion() int {
-	return SdkProtocolVersion
+// GetSDKProtocolVersion returns the SDK protocol version.
+func GetSDKProtocolVersion() int {
+	return SDKProtocolVersion
 }

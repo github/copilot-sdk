@@ -10,7 +10,7 @@ import (
 )
 
 // Mirrors dotnet/test/E2E/RpcScheduleE2ETests.cs (snapshot category "rpc_schedule").
-func TestRpcScheduleE2E(t *testing.T) {
+func TestRPCScheduleE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

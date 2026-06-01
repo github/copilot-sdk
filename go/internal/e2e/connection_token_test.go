@@ -13,7 +13,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("explicit token round-trips successfully", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{
+			opts.Connection = copilot.TCPConnection{
 				Path:            ctx.CLIPath,
 				ConnectionToken: "right-token",
 			}
@@ -36,7 +36,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("auto-generated token round-trips successfully", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath}
+			opts.Connection = copilot.TCPConnection{Path: ctx.CLIPath}
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -56,7 +56,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("sibling client with wrong token is rejected", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		good := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{
+			opts.Connection = copilot.TCPConnection{
 				Path:            ctx.CLIPath,
 				ConnectionToken: "right-token",
 			}
@@ -72,7 +72,7 @@ func TestConnectionToken(t *testing.T) {
 		}
 
 		bad := copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.UriConnection{
+			Connection: copilot.URIConnection{
 				URL:             fmt.Sprintf("localhost:%d", port),
 				ConnectionToken: "wrong",
 			},
@@ -91,7 +91,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("sibling client with no token is rejected", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		good := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{
+			opts.Connection = copilot.TCPConnection{
 				Path:            ctx.CLIPath,
 				ConnectionToken: "right-token",
 			}
@@ -107,7 +107,7 @@ func TestConnectionToken(t *testing.T) {
 		}
 
 		none := copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", port)},
+			Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", port)},
 		})
 		t.Cleanup(func() { none.ForceStop() })
 
