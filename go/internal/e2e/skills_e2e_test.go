@@ -258,7 +258,7 @@ func TestSkillsE2E(t *testing.T) {
 		disabledSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
 			WorkingDirectory:      projectDir,
-			EnableConfigDiscovery: false,
+			EnableConfigDiscovery: copilot.Bool(false),
 		})
 		if err != nil {
 			t.Fatalf("CreateSession (disabled) failed: %v", err)
@@ -278,7 +278,7 @@ func TestSkillsE2E(t *testing.T) {
 		enabledSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
 			WorkingDirectory:      projectDir,
-			EnableConfigDiscovery: true,
+			EnableConfigDiscovery: copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("CreateSession (enabled) failed: %v", err)

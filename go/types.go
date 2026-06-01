@@ -901,13 +901,14 @@ type SessionConfig struct {
 	// ConfigDirectory overrides the default configuration directory location.
 	// When specified, the session will use this directory for storing config and state.
 	ConfigDirectory string
-	// EnableConfigDiscovery, when true, automatically discovers MCP server configurations
+	// EnableConfigDiscovery, when non-nil, controls automatic discovery of MCP server configurations
 	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
 	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
 	// explicit values taking precedence on name collision.
+	// Nil leaves the runtime default unchanged; use Bool(false) to explicitly disable discovery.
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
-	EnableConfigDiscovery bool
+	EnableConfigDiscovery *bool
 	// SkipEmbeddingRetrieval, when non-nil, controls embedding-based retrieval
 	// for this session. Use in multitenant deployments to prevent cross-session
 	// information leakage through the shared embedding cache.
@@ -1314,13 +1315,14 @@ type ResumeSessionConfig struct {
 	WorkingDirectory string
 	// ConfigDirectory overrides the default configuration directory location.
 	ConfigDirectory string
-	// EnableConfigDiscovery, when true, automatically discovers MCP server configurations
+	// EnableConfigDiscovery, when non-nil, controls automatic discovery of MCP server configurations
 	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
 	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
 	// explicit values taking precedence on name collision.
+	// Nil leaves the runtime default unchanged; use Bool(false) to explicitly disable discovery.
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
-	EnableConfigDiscovery bool
+	EnableConfigDiscovery *bool
 	// SkipEmbeddingRetrieval, when non-nil, controls embedding-based retrieval
 	// for this session. Use in multitenant deployments to prevent cross-session
 	// information leakage through the shared embedding cache.
@@ -1399,15 +1401,16 @@ type ResumeSessionConfig struct {
 	// SuppressResumeEvent, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
 	SuppressResumeEvent bool
-	// ContinuePendingWork, when true, instructs the runtime to continue any tool calls
-	// or permission prompts that were still pending when the session was last suspended.
-	// When false (the default), the runtime treats pending work as interrupted on resume.
+	// ContinuePendingWork, when non-nil, controls whether the runtime continues any
+	// tool calls or permission prompts that were still pending when the session was
+	// last suspended. Nil leaves the runtime default unchanged; use Bool(false) to
+	// explicitly treat pending work as interrupted on resume.
 	//
 	// For permission requests, the runtime re-emits permission.requested so the
 	// registered OnPermissionRequest handler can re-prompt; for external tool calls,
 	// the consumer is expected to supply the result via the corresponding low-level
 	// RPC method.
-	ContinuePendingWork bool
+	ContinuePendingWork *bool
 	// OnEvent is an optional event handler registered before the session.resume RPC
 	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
 	OnEvent SessionEventHandler
