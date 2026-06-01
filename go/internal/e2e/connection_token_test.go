@@ -13,7 +13,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("explicit token round-trips successfully", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{
+			opts.Connection = copilot.TCPConnection{
 				Path:            ctx.CLIPath,
 				ConnectionToken: "right-token",
 			}
@@ -36,7 +36,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("auto-generated token round-trips successfully", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath}
+			opts.Connection = copilot.TCPConnection{Path: ctx.CLIPath}
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -56,7 +56,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("sibling client with wrong token is rejected", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		good := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{
+			opts.Connection = copilot.TCPConnection{
 				Path:            ctx.CLIPath,
 				ConnectionToken: "right-token",
 			}
@@ -91,7 +91,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("sibling client with no token is rejected", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		good := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{
+			opts.Connection = copilot.TCPConnection{
 				Path:            ctx.CLIPath,
 				ConnectionToken: "right-token",
 			}

@@ -20,7 +20,7 @@ const (
 
 // RuntimeConnection describes how a [Client] connects to the Copilot runtime.
 //
-// Construct one with a [StdioConnection], [TcpConnection], or [URIConnection]
+// Construct one with a [StdioConnection], [TCPConnection], or [URIConnection]
 // literal and pass it via [ClientOptions.Connection]. When [ClientOptions.Connection]
 // is nil, the default is an empty [StdioConnection] (the SDK spawns the bundled
 // runtime and communicates over stdin/stdout).
@@ -39,9 +39,9 @@ type StdioConnection struct {
 
 func (StdioConnection) runtimeConnection() {}
 
-// TcpConnection spawns a runtime child process that listens on a TCP socket
+// TCPConnection spawns a runtime child process that listens on a TCP socket
 // and connects to it.
-type TcpConnection struct {
+type TCPConnection struct {
 	// Port is the TCP port the runtime listens on. 0 (the default) lets the
 	// runtime pick a free port; the chosen port is then available via
 	// [Client.RuntimePort] after [Client.Start] returns.
@@ -56,7 +56,7 @@ type TcpConnection struct {
 	Args []string
 }
 
-func (TcpConnection) runtimeConnection() {}
+func (TCPConnection) runtimeConnection() {}
 
 // URIConnection connects to an already-running runtime at the given URL.
 // The SDK does not spawn a process in this mode.

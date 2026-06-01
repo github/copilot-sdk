@@ -48,10 +48,10 @@ func TestSuspendE2E(t *testing.T) {
 	t.Run("should allow resume and continue conversation after suspend", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		_, cliURL := startTcpServer(t, ctx)
+		_, cliURL := startTCPServer(t, ctx)
 
 		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.URIConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
+			opts.Connection = copilot.URIConnection{URL: cliURL, ConnectionToken: sharedTCPToken}
 		})
 		t.Cleanup(func() { client1.ForceStop() })
 
@@ -75,7 +75,7 @@ func TestSuspendE2E(t *testing.T) {
 		client1.ForceStop()
 
 		client2 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.URIConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
+			opts.Connection = copilot.URIConnection{URL: cliURL, ConnectionToken: sharedTCPToken}
 		})
 		t.Cleanup(func() { client2.ForceStop() })
 

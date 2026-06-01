@@ -18,7 +18,7 @@ func TestMultiClientE2E(t *testing.T) {
 	// Use TCP mode so a second client can connect to the same CLI process
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Connection = copilot.TcpConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTcpToken}
+		opts.Connection = copilot.TCPConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTCPToken}
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 
@@ -37,7 +37,7 @@ func TestMultiClientE2E(t *testing.T) {
 	}
 
 	client2 := copilot.NewClient(&copilot.ClientOptions{
-		Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
+		Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTCPToken},
 	})
 	t.Cleanup(func() { client2.ForceStop() })
 
@@ -487,7 +487,7 @@ func TestMultiClientE2E(t *testing.T) {
 
 		// Recreate client2 for cleanup (but don't rejoin the session)
 		client2 = copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
+			Connection: copilot.URIConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTCPToken},
 		})
 
 		// Now only stable_tool should be available

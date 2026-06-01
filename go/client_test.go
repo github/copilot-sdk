@@ -115,9 +115,9 @@ func TestClient_URLParsing(t *testing.T) {
 	})
 
 	t.Run("tcp connection uses tcp transport", func(t *testing.T) {
-		client := NewClient(&ClientOptions{Connection: TcpConnection{Port: 8080}})
+		client := NewClient(&ClientOptions{Connection: TCPConnection{Port: 8080}})
 		if client.useStdio {
-			t.Error("Expected useStdio=false for TcpConnection")
+			t.Error("Expected useStdio=false for TCPConnection")
 		}
 		if client.port != 8080 {
 			t.Errorf("Expected port=8080, got %d", client.port)

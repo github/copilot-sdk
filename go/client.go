@@ -180,7 +180,7 @@ func NewClient(options *ClientOptions) *Client {
 		if len(conn.Args) > 0 {
 			client.cliArgs = append([]string{}, conn.Args...)
 		}
-	case TcpConnection:
+	case TCPConnection:
 		client.useStdio = false
 		client.cliPath = conn.Path
 		if len(conn.Args) > 0 {
@@ -1870,11 +1870,11 @@ func (c *Client) connectToServer(ctx context.Context) error {
 	}
 
 	// Connect via TCP
-	return c.connectViaTcp(ctx)
+	return c.connectViaTCP(ctx)
 }
 
-// connectViaTcp connects to the CLI server via TCP socket.
-func (c *Client) connectViaTcp(ctx context.Context) error {
+// connectViaTCP connects to the CLI server via TCP socket.
+func (c *Client) connectViaTCP(ctx context.Context) error {
 	if c.actualPort == 0 {
 		return fmt.Errorf("server port not available")
 	}

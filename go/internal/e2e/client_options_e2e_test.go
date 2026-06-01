@@ -17,12 +17,12 @@ import (
 // Go's ClientOptions is a plain struct with no setter validation; equivalent behavior is covered
 // in package-level unit tests.
 func TestClientOptionsE2E(t *testing.T) {
-	t.Run("should listen on configured tcp port", func(t *testing.T) {
+	t.Run("should listen on configured TCP port", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
-		port := getAvailableTcpPort(t)
+		port := getAvailableTCPPort(t)
 
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath, Port: port}
+			opts.Connection = copilot.TCPConnection{Path: ctx.CLIPath, Port: port}
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -278,7 +278,7 @@ func TestClientOptionsUnit(t *testing.T) {
 	})
 }
 
-func getAvailableTcpPort(t *testing.T) int {
+func getAvailableTCPPort(t *testing.T) int {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

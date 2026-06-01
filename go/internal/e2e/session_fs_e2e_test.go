@@ -139,7 +139,7 @@ func TestSessionFSE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath}
+			opts.Connection = copilot.TCPConnection{Path: ctx.CLIPath}
 		})
 		t.Cleanup(func() { client1.ForceStop() })
 

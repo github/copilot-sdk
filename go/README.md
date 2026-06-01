@@ -136,7 +136,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 - `Connection` (RuntimeConnection): How the SDK connects to the runtime. Construct via one of:
   - `StdioConnection{Path, Args}` — spawn a runtime over stdio (the default if `Connection` is nil)
-  - `TcpConnection{Port, ConnectionToken, Path, Args}` — spawn a runtime that listens on TCP
+  - `TCPConnection{Port, ConnectionToken, Path, Args}` — spawn a runtime that listens on TCP
   - `URIConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
 
   When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
