@@ -68,6 +68,12 @@ jobs:
         working-directory: ./test/harness
         run: npm install "@github/copilot@$VERSION"
 
+      - name: Update @github/copilot in Java codegen
+        env:
+          VERSION: ${{ inputs.version }}
+        working-directory: ./java/scripts/codegen
+        run: npm install "@github/copilot@$VERSION"
+
       - name: Refresh nodejs/samples lockfile
         working-directory: ./nodejs/samples
         run: npm install
@@ -78,6 +84,10 @@ jobs:
 
       - name: Run codegen
         working-directory: ./scripts/codegen
+        run: npm run generate
+
+      - name: Run Java codegen
+        working-directory: ./java/scripts/codegen
         run: npm run generate
 
       - name: Format generated code
@@ -112,8 +122,8 @@ jobs:
 
           git commit -m "Update @github/copilot to $VERSION
 
-          - Updated nodejs and test harness dependencies
-          - Re-ran code generators
+          - Updated @github/copilot dependencies
+          - Re-ran all code generators
           - Formatted generated code"
           git push origin "$BRANCH" --force-with-lease
 
@@ -132,8 +142,8 @@ jobs:
               --body "Automated update of \`@github/copilot\` to version \`$VERSION\`.
 
           ### Changes
-          - Updated \`@github/copilot\` in \`nodejs/package.json\` and \`test/harness/package.json\`
-          - Re-ran all code generators (\`scripts/codegen\`)
+          - Updated \`@github/copilot\` dependencies
+          - Re-ran all code generators
           - Formatted generated output
 
           ### Next steps
