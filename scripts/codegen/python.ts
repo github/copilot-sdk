@@ -3144,12 +3144,11 @@ def _patch_model_capabilities(data: dict) -> dict:
 
 /**
  * Appends an `__all__` list to the generated session-events module so that
- * ``from copilot.generated.session_events import *`` (used by the public
- * ``copilot`` package) only re-exports schema-derived public types and not
- * helper functions (``from_str``, ``from_int``, …) or TypeVars (``T``,
- * ``EnumT``). Internal-marked types are omitted so they remain hidden from
- * the SDK's public surface even though their renamed (`_`-prefixed) form is
- * still present in the module for cross-module use.
+ * the public ``copilot.session_events`` shim can ``from .generated.session_events
+ * import *`` without leaking helper functions (``from_str``, ``from_int``, …)
+ * or TypeVars (``T``, ``EnumT``). Internal-marked types are omitted so they
+ * remain hidden from the SDK's public surface even though their renamed
+ * (`_`-prefixed) form is still present in the module for cross-module use.
  */
 function appendPythonSessionEventsAllList(code: string, _schema: JSONSchema7, internalTypeNames: Set<string>): string {
     const exported = new Set<string>();
@@ -3201,10 +3200,10 @@ function appendPythonSessionEventsAllList(code: string, _schema: JSONSchema7, in
  *
  * Shared types pulled in from session-events (via ``from .session_events
  * import …``) are intentionally excluded so each protocol type has a single
- * canonical public location. Callers reach them through ``copilot.X`` —
- * matching the C# codegen, which emits shared types only in
- * ``GitHub.Copilot`` and references them from ``GitHub.Copilot.Rpc`` by
- * fully-qualified name.
+ * canonical public location. Callers reach them through
+ * ``copilot.session_events.X`` — matching the C# codegen, which emits shared
+ * types only in ``GitHub.Copilot`` and references them from
+ * ``GitHub.Copilot.Rpc`` by fully-qualified name.
  */
 function appendPythonRpcAllList(code: string, _definitions: { definitions: Record<string, unknown>; $defs: Record<string, unknown> }): string {
     const exported = new Set<string>();

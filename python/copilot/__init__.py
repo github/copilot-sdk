@@ -8,9 +8,9 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
 from . import rpc as rpc  # noqa: F401  -- register the public ``copilot.rpc`` namespace
-from . import (
-    session_events as session_events,  # noqa: F401  -- register the public ``copilot.session_events`` namespace
-)
+
+# Register the public ``copilot.session_events`` namespace.
+from . import session_events as session_events  # noqa: F401
 from ._mode import (
     BUILTIN_TOOLS_ISOLATED,
     CopilotClientMode,
