@@ -697,13 +697,13 @@ func (r ExternalToolTextResultForLlmContentText) MarshalJSON() ([]byte, error) {
 
 func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 	type rawExternalToolTextResultForLlm struct {
-		BinaryResultsForLlm []ExternalToolTextResultForLlmBinaryResultsForLlm `json:"binaryResultsForLlm,omitempty"`
-		Contents            []json.RawMessage                                 `json:"contents,omitempty"`
+		BinaryResultsForLlm []ExternalToolTextResultForLlmBinaryResultsForLlm `json:"binaryResultsForLlm,omitzero"`
+		Contents            []json.RawMessage                                 `json:"contents,omitzero"`
 		Error               *string                                           `json:"error,omitempty"`
 		ResultType          *string                                           `json:"resultType,omitempty"`
 		SessionLog          *string                                           `json:"sessionLog,omitempty"`
 		TextResultForLlm    string                                            `json:"textResultForLlm"`
-		ToolTelemetry       map[string]any                                    `json:"toolTelemetry,omitempty"`
+		ToolTelemetry       map[string]any                                    `json:"toolTelemetry,omitzero"`
 	}
 	var raw rawExternalToolTextResultForLlm
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -919,14 +919,14 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	type rawMCPServerConfigHTTP struct {
 		Auth              json.RawMessage                    `json:"auth,omitempty"`
 		FilterMapping     json.RawMessage                    `json:"filterMapping,omitempty"`
-		Headers           map[string]string                  `json:"headers,omitempty"`
+		Headers           map[string]string                  `json:"headers,omitzero"`
 		IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
 		OauthClientID     *string                            `json:"oauthClientId,omitempty"`
 		OauthGrantType    *MCPServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 		OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
 		Oidc              json.RawMessage                    `json:"oidc,omitempty"`
 		Timeout           *int64                             `json:"timeout,omitempty"`
-		Tools             []string                           `json:"tools,omitempty"`
+		Tools             []string                           `json:"tools,omitzero"`
 		Type              *MCPServerConfigHTTPType           `json:"type,omitempty"`
 		URL               string                             `json:"url"`
 	}
@@ -969,16 +969,16 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 
 func (r *MCPServerConfigStdio) UnmarshalJSON(data []byte) error {
 	type rawMCPServerConfigStdio struct {
-		Args            []string          `json:"args,omitempty"`
+		Args            []string          `json:"args,omitzero"`
 		Auth            json.RawMessage   `json:"auth,omitempty"`
 		Command         string            `json:"command"`
 		Cwd             *string           `json:"cwd,omitempty"`
-		Env             map[string]string `json:"env,omitempty"`
+		Env             map[string]string `json:"env,omitzero"`
 		FilterMapping   json.RawMessage   `json:"filterMapping,omitempty"`
 		IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
 		Oidc            json.RawMessage   `json:"oidc,omitempty"`
 		Timeout         *int64            `json:"timeout,omitempty"`
-		Tools           []string          `json:"tools,omitempty"`
+		Tools           []string          `json:"tools,omitzero"`
 	}
 	var raw rawMCPServerConfigStdio
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -2346,13 +2346,13 @@ func (r *SendAttachmentsToMessageParams) UnmarshalJSON(data []byte) error {
 func (r *SendRequest) UnmarshalJSON(data []byte) error {
 	type rawSendRequest struct {
 		AgentMode      *SendAgentMode    `json:"agentMode,omitempty"`
-		Attachments    []json.RawMessage `json:"attachments,omitempty"`
+		Attachments    []json.RawMessage `json:"attachments,omitzero"`
 		Billable       *bool             `json:"billable,omitempty"`
 		DisplayPrompt  *string           `json:"displayPrompt,omitempty"`
 		Mode           *SendMode         `json:"mode,omitempty"`
 		Prepend        *bool             `json:"prepend,omitempty"`
 		Prompt         string            `json:"prompt"`
-		RequestHeaders map[string]string `json:"requestHeaders,omitempty"`
+		RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
 		RequiredTool   *string           `json:"requiredTool,omitempty"`
 		Source         any               `json:"source,omitempty"`
 		Traceparent    *string           `json:"traceparent,omitempty"`
@@ -3058,7 +3058,7 @@ func (r UIElicitationStringOneOfField) MarshalJSON() ([]byte, error) {
 func (r *UIElicitationSchema) UnmarshalJSON(data []byte) error {
 	type rawUIElicitationSchema struct {
 		Properties map[string]json.RawMessage `json:"properties"`
-		Required   []string                   `json:"required,omitempty"`
+		Required   []string                   `json:"required,omitzero"`
 		Type       UIElicitationSchemaType    `json:"type"`
 	}
 	var raw rawUIElicitationSchema
@@ -3083,7 +3083,7 @@ func (r *UIElicitationSchema) UnmarshalJSON(data []byte) error {
 func (r *UIElicitationResponse) UnmarshalJSON(data []byte) error {
 	type rawUIElicitationResponse struct {
 		Action  UIElicitationResponseAction `json:"action"`
-		Content map[string]json.RawMessage  `json:"content,omitempty"`
+		Content map[string]json.RawMessage  `json:"content,omitzero"`
 	}
 	var raw rawUIElicitationResponse
 	if err := json.Unmarshal(data, &raw); err != nil {

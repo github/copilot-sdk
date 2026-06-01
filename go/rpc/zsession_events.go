@@ -178,7 +178,7 @@ func (*AssistantReasoningData) Type() SessionEventType { return SessionEventType
 type AssistantMessageData struct {
 	// Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
 	// Experimental: AnthropicAdvisorBlocks is part of an experimental API and may change or be removed.
-	AnthropicAdvisorBlocks []any `json:"anthropicAdvisorBlocks,omitempty"`
+	AnthropicAdvisorBlocks []any `json:"anthropicAdvisorBlocks,omitzero"`
 	// Anthropic advisor model ID used for this response, for timeline display on replay
 	// Experimental: AnthropicAdvisorModel is part of an experimental API and may change or be removed.
 	AnthropicAdvisorModel *string `json:"anthropicAdvisorModel,omitempty"`
@@ -208,7 +208,7 @@ type AssistantMessageData struct {
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Tool invocations requested by the assistant in this message
-	ToolRequests []AssistantMessageToolRequest `json:"toolRequests,omitempty"`
+	ToolRequests []AssistantMessageToolRequest `json:"toolRequests,omitzero"`
 	// Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event
 	TurnID *string `json:"turnId,omitempty"`
 }
@@ -379,7 +379,7 @@ type ElicitationCompletedData struct {
 	// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 	Action *ElicitationCompletedAction `json:"action,omitempty"`
 	// The submitted form data when action is 'accept'; keys match the requested schema fields
-	Content map[string]ElicitationCompletedContent `json:"content,omitempty"`
+	Content map[string]ElicitationCompletedContent `json:"content,omitzero"`
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
 }
@@ -599,7 +599,7 @@ type AssistantUsageData struct {
 	ProviderCallID *string `json:"providerCallId,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
 	// Internal: QuotaSnapshots is part of the SDK's internal API surface and is not intended for external use.
-	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitempty"`
+	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitzero"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
@@ -616,13 +616,13 @@ func (*AssistantUsageData) Type() SessionEventType { return SessionEventTypeAssi
 // MCP App view called a tool on a connected MCP server (SEP-1865)
 type MCPAppToolCallCompleteData struct {
 	// Arguments passed to the tool by the app view, if any
-	Arguments map[string]any `json:"arguments,omitempty"`
+	Arguments map[string]any `json:"arguments,omitzero"`
 	// Wall-clock duration of the underlying tools/call in milliseconds
 	DurationMs float64 `json:"durationMs"`
 	// Set when the underlying tools/call threw an error before returning a CallToolResult
 	Error *MCPAppToolCallCompleteError `json:"error,omitempty"`
 	// Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.
-	Result map[string]any `json:"result,omitempty"`
+	Result map[string]any `json:"result,omitzero"`
 	// Name of the MCP server hosting the tool
 	ServerName string `json:"serverName"`
 	// True when the call completed without throwing AND the MCP CallToolResult did not set isError
@@ -705,7 +705,7 @@ type SessionCustomNotificationData struct {
 	// Namespace for the custom notification producer
 	Source string `json:"source"`
 	// Optional source-defined string identifiers describing the payload subject
-	Subject map[string]string `json:"subject,omitempty"`
+	Subject map[string]string `json:"subject,omitzero"`
 	// Optional source-defined payload schema version
 	Version *int64 `json:"version,omitempty"`
 }
@@ -1041,7 +1041,7 @@ type UserMessageData struct {
 	// The agent mode that was active when this message was sent
 	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
 	// Files, selections, or GitHub references attached to the message
-	Attachments []Attachment `json:"attachments,omitempty"`
+	Attachments []Attachment `json:"attachments,omitzero"`
 	// The user's message text as displayed in the timeline
 	Content string `json:"content"`
 	// CAPI interaction ID for correlating this user message with its turn
@@ -1049,13 +1049,13 @@ type UserMessageData struct {
 	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
 	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
 	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
-	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitempty"`
+	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
 	// Parent agent task ID for background telemetry correlated to this user turn
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
 	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
 	Source *string `json:"source,omitempty"`
 	// Normalized document MIME types that were sent natively instead of through tagged_files XML
-	SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitempty"`
+	SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitzero"`
 	// Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
 	TransformedContent *string `json:"transformedContent,omitempty"`
 }
@@ -1189,7 +1189,7 @@ type SessionShutdownData struct {
 	// System message token count at shutdown
 	SystemTokens *int64 `json:"systemTokens,omitempty"`
 	// Session-wide per-token-type accumulated token counts
-	TokenDetails map[string]ShutdownTokenDetail `json:"tokenDetails,omitempty"`
+	TokenDetails map[string]ShutdownTokenDetail `json:"tokenDetails,omitzero"`
 	// Tool definitions token count at shutdown
 	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
 	// Cumulative time spent in API calls during the session, in milliseconds
@@ -1217,7 +1217,7 @@ func (*SessionTitleChangedData) Type() SessionEventType { return SessionEventTyp
 // Skill invocation details including content, allowed tools, and plugin metadata
 type SkillInvokedData struct {
 	// Tool names that should be auto-approved when this skill is active
-	AllowedTools []string `json:"allowedTools,omitempty"`
+	AllowedTools []string `json:"allowedTools,omitzero"`
 	// Full content of the skill file, injected into the conversation for the model
 	Content string `json:"content"`
 	// Description of the skill from its SKILL.md frontmatter
@@ -1427,7 +1427,7 @@ type ToolExecutionCompleteData struct {
 	// Tool definition metadata, present for MCP tools with MCP Apps support
 	ToolDescription *ToolExecutionCompleteToolDescription `json:"toolDescription,omitempty"`
 	// Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
-	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
+	ToolTelemetry map[string]any `json:"toolTelemetry,omitzero"`
 	// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
 	TurnID *string `json:"turnId,omitempty"`
 }
@@ -1521,7 +1521,7 @@ type UserInputRequestedData struct {
 	// Whether the user can provide a free-form text response in addition to predefined choices
 	AllowFreeform *bool `json:"allowFreeform,omitempty"`
 	// Predefined choices for the user to select from, if applicable
-	Choices []string `json:"choices,omitempty"`
+	Choices []string `json:"choices,omitzero"`
 	// The question or prompt to present to the user
 	Question string `json:"question"`
 	// Unique identifier for this input request; used to respond via session.respondToUserInput()
@@ -1670,7 +1670,7 @@ type AssistantUsageQuotaSnapshot struct {
 // Schema for the `CanvasRegistryChangedCanvas` type.
 type CanvasRegistryChangedCanvas struct {
 	// Actions the agent or host may invoke
-	Actions []CanvasRegistryChangedCanvasAction `json:"actions,omitempty"`
+	Actions []CanvasRegistryChangedCanvasAction `json:"actions,omitzero"`
 	// Provider-local canvas identifier
 	CanvasID string `json:"canvasId"`
 	// Short, single-sentence description shown to the agent in canvas catalogs.
@@ -1682,7 +1682,7 @@ type CanvasRegistryChangedCanvas struct {
 	// Owning extension display name, when available
 	ExtensionName *string `json:"extensionName,omitempty"`
 	// JSON Schema for canvas open input
-	InputSchema map[string]any `json:"inputSchema,omitempty"`
+	InputSchema map[string]any `json:"inputSchema,omitzero"`
 }
 
 // Schema for the `CanvasRegistryChangedCanvasAction` type.
@@ -1690,7 +1690,7 @@ type CanvasRegistryChangedCanvasAction struct {
 	// Action description
 	Description *string `json:"description,omitempty"`
 	// JSON Schema for action input
-	InputSchema map[string]any `json:"inputSchema,omitempty"`
+	InputSchema map[string]any `json:"inputSchema,omitzero"`
 	// Action name
 	Name string `json:"name"`
 }
@@ -1808,7 +1808,7 @@ type ElicitationRequestedSchema struct {
 	// Form field definitions, keyed by field name
 	Properties map[string]any `json:"properties"`
 	// List of required field names
-	Required []string `json:"required,omitempty"`
+	Required []string `json:"required,omitzero"`
 	// Schema type indicator (always 'object')
 	Type ElicitationRequestedSchemaType `json:"type"`
 }
@@ -1860,7 +1860,7 @@ type MCPAppToolCallCompleteToolMetaUI struct {
 	// `ui://` URI declared by the tool's `_meta.ui.resourceUri`
 	ResourceURI *string `json:"resourceUri,omitempty"`
 	// Tool visibility per SEP-1865 (typically a subset of `["model","app"]`)
-	Visibility []string `json:"visibility,omitempty"`
+	Visibility []string `json:"visibility,omitzero"`
 }
 
 // Static OAuth client configuration, if the server specifies one
@@ -2450,7 +2450,7 @@ type ShutdownModelMetric struct {
 	// Request count and cost metrics
 	Requests ShutdownModelMetricRequests `json:"requests"`
 	// Token count details per type
-	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitempty"`
+	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitzero"`
 	// Accumulated nano-AI units cost for this model
 	// Experimental: TotalNanoAiu is part of an experimental API and may change or be removed.
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
@@ -2515,7 +2515,7 @@ type SystemMessageMetadata struct {
 	// Version identifier of the prompt template used
 	PromptVersion *string `json:"promptVersion,omitempty"`
 	// Template variables used when constructing the prompt
-	Variables map[string]any `json:"variables,omitempty"`
+	Variables map[string]any `json:"variables,omitzero"`
 }
 
 // Structured metadata identifying what triggered this notification
@@ -2688,7 +2688,7 @@ type ToolExecutionCompleteContentResourceLink struct {
 	// Human-readable description of the resource
 	Description *string `json:"description,omitempty"`
 	// Icons associated with this resource
-	Icons []ToolExecutionCompleteContentResourceLinkIcon `json:"icons,omitempty"`
+	Icons []ToolExecutionCompleteContentResourceLinkIcon `json:"icons,omitzero"`
 	// MIME type of the resource content
 	MIMEType *string `json:"mimeType,omitempty"`
 	// Resource name identifier
@@ -2743,7 +2743,7 @@ type ToolExecutionCompleteContentResourceLinkIcon struct {
 	// MIME type of the icon image
 	MIMEType *string `json:"mimeType,omitempty"`
 	// Available icon sizes (e.g., ['16x16', '32x32'])
-	Sizes []string `json:"sizes,omitempty"`
+	Sizes []string `json:"sizes,omitzero"`
 	// URL or path to the icon image
 	Src string `json:"src"`
 	// Theme variant this icon is intended for
@@ -2763,7 +2763,7 @@ type ToolExecutionCompleteResult struct {
 	// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
 	Content string `json:"content"`
 	// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
-	Contents []ToolExecutionCompleteContent `json:"contents,omitempty"`
+	Contents []ToolExecutionCompleteContent `json:"contents,omitzero"`
 	// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
 	DetailedContent *string `json:"detailedContent,omitempty"`
 	// MCP Apps UI resource content for rendering in a sandboxed iframe
@@ -2791,7 +2791,7 @@ type ToolExecutionCompleteToolDescriptionMetaUI struct {
 	// URI of the UI resource
 	ResourceURI *string `json:"resourceUri,omitempty"`
 	// Who can access this tool
-	Visibility []ToolExecutionCompleteToolDescriptionMetaUIVisibility `json:"visibility,omitempty"`
+	Visibility []ToolExecutionCompleteToolDescriptionMetaUIVisibility `json:"visibility,omitzero"`
 }
 
 // MCP Apps UI resource content for rendering in a sandboxed iframe
@@ -2826,10 +2826,10 @@ type ToolExecutionCompleteUIResourceMetaUI struct {
 
 // Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
 type ToolExecutionCompleteUIResourceMetaUICsp struct {
-	BaseURIDomains  []string `json:"baseUriDomains,omitempty"`
-	ConnectDomains  []string `json:"connectDomains,omitempty"`
-	FrameDomains    []string `json:"frameDomains,omitempty"`
-	ResourceDomains []string `json:"resourceDomains,omitempty"`
+	BaseURIDomains  []string `json:"baseUriDomains,omitzero"`
+	ConnectDomains  []string `json:"connectDomains,omitzero"`
+	FrameDomains    []string `json:"frameDomains,omitzero"`
+	ResourceDomains []string `json:"resourceDomains,omitzero"`
 }
 
 // Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.

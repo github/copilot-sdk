@@ -797,7 +797,7 @@ func (c MCPHTTPServerConfig) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// CustomAgentConfig configures a custom agent
+// CustomAgentConfig configures a custom agent.
 type CustomAgentConfig struct {
 	// Name is the unique name of the custom agent
 	Name string `json:"name"`
@@ -805,8 +805,9 @@ type CustomAgentConfig struct {
 	DisplayName string `json:"displayName,omitempty"`
 	// Description of what the agent does
 	Description string `json:"description,omitempty"`
-	// Tools is the list of tool names the agent can use (nil for all tools)
-	Tools []string `json:"tools,omitempty"`
+	// Tools is the list of tool names the agent can use. Nil omits the field
+	// (all tools); an empty non-nil slice sends "tools": [] (no tools).
+	Tools []string `json:"tools,omitzero"`
 	// Prompt is the prompt content for the agent
 	Prompt string `json:"prompt"`
 	// MCPServers are MCP servers specific to this agent
@@ -1113,7 +1114,7 @@ type SessionConfig struct {
 type Tool struct {
 	Name                 string         `json:"name"`
 	Description          string         `json:"description,omitempty"`
-	Parameters           map[string]any `json:"parameters,omitempty"`
+	Parameters           map[string]any `json:"parameters,omitzero"`
 	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
 	SkipPermission       bool           `json:"skipPermission,omitempty"`
 	// Handler is optional. When nil, the SDK exposes the tool declaration but does
@@ -1200,7 +1201,7 @@ type ElicitationResult struct {
 	// Action is the user response: "accept" (submitted), "decline" (rejected), or "cancel" (dismissed).
 	Action string `json:"action"`
 	// Content holds form values submitted by the user (present when Action is "accept").
-	Content map[string]any `json:"content,omitempty"`
+	Content map[string]any `json:"content,omitzero"`
 }
 
 // ElicitationContext describes an elicitation request from the server,
