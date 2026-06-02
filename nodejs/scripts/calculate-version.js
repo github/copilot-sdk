@@ -43,13 +43,10 @@ export function calculateVersion(command, { latest, prerelease, unstable }) {
         }
     }
 
-    // TEMPORARY: "latest" uses prerelease increments so we publish beta versions
-    // under the "latest" dist-tag. To ship stable 1.0.0, revert the commit that
-    // introduced this temporary change.
-    const increment = "prerelease";
+    const increment = command === "latest" ? "patch" : "prerelease";
     const isIncrementingExistingPrerelease = semver.prerelease(higherVersion) !== null;
     const prereleaseIdentifier =
-        command === "prerelease" || command === "latest"
+        command === "prerelease"
             ? isIncrementingExistingPrerelease
                 ? undefined
                 : "preview"
