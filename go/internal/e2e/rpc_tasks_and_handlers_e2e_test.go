@@ -311,7 +311,7 @@ func TestRPCTasksAndHandlersE2E(t *testing.T) {
 			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
 				handlerContext <- ctx
 				return copilot.ElicitationResult{
-					Action: "accept",
+					Action: copilot.ElicitationActionAccept,
 					Content: map[string]any{
 						"answer":    "from handler",
 						"confirmed": true,
@@ -347,7 +347,7 @@ func TestRPCTasksAndHandlersE2E(t *testing.T) {
 		if ctx.SessionID != session.SessionID || ctx.Message != "Need details" {
 			t.Fatalf("Unexpected elicitation context: %+v", ctx)
 		}
-		if _, ok := ctx.RequestedSchema["properties"]; !ok {
+		if ctx.RequestedSchema == nil || ctx.RequestedSchema.Properties == nil {
 			t.Fatalf("Expected requested schema to include properties, got %+v", ctx.RequestedSchema)
 		}
 		if response.Action != rpc.UIElicitationResponseActionAccept {

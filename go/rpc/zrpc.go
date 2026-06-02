@@ -2204,14 +2204,14 @@ type MCPServer struct {
 
 // Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
 type MCPServerAuthConfig interface {
-	mCPServerAuthConfig()
+	mcpServerAuthConfig()
 }
 
 type MCPServerAuthConfigBoolean bool
 
-func (MCPServerAuthConfigBoolean) mCPServerAuthConfig() {}
+func (MCPServerAuthConfigBoolean) mcpServerAuthConfig() {}
 
-func (MCPServerAuthConfigRedirectPort) mCPServerAuthConfig() {}
+func (MCPServerAuthConfigRedirectPort) mcpServerAuthConfig() {}
 
 // Authentication settings with optional redirect port configuration.
 type MCPServerAuthConfigRedirectPort struct {
@@ -2221,14 +2221,14 @@ type MCPServerAuthConfigRedirectPort struct {
 
 // MCP server configuration (stdio process or remote HTTP/SSE)
 type MCPServerConfig interface {
-	mCPServerConfig()
+	mcpServerConfig()
 }
 
 type RawMCPServerConfigData struct {
 	Raw json.RawMessage
 }
 
-func (RawMCPServerConfigData) mCPServerConfig() {}
+func (RawMCPServerConfigData) mcpServerConfig() {}
 
 // Remote MCP server configuration accessed over HTTP or SSE.
 type MCPServerConfigHTTP struct {
@@ -2260,7 +2260,7 @@ type MCPServerConfigHTTP struct {
 	URL string `json:"url"`
 }
 
-func (MCPServerConfigHTTP) mCPServerConfig() {}
+func (MCPServerConfigHTTP) mcpServerConfig() {}
 
 // Stdio MCP server configuration launched as a child process.
 type MCPServerConfigStdio struct {
@@ -2288,7 +2288,7 @@ type MCPServerConfigStdio struct {
 	Tools []string `json:"tools,omitzero"`
 }
 
-func (MCPServerConfigStdio) mCPServerConfig() {}
+func (MCPServerConfigStdio) mcpServerConfig() {}
 
 // MCP servers configured for the session, with their connection status.
 // Experimental: MCPServerList is part of an experimental API and may change or be removed.
@@ -6115,24 +6115,24 @@ type UIElicitationArrayEnumFieldItems struct {
 // Experimental: UIElicitationFieldValue is part of an experimental API and may change or be
 // removed.
 type UIElicitationFieldValue interface {
-	uIElicitationFieldValue()
+	uiElicitationFieldValue()
 }
 
 type UIElicitationBooleanValue bool
 
-func (UIElicitationBooleanValue) uIElicitationFieldValue() {}
+func (UIElicitationBooleanValue) uiElicitationFieldValue() {}
 
 type UIElicitationNumberValue float64
 
-func (UIElicitationNumberValue) uIElicitationFieldValue() {}
+func (UIElicitationNumberValue) uiElicitationFieldValue() {}
 
 type UIElicitationStringArrayValue []string
 
-func (UIElicitationStringArrayValue) uIElicitationFieldValue() {}
+func (UIElicitationStringArrayValue) uiElicitationFieldValue() {}
 
 type UIElicitationStringValue string
 
-func (UIElicitationStringValue) uIElicitationFieldValue() {}
+func (UIElicitationStringValue) uiElicitationFieldValue() {}
 
 // Prompt message and JSON schema describing the form fields to elicit from the user.
 // Experimental: UIElicitationRequest is part of an experimental API and may change or be
@@ -6185,7 +6185,7 @@ type UIElicitationSchema struct {
 // Experimental: UIElicitationSchemaProperty is part of an experimental API and may change
 // or be removed.
 type UIElicitationSchemaProperty interface {
-	uIElicitationSchemaProperty()
+	uiElicitationSchemaProperty()
 	Type() UIElicitationSchemaPropertyType
 }
 
@@ -6194,7 +6194,7 @@ type RawUIElicitationSchemaPropertyData struct {
 	Raw           json.RawMessage
 }
 
-func (RawUIElicitationSchemaPropertyData) uIElicitationSchemaProperty() {}
+func (RawUIElicitationSchemaPropertyData) uiElicitationSchemaProperty() {}
 func (r RawUIElicitationSchemaPropertyData) Type() UIElicitationSchemaPropertyType {
 	return r.Discriminator
 }
@@ -6217,7 +6217,7 @@ type UIElicitationArrayAnyOfField struct {
 	Title *string `json:"title,omitempty"`
 }
 
-func (UIElicitationArrayAnyOfField) uIElicitationSchemaProperty() {}
+func (UIElicitationArrayAnyOfField) uiElicitationSchemaProperty() {}
 func (UIElicitationArrayAnyOfField) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeArray
 }
@@ -6240,7 +6240,7 @@ type UIElicitationArrayEnumField struct {
 	Title *string `json:"title,omitempty"`
 }
 
-func (UIElicitationArrayEnumField) uIElicitationSchemaProperty() {}
+func (UIElicitationArrayEnumField) uiElicitationSchemaProperty() {}
 func (UIElicitationArrayEnumField) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeArray
 }
@@ -6257,7 +6257,7 @@ type UIElicitationSchemaPropertyBoolean struct {
 	Title *string `json:"title,omitempty"`
 }
 
-func (UIElicitationSchemaPropertyBoolean) uIElicitationSchemaProperty() {}
+func (UIElicitationSchemaPropertyBoolean) uiElicitationSchemaProperty() {}
 func (UIElicitationSchemaPropertyBoolean) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeBoolean
 }
@@ -6279,7 +6279,7 @@ type UIElicitationSchemaPropertyNumber struct {
 	Discriminator UIElicitationSchemaPropertyNumberType `json:"type,omitempty"`
 }
 
-func (UIElicitationSchemaPropertyNumber) uIElicitationSchemaProperty() {}
+func (UIElicitationSchemaPropertyNumber) uiElicitationSchemaProperty() {}
 func (r UIElicitationSchemaPropertyNumber) Type() UIElicitationSchemaPropertyType {
 	if r.Discriminator == "" {
 		return UIElicitationSchemaPropertyTypeNumber
@@ -6305,7 +6305,7 @@ type UIElicitationSchemaPropertyString struct {
 	Title *string `json:"title,omitempty"`
 }
 
-func (UIElicitationSchemaPropertyString) uIElicitationSchemaProperty() {}
+func (UIElicitationSchemaPropertyString) uiElicitationSchemaProperty() {}
 func (UIElicitationSchemaPropertyString) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }
@@ -6326,7 +6326,7 @@ type UIElicitationStringEnumField struct {
 	Title *string `json:"title,omitempty"`
 }
 
-func (UIElicitationStringEnumField) uIElicitationSchemaProperty() {}
+func (UIElicitationStringEnumField) uiElicitationSchemaProperty() {}
 func (UIElicitationStringEnumField) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }
@@ -6345,7 +6345,7 @@ type UIElicitationStringOneOfField struct {
 	Title *string `json:"title,omitempty"`
 }
 
-func (UIElicitationStringOneOfField) uIElicitationSchemaProperty() {}
+func (UIElicitationStringOneOfField) uiElicitationSchemaProperty() {}
 func (UIElicitationStringOneOfField) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }

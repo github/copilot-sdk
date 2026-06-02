@@ -743,19 +743,15 @@ type MCPServerConfig interface {
 //
 // The Tools field controls which tools from the server are exposed:
 //   - nil (omitted from the wire): all tools (CLI default)
-//   - &[]string{"*"}: explicit "all tools"
-//   - &[]string{}: no tools
-//   - &[]string{"foo","bar"}: only those tools
-//
-// The pointer-to-slice form is required so that a nil pointer (omitted from
-// the wire) is distinguishable from a non-nil pointer to an empty slice
-// (sent as `"tools": []`).
+//   - []string{"*"}: explicit "all tools"
+//   - []string{}: no tools
+//   - []string{"foo","bar"}: only those tools
 type MCPStdioServerConfig struct {
-	Tools            *[]string         `json:"tools,omitempty"`
+	Tools            []string          `json:"tools,omitzero"`
 	Timeout          int               `json:"timeout,omitempty"`
 	Command          string            `json:"command"`
-	Args             []string          `json:"args,omitempty"`
-	Env              map[string]string `json:"env,omitempty"`
+	Args             []string          `json:"args,omitzero"`
+	Env              map[string]string `json:"env,omitzero"`
 	WorkingDirectory string            `json:"cwd,omitempty"`
 }
 
@@ -777,10 +773,10 @@ func (c MCPStdioServerConfig) MarshalJSON() ([]byte, error) {
 //
 // See [MCPStdioServerConfig] for the semantics of the Tools field.
 type MCPHTTPServerConfig struct {
-	Tools   *[]string         `json:"tools,omitempty"`
+	Tools   []string          `json:"tools,omitzero"`
 	Timeout int               `json:"timeout,omitempty"`
 	URL     string            `json:"url"`
-	Headers map[string]string `json:"headers,omitempty"`
+	Headers map[string]string `json:"headers,omitzero"`
 }
 
 func (MCPHTTPServerConfig) mcpServerConfig() {}
@@ -1197,12 +1193,34 @@ type UICapabilities struct {
 	MCPApps bool `json:"mcpApps,omitempty"`
 }
 
+// ElicitationAction is the user response to an elicitation request.
+type ElicitationAction = rpc.UIElicitationResponseAction
+
+// Elicitation action values.
+const (
+	ElicitationActionAccept  = rpc.UIElicitationResponseActionAccept
+	ElicitationActionCancel  = rpc.UIElicitationResponseActionCancel
+	ElicitationActionDecline = rpc.UIElicitationResponseActionDecline
+)
+
+// ElicitationFieldValue is a primitive value submitted for an elicitation form field.
+// Supported values are string, numeric types, bool, []string, and []any containing strings.
+type ElicitationFieldValue = any
+
 // ElicitationResult is the user's response to an elicitation dialog.
 type ElicitationResult struct {
-	// Action is the user response: "accept" (submitted), "decline" (rejected), or "cancel" (dismissed).
-	Action string `json:"action"`
-	// Content holds form values submitted by the user (present when Action is "accept").
-	Content map[string]any `json:"content,omitzero"`
+	// Action is the user response: accept, decline, or cancel.
+	Action ElicitationAction `json:"action"`
+	// Content holds form values submitted by the user when Action is accept.
+	Content map[string]ElicitationFieldValue `json:"content,omitzero"`
+}
+
+// ElicitationSchema describes the form fields for an elicitation request.
+type ElicitationSchema struct {
+	// Properties contains form field definitions keyed by field name.
+	Properties map[string]any `json:"properties"`
+	// Required lists field names that must be submitted.
+	Required []string `json:"required,omitzero"`
 }
 
 // ElicitationContext describes an elicitation request from the server,
@@ -1214,13 +1232,13 @@ type ElicitationContext struct {
 	// Message describes what information is needed from the user.
 	Message string
 	// RequestedSchema is a JSON Schema describing the form fields (form mode only).
-	RequestedSchema map[string]any
+	RequestedSchema *ElicitationSchema
 	// Mode is "form" for structured input, "url" for browser redirect.
-	Mode string
+	Mode *ElicitationRequestedMode
 	// ElicitationSource is the source that initiated the request (e.g. MCP server name).
-	ElicitationSource string
+	ElicitationSource *string
 	// URL to open in the user's browser (url mode only).
-	URL string
+	URL *string
 }
 
 // ElicitationHandler handles elicitation requests from the server (e.g. from MCP tools).
@@ -1548,7 +1566,7 @@ type ModelVisionLimits struct {
 // ModelLimits contains model limits
 type ModelLimits struct {
 	MaxPromptTokens        *int               `json:"max_prompt_tokens,omitempty"`
-	MaxContextWindowTokens int                `json:"max_context_window_tokens"`
+	MaxContextWindowTokens *int               `json:"max_context_window_tokens,omitempty"`
 	Vision                 *ModelVisionLimits `json:"vision,omitempty"`
 }
 

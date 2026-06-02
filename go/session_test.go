@@ -718,7 +718,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		}
 
 		session.registerElicitationHandler(func(ctx ElicitationContext) (ElicitationResult, error) {
-			return ElicitationResult{Action: "accept"}, nil
+			return ElicitationResult{Action: ElicitationActionAccept}, nil
 		})
 
 		if session.getElicitationHandler() == nil {
@@ -756,7 +756,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 
 		session.registerElicitationHandler(func(ctx ElicitationContext) (ElicitationResult, error) {
 			return ElicitationResult{
-				Action:  "accept",
+				Action:  ElicitationActionAccept,
 				Content: map[string]any{"color": "blue"},
 			}, nil
 		})
@@ -768,7 +768,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
-		if result.Action != "accept" {
+		if result.Action != ElicitationActionAccept {
 			t.Errorf("Expected action 'accept', got %q", result.Action)
 		}
 		if result.Content["color"] != "blue" {
@@ -892,28 +892,20 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 		}
 		required := []string{"name", "age"}
 
-		// Replicate the schema extraction logic from handleBroadcastEvent
-		requestedSchema := map[string]any{
-			"type":       "object",
-			"properties": properties,
-		}
-		if len(required) > 0 {
-			requestedSchema["required"] = required
+		requestedSchema := ElicitationSchema{
+			Properties: properties,
+			Required:   required,
 		}
 
-		if requestedSchema["type"] != "object" {
-			t.Errorf("Expected schema type 'object', got %v", requestedSchema["type"])
-		}
-		props, ok := requestedSchema["properties"].(map[string]any)
-		if !ok || props == nil {
+		props := requestedSchema.Properties
+		if props == nil {
 			t.Fatal("Expected schema properties map")
 		}
 		if len(props) != 2 {
 			t.Errorf("Expected 2 properties, got %d", len(props))
 		}
-		req, ok := requestedSchema["required"].([]string)
-		if !ok || len(req) != 2 {
-			t.Errorf("Expected required [name, age], got %v", requestedSchema["required"])
+		if len(requestedSchema.Required) != 2 {
+			t.Errorf("Expected required [name, age], got %v", requestedSchema.Required)
 		}
 	})
 
@@ -922,18 +914,31 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 			"optional_field": map[string]any{"type": "string"},
 		}
 
-		requestedSchema := map[string]any{
-			"type":       "object",
-			"properties": properties,
-		}
-		// Simulate: if len(schema.Required) > 0 { ... } — with empty required
-		var required []string
-		if len(required) > 0 {
-			requestedSchema["required"] = required
+		requestedSchema := ElicitationSchema{
+			Properties: properties,
 		}
 
-		if _, exists := requestedSchema["required"]; exists {
-			t.Error("Expected no 'required' key when Required is empty")
+		if requestedSchema.Required != nil {
+			t.Error("Expected Required to be nil when omitted")
+		}
+	})
+
+	t.Run("schema conversion adds object type", func(t *testing.T) {
+		requestedSchema := ElicitationSchema{
+			Properties: map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+		}
+
+		rpcSchema, err := toRPCUIElicitationSchema(requestedSchema)
+		if err != nil {
+			t.Fatalf("toRPCUIElicitationSchema failed: %v", err)
+		}
+		if rpcSchema.Type != rpc.UIElicitationSchemaTypeObject {
+			t.Errorf("Expected RPC schema type object, got %q", rpcSchema.Type)
+		}
+		if _, ok := rpcSchema.Properties["name"].(*rpc.UIElicitationSchemaPropertyString); !ok {
+			t.Fatalf("Expected name property to decode as string schema, got %T", rpcSchema.Properties["name"])
 		}
 	})
 }

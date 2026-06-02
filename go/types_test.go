@@ -326,7 +326,7 @@ func TestCanvasDeclaration_JSONOmitsNilInputSchema(t *testing.T) {
 
 func TestElicitationResult_JSONIncludesEmptyContent(t *testing.T) {
 	result := ElicitationResult{
-		Action:  "accept",
+		Action:  ElicitationActionAccept,
 		Content: map[string]any{},
 	}
 
@@ -354,7 +354,7 @@ func TestElicitationResult_JSONIncludesEmptyContent(t *testing.T) {
 }
 
 func TestElicitationResult_JSONOmitsNilContent(t *testing.T) {
-	result := ElicitationResult{Action: "cancel"}
+	result := ElicitationResult{Action: ElicitationActionCancel}
 
 	data, err := json.Marshal(result)
 	if err != nil {

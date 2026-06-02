@@ -867,25 +867,28 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 		return
 	}
 
-	rpcContent := make(map[string]rpc.UIElicitationFieldValue)
-	for k, v := range result.Content {
-		contentValue, err := toRPCContent(v)
-		if err != nil {
-			s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
-				RequestID: requestID,
-				Result: rpc.UIElicitationResponse{
-					Action: rpc.UIElicitationResponseActionCancel,
-				},
-			})
-			return
+	var rpcContent map[string]rpc.UIElicitationFieldValue
+	if result.Content != nil {
+		rpcContent = make(map[string]rpc.UIElicitationFieldValue, len(result.Content))
+		for k, v := range result.Content {
+			contentValue, err := toRPCContent(v)
+			if err != nil {
+				s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
+					RequestID: requestID,
+					Result: rpc.UIElicitationResponse{
+						Action: rpc.UIElicitationResponseActionCancel,
+					},
+				})
+				return
+			}
+			rpcContent[k] = contentValue
 		}
-		rpcContent[k] = contentValue
 	}
 
 	s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
 		RequestID: requestID,
 		Result: rpc.UIElicitationResponse{
-			Action:  rpc.UIElicitationResponseAction(result.Action),
+			Action:  result.Action,
 			Content: rpcContent,
 		},
 	})
@@ -894,7 +897,7 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 // toRPCContent converts an SDK content value to an RPC elicitation response value.
 func toRPCContent(v any) (rpc.UIElicitationFieldValue, error) {
 	if v == nil {
-		return nil, nil
+		return nil, fmt.Errorf("unsupported elicitation content value type <nil>")
 	}
 	switch val := v.(type) {
 	case bool:
@@ -983,18 +986,43 @@ func (s *Session) assertElicitation() error {
 }
 
 // Elicitation shows a generic elicitation dialog with a custom schema.
-func (ui *SessionUI) Elicitation(ctx context.Context, message string, requestedSchema rpc.UIElicitationSchema) (*ElicitationResult, error) {
+func (ui *SessionUI) Elicitation(ctx context.Context, message string, requestedSchema ElicitationSchema) (*ElicitationResult, error) {
 	if err := ui.session.assertElicitation(); err != nil {
+		return nil, err
+	}
+	rpcSchema, err := toRPCUIElicitationSchema(requestedSchema)
+	if err != nil {
 		return nil, err
 	}
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message:         message,
-		RequestedSchema: requestedSchema,
+		RequestedSchema: rpcSchema,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return fromRPCElicitationResult(rpcResult), nil
+}
+
+func toRPCUIElicitationSchema(schema ElicitationSchema) (rpc.UIElicitationSchema, error) {
+	type wireSchema struct {
+		Properties map[string]any              `json:"properties"`
+		Required   []string                    `json:"required,omitzero"`
+		Type       rpc.UIElicitationSchemaType `json:"type"`
+	}
+	data, err := json.Marshal(wireSchema{
+		Properties: schema.Properties,
+		Required:   schema.Required,
+		Type:       rpc.UIElicitationSchemaTypeObject,
+	})
+	if err != nil {
+		return rpc.UIElicitationSchema{}, err
+	}
+	var rpcSchema rpc.UIElicitationSchema
+	if err := json.Unmarshal(data, &rpcSchema); err != nil {
+		return rpc.UIElicitationSchema{}, err
+	}
+	return rpcSchema, nil
 }
 
 // Confirm shows a confirmation dialog and returns the user's boolean answer.
@@ -1111,17 +1139,20 @@ func fromRPCElicitationResult(r *rpc.UIElicitationResponse) *ElicitationResult {
 	if r == nil {
 		return nil
 	}
-	content := make(map[string]any)
-	for k, v := range r.Content {
-		content[k] = fromRPCContent(v)
+	var content map[string]ElicitationFieldValue
+	if r.Content != nil {
+		content = make(map[string]ElicitationFieldValue, len(r.Content))
+		for k, v := range r.Content {
+			content[k] = fromRPCContent(v)
+		}
 	}
 	return &ElicitationResult{
-		Action:  string(r.Action),
+		Action:  r.Action,
 		Content: content,
 	}
 }
 
-func fromRPCContent(value rpc.UIElicitationFieldValue) any {
+func fromRPCContent(value rpc.UIElicitationFieldValue) ElicitationFieldValue {
 	switch v := value.(type) {
 	case nil:
 		return nil
@@ -1135,6 +1166,16 @@ func fromRPCContent(value rpc.UIElicitationFieldValue) any {
 		return []string(v)
 	}
 	return nil
+}
+
+func fromRPCElicitationRequestedSchema(schema *rpc.ElicitationRequestedSchema) *ElicitationSchema {
+	if schema == nil {
+		return nil
+	}
+	return &ElicitationSchema{
+		Properties: schema.Properties,
+		Required:   schema.Required,
+	}
 }
 
 // dispatchEvent enqueues an event for delivery to user handlers and fires
@@ -1225,35 +1266,13 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		if handler == nil {
 			return
 		}
-		var requestedSchema map[string]any
-		if d.RequestedSchema != nil {
-			requestedSchema = map[string]any{
-				"type":       string(d.RequestedSchema.Type),
-				"properties": d.RequestedSchema.Properties,
-			}
-			if len(d.RequestedSchema.Required) > 0 {
-				requestedSchema["required"] = d.RequestedSchema.Required
-			}
-		}
-		mode := ""
-		if d.Mode != nil {
-			mode = string(*d.Mode)
-		}
-		elicitationSource := ""
-		if d.ElicitationSource != nil {
-			elicitationSource = *d.ElicitationSource
-		}
-		url := ""
-		if d.URL != nil {
-			url = *d.URL
-		}
 		s.handleElicitationRequest(ElicitationContext{
 			SessionID:         s.SessionID,
 			Message:           d.Message,
-			RequestedSchema:   requestedSchema,
-			Mode:              mode,
-			ElicitationSource: elicitationSource,
-			URL:               url,
+			RequestedSchema:   fromRPCElicitationRequestedSchema(d.RequestedSchema),
+			Mode:              d.Mode,
+			ElicitationSource: d.ElicitationSource,
+			URL:               d.URL,
 		}, d.RequestID)
 
 	case *CapabilitiesChangedData:

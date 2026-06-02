@@ -437,7 +437,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
-				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
+				return copilot.ElicitationResult{Action: copilot.ElicitationActionAccept, Content: map[string]any{}}, nil
 			},
 		})
 		if err != nil {
@@ -481,7 +481,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 					t.Errorf("Expected RequestedSchema to contain 'confirmed' property")
 				}
 				return copilot.ElicitationResult{
-					Action:  "accept",
+					Action:  copilot.ElicitationActionAccept,
 					Content: map[string]any{"confirmed": true},
 				}, nil
 			},
@@ -505,7 +505,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnElicitationRequest: func(ec copilot.ElicitationContext) (copilot.ElicitationResult, error) {
-				return copilot.ElicitationResult{Action: "decline"}, nil
+				return copilot.ElicitationResult{Action: copilot.ElicitationActionDecline}, nil
 			},
 		})
 		if err != nil {
@@ -534,7 +534,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 					t.Errorf("Expected RequestedSchema to contain 'selection' property")
 				}
 				return copilot.ElicitationResult{
-					Action:  "accept",
+					Action:  copilot.ElicitationActionAccept,
 					Content: map[string]any{"selection": "beta"},
 				}, nil
 			},
@@ -568,7 +568,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 					t.Errorf("Expected RequestedSchema to contain 'value' property")
 				}
 				return copilot.ElicitationResult{
-					Action:  "accept",
+					Action:  copilot.ElicitationActionAccept,
 					Content: map[string]any{"value": "typed value"},
 				}, nil
 			},
@@ -601,9 +601,9 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		responses := []copilot.ElicitationResult{
-			{Action: "accept", Content: map[string]any{"name": "Mona"}},
-			{Action: "decline"},
-			{Action: "cancel"},
+			{Action: copilot.ElicitationActionAccept, Content: map[string]any{"name": "Mona"}},
+			{Action: copilot.ElicitationActionDecline},
+			{Action: copilot.ElicitationActionCancel},
 		}
 		var idx int
 
@@ -625,9 +625,8 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
-		schema := rpc.UIElicitationSchema{
-			Type: rpc.UIElicitationSchemaTypeObject,
-			Properties: map[string]rpc.UIElicitationSchemaProperty{
+		schema := copilot.ElicitationSchema{
+			Properties: map[string]any{
 				"name": &rpc.UIElicitationSchemaPropertyString{},
 			},
 			Required: []string{"name"},
@@ -637,10 +636,10 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Elicitation accept call failed: %v", err)
 		}
-		if accept.Action != "accept" {
+		if accept.Action != copilot.ElicitationActionAccept {
 			t.Errorf("Expected accept.Action='accept', got %q", accept.Action)
 		}
-		if accept.Content == nil || fmt.Sprintf("%v", accept.Content["name"]) != "Mona" {
+		if accept.Content == nil || accept.Content["name"] != "Mona" {
 			t.Errorf("Expected accept.Content[name]='Mona', got %v", accept.Content)
 		}
 
@@ -648,7 +647,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Elicitation decline call failed: %v", err)
 		}
-		if decline.Action != "decline" {
+		if decline.Action != copilot.ElicitationActionDecline {
 			t.Errorf("Expected decline.Action='decline', got %q", decline.Action)
 		}
 
@@ -656,7 +655,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Elicitation cancel call failed: %v", err)
 		}
-		if cancel.Action != "cancel" {
+		if cancel.Action != copilot.ElicitationActionCancel {
 			t.Errorf("Expected cancel.Action='cancel', got %q", cancel.Action)
 		}
 	})
@@ -681,7 +680,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnElicitationRequest: func(ec copilot.ElicitationContext) (copilot.ElicitationResult, error) {
-				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
+				return copilot.ElicitationResult{Action: copilot.ElicitationActionAccept, Content: map[string]any{}}, nil
 			},
 		})
 		if err != nil {
@@ -694,29 +693,14 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 	})
 }
 
-// schemaHasProperty reports whether the elicitation schema map has a top-level
-// property with the given name. RequestedSchema["properties"] is typically a
-// map[string]rpc.UIElicitationSchemaProperty, but we accept any map[string]X.
-func schemaHasProperty(schema map[string]any, name string) bool {
+// schemaHasProperty reports whether the elicitation schema has a top-level
+// property with the given name.
+func schemaHasProperty(schema *copilot.ElicitationSchema, name string) bool {
 	if schema == nil {
 		return false
 	}
-	props, ok := schema["properties"]
-	if !ok || props == nil {
-		return false
-	}
-	switch p := props.(type) {
-	case map[string]any:
-		_, found := p[name]
-		return found
-	case map[string]rpc.UIElicitationSchemaProperty:
-		_, found := p[name]
-		return found
-	default:
-		// Fallback: marshal/unmarshal via reflection-friendly route.
-		// For test diagnostic purposes we treat unknown shapes as not found.
-		return false
-	}
+	_, found := schema.Properties[name]
+	return found
 }
 
 func TestUIElicitationMultiClientE2E(t *testing.T) {
@@ -776,7 +760,7 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			SuppressResumeEvent: true,
 			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
-				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
+				return copilot.ElicitationResult{Action: copilot.ElicitationActionAccept, Content: map[string]any{}}, nil
 			},
 		})
 		if err != nil {
@@ -836,7 +820,7 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			SuppressResumeEvent: true,
 			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
-				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
+				return copilot.ElicitationResult{Action: copilot.ElicitationActionAccept, Content: map[string]any{}}, nil
 			},
 		})
 		if err != nil {
