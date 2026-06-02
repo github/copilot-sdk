@@ -23,9 +23,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         await WaitForMcpServerStatusAsync(session, "test-server", McpServerStatus.Connected);
 
         // Simple interaction to verify session works
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
         Assert.NotNull(message);
         Assert.Contains("4", message!.Data.Content);
 
@@ -112,9 +110,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
         // Simple interaction to verify session works
-        await session.SendAsync(new MessageOptions { Prompt = "What is 5+5?" });
-
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 5+5?" });
         Assert.NotNull(message);
         Assert.Contains("10", message!.Data.Content);
 
