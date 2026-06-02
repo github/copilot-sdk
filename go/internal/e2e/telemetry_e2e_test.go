@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -72,14 +71,7 @@ func TestTelemetryE2E(t *testing.T) {
 			t.Logf("Stop returned: %v", err)
 		}
 
-		entries, err := readTelemetryEntries(t, telemetryPath, 30*time.Second, func(es []map[string]any) bool {
-			for _, e := range es {
-				if telemetryType(e) == "span" && stringAttr(e, "gen_ai.operation.name") == "invoke_agent" {
-					return true
-				}
-			}
-			return false
-		})
+		entries, err := readTelemetryEntries(t, telemetryPath)
 		if err != nil {
 			t.Fatalf("readTelemetryEntries failed: %v", err)
 		}
@@ -182,33 +174,27 @@ func TestTelemetryE2E(t *testing.T) {
 	})
 }
 
-func readTelemetryEntries(t *testing.T, path string, timeout time.Duration, isComplete func([]map[string]any) bool) ([]map[string]any, error) {
+func readTelemetryEntries(t *testing.T, path string) ([]map[string]any, error) {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
-			data, err := os.ReadFile(path)
-			if err == nil {
-				var entries []map[string]any
-				for _, line := range strings.Split(string(data), "\n") {
-					line = strings.TrimSpace(line)
-					if line == "" {
-						continue
-					}
-					var entry map[string]any
-					if err := json.Unmarshal([]byte(line), &entry); err != nil {
-						continue
-					}
-					entries = append(entries, entry)
-				}
-				if len(entries) > 0 && isComplete(entries) {
-					return entries, nil
-				}
-			}
-		}
-		time.Sleep(100 * time.Millisecond)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("timed out waiting for telemetry records in %q", path)
+
+	var entries []map[string]any
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return nil, fmt.Errorf("parse telemetry entry in %q: %w", path, err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
 }
 
 func telemetryType(e map[string]any) string { return stringProp(e, "type") }

@@ -980,6 +980,8 @@ HandlerUnsubcribe = Callable[[], None]
 # Minimum protocol version this SDK can communicate with.
 # Servers reporting a version below this are rejected.
 _MIN_PROTOCOL_VERSION = 3
+_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
+_CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
 def _get_bundled_cli_path() -> str | None:
@@ -1225,7 +1227,8 @@ class CopilotClient:
             if options.use_logged_in_user is None:
                 options.use_logged_in_user = not bool(options.github_token)
 
-        self._process: subprocess.Popen | None = None
+        self._process: Any = None
+        self._cli_process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
         self._state: _ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
@@ -1422,8 +1425,9 @@ class CopilotClient:
                 exc_info=True,
             )
             # Check if process exited and capture any remaining stderr
-            if self._process and hasattr(self._process, "poll"):
-                return_code = self._process.poll()
+            process = self._cli_process if self._cli_process is not None else self._process
+            if process and hasattr(process, "poll"):
+                return_code = process.poll()
                 if return_code is not None and self._client:
                     stderr_output = self._client.get_stderr_output()
                     if stderr_output:
@@ -1438,8 +1442,9 @@ class CopilotClient:
 
         This method performs graceful cleanup:
         1. Closes all active sessions (releases in-memory resources)
-        2. Closes the JSON-RPC connection
-        3. Terminates the CLI server process (if spawned by this client)
+        2. Requests runtime shutdown for SDK-owned CLI processes
+        3. Closes the JSON-RPC connection
+        4. Terminates the CLI server process (if spawned by this client)
 
         Note: session data on disk is preserved, so sessions can be resumed
         later. To permanently remove session data before stopping, call
@@ -1476,6 +1481,28 @@ class CopilotClient:
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
 
+        runtime_shutdown_completed = False
+        if self._rpc is not None and self._cli_process is not None and not self._is_external_server:
+            runtime_shutdown_start = time.perf_counter()
+            try:
+                await self._rpc.runtime.shutdown(timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS)
+                runtime_shutdown_completed = True
+                log_timing(
+                    logger,
+                    logging.DEBUG,
+                    "CopilotClient.stop runtime shutdown complete",
+                    runtime_shutdown_start,
+                )
+            except Exception as e:
+                log_timing(
+                    logger,
+                    logging.DEBUG,
+                    "CopilotClient.stop runtime shutdown failed",
+                    runtime_shutdown_start,
+                    exc_info=True,
+                )
+                errors.append(StopError(message=f"Failed to gracefully shut down runtime: {e}"))
+
         # Close client
         if self._client:
             await self._client.stop()
@@ -1486,14 +1513,73 @@ class CopilotClient:
         async with self._models_cache_lock:
             self._models_cache = None
 
-        # Kill CLI process (only if we spawned it)
-        if self._process and not self._is_external_server:
-            self._process.terminate()
+        # Close TCP socket wrappers without treating them as owned processes.
+        if self._process is not None and self._process is not self._cli_process:
             try:
-                self._process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._process.kill()
+                self._process.terminate()
+            except Exception:
+                logger.debug("Error while closing Copilot runtime transport", exc_info=True)
             self._process = None
+
+        # Terminate CLI process (only if we spawned it)
+        if self._cli_process and not self._is_external_server:
+            poll = getattr(self._cli_process, "poll", None)
+            is_running = poll is None or poll() is None
+            if is_running:
+                if runtime_shutdown_completed:
+                    try:
+                        await asyncio.to_thread(
+                            self._cli_process.wait,
+                            timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS,
+                        )
+                    except subprocess.TimeoutExpired:
+                        self._cli_process.terminate()
+                        try:
+                            await asyncio.to_thread(
+                                self._cli_process.wait,
+                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                            )
+                        except subprocess.TimeoutExpired:
+                            self._cli_process.kill()
+                            try:
+                                await asyncio.to_thread(
+                                    self._cli_process.wait,
+                                    timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                                )
+                            except subprocess.TimeoutExpired as e:
+                                errors.append(
+                                    StopError(
+                                        message=(
+                                            "Timed out waiting for CLI process to exit after kill: "
+                                            f"{e}"
+                                        )
+                                    )
+                                )
+                else:
+                    self._cli_process.terminate()
+                    try:
+                        await asyncio.to_thread(
+                            self._cli_process.wait,
+                            timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                        )
+                    except subprocess.TimeoutExpired:
+                        self._cli_process.kill()
+                        try:
+                            await asyncio.to_thread(
+                                self._cli_process.wait,
+                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                            )
+                        except subprocess.TimeoutExpired as e:
+                            errors.append(
+                                StopError(
+                                    message=(
+                                        f"Timed out waiting for CLI process to exit after kill: {e}"
+                                    )
+                                )
+                            )
+            if self._process is self._cli_process:
+                self._process = None
+            self._cli_process = None
 
         self._state = "disconnected"
         if not self._is_external_server:
@@ -1525,13 +1611,20 @@ class CopilotClient:
         # Close the transport first to signal the server immediately.
         # For external servers (TCP), this closes the socket.
         # For spawned processes (stdio), this kills the process.
-        if self._process:
+        if self._process is not None or self._cli_process is not None:
             try:
                 if self._is_external_server:
-                    self._process.terminate()  # closes the TCP socket
-                else:
-                    self._process.kill()
+                    if self._process is not None:
+                        self._process.terminate()  # closes the TCP socket
                     self._process = None
+                    self._cli_process = None
+                else:
+                    if self._process is not None and self._process is not self._cli_process:
+                        self._process.terminate()
+                    if self._cli_process is not None:
+                        self._cli_process.kill()
+                    self._process = None
+                    self._cli_process = None
             except Exception:
                 logger.debug("Error while force-stopping Copilot CLI process", exc_info=True)
 
@@ -3252,6 +3345,7 @@ class CopilotClient:
                 env=env,
                 creationflags=creationflags,
             )
+            self._cli_process = self._process
         else:
             if tcp_port > 0:
                 args.extend(["--port", str(tcp_port)])
@@ -3264,6 +3358,7 @@ class CopilotClient:
                 env=env,
                 creationflags=creationflags,
             )
+            self._cli_process = self._process
         log_timing(
             logger,
             logging.DEBUG,
