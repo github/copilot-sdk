@@ -820,6 +820,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // enableOnDemandInstructionDiscovery
                 patchPlugins, // installedPlugins
                 patchAgents, // customAgentsLocalOnly
+                null, // suppressCustomAgentPrompt
                 patchSkip, // skipCustomInstructions
                 null, // disabledInstructionSources
                 patchCoauthor, // coauthorEnabled
@@ -833,7 +834,13 @@ public final class CopilotClient implements AutoCloseable {
                 null, // agentContext
                 null, // eventsLogDirectory
                 null, // additionalContentExclusionPolicies
-                patchSchedule // manageScheduleEnabled
+                patchSchedule, // manageScheduleEnabled
+                null, // skipEmbeddingRetrieval
+                null, // organizationCustomInstructions
+                null, // enableFileHooks
+                null, // enableHostGitOperations
+                null, // enableSessionStore
+                null // enableSkills
         );
 
         return session.getRpc().options.update(params).<Void>thenCompose(result -> {
