@@ -867,7 +867,7 @@ func TestListModelsWithCustomHandler(t *testing.T) {
 			Name: "My Custom Model",
 			Capabilities: ModelCapabilities{
 				Supports: ModelSupports{Vision: false, ReasoningEffort: false},
-				Limits:   ModelLimits{MaxContextWindowTokens: 128000},
+				Limits:   ModelLimits{MaxContextWindowTokens: Int(128000)},
 			},
 		},
 	}
@@ -899,7 +899,7 @@ func TestListModelsHandlerCachesResults(t *testing.T) {
 			Name: "Cached Model",
 			Capabilities: ModelCapabilities{
 				Supports: ModelSupports{Vision: false, ReasoningEffort: false},
-				Limits:   ModelLimits{MaxContextWindowTokens: 128000},
+				Limits:   ModelLimits{MaxContextWindowTokens: Int(128000)},
 			},
 		},
 	}

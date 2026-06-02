@@ -23,7 +23,7 @@ func testMCPServers(t *testing.T, serverNames ...string) map[string]copilot.MCPS
 		mcpServers[serverName] = copilot.MCPStdioServerConfig{
 			Command:          "node",
 			Args:             []string{mcpServerPath},
-			Tools:            &[]string{"*"},
+			Tools:            []string{"*"},
 			WorkingDirectory: mcpServerDir,
 		}
 	}

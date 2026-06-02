@@ -115,6 +115,20 @@ function toGoFieldName(jsonName: string): string {
         .join("");
 }
 
+function toGoUnexportedIdentifier(name: string): string {
+    const leadingSpecialCases = [
+        ...Array.from(goIdentifierCasingOverrides.values()),
+        ...Array.from(goInitialisms, (initialism) => initialism.toUpperCase()),
+    ].sort((left, right) => right.length - left.length);
+
+    const leadingSpecialCase = leadingSpecialCases.find((specialCase) => name.startsWith(specialCase));
+    if (leadingSpecialCase) {
+        return leadingSpecialCase.toLowerCase() + name.slice(leadingSpecialCase.length);
+    }
+
+    return name.charAt(0).toLowerCase() + name.slice(1);
+}
+
 function goRefTypeName(ref: string, definitions?: DefinitionCollections, currentPackage?: string): string {
     const externalRef = parseExternalSchemaRef(ref);
     if (externalRef) {
@@ -1754,7 +1768,7 @@ function emitGoFlatDiscriminatedUnion(
     const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
     const rawDataName = `Raw${typeName}${ctx.discriminatedUnionRawVariantSuffix ?? "Data"}`;
     const hasRawVariant = discriminator.valueKind === "string";
-    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    const markerName = toGoUnexportedIdentifier(typeName);
     ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
 
     const lines: string[] = [];
@@ -1952,7 +1966,7 @@ function emitGoRequiredFieldDiscriminatedUnion(
     const unionVariants = [...discriminator.variants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName));
     const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
     const rawDataName = `Raw${typeName}${ctx.discriminatedUnionRawVariantSuffix ?? "Data"}`;
-    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    const markerName = toGoUnexportedIdentifier(typeName);
     ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
 
     const lines: string[] = [];
@@ -2515,7 +2529,7 @@ function emitGoPrimitiveUnionInterface(typeName: string, schema: JSONSchema7, ct
 
     ctx.generatedNames.add(typeName);
     const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
-    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    const markerName = toGoUnexportedIdentifier(typeName);
     ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
 
     const lines: string[] = [];
@@ -2671,7 +2685,7 @@ function emitGoUntaggedUnionInterface(typeName: string, schema: JSONSchema7, ctx
 
     ctx.generatedNames.add(typeName);
     const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
-    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    const markerName = toGoUnexportedIdentifier(typeName);
     ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
 
     const lines: string[] = [];

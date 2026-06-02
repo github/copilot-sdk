@@ -810,11 +810,10 @@ name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UIInputOptions
 })
 
 // Full custom elicitation with a schema
-result, err := ui.Elicitation(ctx, "Configure deployment", rpc.RequestedSchema{
-    Type: rpc.RequestedSchemaTypeObject,
-    Properties: map[string]rpc.Property{
-        "target": {Type: rpc.PropertyTypeString, Enum: []string{"staging", "production"}},
-        "force":  {Type: rpc.PropertyTypeBoolean},
+result, err := ui.Elicitation(ctx, "Configure deployment", copilot.ElicitationSchema{
+    Properties: map[string]any{
+        "target": map[string]any{"type": "string", "enum": []string{"staging", "production"}},
+        "force":  map[string]any{"type": "boolean"},
     },
     Required: []string{"target"},
 })
@@ -839,7 +838,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 
         // Return the user's response
         return copilot.ElicitationResult{
-            Action:  "accept",
+            Action:  copilot.ElicitationActionAccept,
             Content: map[string]any{"confirmed": true},
         }, nil
     },

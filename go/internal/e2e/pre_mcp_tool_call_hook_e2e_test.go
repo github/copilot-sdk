@@ -19,13 +19,12 @@ func TestPreMCPToolCallHookE2E(t *testing.T) {
 	metaEchoServer := filepath.Join(testHarnessDir, "test-mcp-meta-echo-server.mjs")
 
 	metaEchoConfig := func() map[string]copilot.MCPServerConfig {
-		tools := []string{"*"}
 		return map[string]copilot.MCPServerConfig{
 			"meta-echo": copilot.MCPStdioServerConfig{
 				Command:          "node",
 				Args:             []string{metaEchoServer},
 				WorkingDirectory: testHarnessDir,
-				Tools:            &tools,
+				Tools:            []string{"*"},
 			},
 		}
 	}
