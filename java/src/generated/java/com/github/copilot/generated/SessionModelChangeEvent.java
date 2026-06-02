@@ -48,28 +48,9 @@ public final class SessionModelChangeEvent extends SessionEvent {
         /** Reasoning summary mode after the model change, if applicable */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Context tier after the model change; null explicitly clears a previously selected tier */
-        @JsonProperty("contextTier") SessionModelChangeEventDataContextTier contextTier,
+        @JsonProperty("contextTier") ContextTier contextTier,
         /** Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy. */
         @JsonProperty("cause") String cause
     ) {
-
-        public enum SessionModelChangeEventDataContextTier {
-            /** The {@code default} variant. */
-            DEFAULT("default"),
-            /** The {@code long_context} variant. */
-            LONG_CONTEXT("long_context");
-
-            private final String value;
-            SessionModelChangeEventDataContextTier(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionModelChangeEventDataContextTier fromValue(String value) {
-                for (SessionModelChangeEventDataContextTier v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionModelChangeEventDataContextTier value: " + value);
-            }
-        }
     }
 }

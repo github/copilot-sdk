@@ -13,19 +13,29 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Whether to enable full allow-all permissions for the session.
+ * Canvas action invocation parameters sent to the provider.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPermissionsSetAllowAllParams(
+public record CanvasActionInvokeParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Whether to enable full allow-all permissions */
-    @JsonProperty("enabled") Boolean enabled,
-    /** Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers. */
-    @JsonProperty("source") PermissionsSetAllowAllSource source
+    /** Owning provider identifier */
+    @JsonProperty("extensionId") String extensionId,
+    /** Provider-local canvas identifier */
+    @JsonProperty("canvasId") String canvasId,
+    /** Canvas instance identifier */
+    @JsonProperty("instanceId") String instanceId,
+    /** Action name to invoke */
+    @JsonProperty("actionName") String actionName,
+    /** Action input */
+    @JsonProperty("input") Object input,
+    /** Host context supplied by the runtime. */
+    @JsonProperty("host") CanvasHostContext host,
+    /** Session context supplied by the runtime. */
+    @JsonProperty("session") CanvasSessionContext session
 ) {
 }

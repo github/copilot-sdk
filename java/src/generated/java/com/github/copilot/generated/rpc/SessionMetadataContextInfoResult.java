@@ -37,13 +37,15 @@ public record SessionMetadataContextInfoResult(
         @JsonProperty("conversationTokens") Long conversationTokens,
         /** Tokens consumed by tool definitions sent to the model (excludes deferred tools) */
         @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens,
+        /** Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools) */
+        @JsonProperty("mcpToolsTokens") Long mcpToolsTokens,
         /** Sum of system, conversation and tool-definition tokens */
         @JsonProperty("totalTokens") Long totalTokens,
         /** Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified) */
         @JsonProperty("promptTokenLimit") Long promptTokenLimit,
         /** Token count at which background compaction starts (configurable percentage of promptTokenLimit) */
         @JsonProperty("compactionThreshold") Long compactionThreshold,
-        /** Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model. */
+        /** Total context limit for /context display: promptTokenLimit + outputTokenLimit (the model's full max_output_tokens reserved on top of the prompt budget). */
         @JsonProperty("limit") Long limit,
         /** Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%) */
         @JsonProperty("bufferTokens") Long bufferTokens

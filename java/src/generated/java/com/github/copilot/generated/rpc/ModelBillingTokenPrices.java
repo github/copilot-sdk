@@ -29,7 +29,7 @@ public record ModelBillingTokenPrices(
     @JsonProperty("cachePrice") Double cachePrice,
     /** Number of tokens per standard billing batch */
     @JsonProperty("batchSize") Long batchSize,
-    /** Maximum context window tokens for the default tier */
+    /** Prompt token budget (max_prompt_tokens) for the default tier. The total context window is this value plus the model's max_output_tokens. */
     @JsonProperty("contextMax") Long contextMax,
     /** Long context tier pricing (available for models with extended context windows) */
     @JsonProperty("longContext") ModelBillingTokenPricesLongContext longContext

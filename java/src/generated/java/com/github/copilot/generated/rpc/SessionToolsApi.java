@@ -54,4 +54,14 @@ public final class SessionToolsApi {
         return caller.invoke("session.tools.initializeAndValidate", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionToolsGetCurrentMetadataResult> getCurrentMetadata() {
+        return caller.invoke("session.tools.getCurrentMetadata", java.util.Map.of("sessionId", this.sessionId), SessionToolsGetCurrentMetadataResult.class);
+    }
+
 }
