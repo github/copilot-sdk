@@ -71,6 +71,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("installedPlugins") List<SessionInstalledPlugin> installedPlugins,
     /** Whether to default custom agents to local-only execution. */
     @JsonProperty("customAgentsLocalOnly") Boolean customAgentsLocalOnly,
+    /** When true, the selected custom agent's prompt is not injected into the user message (skill context is still injected). Used by automation triggers where the agent prompt is already in the problem statement. */
+    @JsonProperty("suppressCustomAgentPrompt") Boolean suppressCustomAgentPrompt,
     /** Whether to skip loading custom instruction sources. */
     @JsonProperty("skipCustomInstructions") Boolean skipCustomInstructions,
     /** Instruction source IDs to exclude from the system prompt. */
@@ -98,6 +100,18 @@ public record SessionOptionsUpdateParams(
     /** Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime. */
     @JsonProperty("additionalContentExclusionPolicies") List<Object> additionalContentExclusionPolicies,
     /** Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users). */
-    @JsonProperty("manageScheduleEnabled") Boolean manageScheduleEnabled
+    @JsonProperty("manageScheduleEnabled") Boolean manageScheduleEnabled,
+    /** Whether to skip embedding retrieval pipeline initialization and execution. */
+    @JsonProperty("skipEmbeddingRetrieval") Boolean skipEmbeddingRetrieval,
+    /** Organization-level custom instructions to inject into the system prompt. */
+    @JsonProperty("organizationCustomInstructions") String organizationCustomInstructions,
+    /** Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism. */
+    @JsonProperty("enableFileHooks") Boolean enableFileHooks,
+    /** Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt). */
+    @JsonProperty("enableHostGitOperations") Boolean enableHostGitOperations,
+    /** Whether to enable cross-session store writes and reads. */
+    @JsonProperty("enableSessionStore") Boolean enableSessionStore,
+    /** Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset. */
+    @JsonProperty("enableSkills") Boolean enableSkills
 ) {
 }

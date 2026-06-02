@@ -46,6 +46,8 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed") */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
+        /** Context tier currently selected at resume time; null when no tier is active */
+        @JsonProperty("contextTier") ContextTier contextTier,
         /** Updated working directory and git context at resume time */
         @JsonProperty("context") WorkingDirectoryContext context,
         /** Whether the session was already in use by another client at resume time */

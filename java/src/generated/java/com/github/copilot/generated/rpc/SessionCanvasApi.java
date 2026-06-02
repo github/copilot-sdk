@@ -23,10 +23,14 @@ public final class SessionCanvasApi {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code canvas.action} sub-namespace. */
+    public final SessionCanvasActionApi action;
+
     /** @param caller the RPC transport function */
     SessionCanvasApi(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.action = new SessionCanvasActionApi(caller, sessionId);
     }
 
     /**
@@ -77,21 +81,6 @@ public final class SessionCanvasApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.canvas.close", _p, Void.class);
-    }
-
-    /**
-     * Canvas action invocation parameters.
-     * <p>
-     * Note: the {@code sessionId} field in the params record is overridden
-     * by the session-scoped wrapper; any value provided is ignored.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    public CompletableFuture<SessionCanvasInvokeActionResult> invokeAction(SessionCanvasInvokeActionParams params) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.canvas.invokeAction", _p, SessionCanvasInvokeActionResult.class);
     }
 
 }
