@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.ExitPlanModeAction;
@@ -67,6 +68,7 @@ public class ModeHandlersTest {
     }
 
     @Test
+    @Disabled("Snapshot needs re-recording for CLI 1.0.57: https://github.com/github/copilot-sdk/issues/1547")
     void shouldInvokeExitPlanModeHandlerWhenModelUsesTool() throws Exception {
         final String summary = "Greeting file implementation plan";
         configureAuthenticatedUser("should_invoke_exit_plan_mode_handler_when_model_uses_tool");
