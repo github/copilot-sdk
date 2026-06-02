@@ -138,27 +138,6 @@ jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 
 > Want to add your project? Open a PR!
 
-## CI/CD Workflows
-
-This project uses several GitHub Actions workflows for building, testing, releasing, and syncing with the reference implementation SDK.
-
-See [WORKFLOWS.md](docs/WORKFLOWS.md) for a full overview and details on each workflow.
-
-## Contributing
-
-Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Agentic Reference Implementation Merge and Sync
-
-This SDK tracks the official [Copilot SDK](https://github.com/github/copilot-sdk) (.NET reference implementation) and ports changes to Java. The reference implementation merge process is automated with AI assistance:
-
-**Automated sync** — A [scheduled GitHub Actions workflow](.github/workflows/reference-impl-sync.yml) runs on the schedule specified in that file. It checks for new reference implementation commits since the last merge (tracked in [`.lastmerge`](.lastmerge)), and if changes are found, creates an issue labeled `reference-impl-sync` and assigns it to the GitHub Copilot coding agent. Any previously open `reference-impl-sync` issues are automatically closed. The sync also updates the `@github/copilot` version in both `pom.xml` and `scripts/codegen/package.json` to keep schemas and test CLI in lockstep.
-
-**Reusable prompt** — The merge workflow is defined in [`agentic-merge-reference-impl.prompt.md`](.github/prompts/agentic-merge-reference-impl.prompt.md). It can be triggered manually from:
-
-- **VS Code Copilot Chat** — type `/agentic-merge-reference-impl`
-- **GitHub Copilot CLI** — use `copilot` CLI with the same skill reference
-
 ### Development Setup
 
 Requires JDK 25 or later for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.
@@ -179,20 +158,6 @@ mvn verify -Dskip.test.harness=true
 # Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
 mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
-
-The tests require the official [copilot-sdk](https://github.com/github/copilot-sdk) test harness, which is automatically cloned during build.
-
-## Support
-
-See [SUPPORT.md](SUPPORT.md) for how to file issues and get help.
-
-## Code of Conduct
-
-This project has adopted the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for reporting security vulnerabilities.
 
 ## License
 
