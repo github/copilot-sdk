@@ -10,6 +10,9 @@
     "start": "tsx server.ts",
     "test": "vitest run"
   },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "devDependencies": {
     "@github/copilot": "^1.0.57",
     "@modelcontextprotocol/sdk": "^1.26.0",
