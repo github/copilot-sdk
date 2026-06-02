@@ -1,5 +1,5 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//DEPS com.github:copilot-sdk-java:1.0.0-beta-12-java.0
+//DEPS com.github:copilot-sdk-java:1.0.0-beta-12-java.1
 import com.github.copilot.CopilotClient;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.generated.SessionUsageInfoEvent;
