@@ -1035,7 +1035,7 @@ try {
 
 ## Requirements
 
-- Node.js >= 18.0.0
+- Node.js ^20.19.0 or >=22.12.0
 - GitHub Copilot CLI installed and in PATH (or provide a custom `connection`)
 
 ## License
