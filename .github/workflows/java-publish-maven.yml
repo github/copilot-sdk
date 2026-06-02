@@ -298,11 +298,15 @@ jobs:
         run: |
           VERSION="${{ needs.publish-maven.outputs.version }}"
           TAG="java/v${VERSION}"
+          PUBLISH_AS_LATEST=true
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            PUBLISH_AS_LATEST=false
+          fi
           echo "Triggering site deployment for version ${VERSION} (tag: ${TAG})"
           gh workflow run deploy-site.yml \
             --repo github/copilot-sdk-java \
             -f version="${VERSION}" \
-            -f publish_as_latest=true \
+            -f publish_as_latest="${PUBLISH_AS_LATEST}" \
             -f monorepo_tag="${TAG}"
           echo "### Site Deployment" >> $GITHUB_STEP_SUMMARY
           echo "Triggered deploy-site.yml on github/copilot-sdk-java for version ${VERSION}" >> $GITHUB_STEP_SUMMARY
