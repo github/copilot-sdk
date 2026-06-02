@@ -172,13 +172,16 @@ jobs:
         run: |
           VERSION="${{ steps.versions.outputs.release_version }}"
 
-          # Update version in README.md (supports any version qualifier like -java.N, -java-preview.N, -beta-java.N)
+          # Update release version in README.md (supports any version qualifier like -java.N, -java-preview.N, -beta-java.N)
           sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*</version>|<version>${VERSION}</version>|g" README.md
           sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" README.md
 
-          # Update snapshot version in README.md
+          # Update snapshot versions in README.md (must run AFTER release version seds
+          # because the release copilot-sdk-java: pattern partially matches inside snapshot
+          # strings — the snapshot-specific seds override with the correct DEV_VERSION)
           DEV_VERSION="${{ steps.versions.outputs.dev_version }}"
           sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*-SNAPSHOT</version>|<version>${DEV_VERSION}</version>|g" README.md
+          sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*-SNAPSHOT|copilot-sdk-java:${DEV_VERSION}|g" README.md
 
           # Update version in jbang-example.java
           sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" jbang-example.java
@@ -312,4 +315,3 @@ jobs:
           echo "Triggered deploy-site.yml on github/copilot-sdk-java for version ${VERSION}" >> $GITHUB_STEP_SUMMARY
         env:
           GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
-
