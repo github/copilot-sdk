@@ -897,7 +897,7 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 // toRPCContent converts an SDK content value to an RPC elicitation response value.
 func toRPCContent(v any) (rpc.UIElicitationFieldValue, error) {
 	if v == nil {
-		return nil, fmt.Errorf("unsupported elicitation content value type <nil>")
+		return nil, nil
 	}
 	switch val := v.(type) {
 	case bool:
@@ -1005,24 +1005,57 @@ func (ui *SessionUI) Elicitation(ctx context.Context, message string, requestedS
 }
 
 func toRPCUIElicitationSchema(schema ElicitationSchema) (rpc.UIElicitationSchema, error) {
-	type wireSchema struct {
-		Properties map[string]any              `json:"properties"`
-		Required   []string                    `json:"required,omitzero"`
-		Type       rpc.UIElicitationSchemaType `json:"type"`
+	var properties map[string]rpc.UIElicitationSchemaProperty
+	if schema.Properties != nil {
+		properties = make(map[string]rpc.UIElicitationSchemaProperty, len(schema.Properties))
+		for name, property := range schema.Properties {
+			rpcProperty, err := toRPCUIElicitationSchemaProperty(name, property)
+			if err != nil {
+				return rpc.UIElicitationSchema{}, err
+			}
+			properties[name] = rpcProperty
+		}
 	}
-	data, err := json.Marshal(wireSchema{
-		Properties: schema.Properties,
-		Required:   schema.Required,
+
+	return rpc.UIElicitationSchema{
+		Properties: properties,
+		Required:   append([]string(nil), schema.Required...),
+		Type:       rpc.UIElicitationSchemaTypeObject,
+	}, nil
+}
+
+func toRPCUIElicitationSchemaProperty(name string, property any) (rpc.UIElicitationSchemaProperty, error) {
+	if property == nil {
+		return nil, fmt.Errorf("elicitation schema property %q is nil", name)
+	}
+	if rpcProperty, ok := property.(rpc.UIElicitationSchemaProperty); ok {
+		return rpcProperty, nil
+	}
+
+	data, err := json.Marshal(property)
+	if err != nil {
+		return nil, fmt.Errorf("marshal elicitation schema property %q: %w", name, err)
+	}
+	wrapperData, err := json.Marshal(struct {
+		Properties map[string]json.RawMessage  `json:"properties"`
+		Type       rpc.UIElicitationSchemaType `json:"type"`
+	}{
+		Properties: map[string]json.RawMessage{name: data},
 		Type:       rpc.UIElicitationSchemaTypeObject,
 	})
 	if err != nil {
-		return rpc.UIElicitationSchema{}, err
+		return nil, fmt.Errorf("marshal elicitation schema wrapper for property %q: %w", name, err)
 	}
+
 	var rpcSchema rpc.UIElicitationSchema
-	if err := json.Unmarshal(data, &rpcSchema); err != nil {
-		return rpc.UIElicitationSchema{}, err
+	if err := json.Unmarshal(wrapperData, &rpcSchema); err != nil {
+		return nil, fmt.Errorf("decode elicitation schema property %q: %w", name, err)
 	}
-	return rpcSchema, nil
+	rpcProperty, ok := rpcSchema.Properties[name]
+	if !ok {
+		return nil, fmt.Errorf("decode elicitation schema property %q: property missing after conversion", name)
+	}
+	return rpcProperty, nil
 }
 
 // Confirm shows a confirmation dialog and returns the user's boolean answer.

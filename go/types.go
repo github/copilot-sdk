@@ -1198,9 +1198,9 @@ type ElicitationAction = rpc.UIElicitationResponseAction
 
 // Elicitation action values.
 const (
-	ElicitationActionAccept  = rpc.UIElicitationResponseActionAccept
-	ElicitationActionCancel  = rpc.UIElicitationResponseActionCancel
-	ElicitationActionDecline = rpc.UIElicitationResponseActionDecline
+	ElicitationActionAccept  ElicitationAction = rpc.UIElicitationResponseActionAccept
+	ElicitationActionCancel  ElicitationAction = rpc.UIElicitationResponseActionCancel
+	ElicitationActionDecline ElicitationAction = rpc.UIElicitationResponseActionDecline
 )
 
 // ElicitationFieldValue is a primitive value submitted for an elicitation form field.

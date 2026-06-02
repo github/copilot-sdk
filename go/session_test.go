@@ -883,6 +883,16 @@ func TestSession_HookForwardCompatibility(t *testing.T) {
 }
 
 func TestSession_ElicitationRequestSchema(t *testing.T) {
+	t.Run("nil content values are allowed", func(t *testing.T) {
+		value, err := toRPCContent(nil)
+		if err != nil {
+			t.Fatalf("Expected nil content to be accepted, got %v", err)
+		}
+		if value != nil {
+			t.Fatalf("Expected nil RPC content, got %T", value)
+		}
+	})
+
 	t.Run("elicitation.requested passes full schema to handler", func(t *testing.T) {
 		// Verify the schema extraction logic from handleBroadcastEvent
 		// preserves type, properties, and required.
@@ -939,6 +949,19 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 		}
 		if _, ok := rpcSchema.Properties["name"].(*rpc.UIElicitationSchemaPropertyString); !ok {
 			t.Fatalf("Expected name property to decode as string schema, got %T", rpcSchema.Properties["name"])
+		}
+	})
+
+	t.Run("schema conversion preserves typed properties", func(t *testing.T) {
+		property := &rpc.UIElicitationSchemaPropertyString{}
+		rpcSchema, err := toRPCUIElicitationSchema(ElicitationSchema{
+			Properties: map[string]any{"name": property},
+		})
+		if err != nil {
+			t.Fatalf("toRPCUIElicitationSchema failed: %v", err)
+		}
+		if rpcSchema.Properties["name"] != property {
+			t.Fatalf("Expected typed property to be preserved, got %T", rpcSchema.Properties["name"])
 		}
 	})
 }
