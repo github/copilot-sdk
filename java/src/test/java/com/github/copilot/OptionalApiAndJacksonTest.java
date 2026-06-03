@@ -354,6 +354,37 @@ class OptionalApiAndJacksonTest {
     }
 
     @Test
+    void sessionConfig_granularMultitenancyFieldsValue() {
+        var cfg = new SessionConfig();
+        assertTrue(cfg.getSkipEmbeddingRetrieval().isEmpty());
+        assertNull(cfg.getOrganizationCustomInstructions());
+        assertTrue(cfg.getEnableOnDemandInstructionDiscovery().isEmpty());
+        assertNull(cfg.getEmbeddingCacheStorage());
+        assertTrue(cfg.getEnableFileHooks().isEmpty());
+        assertTrue(cfg.getEnableHostGitOperations().isEmpty());
+        assertTrue(cfg.getEnableSessionStore().isEmpty());
+        assertTrue(cfg.getEnableSkills().isEmpty());
+
+        cfg.setSkipEmbeddingRetrieval(true);
+        cfg.setOrganizationCustomInstructions("Org instructions");
+        cfg.setEnableOnDemandInstructionDiscovery(false);
+        cfg.setEmbeddingCacheStorage("persistent");
+        cfg.setEnableFileHooks(true);
+        cfg.setEnableHostGitOperations(false);
+        cfg.setEnableSessionStore(true);
+        cfg.setEnableSkills(false);
+
+        assertTrue(cfg.getSkipEmbeddingRetrieval().get());
+        assertEquals("Org instructions", cfg.getOrganizationCustomInstructions());
+        assertFalse(cfg.getEnableOnDemandInstructionDiscovery().get());
+        assertEquals("persistent", cfg.getEmbeddingCacheStorage());
+        assertTrue(cfg.getEnableFileHooks().get());
+        assertFalse(cfg.getEnableHostGitOperations().get());
+        assertTrue(cfg.getEnableSessionStore().get());
+        assertFalse(cfg.getEnableSkills().get());
+    }
+
+    @Test
     void resumeSessionConfig_enableSessionTelemetryValue() {
         var cfg = new ResumeSessionConfig();
         assertTrue(cfg.getEnableSessionTelemetry().isEmpty());
@@ -381,6 +412,37 @@ class OptionalApiAndJacksonTest {
 
         cfg.setIncludeSubAgentStreamingEvents(false);
         assertFalse(cfg.getIncludeSubAgentStreamingEvents().get());
+    }
+
+    @Test
+    void resumeSessionConfig_granularMultitenancyFieldsValue() {
+        var cfg = new ResumeSessionConfig();
+        assertTrue(cfg.getSkipEmbeddingRetrieval().isEmpty());
+        assertNull(cfg.getOrganizationCustomInstructions());
+        assertTrue(cfg.getEnableOnDemandInstructionDiscovery().isEmpty());
+        assertNull(cfg.getEmbeddingCacheStorage());
+        assertTrue(cfg.getEnableFileHooks().isEmpty());
+        assertTrue(cfg.getEnableHostGitOperations().isEmpty());
+        assertTrue(cfg.getEnableSessionStore().isEmpty());
+        assertTrue(cfg.getEnableSkills().isEmpty());
+
+        cfg.setSkipEmbeddingRetrieval(false);
+        cfg.setOrganizationCustomInstructions("Resume org instructions");
+        cfg.setEnableOnDemandInstructionDiscovery(true);
+        cfg.setEmbeddingCacheStorage("persistent");
+        cfg.setEnableFileHooks(false);
+        cfg.setEnableHostGitOperations(true);
+        cfg.setEnableSessionStore(false);
+        cfg.setEnableSkills(true);
+
+        assertFalse(cfg.getSkipEmbeddingRetrieval().get());
+        assertEquals("Resume org instructions", cfg.getOrganizationCustomInstructions());
+        assertTrue(cfg.getEnableOnDemandInstructionDiscovery().get());
+        assertEquals("persistent", cfg.getEmbeddingCacheStorage());
+        assertFalse(cfg.getEnableFileHooks().get());
+        assertTrue(cfg.getEnableHostGitOperations().get());
+        assertFalse(cfg.getEnableSessionStore().get());
+        assertTrue(cfg.getEnableSkills().get());
     }
 
     @Test
@@ -565,11 +627,38 @@ class OptionalApiAndJacksonTest {
     // access: Jackson writes the field when set and omits it when cleared.
     //
     // Classes without @JsonProperty on fields (SessionConfig,
-    // CopilotClientOptions, TelemetryConfig, ProviderConfig) are not
-    // directly serialized — their values are copied to wire DTOs by
-    // SessionRequestBuilder. The @JsonIgnore on their Optional-returning
-    // getters prevents Jackson from attempting to serialize Optional
-    // wrappers if the class is ever processed.
+    // CopilotClientOptions, TelemetryConfig, ProviderConfig) are normally
+    // copied to wire DTOs by SessionRequestBuilder. Their scalar getters can
+    // still be serialized directly, while @JsonIgnore on Optional-returning
+    // getters prevents Jackson from attempting to serialize Optional wrappers.
+
+    @Test
+    void jackson_sessionConfigEmbeddingCacheStorageSerialized() throws Exception {
+        var cfg = new SessionConfig();
+        cfg.setEmbeddingCacheStorage("persistent");
+
+        String withField = MAPPER.writeValueAsString(cfg);
+        assertTrue(withField.contains("\"embeddingCacheStorage\":\"persistent\""));
+
+        cfg.clearEmbeddingCacheStorage();
+
+        String cleared = MAPPER.writeValueAsString(cfg);
+        assertFalse(cleared.contains("embeddingCacheStorage"));
+    }
+
+    @Test
+    void jackson_resumeSessionConfigEmbeddingCacheStorageSerialized() throws Exception {
+        var cfg = new ResumeSessionConfig();
+        cfg.setEmbeddingCacheStorage("persistent");
+
+        String withField = MAPPER.writeValueAsString(cfg);
+        assertTrue(withField.contains("\"embeddingCacheStorage\":\"persistent\""));
+
+        cfg.clearEmbeddingCacheStorage();
+
+        String cleared = MAPPER.writeValueAsString(cfg);
+        assertFalse(cleared.contains("embeddingCacheStorage"));
+    }
 
     @Test
     void jackson_infiniteSessionConfigClearedFieldsOmitted() throws Exception {

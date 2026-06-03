@@ -40,7 +40,7 @@ public final class SessionModelApi {
     }
 
     /**
-     * Target model identifier and optional reasoning effort, summary, and capability overrides.
+     * Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -67,6 +67,16 @@ public final class SessionModelApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.model.setReasoningEffort", _p, SessionModelSetReasoningEffortResult.class);
+    }
+
+    /**
+     * Optional listing options.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionModelListResult> list() {
+        return caller.invoke("session.model.list", java.util.Map.of("sessionId", this.sessionId), SessionModelListResult.class);
     }
 
 }

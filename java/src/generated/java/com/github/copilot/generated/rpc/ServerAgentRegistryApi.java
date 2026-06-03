@@ -31,8 +31,8 @@ public final class ServerAgentRegistryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
-    public CompletableFuture<Void> spawn(AgentRegistrySpawnParams params) {
-        return caller.invoke("agentRegistry.spawn", params, Void.class);
+    public CompletableFuture<AgentRegistrySpawnResult> spawn(AgentRegistrySpawnParams params) {
+        return caller.invoke("agentRegistry.spawn", params, AgentRegistrySpawnResult.class);
     }
 
 }

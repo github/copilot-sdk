@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -68,10 +69,10 @@ public final class SessionMcpAppsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
-    public CompletableFuture<Void> callTool(SessionMcpAppsCallToolParams params) {
+    public CompletableFuture<JsonNode> callTool(SessionMcpAppsCallToolParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mcp.apps.callTool", _p, Void.class);
+        return caller.invoke("session.mcp.apps.callTool", _p, JsonNode.class);
     }
 
     /**

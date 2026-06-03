@@ -21,6 +21,7 @@ import com.github.copilot.rpc.ElicitationHandler;
 import com.github.copilot.rpc.ElicitationResult;
 import com.github.copilot.rpc.ElicitationResultAction;
 import com.github.copilot.rpc.ExitPlanModeResult;
+import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.ResumeSessionRequest;
 import com.github.copilot.rpc.SessionConfig;
@@ -91,6 +92,30 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildCreateRequestSetsReasoningSummary() {
+        var config = new SessionConfig().setReasoningSummary("concise");
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals("concise", request.getReasoningSummary());
+    }
+
+    @Test
+    void testBuildCreateRequestSetsContextTier() {
+        var config = new SessionConfig().setContextTier("long_context");
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals("long_context", request.getContextTier());
+    }
+
+    @Test
+    void testBuildCreateRequestSetsPluginDirectoriesAndLargeOutput() {
+        var largeOutput = new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L)
+                .setOutputDirectory("/tmp/out");
+        var config = new SessionConfig().setPluginDirectories(List.of("/plugins/a")).setLargeOutput(largeOutput);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals(List.of("/plugins/a"), request.getPluginDirectories());
+        assertEquals(largeOutput, request.getLargeOutput());
+    }
+
+    @Test
     void testBuildCreateRequestForwardsEnableSessionTelemetryWhenFalse() {
         var config = new SessionConfig().setEnableSessionTelemetry(false);
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
@@ -102,6 +127,26 @@ public class SessionRequestBuilderTest {
         var config = new SessionConfig();
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
         assertNull(request.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void testBuildCreateRequestPassesThroughNullMcpOAuthTokenStorage() {
+        var config = new SessionConfig();
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertNull(request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildCreateRequestForwardsExplicitMcpOAuthTokenStorage() {
+        var config = new SessionConfig().setMcpOAuthTokenStorage("persistent");
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals("persistent", request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildCreateRequestNullConfigHasNullMcpOAuthTokenStorage() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(null);
+        assertNull(request.getMcpOAuthTokenStorage());
     }
 
     // =========================================================================
@@ -210,6 +255,86 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig().setClientName("my-app");
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-10", config);
         assertEquals("my-app", request.getClientName());
+    }
+
+    @Test
+    void testBuildCreateRequestPropagatesGranularMultitenancyFields() {
+        var config = new SessionConfig().setSkipEmbeddingRetrieval(true)
+                .setOrganizationCustomInstructions("Create org instructions")
+                .setEnableOnDemandInstructionDiscovery(false).setEnableFileHooks(true).setEnableHostGitOperations(false)
+                .setEnableSessionStore(true).setEnableSkills(false);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertTrue(request.getSkipEmbeddingRetrieval());
+        assertEquals("Create org instructions", request.getOrganizationCustomInstructions());
+        assertFalse(request.getEnableOnDemandInstructionDiscovery());
+        assertTrue(request.getEnableFileHooks());
+        assertFalse(request.getEnableHostGitOperations());
+        assertTrue(request.getEnableSessionStore());
+        assertFalse(request.getEnableSkills());
+    }
+
+    @Test
+    void testBuildResumeRequestPropagatesGranularMultitenancyFields() {
+        var config = new ResumeSessionConfig().setSkipEmbeddingRetrieval(false)
+                .setOrganizationCustomInstructions("Resume org instructions")
+                .setEnableOnDemandInstructionDiscovery(true).setEnableFileHooks(false).setEnableHostGitOperations(true)
+                .setEnableSessionStore(false).setEnableSkills(true);
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-11", config);
+
+        assertFalse(request.getSkipEmbeddingRetrieval());
+        assertEquals("Resume org instructions", request.getOrganizationCustomInstructions());
+        assertTrue(request.getEnableOnDemandInstructionDiscovery());
+        assertFalse(request.getEnableFileHooks());
+        assertTrue(request.getEnableHostGitOperations());
+        assertFalse(request.getEnableSessionStore());
+        assertTrue(request.getEnableSkills());
+    }
+
+    @Test
+    void testBuildResumeRequestPassesThroughNullMcpOAuthTokenStorage() {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-12", config);
+        assertNull(request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildResumeRequestForwardsExplicitMcpOAuthTokenStorage() {
+        var config = new ResumeSessionConfig().setMcpOAuthTokenStorage("persistent");
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-13", config);
+        assertEquals("persistent", request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildResumeRequestNullConfigHasNullMcpOAuthTokenStorage() {
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-14", null);
+        assertNull(request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsReasoningSummary() {
+        var config = new ResumeSessionConfig().setReasoningSummary("none");
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-15", config);
+        assertEquals("none", request.getReasoningSummary());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsContextTier() {
+        var config = new ResumeSessionConfig().setContextTier("default");
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-15", config);
+        assertEquals("default", request.getContextTier());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsPluginDirectoriesAndLargeOutput() {
+        var largeOutput = new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L)
+                .setOutputDirectory("/tmp/resume");
+        var config = new ResumeSessionConfig().setPluginDirectories(List.of("/plugins/r")).setLargeOutput(largeOutput);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-16", config);
+        assertEquals(List.of("/plugins/r"), request.getPluginDirectories());
+        assertEquals(largeOutput, request.getLargeOutput());
     }
 
     // =========================================================================

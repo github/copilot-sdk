@@ -14,6 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -80,7 +81,24 @@ public final class CopilotClient implements AutoCloseable {
      */
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
     private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
+
+    /**
+     * One-shot dispatcher used to run the owned-executor shutdown off any caller
+     * thread that might itself belong to that executor (e.g. the
+     * {@link #forceStop()} continuation, which is chained off async work scheduled
+     * on the internal executor). Spawning a fresh daemon thread guarantees
+     * {@link java.util.concurrent.ExecutorService#awaitTermination(long, TimeUnit)}
+     * is never called from inside the very executor it is waiting on.
+     */
+    private static final Executor SHUTDOWN_DISPATCHER = runnable -> {
+        Thread t = new Thread(runnable, "copilot-client-shutdown");
+        t.setDaemon(true);
+        t.start();
+    };
+
     private final CopilotClientOptions options;
+    private final Executor executor;
+    private final boolean executorCanBeShutdown;
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
@@ -168,6 +186,10 @@ public final class CopilotClient implements AutoCloseable {
             this.optionsPort = null;
         }
 
+        InternalExecutorProvider executorProvider = new InternalExecutorProvider(this.options.getExecutor());
+        this.executor = executorProvider.get();
+        this.executorCanBeShutdown = executorProvider.canBeShutdown();
+
         this.serverManager = new CliServerManager(this.options);
         this.serverManager.setConnectionToken(this.effectiveConnectionToken);
     }
@@ -191,11 +213,8 @@ public final class CopilotClient implements AutoCloseable {
     private CompletableFuture<Connection> startCore() {
         LOG.fine("Starting Copilot client");
 
-        Executor exec = options.getExecutor();
         try {
-            return exec != null
-                    ? CompletableFuture.supplyAsync(this::startCoreBody, exec)
-                    : CompletableFuture.supplyAsync(this::startCoreBody);
+            return CompletableFuture.supplyAsync(this::startCoreBody, executor);
         } catch (RejectedExecutionException e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -224,8 +243,7 @@ public final class CopilotClient implements AutoCloseable {
             Connection connection = new Connection(rpc, process, new ServerRpc(rpc::invoke));
 
             // Register handlers for server-to-client calls
-            RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch,
-                    options.getExecutor());
+            RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor);
             dispatcher.registerHandlers(rpc);
 
             // Verify protocol version
@@ -323,7 +341,6 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<Void> stop() {
         var closeFutures = new ArrayList<CompletableFuture<Void>>();
-        Executor exec = options.getExecutor();
 
         for (CopilotSession session : new ArrayList<>(sessions.values())) {
             Runnable closeTask = () -> {
@@ -335,9 +352,7 @@ public final class CopilotClient implements AutoCloseable {
             };
             CompletableFuture<Void> future;
             try {
-                future = exec != null
-                        ? CompletableFuture.runAsync(closeTask, exec)
-                        : CompletableFuture.runAsync(closeTask);
+                future = CompletableFuture.runAsync(closeTask, executor);
             } catch (RejectedExecutionException e) {
                 LOG.log(Level.WARNING, "Executor rejected session close task; closing inline", e);
                 closeTask.run();
@@ -359,7 +374,12 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<Void> forceStop() {
         disposed = true;
         sessions.clear();
-        return cleanupConnection();
+        // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
+        // cleanupConnection() is chained off async work running on the owned
+        // executor, so a plain whenComplete(...) here could land the awaitTermination
+        // call on one of the very threads it is waiting to drain, forcing the full
+        // AUTOCLOSEABLE_TIMEOUT_SECONDS timeout followed by shutdownNow().
+        return cleanupConnection().whenCompleteAsync((ignored, error) -> shutdownOwnedExecutor(), SHUTDOWN_DISPATCHER);
     }
 
     private CompletableFuture<Void> cleanupConnection() {
@@ -443,33 +463,57 @@ public final class CopilotClient implements AutoCloseable {
         }
         return ensureConnected().thenCompose(connection -> {
             long totalNanos = System.nanoTime();
-            // Pre-generate session ID so the session can be registered before the RPC call,
-            // ensuring no events emitted by the CLI during creation are lost.
-            String sessionId = config.getSessionId() != null
-                    ? config.getSessionId()
-                    : java.util.UUID.randomUUID().toString();
+            // For cloud sessions, let the CLI/server assign the session id
+            // and register the session lazily once the response arrives. For
+            // non-cloud sessions we generate the id client-side (when the
+            // caller didn't supply one) so the session can be registered
+            // BEFORE the RPC — the CLI may issue session-scoped requests
+            // (e.g. sessionFs.writeFile for workspace metadata) during
+            // session.create processing, before it has sent the response.
+            String callerSessionId = config.getSessionId();
+            boolean useServerGeneratedId = config.getCloud() != null
+                    && (callerSessionId == null || callerSessionId.isEmpty());
+            String localSessionId = useServerGeneratedId
+                    ? null
+                    : (callerSessionId != null && !callerSessionId.isEmpty()
+                            ? callerSessionId
+                            : java.util.UUID.randomUUID().toString());
 
-            long setupNanos = System.nanoTime();
-            var session = new CopilotSession(sessionId, connection.rpc);
-            if (options.getExecutor() != null) {
-                session.setExecutor(options.getExecutor());
-            }
-            SessionRequestBuilder.configureSession(session, config);
-            sessions.put(sessionId, session);
-            LoggingHelpers.logTiming(LOG, Level.FINE,
-                    "CopilotClient.createSession local setup complete. Elapsed={Elapsed}, SessionId=" + sessionId,
-                    setupNanos);
-
-            // Extract transform callbacks from the system message config.
-            // Callbacks are registered with the session; a wire-safe copy of the
-            // system message (with transform sections replaced by action="transform")
-            // is used in the RPC request.
+            // Extract transform callbacks from the system message config. Callbacks
+            // are registered with the session; a wire-safe copy of the system
+            // message (with transform sections replaced by action="transform") is
+            // used in the RPC request.
             var extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
-            if (extracted.transformCallbacks() != null) {
-                session.registerTransformCallbacks(extracted.transformCallbacks());
+
+            // Creates the session, wires up handlers, and registers it in the
+            // sessions map.
+            java.util.function.Function<String, CopilotSession> initializeSession = sid -> {
+                long setupNanos = System.nanoTime();
+                var s = new CopilotSession(sid, connection.rpc);
+                s.setExecutor(executor);
+                SessionRequestBuilder.configureSession(s, config);
+                if (extracted.transformCallbacks() != null) {
+                    s.registerTransformCallbacks(extracted.transformCallbacks());
+                }
+                sessions.put(sid, s);
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotClient.createSession local setup complete. Elapsed={Elapsed}, SessionId=" + sid,
+                        setupNanos);
+                return s;
+            };
+
+            String[] registeredIdHolder = new String[1];
+            CopilotSession[] preRegisteredSessionHolder = new CopilotSession[1];
+
+            // Pre-register non-cloud sessions BEFORE issuing the RPC so any
+            // session-scoped requests the CLI emits during session.create
+            // processing can be routed to the correct handlers.
+            if (localSessionId != null) {
+                preRegisteredSessionHolder[0] = initializeSession.apply(localSessionId);
+                registeredIdHolder[0] = localSessionId;
             }
 
-            var request = SessionRequestBuilder.buildCreateRequest(config, sessionId);
+            var request = SessionRequestBuilder.buildCreateRequest(config, localSessionId);
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
@@ -477,31 +521,62 @@ public final class CopilotClient implements AutoCloseable {
             // Empty mode: validate availableTools and set toolFilterPrecedence
             if (options.getMode() == CopilotClientMode.EMPTY) {
                 if (config.getAvailableTools() == null) {
+                    if (registeredIdHolder[0] != null) {
+                        sessions.remove(registeredIdHolder[0]);
+                    }
                     throw new IllegalArgumentException(
                             "CopilotClient is in Mode = EMPTY but the session config did not specify "
                                     + "availableTools. Empty mode requires every session to explicitly opt into "
                                     + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
                 request.setToolFilterPrecedence("excluded");
+                if (request.getSkipEmbeddingRetrieval() == null) {
+                    request.setSkipEmbeddingRetrieval(true);
+                }
+                if (request.getEmbeddingCacheStorage() == null) {
+                    request.setEmbeddingCacheStorage("in-memory");
+                }
+                if (request.getEnableOnDemandInstructionDiscovery() == null) {
+                    request.setEnableOnDemandInstructionDiscovery(false);
+                }
+                if (request.getEnableFileHooks() == null) {
+                    request.setEnableFileHooks(false);
+                }
+                if (request.getEnableHostGitOperations() == null) {
+                    request.setEnableHostGitOperations(false);
+                }
+                if (request.getEnableSessionStore() == null) {
+                    request.setEnableSessionStore(false);
+                }
+                if (request.getEnableSkills() == null) {
+                    request.setEnableSkills(false);
+                }
+                if (request.getMcpOAuthTokenStorage() == null) {
+                    request.setMcpOAuthTokenStorage("in-memory");
+                }
             }
 
             long rpcNanos = System.nanoTime();
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class)
                     .thenCompose(response -> {
+                        String returnedId = response.sessionId();
                         LoggingHelpers.logTiming(LOG, Level.FINE,
                                 "CopilotClient.createSession session creation request completed. Elapsed={Elapsed}, SessionId="
-                                        + sessionId,
+                                        + (returnedId != null ? returnedId : localSessionId),
                                 rpcNanos);
+                        if (returnedId == null || returnedId.isEmpty()) {
+                            throw new RuntimeException("session.create response did not include a sessionId");
+                        }
+                        if (localSessionId != null && !localSessionId.equals(returnedId)) {
+                            throw new RuntimeException("session.create returned sessionId " + returnedId
+                                    + " but the caller requested " + localSessionId);
+                        }
+                        CopilotSession session = preRegisteredSessionHolder[0] != null
+                                ? preRegisteredSessionHolder[0]
+                                : initializeSession.apply(returnedId);
+                        registeredIdHolder[0] = returnedId;
                         session.setWorkspacePath(response.workspacePath());
                         session.setCapabilities(response.capabilities());
-                        // If the server returned a different sessionId (e.g. a v2 CLI that ignores
-                        // the client-supplied ID), re-key the sessions map.
-                        String returnedId = response.sessionId();
-                        if (returnedId != null && !returnedId.equals(sessionId)) {
-                            sessions.remove(sessionId);
-                            session.setActiveSessionId(returnedId);
-                            sessions.put(returnedId, session);
-                        }
 
                         return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                 config.getCustomAgentsLocalOnly().orElse(null),
@@ -509,19 +584,17 @@ public final class CopilotClient implements AutoCloseable {
                                 config.getManageScheduleEnabled().orElse(null)).thenApply(v -> {
                                     LoggingHelpers.logTiming(LOG, Level.FINE,
                                             "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
-                                                    + sessionId,
+                                                    + session.getSessionId(),
                                             totalNanos);
                                     return session;
                                 });
                     }).exceptionally(ex -> {
-                        sessions.remove(sessionId);
-                        // Also remove the re-keyed entry if the server returned a different ID
-                        String activeId = session.getSessionId();
-                        if (!sessionId.equals(activeId)) {
-                            sessions.remove(activeId);
+                        if (registeredIdHolder[0] != null) {
+                            sessions.remove(registeredIdHolder[0]);
                         }
                         LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
-                                "CopilotClient.createSession failed. Elapsed={Elapsed}, SessionId=" + sessionId,
+                                "CopilotClient.createSession failed. Elapsed={Elapsed}, SessionId="
+                                        + (registeredIdHolder[0] != null ? registeredIdHolder[0] : "<unassigned>"),
                                 totalNanos);
                         throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
                     });
@@ -565,9 +638,7 @@ public final class CopilotClient implements AutoCloseable {
             // Register the session before the RPC call to avoid missing early events.
             long setupNanos = System.nanoTime();
             var session = new CopilotSession(sessionId, connection.rpc);
-            if (options.getExecutor() != null) {
-                session.setExecutor(options.getExecutor());
-            }
+            session.setExecutor(executor);
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
             LoggingHelpers.logTiming(LOG, Level.FINE,
@@ -595,6 +666,30 @@ public final class CopilotClient implements AutoCloseable {
                                     + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
                 request.setToolFilterPrecedence("excluded");
+                if (request.getSkipEmbeddingRetrieval() == null) {
+                    request.setSkipEmbeddingRetrieval(true);
+                }
+                if (request.getEmbeddingCacheStorage() == null) {
+                    request.setEmbeddingCacheStorage("in-memory");
+                }
+                if (request.getEnableOnDemandInstructionDiscovery() == null) {
+                    request.setEnableOnDemandInstructionDiscovery(false);
+                }
+                if (request.getEnableFileHooks() == null) {
+                    request.setEnableFileHooks(false);
+                }
+                if (request.getEnableHostGitOperations() == null) {
+                    request.setEnableHostGitOperations(false);
+                }
+                if (request.getEnableSessionStore() == null) {
+                    request.setEnableSessionStore(false);
+                }
+                if (request.getEnableSkills() == null) {
+                    request.setEnableSkills(false);
+                }
+                if (request.getMcpOAuthTokenStorage() == null) {
+                    request.setMcpOAuthTokenStorage("in-memory");
+                }
             }
 
             long rpcNanos = System.nanoTime();
@@ -725,6 +820,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // enableOnDemandInstructionDiscovery
                 patchPlugins, // installedPlugins
                 patchAgents, // customAgentsLocalOnly
+                null, // suppressCustomAgentPrompt
                 patchSkip, // skipCustomInstructions
                 null, // disabledInstructionSources
                 patchCoauthor, // coauthorEnabled
@@ -738,7 +834,13 @@ public final class CopilotClient implements AutoCloseable {
                 null, // agentContext
                 null, // eventsLogDirectory
                 null, // additionalContentExclusionPolicies
-                patchSchedule // manageScheduleEnabled
+                patchSchedule, // manageScheduleEnabled
+                null, // skipEmbeddingRetrieval
+                null, // organizationCustomInstructions
+                null, // enableFileHooks
+                null, // enableHostGitOperations
+                null, // enableSessionStore
+                null // enableSkills
         );
 
         return session.getRpc().options.update(params).<Void>thenCompose(result -> {
@@ -1111,6 +1213,44 @@ public final class CopilotClient implements AutoCloseable {
             stop().get(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
             LOG.log(Level.FINE, "Error during close", e);
+        } finally {
+            shutdownOwnedExecutor();
+        }
+    }
+
+    private void shutdownOwnedExecutor() {
+        if (!executorCanBeShutdown) {
+            return;
+        }
+
+        ExecutorService serviceToShutdown = executor instanceof ExecutorService es ? es : null;
+        if (serviceToShutdown == null) {
+            LOG.log(Level.FINE, "Executor is not an ExecutorService; skipping shutdown");
+            return;
+        }
+
+        // Short-circuit when the owned executor is already shut down. close() and
+        // forceStop() can each call this method (e.g. forceStop() invoked before a
+        // subsequent close() in user code), and re-entering shutdown() +
+        // awaitTermination()
+        // is redundant. Logging at FINE aids diagnostics without spamming normal
+        // output.
+        if (serviceToShutdown.isShutdown()) {
+            LOG.log(Level.FINE, "Owned executor was already shut down; skipping redundant shutdown call.");
+            return;
+        }
+
+        serviceToShutdown.shutdown();
+        try {
+            if (!serviceToShutdown.awaitTermination(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                LOG.log(Level.FINE, "Owned executor did not terminate within {0} seconds; forcing shutdown.",
+                        AUTOCLOSEABLE_TIMEOUT_SECONDS);
+                serviceToShutdown.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            serviceToShutdown.shutdownNow();
+            Thread.currentThread().interrupt();
+            LOG.log(Level.FINE, "Interrupted while waiting for owned executor to terminate", e);
         }
     }
 

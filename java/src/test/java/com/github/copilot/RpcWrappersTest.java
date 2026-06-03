@@ -183,7 +183,7 @@ class RpcWrappersTest {
         var session = new SessionRpc(stub, "sess-xyz");
 
         // switchTo takes extra params beyond sessionId
-        var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null);
+        var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null, null);
         session.model.switchTo(switchParams);
 
         assertEquals(1, stub.calls.size());
@@ -387,6 +387,56 @@ class RpcWrappersTest {
         var client = new CopilotClient();
         assertThrows(IllegalStateException.class, client::getRpc,
                 "getRpc() must throw IllegalStateException if called before start()");
+    }
+
+    // ── session.mcp.apps.callTool tests ───────────────────────────────────────
+
+    @Test
+    void sessionRpc_mcp_apps_callTool_invokes_correct_rpc_method() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-mcp");
+
+        var params = new com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams(null, "my-server", "my-tool",
+                null, null);
+        session.mcp.apps.callTool(params);
+
+        assertEquals(1, stub.calls.size());
+        assertEquals("session.mcp.apps.callTool", stub.calls.get(0).method());
+    }
+
+    @Test
+    void sessionRpc_mcp_apps_callTool_injects_sessionId() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-ct-inject");
+
+        var params = new com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams(null, "server1", "tool1", null,
+                null);
+        session.mcp.apps.callTool(params);
+
+        var sentParams = stub.calls.get(0).params();
+        assertInstanceOf(com.fasterxml.jackson.databind.node.ObjectNode.class, sentParams);
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) sentParams;
+        assertEquals("sess-ct-inject", node.get("sessionId").asText());
+    }
+
+    @Test
+    void sessionRpc_mcp_apps_callTool_returns_jsonNode_payload() throws Exception {
+        var stub = new StubCaller();
+        var mapper = new ObjectMapper();
+        var expectedResult = mapper.createObjectNode();
+        expectedResult.put("content", "hello world");
+        expectedResult.put("isError", false);
+        stub.nextResult = expectedResult;
+
+        var session = new SessionRpc(stub, "sess-payload");
+        var params = new com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams(null, "echo-server", "echo",
+                null, null);
+        var future = session.mcp.apps.callTool(params);
+
+        var result = future.get();
+        assertInstanceOf(com.fasterxml.jackson.databind.JsonNode.class, result);
+        assertEquals("hello world", result.get("content").asText());
+        assertEquals(false, result.get("isError").asBoolean());
     }
 
     /**

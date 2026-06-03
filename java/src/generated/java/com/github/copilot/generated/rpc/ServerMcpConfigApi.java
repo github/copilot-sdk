@@ -73,4 +73,12 @@ public final class ServerMcpConfigApi {
         return caller.invoke("mcp.config.disable", params, Void.class);
     }
 
+    /**
+     * Invokes {@code mcp.config.reload}.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> reload() {
+        return caller.invoke("mcp.config.reload", java.util.Map.of(), Void.class);
+    }
+
 }

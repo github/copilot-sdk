@@ -24,6 +24,8 @@ public record SessionPermissionsSetAllowAllParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Whether to enable full allow-all permissions */
-    @JsonProperty("enabled") Boolean enabled
+    @JsonProperty("enabled") Boolean enabled,
+    /** Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers. */
+    @JsonProperty("source") PermissionsSetAllowAllSource source
 ) {
 }
