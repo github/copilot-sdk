@@ -8,24 +8,40 @@
 
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
-import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type {
-    ReasoningSummary,
+    ModelCapabilities,
+    Model as ModelInfo,
+    OpenCanvasInstance,
+    RemoteSessionMode,
+} from "./generated/rpc.js";
+import type {
     SessionEvent as GeneratedSessionEvent,
+    PermissionRequest,
+    ReasoningSummary,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { RemoteSessionMode } from "./generated/rpc.js";
-import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { ToolSet } from "./toolSet.js";
-export type { RemoteSessionMode } from "./generated/rpc.js";
-export type SessionEvent = GeneratedSessionEvent;
+export type {
+    ModelBilling,
+    ModelCapabilities,
+    Model as ModelInfo,
+    ModelPickerCategory,
+    ModelPickerPriceCategory,
+    ModelPolicy,
+    ModelPolicyState,
+    RemoteSessionMode,
+} from "./generated/rpc.js";
 export type { ReasoningSummary } from "./generated/session-events.js";
-export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
-export type { SessionFsFileInfo } from "./sessionFsProvider.js";
-export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
-export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
-export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
+export type {
+    SessionFsFileInfo,
+    SessionFsProvider,
+    SessionFsSqliteProvider,
+    SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType,
+} from "./sessionFsProvider.js";
+export type SessionEvent = GeneratedSessionEvent;
 
 /**
  * Options for creating a CopilotClient
@@ -923,7 +939,6 @@ export type SystemMessageConfig =
  * `fileName`/`diff`, mcp `toolName`/`args`).
  */
 export type { PermissionRequest } from "./generated/session-events.js";
-import type { PermissionRequest } from "./generated/session-events.js";
 
 import type { PermissionDecisionRequest } from "./generated/rpc.js";
 
@@ -2334,26 +2349,6 @@ export interface GetAuthStatusResponse {
     statusMessage?: string;
 }
 
-/**
- * Model capabilities and limits
- */
-export interface ModelCapabilities {
-    supports: {
-        vision: boolean;
-        /** Whether this model supports reasoning effort configuration */
-        reasoningEffort: boolean;
-    };
-    limits: {
-        max_prompt_tokens?: number;
-        max_context_window_tokens: number;
-        vision?: {
-            supported_media_types: string[];
-            max_prompt_images: number;
-            max_prompt_image_size: number;
-        };
-    };
-}
-
 /** Recursively makes all properties optional, preserving arrays as-is. */
 type DeepPartial<T> = T extends readonly (infer U)[]
     ? DeepPartial<U>[]
@@ -2363,41 +2358,6 @@ type DeepPartial<T> = T extends readonly (infer U)[]
 
 /** Deep-partial override for model capabilities — every property at any depth is optional. */
 export type ModelCapabilitiesOverride = DeepPartial<ModelCapabilities>;
-
-/**
- * Model policy state
- */
-export interface ModelPolicy {
-    state: "enabled" | "disabled" | "unconfigured";
-    terms: string;
-}
-
-/**
- * Model billing information
- */
-export interface ModelBilling {
-    multiplier?: number;
-}
-
-/**
- * Information about an available model
- */
-export interface ModelInfo {
-    /** Model identifier (e.g., "claude-sonnet-4.5") */
-    id: string;
-    /** Display name */
-    name: string;
-    /** Model capabilities and limits */
-    capabilities: ModelCapabilities;
-    /** Policy state */
-    policy?: ModelPolicy;
-    /** Billing information */
-    billing?: ModelBilling;
-    /** Supported reasoning effort levels (only present if model supports reasoning effort) */
-    supportedReasoningEfforts?: ReasoningEffort[];
-    /** Default reasoning effort level (only present if model supports reasoning effort) */
-    defaultReasoningEffort?: ReasoningEffort;
-}
 
 // ============================================================================
 // Session Lifecycle Types (for TUI+server mode)
