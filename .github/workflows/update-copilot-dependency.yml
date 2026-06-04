@@ -168,15 +168,22 @@ jobs:
             exit 0
           fi
 
-          # Record the sync point only when real changes exist
-          git rev-parse HEAD > java/.lastmerge
-          git add java/.lastmerge
-
           git commit -m "Update @github/copilot to $VERSION
 
           - Updated nodejs and test harness dependencies
           - Re-ran code generators
           - Formatted generated code"
+
+          # Record the sync point AFTER the commit so that .lastmerge contains
+          # the SHA of the commit that actually includes the bumped
+          # nodejs/package.json. Java's build reads .lastmerge to clone the
+          # monorepo at that commit and extract the test harness + CLI version
+          # from nodejs/package.json. If we wrote .lastmerge BEFORE committing,
+          # it would point to the parent commit which still has the OLD version,
+          # causing Java tests to run against a stale CLI.
+          git rev-parse HEAD > java/.lastmerge
+          git add java/.lastmerge
+          git commit --amend --no-edit
           git push origin "$BRANCH" --force-with-lease
 
           PR_BODY=$(cat <<'BODY_EOF'
