@@ -127,12 +127,33 @@ jobs:
           git fetch origin "$BRANCH" 2>/dev/null || true
 
           if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
-            # Stash uncommitted changes from earlier steps before switching branches
-            git stash --include-untracked
+            # We need to switch to the existing PR branch, but earlier workflow
+            # steps (dependency bumps, codegen) may have left uncommitted changes
+            # in the working tree. We must stash those changes before checkout,
+            # then re-apply them on the PR branch.
+            #
+            # HOWEVER: `git stash` is a no-op when the working tree is clean —
+            # it exits 0 but creates NO refs/stash entry. If we then blindly run
+            # `git stash pop`, it fails with "No stash entries found" and, under
+            # the shell's `set -e` (GitHub Actions default), aborts the entire
+            # step. This happens when the requested version is already current or
+            # earlier steps produced no file changes.
+            #
+            # Fix: only stash/pop when there are actual uncommitted changes.
+            STASHED=false
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+              git stash --include-untracked
+              STASHED=true
+            fi
+
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
-            # Re-apply the dependency/codegen changes on top of the PR branch
-            git stash pop || git checkout stash -- .
+
+            # Re-apply the dependency/codegen changes on top of the PR branch,
+            # but only if we actually stashed something above.
+            if [ "$STASHED" = "true" ]; then
+              git stash pop
+            fi
           else
             git checkout -b "$BRANCH"
           fi
