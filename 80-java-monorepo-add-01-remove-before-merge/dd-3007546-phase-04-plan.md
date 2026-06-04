@@ -1,5 +1,7 @@
 # DD-3007546: Phase 04 — Agentic Workflows and Skills Migration
 
+❌❌❌ UNDER NO CIRCUMSTANCES EVER do you push to `upstream/main` from `copilot-sdk-00`. You must only push to `upstream/edburns/80-java-monorepo-iterating`.❌❌❌
+
 ## Context
 
 Read the master plan: `80-java-monorepo-add-01-remove-before-merge/dd-2989727-move-java-to-monorepo-plan.md` — focus on Phase 04.
