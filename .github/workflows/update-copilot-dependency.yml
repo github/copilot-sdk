@@ -126,10 +126,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Fetch the PR branch if it exists remotely (shallow clones may not have it)
+          git fetch origin "$BRANCH" 2>/dev/null || true
+
           if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
-            git fetch origin "$BRANCH"
+            # Stash uncommitted changes from earlier steps before switching branches
+            git stash --include-untracked
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
+            # Re-apply the dependency/codegen changes on top of the PR branch
+            git stash pop || git checkout stash -- .
           else
             git checkout -b "$BRANCH"
           fi
