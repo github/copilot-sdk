@@ -104,7 +104,11 @@ jobs:
         run: |
           PROP="readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync"
           sed -i -E "s|(<${PROP}>)[^<]*(</${PROP}>)|\1^${VERSION}\2|" pom.xml
-          grep -q "<${PROP}>^${VERSION}</${PROP}>" pom.xml
+          # Use fixed-string matching (-F) because npm versions contain regex
+          # metacharacters: '^' (caret ranges) and '.' (dots in semver) would
+          # otherwise be interpreted as start-of-line and any-char respectively,
+          # causing false negatives or spurious matches.
+          grep -qF "<${PROP}>^${VERSION}</${PROP}>" pom.xml
 
       - name: Run Java codegen
         working-directory: ./java
