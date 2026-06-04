@@ -54,6 +54,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   private startPromise: Promise<string> | null = null;
   private defaultToolResultNormalizers: ToolResultNormalizer[] = [
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
+    { toolName: "${shell}", normalizer: normalizeShellExitMarkers },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
     { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
   ];
@@ -1085,6 +1086,13 @@ function normalizeLargeOutputFilepaths(result: string): string {
       /(?:[A-Za-z]:)?[^\s"'`]*[\\/]session-state[\\/]temp[\\/]PLACEHOLDER-copilot-tool-output-PLACEHOLDER/g,
       "/session-state/temp/PLACEHOLDER-copilot-tool-output-PLACEHOLDER",
     );
+}
+
+function normalizeShellExitMarkers(result: string): string {
+  return result.replace(
+    /<shellId:\s*[^>\r\n]+?\s+completed with exit code (-?\d+)>/g,
+    "<exited with exit code $1>",
+  );
 }
 
 // The `gh` CLI emits different "not authenticated" help text depending on the
