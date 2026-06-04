@@ -101,7 +101,7 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 
 5. Migrate `notes.template` to `java/.github/notes.template` or similar.
 
-### Phase 04: Agentic Workflows and Skills
+### ✅ Phase 04: Agentic Workflows and Skills
 
 **Goal**: Agentic automation works for Java within the monorepo.
 
@@ -191,7 +191,7 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
       
 
 
-### Phase 07: Preserve authorship of commits for `pom.xml` and `.java` files
+### ✅ Phase 07: Preserve authorship of commits for `pom.xml` and `.java` files
 
 Let's assume
 
