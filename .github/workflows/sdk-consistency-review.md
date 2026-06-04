@@ -11,7 +11,6 @@ on:
       - 'go/**'
       - 'dotnet/**'
       - 'java/**'
-      - 'rust/**'
   workflow_dispatch:
     inputs:
       pr_number:
