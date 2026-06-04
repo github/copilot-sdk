@@ -11,7 +11,7 @@
     <packaging>jar</packaging>
 
     <name>GitHub Copilot SDK :: Java</name>
-    <description>SDK for programmatic control of GitHub Copilot CLI</description>
+    <description>Official SDK for programmatic control of GitHub Copilot CLI</description>
     <url>https://github.com/github/copilot-sdk</url>
 
     <licenses>
@@ -23,8 +23,8 @@
 
     <developers>
         <developer>
-            <name>GitHub Copilot SDK</name>
-            <organization>GitHub Copilot SDK</organization>
+            <name>GitHub Copilot SDK Team</name>
+            <organization>GitHub</organization>
             <organizationUrl>https://github.com/github</organizationUrl>
         </developer>
     </developers>
