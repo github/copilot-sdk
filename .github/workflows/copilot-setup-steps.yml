@@ -25,7 +25,7 @@ jobs:
     steps:
       # Checkout the repository to install dependencies
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6
 
       # Setup Node.js (for TypeScript/JavaScript SDK and tooling)
       - name: Set up Node.js
@@ -64,7 +64,7 @@ jobs:
 
       # Setup Java (for Java SDK)
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: "microsoft"
           java-version: "17"
@@ -72,11 +72,11 @@ jobs:
 
       # Install just command runner
       - name: Install just
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@v4
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
-        uses: github/gh-aw/actions/setup-cli@0feed75a980b06f247abbbf80127f8eb2c19e2c5 # v0.74.8
+        uses: github/gh-aw/actions/setup-cli@f990bbb7eb83981a203d4b5eccdc24f677e950c7 # v0.77.5
         with:
           version: v0.74.4
 

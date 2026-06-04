@@ -14,14 +14,14 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "devDependencies": {
-    "@github/copilot": "^1.0.57",
-    "@modelcontextprotocol/sdk": "^1.26.0",
-    "@types/node": "^25.3.3",
+    "@github/copilot": "^1.0.59",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/node": "^25.9.1",
     "@types/node-forge": "^1.3.14",
     "node-forge": "^1.4.0",
-    "openai": "^6.17.0",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
+    "openai": "^6.42.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
     "vitest": "^4.0.18",
     "yaml": "^2.8.2"
   }

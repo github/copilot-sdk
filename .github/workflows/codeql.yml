@@ -23,9 +23,9 @@ jobs:
       matrix: ${{ steps.build-matrix.outputs.matrix }}
       skipped-matrix: ${{ steps.build-matrix.outputs.skipped-matrix }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-      - uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050 # v3
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
         id: filter
         if: github.event_name == 'pull_request'
         with:
@@ -106,19 +106,19 @@ jobs:
       matrix: ${{ fromJson(needs.changes.outputs.matrix) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
+        uses: github/codeql-action/init@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
+        uses: github/codeql-action/autobuild@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
+        uses: github/codeql-action/analyze@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4
         with:
           category: "/language:${{ matrix.language }}"
 
@@ -150,7 +150,7 @@ jobs:
           EOF
 
       - name: Upload empty SARIF
-        uses: github/codeql-action/upload-sarif@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
+        uses: github/codeql-action/upload-sarif@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4
         with:
           sarif_file: ${{ runner.temp }}/empty.sarif
           category: "/language:${{ matrix.language }}"
