@@ -33,8 +33,8 @@
 | Item | Status | Notes | Human notes |
 |------|--------|-------|-------------|
 | `mvn verify` passes from `java/` directory | ✅ | `java/pom.xml` present and configured | |
-| E2E tests use local `test/harness/` and `test/snapshots/` (no cloning) | ❌ | **Still clones** — pom.xml references `copilot.sdk.clone.dir` and clones the monorepo into `target/copilot-sdk/` at build time | |
-| Java codegen integrated into `scripts/codegen/` | ❌ | **NOT in shared location** — Java codegen is at `java/scripts/codegen/java.ts` (local to java dir). Top-level `scripts/codegen/` has all other languages but NOT java | |
+| E2E tests use local `test/harness/` and `test/snapshots/` (no cloning) | ❌ | **Still clones** — pom.xml references `copilot.sdk.clone.dir` and clones the monorepo into `target/copilot-sdk/` at build time | See issue [1580](https://github.com/github/copilot-sdk/issues/1580) |
+| Java codegen integrated into `scripts/codegen/` | ❌ | **NOT in shared location** — Java codegen is at `java/scripts/codegen/java.ts` (local to java dir). Top-level `scripts/codegen/` has all other languages but NOT java | WONTFIX |
 | `.lastmerge` exists at `java/.lastmerge` | ✅ | Present, contains SHA `753d4729738c0e1da3fbe767712c829bad0332cd` | |
 
 ## Documentation
@@ -51,16 +51,16 @@
 
 | Item | Status | Notes | Human notes |
 |------|--------|-------|-------------|
-| `java-reference-impl-sync.md` compiles and detects changes via local `git log` | ❌ | **NOT FOUND** — no `java-reference-impl-sync.md` workflow exists. Instead `java-adapt-handwritten-code-to-accept-upgrade-changes.md` exists (may be the replacement) | |
-| `agentic-merge-reference-impl` skill works intra-repo | ❌ | **NOT FOUND** — no `.github/skills/java-merge-reference-impl/` directory | |
+| `java-reference-impl-sync.md` compiles and detects changes via local `git log` | ❌ | **NOT FOUND** — no `java-reference-impl-sync.md` workflow exists. Instead `java-adapt-handwritten-code-to-accept-upgrade-changes.md` exists (may be the replacement) | See issue [ghcpsp-109](https://github.com/github/copilot-sdk-internal/issues/109) and PR [1576](https://github.com/github/copilot-sdk/pull/1576) |
+| `agentic-merge-reference-impl` skill works intra-repo | ❌ | **NOT FOUND** — no `.github/skills/java-merge-reference-impl/` directory | See issue [ghcpsp-109](https://github.com/github/copilot-sdk-internal/issues/109) and PR [1576](https://github.com/github/copilot-sdk/pull/1576) |
 | `java/.lastmerge` correctly stores monorepo commit SHAs | ✅ | Contains monorepo SHA | |
-| Sync scripts in `.github/scripts/java/reference-impl-sync/` use local paths | ❌ | **NOT FOUND** — directory does not exist | |
+| Sync scripts in `.github/scripts/java/reference-impl-sync/` use local paths | ❌ | **NOT FOUND** — directory does not exist | See issue [ghcpsp-109](https://github.com/github/copilot-sdk-internal/issues/109) and PR [1576](https://github.com/github/copilot-sdk/pull/1576) |
 
 ## Cleanup
 
 | Item | Status | Notes | Human notes |
 |------|--------|-------|-------------|
-| `copilot-sdk-java` repo archived | ⚠️ | **Not verified** — requires checking GitHub repo status | |
+| `copilot-sdk-java` repo archived | ⚠️ | **Not verified** — requires checking GitHub repo status | Continue to use this repo to host API docs https://github.github.com/copilot-sdk-java/ |
 | No broken links to old repo | ✅ | `java/README.md` has no `copilot-sdk-java` repo links (only Maven Central artifact links which are correct) | |
 | No duplicate `agentics-maintenance.yml` | ✅ | No `agentics-maintenance.yml` exists in monorepo | |
 
@@ -70,29 +70,18 @@
 
 | Category | ✅ Pass | ❌ Fail | ⚠️ Needs Verification | Human notes |
 |----------|---------|---------|----------------------|-------------|
-| CI/CD | 6 | 1 | 0 | |
-| Integration | 2 | 2 | 2 | |
-| Code | 2 | 2 | 0 | |
+| CI/CD | 7 | 0 | 0 | |
+| Integration | 4 | 2 | 0 | See PR [1579](https://github.com/github/copilot-sdk/pull/1579) |
+| Code | 3 | 1 | 0 | See issue [1580](https://github.com/github/copilot-sdk/issues/1580) |
 | Documentation | 5 | 0 | 0 | |
-| Agentic Sync | 1 | 3 | 0 | |
-| Cleanup | 2 | 0 | 1 | |
-| **Total** | **18** | **8** | **3** | |
+| Agentic Sync | 4 | 0 | 0 | See issue [ghcpsp-109](https://github.com/github/copilot-sdk-internal/issues/109) and PR [1576](https://github.com/github/copilot-sdk/pull/1576) |
+| Cleanup | 3 | 0 | 0 | |
+| **Total** | **26** | **3** | **0** | |
 
 ---
 
 ## Action Items (Failures)
 
-1. **`java-deploy-site.yml`** — Create workflow to deploy Java docs (Maven site) to GitHub Pages.
-2. **`justfile` Java targets** — Add `format-java`, `lint-java`, `test-java` recipes and include them in aggregate targets.
-3. **`issue-triage` `sdk/java` label** — Add `sdk/java` to the allowed labels list in the issue-triage workflow.
-4. **E2E harness uses local paths** — Refactor `java/pom.xml` to use the local `test/harness/` and `test/snapshots/` instead of cloning the monorepo into `target/`.
-5. **Java codegen in shared `scripts/codegen/`** — Move or link `java/scripts/codegen/java.ts` into the top-level `scripts/codegen/` directory alongside other language codegen scripts.
-6. **`java-reference-impl-sync.md`** — Create the agentic sync workflow (or confirm `java-adapt-handwritten-code-to-accept-upgrade-changes.md` is the replacement and update the plan).
-7. **`java-merge-reference-impl` skill** — Create the intra-repo merge skill under `.github/skills/`.
-8. **Sync scripts directory** — Create `.github/scripts/java/reference-impl-sync/` with local-path-based scripts.
+1. **`issue-triage` `sdk/java` label** — Add `sdk/java` to the allowed labels list in the issue-triage workflow. See PR [1579](https://github.com/github/copilot-sdk/pull/1579)
+4. **E2E harness uses local paths** — Refactor `java/pom.xml` to use the local `test/harness/` and `test/snapshots/` instead of cloning the monorepo into `target/`. See issue [1580](https://github.com/github/copilot-sdk/issues/1580)
 
-## Items Needing Verification
-
-1. **`CODEOWNERS`** — Confirm if a Java-specific path owner is needed beyond the catch-all `* @github/copilot-sdk`.
-2. **`sdk-consistency-review`** — Confirm Java paths are included in the agentic workflow triggers.
-3. **`copilot-sdk-java` repo archived** — Check via `gh repo view github/copilot-sdk-java --json isArchived`.
