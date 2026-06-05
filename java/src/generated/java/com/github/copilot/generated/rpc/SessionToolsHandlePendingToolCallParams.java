@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Pending external tool call request ID, with the tool result or an error describing why it failed.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

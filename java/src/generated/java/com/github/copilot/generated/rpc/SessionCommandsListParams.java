@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Optional filters controlling which command sources to include in the listing.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

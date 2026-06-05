@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * MCP server, tool name, and arguments to invoke from an MCP App view.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

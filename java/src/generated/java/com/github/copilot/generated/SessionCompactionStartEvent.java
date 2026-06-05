@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

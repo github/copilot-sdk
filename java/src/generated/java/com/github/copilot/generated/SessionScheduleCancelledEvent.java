@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.schedule_cancelled". Scheduled prompt cancelled from the schedule manager dialog
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

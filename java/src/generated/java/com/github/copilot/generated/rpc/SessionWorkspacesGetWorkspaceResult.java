@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * Current workspace metadata for the session, including its absolute filesystem path when available.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

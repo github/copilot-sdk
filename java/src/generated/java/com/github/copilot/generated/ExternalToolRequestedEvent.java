@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "external_tool.requested". External tool invocation request for client-side tool execution
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

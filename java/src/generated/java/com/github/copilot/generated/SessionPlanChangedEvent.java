@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.plan_changed". Plan file operation details indicating what changed
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

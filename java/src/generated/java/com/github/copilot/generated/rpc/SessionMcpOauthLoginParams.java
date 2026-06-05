@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

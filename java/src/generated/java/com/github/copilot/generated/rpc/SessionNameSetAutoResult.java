@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Indicates whether the auto-generated summary was applied as the session's name.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

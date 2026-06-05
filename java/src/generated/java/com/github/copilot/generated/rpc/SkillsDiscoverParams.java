@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Optional project paths and additional skill directories to include in discovery.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

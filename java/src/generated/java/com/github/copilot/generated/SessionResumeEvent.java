@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.resume". Session resume metadata including current context and event count
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

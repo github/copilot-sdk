@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * ID of the local session bound to the given GitHub task, or omitted when none.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

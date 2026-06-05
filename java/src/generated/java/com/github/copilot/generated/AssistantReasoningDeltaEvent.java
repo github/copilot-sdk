@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.reasoning_delta". Streaming reasoning delta for incremental extended thinking updates
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

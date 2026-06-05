@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "subagent.selected". Custom agent selection details including name and available tools
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

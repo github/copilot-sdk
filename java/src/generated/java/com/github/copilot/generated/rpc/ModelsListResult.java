@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * List of Copilot models available to the resolved user, including capabilities and billing metadata.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

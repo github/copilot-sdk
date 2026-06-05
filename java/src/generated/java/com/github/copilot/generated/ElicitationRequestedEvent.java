@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "elicitation.requested". Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.message_delta". Streaming assistant message delta for incremental response updates
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

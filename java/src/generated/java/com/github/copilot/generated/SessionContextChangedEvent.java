@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.context_changed". Updated working directory and git context after the change
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

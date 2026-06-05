@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "capabilities.changed". Session capability change notification
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Handshake result reporting the server's protocol version and package version on success.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Event type to register consumer interest for, used by runtime gating logic.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

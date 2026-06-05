@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

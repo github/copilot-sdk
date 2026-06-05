@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Model identifier to use when re-tokenizing the session's existing messages.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

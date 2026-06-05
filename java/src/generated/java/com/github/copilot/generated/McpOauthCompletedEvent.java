@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "mcp.oauth_completed". MCP OAuth request completion notification
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

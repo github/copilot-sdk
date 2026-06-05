@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.extensions_loaded".
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

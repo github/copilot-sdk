@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Identifier of a process previously returned by "shell.exec" and the signal to send.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

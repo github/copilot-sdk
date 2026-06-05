@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Built-in tools available for the requested model, with their parameters and instructions.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

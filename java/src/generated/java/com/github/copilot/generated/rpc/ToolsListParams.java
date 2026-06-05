@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Optional model identifier whose tool overrides should be applied to the listing.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

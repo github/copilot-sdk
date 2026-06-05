@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * Feature override key/value pairs to attach to subsequent telemetry events from this session.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Indicates whether the elicitation response was accepted; false if it was already resolved by another client.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

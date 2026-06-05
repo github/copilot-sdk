@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * MCP servers discovered from user, workspace, plugin, and built-in sources.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

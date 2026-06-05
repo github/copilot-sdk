@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

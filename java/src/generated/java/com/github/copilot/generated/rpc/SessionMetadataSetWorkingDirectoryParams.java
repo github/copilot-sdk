@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Absolute path to set as the session's new working directory.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

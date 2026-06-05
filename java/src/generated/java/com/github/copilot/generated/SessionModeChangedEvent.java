@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.mode_changed". Agent mode change details including previous and new modes
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

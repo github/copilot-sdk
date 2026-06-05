@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * The promoted task as it now exists in background mode, omitted if no promotable task was waiting.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

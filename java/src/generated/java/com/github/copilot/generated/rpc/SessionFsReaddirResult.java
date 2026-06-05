@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * Names of entries in the requested directory, or a filesystem error if the read failed.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

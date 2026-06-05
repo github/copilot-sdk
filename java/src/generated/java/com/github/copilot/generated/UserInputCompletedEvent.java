@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "user_input.completed". User input request completion with the user's response
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

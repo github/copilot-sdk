@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * GitHub URL for the session and a flag indicating whether remote steering is enabled.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

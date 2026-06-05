@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "model.call_failure". Failed LLM API call metadata for telemetry
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * Skills available to the session, with their enabled state.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

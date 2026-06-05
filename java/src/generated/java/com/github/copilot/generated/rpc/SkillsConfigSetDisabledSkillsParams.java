@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Skill names to mark as disabled in global configuration, replacing any previous list.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

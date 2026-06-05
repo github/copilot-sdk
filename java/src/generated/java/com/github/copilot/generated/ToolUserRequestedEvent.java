@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "tool.user_requested". User-initiated tool invocation request with tool name and arguments
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

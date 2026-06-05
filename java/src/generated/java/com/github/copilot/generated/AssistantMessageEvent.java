@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.message". Assistant response containing text content, optional tool requests, and interaction metadata
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

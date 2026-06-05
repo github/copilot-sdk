@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "tool.execution_start". Tool execution startup details including MCP server information when applicable
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
