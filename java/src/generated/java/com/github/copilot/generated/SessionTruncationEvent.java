@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.truncation". Conversation truncation statistics including token counts and removed content metrics
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

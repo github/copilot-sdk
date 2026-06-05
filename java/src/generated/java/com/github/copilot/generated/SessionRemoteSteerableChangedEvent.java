@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.remote_steerable_changed". Notifies that the session's remote steering capability has changed
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

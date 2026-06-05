@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.title_changed". Session title change payload containing the new display title
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

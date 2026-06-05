@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "tool.execution_progress". Tool execution progress notification with status message
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

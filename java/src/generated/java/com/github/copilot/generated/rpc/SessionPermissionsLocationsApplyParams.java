@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Working directory to load persisted location permissions for.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

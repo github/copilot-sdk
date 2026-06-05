@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.usage_info". Current context window usage statistics including token and message counts
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

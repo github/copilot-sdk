@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Skills discovered across global and project sources.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

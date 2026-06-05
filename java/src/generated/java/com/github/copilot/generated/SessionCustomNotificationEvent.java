@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.custom_notification". Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

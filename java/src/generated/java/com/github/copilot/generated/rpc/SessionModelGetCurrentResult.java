@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

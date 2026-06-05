@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "permission.requested". Permission request notification requiring client approval with request details
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

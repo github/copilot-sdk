@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "hook.end". Hook invocation completion details including output, success status, and error information
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

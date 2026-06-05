@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

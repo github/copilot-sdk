@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Path to evaluate against the session's allowed directories.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * User-configured MCP servers, keyed by server name.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

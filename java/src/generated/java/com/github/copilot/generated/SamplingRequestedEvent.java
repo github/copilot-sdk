@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "sampling.requested". Sampling request from an MCP server; contains the server name and a requestId for correlation
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

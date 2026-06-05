@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "hook.progress". Ephemeral progress update from a running hook process
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

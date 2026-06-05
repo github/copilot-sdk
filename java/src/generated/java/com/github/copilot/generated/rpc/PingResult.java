@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Server liveness response, including the echoed message, current server timestamp, and protocol version.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

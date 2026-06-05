@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.reasoning". Assistant reasoning content for timeline display with complete thinking text
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

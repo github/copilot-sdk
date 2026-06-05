@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.model_change". Model change details including previous and new model identifiers
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

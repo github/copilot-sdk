@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Mode controlling how MCP server env values are resolved (`direct` or `indirect`).
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

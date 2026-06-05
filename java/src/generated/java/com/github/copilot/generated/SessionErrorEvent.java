@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.error". Error details for timeline display including message and optional diagnostic information
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

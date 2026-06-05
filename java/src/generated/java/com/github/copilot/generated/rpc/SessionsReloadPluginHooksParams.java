@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Active session ID and an optional flag for deferring repo-level hooks until folder trust.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

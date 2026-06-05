@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * MCP server names to disable for new sessions.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

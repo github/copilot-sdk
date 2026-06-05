@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Optional connection token presented by the SDK client during the handshake.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

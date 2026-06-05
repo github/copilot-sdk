@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.workspace_file_changed". Workspace file change details including path and operation type
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

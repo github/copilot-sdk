@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * Filesystem metadata for the requested path, or a filesystem error if the stat failed.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

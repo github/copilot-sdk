@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * Skills invoked during this session, ordered by invocation time (most recent last).
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

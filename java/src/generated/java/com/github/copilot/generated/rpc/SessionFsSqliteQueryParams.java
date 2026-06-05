@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

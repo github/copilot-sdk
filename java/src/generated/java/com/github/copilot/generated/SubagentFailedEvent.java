@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "subagent.failed". Sub-agent failure details including error message and agent information
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

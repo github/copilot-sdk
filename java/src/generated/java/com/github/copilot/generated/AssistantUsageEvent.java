@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.usage". LLM API call usage metrics including tokens, costs, quotas, and billing information
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

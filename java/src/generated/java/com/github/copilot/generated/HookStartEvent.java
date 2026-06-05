@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "hook.start". Hook invocation start details including type and input data
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

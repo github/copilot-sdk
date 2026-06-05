@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "command.completed". Queued command completion notification signaling UI dismissal
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

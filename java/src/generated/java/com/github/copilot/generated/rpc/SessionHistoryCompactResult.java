@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

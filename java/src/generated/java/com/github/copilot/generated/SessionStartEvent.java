@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.start". Session initialization metadata including context and configuration
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

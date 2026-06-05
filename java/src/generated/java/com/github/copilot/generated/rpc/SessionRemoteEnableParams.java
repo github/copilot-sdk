@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Optional remote session mode ("off", "export", or "on"); defaults to enabling both export and remote steering.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

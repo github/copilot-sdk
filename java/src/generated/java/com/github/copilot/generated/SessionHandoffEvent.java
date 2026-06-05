@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.handoff". Session handoff metadata including source, context, and repository information
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

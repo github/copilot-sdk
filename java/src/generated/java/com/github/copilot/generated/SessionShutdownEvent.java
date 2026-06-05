@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.shutdown". Session termination metrics including usage statistics, code changes, and shutdown reason
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

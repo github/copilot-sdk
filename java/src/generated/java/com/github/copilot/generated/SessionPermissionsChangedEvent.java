@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

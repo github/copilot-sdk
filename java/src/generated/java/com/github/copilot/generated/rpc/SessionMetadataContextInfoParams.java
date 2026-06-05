@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Model identifier and token limits used to compute the context-info breakdown.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

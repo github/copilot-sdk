@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * New remote-steerability state to persist as a `session.remote_steerable_changed` event.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

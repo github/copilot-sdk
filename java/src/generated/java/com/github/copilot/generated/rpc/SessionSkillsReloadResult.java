@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

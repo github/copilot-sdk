@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.turn_end". Turn completion metadata including the turn identifier
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

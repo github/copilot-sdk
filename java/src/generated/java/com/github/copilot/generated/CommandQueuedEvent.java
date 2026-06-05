@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "command.queued". Queued slash command dispatch request for client execution
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

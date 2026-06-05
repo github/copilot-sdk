@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.intent". Agent intent description for current activity or plan
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

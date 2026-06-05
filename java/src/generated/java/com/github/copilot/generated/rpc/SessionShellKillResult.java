@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Indicates whether the signal was delivered; false if the process was unknown or already exited.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Optional working directory used as context for MCP server discovery.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

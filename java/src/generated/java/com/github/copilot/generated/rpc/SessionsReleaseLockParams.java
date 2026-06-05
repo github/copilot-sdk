@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Session ID whose in-use lock should be released.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

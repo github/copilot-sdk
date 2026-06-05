@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.task_complete". Task completion notification with summary from the agent
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

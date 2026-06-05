@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "abort". Turn abort information including the reason for termination
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

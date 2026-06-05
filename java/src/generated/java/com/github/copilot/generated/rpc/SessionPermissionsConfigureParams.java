@@ -16,6 +16,7 @@ import javax.annotation.processing.Generated;
 /**
  * Patch of permission policy fields to apply (omit a field to leave it unchanged).
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

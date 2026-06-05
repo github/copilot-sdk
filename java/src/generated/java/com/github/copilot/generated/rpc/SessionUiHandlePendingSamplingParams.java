@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Request ID of a pending `sampling.requested` event and an optional sampling result payload (omit to reject).
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

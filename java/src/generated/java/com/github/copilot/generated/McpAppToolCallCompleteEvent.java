@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "mcp_app.tool_call_complete". MCP App view called a tool on a connected MCP server (SEP-1865)
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

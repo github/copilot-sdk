@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "user_input.requested". User input request notification with question and optional predefined choices
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

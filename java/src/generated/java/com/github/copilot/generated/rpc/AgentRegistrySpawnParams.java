@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Inputs to spawn a managed-server child via the controller's spawn delegate.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Most-relevant session ID for the supplied context, or omitted when no sessions exist.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

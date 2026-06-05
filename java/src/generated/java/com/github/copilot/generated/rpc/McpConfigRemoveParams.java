@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * MCP server name to remove from user configuration.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.message_start". Streaming assistant message start metadata
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

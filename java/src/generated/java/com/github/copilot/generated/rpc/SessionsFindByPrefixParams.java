@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * UUID prefix to resolve to a unique session ID.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

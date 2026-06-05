@@ -15,6 +15,7 @@ import javax.annotation.processing.Generated;
 /**
  * Auto-generated session summary to apply as the session's name when no user-set name exists.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

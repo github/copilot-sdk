@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "subagent.completed". Sub-agent completion details for successful execution
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

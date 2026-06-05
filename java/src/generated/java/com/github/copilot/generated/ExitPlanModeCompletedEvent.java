@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "exit_plan_mode.completed". Plan mode exit completion with the user's approval decision and optional feedback
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

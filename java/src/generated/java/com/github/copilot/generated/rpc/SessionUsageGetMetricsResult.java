@@ -17,6 +17,7 @@ import javax.annotation.processing.Generated;
 /**
  * Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

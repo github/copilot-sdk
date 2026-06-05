@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "mcp.oauth_required". OAuth authentication request for an MCP server
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
