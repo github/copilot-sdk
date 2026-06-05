@@ -162,10 +162,7 @@ jobs:
             git checkout -b "$BRANCH"
           fi
 
-          # Stage everything except java/.lastmerge so it doesn't create a
-          # spurious diff in the no-changes check below. The ':!...' pathspec
-          # (exclude magic) tells git to skip that one file.
-          git add -A -- ':!java/.lastmerge'
+          git add -A
 
           if git diff --cached --quiet; then
             echo "No changes detected; skipping commit and PR creation."
@@ -178,16 +175,6 @@ jobs:
           - Re-ran code generators
           - Formatted generated code"
 
-          # Record the sync point AFTER the commit so that .lastmerge contains
-          # the SHA of the commit that actually includes the bumped
-          # nodejs/package.json. Java's build reads .lastmerge to clone the
-          # monorepo at that commit and extract the test harness + CLI version
-          # from nodejs/package.json. If we wrote .lastmerge BEFORE committing,
-          # it would point to the parent commit which still has the OLD version,
-          # causing Java tests to run against a stale CLI.
-          git rev-parse HEAD > java/.lastmerge
-          git add java/.lastmerge
-          git commit --amend --no-edit
           git push origin "$BRANCH" --force-with-lease
 
           PR_BODY=$(cat <<'BODY_EOF'
@@ -197,7 +184,7 @@ jobs:
           - Updated `@github/copilot` in `nodejs/package.json` and `test/harness/package.json`
           - Re-ran all code generators (`scripts/codegen`)
           - Formatted generated output
-          - Updated Java codegen dependency, `.lastmerge`, POM property, and regenerated Java types
+          - Updated Java codegen dependency, POM property, and regenerated Java types
 
           ### Java Handwritten Code Adaptation Plan
 
