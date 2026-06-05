@@ -8,9 +8,9 @@
  */
 
 import fs from "fs/promises";
+import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
-import type { JSONSchema7 } from "json-schema";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
