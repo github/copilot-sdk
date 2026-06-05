@@ -2377,6 +2377,56 @@ export interface ModelPolicy {
  */
 export interface ModelBilling {
     multiplier?: number;
+    tokenPrices?: ModelBillingTokenPrices;
+}
+
+/**
+ * Token-level pricing information for this model
+ */
+export interface ModelBillingTokenPrices {
+    /**
+     * AI Credits cost per billing batch of input tokens
+     */
+    inputPrice?: number;
+    /**
+     * AI Credits cost per billing batch of output tokens
+     */
+    outputPrice?: number;
+    /**
+     * AI Credits cost per billing batch of cached tokens
+     */
+    cachePrice?: number;
+    /**
+     * Number of tokens per standard billing batch
+     */
+    batchSize?: number;
+    /**
+     * Prompt token budget (max_prompt_tokens) for the default tier. The total context window is this value plus the model's max_output_tokens.
+     */
+    contextMax?: number;
+    longContext?: ModelBillingTokenPricesLongContext;
+}
+
+/**
+ * Long context tier pricing (available for models with extended context windows)
+ */
+export interface ModelBillingTokenPricesLongContext {
+    /**
+     * AI Credits cost per billing batch of input tokens
+     */
+    inputPrice?: number;
+    /**
+     * AI Credits cost per billing batch of output tokens
+     */
+    outputPrice?: number;
+    /**
+     * AI Credits cost per billing batch of cached tokens
+     */
+    cachePrice?: number;
+    /**
+     * Prompt token budget (max_prompt_tokens) for the long context tier. The total context window is this value plus the model's max_output_tokens.
+     */
+    contextMax?: number;
 }
 
 /**
