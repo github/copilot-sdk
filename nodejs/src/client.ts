@@ -2089,10 +2089,16 @@ export class CopilotClient {
             throw new Error("CLI process not started");
         }
 
-        // Add error handler to stdin to prevent unhandled rejections during forceStop
-        this.cliProcess.stdin?.on("error", (err) => {
-            if (!this.forceStopping) {
-                throw err;
+        // Keep stdin pipe errors inside the normal JSON-RPC teardown path.
+        this.cliProcess.stdin?.on("error", () => {
+            if (this.forceStopping) {
+                return;
+            }
+            this.state = "error";
+            try {
+                this.connection?.dispose();
+            } catch {
+                // The connection may already be closing after the child process exited.
             }
         });
 
