@@ -72,7 +72,7 @@ jobs:
         run: mvn javadoc:javadoc -q
 
       - name: Verify CLI works
-        run: node target/copilot-sdk/nodejs/node_modules/@github/copilot/index.js --version
+        run: node ../nodejs/node_modules/@github/copilot/index.js --version
 
       - name: Run spotless check
         if: matrix.test-jdk == '25'
