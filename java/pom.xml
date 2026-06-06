@@ -262,7 +262,8 @@
                     <!--
                         Keep the integration-test JVM aligned with Surefire so
                         tests like SlashCommandsIT resolve the pinned CLI from
-                        the cloned harness in target/copilot-sdk/nodejs.
+                        the monorepo nodejs install at
+                        ${copilot.sdk.root}/nodejs.
                     -->
                     <environmentVariables>
                         <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>
@@ -293,8 +294,9 @@
                     <!--
                         Set COPILOT_CLI_PATH for the forked test JVM so the SDK
                         tests transparently use the pinned CLI under
-                        target/copilot-sdk/nodejs/. See the copilot.cli.path
-                        property above for the override mechanism.
+                        ${copilot.sdk.root}/nodejs/. See the copilot.cli.path
+                        property above for the override mechanism and override
+                        support.
                     -->
                     <environmentVariables>
                         <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>
