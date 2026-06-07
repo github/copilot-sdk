@@ -28,8 +28,6 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
-Java/Kotlin users can also try the [Koog + Copilot SDK agent sample](./java/samples/koog-copilot-agent/), which shows how to use Copilot SDK as a Koog LLM backend and as a Koog tool.
-
 ## Getting Started
 
 For a complete walkthrough, see the **[Getting Started Guide](./docs/getting-started.md)**.
