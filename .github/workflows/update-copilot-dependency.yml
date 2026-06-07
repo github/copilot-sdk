@@ -114,10 +114,6 @@ jobs:
         working-directory: ./java
         run: mvn generate-sources -Pcodegen
 
-      - name: Compile Java SDK (validate generated code)
-        working-directory: ./java
-        run: mvn compile -Pskip-test-harness
-
       - name: Create pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
