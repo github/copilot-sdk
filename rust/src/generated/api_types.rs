@@ -1,6 +1,7 @@
 //! Auto-generated from api.schema.json — do not edit manually.
 
 #![allow(clippy::large_enum_variant)]
+#![allow(dead_code)]
 
 use std::collections::HashMap;
 

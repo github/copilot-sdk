@@ -1731,6 +1731,27 @@ function goVariantMatchFunctionLines(
     return lines;
 }
 
+function goDiscriminatorMethodName(
+    typeName: string,
+    discriminatorProp: string,
+    discGoName: string,
+    variants: GoDiscriminatedUnionVariant[],
+    ctx: GoCodegenCtx
+): string {
+    const collidesWithVariantField = variants.some((variant) => {
+        const resolved = resolveSchema(variant.schema, ctx.definitions) ?? variant.schema;
+        const objectSchema = resolveObjectSchema(resolved, ctx.definitions) ?? resolved;
+        return Object.keys(objectSchema.properties ?? {}).some((propName) => {
+            if (propName === discriminatorProp) {
+                return variant.discriminatorValues.length > 1 && discGoName === "Discriminator";
+            }
+            return toGoFieldName(propName) === discGoName;
+        });
+    });
+
+    return collidesWithVariantField ? `${toGoUnexportedIdentifier(typeName)}${discGoName}` : discGoName;
+}
+
 /**
  * Emit a Go interface for a discriminated union (anyOf with const discriminator).
  */
@@ -1748,7 +1769,7 @@ function emitGoFlatDiscriminatedUnion(
     const mapping = discriminator.mapping;
     const unionVariants = [...discriminator.variants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName));
     const discGoName = toGoFieldName(discriminatorProp);
-    const discriminatorMethodName = discGoName;
+    const discriminatorMethodName = goDiscriminatorMethodName(typeName, discriminatorProp, discGoName, unionVariants, ctx);
     let discEnumName: string | undefined;
     let discGoType = "bool";
     if (discriminator.valueKind === "string") {
