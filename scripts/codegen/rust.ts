@@ -1545,6 +1545,7 @@ function generateApiTypesCode(
 	out.push("//! Auto-generated from api.schema.json — do not edit manually.");
 	out.push("");
 	out.push("#![allow(clippy::large_enum_variant)]");
+	out.push("#![allow(dead_code)]");
 	out.push("");
 	out.push("use std::collections::HashMap;");
 	out.push("");
@@ -1776,6 +1777,17 @@ function getResultTypeName(
 	return `${toPascalCase(method.rpcMethod)}Result`;
 }
 
+function methodUsesInternalSchema(
+	schema: JSONSchema7 | null | undefined,
+	defCollections: DefinitionCollections,
+): boolean {
+	if (!schema) return false;
+
+	const nonNullable = getNullableInner(schema) ?? schema;
+	const resolved = resolveSchema(nonNullable, defCollections) ?? nonNullable;
+	return isSchemaInternal(resolved);
+}
+
 function pushNamespaceMethodBody(
 	out: string[],
 	constName: string,
@@ -1884,7 +1896,12 @@ function emitNamespaceMethod(
 	};
 
 	const paramArg = hasParams ? `, params: ${paramsTypeName}` : "";
-	const fnVis = method.visibility === "internal" ? "pub(crate)" : "pub";
+	const fnVis =
+		method.visibility === "internal" ||
+		methodUsesInternalSchema(method.params, defCollections) ||
+		methodUsesInternalSchema(method.result, defCollections)
+			? "pub(crate)"
+			: "pub";
 
 	if (hasParams && paramsInfo.optional) {
 		out.push(...buildDocs(false));
@@ -1949,6 +1966,7 @@ function generateRpcCode(apiSchema: ApiSchema): string {
 	out.push("");
 	out.push("#![allow(missing_docs)]");
 	out.push("#![allow(clippy::too_many_arguments)]");
+	out.push("#![allow(dead_code)]");
 	out.push("");
 	out.push("use super::api_types::{rpc_methods, *};");
 	const externalTypeRefs = new Map<string, Set<string>>();
