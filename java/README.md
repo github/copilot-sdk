@@ -130,6 +130,10 @@ Or run it directly from the repository:
 jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
 
+## Samples
+
+- [Koog + Copilot SDK agent](samples/koog-copilot-agent/) — Kotlin/JVM sample that adapts Copilot SDK sessions into a Koog `LLMClient` and exposes an `ask_copilot` Koog tool.
+
 ## Projects Using This SDK
 
 | Project                                                                       | Description                                |
@@ -162,4 +166,3 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
-
