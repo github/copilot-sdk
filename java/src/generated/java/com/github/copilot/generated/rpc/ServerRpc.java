@@ -34,6 +34,8 @@ public final class ServerRpc {
     public final ServerSecretsApi secrets;
     /** API methods for the {@code mcp} namespace. */
     public final ServerMcpApi mcp;
+    /** API methods for the {@code plugins} namespace. */
+    public final ServerPluginsApi plugins;
     /** API methods for the {@code skills} namespace. */
     public final ServerSkillsApi skills;
     /** API methods for the {@code user} namespace. */
@@ -59,6 +61,7 @@ public final class ServerRpc {
         this.account = new ServerAccountApi(caller);
         this.secrets = new ServerSecretsApi(caller);
         this.mcp = new ServerMcpApi(caller);
+        this.plugins = new ServerPluginsApi(caller);
         this.skills = new ServerSkillsApi(caller);
         this.user = new ServerUserApi(caller);
         this.runtime = new ServerRuntimeApi(caller);

@@ -62,6 +62,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
 [JsonDerivedType(typeof(SessionAutopilotObjectiveChangedEvent), "session.autopilot_objective_changed")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
+[JsonDerivedType(typeof(SessionCanvasClosedEvent), "session.canvas.closed")]
 [JsonDerivedType(typeof(SessionCanvasOpenedEvent), "session.canvas.opened")]
 [JsonDerivedType(typeof(SessionCanvasRegistryChangedEvent), "session.canvas.registry_changed")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
@@ -206,7 +207,7 @@ public sealed partial class SessionErrorEvent : SessionEvent
     public required SessionErrorData Data { get; set; }
 }
 
-/// <summary>Payload indicating the session is idle with no background agents in flight.</summary>
+/// <summary>Payload indicating the session is idle with no background agents or attached shell commands in flight.</summary>
 /// <remarks>Represents the <c>session.idle</c> event.</remarks>
 public sealed partial class SessionIdleEvent : SessionEvent
 {
@@ -1272,6 +1273,19 @@ public sealed partial class SessionCanvasRegistryChangedEvent : SessionEvent
     public required SessionCanvasRegistryChangedData Data { get; set; }
 }
 
+/// <summary>Schema for the `CanvasClosedData` type.</summary>
+/// <remarks>Represents the <c>session.canvas.closed</c> event.</remarks>
+public sealed partial class SessionCanvasClosedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.canvas.closed";
+
+    /// <summary>The <c>session.canvas.closed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCanvasClosedData Data { get; set; }
+}
+
 /// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
 /// <remarks>Represents the <c>session.extensions.attachments_pushed</c> event.</remarks>
 public sealed partial class SessionExtensionsAttachmentsPushedEvent : SessionEvent
@@ -1474,7 +1488,7 @@ public sealed partial class SessionErrorData
     public string? Url { get; set; }
 }
 
-/// <summary>Payload indicating the session is idle with no background agents in flight.</summary>
+/// <summary>Payload indicating the session is idle with no background agents or attached shell commands in flight.</summary>
 public sealed partial class SessionIdleData
 {
     /// <summary>True when the preceding agentic loop was cancelled via abort signal.</summary>
@@ -2153,6 +2167,11 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("anthropicAdvisorModel")]
     public string? AnthropicAdvisorModel { get; set; }
 
+    /// <summary>Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("apiCallId")]
+    public string? ApiCallId { get; set; }
+
     /// <summary>The assistant's text response content.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
@@ -2642,7 +2661,7 @@ public sealed partial class SubagentStartedData
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
 
-    /// <summary>Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck).</summary>
+    /// <summary>Model the sub-agent will run with, when known at start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
@@ -2710,7 +2729,7 @@ public sealed partial class SubagentFailedData
     [JsonPropertyName("error")]
     public required string Error { get; set; }
 
-    /// <summary>Model used by the sub-agent (if any model calls succeeded before failure).</summary>
+    /// <summary>Model selected for the sub-agent, when known.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
@@ -3370,6 +3389,24 @@ public sealed partial class SessionCanvasRegistryChangedData
     /// <summary>Canvas declarations currently available.</summary>
     [JsonPropertyName("canvases")]
     public required CanvasRegistryChangedCanvas[] Canvases { get; set; }
+}
+
+/// <summary>Schema for the `CanvasClosedData` type.</summary>
+public sealed partial class SessionCanvasClosedData
+{
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public required string CanvasId { get; set; }
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Stable caller-supplied identifier of the canvas instance that was closed.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("instanceId")]
+    public required string InstanceId { get; set; }
 }
 
 /// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
@@ -4519,6 +4556,11 @@ public sealed partial class HookEndError
     /// <summary>Human-readable error message.</summary>
     [JsonPropertyName("message")]
     public required string Message { get; set; }
+
+    /// <summary>Source label of the hook that errored (e.g. the plugin it was loaded from), when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
 
     /// <summary>Error stack trace, when available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8348,6 +8390,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedEvent))]
+[JsonSerializable(typeof(SessionCanvasClosedData))]
+[JsonSerializable(typeof(SessionCanvasClosedEvent))]
 [JsonSerializable(typeof(SessionCanvasOpenedData))]
 [JsonSerializable(typeof(SessionCanvasOpenedEvent))]
 [JsonSerializable(typeof(SessionCanvasRegistryChangedData))]

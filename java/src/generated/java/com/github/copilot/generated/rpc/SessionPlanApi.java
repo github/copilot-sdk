@@ -64,4 +64,14 @@ public final class SessionPlanApi {
         return caller.invoke("session.plan.delete", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionPlanReadSqlTodosResult> readSqlTodos() {
+        return caller.invoke("session.plan.readSqlTodos", java.util.Map.of("sessionId", this.sessionId), SessionPlanReadSqlTodosResult.class);
+    }
+
 }
