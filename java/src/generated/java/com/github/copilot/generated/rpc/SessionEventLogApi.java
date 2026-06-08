@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -38,6 +39,7 @@ public final class SessionEventLogApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionEventLogReadResult> read(SessionEventLogReadParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -50,6 +52,7 @@ public final class SessionEventLogApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionEventLogTailResult> tail() {
         return caller.invoke("session.eventLog.tail", java.util.Map.of("sessionId", this.sessionId), SessionEventLogTailResult.class);
     }
@@ -63,6 +66,7 @@ public final class SessionEventLogApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionEventLogRegisterInterestResult> registerInterest(SessionEventLogRegisterInterestParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -78,6 +82,7 @@ public final class SessionEventLogApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionEventLogReleaseInterestResult> releaseInterest(SessionEventLogReleaseInterestParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -31,6 +32,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsForkResult> fork(SessionsForkParams params) {
         return caller.invoke("sessions.fork", params, SessionsForkResult.class);
     }
@@ -41,6 +43,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsConnectResult> connect() {
         return caller.invoke("sessions.connect", java.util.Map.of(), SessionsConnectResult.class);
     }
@@ -51,6 +54,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsListResult> list() {
         return caller.invoke("sessions.list", java.util.Map.of(), SessionsListResult.class);
     }
@@ -61,6 +65,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsFindByTaskIdResult> findByTaskId(SessionsFindByTaskIdParams params) {
         return caller.invoke("sessions.findByTaskId", params, SessionsFindByTaskIdResult.class);
     }
@@ -71,6 +76,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsFindByPrefixResult> findByPrefix(SessionsFindByPrefixParams params) {
         return caller.invoke("sessions.findByPrefix", params, SessionsFindByPrefixResult.class);
     }
@@ -81,6 +87,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsGetLastForContextResult> getLastForContext(SessionsGetLastForContextParams params) {
         return caller.invoke("sessions.getLastForContext", params, SessionsGetLastForContextResult.class);
     }
@@ -91,6 +98,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsGetEventFilePathResult> getEventFilePath() {
         return caller.invoke("sessions.getEventFilePath", java.util.Map.of(), SessionsGetEventFilePathResult.class);
     }
@@ -101,6 +109,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsGetSizesResult> getSizes() {
         return caller.invoke("sessions.getSizes", java.util.Map.of(), SessionsGetSizesResult.class);
     }
@@ -111,6 +120,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsCheckInUseResult> checkInUse(SessionsCheckInUseParams params) {
         return caller.invoke("sessions.checkInUse", params, SessionsCheckInUseResult.class);
     }
@@ -121,6 +131,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsGetPersistedRemoteSteerableResult> getPersistedRemoteSteerable() {
         return caller.invoke("sessions.getPersistedRemoteSteerable", java.util.Map.of(), SessionsGetPersistedRemoteSteerableResult.class);
     }
@@ -131,6 +142,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> close() {
         return caller.invoke("sessions.close", java.util.Map.of(), Void.class);
     }
@@ -141,6 +153,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsBulkDeleteResult> bulkDelete(SessionsBulkDeleteParams params) {
         return caller.invoke("sessions.bulkDelete", params, SessionsBulkDeleteResult.class);
     }
@@ -151,6 +164,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsPruneOldResult> pruneOld(SessionsPruneOldParams params) {
         return caller.invoke("sessions.pruneOld", params, SessionsPruneOldResult.class);
     }
@@ -161,6 +175,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> save() {
         return caller.invoke("sessions.save", java.util.Map.of(), Void.class);
     }
@@ -171,6 +186,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> releaseLock() {
         return caller.invoke("sessions.releaseLock", java.util.Map.of(), Void.class);
     }
@@ -181,6 +197,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsEnrichMetadataResult> enrichMetadata(SessionsEnrichMetadataParams params) {
         return caller.invoke("sessions.enrichMetadata", params, SessionsEnrichMetadataResult.class);
     }
@@ -191,6 +208,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> reloadPluginHooks(SessionsReloadPluginHooksParams params) {
         return caller.invoke("sessions.reloadPluginHooks", params, Void.class);
     }
@@ -201,6 +219,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsLoadDeferredRepoHooksResult> loadDeferredRepoHooks() {
         return caller.invoke("sessions.loadDeferredRepoHooks", java.util.Map.of(), SessionsLoadDeferredRepoHooksResult.class);
     }
@@ -211,6 +230,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> setAdditionalPlugins(SessionsSetAdditionalPluginsParams params) {
         return caller.invoke("sessions.setAdditionalPlugins", params, Void.class);
     }

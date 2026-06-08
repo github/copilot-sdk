@@ -130,6 +130,78 @@ Or run it directly from the repository:
 jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
 
+## Using experimental APIs
+
+Some SDK APIs are marked as experimental with `@CopilotExperimental`. These APIs may change or be removed in future versions without notice.
+
+By default, referencing an experimental API from your code causes a **compile-time error**:
+
+```
+error: Use of experimental API 'ExperimentalType' is not allowed.
+       Add compiler option -Acopilot.experimental.allowed=true to opt in.
+```
+
+To opt in and use experimental APIs, pass the annotation processor option `-Acopilot.experimental.allowed=true` to the Java compiler.
+
+### Maven
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <configuration>
+        <compilerArgs>
+            <arg>-Acopilot.experimental.allowed=true</arg>
+        </compilerArgs>
+    </configuration>
+</plugin>
+```
+
+### Gradle
+
+```groovy
+tasks.withType(JavaCompile) {
+    options.compilerArgs += ['-Acopilot.experimental.allowed=true']
+}
+```
+
+### Example
+
+```java
+import com.github.copilot.CopilotExperimental;
+
+// This type is experimental — consumer code that references it
+// will fail to compile unless the opt-in flag is provided.
+@CopilotExperimental
+public class ExperimentalType {
+    public void doSomething() {}
+}
+
+// Consumer code — compiles only with -Acopilot.experimental.allowed=true
+import test.ExperimentalType;
+
+public class Consumer {
+    public void use() {
+        ExperimentalType t = new ExperimentalType();
+        t.doSomething();
+    }
+}
+```
+
+The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types:
+
+```java
+import com.github.copilot.CopilotExperimental;
+
+public class StableType {
+    @CopilotExperimental
+    public static void experimentalMethod() {}
+}
+
+// Calling experimentalMethod() fails compilation without the opt-in flag
+StableType.experimentalMethod();
+```
+
 ## Projects Using This SDK
 
 | Project                                                                       | Description                                |

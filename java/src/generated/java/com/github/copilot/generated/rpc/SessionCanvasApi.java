@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -39,6 +40,7 @@ public final class SessionCanvasApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionCanvasListResult> list() {
         return caller.invoke("session.canvas.list", java.util.Map.of("sessionId", this.sessionId), SessionCanvasListResult.class);
     }
@@ -49,6 +51,7 @@ public final class SessionCanvasApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionCanvasListOpenResult> listOpen() {
         return caller.invoke("session.canvas.listOpen", java.util.Map.of("sessionId", this.sessionId), SessionCanvasListOpenResult.class);
     }
@@ -62,6 +65,7 @@ public final class SessionCanvasApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionCanvasOpenResult> open(SessionCanvasOpenParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -77,6 +81,7 @@ public final class SessionCanvasApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> close(SessionCanvasCloseParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -38,6 +39,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiElicitationResult> elicitation(SessionUiElicitationParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -53,6 +55,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiHandlePendingElicitationResult> handlePendingElicitation(SessionUiHandlePendingElicitationParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -68,6 +71,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiHandlePendingUserInputResult> handlePendingUserInput(SessionUiHandlePendingUserInputParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -83,6 +87,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiHandlePendingSamplingResult> handlePendingSampling(SessionUiHandlePendingSamplingParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -98,6 +103,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiHandlePendingAutoModeSwitchResult> handlePendingAutoModeSwitch(SessionUiHandlePendingAutoModeSwitchParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -113,6 +119,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiHandlePendingExitPlanModeResult> handlePendingExitPlanMode(SessionUiHandlePendingExitPlanModeParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -125,6 +132,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiRegisterDirectAutoModeSwitchHandlerResult> registerDirectAutoModeSwitchHandler() {
         return caller.invoke("session.ui.registerDirectAutoModeSwitchHandler", java.util.Map.of("sessionId", this.sessionId), SessionUiRegisterDirectAutoModeSwitchHandlerResult.class);
     }
@@ -138,6 +146,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiUnregisterDirectAutoModeSwitchHandlerResult> unregisterDirectAutoModeSwitchHandler(SessionUiUnregisterDirectAutoModeSwitchHandlerParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
