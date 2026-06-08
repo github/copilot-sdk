@@ -147,6 +147,8 @@ pub(crate) struct SessionCreateWire {
     pub include_sub_agent_streaming_events: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_experimental_mode: Option<bool>,
 }
 
 /// The exact JSON shape sent on the `session.resume` JSON-RPC request.
@@ -257,4 +259,6 @@ pub(crate) struct SessionResumeWire {
     pub suppress_resume_event: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_pending_work: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_experimental_mode: Option<bool>,
 }
