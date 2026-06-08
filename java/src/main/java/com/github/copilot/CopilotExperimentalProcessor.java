@@ -156,9 +156,9 @@ public class CopilotExperimentalProcessor extends AbstractProcessor {
 
     private void reportError(Element experimentalElement, Element usageSite, String context) {
         Messager messager = processingEnv.getMessager();
-        messager.printMessage(Diagnostic.Kind.ERROR,
-                "Use of experimental API '" + experimentalElement.getSimpleName() + "' in " + context
-                        + " is not allowed. Add @AllowCopilotExperimental or compiler option -Acopilot.experimental.allowed=true to opt in.",
+        messager.printMessage(Diagnostic.Kind.ERROR, "Use of experimental API '" + experimentalElement.getSimpleName()
+                + "' in " + context
+                + " is not allowed. Add @AllowCopilotExperimental or compiler option -Acopilot.experimental.allowed=true to opt in.",
                 usageSite);
     }
 }
