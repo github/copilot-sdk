@@ -7,6 +7,7 @@
 
 #![allow(missing_docs)]
 #![allow(clippy::too_many_arguments)]
+#![allow(dead_code)]
 
 use super::api_types::{rpc_methods, *};
 use super::session_events::SessionMode;
