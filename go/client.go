@@ -796,6 +796,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.EnableCitations = config.EnableCitations
 	req.SessionLimits = config.SessionLimits
+	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
@@ -1122,6 +1123,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.Providers = config.Providers
 	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled

@@ -58,6 +58,7 @@ public class SessionConfig {
     private Boolean enableSessionTelemetry;
     private Boolean enableCitations;
     private SessionLimitsConfig sessionLimits;
+    private Boolean enableExperimentalMode;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
@@ -571,6 +572,52 @@ public class SessionConfig {
     @CopilotExperimental
     public SessionConfig setSessionLimits(SessionLimitsConfig sessionLimits) {
         this.sessionLimits = sessionLimits;
+        return this;
+    }
+
+    /**
+     * Clears the sessionLimits setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig clearSessionLimits() {
+        this.sessionLimits = null;
+        return this;
+    }
+
+    /**
+     * Controls whether the session enables experimental features.
+     *
+     * @return {@code true} when experimental features are enabled, {@code false}
+     *         when they are disabled, or empty to use the mode-specific default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableExperimentalMode() {
+        return Optional.ofNullable(enableExperimentalMode);
+    }
+
+    /**
+     * Controls whether the session enables experimental features.
+     *
+     * @param enableExperimentalMode
+     *            {@code true} to enable experimental features; {@code false} to
+     *            disable them
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableExperimentalMode(boolean enableExperimentalMode) {
+        this.enableExperimentalMode = enableExperimentalMode;
+        return this;
+    }
+
+    /**
+     * Clears the enableExperimentalMode setting. In {@link CopilotClientMode#EMPTY
+     * EMPTY} mode this defaults to {@code false}; otherwise the runtime decides.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableExperimentalMode() {
+        this.enableExperimentalMode = null;
         return this;
     }
 
@@ -1981,6 +2028,7 @@ public class SessionConfig {
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.enableCitations = this.enableCitations;
         copy.sessionLimits = this.sessionLimits;
+        copy.enableExperimentalMode = this.enableExperimentalMode;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
         copy.coauthorEnabled = this.coauthorEnabled;
