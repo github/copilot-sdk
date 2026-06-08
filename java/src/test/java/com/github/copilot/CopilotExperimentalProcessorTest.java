@@ -12,7 +12,6 @@ import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
-import java.io.File;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
@@ -26,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests that {@link CopilotExperimentalProcessor} enforces compile-time gating
- * of experimental APIs.
+ * of experimental APIs at the declaration level.
  */
 class CopilotExperimentalProcessorTest {
 
@@ -48,33 +47,29 @@ class CopilotExperimentalProcessorTest {
         }
         """;
 
-    private static final String CONSUMER_USES_TYPE = """
+    private static final String CONSUMER_USES_TYPE_IN_DECLARATIONS = """
         package consumer;
         import test.ExperimentalType;
         public class Consumer {
-            public void use() {
-                ExperimentalType t = new ExperimentalType();
-                t.doSomething();
-            }
+            private ExperimentalType field;
+            public ExperimentalType getIt() { return field; }
+            public void setIt(ExperimentalType value) { this.field = value; }
         }
         """;
 
-    private static final String CONSUMER_USES_METHOD = """
+    private static final String CONSUMER_EXTENDS_TYPE = """
         package consumer;
-        import test.StableType;
-        public class Consumer {
-            public void use() {
-                StableType.experimentalMethod();
-            }
+        import test.ExperimentalType;
+        public class Consumer extends ExperimentalType {
         }
         """;
 
     @Test
-    void failsByDefault_whenReferencingExperimentalType() {
+    void failsByDefault_whenFieldOrSignatureUsesExperimentalType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
             List.of(
                 inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
-                inMemorySource("consumer.Consumer", CONSUMER_USES_TYPE)
+                inMemorySource("consumer.Consumer", CONSUMER_USES_TYPE_IN_DECLARATIONS)
             ),
             Collections.emptyList()
         );
@@ -82,16 +77,16 @@ class CopilotExperimentalProcessorTest {
         boolean hasError = diagnostics.getDiagnostics().stream()
             .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR
                 && d.getMessage(null).contains("experimental API"));
-        assertTrue(hasError, "Expected compile error for experimental type usage, got: "
+        assertTrue(hasError, "Expected compile error for experimental type in declarations, got: "
             + diagnostics.getDiagnostics());
     }
 
     @Test
-    void failsByDefault_whenInvokingExperimentalMethod() {
+    void failsByDefault_whenExtendingExperimentalType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
             List.of(
-                inMemorySource("test.StableType", EXPERIMENTAL_METHOD_SOURCE),
-                inMemorySource("consumer.Consumer", CONSUMER_USES_METHOD)
+                inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
+                inMemorySource("consumer.Consumer", CONSUMER_EXTENDS_TYPE)
             ),
             Collections.emptyList()
         );
@@ -99,7 +94,7 @@ class CopilotExperimentalProcessorTest {
         boolean hasError = diagnostics.getDiagnostics().stream()
             .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR
                 && d.getMessage(null).contains("experimental API"));
-        assertTrue(hasError, "Expected compile error for experimental method usage, got: "
+        assertTrue(hasError, "Expected compile error for extending experimental type, got: "
             + diagnostics.getDiagnostics());
     }
 
@@ -109,7 +104,7 @@ class CopilotExperimentalProcessorTest {
             List.of(
                 inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
                 inMemorySource("test.StableType", EXPERIMENTAL_METHOD_SOURCE),
-                inMemorySource("consumer.Consumer", CONSUMER_USES_TYPE)
+                inMemorySource("consumer.Consumer", CONSUMER_USES_TYPE_IN_DECLARATIONS)
             ),
             List.of("-Acopilot.experimental.allowed=true")
         );
@@ -146,7 +141,6 @@ class CopilotExperimentalProcessorTest {
      * environments.
      */
     private static String resolveClasspath() {
-        // Try to find the location of CopilotExperimental from its CodeSource
         CodeSource cs = CopilotExperimental.class.getProtectionDomain().getCodeSource();
         if (cs != null) {
             URL location = cs.getLocation();
@@ -158,7 +152,6 @@ class CopilotExperimentalProcessorTest {
                 }
             }
         }
-        // Fallback: use java.class.path
         return System.getProperty("java.class.path", ".");
     }
 

@@ -514,7 +514,7 @@
                 <jdk>[21,)</jdk>
             </activation>
             <properties>
-                <surefire.jvm.args>-XX:+EnableDynamicAgentLoading --add-modules jdk.compiler --add-exports jdk.compiler/com.sun.source.util=ALL-UNNAMED --add-exports jdk.compiler/com.sun.source.tree=ALL-UNNAMED</surefire.jvm.args>
+                <surefire.jvm.args>-XX:+EnableDynamicAgentLoading</surefire.jvm.args>
             </properties>
         </profile>
         <profile>

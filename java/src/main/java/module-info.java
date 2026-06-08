@@ -12,7 +12,6 @@ module com.github.copilot.java {
     requires com.fasterxml.jackson.datatype.jsr310;
     requires static com.github.spotbugs.annotations;
     requires static java.compiler;
-    requires static jdk.compiler;
     requires static java.net.http;
     requires java.logging;
 

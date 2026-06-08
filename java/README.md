@@ -137,7 +137,7 @@ Some SDK APIs are marked as experimental with `@CopilotExperimental`. These APIs
 By default, referencing an experimental API from your code causes a **compile-time error**:
 
 ```
-error: Use of experimental API 'ExperimentalType' is not allowed.
+error: Use of experimental API 'ExperimentalType' in field type is not allowed.
        Add compiler option -Acopilot.experimental.allowed=true to opt in.
 ```
 
@@ -165,13 +165,40 @@ tasks.withType(JavaCompile) {
 }
 ```
 
+### What the processor catches
+
+The processor detects usage of experimental types in **declarations**:
+
+| Usage pattern | Caught? |
+|---|---|
+| Field declared with experimental type | ✅ |
+| Method parameter of experimental type | ✅ |
+| Method return type is experimental | ✅ |
+| `extends` / `implements` experimental type | ✅ |
+| `throws` an experimental exception type | ✅ |
+| Generic type argument is experimental (e.g., `List<ExperimentalType>`) | ✅ |
+
+### Known limitations
+
+The processor uses standard JSR 269 annotation processing APIs for maximum portability (works with javac, ECJ/Eclipse, and any compliant compiler). This means it inspects **declarations only**, not expressions inside method bodies. The following patterns are **not caught** by the processor:
+
+| Usage pattern | Caught? | Workaround |
+|---|---|---|
+| `new ExperimentalType()` in a method body (no field/param declaration) | ❌ | Assign to a typed field or variable declaration |
+| `ExperimentalType.staticMethod()` inline call | ❌ | Store result in a typed variable |
+| Method reference `ExperimentalType::method` | ❌ | Use explicit lambda with typed parameter |
+| Local variable with experimental type (var inference) | ❌ | Use explicit type declaration at field level |
+| Cast to experimental type | ❌ | Assign to a typed field |
+
+In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through. See [ADR-004](docs/adr/adr-004-copilotexperimental.md) for the design rationale.
+
 ### Example
 
 ```java
 import com.github.copilot.CopilotExperimental;
 
 // This type is experimental — consumer code that references it
-// will fail to compile unless the opt-in flag is provided.
+// in declarations will fail to compile unless the opt-in flag is provided.
 @CopilotExperimental
 public class ExperimentalType {
     public void doSomething() {}
@@ -181,26 +208,13 @@ public class ExperimentalType {
 import test.ExperimentalType;
 
 public class Consumer {
-    public void use() {
-        ExperimentalType t = new ExperimentalType();
-        t.doSomething();
-    }
+    private ExperimentalType field;                      // ← caught: field type
+    public ExperimentalType getIt() { return field; }   // ← caught: return type
+    public void setIt(ExperimentalType v) { }           // ← caught: parameter type
 }
 ```
 
-The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types:
-
-```java
-import com.github.copilot.CopilotExperimental;
-
-public class StableType {
-    @CopilotExperimental
-    public static void experimentalMethod() {}
-}
-
-// Calling experimentalMethod() fails compilation without the opt-in flag
-StableType.experimentalMethod();
-```
+The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types. When a type-level annotation is present, all member accesses through that type are considered experimental.
 
 ## Projects Using This SDK
 
