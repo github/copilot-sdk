@@ -30,6 +30,21 @@ public final class SessionMcpOauthApi {
     }
 
     /**
+     * MCP OAuth request id and optional provider response.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> respond(SessionMcpOauthRespondParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.oauth.respond", _p, Void.class);
+    }
+
+    /**
      * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

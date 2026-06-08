@@ -181,6 +181,8 @@ pub enum SessionEventType {
     SessionCanvasOpened,
     #[serde(rename = "session.canvas.registry_changed")]
     SessionCanvasRegistryChanged,
+    #[serde(rename = "session.canvas.closed")]
+    SessionCanvasClosed,
     #[serde(rename = "session.extensions.attachments_pushed")]
     SessionExtensionsAttachmentsPushed,
     #[serde(rename = "mcp_app.tool_call_complete")]
@@ -369,6 +371,8 @@ pub enum SessionEventData {
     SessionCanvasOpened(SessionCanvasOpenedData),
     #[serde(rename = "session.canvas.registry_changed")]
     SessionCanvasRegistryChanged(SessionCanvasRegistryChangedData),
+    #[serde(rename = "session.canvas.closed")]
+    SessionCanvasClosed(SessionCanvasClosedData),
     #[serde(rename = "session.extensions.attachments_pushed")]
     SessionExtensionsAttachmentsPushed(SessionExtensionsAttachmentsPushedData),
     #[serde(rename = "mcp_app.tool_call_complete")]
@@ -547,7 +551,7 @@ pub struct SessionErrorData {
     pub url: Option<String>,
 }
 
-/// Session event "session.idle". Payload indicating the session is idle with no background agents in flight
+/// Session event "session.idle". Payload indicating the session is idle with no background agents or attached shell commands in flight
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionIdleData {
@@ -1242,6 +1246,9 @@ pub struct AssistantMessageData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anthropic_advisor_model: Option<String>,
+    /// Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_call_id: Option<String>,
     /// The assistant's text response content
     pub content: String,
     /// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -1925,7 +1932,7 @@ pub struct SubagentStartedData {
     pub agent_display_name: String,
     /// Internal name of the sub-agent
     pub agent_name: String,
-    /// Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck).
+    /// Model the sub-agent will run with, when known at start.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
@@ -1969,7 +1976,7 @@ pub struct SubagentFailedData {
     pub duration_ms: Option<i64>,
     /// Error message describing why the sub-agent failed
     pub error: String,
-    /// Model used by the sub-agent (if any model calls succeeded before failure)
+    /// Model selected for the sub-agent, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
@@ -2018,6 +2025,9 @@ pub struct HookStartData {
 pub struct HookEndError {
     /// Human-readable error message
     pub message: String,
+    /// Source label of the hook that errored (e.g. the plugin it was loaded from), when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
     /// Error stack trace, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stack: Option<String>,
@@ -3269,6 +3279,18 @@ pub struct CanvasRegistryChangedCanvas {
 pub struct SessionCanvasRegistryChangedData {
     /// Canvas declarations currently available
     pub canvases: Vec<CanvasRegistryChangedCanvas>,
+}
+
+/// Session event "session.canvas.closed".
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasClosedData {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Stable caller-supplied identifier of the canvas instance that was closed
+    pub instance_id: String,
 }
 
 /// Session event "session.extensions.attachments_pushed".

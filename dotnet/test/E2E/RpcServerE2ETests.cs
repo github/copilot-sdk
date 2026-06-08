@@ -9,7 +9,8 @@ using RpcSessionFsSetProviderCapabilities = GitHub.Copilot.Rpc.SessionFsSetProvi
 using RpcSessionFsSetProviderConventions = GitHub.Copilot.Rpc.SessionFsSetProviderConventions;
 using RpcSessionContext = GitHub.Copilot.Rpc.SessionContext;
 using RpcSessionListFilter = GitHub.Copilot.Rpc.SessionListFilter;
-using RpcSessionMetadata = GitHub.Copilot.Rpc.SessionMetadata;
+using RpcLocalSessionMetadataValue = GitHub.Copilot.Rpc.LocalSessionMetadataValue;
+using RpcSessionListEntry = GitHub.Copilot.Rpc.SessionListEntry;
 
 namespace GitHub.Copilot.Test.E2E;
 
@@ -73,41 +74,34 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         return string.Equals(normalizedExpected, normalizedActual, comparison);
     }
 
-    private async Task<string> SaveAndWaitForEventFileAsync(string sessionId)
-        => await SaveAndWaitForEventFileAsync(Client, sessionId);
+    private async Task SaveSessionAsync(string sessionId)
+        => await SaveSessionAsync(Client, sessionId);
 
-    private static async Task<string> SaveAndWaitForEventFileAsync(CopilotClient client, string sessionId)
+    private static async Task SaveSessionAsync(CopilotClient client, string sessionId)
     {
         var saveResult = await client.Rpc.Sessions.SaveAsync(sessionId);
         Assert.NotNull(saveResult);
-
-        var pathResult = await client.Rpc.Sessions.GetEventFilePathAsync(sessionId);
-        Assert.False(string.IsNullOrWhiteSpace(pathResult.FilePath));
-        Assert.True(Path.IsPathRooted(pathResult.FilePath), $"Expected an absolute event file path, got '{pathResult.FilePath}'.");
-        Assert.Equal("events.jsonl", Path.GetFileName(pathResult.FilePath));
-
-        return pathResult.FilePath;
     }
 
-    private static async Task<string> PersistSessionAsync(CopilotClient client, CopilotSession session, string marker)
+    private static async Task PersistSessionAsync(CopilotClient client, CopilotSession session, string marker)
     {
         await session.LogAsync(marker);
-        return await SaveAndWaitForEventFileAsync(client, session.SessionId);
+        await SaveSessionAsync(client, session.SessionId);
     }
 
-    private async Task<RpcSessionMetadata> WaitForListedSessionAsync(
+    private async Task<RpcSessionListEntry> WaitForListedSessionAsync(
         string sessionId,
         RpcSessionListFilter? filter = null,
         long? metadataLimit = null)
         => await WaitForListedSessionAsync(Client, sessionId, filter, metadataLimit);
 
-    private static async Task<RpcSessionMetadata> WaitForListedSessionAsync(
+    private static async Task<RpcSessionListEntry> WaitForListedSessionAsync(
         CopilotClient client,
         string sessionId,
         RpcSessionListFilter? filter = null,
         long? metadataLimit = null)
     {
-        RpcSessionMetadata? metadata = null;
+        RpcSessionListEntry? metadata = null;
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
@@ -241,8 +235,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         try
         {
-            var eventFilePath = await SaveAndWaitForEventFileAsync(client, sessionId);
-            Assert.Contains(sessionId, eventFilePath, StringComparison.OrdinalIgnoreCase);
+            await SaveSessionAsync(client, sessionId);
 
             var listed = await client.Rpc.Sessions.ListAsync(
                 metadataLimit: 0,
@@ -269,9 +262,6 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
             var inUse = await client.Rpc.Sessions.CheckInUseAsync([sessionId, missingSessionId]);
             Assert.DoesNotContain(missingSessionId, inUse.InUse);
-
-            var remoteSteerable = await client.Rpc.Sessions.GetPersistedRemoteSteerableAsync(sessionId);
-            Assert.Null(remoteSteerable.RemoteSteerable);
         }
         finally
         {
@@ -297,9 +287,9 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         try
         {
-            await SaveAndWaitForEventFileAsync(client, sessionId);
+            await SaveSessionAsync(client, sessionId);
 
-            var basic = new RpcSessionMetadata
+            var basic = new RpcLocalSessionMetadataValue
             {
                 SessionId = sessionId,
                 StartTime = DateTimeOffset.UtcNow.ToString("O"),
@@ -406,7 +396,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await SaveAndWaitForEventFileAsync(client, sessionId);
+        await SaveSessionAsync(client, sessionId);
         await client.Rpc.Sessions.CloseAsync(sessionId);
 
         var prune = await client.Rpc.Sessions.PruneOldAsync(

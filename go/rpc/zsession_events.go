@@ -91,6 +91,7 @@ const (
 	SessionEventTypeSamplingRequested                  SessionEventType = "sampling.requested"
 	SessionEventTypeSessionAutopilotObjectiveChanged   SessionEventType = "session.autopilot_objective_changed"
 	SessionEventTypeSessionBackgroundTasksChanged      SessionEventType = "session.background_tasks_changed"
+	SessionEventTypeSessionCanvasClosed                SessionEventType = "session.canvas.closed"
 	SessionEventTypeSessionCanvasOpened                SessionEventType = "session.canvas.opened"
 	SessionEventTypeSessionCanvasRegistryChanged       SessionEventType = "session.canvas.registry_changed"
 	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
@@ -182,6 +183,8 @@ type AssistantMessageData struct {
 	// Anthropic advisor model ID used for this response, for timeline display on replay
 	// Experimental: AnthropicAdvisorModel is part of an experimental API and may change or be removed.
 	AnthropicAdvisorModel *string `json:"anthropicAdvisorModel,omitempty"`
+	// Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
+	APICallID *string `json:"apiCallId,omitempty"`
 	// The assistant's text response content
 	Content string `json:"content"`
 	// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -715,7 +718,7 @@ func (*SessionCustomNotificationData) Type() SessionEventType {
 	return SessionEventTypeSessionCustomNotification
 }
 
-// Payload indicating the session is idle with no background agents in flight
+// Payload indicating the session is idle with no background agents or attached shell commands in flight
 type SessionIdleData struct {
 	// True when the preceding agentic loop was cancelled via abort signal
 	Aborted *bool `json:"aborted,omitempty"`
@@ -916,6 +919,19 @@ func (*SessionBackgroundTasksChangedData) sessionEventData() {}
 func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionBackgroundTasksChanged
 }
+
+// Schema for the `CanvasClosedData` type.
+type SessionCanvasClosedData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Stable caller-supplied identifier of the canvas instance that was closed
+	InstanceID string `json:"instanceId"`
+}
+
+func (*SessionCanvasClosedData) sessionEventData()      {}
+func (*SessionCanvasClosedData) Type() SessionEventType { return SessionEventTypeSessionCanvasClosed }
 
 // Schema for the `CanvasOpenedData` type.
 type SessionCanvasOpenedData struct {
@@ -1336,7 +1352,7 @@ type SubagentFailedData struct {
 	DurationMs *int64 `json:"durationMs,omitempty"`
 	// Error message describing why the sub-agent failed
 	Error string `json:"error"`
-	// Model used by the sub-agent (if any model calls succeeded before failure)
+	// Model selected for the sub-agent, when known
 	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
@@ -1357,7 +1373,7 @@ type SubagentStartedData struct {
 	AgentDisplayName string `json:"agentDisplayName"`
 	// Internal name of the sub-agent
 	AgentName string `json:"agentName"`
-	// Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck).
+	// Model the sub-agent will run with, when known at start.
 	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
@@ -1841,6 +1857,8 @@ type HandoffRepository struct {
 type HookEndError struct {
 	// Human-readable error message
 	Message string `json:"message"`
+	// Source label of the hook that errored (e.g. the plugin it was loaded from), when known
+	Source *string `json:"source,omitempty"`
 	// Error stack trace, when available
 	Stack *string `json:"stack,omitempty"`
 }

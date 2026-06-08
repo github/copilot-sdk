@@ -30,6 +30,21 @@ public final class SessionUiApi {
     }
 
     /**
+     * Transient question to answer without adding it to conversation history.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionUiEphemeralQueryResult> ephemeralQuery(SessionUiEphemeralQueryParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.ephemeralQuery", _p, SessionUiEphemeralQueryResult.class);
+    }
+
+    /**
      * Prompt message and JSON schema describing the form fields to elicit from the user.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

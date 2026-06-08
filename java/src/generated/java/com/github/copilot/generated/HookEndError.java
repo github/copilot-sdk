@@ -24,6 +24,8 @@ public record HookEndError(
     /** Human-readable error message */
     @JsonProperty("message") String message,
     /** Error stack trace, when available */
-    @JsonProperty("stack") String stack
+    @JsonProperty("stack") String stack,
+    /** Source label of the hook that errored (e.g. the plugin it was loaded from), when known */
+    @JsonProperty("source") String source
 ) {
 }

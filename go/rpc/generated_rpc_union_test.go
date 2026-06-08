@@ -322,8 +322,8 @@ func TestUIElicitationSchemaPropertyJSONUnion(t *testing.T) {
 	if !ok {
 		t.Fatalf("count property = %T, want *UIElicitationSchemaPropertyNumber", schema.Properties["count"])
 	}
-	if count.Type() != UIElicitationSchemaPropertyTypeInteger {
-		t.Fatalf("count type = %q, want %q", count.Type(), UIElicitationSchemaPropertyTypeInteger)
+	if count.Discriminator != UIElicitationSchemaPropertyNumberTypeInteger {
+		t.Fatalf("count type = %q, want %q", count.Discriminator, UIElicitationSchemaPropertyNumberTypeInteger)
 	}
 
 	arrayChoice, ok := schema.Properties["arrayChoice"].(*UIElicitationArrayEnumField)

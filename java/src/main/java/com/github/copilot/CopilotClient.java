@@ -798,7 +798,9 @@ public final class CopilotClient implements AutoCloseable {
 
         var params = new SessionOptionsUpdateParams(null, // sessionId — set by SessionOptionsApi
                 null, // model
+                null, // modelCapabilitiesOverrides
                 null, // reasoningEffort
+                null, // reasoningSummary
                 null, // clientName
                 null, // lspClientName
                 null, // integrationId
@@ -835,12 +837,14 @@ public final class CopilotClient implements AutoCloseable {
                 null, // eventsLogDirectory
                 null, // additionalContentExclusionPolicies
                 patchSchedule, // manageScheduleEnabled
+                null, // sessionCapabilities
                 null, // skipEmbeddingRetrieval
                 null, // organizationCustomInstructions
                 null, // enableFileHooks
                 null, // enableHostGitOperations
                 null, // enableSessionStore
-                null // enableSkills
+                null, // enableSkills
+                null // contextTier
         );
 
         return session.getRpc().options.update(params).<Void>thenCompose(result -> {

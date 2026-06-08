@@ -71,6 +71,8 @@ public record SessionMetadataSnapshotResult(
         @JsonProperty("branch") String branch,
         /** Display name for the session, if set */
         @JsonProperty("name") String name,
+        /** Whether the display name was explicitly set by the user */
+        @JsonProperty("user_named") Boolean userNamed,
         /** ISO 8601 timestamp when the workspace was created */
         @JsonProperty("created_at") OffsetDateTime createdAt,
         /** ISO 8601 timestamp when the workspace was last updated */

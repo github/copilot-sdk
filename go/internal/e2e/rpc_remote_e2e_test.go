@@ -51,25 +51,11 @@ func TestRPCRemoteE2E(t *testing.T) {
 			t.Fatalf("Remote.NotifySteerableChanged(true) failed: %v", err)
 		}
 		waitForRemoteSteerableEvent(t, session, true)
-		persisted, err := client.RPC.Sessions.GetPersistedRemoteSteerable(t.Context(), &rpc.SessionsGetPersistedRemoteSteerableRequest{SessionID: session.SessionID})
-		if err != nil {
-			t.Fatalf("Sessions.GetPersistedRemoteSteerable(true) failed: %v", err)
-		}
-		if persisted.RemoteSteerable == nil || !*persisted.RemoteSteerable {
-			t.Fatalf("Expected persisted RemoteSteerable=true, got %+v", persisted)
-		}
 
 		if _, err := session.RPC.Remote.NotifySteerableChanged(t.Context(), &rpc.RemoteNotifySteerableChangedRequest{RemoteSteerable: false}); err != nil {
 			t.Fatalf("Remote.NotifySteerableChanged(false) failed: %v", err)
 		}
 		waitForRemoteSteerableEvent(t, session, false)
-		persisted, err = client.RPC.Sessions.GetPersistedRemoteSteerable(t.Context(), &rpc.SessionsGetPersistedRemoteSteerableRequest{SessionID: session.SessionID})
-		if err != nil {
-			t.Fatalf("Sessions.GetPersistedRemoteSteerable(false) failed: %v", err)
-		}
-		if persisted.RemoteSteerable == nil || *persisted.RemoteSteerable {
-			t.Fatalf("Expected persisted RemoteSteerable=false, got %+v", persisted)
-		}
 	})
 }
 

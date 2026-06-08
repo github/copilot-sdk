@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SessionContext` type.
+ * Pre-resolved working-directory context for session startup.
  *
  * @since 1.0.0
  */
