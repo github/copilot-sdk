@@ -70,7 +70,7 @@ describe("Session remote RPC", async () => {
                             event.type === "session.remote_steerable_changed" &&
                             event.data.remoteSteerable === false
                     ),
-                    { timeoutMessage: "Timed out waiting for remote steerable=false event." }
+                { timeoutMessage: "Timed out waiting for remote steerable=false event." }
             );
         } finally {
             await session.disconnect();

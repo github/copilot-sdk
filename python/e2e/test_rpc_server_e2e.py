@@ -17,6 +17,7 @@ from copilot import CopilotClient, RuntimeConnection
 from copilot.rpc import (
     AccountGetQuotaRequest,
     ConnectRemoteSessionParams,
+    LocalSessionMetadataValue,
     MCPDiscoverRequest,
     ModelsListRequest,
     PingRequest,
@@ -26,7 +27,6 @@ from copilot.rpc import (
     SessionFSSetProviderConventions,
     SessionFSSetProviderRequest,
     SessionListFilter,
-    LocalSessionMetadataValue,
     SessionsBulkDeleteRequest,
     SessionsCheckInUseRequest,
     SessionsCloseRequest,
