@@ -30,93 +30,79 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CopilotExperimentalProcessorTest {
 
     private static final String EXPERIMENTAL_TYPE_SOURCE = """
-        package test;
-        import com.github.copilot.CopilotExperimental;
-        @CopilotExperimental
-        public class ExperimentalType {
-            public void doSomething() {}
-        }
-        """;
+            package test;
+            import com.github.copilot.CopilotExperimental;
+            @CopilotExperimental
+            public class ExperimentalType {
+                public void doSomething() {}
+            }
+            """;
 
     private static final String EXPERIMENTAL_METHOD_SOURCE = """
-        package test;
-        import com.github.copilot.CopilotExperimental;
-        public class StableType {
-            @CopilotExperimental
-            public static void experimentalMethod() {}
-        }
-        """;
+            package test;
+            import com.github.copilot.CopilotExperimental;
+            public class StableType {
+                @CopilotExperimental
+                public static void experimentalMethod() {}
+            }
+            """;
 
     private static final String CONSUMER_USES_TYPE_IN_DECLARATIONS = """
-        package consumer;
-        import test.ExperimentalType;
-        public class Consumer {
-            private ExperimentalType field;
-            public ExperimentalType getIt() { return field; }
-            public void setIt(ExperimentalType value) { this.field = value; }
-        }
-        """;
+            package consumer;
+            import test.ExperimentalType;
+            public class Consumer {
+                private ExperimentalType field;
+                public ExperimentalType getIt() { return field; }
+                public void setIt(ExperimentalType value) { this.field = value; }
+            }
+            """;
 
     private static final String CONSUMER_EXTENDS_TYPE = """
-        package consumer;
-        import test.ExperimentalType;
-        public class Consumer extends ExperimentalType {
-        }
-        """;
+            package consumer;
+            import test.ExperimentalType;
+            public class Consumer extends ExperimentalType {
+            }
+            """;
 
     @Test
     void failsByDefault_whenFieldOrSignatureUsesExperimentalType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
-            List.of(
-                inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
-                inMemorySource("consumer.Consumer", CONSUMER_USES_TYPE_IN_DECLARATIONS)
-            ),
-            Collections.emptyList()
-        );
+                List.of(inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
+                        inMemorySource("consumer.Consumer", CONSUMER_USES_TYPE_IN_DECLARATIONS)),
+                Collections.emptyList());
 
         boolean hasError = diagnostics.getDiagnostics().stream()
-            .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR
-                && d.getMessage(null).contains("experimental API"));
-        assertTrue(hasError, "Expected compile error for experimental type in declarations, got: "
-            + diagnostics.getDiagnostics());
+                .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR && d.getMessage(null).contains("experimental API"));
+        assertTrue(hasError,
+                "Expected compile error for experimental type in declarations, got: " + diagnostics.getDiagnostics());
     }
 
     @Test
     void failsByDefault_whenExtendingExperimentalType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
-            List.of(
-                inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
-                inMemorySource("consumer.Consumer", CONSUMER_EXTENDS_TYPE)
-            ),
-            Collections.emptyList()
-        );
+                List.of(inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
+                        inMemorySource("consumer.Consumer", CONSUMER_EXTENDS_TYPE)),
+                Collections.emptyList());
 
         boolean hasError = diagnostics.getDiagnostics().stream()
-            .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR
-                && d.getMessage(null).contains("experimental API"));
-        assertTrue(hasError, "Expected compile error for extending experimental type, got: "
-            + diagnostics.getDiagnostics());
+                .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR && d.getMessage(null).contains("experimental API"));
+        assertTrue(hasError,
+                "Expected compile error for extending experimental type, got: " + diagnostics.getDiagnostics());
     }
 
     @Test
     void passes_whenOptInFlagIsProvided() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
-            List.of(
-                inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
-                inMemorySource("test.StableType", EXPERIMENTAL_METHOD_SOURCE),
-                inMemorySource("consumer.Consumer", CONSUMER_USES_TYPE_IN_DECLARATIONS)
-            ),
-            List.of("-Acopilot.experimental.allowed=true")
-        );
+                List.of(inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
+                        inMemorySource("test.StableType", EXPERIMENTAL_METHOD_SOURCE),
+                        inMemorySource("consumer.Consumer", CONSUMER_USES_TYPE_IN_DECLARATIONS)),
+                List.of("-Acopilot.experimental.allowed=true"));
 
-        boolean hasError = diagnostics.getDiagnostics().stream()
-            .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
-        assertFalse(hasError, "Expected no errors with opt-in flag, got: "
-            + diagnostics.getDiagnostics());
+        boolean hasError = diagnostics.getDiagnostics().stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
+        assertFalse(hasError, "Expected no errors with opt-in flag, got: " + diagnostics.getDiagnostics());
     }
 
-    private DiagnosticCollector<JavaFileObject> compile(
-            List<JavaFileObject> sources, List<String> extraOptions) {
+    private DiagnosticCollector<JavaFileObject> compile(List<JavaFileObject> sources, List<String> extraOptions) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
@@ -127,8 +113,7 @@ class CopilotExperimentalProcessorTest {
         options.addAll(List.of("-d", System.getProperty("java.io.tmpdir")));
         options.addAll(extraOptions);
 
-        JavaCompiler.CompilationTask task = compiler.getTask(
-            null, null, diagnostics, options, null, sources);
+        JavaCompiler.CompilationTask task = compiler.getTask(null, null, diagnostics, options, null, sources);
         task.setProcessors(List.of(new CopilotExperimentalProcessor()));
         task.call();
 
@@ -156,10 +141,8 @@ class CopilotExperimentalProcessorTest {
     }
 
     private static JavaFileObject inMemorySource(String className, String code) {
-        return new SimpleJavaFileObject(
-            URI.create("string:///" + className.replace('.', '/') + ".java"),
-            JavaFileObject.Kind.SOURCE
-        ) {
+        return new SimpleJavaFileObject(URI.create("string:///" + className.replace('.', '/') + ".java"),
+                JavaFileObject.Kind.SOURCE) {
             @Override
             public CharSequence getCharContent(boolean ignoreEncodingErrors) {
                 return code;

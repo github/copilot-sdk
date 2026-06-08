@@ -13,7 +13,6 @@ import javax.annotation.processing.SupportedOptions;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
@@ -27,12 +26,14 @@ import java.util.Set;
 /**
  * Annotation processor that enforces compile-time gating of experimental APIs.
  *
- * <p>Any declaration-level reference to a type or method annotated with
- * {@link CopilotExperimental} in consumer source code causes a compilation error
- * unless the compiler option {@code -Acopilot.experimental.allowed=true} is
- * provided.
+ * <p>
+ * Any declaration-level reference to a type or method annotated with
+ * {@link CopilotExperimental} in consumer source code causes a compilation
+ * error unless the compiler option {@code -Acopilot.experimental.allowed=true}
+ * is provided.
  *
- * <p>This processor uses only standard JSR 269 APIs ({@code javax.lang.model.*})
+ * <p>
+ * This processor uses only standard JSR 269 APIs ({@code javax.lang.model.*})
  * and works with any Java compiler (javac, ECJ, etc.). It checks declarations
  * (field types, method parameters, return types, supertypes, thrown types) but
  * does not inspect method body expressions.
@@ -79,7 +80,8 @@ public class CopilotExperimentalProcessor extends AbstractProcessor {
             case CLASS, INTERFACE, ENUM, RECORD -> checkTypeElement((TypeElement) element);
             case METHOD, CONSTRUCTOR -> checkExecutable((ExecutableElement) element);
             case FIELD, ENUM_CONSTANT -> checkField((VariableElement) element);
-            default -> { }
+            default -> {
+            }
         }
 
         // Recurse into enclosed elements
@@ -143,18 +145,14 @@ public class CopilotExperimentalProcessor extends AbstractProcessor {
         }
         // If the enclosing type is experimental, members are implicitly experimental
         Element enclosing = element.getEnclosingElement();
-        return enclosing != null
-            && enclosing.getAnnotation(CopilotExperimental.class) != null;
+        return enclosing != null && enclosing.getAnnotation(CopilotExperimental.class) != null;
     }
 
     private void reportError(Element experimentalElement, Element usageSite, String context) {
         Messager messager = processingEnv.getMessager();
-        messager.printMessage(
-            Diagnostic.Kind.ERROR,
-            "Use of experimental API '" + experimentalElement.getSimpleName()
-                + "' in " + context + " is not allowed. Add compiler option"
-                + " -Acopilot.experimental.allowed=true to opt in.",
-            usageSite
-        );
+        messager.printMessage(Diagnostic.Kind.ERROR,
+                "Use of experimental API '" + experimentalElement.getSimpleName() + "' in " + context
+                        + " is not allowed. Add compiler option" + " -Acopilot.experimental.allowed=true to opt in.",
+                usageSite);
     }
 }
