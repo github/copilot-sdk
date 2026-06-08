@@ -3393,16 +3393,6 @@ class OptionsUpdateContextTier(Enum):
     LONG_CONTEXT = "long_context"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-class ReasoningSummary(Enum):
-    """Reasoning summary mode for supported model clients.
-
-    Initial reasoning summary mode for supported model clients.
-    """
-    CONCISE = "concise"
-    DETAILED = "detailed"
-    NONE = "none"
-
-# Experimental: this type is part of an experimental API and may change or be removed.
 class OptionsUpdateToolFilterPrecedence(Enum):
     """Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
     are set.
@@ -23809,7 +23799,6 @@ __all__ = [
     "QueuedCommandNotHandled",
     "QueuedCommandResult",
     "RPC",
-    "ReasoningSummary",
     "RegisterEventInterestParams",
     "RegisterEventInterestResult",
     "ReleaseEventInterestParams",
