@@ -18,8 +18,6 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.Set;
 
@@ -30,7 +28,8 @@ import java.util.Set;
  * Any declaration-level reference to a type or method annotated with
  * {@link CopilotExperimental} in consumer source code causes a compilation
  * error unless the compiler option {@code -Acopilot.experimental.allowed=true}
- * is provided.
+ * is provided or the consuming declaration is annotated with
+ * {@link AllowCopilotExperimental}.
  *
  * <p>
  * This processor uses only standard JSR 269 APIs ({@code javax.lang.model.*})
@@ -46,16 +45,12 @@ import java.util.Set;
 public class CopilotExperimentalProcessor extends AbstractProcessor {
 
     private boolean allowed;
-    private Elements elementUtils;
-    private Types typeUtils;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         String value = processingEnv.getOptions().get("copilot.experimental.allowed");
         this.allowed = "true".equals(value);
-        this.elementUtils = processingEnv.getElementUtils();
-        this.typeUtils = processingEnv.getTypeUtils();
     }
 
     @Override
@@ -71,8 +66,8 @@ public class CopilotExperimentalProcessor extends AbstractProcessor {
 
     private void checkElement(Element element) {
         // Skip elements that are themselves annotated @CopilotExperimental
-        // (they are the definitions, not consumers)
-        if (isExperimental(element)) {
+        // (they are the definitions, not consumers), or that explicitly opt in.
+        if (isExperimental(element) || isAllowListed(element)) {
             return;
         }
 
@@ -148,11 +143,22 @@ public class CopilotExperimentalProcessor extends AbstractProcessor {
         return enclosing != null && enclosing.getAnnotation(CopilotExperimental.class) != null;
     }
 
+    private boolean isAllowListed(Element element) {
+        Element current = element;
+        while (current != null) {
+            if (current.getAnnotation(AllowCopilotExperimental.class) != null) {
+                return true;
+            }
+            current = current.getEnclosingElement();
+        }
+        return false;
+    }
+
     private void reportError(Element experimentalElement, Element usageSite, String context) {
         Messager messager = processingEnv.getMessager();
         messager.printMessage(Diagnostic.Kind.ERROR,
                 "Use of experimental API '" + experimentalElement.getSimpleName() + "' in " + context
-                        + " is not allowed. Add compiler option -Acopilot.experimental.allowed=true to opt in.",
+                        + " is not allowed. Add @AllowCopilotExperimental or compiler option -Acopilot.experimental.allowed=true to opt in.",
                 usageSite);
     }
 }

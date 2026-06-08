@@ -138,10 +138,34 @@ By default, referencing an experimental API from your code causes a **compile-ti
 
 ```
 error: Use of experimental API 'ExperimentalType' in field type is not allowed.
-       Add compiler option -Acopilot.experimental.allowed=true to opt in.
+       Add @AllowCopilotExperimental or compiler option -Acopilot.experimental.allowed=true to opt in.
 ```
 
-To opt in and use experimental APIs, pass the annotation processor option `-Acopilot.experimental.allowed=true` to the Java compiler.
+To opt in and use experimental APIs, either:
+
+- annotate the consuming class, method, or constructor with `@AllowCopilotExperimental`, or
+- pass the annotation processor option `-Acopilot.experimental.allowed=true` to the Java compiler.
+
+### In code
+
+```java
+import com.github.copilot.AllowCopilotExperimental;
+import test.ExperimentalType;
+
+@AllowCopilotExperimental
+public class Consumer {
+    private ExperimentalType field;
+
+    public ExperimentalType getIt() {
+        return field;
+    }
+
+    @AllowCopilotExperimental
+    public ExperimentalType echo(ExperimentalType value) {
+        return value;
+    }
+}
+```
 
 ### Maven
 
@@ -184,11 +208,11 @@ The processor uses standard JSR 269 annotation processing APIs for maximum porta
 
 | Usage pattern | Caught? | Workaround |
 |---|---|---|
-| `new ExperimentalType()` in a method body (no field/param declaration) | ❌ | Assign to a typed field or variable declaration |
-| `ExperimentalType.staticMethod()` inline call | ❌ | Store result in a typed variable |
-| Method reference `ExperimentalType::method` | ❌ | Use explicit lambda with typed parameter |
-| Local variable with experimental type (var inference) | ❌ | Use explicit type declaration at field level |
-| Cast to experimental type | ❌ | Assign to a typed field |
+| `new ExperimentalType()` in a method body (no field/param declaration) | ❌ | Use the compiler flag for a whole-compilation opt-in |
+| `ExperimentalType.staticMethod()` inline call | ❌ | Use the compiler flag for a whole-compilation opt-in |
+| Method reference `ExperimentalType::method` | ❌ | Use the compiler flag for a whole-compilation opt-in |
+| Local variable with experimental type (including `var` inference) | ❌ | Move the usage into a declaration the processor can see, or use the compiler flag |
+| Cast to experimental type | ❌ | Use the compiler flag for a whole-compilation opt-in |
 
 In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through. See [ADR-004](docs/adr/adr-004-copilotexperimental.md) for the design rationale.
 
@@ -214,7 +238,7 @@ public class Consumer {
 }
 ```
 
-The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types. When a type-level annotation is present, all member accesses through that type are considered experimental.
+The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types. When a type-level annotation is present, all member accesses through that type are considered experimental. `@AllowCopilotExperimental` mirrors the same declaration-level boundary: annotating a class opts in that class and its enclosed declarations, while annotating a method or constructor opts in just that executable signature.
 
 ## Projects Using This SDK
 

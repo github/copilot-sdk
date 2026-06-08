@@ -16,7 +16,8 @@ import java.lang.annotation.Target;
  *
  * <p>
  * By default, referencing an experimental API from consumer code causes a
- * compile-time error. To opt in, pass the compiler option:
+ * compile-time error. To opt in, either annotate the consuming declaration with
+ * {@link AllowCopilotExperimental} or pass the compiler option:
  *
  * <pre>
  * -Acopilot.experimental.allowed=true

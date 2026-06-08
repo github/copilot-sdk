@@ -64,6 +64,30 @@ class CopilotExperimentalProcessorTest {
             }
             """;
 
+    private static final String CLASS_ANNOTATED_CONSUMER = """
+            package consumer;
+            import com.github.copilot.AllowCopilotExperimental;
+            import test.ExperimentalType;
+            @AllowCopilotExperimental
+            public class Consumer extends ExperimentalType {
+                private ExperimentalType field;
+                public ExperimentalType getIt() { return field; }
+                public void setIt(ExperimentalType value) { this.field = value; }
+            }
+            """;
+
+    private static final String METHOD_ANNOTATED_CONSUMER = """
+            package consumer;
+            import com.github.copilot.AllowCopilotExperimental;
+            import test.ExperimentalType;
+            public class Consumer {
+                @AllowCopilotExperimental
+                public ExperimentalType getIt(ExperimentalType value) {
+                    return value;
+                }
+            }
+            """;
+
     @Test
     void failsByDefault_whenFieldOrSignatureUsesExperimentalType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
@@ -88,6 +112,28 @@ class CopilotExperimentalProcessorTest {
                 .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR && d.getMessage(null).contains("experimental API"));
         assertTrue(hasError,
                 "Expected compile error for extending experimental type, got: " + diagnostics.getDiagnostics());
+    }
+
+    @Test
+    void passes_whenAllowAnnotationIsOnType() {
+        DiagnosticCollector<JavaFileObject> diagnostics = compile(
+                List.of(inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
+                        inMemorySource("consumer.Consumer", CLASS_ANNOTATED_CONSUMER)),
+                Collections.emptyList());
+
+        boolean hasError = diagnostics.getDiagnostics().stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
+        assertFalse(hasError, "Expected no errors with type-level opt-in, got: " + diagnostics.getDiagnostics());
+    }
+
+    @Test
+    void passes_whenAllowAnnotationIsOnMethod() {
+        DiagnosticCollector<JavaFileObject> diagnostics = compile(
+                List.of(inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),
+                        inMemorySource("consumer.Consumer", METHOD_ANNOTATED_CONSUMER)),
+                Collections.emptyList());
+
+        boolean hasError = diagnostics.getDiagnostics().stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
+        assertFalse(hasError, "Expected no errors with method-level opt-in, got: " + diagnostics.getDiagnostics());
     }
 
     @Test
