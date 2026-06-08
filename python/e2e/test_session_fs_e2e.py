@@ -235,9 +235,7 @@ class TestSessionFs:
         workspace_yaml_path = provider_path(
             provider_root, session.session_id, f"{SESSION_STATE_PATH}/workspace.yaml"
         )
-        await wait_for_path(workspace_yaml_path)
-        yaml_content = workspace_yaml_path.read_text(encoding="utf-8")
-        assert "id:" in yaml_content
+        await wait_for_content(workspace_yaml_path, "id:")
 
         # Checkpoint index should also exist
         index_path = provider_path(
@@ -265,9 +263,7 @@ class TestSessionFs:
         plan_path = provider_path(
             provider_root, session.session_id, f"{SESSION_STATE_PATH}/plan.md"
         )
-        await wait_for_path(plan_path)
-        content = plan_path.read_text(encoding="utf-8")
-        assert "# Test Plan" in content
+        await wait_for_content(plan_path, "# Test Plan")
 
         await session.disconnect()
 
