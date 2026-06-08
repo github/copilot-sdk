@@ -1741,10 +1741,18 @@ function goDiscriminatorMethodName(
     const collidesWithVariantField = variants.some((variant) => {
         const resolved = resolveSchema(variant.schema, ctx.definitions) ?? variant.schema;
         const objectSchema = resolveObjectSchema(resolved, ctx.definitions) ?? resolved;
+        const variantPreExisting = ctx.generatedNames.has(variant.typeName);
         return Object.keys(objectSchema.properties ?? {}).some((propName) => {
             const propGoName = toGoFieldName(propName);
             if (propName === discriminatorProp) {
-                return propGoName === discGoName || (variant.discriminatorValues.length > 1 && discGoName === "Discriminator");
+                // The flat-union variant emission elides single-value discriminators
+                // and renames multi-value ones to ``Discriminator``, so a natural-name
+                // collision is only possible when the variant struct is a pre-existing
+                // type (already in ``ctx.generatedNames``) that retained the discriminator
+                // as a struct field with its natural Go name. The ``Discriminator``-rename
+                // collision case is independent and detected by the second clause.
+                return (variantPreExisting && propGoName === discGoName)
+                    || (variant.discriminatorValues.length > 1 && discGoName === "Discriminator");
             }
             return propGoName === discGoName;
         });

@@ -714,7 +714,7 @@ func (r ToolExecutionCompleteContentAudio) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type:  r.toolExecutionCompleteContentType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -725,7 +725,7 @@ func (r ToolExecutionCompleteContentImage) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type:  r.toolExecutionCompleteContentType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -798,7 +798,7 @@ func (r ToolExecutionCompleteContentResource) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type:  r.toolExecutionCompleteContentType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -809,7 +809,7 @@ func (r ToolExecutionCompleteContentResourceLink) MarshalJSON() ([]byte, error) 
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type:  r.toolExecutionCompleteContentType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -820,7 +820,7 @@ func (r ToolExecutionCompleteContentTerminal) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type:  r.toolExecutionCompleteContentType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -831,7 +831,7 @@ func (r ToolExecutionCompleteContentText) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type:  r.toolExecutionCompleteContentType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -934,7 +934,7 @@ func (r SystemNotificationAgentCompleted) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type:  r.systemNotificationType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -945,7 +945,7 @@ func (r SystemNotificationAgentIdle) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type:  r.systemNotificationType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -956,7 +956,7 @@ func (r SystemNotificationInstructionDiscovered) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type:  r.systemNotificationType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -967,7 +967,7 @@ func (r SystemNotificationNewInboxMessage) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type:  r.systemNotificationType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -978,7 +978,7 @@ func (r SystemNotificationShellCompleted) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type:  r.systemNotificationType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -989,7 +989,7 @@ func (r SystemNotificationShellDetachedCompleted) MarshalJSON() ([]byte, error) 
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type:  r.systemNotificationType(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1109,7 +1109,7 @@ func (r PermissionRequestCustomTool) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1120,7 +1120,7 @@ func (r PermissionRequestExtensionManagement) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1131,7 +1131,7 @@ func (r PermissionRequestExtensionPermissionAccess) MarshalJSON() ([]byte, error
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1142,7 +1142,7 @@ func (r PermissionRequestHook) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1153,7 +1153,7 @@ func (r PermissionRequestMCP) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1164,7 +1164,7 @@ func (r PermissionRequestMemory) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1175,7 +1175,7 @@ func (r PermissionRequestRead) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1186,7 +1186,7 @@ func (r PermissionRequestShell) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1197,7 +1197,7 @@ func (r PermissionRequestURL) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1208,7 +1208,7 @@ func (r PermissionRequestWrite) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1314,7 +1314,7 @@ func (r PermissionPromptRequestCommands) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1325,7 +1325,7 @@ func (r PermissionPromptRequestCustomTool) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1336,7 +1336,7 @@ func (r PermissionPromptRequestExtensionManagement) MarshalJSON() ([]byte, error
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1347,7 +1347,7 @@ func (r PermissionPromptRequestExtensionPermissionAccess) MarshalJSON() ([]byte,
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1358,7 +1358,7 @@ func (r PermissionPromptRequestHook) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1369,7 +1369,7 @@ func (r PermissionPromptRequestMCP) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1380,7 +1380,7 @@ func (r PermissionPromptRequestMemory) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1391,7 +1391,7 @@ func (r PermissionPromptRequestPath) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1402,7 +1402,7 @@ func (r PermissionPromptRequestRead) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1413,7 +1413,7 @@ func (r PermissionPromptRequestURL) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1424,7 +1424,7 @@ func (r PermissionPromptRequestWrite) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionPromptRequestKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1548,7 +1548,7 @@ func (r PermissionApproved) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1579,7 +1579,7 @@ func (r PermissionApprovedForLocation) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1608,7 +1608,7 @@ func (r PermissionApprovedForSession) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1619,7 +1619,7 @@ func (r PermissionCancelled) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1630,7 +1630,7 @@ func (r PermissionDeniedByContentExclusionPolicy) MarshalJSON() ([]byte, error) 
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1641,7 +1641,7 @@ func (r PermissionDeniedByPermissionRequestHook) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1652,7 +1652,7 @@ func (r PermissionDeniedByRules) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1663,7 +1663,7 @@ func (r PermissionDeniedInteractivelyByUser) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1674,7 +1674,7 @@ func (r PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) MarshalJSON() 
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.permissionResultKind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
