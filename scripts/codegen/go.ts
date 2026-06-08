@@ -1742,10 +1742,11 @@ function goDiscriminatorMethodName(
         const resolved = resolveSchema(variant.schema, ctx.definitions) ?? variant.schema;
         const objectSchema = resolveObjectSchema(resolved, ctx.definitions) ?? resolved;
         return Object.keys(objectSchema.properties ?? {}).some((propName) => {
+            const propGoName = toGoFieldName(propName);
             if (propName === discriminatorProp) {
-                return variant.discriminatorValues.length > 1 && discGoName === "Discriminator";
+                return propGoName === discGoName || (variant.discriminatorValues.length > 1 && discGoName === "Discriminator");
             }
-            return toGoFieldName(propName) === discGoName;
+            return propGoName === discGoName;
         });
     });
 

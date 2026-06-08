@@ -1177,6 +1177,57 @@ function removeRequiredAnyDefaultsForPython(
     });
 }
 
+function reorderPythonDataclassFields(code: string): string {
+    const fieldRe =
+        /^    \w+: (?:Any|bool|int|float|str|dict|list|ClassVar|[A-Z_]\w*|['"][A-Z_]\w*)(?:[^=]*)?(?: = .*)?$/;
+    const methodRe = /^    (?:@(?:staticmethod|classmethod|property)|(?:async\s+)?def\s+)/;
+    const classBlockRe = /(@dataclass\r?\nclass\s+\w+:[\s\S]*?)(?=^@dataclass|^class\s+\w|^def\s+\w|\Z)/gm;
+
+    return code.replace(classBlockRe, (block: string) => {
+        const lines = block.split("\n");
+        const bodyStart = 2;
+        const memberStart = lines.findIndex((line, index) => index >= bodyStart && methodRe.test(line));
+        if (memberStart < 0) {
+            return block;
+        }
+
+        const header = lines.slice(0, bodyStart);
+        const fieldsBody = lines.slice(bodyStart, memberStart);
+        const members = lines.slice(memberStart);
+        const preamble: string[] = [];
+        const groups: string[][] = [];
+        let current: string[] | undefined;
+
+        for (const line of fieldsBody) {
+            if (fieldRe.test(line)) {
+                current = [line];
+                groups.push(current);
+                continue;
+            }
+
+            if (current) {
+                current.push(line);
+            } else {
+                preamble.push(line);
+            }
+        }
+
+        if (groups.length < 2) {
+            return block;
+        }
+
+        const required = groups.filter((group) => !group[0].includes(" = "));
+        const optional = groups.filter((group) => group[0].includes(" = "));
+        const reorderedGroups = [...required, ...optional];
+        const changed = reorderedGroups.some((group, index) => group !== groups[index]);
+        if (!changed) {
+            return block;
+        }
+
+        return [...header, ...preamble, ...reorderedGroups.flat(), ...members].join("\n");
+    });
+}
+
 function toPascalCase(s: string): string {
     return fixBrandCasing(
         s
@@ -2834,6 +2885,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
         }
     );
     typesCode = removeRequiredAnyDefaultsForPython(typesCode, allDefinitions, allDefinitionCollections);
+    typesCode = reorderPythonDataclassFields(typesCode);
     // Fix bare except: to use Exception (required by ruff/pylint)
     typesCode = typesCode.replace(/except:/g, "except Exception:");
     // Remove unnecessary pass when class has methods (quicktype generates pass for empty schemas)

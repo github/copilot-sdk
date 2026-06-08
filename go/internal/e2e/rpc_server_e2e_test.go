@@ -221,10 +221,7 @@ func TestRPCServerE2E(t *testing.T) {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		eventFilePath := saveAndGetEventFilePath(t, client, sessionID)
-		if !strings.Contains(strings.ToLower(eventFilePath), strings.ToLower(sessionID)) {
-			t.Fatalf("Expected event file path %q to contain session ID %q", eventFilePath, sessionID)
-		}
+		saveSession(t, client, sessionID)
 
 		metadataLimit := int64(0)
 		filter := &rpc.SessionListFilter{Cwd: &workingDirectory}
@@ -239,8 +236,9 @@ func TestRPCServerE2E(t *testing.T) {
 			t.Fatal("Expected non-nil sessions list")
 		}
 		for _, metadata := range listed.Sessions {
-			if metadata.Context != nil {
-				assertRPCPathEqual(t, workingDirectory, metadata.Context.Cwd)
+			local, ok := metadata.(*rpc.LocalSessionMetadataValue)
+			if ok && local.Context != nil {
+				assertRPCPathEqual(t, workingDirectory, local.Context.Cwd)
 			}
 		}
 
@@ -289,13 +287,6 @@ func TestRPCServerE2E(t *testing.T) {
 			t.Fatalf("Did not expect missing session %q to be in use: %+v", missingSessionID, inUse.InUse)
 		}
 
-		remoteSteerable, err := client.RPC.Sessions.GetPersistedRemoteSteerable(t.Context(), &rpc.SessionsGetPersistedRemoteSteerableRequest{SessionID: sessionID})
-		if err != nil {
-			t.Fatalf("Sessions.GetPersistedRemoteSteerable failed: %v", err)
-		}
-		if remoteSteerable.RemoteSteerable != nil {
-			t.Fatalf("Expected no persisted remote steerable flag, got %v", *remoteSteerable.RemoteSteerable)
-		}
 	})
 
 	t.Run("should enrich basic session metadata", func(t *testing.T) {
@@ -319,11 +310,11 @@ func TestRPCServerE2E(t *testing.T) {
 		if err := session.Log(t.Context(), "SERVER_RPC_ENRICH_READY", nil); err != nil {
 			t.Fatalf("Log failed: %v", err)
 		}
-		saveAndGetEventFilePath(t, client, sessionID)
+		saveSession(t, client, sessionID)
 
 		now := time.Now().UTC().Format(time.RFC3339Nano)
 		result, err := client.RPC.Sessions.EnrichMetadata(t.Context(), &rpc.SessionsEnrichMetadataRequest{
-			Sessions: []rpc.SessionMetadata{{
+			Sessions: []rpc.LocalSessionMetadataValue{{
 				SessionID:    sessionID,
 				StartTime:    now,
 				ModifiedTime: now,
@@ -371,7 +362,7 @@ func TestRPCServerE2E(t *testing.T) {
 		if err := session.Log(t.Context(), "SERVER_RPC_CLOSE_READY", nil); err != nil {
 			t.Fatalf("Log failed: %v", err)
 		}
-		saveAndGetEventFilePath(t, client, sessionID)
+		saveSession(t, client, sessionID)
 
 		if _, err := client.RPC.Sessions.Close(t.Context(), &rpc.SessionsCloseRequest{SessionID: sessionID}); err != nil {
 			t.Fatalf("Sessions.Close failed: %v", err)
@@ -410,7 +401,7 @@ func TestRPCServerE2E(t *testing.T) {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		saveAndGetEventFilePath(t, client, sessionID)
+		saveSession(t, client, sessionID)
 		if _, err := client.RPC.Sessions.Close(t.Context(), &rpc.SessionsCloseRequest{SessionID: sessionID}); err != nil {
 			t.Fatalf("Sessions.Close failed: %v", err)
 		}
@@ -624,23 +615,9 @@ func findServerSkill(skills []rpc.ServerSkill, name string) *rpc.ServerSkill {
 	return nil
 }
 
-func saveAndGetEventFilePath(t *testing.T, client *copilot.Client, sessionID string) string {
+func saveSession(t *testing.T, client *copilot.Client, sessionID string) {
 	t.Helper()
 	if _, err := client.RPC.Sessions.Save(t.Context(), &rpc.SessionsSaveRequest{SessionID: sessionID}); err != nil {
 		t.Fatalf("Sessions.Save failed: %v", err)
 	}
-	path, err := client.RPC.Sessions.GetEventFilePath(t.Context(), &rpc.SessionsGetEventFilePathRequest{SessionID: sessionID})
-	if err != nil {
-		t.Fatalf("Sessions.GetEventFilePath failed: %v", err)
-	}
-	if strings.TrimSpace(path.FilePath) == "" {
-		t.Fatal("Expected non-empty event file path")
-	}
-	if !filepath.IsAbs(path.FilePath) {
-		t.Fatalf("Expected absolute event file path, got %q", path.FilePath)
-	}
-	if filepath.Base(path.FilePath) != "events.jsonl" {
-		t.Fatalf("Expected events.jsonl event file, got %q", path.FilePath)
-	}
-	return path.FilePath
 }

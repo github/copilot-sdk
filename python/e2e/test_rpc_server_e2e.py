@@ -26,16 +26,14 @@ from copilot.rpc import (
     SessionFSSetProviderConventions,
     SessionFSSetProviderRequest,
     SessionListFilter,
-    SessionMetadata,
+    LocalSessionMetadataValue,
     SessionsBulkDeleteRequest,
     SessionsCheckInUseRequest,
     SessionsCloseRequest,
     SessionsEnrichMetadataRequest,
     SessionsFindByPrefixRequest,
     SessionsFindByTaskIDRequest,
-    SessionsGetEventFilePathRequest,
     SessionsGetLastForContextRequest,
-    SessionsGetPersistedRemoteSteerableRequest,
     SessionsListRequest,
     SessionsLoadDeferredRepoHooksRequest,
     SessionsPruneOldRequest,
@@ -249,14 +247,6 @@ class TestRpcServer:
             save = await ctx.client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
             assert save is not None
 
-            event_path = await ctx.client.rpc.sessions.get_event_file_path(
-                SessionsGetEventFilePathRequest(session_id=session_id)
-            )
-            assert event_path.file_path
-            assert os.path.isabs(event_path.file_path)
-            assert os.path.basename(event_path.file_path) == "events.jsonl"
-            assert session_id.lower() in event_path.file_path.lower()
-
             listed = await ctx.client.rpc.sessions.list(
                 SessionsListRequest(
                     filter=SessionListFilter(cwd=str(working_directory)),
@@ -295,11 +285,6 @@ class TestRpcServer:
                 SessionsCheckInUseRequest(session_ids=[session_id, missing_session_id])
             )
             assert missing_session_id not in in_use.in_use
-
-            remote_steerable = await ctx.client.rpc.sessions.get_persisted_remote_steerable(
-                SessionsGetPersistedRemoteSteerableRequest(session_id=session_id)
-            )
-            assert remote_steerable.remote_steerable is None
         finally:
             await session.disconnect()
 
@@ -320,7 +305,7 @@ class TestRpcServer:
             result = await ctx.client.rpc.sessions.enrich_metadata(
                 SessionsEnrichMetadataRequest(
                     sessions=[
-                        SessionMetadata(
+                        LocalSessionMetadataValue(
                             is_remote=False,
                             modified_time=now,
                             session_id=session_id,

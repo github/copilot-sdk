@@ -67,7 +67,7 @@ func (r AgentRegistrySpawnError) MarshalJSON() ([]byte, error) {
 		Kind AgentRegistrySpawnResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.agentRegistrySpawnResultKind(),
 		alias: alias(r),
 	})
 }
@@ -78,7 +78,7 @@ func (r AgentRegistrySpawnRegistryTimeout) MarshalJSON() ([]byte, error) {
 		Kind AgentRegistrySpawnResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.agentRegistrySpawnResultKind(),
 		alias: alias(r),
 	})
 }
@@ -89,7 +89,7 @@ func (r AgentRegistrySpawnSpawned) MarshalJSON() ([]byte, error) {
 		Kind AgentRegistrySpawnResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.agentRegistrySpawnResultKind(),
 		alias: alias(r),
 	})
 }
@@ -100,7 +100,7 @@ func (r AgentRegistrySpawnValidationError) MarshalJSON() ([]byte, error) {
 		Kind AgentRegistrySpawnResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.agentRegistrySpawnResultKind(),
 		alias: alias(r),
 	})
 }
@@ -176,7 +176,7 @@ func (r AttachmentBlob) MarshalJSON() ([]byte, error) {
 		Type AttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.attachmentType(),
 		alias: alias(r),
 	})
 }
@@ -187,7 +187,7 @@ func (r AttachmentDirectory) MarshalJSON() ([]byte, error) {
 		Type AttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.attachmentType(),
 		alias: alias(r),
 	})
 }
@@ -198,7 +198,7 @@ func (r AttachmentExtensionContext) MarshalJSON() ([]byte, error) {
 		Type AttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.attachmentType(),
 		alias: alias(r),
 	})
 }
@@ -209,7 +209,7 @@ func (r AttachmentFile) MarshalJSON() ([]byte, error) {
 		Type AttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.attachmentType(),
 		alias: alias(r),
 	})
 }
@@ -220,7 +220,7 @@ func (r AttachmentGitHubReference) MarshalJSON() ([]byte, error) {
 		Type AttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.attachmentType(),
 		alias: alias(r),
 	})
 }
@@ -231,7 +231,7 @@ func (r AttachmentSelection) MarshalJSON() ([]byte, error) {
 		Type AttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.attachmentType(),
 		alias: alias(r),
 	})
 }
@@ -313,7 +313,7 @@ func (r APIKeyAuthInfo) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.authInfoType(),
 		alias: alias(r),
 	})
 }
@@ -324,7 +324,7 @@ func (r CopilotAPITokenAuthInfo) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.authInfoType(),
 		alias: alias(r),
 	})
 }
@@ -335,7 +335,7 @@ func (r EnvAuthInfo) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.authInfoType(),
 		alias: alias(r),
 	})
 }
@@ -346,7 +346,7 @@ func (r GhCLIAuthInfo) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.authInfoType(),
 		alias: alias(r),
 	})
 }
@@ -357,7 +357,7 @@ func (r HMACAuthInfo) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.authInfoType(),
 		alias: alias(r),
 	})
 }
@@ -368,7 +368,7 @@ func (r TokenAuthInfo) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.authInfoType(),
 		alias: alias(r),
 	})
 }
@@ -379,7 +379,7 @@ func (r UserAuthInfo) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.authInfoType(),
 		alias: alias(r),
 	})
 }
@@ -422,7 +422,7 @@ func (r QueuedCommandHandled) MarshalJSON() ([]byte, error) {
 		Handled bool `json:"handled"`
 		alias
 	}{
-		Handled: r.Handled(),
+		Handled: r.queuedCommandResultHandled(),
 		alias:   alias(r),
 	})
 }
@@ -433,7 +433,7 @@ func (r QueuedCommandNotHandled) MarshalJSON() ([]byte, error) {
 		Handled bool `json:"handled"`
 		alias
 	}{
-		Handled: r.Handled(),
+		Handled: r.queuedCommandResultHandled(),
 		alias:   alias(r),
 	})
 }
@@ -561,7 +561,7 @@ func (r ExternalToolTextResultForLlmContentAudio) MarshalJSON() ([]byte, error) 
 		Type ExternalToolTextResultForLlmContentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.externalToolTextResultForLlmContentType(),
 		alias: alias(r),
 	})
 }
@@ -572,7 +572,7 @@ func (r ExternalToolTextResultForLlmContentImage) MarshalJSON() ([]byte, error) 
 		Type ExternalToolTextResultForLlmContentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.externalToolTextResultForLlmContentType(),
 		alias: alias(r),
 	})
 }
@@ -657,7 +657,7 @@ func (r ExternalToolTextResultForLlmContentResource) MarshalJSON() ([]byte, erro
 		Type ExternalToolTextResultForLlmContentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.externalToolTextResultForLlmContentType(),
 		alias: alias(r),
 	})
 }
@@ -668,7 +668,7 @@ func (r ExternalToolTextResultForLlmContentResourceLink) MarshalJSON() ([]byte, 
 		Type ExternalToolTextResultForLlmContentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.externalToolTextResultForLlmContentType(),
 		alias: alias(r),
 	})
 }
@@ -679,7 +679,7 @@ func (r ExternalToolTextResultForLlmContentTerminal) MarshalJSON() ([]byte, erro
 		Type ExternalToolTextResultForLlmContentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.externalToolTextResultForLlmContentType(),
 		alias: alias(r),
 	})
 }
@@ -690,7 +690,7 @@ func (r ExternalToolTextResultForLlmContentText) MarshalJSON() ([]byte, error) {
 		Type ExternalToolTextResultForLlmContentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.externalToolTextResultForLlmContentType(),
 		alias: alias(r),
 	})
 }
@@ -1201,7 +1201,7 @@ func (r PermissionDecisionApproved) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1289,7 +1289,7 @@ func (r UserToolSessionApprovalCommands) MarshalJSON() ([]byte, error) {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.userToolSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1300,7 +1300,7 @@ func (r UserToolSessionApprovalCustomTool) MarshalJSON() ([]byte, error) {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.userToolSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1311,7 +1311,7 @@ func (r UserToolSessionApprovalExtensionManagement) MarshalJSON() ([]byte, error
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.userToolSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1322,7 +1322,7 @@ func (r UserToolSessionApprovalExtensionPermissionAccess) MarshalJSON() ([]byte,
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.userToolSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1333,7 +1333,7 @@ func (r UserToolSessionApprovalMCP) MarshalJSON() ([]byte, error) {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.userToolSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1344,7 +1344,7 @@ func (r UserToolSessionApprovalMemory) MarshalJSON() ([]byte, error) {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.userToolSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1355,7 +1355,7 @@ func (r UserToolSessionApprovalRead) MarshalJSON() ([]byte, error) {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.userToolSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1366,7 +1366,7 @@ func (r UserToolSessionApprovalWrite) MarshalJSON() ([]byte, error) {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.userToolSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1397,7 +1397,7 @@ func (r PermissionDecisionApprovedForLocation) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1426,7 +1426,7 @@ func (r PermissionDecisionApprovedForSession) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1520,7 +1520,7 @@ func (r PermissionDecisionApproveForLocationApprovalCommands) MarshalJSON() ([]b
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1531,7 +1531,7 @@ func (r PermissionDecisionApproveForLocationApprovalCustomTool) MarshalJSON() ([
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1542,7 +1542,7 @@ func (r PermissionDecisionApproveForLocationApprovalExtensionManagement) Marshal
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1553,7 +1553,7 @@ func (r PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) M
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1564,7 +1564,7 @@ func (r PermissionDecisionApproveForLocationApprovalMCP) MarshalJSON() ([]byte, 
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1575,7 +1575,7 @@ func (r PermissionDecisionApproveForLocationApprovalMCPSampling) MarshalJSON() (
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1586,7 +1586,7 @@ func (r PermissionDecisionApproveForLocationApprovalMemory) MarshalJSON() ([]byt
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1597,7 +1597,7 @@ func (r PermissionDecisionApproveForLocationApprovalRead) MarshalJSON() ([]byte,
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1608,7 +1608,7 @@ func (r PermissionDecisionApproveForLocationApprovalWrite) MarshalJSON() ([]byte
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForLocationApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1639,7 +1639,7 @@ func (r PermissionDecisionApproveForLocation) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1733,7 +1733,7 @@ func (r PermissionDecisionApproveForSessionApprovalCommands) MarshalJSON() ([]by
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1744,7 +1744,7 @@ func (r PermissionDecisionApproveForSessionApprovalCustomTool) MarshalJSON() ([]
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1755,7 +1755,7 @@ func (r PermissionDecisionApproveForSessionApprovalExtensionManagement) MarshalJ
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1766,7 +1766,7 @@ func (r PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Ma
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1777,7 +1777,7 @@ func (r PermissionDecisionApproveForSessionApprovalMCP) MarshalJSON() ([]byte, e
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1788,7 +1788,7 @@ func (r PermissionDecisionApproveForSessionApprovalMCPSampling) MarshalJSON() ([
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1799,7 +1799,7 @@ func (r PermissionDecisionApproveForSessionApprovalMemory) MarshalJSON() ([]byte
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1810,7 +1810,7 @@ func (r PermissionDecisionApproveForSessionApprovalRead) MarshalJSON() ([]byte, 
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1821,7 +1821,7 @@ func (r PermissionDecisionApproveForSessionApprovalWrite) MarshalJSON() ([]byte,
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionApproveForSessionApprovalKind(),
 		alias: alias(r),
 	})
 }
@@ -1852,7 +1852,7 @@ func (r PermissionDecisionApproveForSession) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1863,7 +1863,7 @@ func (r PermissionDecisionApproveOnce) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1874,7 +1874,7 @@ func (r PermissionDecisionApprovePermanently) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1885,7 +1885,7 @@ func (r PermissionDecisionCancelled) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1896,7 +1896,7 @@ func (r PermissionDecisionDeniedByContentExclusionPolicy) MarshalJSON() ([]byte,
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1907,7 +1907,7 @@ func (r PermissionDecisionDeniedByPermissionRequestHook) MarshalJSON() ([]byte, 
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1918,7 +1918,7 @@ func (r PermissionDecisionDeniedByRules) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1929,7 +1929,7 @@ func (r PermissionDecisionDeniedInteractivelyByUser) MarshalJSON() ([]byte, erro
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1940,7 +1940,7 @@ func (r PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Marsha
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1951,7 +1951,7 @@ func (r PermissionDecisionReject) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -1962,7 +1962,7 @@ func (r PermissionDecisionUserNotAvailable) MarshalJSON() ([]byte, error) {
 		Kind PermissionDecisionKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionDecisionKind(),
 		alias: alias(r),
 	})
 }
@@ -2076,7 +2076,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsCommands) MarshalJSON() ([]byt
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2087,7 +2087,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsCustomTool) MarshalJSON() ([]b
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2098,7 +2098,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsExtensionManagement) MarshalJS
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2109,7 +2109,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Mar
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2120,7 +2120,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsMCP) MarshalJSON() ([]byte, er
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2131,7 +2131,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsMCPSampling) MarshalJSON() ([]
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2142,7 +2142,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsMemory) MarshalJSON() ([]byte,
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2153,7 +2153,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsRead) MarshalJSON() ([]byte, e
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2164,7 +2164,7 @@ func (r PermissionsLocationsAddToolApprovalDetailsWrite) MarshalJSON() ([]byte, 
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.permissionsLocationsAddToolApprovalDetailsKind(),
 		alias: alias(r),
 	})
 }
@@ -2260,7 +2260,7 @@ func (r ExtensionContextPushInput) MarshalJSON() ([]byte, error) {
 		Type PushAttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.pushAttachmentType(),
 		alias: alias(r),
 	})
 }
@@ -2271,7 +2271,7 @@ func (r PushAttachmentBlob) MarshalJSON() ([]byte, error) {
 		Type PushAttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.pushAttachmentType(),
 		alias: alias(r),
 	})
 }
@@ -2282,7 +2282,7 @@ func (r PushAttachmentDirectory) MarshalJSON() ([]byte, error) {
 		Type PushAttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.pushAttachmentType(),
 		alias: alias(r),
 	})
 }
@@ -2293,7 +2293,7 @@ func (r PushAttachmentFile) MarshalJSON() ([]byte, error) {
 		Type PushAttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.pushAttachmentType(),
 		alias: alias(r),
 	})
 }
@@ -2304,7 +2304,7 @@ func (r PushAttachmentGitHubReference) MarshalJSON() ([]byte, error) {
 		Type PushAttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.pushAttachmentType(),
 		alias: alias(r),
 	})
 }
@@ -2315,7 +2315,7 @@ func (r PushAttachmentSelection) MarshalJSON() ([]byte, error) {
 		Type PushAttachmentType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.pushAttachmentType(),
 		alias: alias(r),
 	})
 }
@@ -2379,7 +2379,7 @@ func (r RemoteControlStatusActive) MarshalJSON() ([]byte, error) {
 		State RemoteControlStatusState `json:"state"`
 		alias
 	}{
-		State: r.State(),
+		State: r.remoteControlStatusState(),
 		alias: alias(r),
 	})
 }
@@ -2390,7 +2390,7 @@ func (r RemoteControlStatusConnecting) MarshalJSON() ([]byte, error) {
 		State RemoteControlStatusState `json:"state"`
 		alias
 	}{
-		State: r.State(),
+		State: r.remoteControlStatusState(),
 		alias: alias(r),
 	})
 }
@@ -2401,7 +2401,7 @@ func (r RemoteControlStatusError) MarshalJSON() ([]byte, error) {
 		State RemoteControlStatusState `json:"state"`
 		alias
 	}{
-		State: r.State(),
+		State: r.remoteControlStatusState(),
 		alias: alias(r),
 	})
 }
@@ -2412,7 +2412,7 @@ func (r RemoteControlStatusOff) MarshalJSON() ([]byte, error) {
 		State RemoteControlStatusState `json:"state"`
 		alias
 	}{
-		State: r.State(),
+		State: r.remoteControlStatusState(),
 		alias: alias(r),
 	})
 }
@@ -2633,7 +2633,7 @@ func (r LocalSessionMetadataValue) MarshalJSON() ([]byte, error) {
 		IsRemote bool `json:"isRemote"`
 		alias
 	}{
-		IsRemote: r.IsRemote(),
+		IsRemote: r.sessionListEntryIsRemote(),
 		alias:    alias(r),
 	})
 }
@@ -2644,7 +2644,7 @@ func (r RemoteSessionMetadataValue) MarshalJSON() ([]byte, error) {
 		IsRemote bool `json:"isRemote"`
 		alias
 	}{
-		IsRemote: r.IsRemote(),
+		IsRemote: r.sessionListEntryIsRemote(),
 		alias:    alias(r),
 	})
 }
@@ -2859,7 +2859,7 @@ func (r SessionsOpenAttach) MarshalJSON() ([]byte, error) {
 		Kind SessionOpenParamsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.sessionOpenParamsKind(),
 		alias: alias(r),
 	})
 }
@@ -2870,7 +2870,7 @@ func (r SessionsOpenCloud) MarshalJSON() ([]byte, error) {
 		Kind SessionOpenParamsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.sessionOpenParamsKind(),
 		alias: alias(r),
 	})
 }
@@ -2881,7 +2881,7 @@ func (r SessionsOpenCreate) MarshalJSON() ([]byte, error) {
 		Kind SessionOpenParamsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.sessionOpenParamsKind(),
 		alias: alias(r),
 	})
 }
@@ -2892,7 +2892,7 @@ func (r SessionsOpenHandoff) MarshalJSON() ([]byte, error) {
 		Kind SessionOpenParamsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.sessionOpenParamsKind(),
 		alias: alias(r),
 	})
 }
@@ -2903,7 +2903,7 @@ func (r SessionsOpenRemote) MarshalJSON() ([]byte, error) {
 		Kind SessionOpenParamsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.sessionOpenParamsKind(),
 		alias: alias(r),
 	})
 }
@@ -2914,7 +2914,7 @@ func (r SessionsOpenResume) MarshalJSON() ([]byte, error) {
 		Kind SessionOpenParamsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.sessionOpenParamsKind(),
 		alias: alias(r),
 	})
 }
@@ -2925,7 +2925,7 @@ func (r SessionsOpenResumeLast) MarshalJSON() ([]byte, error) {
 		Kind SessionOpenParamsKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.sessionOpenParamsKind(),
 		alias: alias(r),
 	})
 }
@@ -3007,7 +3007,7 @@ func (r SlashCommandAgentPromptResult) MarshalJSON() ([]byte, error) {
 		Kind SlashCommandInvocationResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.slashCommandInvocationResultKind(),
 		alias: alias(r),
 	})
 }
@@ -3018,7 +3018,7 @@ func (r SlashCommandCompletedResult) MarshalJSON() ([]byte, error) {
 		Kind SlashCommandInvocationResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.slashCommandInvocationResultKind(),
 		alias: alias(r),
 	})
 }
@@ -3029,7 +3029,7 @@ func (r SlashCommandSelectSubcommandResult) MarshalJSON() ([]byte, error) {
 		Kind SlashCommandInvocationResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.slashCommandInvocationResultKind(),
 		alias: alias(r),
 	})
 }
@@ -3040,7 +3040,7 @@ func (r SlashCommandTextResult) MarshalJSON() ([]byte, error) {
 		Kind SlashCommandInvocationResultKind `json:"kind"`
 		alias
 	}{
-		Kind:  r.Kind(),
+		Kind:  r.slashCommandInvocationResultKind(),
 		alias: alias(r),
 	})
 }
@@ -3092,7 +3092,7 @@ func (r TaskAgentInfo) MarshalJSON() ([]byte, error) {
 		Type TaskInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.taskInfoType(),
 		alias: alias(r),
 	})
 }
@@ -3103,7 +3103,7 @@ func (r TaskShellInfo) MarshalJSON() ([]byte, error) {
 		Type TaskInfoType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.taskInfoType(),
 		alias: alias(r),
 	})
 }
@@ -3176,7 +3176,7 @@ func (r TaskAgentProgress) MarshalJSON() ([]byte, error) {
 		Type TaskProgressType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.taskProgressType(),
 		alias: alias(r),
 	})
 }
@@ -3187,7 +3187,7 @@ func (r TaskShellProgress) MarshalJSON() ([]byte, error) {
 		Type TaskProgressType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.taskProgressType(),
 		alias: alias(r),
 	})
 }
@@ -3474,7 +3474,7 @@ func (r UIElicitationArrayAnyOfField) MarshalJSON() ([]byte, error) {
 		Type UIElicitationSchemaPropertyType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.uiElicitationSchemaPropertyType(),
 		alias: alias(r),
 	})
 }
@@ -3485,7 +3485,7 @@ func (r UIElicitationArrayEnumField) MarshalJSON() ([]byte, error) {
 		Type UIElicitationSchemaPropertyType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.uiElicitationSchemaPropertyType(),
 		alias: alias(r),
 	})
 }
@@ -3496,7 +3496,7 @@ func (r UIElicitationSchemaPropertyBoolean) MarshalJSON() ([]byte, error) {
 		Type UIElicitationSchemaPropertyType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.uiElicitationSchemaPropertyType(),
 		alias: alias(r),
 	})
 }
@@ -3507,7 +3507,7 @@ func (r UIElicitationSchemaPropertyNumber) MarshalJSON() ([]byte, error) {
 		Type UIElicitationSchemaPropertyType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.uiElicitationSchemaPropertyType(),
 		alias: alias(r),
 	})
 }
@@ -3518,7 +3518,7 @@ func (r UIElicitationSchemaPropertyString) MarshalJSON() ([]byte, error) {
 		Type UIElicitationSchemaPropertyType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.uiElicitationSchemaPropertyType(),
 		alias: alias(r),
 	})
 }
@@ -3529,7 +3529,7 @@ func (r UIElicitationStringEnumField) MarshalJSON() ([]byte, error) {
 		Type UIElicitationSchemaPropertyType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.uiElicitationSchemaPropertyType(),
 		alias: alias(r),
 	})
 }
@@ -3540,7 +3540,7 @@ func (r UIElicitationStringOneOfField) MarshalJSON() ([]byte, error) {
 		Type UIElicitationSchemaPropertyType `json:"type"`
 		alias
 	}{
-		Type:  r.Type(),
+		Type:  r.uiElicitationSchemaPropertyType(),
 		alias: alias(r),
 	})
 }

@@ -15217,13 +15217,13 @@ class MCPConfigUpdateRequest:
 class MCPRestartServerRequest:
     """Server name and opaque configuration for an individual MCP server restart."""
 
+    server_name: str
+    """Name of the MCP server to restart"""
+
     config: Any = None
     """Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime
     shape supplied only by in-process CLI callers.
     """
-    server_name: str
-    """Name of the MCP server to restart"""
-
     @staticmethod
     def from_dict(obj: Any) -> 'MCPRestartServerRequest':
         assert isinstance(obj, dict)
@@ -15243,13 +15243,13 @@ class MCPRestartServerRequest:
 class MCPStartServerRequest:
     """Server name and opaque configuration for an individual MCP server start."""
 
+    server_name: str
+    """Name of the MCP server to start"""
+
     config: Any = None
     """Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime
     shape supplied only by in-process CLI callers.
     """
-    server_name: str
-    """Name of the MCP server to start"""
-
     @staticmethod
     def from_dict(obj: Any) -> 'MCPStartServerRequest':
         assert isinstance(obj, dict)
@@ -18560,6 +18560,9 @@ class MCPOauthRespondRequest:
 class MCPRegisterExternalClientRequest:
     """Registration parameters for an external MCP client."""
 
+    server_name: str
+    """Logical server name for the external client"""
+
     client: Any = None
     """In-process MCP Client instance. Marked internal: cannot be serialized across the JSON-RPC
     boundary.
@@ -18568,9 +18571,6 @@ class MCPRegisterExternalClientRequest:
     """In-process server config (MCPServerConfig) paired with the in-process client/transport.
     Marked internal alongside its companions.
     """
-    server_name: str
-    """Logical server name for the external client"""
-
     transport: Any = None
     """In-process MCP Transport instance. Marked internal: cannot be serialized across the
     JSON-RPC boundary.

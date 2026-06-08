@@ -1914,7 +1914,7 @@ type MCPServersLoadedServer struct {
 // Derived user-facing permission prompt details for UI consumers
 type PermissionPromptRequest interface {
 	permissionPromptRequest()
-	Kind() PermissionPromptRequestKind
+	permissionPromptRequestKind() PermissionPromptRequestKind
 }
 
 type RawPermissionPromptRequest struct {
@@ -1923,7 +1923,7 @@ type RawPermissionPromptRequest struct {
 }
 
 func (RawPermissionPromptRequest) permissionPromptRequest() {}
-func (r RawPermissionPromptRequest) Kind() PermissionPromptRequestKind {
+func (r RawPermissionPromptRequest) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return r.Discriminator
 }
 
@@ -1944,7 +1944,7 @@ type PermissionPromptRequestCommands struct {
 }
 
 func (PermissionPromptRequestCommands) permissionPromptRequest() {}
-func (PermissionPromptRequestCommands) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestCommands) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindCommands
 }
 
@@ -1961,7 +1961,7 @@ type PermissionPromptRequestCustomTool struct {
 }
 
 func (PermissionPromptRequestCustomTool) permissionPromptRequest() {}
-func (PermissionPromptRequestCustomTool) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestCustomTool) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindCustomTool
 }
 
@@ -1976,7 +1976,7 @@ type PermissionPromptRequestExtensionManagement struct {
 }
 
 func (PermissionPromptRequestExtensionManagement) permissionPromptRequest() {}
-func (PermissionPromptRequestExtensionManagement) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestExtensionManagement) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindExtensionManagement
 }
 
@@ -1991,7 +1991,7 @@ type PermissionPromptRequestExtensionPermissionAccess struct {
 }
 
 func (PermissionPromptRequestExtensionPermissionAccess) permissionPromptRequest() {}
-func (PermissionPromptRequestExtensionPermissionAccess) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestExtensionPermissionAccess) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindExtensionPermissionAccess
 }
 
@@ -2008,7 +2008,7 @@ type PermissionPromptRequestHook struct {
 }
 
 func (PermissionPromptRequestHook) permissionPromptRequest() {}
-func (PermissionPromptRequestHook) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestHook) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindHook
 }
 
@@ -2027,7 +2027,7 @@ type PermissionPromptRequestMCP struct {
 }
 
 func (PermissionPromptRequestMCP) permissionPromptRequest() {}
-func (PermissionPromptRequestMCP) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestMCP) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindMCP
 }
 
@@ -2050,7 +2050,7 @@ type PermissionPromptRequestMemory struct {
 }
 
 func (PermissionPromptRequestMemory) permissionPromptRequest() {}
-func (PermissionPromptRequestMemory) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestMemory) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindMemory
 }
 
@@ -2065,7 +2065,7 @@ type PermissionPromptRequestPath struct {
 }
 
 func (PermissionPromptRequestPath) permissionPromptRequest() {}
-func (PermissionPromptRequestPath) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestPath) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindPath
 }
 
@@ -2080,7 +2080,7 @@ type PermissionPromptRequestRead struct {
 }
 
 func (PermissionPromptRequestRead) permissionPromptRequest() {}
-func (PermissionPromptRequestRead) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestRead) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindRead
 }
 
@@ -2095,7 +2095,7 @@ type PermissionPromptRequestURL struct {
 }
 
 func (PermissionPromptRequestURL) permissionPromptRequest() {}
-func (PermissionPromptRequestURL) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestURL) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindURL
 }
 
@@ -2116,14 +2116,14 @@ type PermissionPromptRequestWrite struct {
 }
 
 func (PermissionPromptRequestWrite) permissionPromptRequest() {}
-func (PermissionPromptRequestWrite) Kind() PermissionPromptRequestKind {
+func (PermissionPromptRequestWrite) permissionPromptRequestKind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindWrite
 }
 
 // Details of the permission being requested
 type PermissionRequest interface {
 	permissionRequest()
-	Kind() PermissionRequestKind
+	permissionRequestKind() PermissionRequestKind
 }
 
 type RawPermissionRequest struct {
@@ -2132,7 +2132,7 @@ type RawPermissionRequest struct {
 }
 
 func (RawPermissionRequest) permissionRequest() {}
-func (r RawPermissionRequest) Kind() PermissionRequestKind {
+func (r RawPermissionRequest) permissionRequestKind() PermissionRequestKind {
 	return r.Discriminator
 }
 
@@ -2149,7 +2149,7 @@ type PermissionRequestCustomTool struct {
 }
 
 func (PermissionRequestCustomTool) permissionRequest() {}
-func (PermissionRequestCustomTool) Kind() PermissionRequestKind {
+func (PermissionRequestCustomTool) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindCustomTool
 }
 
@@ -2164,7 +2164,7 @@ type PermissionRequestExtensionManagement struct {
 }
 
 func (PermissionRequestExtensionManagement) permissionRequest() {}
-func (PermissionRequestExtensionManagement) Kind() PermissionRequestKind {
+func (PermissionRequestExtensionManagement) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindExtensionManagement
 }
 
@@ -2179,7 +2179,7 @@ type PermissionRequestExtensionPermissionAccess struct {
 }
 
 func (PermissionRequestExtensionPermissionAccess) permissionRequest() {}
-func (PermissionRequestExtensionPermissionAccess) Kind() PermissionRequestKind {
+func (PermissionRequestExtensionPermissionAccess) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindExtensionPermissionAccess
 }
 
@@ -2196,7 +2196,7 @@ type PermissionRequestHook struct {
 }
 
 func (PermissionRequestHook) permissionRequest() {}
-func (PermissionRequestHook) Kind() PermissionRequestKind {
+func (PermissionRequestHook) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindHook
 }
 
@@ -2217,7 +2217,7 @@ type PermissionRequestMCP struct {
 }
 
 func (PermissionRequestMCP) permissionRequest() {}
-func (PermissionRequestMCP) Kind() PermissionRequestKind {
+func (PermissionRequestMCP) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindMCP
 }
 
@@ -2240,7 +2240,7 @@ type PermissionRequestMemory struct {
 }
 
 func (PermissionRequestMemory) permissionRequest() {}
-func (PermissionRequestMemory) Kind() PermissionRequestKind {
+func (PermissionRequestMemory) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindMemory
 }
 
@@ -2255,7 +2255,7 @@ type PermissionRequestRead struct {
 }
 
 func (PermissionRequestRead) permissionRequest() {}
-func (PermissionRequestRead) Kind() PermissionRequestKind {
+func (PermissionRequestRead) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindRead
 }
 
@@ -2282,7 +2282,7 @@ type PermissionRequestShell struct {
 }
 
 func (PermissionRequestShell) permissionRequest() {}
-func (PermissionRequestShell) Kind() PermissionRequestKind {
+func (PermissionRequestShell) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindShell
 }
 
@@ -2297,7 +2297,7 @@ type PermissionRequestURL struct {
 }
 
 func (PermissionRequestURL) permissionRequest() {}
-func (PermissionRequestURL) Kind() PermissionRequestKind {
+func (PermissionRequestURL) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindURL
 }
 
@@ -2318,7 +2318,7 @@ type PermissionRequestWrite struct {
 }
 
 func (PermissionRequestWrite) permissionRequest() {}
-func (PermissionRequestWrite) Kind() PermissionRequestKind {
+func (PermissionRequestWrite) permissionRequestKind() PermissionRequestKind {
 	return PermissionRequestKindWrite
 }
 
@@ -2339,7 +2339,7 @@ type PermissionRequestShellPossibleURL struct {
 // The result of the permission request
 type PermissionResult interface {
 	permissionResult()
-	Kind() PermissionResultKind
+	permissionResultKind() PermissionResultKind
 }
 
 type RawPermissionResult struct {
@@ -2348,7 +2348,7 @@ type RawPermissionResult struct {
 }
 
 func (RawPermissionResult) permissionResult() {}
-func (r RawPermissionResult) Kind() PermissionResultKind {
+func (r RawPermissionResult) permissionResultKind() PermissionResultKind {
 	return r.Discriminator
 }
 
@@ -2357,7 +2357,7 @@ type PermissionApproved struct {
 }
 
 func (PermissionApproved) permissionResult() {}
-func (PermissionApproved) Kind() PermissionResultKind {
+func (PermissionApproved) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindApproved
 }
 
@@ -2370,7 +2370,7 @@ type PermissionApprovedForLocation struct {
 }
 
 func (PermissionApprovedForLocation) permissionResult() {}
-func (PermissionApprovedForLocation) Kind() PermissionResultKind {
+func (PermissionApprovedForLocation) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindApprovedForLocation
 }
 
@@ -2381,7 +2381,7 @@ type PermissionApprovedForSession struct {
 }
 
 func (PermissionApprovedForSession) permissionResult() {}
-func (PermissionApprovedForSession) Kind() PermissionResultKind {
+func (PermissionApprovedForSession) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindApprovedForSession
 }
 
@@ -2392,7 +2392,7 @@ type PermissionCancelled struct {
 }
 
 func (PermissionCancelled) permissionResult() {}
-func (PermissionCancelled) Kind() PermissionResultKind {
+func (PermissionCancelled) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindCancelled
 }
 
@@ -2405,7 +2405,7 @@ type PermissionDeniedByContentExclusionPolicy struct {
 }
 
 func (PermissionDeniedByContentExclusionPolicy) permissionResult() {}
-func (PermissionDeniedByContentExclusionPolicy) Kind() PermissionResultKind {
+func (PermissionDeniedByContentExclusionPolicy) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindDeniedByContentExclusionPolicy
 }
 
@@ -2418,7 +2418,7 @@ type PermissionDeniedByPermissionRequestHook struct {
 }
 
 func (PermissionDeniedByPermissionRequestHook) permissionResult() {}
-func (PermissionDeniedByPermissionRequestHook) Kind() PermissionResultKind {
+func (PermissionDeniedByPermissionRequestHook) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindDeniedByPermissionRequestHook
 }
 
@@ -2429,7 +2429,7 @@ type PermissionDeniedByRules struct {
 }
 
 func (PermissionDeniedByRules) permissionResult() {}
-func (PermissionDeniedByRules) Kind() PermissionResultKind {
+func (PermissionDeniedByRules) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindDeniedByRules
 }
 
@@ -2442,7 +2442,7 @@ type PermissionDeniedInteractivelyByUser struct {
 }
 
 func (PermissionDeniedInteractivelyByUser) permissionResult() {}
-func (PermissionDeniedInteractivelyByUser) Kind() PermissionResultKind {
+func (PermissionDeniedInteractivelyByUser) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindDeniedInteractivelyByUser
 }
 
@@ -2451,7 +2451,7 @@ type PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser struct {
 }
 
 func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) permissionResult() {}
-func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() PermissionResultKind {
+func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) permissionResultKind() PermissionResultKind {
 	return PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
@@ -2541,7 +2541,7 @@ type SystemMessageMetadata struct {
 // Structured metadata identifying what triggered this notification
 type SystemNotification interface {
 	systemNotification()
-	Type() SystemNotificationType
+	systemNotificationType() SystemNotificationType
 }
 
 type RawSystemNotification struct {
@@ -2550,7 +2550,7 @@ type RawSystemNotification struct {
 }
 
 func (RawSystemNotification) systemNotification() {}
-func (r RawSystemNotification) Type() SystemNotificationType {
+func (r RawSystemNotification) systemNotificationType() SystemNotificationType {
 	return r.Discriminator
 }
 
@@ -2569,7 +2569,7 @@ type SystemNotificationAgentCompleted struct {
 }
 
 func (SystemNotificationAgentCompleted) systemNotification() {}
-func (SystemNotificationAgentCompleted) Type() SystemNotificationType {
+func (SystemNotificationAgentCompleted) systemNotificationType() SystemNotificationType {
 	return SystemNotificationTypeAgentCompleted
 }
 
@@ -2584,7 +2584,7 @@ type SystemNotificationAgentIdle struct {
 }
 
 func (SystemNotificationAgentIdle) systemNotification() {}
-func (SystemNotificationAgentIdle) Type() SystemNotificationType {
+func (SystemNotificationAgentIdle) systemNotificationType() SystemNotificationType {
 	return SystemNotificationTypeAgentIdle
 }
 
@@ -2601,7 +2601,7 @@ type SystemNotificationInstructionDiscovered struct {
 }
 
 func (SystemNotificationInstructionDiscovered) systemNotification() {}
-func (SystemNotificationInstructionDiscovered) Type() SystemNotificationType {
+func (SystemNotificationInstructionDiscovered) systemNotificationType() SystemNotificationType {
 	return SystemNotificationTypeInstructionDiscovered
 }
 
@@ -2618,7 +2618,7 @@ type SystemNotificationNewInboxMessage struct {
 }
 
 func (SystemNotificationNewInboxMessage) systemNotification() {}
-func (SystemNotificationNewInboxMessage) Type() SystemNotificationType {
+func (SystemNotificationNewInboxMessage) systemNotificationType() SystemNotificationType {
 	return SystemNotificationTypeNewInboxMessage
 }
 
@@ -2633,7 +2633,7 @@ type SystemNotificationShellCompleted struct {
 }
 
 func (SystemNotificationShellCompleted) systemNotification() {}
-func (SystemNotificationShellCompleted) Type() SystemNotificationType {
+func (SystemNotificationShellCompleted) systemNotificationType() SystemNotificationType {
 	return SystemNotificationTypeShellCompleted
 }
 
@@ -2646,14 +2646,14 @@ type SystemNotificationShellDetachedCompleted struct {
 }
 
 func (SystemNotificationShellDetachedCompleted) systemNotification() {}
-func (SystemNotificationShellDetachedCompleted) Type() SystemNotificationType {
+func (SystemNotificationShellDetachedCompleted) systemNotificationType() SystemNotificationType {
 	return SystemNotificationTypeShellDetachedCompleted
 }
 
 // A content block within a tool result, which may be text, terminal output, image, audio, or a resource
 type ToolExecutionCompleteContent interface {
 	toolExecutionCompleteContent()
-	Type() ToolExecutionCompleteContentType
+	toolExecutionCompleteContentType() ToolExecutionCompleteContentType
 }
 
 type RawToolExecutionCompleteContent struct {
@@ -2662,7 +2662,7 @@ type RawToolExecutionCompleteContent struct {
 }
 
 func (RawToolExecutionCompleteContent) toolExecutionCompleteContent() {}
-func (r RawToolExecutionCompleteContent) Type() ToolExecutionCompleteContentType {
+func (r RawToolExecutionCompleteContent) toolExecutionCompleteContentType() ToolExecutionCompleteContentType {
 	return r.Discriminator
 }
 
@@ -2675,7 +2675,7 @@ type ToolExecutionCompleteContentAudio struct {
 }
 
 func (ToolExecutionCompleteContentAudio) toolExecutionCompleteContent() {}
-func (ToolExecutionCompleteContentAudio) Type() ToolExecutionCompleteContentType {
+func (ToolExecutionCompleteContentAudio) toolExecutionCompleteContentType() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeAudio
 }
 
@@ -2688,7 +2688,7 @@ type ToolExecutionCompleteContentImage struct {
 }
 
 func (ToolExecutionCompleteContentImage) toolExecutionCompleteContent() {}
-func (ToolExecutionCompleteContentImage) Type() ToolExecutionCompleteContentType {
+func (ToolExecutionCompleteContentImage) toolExecutionCompleteContentType() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeImage
 }
 
@@ -2699,7 +2699,7 @@ type ToolExecutionCompleteContentResource struct {
 }
 
 func (ToolExecutionCompleteContentResource) toolExecutionCompleteContent() {}
-func (ToolExecutionCompleteContentResource) Type() ToolExecutionCompleteContentType {
+func (ToolExecutionCompleteContentResource) toolExecutionCompleteContentType() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeResource
 }
 
@@ -2722,7 +2722,7 @@ type ToolExecutionCompleteContentResourceLink struct {
 }
 
 func (ToolExecutionCompleteContentResourceLink) toolExecutionCompleteContent() {}
-func (ToolExecutionCompleteContentResourceLink) Type() ToolExecutionCompleteContentType {
+func (ToolExecutionCompleteContentResourceLink) toolExecutionCompleteContentType() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeResourceLink
 }
 
@@ -2737,7 +2737,7 @@ type ToolExecutionCompleteContentTerminal struct {
 }
 
 func (ToolExecutionCompleteContentTerminal) toolExecutionCompleteContent() {}
-func (ToolExecutionCompleteContentTerminal) Type() ToolExecutionCompleteContentType {
+func (ToolExecutionCompleteContentTerminal) toolExecutionCompleteContentType() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeTerminal
 }
 
@@ -2748,7 +2748,7 @@ type ToolExecutionCompleteContentText struct {
 }
 
 func (ToolExecutionCompleteContentText) toolExecutionCompleteContent() {}
-func (ToolExecutionCompleteContentText) Type() ToolExecutionCompleteContentType {
+func (ToolExecutionCompleteContentText) toolExecutionCompleteContentType() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeText
 }
 

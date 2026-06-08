@@ -1,11 +1,10 @@
 use github_copilot_sdk::Client;
 use github_copilot_sdk::rpc::{
-    ConnectRemoteSessionParams, McpDiscoverRequest, NameSetRequest, PingRequest,
-    SecretsAddFilterValuesRequest, SessionContext, SessionFsSetProviderConventions,
-    SessionFsSetProviderRequest, SessionListFilter, SessionMetadata, SessionsBulkDeleteRequest,
+    ConnectRemoteSessionParams, LocalSessionMetadataValue, McpDiscoverRequest, NameSetRequest,
+    PingRequest, SecretsAddFilterValuesRequest, SessionContext, SessionFsSetProviderConventions,
+    SessionFsSetProviderRequest, SessionListFilter, SessionsBulkDeleteRequest,
     SessionsCheckInUseRequest, SessionsCloseRequest, SessionsEnrichMetadataRequest,
-    SessionsFindByPrefixRequest, SessionsFindByTaskIDRequest, SessionsGetEventFilePathRequest,
-    SessionsGetLastForContextRequest, SessionsGetPersistedRemoteSteerableRequest,
+    SessionsFindByPrefixRequest, SessionsFindByTaskIDRequest, SessionsGetLastForContextRequest,
     SessionsListRequest, SessionsLoadDeferredRepoHooksRequest, SessionsPruneOldRequest,
     SessionsReleaseLockRequest, SessionsReloadPluginHooksRequest, SessionsSaveRequest,
     SessionsSetAdditionalPluginsRequest, SkillsConfigSetDisabledSkillsRequest,
@@ -315,11 +314,12 @@ async fn should_list_find_and_inspect_persisted_session_state() {
                 session.disconnect().await.expect("disconnect session");
 
                 let list = client.rpc().sessions().list().await.expect("list sessions");
-                assert!(
-                    list.sessions
-                        .iter()
-                        .all(|metadata| !metadata.session_id.as_str().is_empty())
-                );
+                assert!(list.sessions.iter().all(|metadata| {
+                    metadata
+                        .get("sessionId")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|id| !id.is_empty())
+                }));
                 let filtered = client
                     .rpc()
                     .sessions()
@@ -332,14 +332,17 @@ async fn should_list_find_and_inspect_persisted_session_state() {
                         }),
                         include_detached: None,
                         metadata_limit: Some(10),
+                        source: None,
+                        throw_on_error: None,
                     })
                     .await
                     .expect("filtered sessions");
                 assert!(filtered.sessions.iter().all(|metadata| {
                     metadata
-                        .context
-                        .as_ref()
-                        .is_none_or(|context| context.cwd == ctx.work_dir().display().to_string())
+                        .get("context")
+                        .and_then(|context| context.get("cwd"))
+                        .and_then(serde_json::Value::as_str)
+                        .is_none_or(|cwd| cwd == ctx.work_dir().display().to_string())
                 }));
                 assert!(
                     client
@@ -391,20 +394,6 @@ async fn should_list_find_and_inspect_persisted_session_state() {
                     .await
                     .expect("check in use");
                 assert!(!in_use.in_use.iter().any(|id| id == "missing-session-id"));
-                assert!(
-                    client
-                        .rpc()
-                        .sessions()
-                        .get_persisted_remote_steerable(
-                            SessionsGetPersistedRemoteSteerableRequest {
-                                session_id: session_id.clone(),
-                            },
-                        )
-                        .await
-                        .expect("persisted remote steerable")
-                        .remote_steerable
-                        .is_none()
-                );
 
                 client.stop().await.expect("stop client");
             })
@@ -427,7 +416,7 @@ async fn should_enrich_basic_session_metadata() {
                     .await
                     .expect("create session");
                 let session_id = session.id().clone();
-                let metadata = SessionMetadata {
+                let metadata = LocalSessionMetadataValue {
                     client_name: None,
                     context: Some(SessionContext {
                         branch: None,
@@ -634,16 +623,6 @@ async fn should_save_and_get_event_file_path() {
                 })
                 .await
                 .expect("save session");
-            let path = client
-                .rpc()
-                .sessions()
-                .get_event_file_path(SessionsGetEventFilePathRequest {
-                    session_id: session.id().clone(),
-                })
-                .await
-                .expect("event file path")
-                .file_path;
-            assert!(path.ends_with("events.jsonl"));
 
             session.disconnect().await.expect("disconnect session");
             client.stop().await.expect("stop client");

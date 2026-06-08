@@ -15,6 +15,10 @@ func (PermissionDecisionNoResult) Kind() PermissionDecisionKind {
 	return PermissionDecisionKind("no-result")
 }
 
+func (PermissionDecisionNoResult) permissionDecisionKind() PermissionDecisionKind {
+	return PermissionDecisionKind("no-result")
+}
+
 // MarshalJSON emits {"kind":"no-result"} for serialization symmetry with
 // the other PermissionDecision variants. The SDK normally suppresses this
 // value before it reaches the wire, but a stable representation is useful

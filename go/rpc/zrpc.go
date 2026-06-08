@@ -199,7 +199,7 @@ type AgentRegistrySpawnRequest struct {
 // be removed.
 type AgentRegistrySpawnResult interface {
 	agentRegistrySpawnResult()
-	Kind() AgentRegistrySpawnResultKind
+	agentRegistrySpawnResultKind() AgentRegistrySpawnResultKind
 }
 
 type RawAgentRegistrySpawnResultData struct {
@@ -208,7 +208,7 @@ type RawAgentRegistrySpawnResultData struct {
 }
 
 func (RawAgentRegistrySpawnResultData) agentRegistrySpawnResult() {}
-func (r RawAgentRegistrySpawnResultData) Kind() AgentRegistrySpawnResultKind {
+func (r RawAgentRegistrySpawnResultData) agentRegistrySpawnResultKind() AgentRegistrySpawnResultKind {
 	return r.Discriminator
 }
 
@@ -223,7 +223,7 @@ type AgentRegistrySpawnError struct {
 }
 
 func (AgentRegistrySpawnError) agentRegistrySpawnResult() {}
-func (AgentRegistrySpawnError) Kind() AgentRegistrySpawnResultKind {
+func (AgentRegistrySpawnError) agentRegistrySpawnResultKind() AgentRegistrySpawnResultKind {
 	return AgentRegistrySpawnResultKindSpawnError
 }
 
@@ -239,7 +239,7 @@ type AgentRegistrySpawnRegistryTimeout struct {
 }
 
 func (AgentRegistrySpawnRegistryTimeout) agentRegistrySpawnResult() {}
-func (AgentRegistrySpawnRegistryTimeout) Kind() AgentRegistrySpawnResultKind {
+func (AgentRegistrySpawnRegistryTimeout) agentRegistrySpawnResultKind() AgentRegistrySpawnResultKind {
 	return AgentRegistrySpawnResultKindRegistryTimeout
 }
 
@@ -263,7 +263,7 @@ type AgentRegistrySpawnSpawned struct {
 }
 
 func (AgentRegistrySpawnSpawned) agentRegistrySpawnResult() {}
-func (AgentRegistrySpawnSpawned) Kind() AgentRegistrySpawnResultKind {
+func (AgentRegistrySpawnSpawned) agentRegistrySpawnResultKind() AgentRegistrySpawnResultKind {
 	return AgentRegistrySpawnResultKindSpawned
 }
 
@@ -282,7 +282,7 @@ type AgentRegistrySpawnValidationError struct {
 }
 
 func (AgentRegistrySpawnValidationError) agentRegistrySpawnResult() {}
-func (AgentRegistrySpawnValidationError) Kind() AgentRegistrySpawnResultKind {
+func (AgentRegistrySpawnValidationError) agentRegistrySpawnResultKind() AgentRegistrySpawnResultKind {
 	return AgentRegistrySpawnResultKindValidationError
 }
 
@@ -333,7 +333,7 @@ type AllowAllPermissionState struct {
 // Experimental: Attachment is part of an experimental API and may change or be removed.
 type Attachment interface {
 	attachment()
-	Type() AttachmentType
+	attachmentType() AttachmentType
 }
 
 type RawAttachmentData struct {
@@ -342,7 +342,7 @@ type RawAttachmentData struct {
 }
 
 func (RawAttachmentData) attachment() {}
-func (r RawAttachmentData) Type() AttachmentType {
+func (r RawAttachmentData) attachmentType() AttachmentType {
 	return r.Discriminator
 }
 
@@ -358,7 +358,7 @@ type AttachmentBlob struct {
 }
 
 func (AttachmentBlob) attachment() {}
-func (AttachmentBlob) Type() AttachmentType {
+func (AttachmentBlob) attachmentType() AttachmentType {
 	return AttachmentTypeBlob
 }
 
@@ -373,7 +373,7 @@ type AttachmentDirectory struct {
 }
 
 func (AttachmentDirectory) attachment() {}
-func (AttachmentDirectory) Type() AttachmentType {
+func (AttachmentDirectory) attachmentType() AttachmentType {
 	return AttachmentTypeDirectory
 }
 
@@ -400,7 +400,7 @@ type AttachmentExtensionContext struct {
 }
 
 func (AttachmentExtensionContext) attachment() {}
-func (AttachmentExtensionContext) Type() AttachmentType {
+func (AttachmentExtensionContext) attachmentType() AttachmentType {
 	return AttachmentTypeExtensionContext
 }
 
@@ -416,7 +416,7 @@ type AttachmentFile struct {
 }
 
 func (AttachmentFile) attachment() {}
-func (AttachmentFile) Type() AttachmentType {
+func (AttachmentFile) attachmentType() AttachmentType {
 	return AttachmentTypeFile
 }
 
@@ -437,7 +437,7 @@ type AttachmentGitHubReference struct {
 }
 
 func (AttachmentGitHubReference) attachment() {}
-func (AttachmentGitHubReference) Type() AttachmentType {
+func (AttachmentGitHubReference) attachmentType() AttachmentType {
 	return AttachmentTypeGitHubReference
 }
 
@@ -456,7 +456,7 @@ type AttachmentSelection struct {
 }
 
 func (AttachmentSelection) attachment() {}
-func (AttachmentSelection) Type() AttachmentType {
+func (AttachmentSelection) attachmentType() AttachmentType {
 	return AttachmentTypeSelection
 }
 
@@ -504,7 +504,7 @@ type AttachmentSelectionDetailsStart struct {
 // Experimental: AuthInfo is part of an experimental API and may change or be removed.
 type AuthInfo interface {
 	authInfo()
-	Type() AuthInfoType
+	authInfoType() AuthInfoType
 }
 
 type RawAuthInfoData struct {
@@ -513,7 +513,7 @@ type RawAuthInfoData struct {
 }
 
 func (RawAuthInfoData) authInfo() {}
-func (r RawAuthInfoData) Type() AuthInfoType {
+func (r RawAuthInfoData) authInfoType() AuthInfoType {
 	return r.Discriminator
 }
 
@@ -531,7 +531,7 @@ type APIKeyAuthInfo struct {
 }
 
 func (APIKeyAuthInfo) authInfo() {}
-func (APIKeyAuthInfo) Type() AuthInfoType {
+func (APIKeyAuthInfo) authInfoType() AuthInfoType {
 	return AuthInfoTypeAPIKey
 }
 
@@ -548,7 +548,7 @@ type CopilotAPITokenAuthInfo struct {
 }
 
 func (CopilotAPITokenAuthInfo) authInfo() {}
-func (CopilotAPITokenAuthInfo) Type() AuthInfoType {
+func (CopilotAPITokenAuthInfo) authInfoType() AuthInfoType {
 	return AuthInfoTypeCopilotAPIToken
 }
 
@@ -571,7 +571,7 @@ type EnvAuthInfo struct {
 }
 
 func (EnvAuthInfo) authInfo() {}
-func (EnvAuthInfo) Type() AuthInfoType {
+func (EnvAuthInfo) authInfoType() AuthInfoType {
 	return AuthInfoTypeEnv
 }
 
@@ -591,7 +591,7 @@ type GhCLIAuthInfo struct {
 }
 
 func (GhCLIAuthInfo) authInfo() {}
-func (GhCLIAuthInfo) Type() AuthInfoType {
+func (GhCLIAuthInfo) authInfoType() AuthInfoType {
 	return AuthInfoTypeGhCLI
 }
 
@@ -609,7 +609,7 @@ type HMACAuthInfo struct {
 }
 
 func (HMACAuthInfo) authInfo() {}
-func (HMACAuthInfo) Type() AuthInfoType {
+func (HMACAuthInfo) authInfoType() AuthInfoType {
 	return AuthInfoTypeHMAC
 }
 
@@ -627,7 +627,7 @@ type TokenAuthInfo struct {
 }
 
 func (TokenAuthInfo) authInfo() {}
-func (TokenAuthInfo) Type() AuthInfoType {
+func (TokenAuthInfo) authInfoType() AuthInfoType {
 	return AuthInfoTypeToken
 }
 
@@ -645,7 +645,7 @@ type UserAuthInfo struct {
 }
 
 func (UserAuthInfo) authInfo() {}
-func (UserAuthInfo) Type() AuthInfoType {
+func (UserAuthInfo) authInfoType() AuthInfoType {
 	return AuthInfoTypeUser
 }
 
@@ -1370,7 +1370,7 @@ type ExternalToolTextResultForLlmBinaryResultsForLlm struct {
 // change or be removed.
 type ExternalToolTextResultForLlmContent interface {
 	externalToolTextResultForLlmContent()
-	Type() ExternalToolTextResultForLlmContentType
+	externalToolTextResultForLlmContentType() ExternalToolTextResultForLlmContentType
 }
 
 type RawExternalToolTextResultForLlmContentData struct {
@@ -1379,7 +1379,7 @@ type RawExternalToolTextResultForLlmContentData struct {
 }
 
 func (RawExternalToolTextResultForLlmContentData) externalToolTextResultForLlmContent() {}
-func (r RawExternalToolTextResultForLlmContentData) Type() ExternalToolTextResultForLlmContentType {
+func (r RawExternalToolTextResultForLlmContentData) externalToolTextResultForLlmContentType() ExternalToolTextResultForLlmContentType {
 	return r.Discriminator
 }
 
@@ -1394,7 +1394,7 @@ type ExternalToolTextResultForLlmContentAudio struct {
 }
 
 func (ExternalToolTextResultForLlmContentAudio) externalToolTextResultForLlmContent() {}
-func (ExternalToolTextResultForLlmContentAudio) Type() ExternalToolTextResultForLlmContentType {
+func (ExternalToolTextResultForLlmContentAudio) externalToolTextResultForLlmContentType() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeAudio
 }
 
@@ -1409,7 +1409,7 @@ type ExternalToolTextResultForLlmContentImage struct {
 }
 
 func (ExternalToolTextResultForLlmContentImage) externalToolTextResultForLlmContent() {}
-func (ExternalToolTextResultForLlmContentImage) Type() ExternalToolTextResultForLlmContentType {
+func (ExternalToolTextResultForLlmContentImage) externalToolTextResultForLlmContentType() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeImage
 }
 
@@ -1422,7 +1422,7 @@ type ExternalToolTextResultForLlmContentResource struct {
 }
 
 func (ExternalToolTextResultForLlmContentResource) externalToolTextResultForLlmContent() {}
-func (ExternalToolTextResultForLlmContentResource) Type() ExternalToolTextResultForLlmContentType {
+func (ExternalToolTextResultForLlmContentResource) externalToolTextResultForLlmContentType() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeResource
 }
 
@@ -1447,7 +1447,7 @@ type ExternalToolTextResultForLlmContentResourceLink struct {
 }
 
 func (ExternalToolTextResultForLlmContentResourceLink) externalToolTextResultForLlmContent() {}
-func (ExternalToolTextResultForLlmContentResourceLink) Type() ExternalToolTextResultForLlmContentType {
+func (ExternalToolTextResultForLlmContentResourceLink) externalToolTextResultForLlmContentType() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeResourceLink
 }
 
@@ -1464,7 +1464,7 @@ type ExternalToolTextResultForLlmContentTerminal struct {
 }
 
 func (ExternalToolTextResultForLlmContentTerminal) externalToolTextResultForLlmContent() {}
-func (ExternalToolTextResultForLlmContentTerminal) Type() ExternalToolTextResultForLlmContentType {
+func (ExternalToolTextResultForLlmContentTerminal) externalToolTextResultForLlmContentType() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeTerminal
 }
 
@@ -1477,7 +1477,7 @@ type ExternalToolTextResultForLlmContentText struct {
 }
 
 func (ExternalToolTextResultForLlmContentText) externalToolTextResultForLlmContent() {}
-func (ExternalToolTextResultForLlmContentText) Type() ExternalToolTextResultForLlmContentType {
+func (ExternalToolTextResultForLlmContentText) externalToolTextResultForLlmContentType() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeText
 }
 
@@ -3151,7 +3151,7 @@ type PendingPermissionRequestList struct {
 // removed.
 type PermissionDecision interface {
 	permissionDecision()
-	Kind() PermissionDecisionKind
+	permissionDecisionKind() PermissionDecisionKind
 }
 
 type RawPermissionDecisionData struct {
@@ -3160,7 +3160,7 @@ type RawPermissionDecisionData struct {
 }
 
 func (RawPermissionDecisionData) permissionDecision() {}
-func (r RawPermissionDecisionData) Kind() PermissionDecisionKind {
+func (r RawPermissionDecisionData) permissionDecisionKind() PermissionDecisionKind {
 	return r.Discriminator
 }
 
@@ -3171,7 +3171,7 @@ type PermissionDecisionApproved struct {
 }
 
 func (PermissionDecisionApproved) permissionDecision() {}
-func (PermissionDecisionApproved) Kind() PermissionDecisionKind {
+func (PermissionDecisionApproved) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindApproved
 }
 
@@ -3186,7 +3186,7 @@ type PermissionDecisionApprovedForLocation struct {
 }
 
 func (PermissionDecisionApprovedForLocation) permissionDecision() {}
-func (PermissionDecisionApprovedForLocation) Kind() PermissionDecisionKind {
+func (PermissionDecisionApprovedForLocation) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovedForLocation
 }
 
@@ -3199,7 +3199,7 @@ type PermissionDecisionApprovedForSession struct {
 }
 
 func (PermissionDecisionApprovedForSession) permissionDecision() {}
-func (PermissionDecisionApprovedForSession) Kind() PermissionDecisionKind {
+func (PermissionDecisionApprovedForSession) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovedForSession
 }
 
@@ -3214,7 +3214,7 @@ type PermissionDecisionApproveForLocation struct {
 }
 
 func (PermissionDecisionApproveForLocation) permissionDecision() {}
-func (PermissionDecisionApproveForLocation) Kind() PermissionDecisionKind {
+func (PermissionDecisionApproveForLocation) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveForLocation
 }
 
@@ -3229,7 +3229,7 @@ type PermissionDecisionApproveForSession struct {
 }
 
 func (PermissionDecisionApproveForSession) permissionDecision() {}
-func (PermissionDecisionApproveForSession) Kind() PermissionDecisionKind {
+func (PermissionDecisionApproveForSession) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveForSession
 }
 
@@ -3240,7 +3240,7 @@ type PermissionDecisionApproveOnce struct {
 }
 
 func (PermissionDecisionApproveOnce) permissionDecision() {}
-func (PermissionDecisionApproveOnce) Kind() PermissionDecisionKind {
+func (PermissionDecisionApproveOnce) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveOnce
 }
 
@@ -3253,7 +3253,7 @@ type PermissionDecisionApprovePermanently struct {
 }
 
 func (PermissionDecisionApprovePermanently) permissionDecision() {}
-func (PermissionDecisionApprovePermanently) Kind() PermissionDecisionKind {
+func (PermissionDecisionApprovePermanently) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovePermanently
 }
 
@@ -3266,7 +3266,7 @@ type PermissionDecisionCancelled struct {
 }
 
 func (PermissionDecisionCancelled) permissionDecision() {}
-func (PermissionDecisionCancelled) Kind() PermissionDecisionKind {
+func (PermissionDecisionCancelled) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindCancelled
 }
 
@@ -3281,7 +3281,7 @@ type PermissionDecisionDeniedByContentExclusionPolicy struct {
 }
 
 func (PermissionDecisionDeniedByContentExclusionPolicy) permissionDecision() {}
-func (PermissionDecisionDeniedByContentExclusionPolicy) Kind() PermissionDecisionKind {
+func (PermissionDecisionDeniedByContentExclusionPolicy) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedByContentExclusionPolicy
 }
 
@@ -3296,7 +3296,7 @@ type PermissionDecisionDeniedByPermissionRequestHook struct {
 }
 
 func (PermissionDecisionDeniedByPermissionRequestHook) permissionDecision() {}
-func (PermissionDecisionDeniedByPermissionRequestHook) Kind() PermissionDecisionKind {
+func (PermissionDecisionDeniedByPermissionRequestHook) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedByPermissionRequestHook
 }
 
@@ -3309,7 +3309,7 @@ type PermissionDecisionDeniedByRules struct {
 }
 
 func (PermissionDecisionDeniedByRules) permissionDecision() {}
-func (PermissionDecisionDeniedByRules) Kind() PermissionDecisionKind {
+func (PermissionDecisionDeniedByRules) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedByRules
 }
 
@@ -3324,7 +3324,7 @@ type PermissionDecisionDeniedInteractivelyByUser struct {
 }
 
 func (PermissionDecisionDeniedInteractivelyByUser) permissionDecision() {}
-func (PermissionDecisionDeniedInteractivelyByUser) Kind() PermissionDecisionKind {
+func (PermissionDecisionDeniedInteractivelyByUser) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedInteractivelyByUser
 }
 
@@ -3335,7 +3335,7 @@ type PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser struct {
 }
 
 func (PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser) permissionDecision() {}
-func (PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() PermissionDecisionKind {
+func (PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
@@ -3348,7 +3348,7 @@ type PermissionDecisionReject struct {
 }
 
 func (PermissionDecisionReject) permissionDecision() {}
-func (PermissionDecisionReject) Kind() PermissionDecisionKind {
+func (PermissionDecisionReject) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindReject
 }
 
@@ -3359,7 +3359,7 @@ type PermissionDecisionUserNotAvailable struct {
 }
 
 func (PermissionDecisionUserNotAvailable) permissionDecision() {}
-func (PermissionDecisionUserNotAvailable) Kind() PermissionDecisionKind {
+func (PermissionDecisionUserNotAvailable) permissionDecisionKind() PermissionDecisionKind {
 	return PermissionDecisionKindUserNotAvailable
 }
 
@@ -3368,7 +3368,7 @@ func (PermissionDecisionUserNotAvailable) Kind() PermissionDecisionKind {
 // and may change or be removed.
 type PermissionDecisionApproveForLocationApproval interface {
 	permissionDecisionApproveForLocationApproval()
-	Kind() PermissionDecisionApproveForLocationApprovalKind
+	permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind
 }
 
 type RawPermissionDecisionApproveForLocationApprovalData struct {
@@ -3378,7 +3378,7 @@ type RawPermissionDecisionApproveForLocationApprovalData struct {
 
 func (RawPermissionDecisionApproveForLocationApprovalData) permissionDecisionApproveForLocationApproval() {
 }
-func (r RawPermissionDecisionApproveForLocationApprovalData) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (r RawPermissionDecisionApproveForLocationApprovalData) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return r.Discriminator
 }
 
@@ -3392,7 +3392,7 @@ type PermissionDecisionApproveForLocationApprovalCommands struct {
 
 func (PermissionDecisionApproveForLocationApprovalCommands) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalCommands) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalCommands) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindCommands
 }
 
@@ -3406,7 +3406,7 @@ type PermissionDecisionApproveForLocationApprovalCustomTool struct {
 
 func (PermissionDecisionApproveForLocationApprovalCustomTool) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalCustomTool) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalCustomTool) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindCustomTool
 }
 
@@ -3421,7 +3421,7 @@ type PermissionDecisionApproveForLocationApprovalExtensionManagement struct {
 
 func (PermissionDecisionApproveForLocationApprovalExtensionManagement) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalExtensionManagement) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalExtensionManagement) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindExtensionManagement
 }
 
@@ -3436,7 +3436,7 @@ type PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess struc
 
 func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess
 }
 
@@ -3452,7 +3452,7 @@ type PermissionDecisionApproveForLocationApprovalMCP struct {
 
 func (PermissionDecisionApproveForLocationApprovalMCP) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalMCP) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalMCP) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindMCP
 }
 
@@ -3466,7 +3466,7 @@ type PermissionDecisionApproveForLocationApprovalMCPSampling struct {
 
 func (PermissionDecisionApproveForLocationApprovalMCPSampling) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalMCPSampling) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalMCPSampling) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindMCPSampling
 }
 
@@ -3478,7 +3478,7 @@ type PermissionDecisionApproveForLocationApprovalMemory struct {
 
 func (PermissionDecisionApproveForLocationApprovalMemory) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalMemory) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalMemory) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindMemory
 }
 
@@ -3490,7 +3490,7 @@ type PermissionDecisionApproveForLocationApprovalRead struct {
 
 func (PermissionDecisionApproveForLocationApprovalRead) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalRead) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalRead) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindRead
 }
 
@@ -3502,7 +3502,7 @@ type PermissionDecisionApproveForLocationApprovalWrite struct {
 
 func (PermissionDecisionApproveForLocationApprovalWrite) permissionDecisionApproveForLocationApproval() {
 }
-func (PermissionDecisionApproveForLocationApprovalWrite) Kind() PermissionDecisionApproveForLocationApprovalKind {
+func (PermissionDecisionApproveForLocationApprovalWrite) permissionDecisionApproveForLocationApprovalKind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindWrite
 }
 
@@ -3511,7 +3511,7 @@ func (PermissionDecisionApproveForLocationApprovalWrite) Kind() PermissionDecisi
 // and may change or be removed.
 type PermissionDecisionApproveForSessionApproval interface {
 	permissionDecisionApproveForSessionApproval()
-	Kind() PermissionDecisionApproveForSessionApprovalKind
+	permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind
 }
 
 type RawPermissionDecisionApproveForSessionApprovalData struct {
@@ -3521,7 +3521,7 @@ type RawPermissionDecisionApproveForSessionApprovalData struct {
 
 func (RawPermissionDecisionApproveForSessionApprovalData) permissionDecisionApproveForSessionApproval() {
 }
-func (r RawPermissionDecisionApproveForSessionApprovalData) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (r RawPermissionDecisionApproveForSessionApprovalData) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return r.Discriminator
 }
 
@@ -3535,7 +3535,7 @@ type PermissionDecisionApproveForSessionApprovalCommands struct {
 
 func (PermissionDecisionApproveForSessionApprovalCommands) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalCommands) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalCommands) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindCommands
 }
 
@@ -3549,7 +3549,7 @@ type PermissionDecisionApproveForSessionApprovalCustomTool struct {
 
 func (PermissionDecisionApproveForSessionApprovalCustomTool) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalCustomTool) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalCustomTool) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindCustomTool
 }
 
@@ -3564,7 +3564,7 @@ type PermissionDecisionApproveForSessionApprovalExtensionManagement struct {
 
 func (PermissionDecisionApproveForSessionApprovalExtensionManagement) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalExtensionManagement) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalExtensionManagement) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindExtensionManagement
 }
 
@@ -3579,7 +3579,7 @@ type PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess struct
 
 func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess
 }
 
@@ -3594,7 +3594,7 @@ type PermissionDecisionApproveForSessionApprovalMCP struct {
 }
 
 func (PermissionDecisionApproveForSessionApprovalMCP) permissionDecisionApproveForSessionApproval() {}
-func (PermissionDecisionApproveForSessionApprovalMCP) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalMCP) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindMCP
 }
 
@@ -3608,7 +3608,7 @@ type PermissionDecisionApproveForSessionApprovalMCPSampling struct {
 
 func (PermissionDecisionApproveForSessionApprovalMCPSampling) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalMCPSampling) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalMCPSampling) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindMCPSampling
 }
 
@@ -3620,7 +3620,7 @@ type PermissionDecisionApproveForSessionApprovalMemory struct {
 
 func (PermissionDecisionApproveForSessionApprovalMemory) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalMemory) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalMemory) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindMemory
 }
 
@@ -3632,7 +3632,7 @@ type PermissionDecisionApproveForSessionApprovalRead struct {
 
 func (PermissionDecisionApproveForSessionApprovalRead) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalRead) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalRead) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindRead
 }
 
@@ -3644,7 +3644,7 @@ type PermissionDecisionApproveForSessionApprovalWrite struct {
 
 func (PermissionDecisionApproveForSessionApprovalWrite) permissionDecisionApproveForSessionApproval() {
 }
-func (PermissionDecisionApproveForSessionApprovalWrite) Kind() PermissionDecisionApproveForSessionApprovalKind {
+func (PermissionDecisionApproveForSessionApprovalWrite) permissionDecisionApproveForSessionApprovalKind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindWrite
 }
 
@@ -3917,7 +3917,7 @@ type PermissionsGetAllowAllRequest struct {
 // and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetails interface {
 	permissionsLocationsAddToolApprovalDetails()
-	Kind() PermissionsLocationsAddToolApprovalDetailsKind
+	permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind
 }
 
 type RawPermissionsLocationsAddToolApprovalDetailsData struct {
@@ -3927,7 +3927,7 @@ type RawPermissionsLocationsAddToolApprovalDetailsData struct {
 
 func (RawPermissionsLocationsAddToolApprovalDetailsData) permissionsLocationsAddToolApprovalDetails() {
 }
-func (r RawPermissionsLocationsAddToolApprovalDetailsData) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (r RawPermissionsLocationsAddToolApprovalDetailsData) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return r.Discriminator
 }
 
@@ -3941,7 +3941,7 @@ type PermissionsLocationsAddToolApprovalDetailsCommands struct {
 
 func (PermissionsLocationsAddToolApprovalDetailsCommands) permissionsLocationsAddToolApprovalDetails() {
 }
-func (PermissionsLocationsAddToolApprovalDetailsCommands) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsCommands) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindCommands
 }
 
@@ -3955,7 +3955,7 @@ type PermissionsLocationsAddToolApprovalDetailsCustomTool struct {
 
 func (PermissionsLocationsAddToolApprovalDetailsCustomTool) permissionsLocationsAddToolApprovalDetails() {
 }
-func (PermissionsLocationsAddToolApprovalDetailsCustomTool) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsCustomTool) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindCustomTool
 }
 
@@ -3970,7 +3970,7 @@ type PermissionsLocationsAddToolApprovalDetailsExtensionManagement struct {
 
 func (PermissionsLocationsAddToolApprovalDetailsExtensionManagement) permissionsLocationsAddToolApprovalDetails() {
 }
-func (PermissionsLocationsAddToolApprovalDetailsExtensionManagement) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsExtensionManagement) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement
 }
 
@@ -3984,7 +3984,7 @@ type PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess struct 
 
 func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) permissionsLocationsAddToolApprovalDetails() {
 }
-func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess
 }
 
@@ -3999,7 +3999,7 @@ type PermissionsLocationsAddToolApprovalDetailsMCP struct {
 }
 
 func (PermissionsLocationsAddToolApprovalDetailsMCP) permissionsLocationsAddToolApprovalDetails() {}
-func (PermissionsLocationsAddToolApprovalDetailsMCP) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsMCP) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindMCP
 }
 
@@ -4013,7 +4013,7 @@ type PermissionsLocationsAddToolApprovalDetailsMCPSampling struct {
 
 func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) permissionsLocationsAddToolApprovalDetails() {
 }
-func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindMCPSampling
 }
 
@@ -4025,7 +4025,7 @@ type PermissionsLocationsAddToolApprovalDetailsMemory struct {
 
 func (PermissionsLocationsAddToolApprovalDetailsMemory) permissionsLocationsAddToolApprovalDetails() {
 }
-func (PermissionsLocationsAddToolApprovalDetailsMemory) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsMemory) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindMemory
 }
 
@@ -4036,7 +4036,7 @@ type PermissionsLocationsAddToolApprovalDetailsRead struct {
 }
 
 func (PermissionsLocationsAddToolApprovalDetailsRead) permissionsLocationsAddToolApprovalDetails() {}
-func (PermissionsLocationsAddToolApprovalDetailsRead) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsRead) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindRead
 }
 
@@ -4047,7 +4047,7 @@ type PermissionsLocationsAddToolApprovalDetailsWrite struct {
 }
 
 func (PermissionsLocationsAddToolApprovalDetailsWrite) permissionsLocationsAddToolApprovalDetails() {}
-func (PermissionsLocationsAddToolApprovalDetailsWrite) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+func (PermissionsLocationsAddToolApprovalDetailsWrite) permissionsLocationsAddToolApprovalDetailsKind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindWrite
 }
 
@@ -4526,7 +4526,7 @@ type ProviderConfigAzure struct {
 // Experimental: PushAttachment is part of an experimental API and may change or be removed.
 type PushAttachment interface {
 	pushAttachment()
-	Type() PushAttachmentType
+	pushAttachmentType() PushAttachmentType
 }
 
 type RawPushAttachmentData struct {
@@ -4535,7 +4535,7 @@ type RawPushAttachmentData struct {
 }
 
 func (RawPushAttachmentData) pushAttachment() {}
-func (r RawPushAttachmentData) Type() PushAttachmentType {
+func (r RawPushAttachmentData) pushAttachmentType() PushAttachmentType {
 	return r.Discriminator
 }
 
@@ -4550,7 +4550,7 @@ type ExtensionContextPushInput struct {
 }
 
 func (ExtensionContextPushInput) pushAttachment() {}
-func (ExtensionContextPushInput) Type() PushAttachmentType {
+func (ExtensionContextPushInput) pushAttachmentType() PushAttachmentType {
 	return PushAttachmentTypeExtensionContext
 }
 
@@ -4567,7 +4567,7 @@ type PushAttachmentBlob struct {
 }
 
 func (PushAttachmentBlob) pushAttachment() {}
-func (PushAttachmentBlob) Type() PushAttachmentType {
+func (PushAttachmentBlob) pushAttachmentType() PushAttachmentType {
 	return PushAttachmentTypeBlob
 }
 
@@ -4582,7 +4582,7 @@ type PushAttachmentDirectory struct {
 }
 
 func (PushAttachmentDirectory) pushAttachment() {}
-func (PushAttachmentDirectory) Type() PushAttachmentType {
+func (PushAttachmentDirectory) pushAttachmentType() PushAttachmentType {
 	return PushAttachmentTypeDirectory
 }
 
@@ -4599,7 +4599,7 @@ type PushAttachmentFile struct {
 }
 
 func (PushAttachmentFile) pushAttachment() {}
-func (PushAttachmentFile) Type() PushAttachmentType {
+func (PushAttachmentFile) pushAttachmentType() PushAttachmentType {
 	return PushAttachmentTypeFile
 }
 
@@ -4620,7 +4620,7 @@ type PushAttachmentGitHubReference struct {
 }
 
 func (PushAttachmentGitHubReference) pushAttachment() {}
-func (PushAttachmentGitHubReference) Type() PushAttachmentType {
+func (PushAttachmentGitHubReference) pushAttachmentType() PushAttachmentType {
 	return PushAttachmentTypeGitHubReference
 }
 
@@ -4639,7 +4639,7 @@ type PushAttachmentSelection struct {
 }
 
 func (PushAttachmentSelection) pushAttachment() {}
-func (PushAttachmentSelection) Type() PushAttachmentType {
+func (PushAttachmentSelection) pushAttachmentType() PushAttachmentType {
 	return PushAttachmentTypeSelection
 }
 
@@ -4688,7 +4688,7 @@ type PushAttachmentSelectionDetailsStart struct {
 // removed.
 type QueuedCommandResult interface {
 	queuedCommandResult()
-	Handled() bool
+	queuedCommandResultHandled() bool
 }
 
 // Schema for the `QueuedCommandHandled` type.
@@ -4701,7 +4701,7 @@ type QueuedCommandHandled struct {
 }
 
 func (QueuedCommandHandled) queuedCommandResult() {}
-func (QueuedCommandHandled) Handled() bool {
+func (QueuedCommandHandled) queuedCommandResultHandled() bool {
 	return true
 }
 
@@ -4712,7 +4712,7 @@ type QueuedCommandNotHandled struct {
 }
 
 func (QueuedCommandNotHandled) queuedCommandResult() {}
-func (QueuedCommandNotHandled) Handled() bool {
+func (QueuedCommandNotHandled) queuedCommandResultHandled() bool {
 	return false
 }
 
@@ -4854,7 +4854,7 @@ type RemoteControlConfigExistingMcSession struct {
 // removed.
 type RemoteControlStatus interface {
 	remoteControlStatus()
-	State() RemoteControlStatusState
+	remoteControlStatusState() RemoteControlStatusState
 }
 
 type RawRemoteControlStatusData struct {
@@ -4863,7 +4863,7 @@ type RawRemoteControlStatusData struct {
 }
 
 func (RawRemoteControlStatusData) remoteControlStatus() {}
-func (r RawRemoteControlStatusData) State() RemoteControlStatusState {
+func (r RawRemoteControlStatusData) remoteControlStatusState() RemoteControlStatusState {
 	return r.Discriminator
 }
 
@@ -4887,7 +4887,7 @@ type RemoteControlStatusActive struct {
 }
 
 func (RemoteControlStatusActive) remoteControlStatus() {}
-func (RemoteControlStatusActive) State() RemoteControlStatusState {
+func (RemoteControlStatusActive) remoteControlStatusState() RemoteControlStatusState {
 	return RemoteControlStatusStateActive
 }
 
@@ -4900,7 +4900,7 @@ type RemoteControlStatusConnecting struct {
 }
 
 func (RemoteControlStatusConnecting) remoteControlStatus() {}
-func (RemoteControlStatusConnecting) State() RemoteControlStatusState {
+func (RemoteControlStatusConnecting) remoteControlStatusState() RemoteControlStatusState {
 	return RemoteControlStatusStateConnecting
 }
 
@@ -4915,7 +4915,7 @@ type RemoteControlStatusError struct {
 }
 
 func (RemoteControlStatusError) remoteControlStatus() {}
-func (RemoteControlStatusError) State() RemoteControlStatusState {
+func (RemoteControlStatusError) remoteControlStatusState() RemoteControlStatusState {
 	return RemoteControlStatusStateError
 }
 
@@ -4926,7 +4926,7 @@ type RemoteControlStatusOff struct {
 }
 
 func (RemoteControlStatusOff) remoteControlStatus() {}
-func (RemoteControlStatusOff) State() RemoteControlStatusState {
+func (RemoteControlStatusOff) remoteControlStatusState() RemoteControlStatusState {
 	return RemoteControlStatusStateOff
 }
 
@@ -5714,11 +5714,11 @@ type SessionList struct {
 // removed.
 type SessionListEntry interface {
 	sessionListEntry()
-	IsRemote() bool
+	sessionListEntryIsRemote() bool
 }
 
 func (LocalSessionMetadataValue) sessionListEntry() {}
-func (LocalSessionMetadataValue) IsRemote() bool {
+func (LocalSessionMetadataValue) sessionListEntryIsRemote() bool {
 	return false
 }
 
@@ -5757,7 +5757,7 @@ type RemoteSessionMetadataValue struct {
 }
 
 func (RemoteSessionMetadataValue) sessionListEntry() {}
-func (RemoteSessionMetadataValue) IsRemote() bool {
+func (RemoteSessionMetadataValue) sessionListEntryIsRemote() bool {
 	return true
 }
 
@@ -6046,7 +6046,7 @@ type SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource struct {
 // removed.
 type SessionOpenParams interface {
 	sessionOpenParams()
-	Kind() SessionOpenParamsKind
+	sessionOpenParamsKind() SessionOpenParamsKind
 }
 
 type RawSessionOpenParamsData struct {
@@ -6055,7 +6055,7 @@ type RawSessionOpenParamsData struct {
 }
 
 func (RawSessionOpenParamsData) sessionOpenParams() {}
-func (r RawSessionOpenParamsData) Kind() SessionOpenParamsKind {
+func (r RawSessionOpenParamsData) sessionOpenParamsKind() SessionOpenParamsKind {
 	return r.Discriminator
 }
 
@@ -6068,7 +6068,7 @@ type SessionsOpenAttach struct {
 }
 
 func (SessionsOpenAttach) sessionOpenParams() {}
-func (SessionsOpenAttach) Kind() SessionOpenParamsKind {
+func (SessionsOpenAttach) sessionOpenParamsKind() SessionOpenParamsKind {
 	return SessionOpenParamsKindAttach
 }
 
@@ -6094,7 +6094,7 @@ type SessionsOpenCloud struct {
 }
 
 func (SessionsOpenCloud) sessionOpenParams() {}
-func (SessionsOpenCloud) Kind() SessionOpenParamsKind {
+func (SessionsOpenCloud) sessionOpenParamsKind() SessionOpenParamsKind {
 	return SessionOpenParamsKindCloud
 }
 
@@ -6109,7 +6109,7 @@ type SessionsOpenCreate struct {
 }
 
 func (SessionsOpenCreate) sessionOpenParams() {}
-func (SessionsOpenCreate) Kind() SessionOpenParamsKind {
+func (SessionsOpenCreate) sessionOpenParamsKind() SessionOpenParamsKind {
 	return SessionOpenParamsKindCreate
 }
 
@@ -6137,7 +6137,7 @@ type SessionsOpenHandoff struct {
 }
 
 func (SessionsOpenHandoff) sessionOpenParams() {}
-func (SessionsOpenHandoff) Kind() SessionOpenParamsKind {
+func (SessionsOpenHandoff) sessionOpenParamsKind() SessionOpenParamsKind {
 	return SessionOpenParamsKindHandoff
 }
 
@@ -6154,7 +6154,7 @@ type SessionsOpenRemote struct {
 }
 
 func (SessionsOpenRemote) sessionOpenParams() {}
-func (SessionsOpenRemote) Kind() SessionOpenParamsKind {
+func (SessionsOpenRemote) sessionOpenParamsKind() SessionOpenParamsKind {
 	return SessionOpenParamsKindRemote
 }
 
@@ -6173,7 +6173,7 @@ type SessionsOpenResume struct {
 }
 
 func (SessionsOpenResume) sessionOpenParams() {}
-func (SessionsOpenResume) Kind() SessionOpenParamsKind {
+func (SessionsOpenResume) sessionOpenParamsKind() SessionOpenParamsKind {
 	return SessionOpenParamsKindResume
 }
 
@@ -6190,7 +6190,7 @@ type SessionsOpenResumeLast struct {
 }
 
 func (SessionsOpenResumeLast) sessionOpenParams() {}
-func (SessionsOpenResumeLast) Kind() SessionOpenParamsKind {
+func (SessionsOpenResumeLast) sessionOpenParamsKind() SessionOpenParamsKind {
 	return SessionOpenParamsKindResumeLast
 }
 
@@ -7059,7 +7059,7 @@ type SlashCommandInput struct {
 // or be removed.
 type SlashCommandInvocationResult interface {
 	slashCommandInvocationResult()
-	Kind() SlashCommandInvocationResultKind
+	slashCommandInvocationResultKind() SlashCommandInvocationResultKind
 }
 
 type RawSlashCommandInvocationResultData struct {
@@ -7068,7 +7068,7 @@ type RawSlashCommandInvocationResultData struct {
 }
 
 func (RawSlashCommandInvocationResultData) slashCommandInvocationResult() {}
-func (r RawSlashCommandInvocationResultData) Kind() SlashCommandInvocationResultKind {
+func (r RawSlashCommandInvocationResultData) slashCommandInvocationResultKind() SlashCommandInvocationResultKind {
 	return r.Discriminator
 }
 
@@ -7088,7 +7088,7 @@ type SlashCommandAgentPromptResult struct {
 }
 
 func (SlashCommandAgentPromptResult) slashCommandInvocationResult() {}
-func (SlashCommandAgentPromptResult) Kind() SlashCommandInvocationResultKind {
+func (SlashCommandAgentPromptResult) slashCommandInvocationResultKind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindAgentPrompt
 }
 
@@ -7104,7 +7104,7 @@ type SlashCommandCompletedResult struct {
 }
 
 func (SlashCommandCompletedResult) slashCommandInvocationResult() {}
-func (SlashCommandCompletedResult) Kind() SlashCommandInvocationResultKind {
+func (SlashCommandCompletedResult) slashCommandInvocationResultKind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindCompleted
 }
 
@@ -7124,7 +7124,7 @@ type SlashCommandSelectSubcommandResult struct {
 }
 
 func (SlashCommandSelectSubcommandResult) slashCommandInvocationResult() {}
-func (SlashCommandSelectSubcommandResult) Kind() SlashCommandInvocationResultKind {
+func (SlashCommandSelectSubcommandResult) slashCommandInvocationResultKind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindSelectSubcommand
 }
 
@@ -7144,7 +7144,7 @@ type SlashCommandTextResult struct {
 }
 
 func (SlashCommandTextResult) slashCommandInvocationResult() {}
-func (SlashCommandTextResult) Kind() SlashCommandInvocationResultKind {
+func (SlashCommandTextResult) slashCommandInvocationResultKind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindText
 }
 
@@ -7164,7 +7164,7 @@ type SlashCommandSelectSubcommandOption struct {
 // Experimental: TaskInfo is part of an experimental API and may change or be removed.
 type TaskInfo interface {
 	taskInfo()
-	Type() TaskInfoType
+	taskInfoType() TaskInfoType
 }
 
 type RawTaskInfoData struct {
@@ -7173,7 +7173,7 @@ type RawTaskInfoData struct {
 }
 
 func (RawTaskInfoData) taskInfo() {}
-func (r RawTaskInfoData) Type() TaskInfoType {
+func (r RawTaskInfoData) taskInfoType() TaskInfoType {
 	return r.Discriminator
 }
 
@@ -7220,7 +7220,7 @@ type TaskAgentInfo struct {
 }
 
 func (TaskAgentInfo) taskInfo() {}
-func (TaskAgentInfo) Type() TaskInfoType {
+func (TaskAgentInfo) taskInfoType() TaskInfoType {
 	return TaskInfoTypeAgent
 }
 
@@ -7253,7 +7253,7 @@ type TaskShellInfo struct {
 }
 
 func (TaskShellInfo) taskInfo() {}
-func (TaskShellInfo) Type() TaskInfoType {
+func (TaskShellInfo) taskInfoType() TaskInfoType {
 	return TaskInfoTypeShell
 }
 
@@ -7267,7 +7267,7 @@ type TaskList struct {
 // Experimental: TaskProgress is part of an experimental API and may change or be removed.
 type TaskProgress interface {
 	taskProgress()
-	Type() TaskProgressType
+	taskProgressType() TaskProgressType
 }
 
 type RawTaskProgressData struct {
@@ -7276,7 +7276,7 @@ type RawTaskProgressData struct {
 }
 
 func (RawTaskProgressData) taskProgress() {}
-func (r RawTaskProgressData) Type() TaskProgressType {
+func (r RawTaskProgressData) taskProgressType() TaskProgressType {
 	return r.Discriminator
 }
 
@@ -7291,7 +7291,7 @@ type TaskAgentProgress struct {
 }
 
 func (TaskAgentProgress) taskProgress() {}
-func (TaskAgentProgress) Type() TaskProgressType {
+func (TaskAgentProgress) taskProgressType() TaskProgressType {
 	return TaskProgressTypeAgent
 }
 
@@ -7306,7 +7306,7 @@ type TaskShellProgress struct {
 }
 
 func (TaskShellProgress) taskProgress() {}
-func (TaskShellProgress) Type() TaskProgressType {
+func (TaskShellProgress) taskProgressType() TaskProgressType {
 	return TaskProgressTypeShell
 }
 
@@ -7627,7 +7627,7 @@ type UIElicitationSchema struct {
 // or be removed.
 type UIElicitationSchemaProperty interface {
 	uiElicitationSchemaProperty()
-	Type() UIElicitationSchemaPropertyType
+	uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType
 }
 
 type RawUIElicitationSchemaPropertyData struct {
@@ -7636,7 +7636,7 @@ type RawUIElicitationSchemaPropertyData struct {
 }
 
 func (RawUIElicitationSchemaPropertyData) uiElicitationSchemaProperty() {}
-func (r RawUIElicitationSchemaPropertyData) Type() UIElicitationSchemaPropertyType {
+func (r RawUIElicitationSchemaPropertyData) uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType {
 	return r.Discriminator
 }
 
@@ -7659,7 +7659,7 @@ type UIElicitationArrayAnyOfField struct {
 }
 
 func (UIElicitationArrayAnyOfField) uiElicitationSchemaProperty() {}
-func (UIElicitationArrayAnyOfField) Type() UIElicitationSchemaPropertyType {
+func (UIElicitationArrayAnyOfField) uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeArray
 }
 
@@ -7682,7 +7682,7 @@ type UIElicitationArrayEnumField struct {
 }
 
 func (UIElicitationArrayEnumField) uiElicitationSchemaProperty() {}
-func (UIElicitationArrayEnumField) Type() UIElicitationSchemaPropertyType {
+func (UIElicitationArrayEnumField) uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeArray
 }
 
@@ -7699,7 +7699,7 @@ type UIElicitationSchemaPropertyBoolean struct {
 }
 
 func (UIElicitationSchemaPropertyBoolean) uiElicitationSchemaProperty() {}
-func (UIElicitationSchemaPropertyBoolean) Type() UIElicitationSchemaPropertyType {
+func (UIElicitationSchemaPropertyBoolean) uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeBoolean
 }
 
@@ -7721,7 +7721,7 @@ type UIElicitationSchemaPropertyNumber struct {
 }
 
 func (UIElicitationSchemaPropertyNumber) uiElicitationSchemaProperty() {}
-func (r UIElicitationSchemaPropertyNumber) Type() UIElicitationSchemaPropertyType {
+func (r UIElicitationSchemaPropertyNumber) uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType {
 	if r.Discriminator == "" {
 		return UIElicitationSchemaPropertyTypeNumber
 	}
@@ -7747,7 +7747,7 @@ type UIElicitationSchemaPropertyString struct {
 }
 
 func (UIElicitationSchemaPropertyString) uiElicitationSchemaProperty() {}
-func (UIElicitationSchemaPropertyString) Type() UIElicitationSchemaPropertyType {
+func (UIElicitationSchemaPropertyString) uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }
 
@@ -7768,7 +7768,7 @@ type UIElicitationStringEnumField struct {
 }
 
 func (UIElicitationStringEnumField) uiElicitationSchemaProperty() {}
-func (UIElicitationStringEnumField) Type() UIElicitationSchemaPropertyType {
+func (UIElicitationStringEnumField) uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }
 
@@ -7787,7 +7787,7 @@ type UIElicitationStringOneOfField struct {
 }
 
 func (UIElicitationStringOneOfField) uiElicitationSchemaProperty() {}
-func (UIElicitationStringOneOfField) Type() UIElicitationSchemaPropertyType {
+func (UIElicitationStringOneOfField) uiElicitationSchemaPropertyType() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }
 
@@ -8081,7 +8081,7 @@ type UserSettingsReloadResult struct {
 // removed.
 type UserToolSessionApproval interface {
 	userToolSessionApproval()
-	Kind() UserToolSessionApprovalKind
+	userToolSessionApprovalKind() UserToolSessionApprovalKind
 }
 
 type RawUserToolSessionApprovalData struct {
@@ -8090,7 +8090,7 @@ type RawUserToolSessionApprovalData struct {
 }
 
 func (RawUserToolSessionApprovalData) userToolSessionApproval() {}
-func (r RawUserToolSessionApprovalData) Kind() UserToolSessionApprovalKind {
+func (r RawUserToolSessionApprovalData) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return r.Discriminator
 }
 
@@ -8103,7 +8103,7 @@ type UserToolSessionApprovalCommands struct {
 }
 
 func (UserToolSessionApprovalCommands) userToolSessionApproval() {}
-func (UserToolSessionApprovalCommands) Kind() UserToolSessionApprovalKind {
+func (UserToolSessionApprovalCommands) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindCommands
 }
 
@@ -8116,7 +8116,7 @@ type UserToolSessionApprovalCustomTool struct {
 }
 
 func (UserToolSessionApprovalCustomTool) userToolSessionApproval() {}
-func (UserToolSessionApprovalCustomTool) Kind() UserToolSessionApprovalKind {
+func (UserToolSessionApprovalCustomTool) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindCustomTool
 }
 
@@ -8129,7 +8129,7 @@ type UserToolSessionApprovalExtensionManagement struct {
 }
 
 func (UserToolSessionApprovalExtensionManagement) userToolSessionApproval() {}
-func (UserToolSessionApprovalExtensionManagement) Kind() UserToolSessionApprovalKind {
+func (UserToolSessionApprovalExtensionManagement) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindExtensionManagement
 }
 
@@ -8142,7 +8142,7 @@ type UserToolSessionApprovalExtensionPermissionAccess struct {
 }
 
 func (UserToolSessionApprovalExtensionPermissionAccess) userToolSessionApproval() {}
-func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionApprovalKind {
+func (UserToolSessionApprovalExtensionPermissionAccess) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindExtensionPermissionAccess
 }
 
@@ -8157,7 +8157,7 @@ type UserToolSessionApprovalMCP struct {
 }
 
 func (UserToolSessionApprovalMCP) userToolSessionApproval() {}
-func (UserToolSessionApprovalMCP) Kind() UserToolSessionApprovalKind {
+func (UserToolSessionApprovalMCP) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindMCP
 }
 
@@ -8168,7 +8168,7 @@ type UserToolSessionApprovalMemory struct {
 }
 
 func (UserToolSessionApprovalMemory) userToolSessionApproval() {}
-func (UserToolSessionApprovalMemory) Kind() UserToolSessionApprovalKind {
+func (UserToolSessionApprovalMemory) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindMemory
 }
 
@@ -8179,7 +8179,7 @@ type UserToolSessionApprovalRead struct {
 }
 
 func (UserToolSessionApprovalRead) userToolSessionApproval() {}
-func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
+func (UserToolSessionApprovalRead) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindRead
 }
 
@@ -8190,7 +8190,7 @@ type UserToolSessionApprovalWrite struct {
 }
 
 func (UserToolSessionApprovalWrite) userToolSessionApproval() {}
-func (UserToolSessionApprovalWrite) Kind() UserToolSessionApprovalKind {
+func (UserToolSessionApprovalWrite) userToolSessionApprovalKind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindWrite
 }
 
