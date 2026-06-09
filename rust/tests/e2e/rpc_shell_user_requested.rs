@@ -88,7 +88,7 @@ async fn should_cancel_user_requested_shell_command() {
                 let command = create_marker_then_sleep_command(&marker_path, 60);
                 let execute_session = Arc::clone(&session);
                 let execute_request_id = request_id.clone();
-                let execute_task = tokio::spawn(async move {
+                let mut execute_task = tokio::spawn(async move {
                     execute_session
                         .rpc()
                         .shell()
@@ -115,11 +115,20 @@ async fn should_cancel_user_requested_shell_command() {
                 })
                 .await;
 
-                let result = tokio::time::timeout(Duration::from_secs(30), execute_task)
-                    .await
-                    .expect("cancelled shell command should finish")
-                    .expect("shell execution task should not panic")
-                    .expect("execute user-requested shell command");
+                // Await the spawned task by mutable reference so a timeout can abort it instead of
+                // dropping the handle. A dropped JoinHandle detaches the task, leaving the shell
+                // command running in the background where it can keep file handles open and
+                // destabilize later tests.
+                let result =
+                    match tokio::time::timeout(Duration::from_secs(30), &mut execute_task).await {
+                        Ok(joined) => joined
+                            .expect("shell execution task should not panic")
+                            .expect("execute user-requested shell command"),
+                        Err(_elapsed) => {
+                            execute_task.abort();
+                            panic!("cancelled shell command did not finish within 30s");
+                        }
+                    };
                 assert!(!result.success);
 
                 session.disconnect().await.expect("disconnect session");
