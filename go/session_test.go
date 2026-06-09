@@ -659,6 +659,72 @@ func TestSession_Capabilities(t *testing.T) {
 			t.Fatalf("expected stale availability, got %q", open[0].Availability)
 		}
 	})
+
+	t.Run("session.canvas.closed event removes open canvas snapshots", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:  "project:counter",
+				CanvasID:     "counter",
+				InstanceID:   "counter-1",
+				Title:        ptr("Counter"),
+				Availability: CanvasOpenedAvailabilityReady,
+			},
+		})
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:  "project:logs",
+				CanvasID:     "logs",
+				InstanceID:   "logs-1",
+				Title:        ptr("Logs"),
+				Availability: CanvasOpenedAvailabilityReady,
+			},
+		})
+
+		if open := session.OpenCanvases(); len(open) != 2 {
+			t.Fatalf("expected 2 open canvases, got %d", len(open))
+		}
+
+		// Closing one instance removes it; the other remains.
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasClosedData{
+				ExtensionID: "project:counter",
+				CanvasID:    "counter",
+				InstanceID:  "counter-1",
+			},
+		})
+		open := session.OpenCanvases()
+		if len(open) != 1 || open[0].InstanceID != "logs-1" {
+			t.Fatalf("expected only logs-1 to remain, got %+v", open)
+		}
+
+		// Closing an absent instance is a no-op (idempotent).
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasClosedData{
+				ExtensionID: "project:counter",
+				CanvasID:    "counter",
+				InstanceID:  "counter-1",
+			},
+		})
+		open = session.OpenCanvases()
+		if len(open) != 1 || open[0].InstanceID != "logs-1" {
+			t.Fatalf("idempotent close should leave logs-1, got %+v", open)
+		}
+
+		// A closed event missing instanceID leaves the snapshot intact.
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasClosedData{
+				ExtensionID: "project:logs",
+				CanvasID:    "logs",
+			},
+		})
+		open = session.OpenCanvases()
+		if len(open) != 1 || open[0].InstanceID != "logs-1" {
+			t.Fatalf("invalid close should leave logs-1, got %+v", open)
+		}
+	})
 }
 
 // waitForCapability polls Session.Capabilities() until predicate matches or timeout.
