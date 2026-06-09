@@ -317,6 +317,69 @@ describe("CopilotClient", () => {
         warn.mockRestore();
     });
 
+    it("removes open canvases on live session.canvas.closed events", () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        (session as any)._dispatchEvent({
+            type: "session.canvas.opened",
+            data: {
+                extensionId: "project:counter",
+                canvasId: "counter",
+                instanceId: "counter-1",
+                title: "Counter",
+                reopen: false,
+                availability: "ready",
+            },
+        });
+        (session as any)._dispatchEvent({
+            type: "session.canvas.opened",
+            data: {
+                extensionId: "project:logs",
+                canvasId: "logs",
+                instanceId: "logs-1",
+                title: "Logs",
+                reopen: false,
+                availability: "ready",
+            },
+        });
+        expect(session.openCanvases.map((canvas) => canvas.instanceId)).toEqual([
+            "counter-1",
+            "logs-1",
+        ]);
+
+        // Closing one instance removes it; the other remains.
+        (session as any)._dispatchEvent({
+            type: "session.canvas.closed",
+            data: {
+                extensionId: "project:counter",
+                canvasId: "counter",
+                instanceId: "counter-1",
+            },
+        });
+        expect(session.openCanvases.map((canvas) => canvas.instanceId)).toEqual(["logs-1"]);
+
+        // Closing an absent instance is a no-op (idempotent).
+        (session as any)._dispatchEvent({
+            type: "session.canvas.closed",
+            data: {
+                extensionId: "project:counter",
+                canvasId: "counter",
+                instanceId: "counter-1",
+            },
+        });
+        expect(session.openCanvases.map((canvas) => canvas.instanceId)).toEqual(["logs-1"]);
+
+        // A closed event missing instanceId warns and leaves the snapshot intact.
+        (session as any)._dispatchEvent({
+            type: "session.canvas.closed",
+            data: { extensionId: "project:logs", canvasId: "logs" },
+        });
+        expect(warn).toHaveBeenCalledWith("failed to deserialize session.canvas.closed payload");
+        expect(session.openCanvases.map((canvas) => canvas.instanceId)).toEqual(["logs-1"]);
+        warn.mockRestore();
+    });
+
     it("returns canvas_action_no_handler when no per-action handler is registered", async () => {
         const canvas = createCanvas({
             id: "counter",

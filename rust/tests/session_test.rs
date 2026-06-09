@@ -2743,6 +2743,109 @@ async fn session_canvas_opened_updates_open_canvas_snapshots() {
 }
 
 #[tokio::test]
+async fn session_canvas_closed_removes_open_canvas_snapshot() {
+    let (session, mut server) = create_session_pair().await;
+    assert!(session.open_canvases().is_empty());
+
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "title": "Counter",
+                "reopen": false,
+                "availability": "ready"
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:logs",
+                "canvasId": "logs",
+                "instanceId": "logs-1",
+                "title": "Logs",
+                "reopen": false,
+                "availability": "ready"
+            }),
+        )
+        .await;
+
+    let mut open = Vec::new();
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 2);
+
+    // Closing one instance removes it while the other remains.
+    server
+        .send_event(
+            "session.canvas.closed",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1"
+            }),
+        )
+        .await;
+
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].instance_id, "logs-1");
+
+    // Closing an absent instance is a no-op (idempotent).
+    server
+        .send_event(
+            "session.canvas.closed",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1"
+            }),
+        )
+        .await;
+
+    // Give the event loop time to process; the snapshot must stay unchanged.
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        open = session.open_canvases();
+        assert_eq!(open.len(), 1);
+    }
+    assert_eq!(open[0].instance_id, "logs-1");
+
+    // A closed event with an empty instance_id is ignored and leaves the snapshot intact.
+    server
+        .send_event(
+            "session.canvas.closed",
+            serde_json::json!({
+                "extensionId": "project:logs",
+                "canvasId": "logs",
+                "instanceId": ""
+            }),
+        )
+        .await;
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        open = session.open_canvases();
+        assert_eq!(open.len(), 1);
+    }
+    assert_eq!(open[0].instance_id, "logs-1");
+}
+
+#[tokio::test]
 async fn elicitation_methods_fail_without_capability() {
     let (session, _server) = create_session_pair().await;
 
