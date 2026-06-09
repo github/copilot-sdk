@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionPlanApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPlanReadResult> read() {
         return caller.invoke("session.plan.read", java.util.Map.of("sessionId", this.sessionId), SessionPlanReadResult.class);
     }
@@ -48,6 +50,7 @@ public final class SessionPlanApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> update(SessionPlanUpdateParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -60,6 +63,7 @@ public final class SessionPlanApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> delete() {
         return caller.invoke("session.plan.delete", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
@@ -70,6 +74,7 @@ public final class SessionPlanApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPlanReadSqlTodosResult> readSqlTodos() {
         return caller.invoke("session.plan.readSqlTodos", java.util.Map.of("sessionId", this.sessionId), SessionPlanReadSqlTodosResult.class);
     }

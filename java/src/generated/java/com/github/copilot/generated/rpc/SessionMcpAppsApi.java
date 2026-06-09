@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -39,6 +40,7 @@ public final class SessionMcpAppsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMcpAppsReadResourceResult> readResource(SessionMcpAppsReadResourceParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -54,6 +56,7 @@ public final class SessionMcpAppsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMcpAppsListToolsResult> listTools(SessionMcpAppsListToolsParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -69,6 +72,7 @@ public final class SessionMcpAppsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<JsonNode> callTool(SessionMcpAppsCallToolParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -84,6 +88,7 @@ public final class SessionMcpAppsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> setHostContext(SessionMcpAppsSetHostContextParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -96,6 +101,7 @@ public final class SessionMcpAppsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMcpAppsGetHostContextResult> getHostContext() {
         return caller.invoke("session.mcp.apps.getHostContext", java.util.Map.of("sessionId", this.sessionId), SessionMcpAppsGetHostContextResult.class);
     }
@@ -109,6 +115,7 @@ public final class SessionMcpAppsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMcpAppsDiagnoseResult> diagnose(SessionMcpAppsDiagnoseParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

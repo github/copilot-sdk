@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class ServerPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsListResult> list() {
         return caller.invoke("plugins.list", java.util.Map.of(), PluginsListResult.class);
     }
@@ -45,6 +47,7 @@ public final class ServerPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsInstallResult> install(PluginsInstallParams params) {
         return caller.invoke("plugins.install", params, PluginsInstallResult.class);
     }
@@ -55,6 +58,7 @@ public final class ServerPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> uninstall(PluginsUninstallParams params) {
         return caller.invoke("plugins.uninstall", params, Void.class);
     }
@@ -65,6 +69,7 @@ public final class ServerPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsUpdateResult> update(PluginsUpdateParams params) {
         return caller.invoke("plugins.update", params, PluginsUpdateResult.class);
     }
@@ -75,6 +80,7 @@ public final class ServerPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsUpdateAllResult> updateAll() {
         return caller.invoke("plugins.updateAll", java.util.Map.of(), PluginsUpdateAllResult.class);
     }
@@ -85,6 +91,7 @@ public final class ServerPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> enable(PluginsEnableParams params) {
         return caller.invoke("plugins.enable", params, Void.class);
     }
@@ -95,6 +102,7 @@ public final class ServerPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> disable(PluginsDisableParams params) {
         return caller.invoke("plugins.disable", params, Void.class);
     }

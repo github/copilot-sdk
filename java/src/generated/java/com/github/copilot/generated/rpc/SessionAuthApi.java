@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionAuthApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionAuthGetStatusResult> getStatus() {
         return caller.invoke("session.auth.getStatus", java.util.Map.of("sessionId", this.sessionId), SessionAuthGetStatusResult.class);
     }
@@ -48,6 +50,7 @@ public final class SessionAuthApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionAuthSetCredentialsResult> setCredentials(SessionAuthSetCredentialsParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

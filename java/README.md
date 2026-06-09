@@ -130,6 +130,116 @@ Or run it directly from the repository:
 jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
 
+## Using experimental APIs
+
+Some SDK APIs are marked as experimental with `@CopilotExperimental`. These APIs may change or be removed in future versions without notice.
+
+By default, referencing an experimental API from your code causes a **compile-time error**:
+
+```
+error: Use of experimental API 'ExperimentalType' in field type is not allowed.
+       Add @AllowCopilotExperimental or compiler option -Acopilot.experimental.allowed=true to opt in.
+```
+
+To opt in and use experimental APIs, either:
+
+- annotate the consuming class, method, or constructor with `@AllowCopilotExperimental`, or
+- pass the annotation processor option `-Acopilot.experimental.allowed=true` to the Java compiler.
+
+### In code
+
+```java
+import com.github.copilot.AllowCopilotExperimental;
+import test.ExperimentalType;
+
+@AllowCopilotExperimental
+public class Consumer {
+    private ExperimentalType field;
+
+    public ExperimentalType getIt() {
+        return field;
+    }
+
+    @AllowCopilotExperimental
+    public ExperimentalType echo(ExperimentalType value) {
+        return value;
+    }
+}
+```
+
+### Maven
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <configuration>
+        <compilerArgs>
+            <arg>-Acopilot.experimental.allowed=true</arg>
+        </compilerArgs>
+    </configuration>
+</plugin>
+```
+
+### Gradle
+
+```groovy
+tasks.withType(JavaCompile) {
+    options.compilerArgs += ['-Acopilot.experimental.allowed=true']
+}
+```
+
+### What the processor catches
+
+The processor detects usage of experimental types in **declarations**:
+
+| Usage pattern | Caught? |
+|---|---|
+| Field declared with experimental type | ✅ |
+| Method parameter of experimental type | ✅ |
+| Method return type is experimental | ✅ |
+| `extends` / `implements` experimental type | ✅ |
+| `throws` an experimental exception type | ✅ |
+| Generic type argument is experimental (e.g., `List<ExperimentalType>`) | ✅ |
+
+### Known limitations
+
+The processor uses standard JSR 269 annotation processing APIs for maximum portability (works with javac, ECJ/Eclipse, and any compliant compiler). This means it inspects **declarations only**, not expressions inside method bodies. The following patterns are **not caught** by the processor:
+
+| Usage pattern | Caught? | Workaround |
+|---|---|---|
+| `new ExperimentalType()` in a method body (no field/param declaration) | ❌ | Use the compiler flag for a whole-compilation opt-in |
+| `ExperimentalType.staticMethod()` inline call | ❌ | Use the compiler flag for a whole-compilation opt-in |
+| Method reference `ExperimentalType::method` | ❌ | Use the compiler flag for a whole-compilation opt-in |
+| Local variable with experimental type (including `var` inference) | ❌ | Move the usage into a declaration the processor can see, or use the compiler flag |
+| Cast to experimental type | ❌ | Use the compiler flag for a whole-compilation opt-in |
+
+In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through. See [ADR-004](docs/adr/adr-004-copilotexperimental.md) for the design rationale.
+
+### Example
+
+```java
+import com.github.copilot.CopilotExperimental;
+
+// This type is experimental — consumer code that references it
+// in declarations will fail to compile unless the opt-in flag is provided.
+@CopilotExperimental
+public class ExperimentalType {
+    public void doSomething() {}
+}
+
+// Consumer code — compiles only with -Acopilot.experimental.allowed=true
+import test.ExperimentalType;
+
+public class Consumer {
+    private ExperimentalType field;                      // ← caught: field type
+    public ExperimentalType getIt() { return field; }   // ← caught: return type
+    public void setIt(ExperimentalType v) { }           // ← caught: parameter type
+}
+```
+
+The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types. When a type-level annotation is present, all member accesses through that type are considered experimental. `@AllowCopilotExperimental` mirrors the same declaration-level boundary: annotating a class opts in that class and its enclosed declarations, while annotating a method or constructor opts in just that executable signature.
+
 ## Projects Using This SDK
 
 | Project                                                                       | Description                                |

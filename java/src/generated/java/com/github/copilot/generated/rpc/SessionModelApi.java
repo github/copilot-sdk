@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionModelApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionModelGetCurrentResult> getCurrent() {
         return caller.invoke("session.model.getCurrent", java.util.Map.of("sessionId", this.sessionId), SessionModelGetCurrentResult.class);
     }
@@ -48,6 +50,7 @@ public final class SessionModelApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionModelSwitchToResult> switchTo(SessionModelSwitchToParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -63,6 +66,7 @@ public final class SessionModelApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionModelSetReasoningEffortResult> setReasoningEffort(SessionModelSetReasoningEffortParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -75,6 +79,7 @@ public final class SessionModelApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionModelListResult> list() {
         return caller.invoke("session.model.list", java.util.Map.of("sessionId", this.sessionId), SessionModelListResult.class);
     }

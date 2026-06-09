@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -33,6 +34,7 @@ public final class SessionQueueApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionQueuePendingItemsResult> pendingItems() {
         return caller.invoke("session.queue.pendingItems", java.util.Map.of("sessionId", this.sessionId), SessionQueuePendingItemsResult.class);
     }
@@ -43,6 +45,7 @@ public final class SessionQueueApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionQueueRemoveMostRecentResult> removeMostRecent() {
         return caller.invoke("session.queue.removeMostRecent", java.util.Map.of("sessionId", this.sessionId), SessionQueueRemoveMostRecentResult.class);
     }
@@ -53,6 +56,7 @@ public final class SessionQueueApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> clear() {
         return caller.invoke("session.queue.clear", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
