@@ -85,7 +85,7 @@ The `SessionCapability` enum lets callers enable or disable named runtime featur
 - `enabledCapabilities` -- capabilities to opt the session into (extends the `SDK_CAPABILITIES` baseline)
 - `disabledCapabilities` -- capabilities to opt the session out of (disable wins on overlap)
 
-This approach works for every transport -- including `Transport::External` (Desktop app / shared CLI server) -- because it does not rely on CLI spawn arguments.
+This approach works for every transport -- including `Transport::External` -- because it does not rely on CLI spawn arguments.
 
 > **Experimental.** Per-session capability controls are an experimental
 > wire-protocol surface and may change or be removed in future SDK or CLI
@@ -94,11 +94,9 @@ This approach works for every transport -- including `Transport::External` (Desk
 > repository convention used in `rust/src/generated/`); there is no
 > `#[experimental]` attribute, so the marker is documentation-only.
 
-> **Runtime dependency.** Per-session capability controls require
-> [github/copilot-agent-runtime#8918](https://github.com/github/copilot-agent-runtime/pull/8918)
-> or later. On older runtimes the fields are silently ignored.
-> Pairs with [github/agents#1081](https://github.com/github/agents/issues/1081)
-> (Desktop app missing memory capability).
+> **Runtime dependency.** Per-session capability controls require a runtime
+> version that supports `enabledCapabilities` and `disabledCapabilities`.
+> On older runtimes the fields are silently ignored.
 
 Use `SessionConfig::with_enable_capability` / `with_disable_capability` (and their plural counterparts):
 

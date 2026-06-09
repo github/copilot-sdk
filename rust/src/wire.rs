@@ -149,12 +149,12 @@ pub(crate) struct SessionCreateWire {
     pub commands: Option<Vec<CommandWireDefinition>>,
     /// Capabilities to opt this session into. Forwarded as
     /// `enabledCapabilities` on the `session.create` wire call.
-    /// Requires github/copilot-agent-runtime#8918.
+    /// Requires runtime support for per-session capability controls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled_capabilities: Option<Vec<String>>,
     /// Capabilities to opt this session out of. Disable wins on overlap.
     /// Forwarded as `disabledCapabilities` on the `session.create` wire call.
-    /// Requires github/copilot-agent-runtime#8918.
+    /// Requires runtime support for per-session capability controls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_capabilities: Option<Vec<String>>,
 }
@@ -269,12 +269,12 @@ pub(crate) struct SessionResumeWire {
     pub continue_pending_work: Option<bool>,
     /// Capabilities to opt this session into. Forwarded as
     /// `enabledCapabilities` on the `session.resume` wire call.
-    /// Requires github/copilot-agent-runtime#8918.
+    /// Requires runtime support for per-session capability controls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled_capabilities: Option<Vec<String>>,
     /// Capabilities to opt this session out of. Disable wins on overlap.
     /// Forwarded as `disabledCapabilities` on the `session.resume` wire call.
-    /// Requires github/copilot-agent-runtime#8918.
+    /// Requires runtime support for per-session capability controls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_capabilities: Option<Vec<String>>,
 }

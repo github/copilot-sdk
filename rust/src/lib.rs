@@ -432,7 +432,7 @@ impl OtelExporterType {
 /// SDK release can still be opted into without waiting for a new
 /// enum variant.
 ///
-/// Requires github/copilot-agent-runtime#8918 or later.
+/// Requires runtime support for per-session capability controls.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SessionCapability {

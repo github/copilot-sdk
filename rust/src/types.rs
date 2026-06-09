@@ -831,7 +831,7 @@ impl CloudSessionOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionInfo {
-    /// Extension namespace/source, e.g. `"github-app"`.
+    /// Extension namespace/source, e.g. `"example-host"`.
     pub source: String,
     /// Stable provider name within the source namespace.
     pub name: String,
@@ -1381,7 +1381,7 @@ pub struct SessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later. On older
+    /// Requires runtime support for per-session capability controls. On older
     /// runtimes the field is silently ignored.
     pub enabled_capabilities: Vec<SessionCapability>,
     /// Capabilities to opt this session out of via `disabledCapabilities`
@@ -1395,7 +1395,7 @@ pub struct SessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub disabled_capabilities: Vec<SessionCapability>,
 }
 
@@ -1955,7 +1955,7 @@ impl SessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     ///
     /// # Example
     ///
@@ -1979,7 +1979,7 @@ impl SessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub fn with_disable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
         self.disabled_capabilities.push(capability.into());
         self
@@ -1995,7 +1995,7 @@ impl SessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub fn with_enabled_capabilities<I, C>(mut self, capabilities: I) -> Self
     where
         I: IntoIterator<Item = C>,
@@ -2015,7 +2015,7 @@ impl SessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub fn with_disabled_capabilities<I, C>(mut self, capabilities: I) -> Self
     where
         I: IntoIterator<Item = C>,
@@ -2492,7 +2492,7 @@ pub struct ResumeSessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub enabled_capabilities: Vec<SessionCapability>,
     /// Capabilities to opt this session out of via `disabledCapabilities` on
     /// the `session.resume` wire call. Disable wins over enable on overlap.
@@ -2504,7 +2504,7 @@ pub struct ResumeSessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub disabled_capabilities: Vec<SessionCapability>,
 }
 
@@ -3021,7 +3021,7 @@ impl ResumeSessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub fn with_enable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
         self.enabled_capabilities.push(capability.into());
         self
@@ -3036,7 +3036,7 @@ impl ResumeSessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub fn with_disable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
         self.disabled_capabilities.push(capability.into());
         self
@@ -3051,7 +3051,7 @@ impl ResumeSessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub fn with_enabled_capabilities<I, C>(mut self, capabilities: I) -> Self
     where
         I: IntoIterator<Item = C>,
@@ -3071,7 +3071,7 @@ impl ResumeSessionConfig {
     ///
     /// </div>
     ///
-    /// Requires github/copilot-agent-runtime#8918 or later.
+    /// Requires runtime support for per-session capability controls.
     pub fn with_disabled_capabilities<I, C>(mut self, capabilities: I) -> Self
     where
         I: IntoIterator<Item = C>,
@@ -4891,7 +4891,7 @@ mod tests {
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(false)
-            .with_extension_info(ExtensionInfo::new("github-app", "counter"));
+            .with_extension_info(ExtensionInfo::new("example-host", "counter"));
 
         assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
         assert_eq!(cfg.model.as_deref(), Some("claude-sonnet-4"));
@@ -4929,7 +4929,7 @@ mod tests {
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
         assert_eq!(
             cfg.extension_info,
-            Some(ExtensionInfo::new("github-app", "counter"))
+            Some(ExtensionInfo::new("example-host", "counter"))
         );
     }
 
@@ -4959,7 +4959,7 @@ mod tests {
             .with_include_sub_agent_streaming_events(true)
             .with_suppress_resume_event(true)
             .with_continue_pending_work(true)
-            .with_extension_info(ExtensionInfo::new("github-app", "counter"));
+            .with_extension_info(ExtensionInfo::new("example-host", "counter"));
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
@@ -4997,7 +4997,7 @@ mod tests {
         assert_eq!(cfg.continue_pending_work, Some(true));
         assert_eq!(
             cfg.extension_info,
-            Some(ExtensionInfo::new("github-app", "counter"))
+            Some(ExtensionInfo::new("example-host", "counter"))
         );
     }
 
