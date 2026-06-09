@@ -77,6 +77,8 @@ pub struct JsonRpcError {
 
 /// Standard JSON-RPC 2.0 error codes.
 pub mod error_codes {
+    /// Parse error (-32700): the server sent a message that is not valid JSON.
+    pub const PARSE_ERROR: i32 = -32700;
     /// Method not found (-32601).
     pub const METHOD_NOT_FOUND: i32 = -32601;
     /// Invalid method parameters (-32602).
@@ -168,6 +170,38 @@ impl JsonRpcResponse {
 }
 
 const CONTENT_LENGTH_HEADER: &str = "Content-Length: ";
+
+/// Best-effort recovery of a response `id` from a frame whose body failed to
+/// parse. JSON-RPC responses serialize `id` near the start of the object —
+/// ahead of the `result`/`error` payload that may be truncated — so a bounded
+/// scan of the leading bytes finds it without a full parse. Returns `None` for
+/// notifications (no `id`) or when no numeric id is present in the prefix.
+fn extract_response_id(body: &[u8]) -> Option<u64> {
+    const SCAN_LIMIT: usize = 256;
+    let head = &body[..body.len().min(SCAN_LIMIT)];
+    // Only responses carry a recoverable awaiter. Notifications and server
+    // requests are distinguished by a `method` field; bail so a stray numeric
+    // `id` nested in their params can't fail an unrelated pending request.
+    if head.windows(8).any(|window| window == b"\"method\"") {
+        return None;
+    }
+    let key = b"\"id\"";
+    let key_pos = head.windows(key.len()).position(|window| window == key)?;
+    let after = &head[key_pos + key.len()..];
+
+    let mut i = 0;
+    while i < after.len() && matches!(after[i], b' ' | b'\t' | b':') {
+        i += 1;
+    }
+    let start = i;
+    while i < after.len() && after[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i == start {
+        return None;
+    }
+    std::str::from_utf8(&after[start..i]).ok()?.parse().ok()
+}
 
 /// One framed JSON-RPC message handed to the writer actor.
 ///
@@ -308,77 +342,91 @@ impl JsonRpcClient {
         let mut reader = BufReader::new(reader);
 
         loop {
-            match Self::read_message(&mut reader).await {
-                Ok(Some(message)) => match message {
-                    JsonRpcMessage::Response(mut response) => {
-                        let id = response.id;
-                        let pending = pending_requests.write().remove(&id);
-                        if let Some(PendingRequest {
-                            sender,
-                            inline_callback,
-                        }) = pending
-                        {
-                            // Run the inline callback synchronously on the
-                            // read loop so any state it mutates (e.g.
-                            // registering a server-assigned session id with
-                            // the router) is visible before the loop reads
-                            // and dispatches the next message.
-                            if let Some(cb) = inline_callback
-                                && response.error.is_none()
-                            {
-                                let cb_outcome =
-                                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                        cb(&response)
-                                    }));
-                                match cb_outcome {
-                                    Ok(Ok(())) => {}
-                                    Ok(Err(error)) => {
-                                        response.result = None;
-                                        response.error = Some(JsonRpcError {
-                                            code: -32603,
-                                            message: error.to_string(),
-                                            data: None,
-                                        });
-                                    }
-                                    Err(panic) => {
-                                        let message = panic
-                                            .downcast_ref::<&'static str>()
-                                            .map(|s| (*s).to_string())
-                                            .or_else(|| panic.downcast_ref::<String>().cloned())
-                                            .unwrap_or_else(|| {
-                                                "inline response callback panicked".to_string()
-                                            });
-                                        response.result = None;
-                                        response.error = Some(JsonRpcError {
-                                            code: -32603,
-                                            message,
-                                            data: None,
-                                        });
-                                    }
-                                }
-                            }
-                            if sender.send(response).is_err() {
-                                warn!(request_id = %id, "failed to send response for request");
-                            }
-                        } else {
-                            warn!(request_id = %id, "received response for unknown request id");
-                        }
-                    }
-                    JsonRpcMessage::Notification(notification) => {
-                        let _ = notification_tx.send(notification);
-                    }
-                    JsonRpcMessage::Request(request) => {
-                        if request_tx.send(request).is_err() {
-                            warn!("failed to forward JSON-RPC request, channel closed");
-                        }
-                    }
-                },
-                Ok(None) => {
-                    break;
-                }
+            let body = match Self::read_frame(&mut reader).await {
+                Ok(Some(body)) => body,
+                Ok(None) => break,
                 Err(e) => {
                     error!(error = %e, "error reading from CLI");
                     break;
+                }
+            };
+
+            // Parse the fully assembled frame. A body-level JSON error means
+            // this single message is corrupt, not that the transport is
+            // broken: Content-Length framing has already left the reader
+            // aligned to the next frame. Fail only the implicated request and
+            // keep serving every other in-flight request, rather than tearing
+            // down the shared connection and cancelling them all.
+            let message = match serde_json::from_slice::<JsonRpcMessage>(&body) {
+                Ok(message) => message,
+                Err(parse_error) => {
+                    Self::fail_unparseable_frame(&body, &parse_error, &pending_requests);
+                    continue;
+                }
+            };
+
+            match message {
+                JsonRpcMessage::Response(mut response) => {
+                    let id = response.id;
+                    let pending = pending_requests.write().remove(&id);
+                    if let Some(PendingRequest {
+                        sender,
+                        inline_callback,
+                    }) = pending
+                    {
+                        // Run the inline callback synchronously on the
+                        // read loop so any state it mutates (e.g.
+                        // registering a server-assigned session id with
+                        // the router) is visible before the loop reads
+                        // and dispatches the next message.
+                        if let Some(cb) = inline_callback
+                            && response.error.is_none()
+                        {
+                            let cb_outcome =
+                                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                    cb(&response)
+                                }));
+                            match cb_outcome {
+                                Ok(Ok(())) => {}
+                                Ok(Err(error)) => {
+                                    response.result = None;
+                                    response.error = Some(JsonRpcError {
+                                        code: -32603,
+                                        message: error.to_string(),
+                                        data: None,
+                                    });
+                                }
+                                Err(panic) => {
+                                    let message = panic
+                                        .downcast_ref::<&'static str>()
+                                        .map(|s| (*s).to_string())
+                                        .or_else(|| panic.downcast_ref::<String>().cloned())
+                                        .unwrap_or_else(|| {
+                                            "inline response callback panicked".to_string()
+                                        });
+                                    response.result = None;
+                                    response.error = Some(JsonRpcError {
+                                        code: -32603,
+                                        message,
+                                        data: None,
+                                    });
+                                }
+                            }
+                        }
+                        if sender.send(response).is_err() {
+                            warn!(request_id = %id, "failed to send response for request");
+                        }
+                    } else {
+                        warn!(request_id = %id, "received response for unknown request id");
+                    }
+                }
+                JsonRpcMessage::Notification(notification) => {
+                    let _ = notification_tx.send(notification);
+                }
+                JsonRpcMessage::Request(request) => {
+                    if request_tx.send(request).is_err() {
+                        warn!("failed to forward JSON-RPC request, channel closed");
+                    }
                 }
             }
         }
@@ -395,9 +443,56 @@ impl JsonRpcClient {
         }
     }
 
-    async fn read_message(
+    /// Deliver a parse-error response to the request implicated by a corrupt
+    /// frame, then return so the read loop can keep serving the connection.
+    ///
+    /// Honest Content-Length framing keeps the stream aligned to the next
+    /// frame whether or not a body is valid JSON, so a single unparseable
+    /// message must not cancel every concurrent request. The offending
+    /// request's `id` sits at the head of the frame — before the possibly
+    /// truncated payload — so we recover it without a full parse and fail just
+    /// that one awaiter. Frames with no recoverable id (notifications, server
+    /// requests) carry no client-side awaiter and are simply dropped.
+    fn fail_unparseable_frame(
+        body: &[u8],
+        error: &serde_json::Error,
+        pending_requests: &RwLock<HashMap<u64, PendingRequest>>,
+    ) {
+        let recovered_id = extract_response_id(body);
+        warn!(
+            error = %error,
+            frame_len = body.len(),
+            request_id = ?recovered_id,
+            "skipping unparseable JSON-RPC frame; connection preserved"
+        );
+        let Some(id) = recovered_id else {
+            return;
+        };
+        if let Some(PendingRequest { sender, .. }) = pending_requests.write().remove(&id) {
+            let response = JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id,
+                result: None,
+                error: Some(JsonRpcError {
+                    code: error_codes::PARSE_ERROR,
+                    message: format!("malformed JSON-RPC response from CLI: {error}"),
+                    data: None,
+                }),
+            };
+            let _ = sender.send(response);
+        }
+    }
+
+    /// Read a single Content-Length-framed message body from the transport.
+    ///
+    /// Returns `Ok(Some(body))` with the exact frame bytes, `Ok(None)` on a
+    /// clean EOF at a frame boundary, or `Err` for an I/O or framing error
+    /// (which the read loop treats as a fatal transport failure). Parsing the
+    /// returned bytes is deliberately left to the caller so a JSON error can
+    /// be handled per-message without tearing down the connection.
+    async fn read_frame(
         reader: &mut BufReader<impl AsyncRead + Unpin>,
-    ) -> Result<Option<JsonRpcMessage>, Error> {
+    ) -> Result<Option<Vec<u8>>, Error> {
         let mut line = String::new();
         let mut content_length = None;
 
@@ -428,8 +523,7 @@ impl JsonRpcClient {
         let mut body = vec![0u8; length];
         reader.read_exact(&mut body).await?;
 
-        let message: JsonRpcMessage = serde_json::from_slice(&body)?;
-        Ok(Some(message))
+        Ok(Some(body))
     }
 
     /// Send a JSON-RPC request and wait for the matching response.
@@ -658,6 +752,31 @@ mod tests {
     fn deserialize_rejects_non_object() {
         let result = serde_json::from_str::<JsonRpcMessage>(r#""not an object""#);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn extract_response_id_recovers_id_from_truncated_body() {
+        // Body cut off mid-`\u` escape — the failure mode from issue github/app#836.
+        let body = br#"{"jsonrpc":"2.0","id":4271,"result":{"text":"\u00"#;
+        assert_eq!(extract_response_id(body), Some(4271));
+    }
+
+    #[test]
+    fn extract_response_id_handles_whitespace_and_error_frames() {
+        assert_eq!(
+            extract_response_id(br#"{ "id" : 12 , "result": null}"#),
+            Some(12)
+        );
+        assert_eq!(
+            extract_response_id(br#"{"jsonrpc":"2.0","id":9,"error":{"code":-32603"#),
+            Some(9)
+        );
+    }
+
+    #[test]
+    fn extract_response_id_returns_none_for_notifications() {
+        let body = br#"{"jsonrpc":"2.0","method":"session.event","params":{"id":"e1"}}"#;
+        assert_eq!(extract_response_id(body), None);
     }
 
     #[test]

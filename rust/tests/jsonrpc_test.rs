@@ -410,3 +410,106 @@ async fn send_request_cancellation_does_not_leak_pending() {
     assert_eq!(response.result.unwrap()["ok"], true);
     server_task.await.unwrap();
 }
+
+/// Regression for issue github/app#836: a single unparseable response frame
+/// (a body truncated mid-`\uXXXX` escape) must fail only its own request and
+/// leave every other concurrent request untouched — not tear down the shared
+/// read loop and cancel them all (which left the model picker empty on launch).
+#[tokio::test]
+async fn malformed_frame_fails_only_its_own_request() {
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    async fn read_one_request(reader: &mut tokio::io::DuplexStream) -> JsonRpcRequest {
+        let mut header = String::new();
+        loop {
+            let mut byte = [0u8; 1];
+            tokio::io::AsyncReadExt::read_exact(reader, &mut byte)
+                .await
+                .unwrap();
+            header.push(byte[0] as char);
+            if header.ends_with("\r\n\r\n") {
+                break;
+            }
+        }
+        let length: usize = header
+            .trim()
+            .strip_prefix("Content-Length: ")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let mut body = vec![0u8; length];
+        tokio::io::AsyncReadExt::read_exact(reader, &mut body)
+            .await
+            .unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    let (client_write, mut server_read) = duplex(8192);
+    let (mut server_write, client_read) = duplex(8192);
+
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _) = mpsc::unbounded_channel();
+    let client = std::sync::Arc::new(JsonRpcClient::new(
+        client_write,
+        client_read,
+        notification_tx,
+        request_tx,
+    ));
+
+    // Two concurrent in-flight requests sharing the one read loop.
+    let bad = tokio::spawn({
+        let client = client.clone();
+        async move { client.send_request("bad", None).await }
+    });
+    let good = tokio::spawn({
+        let client = client.clone();
+        async move { client.send_request("good", None).await }
+    });
+
+    // Learn the wire ids regardless of which request was written first.
+    let server = tokio::spawn(async move {
+        let mut ids = std::collections::HashMap::new();
+        for _ in 0..2 {
+            let req = read_one_request(&mut server_read).await;
+            ids.insert(req.method.clone(), req.id);
+        }
+
+        // Respond to "bad" with a correctly framed but truncated body — the
+        // Content-Length is honest, the JSON ends mid-`\u` escape.
+        let truncated = format!(r#"{{"jsonrpc":"2.0","id":{},"result":"\u00"#, ids["bad"]);
+        write_framed(&mut server_write, truncated.as_bytes()).await;
+
+        // Respond to "good" with a well-formed response.
+        let ok = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": ids["good"],
+            "result": {"ok": true}
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&ok).unwrap()).await;
+
+        // Hold the transport open so the read loop never sees EOF (which would
+        // itself cancel pending requests and mask the behavior under test).
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    });
+
+    // The healthy request must succeed — it is NOT collateral damage.
+    let good_response = timeout(Duration::from_secs(2), good)
+        .await
+        .expect("good request hung")
+        .unwrap()
+        .unwrap();
+    assert_eq!(good_response.result.unwrap()["ok"], true);
+
+    // The malformed request resolves promptly with a parse error instead of
+    // hanging forever.
+    let bad_response = timeout(Duration::from_secs(2), bad)
+        .await
+        .expect("bad request hung")
+        .unwrap()
+        .unwrap();
+    assert!(bad_response.is_error());
+    assert_eq!(bad_response.error.unwrap().code, -32700);
+
+    server.await.unwrap();
+}
