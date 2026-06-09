@@ -132,7 +132,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// Populated from the most recent <c>session.resume</c> response and live
-    /// <c>session.canvas.opened</c> events.
+    /// <c>session.canvas.opened</c> and <c>session.canvas.closed</c> events.
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
     public IReadOnlyList<OpenCanvasInstance> OpenCanvases => _openCanvases;
@@ -892,6 +892,19 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     private void UpdateOpenCanvasesFromEvent(SessionEvent sessionEvent)
     {
+        if (sessionEvent is SessionCanvasClosedEvent closedEvent)
+        {
+            var closedInstanceId = closedEvent.Data.InstanceId;
+            if (string.IsNullOrEmpty(closedInstanceId))
+            {
+                _logger.LogWarning("failed to deserialize session.canvas.closed payload");
+                return;
+            }
+
+            RemoveOpenCanvas(closedInstanceId);
+            return;
+        }
+
         if (sessionEvent is not SessionCanvasOpenedEvent canvasEvent)
             return;
 
@@ -928,6 +941,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
             canvases[index] = canvas;
         else
             canvases.Add(canvas);
+        _openCanvases = canvases.AsReadOnly();
+    }
+
+    private void RemoveOpenCanvas(string instanceId)
+    {
+        var canvases = _openCanvases.Where(open => open.InstanceId != instanceId).ToList();
         _openCanvases = canvases.AsReadOnly();
     }
 

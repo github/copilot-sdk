@@ -507,6 +507,8 @@ export class CopilotSession {
             this._capabilities = { ...this._capabilities, ...event.data };
         } else if (event.type === "session.canvas.opened") {
             this.upsertOpenCanvasFromEvent(event.data);
+        } else if (event.type === "session.canvas.closed") {
+            this.removeOpenCanvasFromEvent(event.data);
         }
     }
 
@@ -516,6 +518,25 @@ export class CopilotSession {
             return;
         }
         this.upsertOpenCanvas(data);
+    }
+
+    private removeOpenCanvasFromEvent(data: unknown): void {
+        if (
+            !data ||
+            typeof data !== "object" ||
+            typeof (data as { instanceId?: unknown }).instanceId !== "string" ||
+            (data as { instanceId: string }).instanceId.length === 0
+        ) {
+            console.warn("failed to deserialize session.canvas.closed payload");
+            return;
+        }
+        this.removeOpenCanvas((data as { instanceId: string }).instanceId);
+    }
+
+    private removeOpenCanvas(instanceId: string): void {
+        this.openCanvasInstances = this.openCanvasInstances.filter(
+            (open) => open.instanceId !== instanceId
+        );
     }
 
     private upsertOpenCanvas(instance: OpenCanvasInstance): void {
@@ -851,8 +872,8 @@ export class CopilotSession {
     /**
      * Snapshot of canvas instances currently known to be open for this session.
      * Populated from the `session.resume` response and live `session.canvas.opened`
-     * events. Returns a defensive copy — mutating the returned array has no effect
-     * on the session.
+     * and `session.canvas.closed` events. Returns a defensive copy — mutating the
+     * returned array has no effect on the session.
      */
     get openCanvases(): OpenCanvasInstance[] {
         return [...this.openCanvasInstances];

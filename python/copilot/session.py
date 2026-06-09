@@ -67,6 +67,7 @@ from .generated.session_events import (
     ExternalToolRequestedData,
     PermissionRequest,
     PermissionRequestedData,
+    SessionCanvasClosedData,
     SessionCanvasOpenedData,
     SessionErrorData,
     SessionEvent,
@@ -1564,6 +1565,14 @@ class CopilotSession:
                 except Exception as exc:
                     logger.warning("failed to deserialize session.canvas.opened payload: %s", exc)
 
+            case SessionCanvasClosedData() as data:
+                try:
+                    if not data.instance_id:
+                        raise ValueError("missing required closed canvas fields")
+                    self._remove_open_canvas(data.instance_id)
+                except Exception as exc:
+                    logger.warning("failed to deserialize session.canvas.closed payload: %s", exc)
+
     async def _execute_tool_and_respond(
         self,
         request_id: str,
@@ -1915,11 +1924,18 @@ class CopilotSession:
                     return
             self._open_canvases.append(instance)
 
+    def _remove_open_canvas(self, instance_id: str) -> None:
+        with self._open_canvases_lock:
+            self._open_canvases = [
+                canvas for canvas in self._open_canvases if canvas.instance_id != instance_id
+            ]
+
     @property
     def open_canvases(self) -> list[OpenCanvasInstance]:
         """Open canvas instances currently known to be open for this session.
 
-        Populated from ``session.resume`` and live ``session.canvas.opened`` events.
+        Populated from ``session.resume`` and live ``session.canvas.opened`` and
+        ``session.canvas.closed`` events.
         """
         with self._open_canvases_lock:
             return list(self._open_canvases)

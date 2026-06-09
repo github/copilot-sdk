@@ -230,6 +230,93 @@ public class CanvasTests
     }
 
     [Fact]
+    public void SessionCanvasClosedEvent_RemovesOpenCanvasSnapshots()
+    {
+        var session = CreateSession();
+
+        DispatchEvent(session, new SessionCanvasOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasOpenedData
+            {
+                Availability = CanvasOpenedAvailability.Ready,
+                CanvasId = "counter",
+                ExtensionId = "project:counter",
+                InstanceId = "counter-1",
+                Title = "Counter",
+                Reopen = false,
+            }
+        });
+        DispatchEvent(session, new SessionCanvasOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasOpenedData
+            {
+                Availability = CanvasOpenedAvailability.Ready,
+                CanvasId = "logs",
+                ExtensionId = "project:logs",
+                InstanceId = "logs-1",
+                Title = "Logs",
+                Reopen = false,
+            }
+        });
+
+        Assert.Collection(
+            session.OpenCanvases,
+            canvas => Assert.Equal("counter-1", canvas.InstanceId),
+            canvas => Assert.Equal("logs-1", canvas.InstanceId));
+
+        // Closing one instance removes it; the other remains.
+        DispatchEvent(session, new SessionCanvasClosedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasClosedData
+            {
+                CanvasId = "counter",
+                ExtensionId = "project:counter",
+                InstanceId = "counter-1",
+            }
+        });
+
+        Assert.Collection(
+            session.OpenCanvases,
+            canvas => Assert.Equal("logs-1", canvas.InstanceId));
+
+        // Closing an absent instance is a no-op (idempotent).
+        DispatchEvent(session, new SessionCanvasClosedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasClosedData
+            {
+                CanvasId = "counter",
+                ExtensionId = "project:counter",
+                InstanceId = "counter-1",
+            }
+        });
+
+        // A closed event with an empty instance id leaves the snapshot intact.
+        DispatchEvent(session, new SessionCanvasClosedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasClosedData
+            {
+                CanvasId = "logs",
+                ExtensionId = "project:logs",
+                InstanceId = "",
+            }
+        });
+
+        Assert.Collection(
+            session.OpenCanvases,
+            canvas => Assert.Equal("logs-1", canvas.InstanceId));
+    }
+
+    [Fact]
     public void ExtensionInfo_Serializes_SourceAndName()
     {
         var options = GetSerializerOptions();

@@ -27,6 +27,7 @@ from copilot.rpc import (
 from copilot.session import CopilotSession
 from copilot.session_events import (
     CanvasOpenedAvailability,
+    SessionCanvasClosedData,
     SessionCanvasOpenedData,
     SessionEvent,
     SessionEventType,
@@ -303,3 +304,73 @@ def test_session_canvas_opened_updates_open_canvases(caplog: pytest.LogCaptureFi
     assert open_canvases[0].reopen is True
     assert open_canvases[0].availability == CanvasInstanceAvailability.STALE
     assert open_canvases[1].instance_id == "logs-1"
+
+
+def test_session_canvas_closed_removes_open_canvases(caplog: pytest.LogCaptureFixture):
+    session = CopilotSession("sess-1", client=None)
+
+    for canvas_id, instance_id in (("counter", "counter-1"), ("logs", "logs-1")):
+        session._dispatch_event(
+            SessionEvent(
+                data=SessionCanvasOpenedData(
+                    availability=CanvasOpenedAvailability.READY,
+                    canvas_id=canvas_id,
+                    extension_id=f"project:{canvas_id}",
+                    instance_id=instance_id,
+                    reopen=False,
+                ),
+                id=uuid4(),
+                timestamp=datetime.now(UTC),
+                type=SessionEventType.SESSION_CANVAS_OPENED,
+            )
+        )
+    assert [canvas.instance_id for canvas in session.open_canvases] == [
+        "counter-1",
+        "logs-1",
+    ]
+
+    # Closing one instance removes it; the other remains.
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasClosedData(
+                canvas_id="counter",
+                extension_id="project:counter",
+                instance_id="counter-1",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_CLOSED,
+        )
+    )
+    assert [canvas.instance_id for canvas in session.open_canvases] == ["logs-1"]
+
+    # Closing an absent instance is a no-op (idempotent).
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasClosedData(
+                canvas_id="counter",
+                extension_id="project:counter",
+                instance_id="counter-1",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_CLOSED,
+        )
+    )
+    assert [canvas.instance_id for canvas in session.open_canvases] == ["logs-1"]
+
+    # A closed event with an empty instance_id warns and leaves the snapshot intact.
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasClosedData(
+                canvas_id="logs",
+                extension_id="project:logs",
+                instance_id="",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_CLOSED,
+        )
+    )
+    assert "failed to deserialize session.canvas.closed payload" in caplog.text
+    assert [canvas.instance_id for canvas in session.open_canvases] == ["logs-1"]
