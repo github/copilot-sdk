@@ -135,36 +135,14 @@ let session = client.resume_session(
 | `SessionStore`       | `session-store`         | Cross-session history tools and session-store metadata |
 | `McpApps`            | `mcp-apps`              | MCP-Apps `ui://` resource passthrough (SEP-1865)      |
 | `CanvasRenderer`     | `canvas-renderer`       | Host-rendered extension canvases                      |
-| `Other(String)`      | *(verbatim)*            | Forward-compat escape hatch for unknown future names  |
+| `Unknown`            | *(none)*                | Deserialization fallback; rejected for outbound config |
 
 **Disable-wins semantics.** If the same capability appears in both
 `enabled_capabilities` and `disabled_capabilities`, disable wins. The runtime
 starts from an `SDK_CAPABILITIES` baseline; enabled capabilities extend it and
-disabled capabilities remove from it, in that order.
-
-**Forward compatibility.** The enum is `#[non_exhaustive]` and carries an
-`Other(String)` variant so callers on older SDK builds can opt into
-capabilities that the runtime adds ahead of a new SDK release, without any
-recompile-blocking enum-variant additions:
-
-```rust,ignore
-use github_copilot_sdk::{SessionCapability, SessionConfig};
-
-// Opt into a capability the SDK doesn't know about yet.
-let config = SessionConfig::default()
-    .with_enable_capability(SessionCapability::Other("future-cap".to_string()));
-```
-
-`&str` and `String` implement `Into<SessionCapability>`, so you can also pass
-string literals directly to the builders:
-
-```rust,ignore
-use github_copilot_sdk::SessionConfig;
-
-let config = SessionConfig::default()
-    .with_enable_capability("memory")          // &str coerces to SessionCapability
-    .with_disable_capability("plan-mode");
-```
+disabled capabilities remove from it, in that order. `SessionCapability::Unknown`
+exists only as a generated deserialization fallback and is rejected if supplied
+to the create/resume capability builders.
 
 ### Session
 
@@ -802,9 +780,8 @@ gets to be Rust here — cross-SDK parity for these is a post-release
 conversation, not a release blocker. None of these are deprecated and
 none of them are scheduled for removal.
 
-- **`SessionCapability` enum** -- typed, `#[non_exhaustive]` enum for per-session
-  capability opt-in / opt-out, with an `Other(String)` escape hatch for
-  forward compatibility. Sent via `enabledCapabilities` /
+- **`SessionCapability` enum** -- generated typed enum for per-session
+  capability opt-in / opt-out. Sent via `enabledCapabilities` /
   `disabledCapabilities` on the `session.create` and `session.resume` wire
   calls -- works for all transports including `Transport::External`. See
   [Session capabilities](#session-capabilities) above. Marked

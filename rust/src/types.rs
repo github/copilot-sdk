@@ -12,7 +12,6 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::SessionCapability;
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
 use crate::generated::api_types::OpenCanvasInstance;
 /// Context window tier for models that support tiered context windows.
@@ -1604,6 +1603,27 @@ pub(crate) struct SessionConfigRuntime {
     pub commands: Option<Vec<CommandDefinition>>,
 }
 
+fn capability_list_to_wire(
+    field_name: &str,
+    capabilities: Vec<SessionCapability>,
+) -> Result<Option<Vec<SessionCapability>>, crate::Error> {
+    if capabilities.is_empty() {
+        return Ok(None);
+    }
+
+    if capabilities
+        .iter()
+        .any(|capability| matches!(capability, SessionCapability::Unknown))
+    {
+        return Err(crate::Error::with_message(
+            crate::ErrorKind::InvalidConfig,
+            format!("{field_name} cannot include SessionCapability::Unknown"),
+        ));
+    }
+
+    Ok(Some(capabilities))
+}
+
 impl SessionConfig {
     /// Consume this config to produce the [`SessionCreateWire`] payload
     /// for `session.create` and a [`SessionConfigRuntime`] bundle holding
@@ -1653,26 +1673,10 @@ impl SessionConfig {
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
 
-        let enabled_capabilities = if self.enabled_capabilities.is_empty() {
-            None
-        } else {
-            Some(
-                self.enabled_capabilities
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect(),
-            )
-        };
-        let disabled_capabilities = if self.disabled_capabilities.is_empty() {
-            None
-        } else {
-            Some(
-                self.disabled_capabilities
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect(),
-            )
-        };
+        let enabled_capabilities =
+            capability_list_to_wire("enabled_capabilities", self.enabled_capabilities)?;
+        let disabled_capabilities =
+            capability_list_to_wire("disabled_capabilities", self.disabled_capabilities)?;
         let wire = crate::wire::SessionCreateWire {
             session_id,
             model: self.model,
@@ -1945,8 +1949,7 @@ impl SessionConfig {
     /// `session.create`. Appends to [`Self::enabled_capabilities`],
     /// preserving insertion order.
     ///
-    /// See [`SessionCapability`] for the disable-wins overlap rules
-    /// and the [`SessionCapability::Other`] forward-compat escape hatch.
+    /// See [`SessionCapability`] for the available capability names.
     ///
     /// <div class="warning">
     ///
@@ -1964,8 +1967,8 @@ impl SessionConfig {
     /// let config = SessionConfig::default()
     ///     .with_enable_capability(SessionCapability::Memory);
     /// ```
-    pub fn with_enable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
-        self.enabled_capabilities.push(capability.into());
+    pub fn with_enable_capability(mut self, capability: SessionCapability) -> Self {
+        self.enabled_capabilities.push(capability);
         self
     }
 
@@ -1980,8 +1983,8 @@ impl SessionConfig {
     /// </div>
     ///
     /// Requires runtime support for per-session capability controls.
-    pub fn with_disable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
-        self.disabled_capabilities.push(capability.into());
+    pub fn with_disable_capability(mut self, capability: SessionCapability) -> Self {
+        self.disabled_capabilities.push(capability);
         self
     }
 
@@ -1996,12 +1999,11 @@ impl SessionConfig {
     /// </div>
     ///
     /// Requires runtime support for per-session capability controls.
-    pub fn with_enabled_capabilities<I, C>(mut self, capabilities: I) -> Self
+    pub fn with_enabled_capabilities<I>(mut self, capabilities: I) -> Self
     where
-        I: IntoIterator<Item = C>,
-        C: Into<SessionCapability>,
+        I: IntoIterator<Item = SessionCapability>,
     {
-        self.enabled_capabilities = capabilities.into_iter().map(Into::into).collect();
+        self.enabled_capabilities = capabilities.into_iter().collect();
         self
     }
 
@@ -2016,12 +2018,11 @@ impl SessionConfig {
     /// </div>
     ///
     /// Requires runtime support for per-session capability controls.
-    pub fn with_disabled_capabilities<I, C>(mut self, capabilities: I) -> Self
+    pub fn with_disabled_capabilities<I>(mut self, capabilities: I) -> Self
     where
-        I: IntoIterator<Item = C>,
-        C: Into<SessionCapability>,
+        I: IntoIterator<Item = SessionCapability>,
     {
-        self.disabled_capabilities = capabilities.into_iter().map(Into::into).collect();
+        self.disabled_capabilities = capabilities.into_iter().collect();
         self
     }
 
@@ -2664,26 +2665,10 @@ impl ResumeSessionConfig {
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
 
-        let enabled_capabilities = if self.enabled_capabilities.is_empty() {
-            None
-        } else {
-            Some(
-                self.enabled_capabilities
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect(),
-            )
-        };
-        let disabled_capabilities = if self.disabled_capabilities.is_empty() {
-            None
-        } else {
-            Some(
-                self.disabled_capabilities
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect(),
-            )
-        };
+        let enabled_capabilities =
+            capability_list_to_wire("enabled_capabilities", self.enabled_capabilities)?;
+        let disabled_capabilities =
+            capability_list_to_wire("disabled_capabilities", self.disabled_capabilities)?;
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
@@ -3022,8 +3007,8 @@ impl ResumeSessionConfig {
     /// </div>
     ///
     /// Requires runtime support for per-session capability controls.
-    pub fn with_enable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
-        self.enabled_capabilities.push(capability.into());
+    pub fn with_enable_capability(mut self, capability: SessionCapability) -> Self {
+        self.enabled_capabilities.push(capability);
         self
     }
 
@@ -3037,8 +3022,8 @@ impl ResumeSessionConfig {
     /// </div>
     ///
     /// Requires runtime support for per-session capability controls.
-    pub fn with_disable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
-        self.disabled_capabilities.push(capability.into());
+    pub fn with_disable_capability(mut self, capability: SessionCapability) -> Self {
+        self.disabled_capabilities.push(capability);
         self
     }
 
@@ -3052,12 +3037,11 @@ impl ResumeSessionConfig {
     /// </div>
     ///
     /// Requires runtime support for per-session capability controls.
-    pub fn with_enabled_capabilities<I, C>(mut self, capabilities: I) -> Self
+    pub fn with_enabled_capabilities<I>(mut self, capabilities: I) -> Self
     where
-        I: IntoIterator<Item = C>,
-        C: Into<SessionCapability>,
+        I: IntoIterator<Item = SessionCapability>,
     {
-        self.enabled_capabilities = capabilities.into_iter().map(Into::into).collect();
+        self.enabled_capabilities = capabilities.into_iter().collect();
         self
     }
 
@@ -3072,12 +3056,11 @@ impl ResumeSessionConfig {
     /// </div>
     ///
     /// Requires runtime support for per-session capability controls.
-    pub fn with_disabled_capabilities<I, C>(mut self, capabilities: I) -> Self
+    pub fn with_disabled_capabilities<I>(mut self, capabilities: I) -> Self
     where
-        I: IntoIterator<Item = C>,
-        C: Into<SessionCapability>,
+        I: IntoIterator<Item = SessionCapability>,
     {
-        self.disabled_capabilities = capabilities.into_iter().map(Into::into).collect();
+        self.disabled_capabilities = capabilities.into_iter().collect();
         self
     }
 
@@ -4430,6 +4413,7 @@ pub use crate::generated::api_types::{
     Model, ModelBilling, ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
     PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    SessionCapability,
 };
 
 /// Permission categories the CLI may request approval for.
@@ -5624,10 +5608,14 @@ mod capability_tests {
     fn session_config_enabled_capabilities_serialized_on_wire() {
         let config = SessionConfig::default()
             .with_enable_capability(SessionCapability::Memory)
-            .with_enable_capability(SessionCapability::PlanMode);
+            .with_enable_capability(SessionCapability::PlanMode)
+            .with_enable_capability(SessionCapability::CanvasRenderer);
         let wire = create_session_wire(config);
-        let enabled = wire.enabled_capabilities.as_ref().unwrap();
-        assert_eq!(enabled, &["memory".to_string(), "plan-mode".to_string()]);
+        let value = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            value["enabledCapabilities"],
+            serde_json::json!(["memory", "plan-mode", "canvas-renderer"])
+        );
         assert!(wire.disabled_capabilities.is_none());
     }
 
@@ -5636,8 +5624,11 @@ mod capability_tests {
         let config = SessionConfig::default().with_disable_capability(SessionCapability::PlanMode);
         let wire = create_session_wire(config);
         assert!(wire.enabled_capabilities.is_none());
-        let disabled = wire.disabled_capabilities.as_ref().unwrap();
-        assert_eq!(disabled, &["plan-mode".to_string()]);
+        let value = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            value["disabledCapabilities"],
+            serde_json::json!(["plan-mode"])
+        );
     }
 
     #[test]
@@ -5646,17 +5637,24 @@ mod capability_tests {
             .with_enable_capability(SessionCapability::Memory)
             .with_enabled_capabilities([SessionCapability::PlanMode]);
         let wire = create_session_wire(config);
-        let enabled = wire.enabled_capabilities.as_ref().unwrap();
-        assert_eq!(enabled, &["plan-mode".to_string()]);
+        assert_eq!(
+            wire.enabled_capabilities.as_ref().unwrap(),
+            &[SessionCapability::PlanMode]
+        );
     }
 
     #[test]
-    fn session_config_other_capability_round_trips_through_wire() {
-        let config = SessionConfig::default()
-            .with_enable_capability(SessionCapability::Other("custom-cap".to_string()));
-        let wire = create_session_wire(config);
-        let enabled = wire.enabled_capabilities.as_ref().unwrap();
-        assert_eq!(enabled, &["custom-cap".to_string()]);
+    fn session_config_unknown_capability_is_invalid() {
+        let config = SessionConfig::default().with_enable_capability(SessionCapability::Unknown);
+        let err = match config.into_wire(Some(SessionId::new("test-session"))) {
+            Ok(_) => panic!("expected Unknown to be rejected"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), &crate::ErrorKind::InvalidConfig);
+        assert!(
+            err.to_string()
+                .contains("enabled_capabilities cannot include SessionCapability::Unknown")
+        );
     }
 
     #[test]
@@ -5672,9 +5670,11 @@ mod capability_tests {
             .with_enable_capability(SessionCapability::Memory)
             .with_disable_capability(SessionCapability::PlanMode);
         let wire = resume_session_wire(config);
-        let enabled = wire.enabled_capabilities.as_ref().unwrap();
-        let disabled = wire.disabled_capabilities.as_ref().unwrap();
-        assert_eq!(enabled, &["memory".to_string()]);
-        assert_eq!(disabled, &["plan-mode".to_string()]);
+        let value = serde_json::to_value(&wire).unwrap();
+        assert_eq!(value["enabledCapabilities"], serde_json::json!(["memory"]));
+        assert_eq!(
+            value["disabledCapabilities"],
+            serde_json::json!(["plan-mode"])
+        );
     }
 }

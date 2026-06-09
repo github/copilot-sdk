@@ -20,7 +20,7 @@ use serde::Serialize;
 
 use crate::canvas::CanvasDeclaration;
 use crate::generated::api_types::{
-    ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode,
+    ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode, SessionCapability,
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
@@ -151,12 +151,12 @@ pub(crate) struct SessionCreateWire {
     /// `enabledCapabilities` on the `session.create` wire call.
     /// Requires runtime support for per-session capability controls.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled_capabilities: Option<Vec<String>>,
+    pub enabled_capabilities: Option<Vec<SessionCapability>>,
     /// Capabilities to opt this session out of. Disable wins on overlap.
     /// Forwarded as `disabledCapabilities` on the `session.create` wire call.
     /// Requires runtime support for per-session capability controls.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disabled_capabilities: Option<Vec<String>>,
+    pub disabled_capabilities: Option<Vec<SessionCapability>>,
 }
 
 /// The exact JSON shape sent on the `session.resume` JSON-RPC request.
@@ -271,10 +271,10 @@ pub(crate) struct SessionResumeWire {
     /// `enabledCapabilities` on the `session.resume` wire call.
     /// Requires runtime support for per-session capability controls.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled_capabilities: Option<Vec<String>>,
+    pub enabled_capabilities: Option<Vec<SessionCapability>>,
     /// Capabilities to opt this session out of. Disable wins on overlap.
     /// Forwarded as `disabledCapabilities` on the `session.resume` wire call.
     /// Requires runtime support for per-session capability controls.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disabled_capabilities: Option<Vec<String>>,
+    pub disabled_capabilities: Option<Vec<SessionCapability>>,
 }
