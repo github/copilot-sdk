@@ -63,6 +63,8 @@ mod rpc_event_side_effects;
 mod rpc_mcp_and_skills;
 #[path = "e2e/rpc_mcp_config.rs"]
 mod rpc_mcp_config;
+#[path = "e2e/rpc_mcp_lifecycle.rs"]
+mod rpc_mcp_lifecycle;
 #[path = "e2e/rpc_queue.rs"]
 mod rpc_queue;
 #[path = "e2e/rpc_remote.rs"]
@@ -71,14 +73,26 @@ mod rpc_remote;
 mod rpc_schedule;
 #[path = "e2e/rpc_server.rs"]
 mod rpc_server;
+#[path = "e2e/rpc_server_misc.rs"]
+mod rpc_server_misc;
+#[path = "e2e/rpc_server_plugins.rs"]
+mod rpc_server_plugins;
+#[path = "e2e/rpc_server_remote_control.rs"]
+mod rpc_server_remote_control;
 #[path = "e2e/rpc_session_state.rs"]
 mod rpc_session_state;
+#[path = "e2e/rpc_session_state_extras.rs"]
+mod rpc_session_state_extras;
 #[path = "e2e/rpc_shell_and_fleet.rs"]
 mod rpc_shell_and_fleet;
 #[path = "e2e/rpc_shell_edge_cases.rs"]
 mod rpc_shell_edge_cases;
+#[path = "e2e/rpc_shell_user_requested.rs"]
+mod rpc_shell_user_requested;
 #[path = "e2e/rpc_tasks_and_handlers.rs"]
 mod rpc_tasks_and_handlers;
+#[path = "e2e/rpc_ui_ephemeral_query.rs"]
+mod rpc_ui_ephemeral_query;
 #[path = "e2e/rpc_workspace_checkpoints.rs"]
 mod rpc_workspace_checkpoints;
 #[path = "e2e/session.rs"]
