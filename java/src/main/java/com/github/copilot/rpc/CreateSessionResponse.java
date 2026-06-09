@@ -7,6 +7,8 @@ import java.util.List;
 
 /**
  * Internal response object from creating a session.
+ * <p>
+ * The {@code openCanvases} component was added in 1.0.1.
  *
  * @param sessionId
  *            the session ID assigned by the server
@@ -16,7 +18,8 @@ import java.util.List;
  * @param capabilities
  *            the capabilities reported by the host, or {@code null}
  * @param openCanvases
- *            the canvas instances open for the session, or {@code null}
+ *            the canvas instances open for the session, or {@code null} (since
+ *            1.0.1)
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)

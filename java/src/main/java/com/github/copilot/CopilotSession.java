@@ -1398,7 +1398,7 @@ public final class CopilotSession implements AutoCloseable {
      *
      * @return an immutable list of the currently open canvas instances, never
      *         {@code null}
-     * @since 1.0.0
+     * @since 1.0.1
      */
     public List<OpenCanvasInstance> getOpenCanvases() {
         synchronized (openCanvasesLock) {

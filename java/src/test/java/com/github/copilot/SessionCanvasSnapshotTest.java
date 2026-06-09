@@ -124,8 +124,14 @@ public class SessionCanvasSnapshotTest {
         assertThrows(UnsupportedOperationException.class, () -> canvases.add(new OpenCanvasInstance("x", "ext", null,
                 "c", null, null, null, null, null, CanvasInstanceAvailability.READY)));
 
-        // Mutating the returned copy must not affect the session snapshot.
-        assertEquals(1, session.getOpenCanvases().size());
+        // The returned list is a point-in-time snapshot, not a live view: a
+        // subsequent event must not change the previously-returned list.
+        session.dispatchEvent(openedEvent("inst-2", "canvas-b", CanvasOpenedAvailability.READY));
+        assertEquals(1, canvases.size());
+        assertEquals("inst-1", canvases.get(0).instanceId());
+
+        // The session snapshot itself reflects the new event.
+        assertEquals(2, session.getOpenCanvases().size());
     }
 
     @Test
