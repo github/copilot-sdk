@@ -1988,7 +1988,7 @@ impl SessionConfig {
         self
     }
 
-    /// Replace [`Self::enabled_capabilities`] with the given iterable.
+    /// Append the given capabilities to [`Self::enabled_capabilities`].
     /// Insertion order is preserved.
     ///
     /// <div class="warning">
@@ -2003,11 +2003,11 @@ impl SessionConfig {
     where
         I: IntoIterator<Item = SessionCapability>,
     {
-        self.enabled_capabilities = capabilities.into_iter().collect();
+        self.enabled_capabilities.extend(capabilities);
         self
     }
 
-    /// Replace [`Self::disabled_capabilities`] with the given iterable.
+    /// Append the given capabilities to [`Self::disabled_capabilities`].
     /// Insertion order is preserved. Disable wins over enable on overlap.
     ///
     /// <div class="warning">
@@ -2022,7 +2022,7 @@ impl SessionConfig {
     where
         I: IntoIterator<Item = SessionCapability>,
     {
-        self.disabled_capabilities = capabilities.into_iter().collect();
+        self.disabled_capabilities.extend(capabilities);
         self
     }
 
@@ -3027,7 +3027,7 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Replace [`Self::enabled_capabilities`] with the given iterable.
+    /// Append the given capabilities to [`Self::enabled_capabilities`].
     ///
     /// <div class="warning">
     ///
@@ -3041,11 +3041,11 @@ impl ResumeSessionConfig {
     where
         I: IntoIterator<Item = SessionCapability>,
     {
-        self.enabled_capabilities = capabilities.into_iter().collect();
+        self.enabled_capabilities.extend(capabilities);
         self
     }
 
-    /// Replace [`Self::disabled_capabilities`] with the given iterable.
+    /// Append the given capabilities to [`Self::disabled_capabilities`].
     /// Disable wins over enable on overlap.
     ///
     /// <div class="warning">
@@ -3060,7 +3060,7 @@ impl ResumeSessionConfig {
     where
         I: IntoIterator<Item = SessionCapability>,
     {
-        self.disabled_capabilities = capabilities.into_iter().collect();
+        self.disabled_capabilities.extend(capabilities);
         self
     }
 
@@ -5632,14 +5632,14 @@ mod capability_tests {
     }
 
     #[test]
-    fn session_config_with_enabled_capabilities_replaces() {
+    fn session_config_with_enabled_capabilities_appends() {
         let config = SessionConfig::default()
             .with_enable_capability(SessionCapability::Memory)
             .with_enabled_capabilities([SessionCapability::PlanMode]);
         let wire = create_session_wire(config);
         assert_eq!(
             wire.enabled_capabilities.as_ref().unwrap(),
-            &[SessionCapability::PlanMode]
+            &[SessionCapability::Memory, SessionCapability::PlanMode]
         );
     }
 

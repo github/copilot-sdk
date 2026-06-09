@@ -85,14 +85,9 @@ The `SessionCapability` enum lets callers enable or disable named runtime featur
 - `enabledCapabilities` -- capabilities to opt the session into (extends the `SDK_CAPABILITIES` baseline)
 - `disabledCapabilities` -- capabilities to opt the session out of (disable wins on overlap)
 
-This approach works for every transport -- including `Transport::External` -- because it does not rely on CLI spawn arguments.
-
 > **Experimental.** Per-session capability controls are an experimental
 > wire-protocol surface and may change or be removed in future SDK or CLI
-> releases. The Rust SDK marks the relevant fields and builders with a
-> `<div class="warning">**Experimental.**</div>` rustdoc block (the
-> repository convention used in `rust/src/generated/`); there is no
-> `#[experimental]` attribute, so the marker is documentation-only.
+> releases.
 
 > **Runtime dependency.** Per-session capability controls require a runtime
 > version that supports `enabledCapabilities` and `disabledCapabilities`.
@@ -120,22 +115,8 @@ let session = client.resume_session(
 ).await?;
 ```
 
-**Variants:**
-
-| Variant              | Wire name               | Description                                           |
-| -------------------- | ----------------------- | ----------------------------------------------------- |
-| `TuiHints`           | `tui-hints`             | TUI keyboard shortcuts                                |
-| `PlanMode`           | `plan-mode`             | `[[PLAN]]` handling and plan-mode instructions        |
-| `Memory`             | `memory`                | `store_memory` tool and `<memories>` system-prompt section |
-| `CliDocumentation`   | `cli-documentation`     | `fetch_copilot_cli_documentation` tool and `<self_documentation>` section |
-| `AskUser`            | `ask-user`              | `ask_user` tool for interactive clarification         |
-| `InteractiveMode`    | `interactive-mode`      | Interactive-CLI identity (vs headless)                |
-| `SystemNotifications`| `system-notifications`  | Automatic batched system notifications to the agent   |
-| `Elicitation`        | `elicitation`           | Elicitation prompts (confirm / select / input)        |
-| `SessionStore`       | `session-store`         | Cross-session history tools and session-store metadata |
-| `McpApps`            | `mcp-apps`              | MCP-Apps `ui://` resource passthrough (SEP-1865)      |
-| `CanvasRenderer`     | `canvas-renderer`       | Host-rendered extension canvases                      |
-| `Unknown`            | *(none)*                | Deserialization fallback; rejected for outbound config |
+**Variants.** See the `SessionCapability` enum's own documentation for the
+authoritative set of capabilities and their wire names.
 
 **Disable-wins semantics.** If the same capability appears in both
 `enabled_capabilities` and `disabled_capabilities`, disable wins. The runtime
@@ -780,13 +761,11 @@ gets to be Rust here — cross-SDK parity for these is a post-release
 conversation, not a release blocker. None of these are deprecated and
 none of them are scheduled for removal.
 
-- **`SessionCapability` enum** -- generated typed enum for per-session
+- **`SessionCapability` enum** -- typed enum for per-session
   capability opt-in / opt-out. Sent via `enabledCapabilities` /
   `disabledCapabilities` on the `session.create` and `session.resume` wire
-  calls -- works for all transports including `Transport::External`. See
-  [Session capabilities](#session-capabilities) above. Marked
-  **experimental** via the repository's `<div class="warning">` rustdoc
-  convention. Node/Python/Go/.NET accept stringly-typed flags.
+  calls. See [Session capabilities](#session-capabilities) above.
+  Experimental.
 - **Typed newtypes** — `SessionId` and `RequestId` are `#[serde(transparent)]`
   newtypes around `String`, so the type system distinguishes a session
   identifier from an arbitrary `String` at compile time. Node/Python/Go
