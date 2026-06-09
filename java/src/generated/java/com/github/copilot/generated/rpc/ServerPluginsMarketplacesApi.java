@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -31,6 +32,7 @@ public final class ServerPluginsMarketplacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsMarketplacesListResult> list() {
         return caller.invoke("plugins.marketplaces.list", java.util.Map.of(), PluginsMarketplacesListResult.class);
     }
@@ -41,6 +43,7 @@ public final class ServerPluginsMarketplacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsMarketplacesAddResult> add(PluginsMarketplacesAddParams params) {
         return caller.invoke("plugins.marketplaces.add", params, PluginsMarketplacesAddResult.class);
     }
@@ -51,6 +54,7 @@ public final class ServerPluginsMarketplacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsMarketplacesRemoveResult> remove(PluginsMarketplacesRemoveParams params) {
         return caller.invoke("plugins.marketplaces.remove", params, PluginsMarketplacesRemoveResult.class);
     }
@@ -61,6 +65,7 @@ public final class ServerPluginsMarketplacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsMarketplacesBrowseResult> browse(PluginsMarketplacesBrowseParams params) {
         return caller.invoke("plugins.marketplaces.browse", params, PluginsMarketplacesBrowseResult.class);
     }
@@ -71,6 +76,7 @@ public final class ServerPluginsMarketplacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PluginsMarketplacesRefreshResult> refresh() {
         return caller.invoke("plugins.marketplaces.refresh", java.util.Map.of(), PluginsMarketplacesRefreshResult.class);
     }

@@ -39,6 +39,7 @@ public final class SessionUiApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUiEphemeralQueryResult> ephemeralQuery(SessionUiEphemeralQueryParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

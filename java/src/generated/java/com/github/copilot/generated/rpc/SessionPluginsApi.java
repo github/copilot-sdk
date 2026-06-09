@@ -45,6 +45,7 @@ public final class SessionPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> reload() {
         return caller.invoke("session.plugins.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }

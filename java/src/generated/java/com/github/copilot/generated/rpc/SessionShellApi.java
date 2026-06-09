@@ -71,6 +71,7 @@ public final class SessionShellApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionShellExecuteUserRequestedResult> executeUserRequested(SessionShellExecuteUserRequestedParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -86,6 +87,7 @@ public final class SessionShellApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionShellCancelUserRequestedResult> cancelUserRequested(SessionShellCancelUserRequestedParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

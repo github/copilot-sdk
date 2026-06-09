@@ -32,6 +32,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsOpenResult> open() {
         return caller.invoke("sessions.open", java.util.Map.of(), SessionsOpenResult.class);
     }
@@ -251,6 +252,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsGetBoardEntryCountResult> getBoardEntryCount() {
         return caller.invoke("sessions.getBoardEntryCount", java.util.Map.of(), SessionsGetBoardEntryCountResult.class);
     }
@@ -261,6 +263,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsStartRemoteControlResult> startRemoteControl(SessionsStartRemoteControlParams params) {
         return caller.invoke("sessions.startRemoteControl", params, SessionsStartRemoteControlResult.class);
     }
@@ -271,6 +274,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsTransferRemoteControlResult> transferRemoteControl(SessionsTransferRemoteControlParams params) {
         return caller.invoke("sessions.transferRemoteControl", params, SessionsTransferRemoteControlResult.class);
     }
@@ -281,6 +285,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsSetRemoteControlSteeringResult> setRemoteControlSteering(SessionsSetRemoteControlSteeringParams params) {
         return caller.invoke("sessions.setRemoteControlSteering", params, SessionsSetRemoteControlSteeringResult.class);
     }
@@ -291,6 +296,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsStopRemoteControlResult> stopRemoteControl() {
         return caller.invoke("sessions.stopRemoteControl", java.util.Map.of(), SessionsStopRemoteControlResult.class);
     }
@@ -301,6 +307,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsGetRemoteControlStatusResult> getRemoteControlStatus() {
         return caller.invoke("sessions.getRemoteControlStatus", java.util.Map.of(), SessionsGetRemoteControlStatusResult.class);
     }
@@ -311,6 +318,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsPollSpawnedSessionsResult> pollSpawnedSessions() {
         return caller.invoke("sessions.pollSpawnedSessions", java.util.Map.of(), SessionsPollSpawnedSessionsResult.class);
     }
@@ -321,6 +329,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionsRegisterExtensionToolsOnSessionResult> registerExtensionToolsOnSession(SessionsRegisterExtensionToolsOnSessionParams params) {
         return caller.invoke("sessions.registerExtensionToolsOnSession", params, SessionsRegisterExtensionToolsOnSessionResult.class);
     }
@@ -331,6 +340,7 @@ public final class ServerSessionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> configureSessionExtensions(SessionsConfigureSessionExtensionsParams params) {
         return caller.invoke("sessions.configureSessionExtensions", params, Void.class);
     }

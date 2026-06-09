@@ -58,6 +58,7 @@ public final class SessionMetadataApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMetadataActivityResult> activity() {
         return caller.invoke("session.metadata.activity", java.util.Map.of("sessionId", this.sessionId), SessionMetadataActivityResult.class);
     }

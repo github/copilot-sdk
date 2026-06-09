@@ -36,6 +36,7 @@ public final class SessionTelemetryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTelemetryGetEngagementIdResult> getEngagementId() {
         return caller.invoke("session.telemetry.getEngagementId", java.util.Map.of("sessionId", this.sessionId), SessionTelemetryGetEngagementIdResult.class);
     }

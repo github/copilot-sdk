@@ -74,6 +74,7 @@ public final class SessionPlanApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPlanReadSqlTodosResult> readSqlTodos() {
         return caller.invoke("session.plan.readSqlTodos", java.util.Map.of("sessionId", this.sessionId), SessionPlanReadSqlTodosResult.class);
     }
