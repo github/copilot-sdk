@@ -416,6 +416,11 @@ impl OtelExporterType {
 /// > *runtime-negotiated* capability descriptor reported by the CLI on
 /// > `session.create`. [`SessionCapability`] is the *opt-in / opt-out
 /// > toggle name* sent with each `session.create` / `session.resume`.
+/// >
+/// > This public type is also separate from the generated protocol enum:
+/// > unknown generated enum values collapse to `Unknown`, while callers
+/// > need [`Other`](Self::Other) to preserve and send capability names
+/// > introduced by newer runtimes.
 ///
 /// The runtime's overlap semantics are **disable-wins**: if a capability
 /// appears in both the enabled and disabled lists, the disable wins.
@@ -428,8 +433,7 @@ impl OtelExporterType {
 /// enum variant.
 ///
 /// Requires github/copilot-agent-runtime#8918 or later.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SessionCapability {
     /// TUI-only prompt hints (keyboard shortcuts).
@@ -450,6 +454,8 @@ pub enum SessionCapability {
     SystemNotifications,
     /// Elicitation support (confirm / select / input prompts).
     Elicitation,
+    /// Cross-session history tools and session-store prompt/tool metadata.
+    SessionStore,
     /// MCP-Apps (SEP-1865) `ui://` resource passthrough.
     McpApps,
     /// Extension-provided canvases rendered by the host.
@@ -474,10 +480,28 @@ impl SessionCapability {
             Self::InteractiveMode => "interactive-mode",
             Self::SystemNotifications => "system-notifications",
             Self::Elicitation => "elicitation",
+            Self::SessionStore => "session-store",
             Self::McpApps => "mcp-apps",
             Self::CanvasRenderer => "canvas-renderer",
             Self::Other(name) => name.as_str(),
         }
+    }
+
+    fn from_known_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "tui-hints" => Self::TuiHints,
+            "plan-mode" => Self::PlanMode,
+            "memory" => Self::Memory,
+            "cli-documentation" => Self::CliDocumentation,
+            "ask-user" => Self::AskUser,
+            "interactive-mode" => Self::InteractiveMode,
+            "system-notifications" => Self::SystemNotifications,
+            "elicitation" => Self::Elicitation,
+            "session-store" => Self::SessionStore,
+            "mcp-apps" => Self::McpApps,
+            "canvas-renderer" => Self::CanvasRenderer,
+            _ => return None,
+        })
     }
 }
 
@@ -495,33 +519,42 @@ impl std::str::FromStr for SessionCapability {
     /// useful against CLIs that add new capabilities. Always returns
     /// `Ok` — the error type is [`Infallible`](std::convert::Infallible).
     fn from_str(s: &str) -> std::result::Result<Self, std::convert::Infallible> {
-        Ok(match s {
-            "tui-hints" => Self::TuiHints,
-            "plan-mode" => Self::PlanMode,
-            "memory" => Self::Memory,
-            "cli-documentation" => Self::CliDocumentation,
-            "ask-user" => Self::AskUser,
-            "interactive-mode" => Self::InteractiveMode,
-            "system-notifications" => Self::SystemNotifications,
-            "elicitation" => Self::Elicitation,
-            "mcp-apps" => Self::McpApps,
-            "canvas-renderer" => Self::CanvasRenderer,
-            other => Self::Other(other.to_owned()),
-        })
+        Ok(Self::from(s))
     }
 }
 
 impl From<&str> for SessionCapability {
     fn from(s: &str) -> Self {
-        // FromStr::from_str is Infallible — unwrap is safe.
-        s.parse()
-            .expect("SessionCapability::from_str is Infallible")
+        Self::from_known_name(s).unwrap_or_else(|| Self::Other(s.to_owned()))
     }
 }
 
 impl From<String> for SessionCapability {
     fn from(s: String) -> Self {
-        s.as_str().into()
+        if let Some(capability) = Self::from_known_name(&s) {
+            capability
+        } else {
+            Self::Other(s)
+        }
+    }
+}
+
+impl Serialize for SessionCapability {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for SessionCapability {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let capability = String::deserialize(deserializer)?;
+        Ok(Self::from(capability))
     }
 }
 
@@ -2513,6 +2546,7 @@ mod tests {
             SessionCapability::InteractiveMode,
             SessionCapability::SystemNotifications,
             SessionCapability::Elicitation,
+            SessionCapability::SessionStore,
             SessionCapability::McpApps,
             SessionCapability::CanvasRenderer,
         ] {
@@ -2541,6 +2575,64 @@ mod tests {
         // Unknown names go to Other
         let other: SessionCapability = "future-cap".into();
         assert_eq!(other, SessionCapability::Other("future-cap".to_string()));
+    }
+
+    #[test]
+    fn session_capability_serializes_as_wire_string() {
+        assert_eq!(
+            serde_json::to_value(SessionCapability::Memory).unwrap(),
+            serde_json::json!("memory")
+        );
+        assert_eq!(
+            serde_json::to_value(SessionCapability::Other("future-cap".to_string())).unwrap(),
+            serde_json::json!("future-cap")
+        );
+    }
+
+    #[test]
+    fn session_capability_deserializes_unknown_as_other() {
+        let parsed: SessionCapability =
+            serde_json::from_value(serde_json::json!("future-cap")).unwrap();
+        assert_eq!(parsed, SessionCapability::Other("future-cap".to_string()));
+    }
+
+    #[test]
+    fn generated_session_capabilities_have_public_variants() {
+        use crate::generated::api_types::SessionCapability as GeneratedSessionCapability;
+
+        fn expected_wire_name(capability: GeneratedSessionCapability) -> Option<&'static str> {
+            match capability {
+                GeneratedSessionCapability::TuiHints => Some("tui-hints"),
+                GeneratedSessionCapability::PlanMode => Some("plan-mode"),
+                GeneratedSessionCapability::Memory => Some("memory"),
+                GeneratedSessionCapability::CliDocumentation => Some("cli-documentation"),
+                GeneratedSessionCapability::AskUser => Some("ask-user"),
+                GeneratedSessionCapability::InteractiveMode => Some("interactive-mode"),
+                GeneratedSessionCapability::SystemNotifications => Some("system-notifications"),
+                GeneratedSessionCapability::Elicitation => Some("elicitation"),
+                GeneratedSessionCapability::SessionStore => Some("session-store"),
+                GeneratedSessionCapability::McpApps => Some("mcp-apps"),
+                GeneratedSessionCapability::CanvasRenderer => Some("canvas-renderer"),
+                GeneratedSessionCapability::Unknown => None,
+            }
+        }
+
+        for generated in [
+            GeneratedSessionCapability::TuiHints,
+            GeneratedSessionCapability::PlanMode,
+            GeneratedSessionCapability::Memory,
+            GeneratedSessionCapability::CliDocumentation,
+            GeneratedSessionCapability::AskUser,
+            GeneratedSessionCapability::InteractiveMode,
+            GeneratedSessionCapability::SystemNotifications,
+            GeneratedSessionCapability::Elicitation,
+            GeneratedSessionCapability::SessionStore,
+            GeneratedSessionCapability::McpApps,
+            GeneratedSessionCapability::CanvasRenderer,
+        ] {
+            let wire_name = expected_wire_name(generated).unwrap();
+            assert_eq!(SessionCapability::from(wire_name).as_str(), wire_name);
+        }
     }
 
     #[test]

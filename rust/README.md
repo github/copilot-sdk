@@ -108,7 +108,6 @@ use github_copilot_sdk::{SessionCapability, SessionConfig};
 let session = client.create_session(
     SessionConfig::default()
         .with_enable_capability(SessionCapability::Memory),
-    "What is 2 + 2?".into(),
 ).await?;
 ```
 
@@ -120,7 +119,6 @@ use github_copilot_sdk::{ResumeSessionConfig, SessionCapability};
 let session = client.resume_session(
     ResumeSessionConfig::new(session_id)
         .with_enable_capability(SessionCapability::Memory),
-    None,
 ).await?;
 ```
 
@@ -136,6 +134,7 @@ let session = client.resume_session(
 | `InteractiveMode`    | `interactive-mode`      | Interactive-CLI identity (vs headless)                |
 | `SystemNotifications`| `system-notifications`  | Automatic batched system notifications to the agent   |
 | `Elicitation`        | `elicitation`           | Elicitation prompts (confirm / select / input)        |
+| `SessionStore`       | `session-store`         | Cross-session history tools and session-store metadata |
 | `McpApps`            | `mcp-apps`              | MCP-Apps `ui://` resource passthrough (SEP-1865)      |
 | `CanvasRenderer`     | `canvas-renderer`       | Host-rendered extension canvases                      |
 | `Other(String)`      | *(verbatim)*            | Forward-compat escape hatch for unknown future names  |
