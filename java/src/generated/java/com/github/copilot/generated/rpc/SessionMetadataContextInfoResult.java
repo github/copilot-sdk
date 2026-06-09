@@ -48,7 +48,7 @@ public record SessionMetadataContextInfoResult(
         @JsonProperty("promptTokenLimit") Long promptTokenLimit,
         /** Token count at which background compaction starts (configurable percentage of promptTokenLimit) */
         @JsonProperty("compactionThreshold") Long compactionThreshold,
-        /** Total context limit for /context display: promptTokenLimit + outputTokenLimit (the model's full max_output_tokens reserved on top of the prompt budget). */
+        /** Prompt token limit plus the model's full output token limit. */
         @JsonProperty("limit") Long limit,
         /** Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%) */
         @JsonProperty("bufferTokens") Long bufferTokens

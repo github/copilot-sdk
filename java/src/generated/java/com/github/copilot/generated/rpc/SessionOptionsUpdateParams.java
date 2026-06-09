@@ -30,8 +30,12 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("sessionId") String sessionId,
     /** The model ID to use for assistant turns. */
     @JsonProperty("model") String model,
+    /** Per-property model capability overrides for the selected model. */
+    @JsonProperty("modelCapabilitiesOverrides") ModelCapabilitiesOverride modelCapabilitiesOverrides,
     /** Reasoning effort for the selected model (model-defined enum). */
     @JsonProperty("reasoningEffort") String reasoningEffort,
+    /** Reasoning summary mode for supported model clients. */
+    @JsonProperty("reasoningSummary") OptionsUpdateReasoningSummary reasoningSummary,
     /** Identifier of the client driving the session. */
     @JsonProperty("clientName") String clientName,
     /** Identifier sent to LSP-style integrations. */
@@ -42,8 +46,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("featureFlags") Map<String, Boolean> featureFlags,
     /** Whether experimental capabilities are enabled. */
     @JsonProperty("isExperimentalMode") Boolean isExperimentalMode,
-    /** Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime. */
-    @JsonProperty("provider") Object provider,
+    /** Custom model-provider configuration (BYOK). */
+    @JsonProperty("provider") ProviderConfig provider,
     /** Absolute working-directory path for shell tools. */
     @JsonProperty("workingDirectory") String workingDirectory,
     /** Allowlist of tool names available to this session. */
@@ -58,8 +62,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("shellInitProfile") String shellInitProfile,
     /** Per-shell process flags (e.g., `pwsh` arguments). */
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,
-    /** Sandbox configuration shape; opaque to SDK consumers. See `SandboxConfig` in the runtime. */
-    @JsonProperty("sandboxConfig") Object sandboxConfig,
+    /** Resolved sandbox configuration. */
+    @JsonProperty("sandboxConfig") SandboxConfig sandboxConfig,
     /** Whether interactive shell sessions are logged. */
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
     /** How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch). */
@@ -100,10 +104,12 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("agentContext") String agentContext,
     /** Override directory for the session-events log. When unset, the runtime's default events log directory is used. */
     @JsonProperty("eventsLogDirectory") String eventsLogDirectory,
-    /** Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime. */
-    @JsonProperty("additionalContentExclusionPolicies") List<Object> additionalContentExclusionPolicies,
+    /** Additional content-exclusion policies to merge into the session's policy set. */
+    @JsonProperty("additionalContentExclusionPolicies") List<OptionsUpdateAdditionalContentExclusionPolicy> additionalContentExclusionPolicies,
     /** Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users). */
     @JsonProperty("manageScheduleEnabled") Boolean manageScheduleEnabled,
+    /** Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged. */
+    @JsonProperty("sessionCapabilities") List<SessionCapability> sessionCapabilities,
     /** Whether to skip embedding retrieval pipeline initialization and execution. */
     @JsonProperty("skipEmbeddingRetrieval") Boolean skipEmbeddingRetrieval,
     /** Organization-level custom instructions to inject into the system prompt. */
@@ -115,6 +121,8 @@ public record SessionOptionsUpdateParams(
     /** Whether to enable cross-session store writes and reads. */
     @JsonProperty("enableSessionStore") Boolean enableSessionStore,
     /** Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset. */
-    @JsonProperty("enableSkills") Boolean enableSkills
+    @JsonProperty("enableSkills") Boolean enableSkills,
+    /** Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier. */
+    @JsonProperty("contextTier") OptionsUpdateContextTier contextTier
 ) {
 }

@@ -49,6 +49,21 @@ public final class SessionMcpApi {
     }
 
     /**
+     * Server name whose tool list should be returned.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpListToolsResult> listTools(SessionMcpListToolsParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.listTools", _p, SessionMcpListToolsResult.class);
+    }
+
+    /**
      * Name of the MCP server to enable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -89,6 +104,21 @@ public final class SessionMcpApi {
     @CopilotExperimental
     public CompletableFuture<Void> reload() {
         return caller.invoke("session.mcp.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    }
+
+    /**
+     * Opaque MCP reload configuration.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpReloadWithConfigResult> reloadWithConfig(SessionMcpReloadWithConfigParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.reloadWithConfig", _p, SessionMcpReloadWithConfigResult.class);
     }
 
     /**
@@ -148,6 +178,111 @@ public final class SessionMcpApi {
     @CopilotExperimental
     public CompletableFuture<SessionMcpRemoveGitHubResult> removeGitHub() {
         return caller.invoke("session.mcp.removeGitHub", java.util.Map.of("sessionId", this.sessionId), SessionMcpRemoveGitHubResult.class);
+    }
+
+    /**
+     * Opaque auth info used to configure GitHub MCP.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpConfigureGitHubResult> configureGitHub(SessionMcpConfigureGitHubParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.configureGitHub", _p, SessionMcpConfigureGitHubResult.class);
+    }
+
+    /**
+     * Server name and opaque configuration for an individual MCP server start.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> startServer(SessionMcpStartServerParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.startServer", _p, Void.class);
+    }
+
+    /**
+     * Server name and opaque configuration for an individual MCP server restart.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> restartServer(SessionMcpRestartServerParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.restartServer", _p, Void.class);
+    }
+
+    /**
+     * Server name for an individual MCP server stop.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> stopServer(SessionMcpStopServerParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.stopServer", _p, Void.class);
+    }
+
+    /**
+     * Registration parameters for an external MCP client.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> registerExternalClient(SessionMcpRegisterExternalClientParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.registerExternalClient", _p, Void.class);
+    }
+
+    /**
+     * Server name identifying the external client to remove.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> unregisterExternalClient(SessionMcpUnregisterExternalClientParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.unregisterExternalClient", _p, Void.class);
+    }
+
+    /**
+     * Server name to check running status for.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpIsServerRunningResult> isServerRunning(SessionMcpIsServerRunningParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.isServerRunning", _p, SessionMcpIsServerRunningResult.class);
     }
 
 }

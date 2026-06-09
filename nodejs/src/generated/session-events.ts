@@ -93,6 +93,7 @@ export type SessionEvent =
   | ExtensionsLoadedEvent
   | CanvasOpenedEvent
   | CanvasRegistryChangedEvent
+  | CanvasClosedEvent
   | ExtensionsAttachmentsPushedEvent
   | McpAppToolCallCompleteEvent;
 /**
@@ -847,7 +848,7 @@ export interface ErrorData {
   url?: string;
 }
 /**
- * Session event "session.idle". Payload indicating the session is idle with no background agents in flight
+ * Session event "session.idle". Payload indicating the session is idle with no background agents or attached shell commands in flight
  */
 export interface IdleEvent {
   /**
@@ -877,7 +878,7 @@ export interface IdleEvent {
   type: "session.idle";
 }
 /**
- * Payload indicating the session is idle with no background agents in flight
+ * Payload indicating the session is idle with no background agents or attached shell commands in flight
  */
 export interface IdleData {
   /**
@@ -2645,6 +2646,10 @@ export interface AssistantMessageData {
    */
   anthropicAdvisorModel?: string;
   /**
+   * Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
+   */
+  apiCallId?: string;
+  /**
    * The assistant's text response content
    */
   content: string;
@@ -3889,7 +3894,7 @@ export interface SubagentStartedData {
    */
   agentName: string;
   /**
-   * Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck).
+   * Model the sub-agent will run with, when known at start.
    */
   model?: string;
   /**
@@ -4011,7 +4016,7 @@ export interface SubagentFailedData {
    */
   error: string;
   /**
-   * Model used by the sub-agent (if any model calls succeeded before failure)
+   * Model selected for the sub-agent, when known
    */
   model?: string;
   /**
@@ -4219,6 +4224,10 @@ export interface HookEndError {
    * Human-readable error message
    */
   message: string;
+  /**
+   * Source label of the hook that errored (e.g. the plugin it was loaded from), when known
+   */
+  source?: string;
   /**
    * Error stack trace, when available
    */
@@ -6955,6 +6964,53 @@ export interface CanvasRegistryChangedCanvasAction {
    * Action name
    */
   name: string;
+}
+/**
+ * Session event "session.canvas.closed".
+ */
+export interface CanvasClosedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasClosedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.closed".
+   */
+  type: "session.canvas.closed";
+}
+/**
+ * Schema for the `CanvasClosedData` type.
+ */
+export interface CanvasClosedData {
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Stable caller-supplied identifier of the canvas instance that was closed
+   */
+  instanceId: string;
 }
 /**
  * Session event "session.extensions.attachments_pushed".

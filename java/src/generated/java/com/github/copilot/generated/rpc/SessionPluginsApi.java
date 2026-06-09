@@ -39,4 +39,14 @@ public final class SessionPluginsApi {
         return caller.invoke("session.plugins.list", java.util.Map.of("sessionId", this.sessionId), SessionPluginsListResult.class);
     }
 
+    /**
+     * Optional flags controlling which side effects the reload performs.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> reload() {
+        return caller.invoke("session.plugins.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    }
+
 }

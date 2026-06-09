@@ -31,6 +31,16 @@ public final class SessionTelemetryApi {
     }
 
     /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionTelemetryGetEngagementIdResult> getEngagementId() {
+        return caller.invoke("session.telemetry.getEngagementId", java.util.Map.of("sessionId", this.sessionId), SessionTelemetryGetEngagementIdResult.class);
+    }
+
+    /**
      * Feature override key/value pairs to attach to subsequent telemetry events from this session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

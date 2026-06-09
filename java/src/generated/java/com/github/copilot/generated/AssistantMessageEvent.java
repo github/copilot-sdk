@@ -59,6 +59,8 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("requestId") String requestId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        /** Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances. */
+        @JsonProperty("apiCallId") String apiCallId,
         /** Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping */
         @JsonProperty("anthropicAdvisorBlocks") List<Object> anthropicAdvisorBlocks,
         /** Anthropic advisor model ID used for this response, for timeline display on replay */

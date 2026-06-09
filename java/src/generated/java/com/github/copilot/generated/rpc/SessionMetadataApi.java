@@ -53,6 +53,16 @@ public final class SessionMetadataApi {
     }
 
     /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMetadataActivityResult> activity() {
+        return caller.invoke("session.metadata.activity", java.util.Map.of("sessionId", this.sessionId), SessionMetadataActivityResult.class);
+    }
+
+    /**
      * Model identifier and token limits used to compute the context-info breakdown.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

@@ -2320,6 +2320,161 @@ func (r PushAttachmentSelection) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func unmarshalRemoteControlStatus(data []byte) (RemoteControlStatus, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		State RemoteControlStatusState `json:"state"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.State {
+	case RemoteControlStatusStateActive:
+		var d RemoteControlStatusActive
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case RemoteControlStatusStateConnecting:
+		var d RemoteControlStatusConnecting
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case RemoteControlStatusStateError:
+		var d RemoteControlStatusError
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case RemoteControlStatusStateOff:
+		var d RemoteControlStatusOff
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawRemoteControlStatusData{Discriminator: raw.State, Raw: data}, nil
+	}
+}
+
+func (r RawRemoteControlStatusData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		State RemoteControlStatusState `json:"state"`
+	}{
+		State: r.Discriminator,
+	})
+}
+
+func (r RemoteControlStatusActive) MarshalJSON() ([]byte, error) {
+	type alias RemoteControlStatusActive
+	return json.Marshal(struct {
+		State RemoteControlStatusState `json:"state"`
+		alias
+	}{
+		State: r.State(),
+		alias: alias(r),
+	})
+}
+
+func (r RemoteControlStatusConnecting) MarshalJSON() ([]byte, error) {
+	type alias RemoteControlStatusConnecting
+	return json.Marshal(struct {
+		State RemoteControlStatusState `json:"state"`
+		alias
+	}{
+		State: r.State(),
+		alias: alias(r),
+	})
+}
+
+func (r RemoteControlStatusError) MarshalJSON() ([]byte, error) {
+	type alias RemoteControlStatusError
+	return json.Marshal(struct {
+		State RemoteControlStatusState `json:"state"`
+		alias
+	}{
+		State: r.State(),
+		alias: alias(r),
+	})
+}
+
+func (r RemoteControlStatusOff) MarshalJSON() ([]byte, error) {
+	type alias RemoteControlStatusOff
+	return json.Marshal(struct {
+		State RemoteControlStatusState `json:"state"`
+		alias
+	}{
+		State: r.State(),
+		alias: alias(r),
+	})
+}
+
+func (r *RemoteControlStatusResult) UnmarshalJSON(data []byte) error {
+	type rawRemoteControlStatusResult struct {
+		Status json.RawMessage `json:"status"`
+	}
+	var raw rawRemoteControlStatusResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Status != nil {
+		value, err := unmarshalRemoteControlStatus(raw.Status)
+		if err != nil {
+			return err
+		}
+		r.Status = value
+	}
+	return nil
+}
+
+func (r *RemoteControlStopResult) UnmarshalJSON(data []byte) error {
+	type rawRemoteControlStopResult struct {
+		Status  json.RawMessage `json:"status"`
+		Stopped bool            `json:"stopped"`
+	}
+	var raw rawRemoteControlStopResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Status != nil {
+		value, err := unmarshalRemoteControlStatus(raw.Status)
+		if err != nil {
+			return err
+		}
+		r.Status = value
+	}
+	r.Stopped = raw.Stopped
+	return nil
+}
+
+func (r *RemoteControlTransferResult) UnmarshalJSON(data []byte) error {
+	type rawRemoteControlTransferResult struct {
+		Status      json.RawMessage `json:"status"`
+		Transferred bool            `json:"transferred"`
+	}
+	var raw rawRemoteControlTransferResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Status != nil {
+		value, err := unmarshalRemoteControlStatus(raw.Status)
+		if err != nil {
+			return err
+		}
+		r.Status = value
+	}
+	r.Transferred = raw.Transferred
+	return nil
+}
+
 func (r *SendAttachmentsToMessageParams) UnmarshalJSON(data []byte) error {
 	type rawSendAttachmentsToMessageParams struct {
 		Attachments []json.RawMessage `json:"attachments"`
@@ -2354,7 +2509,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 		Prompt         string            `json:"prompt"`
 		RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
 		RequiredTool   *string           `json:"requiredTool,omitempty"`
-		Source         any               `json:"source,omitempty"`
+		Source         *string           `json:"source,omitempty"`
 		Traceparent    *string           `json:"traceparent,omitempty"`
 		Tracestate     *string           `json:"tracestate,omitempty"`
 		Wait           *bool             `json:"wait,omitempty"`
@@ -2438,6 +2593,341 @@ func (r *SessionInstalledPluginSource) UnmarshalJSON(data []byte) error {
 		}
 	}
 	return errors.New("data did not match any union variant for SessionInstalledPluginSource")
+}
+
+func unmarshalSessionListEntry(data []byte) (SessionListEntry, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		IsRemote *bool `json:"isRemote"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	if raw.IsRemote == nil {
+		return nil, errors.New("data did not match any union variant for SessionListEntry")
+	}
+
+	switch *raw.IsRemote {
+	case false:
+		var d LocalSessionMetadataValue
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case true:
+		var d RemoteSessionMetadataValue
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	return nil, errors.New("data did not match any union variant for SessionListEntry")
+}
+
+func (r LocalSessionMetadataValue) MarshalJSON() ([]byte, error) {
+	type alias LocalSessionMetadataValue
+	return json.Marshal(struct {
+		IsRemote bool `json:"isRemote"`
+		alias
+	}{
+		IsRemote: r.sessionListEntryIsRemote(),
+		alias:    alias(r),
+	})
+}
+
+func (r RemoteSessionMetadataValue) MarshalJSON() ([]byte, error) {
+	type alias RemoteSessionMetadataValue
+	return json.Marshal(struct {
+		IsRemote bool `json:"isRemote"`
+		alias
+	}{
+		IsRemote: r.sessionListEntryIsRemote(),
+		alias:    alias(r),
+	})
+}
+
+func (r *SessionList) UnmarshalJSON(data []byte) error {
+	type rawSessionList struct {
+		Sessions []json.RawMessage `json:"sessions"`
+	}
+	var raw rawSessionList
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Sessions != nil {
+		r.Sessions = make([]SessionListEntry, 0, len(raw.Sessions))
+		for _, rawItem := range raw.Sessions {
+			value, err := unmarshalSessionListEntry(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Sessions = append(r.Sessions, value)
+		}
+	}
+	return nil
+}
+
+func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
+	type rawSessionOpenOptions struct {
+		AdditionalContentExclusionPolicies     []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
+		AgentContext                           *string                                              `json:"agentContext,omitempty"`
+		AskUserDisabled                        *bool                                                `json:"askUserDisabled,omitempty"`
+		AuthInfo                               json.RawMessage                                      `json:"authInfo,omitempty"`
+		AvailableTools                         []string                                             `json:"availableTools,omitzero"`
+		ClientKind                             *string                                              `json:"clientKind,omitempty"`
+		ClientName                             *string                                              `json:"clientName,omitempty"`
+		CoauthorEnabled                        *bool                                                `json:"coauthorEnabled,omitempty"`
+		ConfigDir                              *string                                              `json:"configDir,omitempty"`
+		ContinueOnAutoMode                     *bool                                                `json:"continueOnAutoMode,omitempty"`
+		CopilotURL                             *string                                              `json:"copilotUrl,omitempty"`
+		CustomAgentsLocalOnly                  *bool                                                `json:"customAgentsLocalOnly,omitempty"`
+		DetachedFromSpawningParentEngagementID *string                                              `json:"detachedFromSpawningParentEngagementId,omitempty"`
+		DetachedFromSpawningParentSessionID    *string                                              `json:"detachedFromSpawningParentSessionId,omitempty"`
+		DisabledInstructionSources             []string                                             `json:"disabledInstructionSources,omitzero"`
+		DisabledSkills                         []string                                             `json:"disabledSkills,omitzero"`
+		EnableOnDemandInstructionDiscovery     *bool                                                `json:"enableOnDemandInstructionDiscovery,omitempty"`
+		EnableScriptSafety                     *bool                                                `json:"enableScriptSafety,omitempty"`
+		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
+		EnvValueMode                           *SessionOpenOptionsEnvValueMode                      `json:"envValueMode,omitempty"`
+		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
+		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
+		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
+		InstalledPlugins                       []InstalledPlugin                                    `json:"installedPlugins,omitzero"`
+		IntegrationID                          *string                                              `json:"integrationId,omitempty"`
+		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
+		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
+		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
+		Model                                  *string                                              `json:"model,omitempty"`
+		ModelCapabilitiesOverrides             *ModelCapabilitiesOverride                           `json:"modelCapabilitiesOverrides,omitempty"`
+		Name                                   *string                                              `json:"name,omitempty"`
+		Provider                               *ProviderConfig                                      `json:"provider,omitempty"`
+		ReasoningEffort                        *string                                              `json:"reasoningEffort,omitempty"`
+		ReasoningSummary                       *SessionOpenOptionsReasoningSummary                  `json:"reasoningSummary,omitempty"`
+		RemoteDefaultedOn                      *bool                                                `json:"remoteDefaultedOn,omitempty"`
+		RemoteExporting                        *bool                                                `json:"remoteExporting,omitempty"`
+		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
+		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
+		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
+		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
+		SessionID                              *string                                              `json:"sessionId,omitempty"`
+		ShellInitProfile                       *string                                              `json:"shellInitProfile,omitempty"`
+		ShellProcessFlags                      []string                                             `json:"shellProcessFlags,omitzero"`
+		SkillDirectories                       []string                                             `json:"skillDirectories,omitzero"`
+		SkipCustomInstructions                 *bool                                                `json:"skipCustomInstructions,omitempty"`
+		TrajectoryFile                         *string                                              `json:"trajectoryFile,omitempty"`
+		WorkingDirectory                       *string                                              `json:"workingDirectory,omitempty"`
+		WorkingDirectoryContext                *SessionContext                                      `json:"workingDirectoryContext,omitempty"`
+	}
+	var raw rawSessionOpenOptions
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AdditionalContentExclusionPolicies = raw.AdditionalContentExclusionPolicies
+	r.AgentContext = raw.AgentContext
+	r.AskUserDisabled = raw.AskUserDisabled
+	if raw.AuthInfo != nil {
+		value, err := unmarshalAuthInfo(raw.AuthInfo)
+		if err != nil {
+			return err
+		}
+		r.AuthInfo = value
+	}
+	r.AvailableTools = raw.AvailableTools
+	r.ClientKind = raw.ClientKind
+	r.ClientName = raw.ClientName
+	r.CoauthorEnabled = raw.CoauthorEnabled
+	r.ConfigDir = raw.ConfigDir
+	r.ContinueOnAutoMode = raw.ContinueOnAutoMode
+	r.CopilotURL = raw.CopilotURL
+	r.CustomAgentsLocalOnly = raw.CustomAgentsLocalOnly
+	r.DetachedFromSpawningParentEngagementID = raw.DetachedFromSpawningParentEngagementID
+	r.DetachedFromSpawningParentSessionID = raw.DetachedFromSpawningParentSessionID
+	r.DisabledInstructionSources = raw.DisabledInstructionSources
+	r.DisabledSkills = raw.DisabledSkills
+	r.EnableOnDemandInstructionDiscovery = raw.EnableOnDemandInstructionDiscovery
+	r.EnableScriptSafety = raw.EnableScriptSafety
+	r.EnableStreaming = raw.EnableStreaming
+	r.EnvValueMode = raw.EnvValueMode
+	r.EventsLogDirectory = raw.EventsLogDirectory
+	r.ExcludedTools = raw.ExcludedTools
+	r.FeatureFlags = raw.FeatureFlags
+	r.InstalledPlugins = raw.InstalledPlugins
+	r.IntegrationID = raw.IntegrationID
+	r.IsExperimentalMode = raw.IsExperimentalMode
+	r.LogInteractiveShells = raw.LogInteractiveShells
+	r.LspClientName = raw.LspClientName
+	r.Model = raw.Model
+	r.ModelCapabilitiesOverrides = raw.ModelCapabilitiesOverrides
+	r.Name = raw.Name
+	r.Provider = raw.Provider
+	r.ReasoningEffort = raw.ReasoningEffort
+	r.ReasoningSummary = raw.ReasoningSummary
+	r.RemoteDefaultedOn = raw.RemoteDefaultedOn
+	r.RemoteExporting = raw.RemoteExporting
+	r.RemoteSteerable = raw.RemoteSteerable
+	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
+	r.SandboxConfig = raw.SandboxConfig
+	r.SessionCapabilities = raw.SessionCapabilities
+	r.SessionID = raw.SessionID
+	r.ShellInitProfile = raw.ShellInitProfile
+	r.ShellProcessFlags = raw.ShellProcessFlags
+	r.SkillDirectories = raw.SkillDirectories
+	r.SkipCustomInstructions = raw.SkipCustomInstructions
+	r.TrajectoryFile = raw.TrajectoryFile
+	r.WorkingDirectory = raw.WorkingDirectory
+	r.WorkingDirectoryContext = raw.WorkingDirectoryContext
+	return nil
+}
+
+func unmarshalSessionOpenParams(data []byte) (SessionOpenParams, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case SessionOpenParamsKindAttach:
+		var d SessionsOpenAttach
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionOpenParamsKindCloud:
+		var d SessionsOpenCloud
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionOpenParamsKindCreate:
+		var d SessionsOpenCreate
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionOpenParamsKindHandoff:
+		var d SessionsOpenHandoff
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionOpenParamsKindRemote:
+		var d SessionsOpenRemote
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionOpenParamsKindResume:
+		var d SessionsOpenResume
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionOpenParamsKindResumeLast:
+		var d SessionsOpenResumeLast
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawSessionOpenParamsData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawSessionOpenParamsData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r SessionsOpenAttach) MarshalJSON() ([]byte, error) {
+	type alias SessionsOpenAttach
+	return json.Marshal(struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SessionsOpenCloud) MarshalJSON() ([]byte, error) {
+	type alias SessionsOpenCloud
+	return json.Marshal(struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SessionsOpenCreate) MarshalJSON() ([]byte, error) {
+	type alias SessionsOpenCreate
+	return json.Marshal(struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SessionsOpenHandoff) MarshalJSON() ([]byte, error) {
+	type alias SessionsOpenHandoff
+	return json.Marshal(struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SessionsOpenRemote) MarshalJSON() ([]byte, error) {
+	type alias SessionsOpenRemote
+	return json.Marshal(struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SessionsOpenResume) MarshalJSON() ([]byte, error) {
+	type alias SessionsOpenResume
+	return json.Marshal(struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SessionsOpenResumeLast) MarshalJSON() ([]byte, error) {
+	type alias SessionsOpenResumeLast
+	return json.Marshal(struct {
+		Kind SessionOpenParamsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
 }
 
 func (r *SessionSetCredentialsParams) UnmarshalJSON(data []byte) error {

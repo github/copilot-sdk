@@ -1177,6 +1177,111 @@ function removeRequiredAnyDefaultsForPython(
     });
 }
 
+/**
+ * Remove locally-emitted Enum class definitions whose name already comes from
+ * a `.session_events` import.
+ *
+ * Quicktype's enum-merging path collapses structurally-identical enums (even
+ * with `combineClasses: false`, which only governs class merging). When the
+ * RPC schema gains sibling enums like `OptionsUpdateReasoningSummary` and
+ * `SessionOpenOptionsReasoningSummary` whose value set matches the shared
+ * `ReasoningSummary` enum, quicktype picks `ReasoningSummary` as the merged
+ * canonical name. That local class then shadows the import we add at the top
+ * of `rpc.py`, breaking `isinstance` checks against the canonical enum used
+ * elsewhere in the SDK.
+ *
+ * The fix: detect such shadowed enum definitions, verify the local values
+ * exactly match the imported enum's values in the session-events schema, and
+ * strip the local class so references resolve to the import.
+ */
+function removeShadowedSessionEventEnumsForPython(
+    code: string,
+    importedFromSessionEvents: Set<string>,
+    sessionEventsSchema: JSONSchema7 | undefined
+): string {
+    if (importedFromSessionEvents.size === 0 || !sessionEventsSchema) return code;
+    const seDefs = collectDefinitionCollections(sessionEventsSchema as Record<string, unknown>);
+    const enumBlockRe =
+        /(?:^|\n)class\s+(\w+)\s*\(Enum\):\s*\r?\n([\s\S]*?)(?=\nclass\s+\w|\n@dataclass\b|\ndef\s+\w|$)/g;
+    return code
+        .replace(enumBlockRe, (match: string, className: string, body: string) => {
+            if (!importedFromSessionEvents.has(className)) return match;
+            const seDef = seDefs.definitions[className] ?? seDefs.$defs[className];
+            const seResolved = seDef ? resolveSchema(seDef, seDefs) ?? seDef : undefined;
+            if (
+                !seResolved?.enum ||
+                !Array.isArray(seResolved.enum) ||
+                !seResolved.enum.every((value) => typeof value === "string")
+            ) {
+                return match;
+            }
+            const localValues = new Set<string>();
+            const valueRe = /^\s+\w+\s*=\s*"([^"]*)"/gm;
+            let vm: RegExpExecArray | null;
+            while ((vm = valueRe.exec(body)) !== null) {
+                localValues.add(vm[1]);
+            }
+            const seValues = new Set(seResolved.enum as string[]);
+            if (localValues.size !== seValues.size) return match;
+            for (const value of localValues) {
+                if (!seValues.has(value)) return match;
+            }
+            return "";
+        })
+        .replace(/\n{3,}/g, "\n\n");
+}
+
+function reorderPythonDataclassFields(code: string): string {
+    const fieldRe =
+        /^    \w+: (?:Any|bool|int|float|str|dict|list|ClassVar|[A-Z_]\w*|['"][A-Z_]\w*)(?:[^=]*)?(?: = .*)?$/;
+    const methodRe = /^    (?:@(?:staticmethod|classmethod|property)|(?:async\s+)?def\s+)/;
+    const classBlockRe = /(@dataclass\r?\nclass\s+\w+:[\s\S]*?)(?=^@dataclass|^class\s+\w|^def\s+\w|\Z)/gm;
+
+    return code.replace(classBlockRe, (block: string) => {
+        const lines = block.split("\n");
+        const bodyStart = 2;
+        const memberStart = lines.findIndex((line, index) => index >= bodyStart && methodRe.test(line));
+        if (memberStart < 0) {
+            return block;
+        }
+
+        const header = lines.slice(0, bodyStart);
+        const fieldsBody = lines.slice(bodyStart, memberStart);
+        const members = lines.slice(memberStart);
+        const preamble: string[] = [];
+        const groups: string[][] = [];
+        let current: string[] | undefined;
+
+        for (const line of fieldsBody) {
+            if (fieldRe.test(line)) {
+                current = [line];
+                groups.push(current);
+                continue;
+            }
+
+            if (current) {
+                current.push(line);
+            } else {
+                preamble.push(line);
+            }
+        }
+
+        if (groups.length < 2) {
+            return block;
+        }
+
+        const required = groups.filter((group) => !group[0].includes(" = "));
+        const optional = groups.filter((group) => group[0].includes(" = "));
+        const reorderedGroups = [...required, ...optional];
+        const changed = reorderedGroups.some((group, index) => group !== groups[index]);
+        if (!changed) {
+            return block;
+        }
+
+        return [...header, ...preamble, ...reorderedGroups.flat(), ...members].join("\n");
+    });
+}
+
 function toPascalCase(s: string): string {
     return fixBrandCasing(
         s
@@ -2834,6 +2939,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
         }
     );
     typesCode = removeRequiredAnyDefaultsForPython(typesCode, allDefinitions, allDefinitionCollections);
+    typesCode = reorderPythonDataclassFields(typesCode);
     // Fix bare except: to use Exception (required by ruff/pylint)
     typesCode = typesCode.replace(/except:/g, "except Exception:");
     // Remove unnecessary pass when class has methods (quicktype generates pass for empty schemas)
@@ -2844,6 +2950,11 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
     typesCode = postProcessExternalUnionAliasesForPython(typesCode, externalUnionAliases);
     typesCode = postProcessExternalRefsForPython(typesCode, externalRefs.placeholderNames, externalEnumNames);
+    typesCode = removeShadowedSessionEventEnumsForPython(
+        typesCode,
+        externalRefs.imports.get(".session_events") ?? new Set<string>(),
+        sessionEventsSchema
+    );
     const { code: typesCodeAfterUnions, unions: refBasedUnions } = postProcessRefBasedDiscriminatedUnionsForPython(
         typesCode,
         allDefinitions,

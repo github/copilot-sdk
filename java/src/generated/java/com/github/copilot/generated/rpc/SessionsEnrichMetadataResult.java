@@ -26,6 +26,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionsEnrichMetadataResult(
     /** Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted. */
-    @JsonProperty("sessions") List<SessionMetadata> sessions
+    @JsonProperty("sessions") List<LocalSessionMetadataValue> sessions
 ) {
 }

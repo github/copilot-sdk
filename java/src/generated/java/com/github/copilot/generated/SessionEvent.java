@@ -111,6 +111,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionExtensionsLoadedEvent.class, name = "session.extensions_loaded"),
     @JsonSubTypes.Type(value = SessionCanvasOpenedEvent.class, name = "session.canvas.opened"),
     @JsonSubTypes.Type(value = SessionCanvasRegistryChangedEvent.class, name = "session.canvas.registry_changed"),
+    @JsonSubTypes.Type(value = SessionCanvasClosedEvent.class, name = "session.canvas.closed"),
     @JsonSubTypes.Type(value = SessionExtensionsAttachmentsPushedEvent.class, name = "session.extensions.attachments_pushed"),
     @JsonSubTypes.Type(value = McpAppToolCallCompleteEvent.class, name = "mcp_app.tool_call_complete")
 })
@@ -202,6 +203,7 @@ public abstract sealed class SessionEvent permits
         SessionExtensionsLoadedEvent,
         SessionCanvasOpenedEvent,
         SessionCanvasRegistryChangedEvent,
+        SessionCanvasClosedEvent,
         SessionExtensionsAttachmentsPushedEvent,
         McpAppToolCallCompleteEvent,
         UnknownSessionEvent {

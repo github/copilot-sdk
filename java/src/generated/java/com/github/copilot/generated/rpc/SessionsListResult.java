@@ -15,7 +15,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Persisted sessions matching the filter, ordered most-recently-modified first.
+ * Sessions matching the filter, ordered most-recently-modified first.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,7 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionsListResult(
-    /** Sessions ordered most-recently-modified first */
-    @JsonProperty("sessions") List<SessionMetadata> sessions
+    /** Sessions ordered most-recently-modified first. Discriminated by `isRemote`. */
+    @JsonProperty("sessions") List<Object> sessions
 ) {
 }

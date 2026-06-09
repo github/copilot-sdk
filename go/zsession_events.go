@@ -156,6 +156,7 @@ type (
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
 	SessionBackgroundTasksChangedData                              = rpc.SessionBackgroundTasksChangedData
+	SessionCanvasClosedData                                        = rpc.SessionCanvasClosedData
 	SessionCanvasOpenedData                                        = rpc.SessionCanvasOpenedData
 	SessionCanvasRegistryChangedData                               = rpc.SessionCanvasRegistryChangedData
 	SessionCompactionCompleteData                                  = rpc.SessionCompactionCompleteData
@@ -424,6 +425,7 @@ const (
 	SessionEventTypeSamplingRequested                                  = rpc.SessionEventTypeSamplingRequested
 	SessionEventTypeSessionAutopilotObjectiveChanged                   = rpc.SessionEventTypeSessionAutopilotObjectiveChanged
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
+	SessionEventTypeSessionCanvasClosed                                = rpc.SessionEventTypeSessionCanvasClosed
 	SessionEventTypeSessionCanvasOpened                                = rpc.SessionEventTypeSessionCanvasOpened
 	SessionEventTypeSessionCanvasRegistryChanged                       = rpc.SessionEventTypeSessionCanvasRegistryChanged
 	SessionEventTypeSessionCompactionComplete                          = rpc.SessionEventTypeSessionCompactionComplete
