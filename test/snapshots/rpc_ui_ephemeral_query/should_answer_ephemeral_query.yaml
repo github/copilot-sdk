@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: In one word, what is the primary color of a clear daytime sky?
+      - role: assistant
+        content: Blue.
