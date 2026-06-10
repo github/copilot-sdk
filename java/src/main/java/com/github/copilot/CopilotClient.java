@@ -577,6 +577,7 @@ public final class CopilotClient implements AutoCloseable {
                         registeredIdHolder[0] = returnedId;
                         session.setWorkspacePath(response.workspacePath());
                         session.setCapabilities(response.capabilities());
+                        session.setOpenCanvases(response.openCanvases());
 
                         return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                 config.getCustomAgentsLocalOnly().orElse(null),
@@ -701,6 +702,7 @@ public final class CopilotClient implements AutoCloseable {
                                 rpcNanos);
                         session.setWorkspacePath(response.workspacePath());
                         session.setCapabilities(response.capabilities());
+                        session.setOpenCanvases(response.openCanvases());
                         // If the server returned a different sessionId than what was requested,
                         // re-key.
                         String returnedId = response.sessionId();
