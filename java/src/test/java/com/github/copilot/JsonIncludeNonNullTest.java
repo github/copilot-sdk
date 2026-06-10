@@ -16,6 +16,7 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.CustomAgentConfig;
 import com.github.copilot.rpc.InfiniteSessionConfig;
 import com.github.copilot.rpc.InputOptions;
+import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ModelCapabilitiesOverride;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -53,6 +54,11 @@ class JsonIncludeNonNullTest {
     @Test
     void infiniteSessionConfigHasNonNullAnnotation() {
         assertHasNonNullInclude(InfiniteSessionConfig.class);
+    }
+
+    @Test
+    void memoryConfigurationHasNonNullAnnotation() {
+        assertHasNonNullInclude(MemoryConfiguration.class);
     }
 
     @Test
@@ -147,6 +153,24 @@ class JsonIncludeNonNullTest {
         caps.setElicitation(true);
         String json = MAPPER.writeValueAsString(caps);
         assertTrue(json.contains("\"elicitation\":true"), "Set elicitation should appear in JSON");
+    }
+
+    @Test
+    void memoryConfigurationSerializesEnabled() throws JsonProcessingException {
+        var memory = new MemoryConfiguration().setEnabled(true);
+        String json = MAPPER.writeValueAsString(memory);
+        assertEquals("{\"enabled\":true}", json, "MemoryConfiguration should serialize the required enabled field");
+
+        var disabled = new MemoryConfiguration().setEnabled(false);
+        assertEquals("{\"enabled\":false}", MAPPER.writeValueAsString(disabled),
+                "MemoryConfiguration should serialize enabled even when false");
+    }
+
+    @Test
+    void sessionConfigOmitsMemoryWhenUnset() throws JsonProcessingException {
+        var config = new SessionConfig();
+        String json = MAPPER.writeValueAsString(config);
+        assertFalse(json.contains("\"memory\""), "Unset memory should be omitted from SessionConfig JSON");
     }
 
     private void assertHasNonNullInclude(Class<?> clazz) {

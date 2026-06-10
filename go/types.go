@@ -841,6 +841,12 @@ type InfiniteSessionConfig struct {
 	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
+// MemoryConfiguration configures the memory feature for a session.
+type MemoryConfiguration struct {
+	// Enabled controls whether the memory feature is enabled for this session.
+	Enabled bool `json:"enabled"`
+}
+
 // LargeToolOutputConfig configures handling of large tool outputs. When a tool
 // produces output exceeding the configured size, the output is written to a
 // temp file and a reference is returned to the model instead of the full
@@ -1028,6 +1034,9 @@ type SessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// Memory configures the memory feature for the session. When omitted, the
+	// runtime default applies.
+	Memory *MemoryConfiguration
 	// OnEvent is an optional event handler that is registered on the session before
 	// the session.create RPC is issued. This guarantees that early events emitted
 	// by the CLI during session creation (e.g. session.start) are delivered to the
@@ -1409,6 +1418,9 @@ type ResumeSessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// Memory configures the memory feature for the session. When omitted, the
+	// runtime default applies.
+	Memory *MemoryConfiguration
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -1725,6 +1737,7 @@ type createSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
@@ -1805,6 +1818,7 @@ type resumeSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`

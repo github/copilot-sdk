@@ -485,6 +485,30 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+## Memory
+
+Sessions can opt in to the memory feature, which lets the agent persist and recall
+information across turns. Provide a `MemoryConfiguration` on session create or resume;
+when omitted, the runtime default applies.
+
+```go
+// Enable memory for a session
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    Memory: &copilot.MemoryConfiguration{
+        Enabled: true,
+    },
+})
+
+// Disable memory for a session
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    Memory: &copilot.MemoryConfiguration{
+        Enabled: false,
+    },
+})
+```
+
 ## Custom Providers
 
 The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `Model` explicitly.

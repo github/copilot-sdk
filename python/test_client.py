@@ -220,6 +220,72 @@ class TestCreateSessionConfig:
         finally:
             await client.force_stop()
 
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_memory(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                memory={"enabled": True},
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                memory={"enabled": False},
+            )
+
+            assert captured["session.create"]["memory"] == {"enabled": True}
+            assert captured["session.resume"]["memory"] == {"enabled": False}
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_omit_memory_when_unset(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+
+            assert "memory" not in captured["session.create"]
+            assert "memory" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
 
 class TestURLParsing:
     def test_parse_port_only_url(self):

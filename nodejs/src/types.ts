@@ -1510,6 +1510,17 @@ export interface InfiniteSessionConfig {
 }
 
 /**
+ * Configuration for the memory feature, which lets the agent persist and recall
+ * information across turns.
+ */
+export interface MemoryConfiguration {
+    /**
+     * Whether the memory feature is enabled for this session.
+     */
+    enabled: boolean;
+}
+
+/**
  * Configuration for handling large tool outputs.
  *
  * When a tool produces output exceeding the configured size, the output is
@@ -1927,6 +1938,11 @@ export interface SessionConfigBase {
      * Set to `{ enabled: false }` to disable.
      */
     infiniteSessions?: InfiniteSessionConfig;
+
+    /**
+     * Memory configuration for the session. When omitted, the runtime default applies.
+     */
+    memory?: MemoryConfiguration;
 
     /**
      * GitHub token for per-session authentication.

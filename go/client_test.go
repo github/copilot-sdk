@@ -605,6 +605,70 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_Memory(t *testing.T) {
+	t.Run("create includes memory in JSON when enabled", func(t *testing.T) {
+		req := createSessionRequest{Memory: &MemoryConfiguration{Enabled: true}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		expected := map[string]any{"enabled": true}
+		if !reflect.DeepEqual(m["memory"], expected) {
+			t.Errorf("Expected memory %v, got %v", expected, m["memory"])
+		}
+	})
+
+	t.Run("resume includes memory in JSON when disabled", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", Memory: &MemoryConfiguration{Enabled: false}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		expected := map[string]any{"enabled": false}
+		if !reflect.DeepEqual(m["memory"], expected) {
+			t.Errorf("Expected memory %v, got %v", expected, m["memory"])
+		}
+	})
+
+	t.Run("create omits memory when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["memory"]; ok {
+			t.Errorf("Expected memory to be omitted")
+		}
+	})
+
+	t.Run("resume omits memory when nil", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["memory"]; ok {
+			t.Errorf("Expected memory to be omitted")
+		}
+	})
+}
+
 func TestCreateSessionRequest_Agent(t *testing.T) {
 	t.Run("includes agent in JSON when set", func(t *testing.T) {
 		req := createSessionRequest{Agent: "test-agent"}

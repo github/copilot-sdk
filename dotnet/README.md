@@ -410,6 +410,20 @@ When enabled, sessions emit compaction events:
 - `SessionCompactionStartEvent` - Background compaction started
 - `SessionCompactionCompleteEvent` - Compaction finished (includes token counts)
 
+## Memory
+
+Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `CreateSessionAsync` and `ResumeSessionAsync`.
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    Memory = new MemoryConfiguration { Enabled = true }
+});
+```
+
+When `Memory` is left unset, no memory configuration is sent and the runtime default applies.
+
 ## Advanced Usage
 
 ### Manual Server Control

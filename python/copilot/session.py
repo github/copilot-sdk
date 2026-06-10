@@ -984,6 +984,17 @@ class LargeToolOutputConfig(TypedDict, total=False):
     output_directory: str
 
 
+class MemoryConfiguration(TypedDict):
+    """
+    Configuration for session memory.
+
+    Controls whether the session can read and write persistent memory.
+    """
+
+    # Whether memory is enabled for the session.
+    enabled: bool
+
+
 # ============================================================================
 # Session Configuration
 # ============================================================================

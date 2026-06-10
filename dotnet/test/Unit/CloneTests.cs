@@ -97,6 +97,7 @@ public class CloneTests
             DisabledSkills = ["skill1"],
             PluginDirectories = ["/plugins"],
             LargeOutput = new LargeToolOutputConfig { Enabled = true, MaxSizeBytes = 2048, OutputDirectory = "/tmp/out" },
+            Memory = new MemoryConfiguration { Enabled = true },
             OnExitPlanModeRequest = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
             OnAutoModeSwitchRequest = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
         };
@@ -129,6 +130,7 @@ public class CloneTests
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
         Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
         Assert.Same(original.LargeOutput, clone.LargeOutput);
+        Assert.Same(original.Memory, clone.Memory);
         Assert.Same(original.OnExitPlanModeRequest, clone.OnExitPlanModeRequest);
         Assert.Same(original.OnAutoModeSwitchRequest, clone.OnAutoModeSwitchRequest);
     }
@@ -402,12 +404,14 @@ public class CloneTests
         {
             PluginDirectories = ["/resume/plugins"],
             LargeOutput = largeOutput,
+            Memory = new MemoryConfiguration { Enabled = true },
         };
 
         var clone = original.Clone();
 
         Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
         Assert.Same(original.LargeOutput, clone.LargeOutput);
+        Assert.Same(original.Memory, clone.Memory);
     }
 
     [Fact]

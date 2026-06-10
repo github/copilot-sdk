@@ -459,6 +459,21 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+## Memory
+
+Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `create_session` and `resume_session`.
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    memory={"enabled": True},
+) as session:
+    ...
+```
+
+When `memory` is omitted, no memory configuration is sent and the runtime default applies.
+
 ## Custom Providers
 
 The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `model` explicitly.

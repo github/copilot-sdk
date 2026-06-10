@@ -70,6 +70,7 @@ public class SessionConfig {
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
+    private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private String configDirectory;
     private Boolean enableConfigDiscovery;
@@ -931,6 +932,27 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the configuration for session memory.
+     *
+     * @return the memory config, or {@code null} for default
+     */
+    public MemoryConfiguration getMemory() {
+        return memory;
+    }
+
+    /**
+     * Sets the configuration for session memory.
+     *
+     * @param memory
+     *            the memory config
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setMemory(MemoryConfiguration memory) {
+        this.memory = memory;
+        return this;
+    }
+
+    /**
      * Gets the disabled skill names.
      *
      * @return the list of disabled skill names
@@ -1671,6 +1693,7 @@ public class SessionConfig {
                 : null;
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
+        copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;

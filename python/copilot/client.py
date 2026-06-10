@@ -87,6 +87,7 @@ from .session import (
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MCPServerConfig,
+    MemoryConfiguration,
     ProviderConfig,
     ReasoningEffort,
     ReasoningSummary,
@@ -175,6 +176,11 @@ def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     if "output_directory" in config:
         wire["outputDir"] = config["output_directory"]
     return wire
+
+
+def _memory_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``MemoryConfiguration`` mapping to wire format."""
+    return {"enabled": config["enabled"]}
 
 
 class TelemetryConfig(TypedDict, total=False):
@@ -1601,6 +1607,7 @@ class CopilotClient:
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
+        memory: MemoryConfiguration | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
@@ -1700,6 +1707,7 @@ class CopilotClient:
                 instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
+            memory: Session memory configuration.
             cloud: Creates a remote session in the cloud instead of a local
                 session. Optionally associates repository metadata with the
                 cloud session.
@@ -1945,6 +1953,9 @@ class CopilotClient:
         if large_output is not None:
             payload["largeOutput"] = _large_output_to_wire(large_output)
 
+        if memory is not None:
+            payload["memory"] = _memory_to_wire(memory)
+
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
         if request_canvas_renderer is not None:
@@ -2170,6 +2181,7 @@ class CopilotClient:
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
+        memory: MemoryConfiguration | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
@@ -2270,6 +2282,7 @@ class CopilotClient:
                 instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
+            memory: Session memory configuration.
             on_event: Callback for session events.
             enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
                 passthrough on resume. This parameter is part of an experimental
@@ -2485,6 +2498,9 @@ class CopilotClient:
 
         if large_output is not None:
             payload["largeOutput"] = _large_output_to_wire(large_output)
+
+        if memory is not None:
+            payload["memory"] = _memory_to_wire(memory)
 
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
