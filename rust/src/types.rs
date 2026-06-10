@@ -786,7 +786,7 @@ impl InfiniteSessionConfig {
 /// The type is extensible: today it carries [`enabled`](Self::enabled), and
 /// further tuning knobs can be added as optional fields without a breaking
 /// change.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct MemoryConfiguration {
@@ -4515,7 +4515,7 @@ mod tests {
     fn memory_configuration_constructors_and_serde() {
         assert!(MemoryConfiguration::enabled().enabled);
         assert!(!MemoryConfiguration::disabled().enabled);
-        assert!(MemoryConfiguration::default().with_enabled(true).enabled);
+        assert!(MemoryConfiguration::disabled().with_enabled(true).enabled);
 
         let json = serde_json::to_value(MemoryConfiguration::enabled()).unwrap();
         assert_eq!(json, serde_json::json!({ "enabled": true }));
