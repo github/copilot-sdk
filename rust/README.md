@@ -570,7 +570,7 @@ The CLI emits `session.compaction_start` / `session.compaction_complete` events 
 Configure the runtime memory feature for a session:
 
 ```rust,ignore
-use github_copilot_sdk::types::MemoryConfiguration;
+use github_copilot_sdk::types::{MemoryConfiguration, SessionConfig};
 
 let config = SessionConfig::default().with_memory(MemoryConfiguration::enabled());
 ```

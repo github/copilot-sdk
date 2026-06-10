@@ -92,6 +92,7 @@ SessionEventTypeAlias = SessionEvent
 # Reasoning Effort
 # ============================================================================
 
+
 @dataclass
 class ModelVisionLimitsOverride:
     supported_media_types: list[str] | None = None
@@ -132,19 +133,19 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
     if caps.limits is not None:
         lim: dict = {}
         if caps.limits.max_prompt_tokens is not None:
-            lim["max_prompt_tokens"] = caps.limits.max_prompt_tokens
+            lim["maxPromptTokens"] = caps.limits.max_prompt_tokens
         if caps.limits.max_output_tokens is not None:
-            lim["max_output_tokens"] = caps.limits.max_output_tokens
+            lim["maxOutputTokens"] = caps.limits.max_output_tokens
         if caps.limits.max_context_window_tokens is not None:
-            lim["max_context_window_tokens"] = caps.limits.max_context_window_tokens
+            lim["maxContextWindowTokens"] = caps.limits.max_context_window_tokens
         if caps.limits.vision is not None:
             v: dict = {}
             if caps.limits.vision.supported_media_types is not None:
-                v["supported_media_types"] = caps.limits.vision.supported_media_types
+                v["supportedMediaTypes"] = caps.limits.vision.supported_media_types
             if caps.limits.vision.max_prompt_images is not None:
-                v["max_prompt_images"] = caps.limits.vision.max_prompt_images
+                v["maxPromptImages"] = caps.limits.vision.max_prompt_images
             if caps.limits.vision.max_prompt_image_size is not None:
-                v["max_prompt_image_size"] = caps.limits.vision.max_prompt_image_size
+                v["maxPromptImageSize"] = caps.limits.vision.max_prompt_image_size
             if v:
                 lim["vision"] = v
         if lim:
