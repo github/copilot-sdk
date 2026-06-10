@@ -120,14 +120,14 @@ public class SessionRequestBuilderTest {
     void testBuildCreateRequestSetsMemory() {
         var memory = new MemoryConfiguration().setEnabled(true);
         var config = new SessionConfig().setMemory(memory);
-        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "test-session-id");
         assertEquals(memory, request.getMemory());
     }
 
     @Test
     void testBuildCreateRequestOmitsMemoryWhenNotSet() {
         var config = new SessionConfig();
-        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "test-session-id");
         assertNull(request.getMemory());
     }
 
