@@ -2032,18 +2032,23 @@ class HookEndError:
 class HookProgressData:
     "Ephemeral progress update from a running hook process"
     message: str
+    temporary: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "HookProgressData":
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
+        temporary = from_union([from_none, from_bool], obj.get("temporary"))
         return HookProgressData(
             message=message,
+            temporary=temporary,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["message"] = from_str(self.message)
+        if self.temporary is not None:
+            result["temporary"] = from_union([from_none, from_bool], self.temporary)
         return result
 
 
@@ -4330,6 +4335,7 @@ class SessionResumeData:
     context: WorkingDirectoryContext | None = None
     context_tier: ContextTier | None = None
     continue_pending_work: bool | None = None
+    events_file_size_bytes: int | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
@@ -4345,6 +4351,7 @@ class SessionResumeData:
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         continue_pending_work = from_union([from_none, from_bool], obj.get("continuePendingWork"))
+        events_file_size_bytes = from_union([from_none, from_int], obj.get("eventsFileSizeBytes"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
@@ -4357,6 +4364,7 @@ class SessionResumeData:
             context=context,
             context_tier=context_tier,
             continue_pending_work=continue_pending_work,
+            events_file_size_bytes=events_file_size_bytes,
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
@@ -4376,6 +4384,8 @@ class SessionResumeData:
             result["contextTier"] = from_union([from_none, lambda x: to_enum(ContextTier, x)], self.context_tier)
         if self.continue_pending_work is not None:
             result["continuePendingWork"] = from_union([from_none, from_bool], self.continue_pending_work)
+        if self.events_file_size_bytes is not None:
+            result["eventsFileSizeBytes"] = from_union([from_none, to_int], self.events_file_size_bytes)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_summary is not None:
@@ -4412,36 +4422,52 @@ class SessionScheduleCancelledData:
 class SessionScheduleCreatedData:
     "Scheduled prompt registered via /every or /after"
     id: int
-    interval: timedelta
     prompt: str
+    at: int | None = None
+    cron: str | None = None
     display_prompt: str | None = None
+    interval: timedelta | None = None
     recurring: bool | None = None
+    tz: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionScheduleCreatedData":
         assert isinstance(obj, dict)
         id = from_int(obj.get("id"))
-        interval = from_timedelta(obj.get("intervalMs"))
         prompt = from_str(obj.get("prompt"))
+        at = from_union([from_none, from_int], obj.get("at"))
+        cron = from_union([from_none, from_str], obj.get("cron"))
         display_prompt = from_union([from_none, from_str], obj.get("displayPrompt"))
+        interval = from_union([from_none, from_timedelta], obj.get("intervalMs"))
         recurring = from_union([from_none, from_bool], obj.get("recurring"))
+        tz = from_union([from_none, from_str], obj.get("tz"))
         return SessionScheduleCreatedData(
             id=id,
-            interval=interval,
             prompt=prompt,
+            at=at,
+            cron=cron,
             display_prompt=display_prompt,
+            interval=interval,
             recurring=recurring,
+            tz=tz,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["id"] = to_int(self.id)
-        result["intervalMs"] = to_timedelta_int(self.interval)
         result["prompt"] = from_str(self.prompt)
+        if self.at is not None:
+            result["at"] = from_union([from_none, to_int], self.at)
+        if self.cron is not None:
+            result["cron"] = from_union([from_none, from_str], self.cron)
         if self.display_prompt is not None:
             result["displayPrompt"] = from_union([from_none, from_str], self.display_prompt)
+        if self.interval is not None:
+            result["intervalMs"] = from_union([from_none, to_timedelta_int], self.interval)
         if self.recurring is not None:
             result["recurring"] = from_union([from_none, from_bool], self.recurring)
+        if self.tz is not None:
+            result["tz"] = from_union([from_none, from_str], self.tz)
         return result
 
 
@@ -4457,6 +4483,7 @@ class SessionShutdownData:
     current_model: str | None = None
     current_tokens: int | None = None
     error_reason: str | None = None
+    events_file_size_bytes: int | None = None
     system_tokens: int | None = None
     token_details: dict[str, ShutdownTokenDetail] | None = None
     tool_definitions_tokens: int | None = None
@@ -4477,6 +4504,7 @@ class SessionShutdownData:
         current_model = from_union([from_none, from_str], obj.get("currentModel"))
         current_tokens = from_union([from_none, from_int], obj.get("currentTokens"))
         error_reason = from_union([from_none, from_str], obj.get("errorReason"))
+        events_file_size_bytes = from_union([from_none, from_int], obj.get("eventsFileSizeBytes"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
         token_details = from_union([from_none, lambda x: from_dict(ShutdownTokenDetail.from_dict, x)], obj.get("tokenDetails"))
         tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
@@ -4492,6 +4520,7 @@ class SessionShutdownData:
             current_model=current_model,
             current_tokens=current_tokens,
             error_reason=error_reason,
+            events_file_size_bytes=events_file_size_bytes,
             system_tokens=system_tokens,
             token_details=token_details,
             tool_definitions_tokens=tool_definitions_tokens,
@@ -4514,6 +4543,8 @@ class SessionShutdownData:
             result["currentTokens"] = from_union([from_none, to_int], self.current_tokens)
         if self.error_reason is not None:
             result["errorReason"] = from_union([from_none, from_str], self.error_reason)
+        if self.events_file_size_bytes is not None:
+            result["eventsFileSizeBytes"] = from_union([from_none, to_int], self.events_file_size_bytes)
         if self.system_tokens is not None:
             result["systemTokens"] = from_union([from_none, to_int], self.system_tokens)
         if self.token_details is not None:
