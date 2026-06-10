@@ -24,8 +24,14 @@ import javax.annotation.processing.Generated;
 public record ScheduleEntry(
     /** Sequential id assigned by the runtime within the session. Stable across resumes (rebuilt from the event log). */
     @JsonProperty("id") Long id,
-    /** Interval between scheduled ticks, in milliseconds. */
+    /** Interval between scheduled ticks, in milliseconds (relative-interval schedules). */
     @JsonProperty("intervalMs") Long intervalMs,
+    /** 5-field cron expression for a recurring calendar schedule, evaluated in `tz`. */
+    @JsonProperty("cron") String cron,
+    /** IANA timezone the `cron` expression is evaluated in. */
+    @JsonProperty("tz") String tz,
+    /** Absolute fire time (epoch milliseconds) for a one-shot calendar schedule. */
+    @JsonProperty("at") Long at,
     /** Prompt text that gets enqueued on every tick. */
     @JsonProperty("prompt") String prompt,
     /** Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`). */

@@ -294,6 +294,18 @@ type AgentReloadResult struct {
 	Agents []AgentInfo `json:"agents"`
 }
 
+// Optional project paths to include in agent discovery.
+// Experimental: AgentsDiscoverRequest is part of an experimental API and may change or be
+// removed.
+type AgentsDiscoverRequest struct {
+	// When true, omit the host's agents (the `<COPILOT_HOME>/agents` directory and all plugin
+	// agents), leaving only project and remote agents. For multitenant deployments.
+	ExcludeHostAgents *bool `json:"excludeHostAgents,omitempty"`
+	// Optional list of project directory paths to scan for project-scoped agents. When omitted
+	// or empty, only user/plugin/remote-independent agents are returned (no project scan).
+	ProjectPaths []string `json:"projectPaths,omitzero"`
+}
+
 // Name of the custom agent to select for subsequent turns.
 // Experimental: AgentSelectRequest is part of an experimental API and may change or be
 // removed.
@@ -1772,18 +1784,31 @@ type InstalledPluginSourceURL struct {
 	URL    string                         `json:"url"`
 }
 
+// Optional project paths to include in instruction discovery.
+// Experimental: InstructionsDiscoverRequest is part of an experimental API and may change
+// or be removed.
+type InstructionsDiscoverRequest struct {
+	// When true, omit the host's instruction sources (user/home-level files and plugin rules),
+	// leaving only repository and working-directory sources. For multitenant deployments.
+	ExcludeHostInstructions *bool `json:"excludeHostInstructions,omitempty"`
+	// Optional list of project directory paths to scan for repository/working-directory
+	// instruction sources. When omitted or empty, only user-level and plugin instruction
+	// sources are returned (no project scan).
+	ProjectPaths []string `json:"projectPaths,omitzero"`
+}
+
 // Instruction sources loaded for the session, in merge order.
 // Experimental: InstructionsGetSourcesResult is part of an experimental API and may change
 // or be removed.
 type InstructionsGetSourcesResult struct {
 	// Instruction sources for the session
-	Sources []InstructionsSources `json:"sources"`
+	Sources []InstructionSource `json:"sources"`
 }
 
-// Schema for the `InstructionsSources` type.
-// Experimental: InstructionsSources is part of an experimental API and may change or be
+// Schema for the `InstructionSource` type.
+// Experimental: InstructionSource is part of an experimental API and may change or be
 // removed.
-type InstructionsSources struct {
+type InstructionSource struct {
 	// Glob pattern(s) from frontmatter — when set, this instruction applies only to matching
 	// files
 	ApplyTo []string `json:"applyTo,omitzero"`
@@ -1798,11 +1823,16 @@ type InstructionsSources struct {
 	// Human-readable label
 	Label string `json:"label"`
 	// Where this source lives — used for UI grouping
-	Location InstructionsSourcesLocation `json:"location"`
+	Location InstructionSourceLocation `json:"location"`
+	// The project path this source was discovered from. Only set by sessionless discovery for
+	// repository/working-directory sources, where it disambiguates same-named files (e.g.
+	// .github/copilot-instructions.md) across multiple workspace roots. The session-scoped
+	// getSources leaves it unset.
+	ProjectPath *string `json:"projectPath,omitempty"`
 	// File path relative to repo or absolute for home
 	SourcePath string `json:"sourcePath"`
 	// Category of instruction source — used for merge logic
-	Type InstructionsSourcesType `json:"type"`
+	Type InstructionSourceType `json:"type"`
 }
 
 // Schema for the `LocalSessionMetadataValue` type.
@@ -5106,20 +5136,26 @@ type SandboxConfigUserPolicyNetwork struct {
 // Schema for the `ScheduleEntry` type.
 // Experimental: ScheduleEntry is part of an experimental API and may change or be removed.
 type ScheduleEntry struct {
+	// Absolute fire time (epoch milliseconds) for a one-shot calendar schedule.
+	At *int64 `json:"at,omitempty"`
+	// 5-field cron expression for a recurring calendar schedule, evaluated in `tz`.
+	Cron *string `json:"cron,omitempty"`
 	// Display-only label for the prompt as shown in the UI (e.g. `/skill-name` for a
 	// skill-invocation schedule). The actual enqueued prompt is `prompt`.
 	DisplayPrompt *string `json:"displayPrompt,omitempty"`
 	// Sequential id assigned by the runtime within the session. Stable across resumes (rebuilt
 	// from the event log).
 	ID int64 `json:"id"`
-	// Interval between scheduled ticks, in milliseconds.
-	IntervalMs int64 `json:"intervalMs"`
+	// Interval between scheduled ticks, in milliseconds (relative-interval schedules).
+	IntervalMs *int64 `json:"intervalMs,omitempty"`
 	// ISO 8601 timestamp when the next tick is scheduled to fire.
 	NextRunAt time.Time `json:"nextRunAt"`
 	// Prompt text that gets enqueued on every tick.
 	Prompt string `json:"prompt"`
 	// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`).
 	Recurring bool `json:"recurring"`
+	// IANA timezone the `cron` expression is evaluated in.
+	Tz *string `json:"tz,omitempty"`
 }
 
 // Snapshot of the currently active recurring prompts for this session.
@@ -5221,6 +5257,21 @@ type SendRequest struct {
 type SendResult struct {
 	// Unique identifier assigned to the message
 	MessageID string `json:"messageId"`
+}
+
+// Agents discovered across user, project, plugin, and remote sources.
+// Experimental: ServerAgentList is part of an experimental API and may change or be removed.
+type ServerAgentList struct {
+	// All discovered agents across all sources
+	Agents []AgentInfo `json:"agents"`
+}
+
+// Instruction sources discovered across user, repository, and plugin sources.
+// Experimental: ServerInstructionSourceList is part of an experimental API and may change
+// or be removed.
+type ServerInstructionSourceList struct {
+	// All discovered instruction sources
+	Sources []InstructionSource `json:"sources"`
 }
 
 // Schema for the `ServerSkill` type.
@@ -7204,11 +7255,13 @@ type TaskAgentInfo struct {
 	IdleSince *time.Time `json:"idleSince,omitempty"`
 	// Most recent response text from the agent
 	LatestResponse *string `json:"latestResponse,omitempty"`
-	// Model used for the task when specified
+	// Requested model override for the task when specified
 	Model *string `json:"model,omitempty"`
 	// Most recent prompt delivered to the agent. Updated whenever the agent receives a
 	// follow-up message.
 	Prompt string `json:"prompt"`
+	// Runtime model resolved for the task when available
+	ResolvedModel *string `json:"resolvedModel,omitempty"`
 	// Result text from the task when available
 	Result *string `json:"result,omitempty"`
 	// ISO 8601 timestamp when the task was started
@@ -8797,41 +8850,41 @@ const (
 )
 
 // Where this source lives — used for UI grouping
-// Experimental: InstructionsSourcesLocation is part of an experimental API and may change
-// or be removed.
-type InstructionsSourcesLocation string
+// Experimental: InstructionSourceLocation is part of an experimental API and may change or
+// be removed.
+type InstructionSourceLocation string
 
 const (
 	// Instructions live in plugin-provided configuration.
-	InstructionsSourcesLocationPlugin InstructionsSourcesLocation = "plugin"
+	InstructionSourceLocationPlugin InstructionSourceLocation = "plugin"
 	// Instructions live in repository-level configuration.
-	InstructionsSourcesLocationRepository InstructionsSourcesLocation = "repository"
+	InstructionSourceLocationRepository InstructionSourceLocation = "repository"
 	// Instructions live in user-level configuration.
-	InstructionsSourcesLocationUser InstructionsSourcesLocation = "user"
+	InstructionSourceLocationUser InstructionSourceLocation = "user"
 	// Instructions live under the current working directory.
-	InstructionsSourcesLocationWorkingDirectory InstructionsSourcesLocation = "working-directory"
+	InstructionSourceLocationWorkingDirectory InstructionSourceLocation = "working-directory"
 )
 
 // Category of instruction source — used for merge logic
-// Experimental: InstructionsSourcesType is part of an experimental API and may change or be
+// Experimental: InstructionSourceType is part of an experimental API and may change or be
 // removed.
-type InstructionsSourcesType string
+type InstructionSourceType string
 
 const (
 	// Instructions inherited from child instruction files.
-	InstructionsSourcesTypeChildInstructions InstructionsSourcesType = "child-instructions"
+	InstructionSourceTypeChildInstructions InstructionSourceType = "child-instructions"
 	// Instructions loaded from the user's home configuration.
-	InstructionsSourcesTypeHome InstructionsSourcesType = "home"
+	InstructionSourceTypeHome InstructionSourceType = "home"
 	// Instructions loaded from model-specific files.
-	InstructionsSourcesTypeModel InstructionsSourcesType = "model"
+	InstructionSourceTypeModel InstructionSourceType = "model"
 	// Instructions discovered from nested agent files.
-	InstructionsSourcesTypeNestedAgents InstructionsSourcesType = "nested-agents"
+	InstructionSourceTypeNestedAgents InstructionSourceType = "nested-agents"
 	// Instructions supplied by an installed plugin.
-	InstructionsSourcesTypePlugin InstructionsSourcesType = "plugin"
+	InstructionSourceTypePlugin InstructionSourceType = "plugin"
 	// Instructions loaded from repository-scoped files.
-	InstructionsSourcesTypeRepo InstructionsSourcesType = "repo"
+	InstructionSourceTypeRepo InstructionSourceType = "repo"
 	// Instructions loaded from VS Code instruction files.
-	InstructionsSourcesTypeVscode InstructionsSourcesType = "vscode"
+	InstructionSourceTypeVscode InstructionSourceType = "vscode"
 )
 
 // Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.
@@ -10074,6 +10127,51 @@ func (a *ServerAgentRegistryAPI) Spawn(ctx context.Context, params *AgentRegistr
 	return result, nil
 }
 
+// Experimental: ServerAgentsAPI contains experimental APIs that may change or be removed.
+type ServerAgentsAPI serverAPI
+
+// Discovers custom agents across user, project, plugin, and remote sources.
+//
+// RPC method: agents.discover.
+//
+// Parameters: Optional project paths to include in agent discovery.
+//
+// Returns: Agents discovered across user, project, plugin, and remote sources.
+func (a *ServerAgentsAPI) Discover(ctx context.Context, params *AgentsDiscoverRequest) (*ServerAgentList, error) {
+	raw, err := a.client.Request("agents.discover", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ServerAgentList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerInstructionsAPI contains experimental APIs that may change or be
+// removed.
+type ServerInstructionsAPI serverAPI
+
+// Discovers instruction sources across user, repository, and plugin sources.
+//
+// RPC method: instructions.discover.
+//
+// Parameters: Optional project paths to include in instruction discovery.
+//
+// Returns: Instruction sources discovered across user, repository, and plugin sources.
+func (a *ServerInstructionsAPI) Discover(ctx context.Context, params *InstructionsDiscoverRequest) (*ServerInstructionSourceList, error) {
+	raw, err := a.client.Request("instructions.discover", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ServerInstructionSourceList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type ServerMCPAPI serverAPI
 
 // Discovers MCP servers from user, workspace, plugin, and builtin sources.
@@ -11114,6 +11212,8 @@ type ServerRPC struct {
 
 	Account       *ServerAccountAPI
 	AgentRegistry *ServerAgentRegistryAPI
+	Agents        *ServerAgentsAPI
+	Instructions  *ServerInstructionsAPI
 	MCP           *ServerMCPAPI
 	Models        *ServerModelsAPI
 	Plugins       *ServerPluginsAPI
@@ -11151,6 +11251,8 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.common = serverAPI{client: client}
 	r.Account = (*ServerAccountAPI)(&r.common)
 	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
+	r.Agents = (*ServerAgentsAPI)(&r.common)
+	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
 	r.Models = (*ServerModelsAPI)(&r.common)
 	r.Plugins = (*ServerPluginsAPI)(&r.common)
@@ -12245,30 +12347,6 @@ func (a *MCPAPI) CancelSamplingExecution(ctx context.Context, params *MCPCancelS
 	return &result, nil
 }
 
-// ConfigureGitHub configures the built-in GitHub MCP server for the session's current auth
-// context.
-//
-// RPC method: session.mcp.configureGitHub.
-//
-// Parameters: Opaque auth info used to configure GitHub MCP.
-//
-// Returns: Result of configuring GitHub MCP.
-func (a *MCPAPI) ConfigureGitHub(ctx context.Context, params *MCPConfigureGitHubRequest) (*MCPConfigureGitHubResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["authInfo"] = params.AuthInfo
-	}
-	raw, err := a.client.Request("session.mcp.configureGitHub", req)
-	if err != nil {
-		return nil, err
-	}
-	var result MCPConfigureGitHubResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // Disables an MCP server for the session.
 //
 // RPC method: session.mcp.disable.
@@ -12409,35 +12487,6 @@ func (a *MCPAPI) ListTools(ctx context.Context, params *MCPListToolsRequest) (*M
 	return &result, nil
 }
 
-// RegisterExternalClient registers a pre-connected external MCP client (e.g. IDE) on the
-// session's host. The caller retains lifecycle ownership of the client and transport.
-// Marked internal because the `client` and `transport` arguments are in-process MCP SDK
-// instances that cannot be serialized across the JSON-RPC boundary; once the CLI moves on
-// top of the SDK, external clients will be expressed as transport configs the runtime can
-// construct itself.
-//
-// RPC method: session.mcp.registerExternalClient.
-//
-// Parameters: Registration parameters for an external MCP client.
-func (a *MCPAPI) RegisterExternalClient(ctx context.Context, params *MCPRegisterExternalClientRequest) (*SessionMCPRegisterExternalClientResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["client"] = params.Client
-		req["config"] = params.Config
-		req["serverName"] = params.ServerName
-		req["transport"] = params.Transport
-	}
-	raw, err := a.client.Request("session.mcp.registerExternalClient", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPRegisterExternalClientResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // Reloads MCP server connections for the session.
 //
 // RPC method: session.mcp.reload.
@@ -12448,30 +12497,6 @@ func (a *MCPAPI) Reload(ctx context.Context) (*SessionMCPReloadResult, error) {
 		return nil, err
 	}
 	var result SessionMCPReloadResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// ReloadWithConfig reloads MCP server connections for the session with an explicit
-// host-provided configuration.
-//
-// RPC method: session.mcp.reloadWithConfig.
-//
-// Parameters: Opaque MCP reload configuration.
-//
-// Returns: MCP server startup filtering result.
-func (a *MCPAPI) ReloadWithConfig(ctx context.Context, params *MCPReloadWithConfigRequest) (*MCPStartServersResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["config"] = params.Config
-	}
-	raw, err := a.client.Request("session.mcp.reloadWithConfig", req)
-	if err != nil {
-		return nil, err
-	}
-	var result MCPStartServersResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -12491,28 +12516,6 @@ func (a *MCPAPI) RemoveGitHub(ctx context.Context) (*MCPRemoveGitHubResult, erro
 		return nil, err
 	}
 	var result MCPRemoveGitHubResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// RestartServer restarts an individual MCP server on the session's host (stops then starts).
-//
-// RPC method: session.mcp.restartServer.
-//
-// Parameters: Server name and opaque configuration for an individual MCP server restart.
-func (a *MCPAPI) RestartServer(ctx context.Context, params *MCPRestartServerRequest) (*SessionMCPRestartServerResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["config"] = params.Config
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request("session.mcp.restartServer", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPRestartServerResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -12544,28 +12547,6 @@ func (a *MCPAPI) SetEnvValueMode(ctx context.Context, params *MCPSetEnvValueMode
 	return &result, nil
 }
 
-// StartServer starts an individual MCP server on the session's host.
-//
-// RPC method: session.mcp.startServer.
-//
-// Parameters: Server name and opaque configuration for an individual MCP server start.
-func (a *MCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest) (*SessionMCPStartServerResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["config"] = params.Config
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request("session.mcp.startServer", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPStartServerResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // StopServer stops an individual MCP server on the session's host.
 //
 // RPC method: session.mcp.stopServer.
@@ -12581,32 +12562,6 @@ func (a *MCPAPI) StopServer(ctx context.Context, params *MCPStopServerRequest) (
 		return nil, err
 	}
 	var result SessionMCPStopServerResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// UnregisterExternalClient unregisters a previously registered external MCP client by
-// server name. Marked internal as the paired companion of `registerExternalClient`: only
-// in-process callers that registered a client this way can meaningfully unregister it.
-// Disappears alongside `registerExternalClient`: once external clients are described to the
-// runtime as config rather than handed in as instances, lifecycle (including
-// deregistration) is owned entirely by the runtime.
-//
-// RPC method: session.mcp.unregisterExternalClient.
-//
-// Parameters: Server name identifying the external client to remove.
-func (a *MCPAPI) UnregisterExternalClient(ctx context.Context, params *MCPUnregisterExternalClientRequest) (*SessionMCPUnregisterExternalClientResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request("session.mcp.unregisterExternalClient", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPUnregisterExternalClientResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -12797,35 +12752,6 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 		return nil, err
 	}
 	var result MCPOauthLoginResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Responds to a pending MCP OAuth provider request. Marked internal because the `provider`
-// argument is an in-process OAuthClientProvider instance that cannot be carried over the
-// wire; the public OAuth surface will route the response through a wire-clean handshake
-// once the CLI moves on top of the SDK.
-//
-// RPC method: session.mcp.oauth.respond.
-//
-// Parameters: MCP OAuth request id and optional provider response.
-//
-// Returns: Empty result after recording the MCP OAuth response.
-func (a *MCPOauthAPI) Respond(ctx context.Context, params *MCPOauthRespondRequest) (*MCPOauthRespondResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Provider != nil {
-			req["provider"] = params.Provider
-		}
-		req["requestId"] = params.RequestID
-	}
-	raw, err := a.client.Request("session.mcp.oauth.respond", req)
-	if err != nil {
-		return nil, err
-	}
-	var result MCPOauthRespondResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -15546,6 +15472,229 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.UI = (*UIAPI)(&r.common)
 	r.Usage = (*UsageAPI)(&r.common)
 	r.Workspaces = (*WorkspacesAPI)(&r.common)
+	return r
+}
+
+type internalSessionAPI struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+// Experimental: InternalMCPAPI contains experimental APIs that may change or be removed.
+type InternalMCPAPI internalSessionAPI
+
+// ConfigureGitHub configures the built-in GitHub MCP server for the session's current auth
+// context.
+//
+// RPC method: session.mcp.configureGitHub.
+//
+// Parameters: Opaque auth info used to configure GitHub MCP.
+//
+// Returns: Result of configuring GitHub MCP.
+// Internal: ConfigureGitHub is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalMCPAPI) ConfigureGitHub(ctx context.Context, params *MCPConfigureGitHubRequest) (*MCPConfigureGitHubResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["authInfo"] = params.AuthInfo
+	}
+	raw, err := a.client.Request("session.mcp.configureGitHub", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPConfigureGitHubResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RegisterExternalClient registers a pre-connected external MCP client (e.g. IDE) on the
+// session's host. The caller retains lifecycle ownership of the client and transport.
+// Marked internal because the `client` and `transport` arguments are in-process MCP SDK
+// instances that cannot be serialized across the JSON-RPC boundary; once the CLI moves on
+// top of the SDK, external clients will be expressed as transport configs the runtime can
+// construct itself.
+//
+// RPC method: session.mcp.registerExternalClient.
+//
+// Parameters: Registration parameters for an external MCP client.
+// Internal: RegisterExternalClient is part of the SDK's internal handshake/plumbing;
+// external callers should not use it.
+func (a *InternalMCPAPI) RegisterExternalClient(ctx context.Context, params *MCPRegisterExternalClientRequest) (*SessionMCPRegisterExternalClientResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["client"] = params.Client
+		req["config"] = params.Config
+		req["serverName"] = params.ServerName
+		req["transport"] = params.Transport
+	}
+	raw, err := a.client.Request("session.mcp.registerExternalClient", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPRegisterExternalClientResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ReloadWithConfig reloads MCP server connections for the session with an explicit
+// host-provided configuration.
+//
+// RPC method: session.mcp.reloadWithConfig.
+//
+// Parameters: Opaque MCP reload configuration.
+//
+// Returns: MCP server startup filtering result.
+// Internal: ReloadWithConfig is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalMCPAPI) ReloadWithConfig(ctx context.Context, params *MCPReloadWithConfigRequest) (*MCPStartServersResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["config"] = params.Config
+	}
+	raw, err := a.client.Request("session.mcp.reloadWithConfig", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPStartServersResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RestartServer restarts an individual MCP server on the session's host (stops then starts).
+//
+// RPC method: session.mcp.restartServer.
+//
+// Parameters: Server name and opaque configuration for an individual MCP server restart.
+// Internal: RestartServer is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalMCPAPI) RestartServer(ctx context.Context, params *MCPRestartServerRequest) (*SessionMCPRestartServerResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["config"] = params.Config
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.restartServer", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPRestartServerResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// StartServer starts an individual MCP server on the session's host.
+//
+// RPC method: session.mcp.startServer.
+//
+// Parameters: Server name and opaque configuration for an individual MCP server start.
+// Internal: StartServer is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalMCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest) (*SessionMCPStartServerResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["config"] = params.Config
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.startServer", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPStartServerResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UnregisterExternalClient unregisters a previously registered external MCP client by
+// server name. Marked internal as the paired companion of `registerExternalClient`: only
+// in-process callers that registered a client this way can meaningfully unregister it.
+// Disappears alongside `registerExternalClient`: once external clients are described to the
+// runtime as config rather than handed in as instances, lifecycle (including
+// deregistration) is owned entirely by the runtime.
+//
+// RPC method: session.mcp.unregisterExternalClient.
+//
+// Parameters: Server name identifying the external client to remove.
+// Internal: UnregisterExternalClient is part of the SDK's internal handshake/plumbing;
+// external callers should not use it.
+func (a *InternalMCPAPI) UnregisterExternalClient(ctx context.Context, params *MCPUnregisterExternalClientRequest) (*SessionMCPUnregisterExternalClientResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.unregisterExternalClient", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPUnregisterExternalClientResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: InternalMCPOauthAPI contains experimental APIs that may change or be
+// removed.
+type InternalMCPOauthAPI internalSessionAPI
+
+// Responds to a pending MCP OAuth provider request. Marked internal because the `provider`
+// argument is an in-process OAuthClientProvider instance that cannot be carried over the
+// wire; the public OAuth surface will route the response through a wire-clean handshake
+// once the CLI moves on top of the SDK.
+//
+// RPC method: session.mcp.oauth.respond.
+//
+// Parameters: MCP OAuth request id and optional provider response.
+//
+// Returns: Empty result after recording the MCP OAuth response.
+// Internal: Respond is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalMCPOauthAPI) Respond(ctx context.Context, params *MCPOauthRespondRequest) (*MCPOauthRespondResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Provider != nil {
+			req["provider"] = params.Provider
+		}
+		req["requestId"] = params.RequestID
+	}
+	raw, err := a.client.Request("session.mcp.oauth.respond", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPOauthRespondResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Oauth returns experimental APIs that may change or be removed.
+func (s *InternalMCPAPI) Oauth() *InternalMCPOauthAPI {
+	return (*InternalMCPOauthAPI)(s)
+}
+
+// InternalSessionRPC provides internal SDK session-scoped RPC methods (handshake helpers
+// etc.). Not part of the public API.
+type InternalSessionRPC struct {
+	// Reuse a single struct instead of allocating one for each service on the heap.
+	common internalSessionAPI
+
+	MCP *InternalMCPAPI
+}
+
+func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalSessionRPC {
+	r := &InternalSessionRPC{}
+	r.common = internalSessionAPI{client: client, sessionID: sessionID}
+	r.MCP = (*InternalMCPAPI)(&r.common)
 	return r
 }
 

@@ -39,6 +39,8 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("resumeTime") OffsetDateTime resumeTime,
         /** Total number of persisted events in the session at the time of resume */
         @JsonProperty("eventCount") Long eventCount,
+        /** On-disk byte size of the session's persisted events.jsonl file at resume time; omitted when the file does not exist or cannot be stat'd */
+        @JsonProperty("eventsFileSizeBytes") Long eventsFileSizeBytes,
         /** Model currently selected at resume time */
         @JsonProperty("selectedModel") String selectedModel,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */

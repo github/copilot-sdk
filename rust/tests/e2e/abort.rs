@@ -47,11 +47,24 @@ async fn should_abort_during_active_streaming() {
 
             session.abort().await.expect("abort session");
 
-            let recovery = session
-                .send_and_wait("Say 'abort_recovery_ok'.")
+            // Session should be usable after abort. Wait for the specific recovery
+            // message rather than racing against a late idle from the aborted turn.
+            let recovery_events = session.subscribe();
+            session
+                .send("Say 'abort_recovery_ok'.")
                 .await
-                .expect("send recovery")
-                .expect("assistant message");
+                .expect("send recovery");
+            let recovery = wait_for_event(
+                recovery_events,
+                "assistant.message containing abort_recovery_ok",
+                |event| {
+                    event.parsed_type() == SessionEventType::AssistantMessage
+                        && assistant_message_content(event)
+                            .to_lowercase()
+                            .contains("abort_recovery_ok")
+                },
+            )
+            .await;
             assert!(
                 assistant_message_content(&recovery)
                     .to_lowercase()

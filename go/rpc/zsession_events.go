@@ -431,6 +431,8 @@ func (*PendingMessagesModifiedData) Type() SessionEventType {
 type HookProgressData struct {
 	// Human-readable progress message from the hook process
 	Message string `json:"message"`
+	// When true, this status message replaces the previous temporary one instead of accumulating
+	Temporary *bool `json:"temporary,omitempty"`
 }
 
 func (*HookProgressData) sessionEventData()      {}
@@ -894,16 +896,22 @@ func (*SessionScheduleCancelledData) Type() SessionEventType {
 
 // Scheduled prompt registered via /every or /after
 type SessionScheduleCreatedData struct {
+	// Absolute fire time (epoch milliseconds) for a one-shot calendar schedule
+	At *int64 `json:"at,omitempty"`
+	// 5-field cron expression for a recurring calendar schedule, evaluated in `tz`
+	Cron *string `json:"cron,omitempty"`
 	// Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion)
 	DisplayPrompt *string `json:"displayPrompt,omitempty"`
 	// Sequential id assigned to the scheduled prompt within the session
 	ID int64 `json:"id"`
-	// Interval between ticks in milliseconds
-	IntervalMs int64 `json:"intervalMs"`
+	// Interval between ticks in milliseconds (relative-interval schedules)
+	IntervalMs *int64 `json:"intervalMs,omitempty"`
 	// Prompt text that gets enqueued on every tick
 	Prompt string `json:"prompt"`
 	// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
 	Recurring *bool `json:"recurring,omitempty"`
+	// IANA timezone the `cron` expression is evaluated in
+	Tz *string `json:"tz,omitempty"`
 }
 
 func (*SessionScheduleCreatedData) sessionEventData() {}
@@ -1154,6 +1162,8 @@ type SessionResumeData struct {
 	ContinuePendingWork *bool `json:"continuePendingWork,omitempty"`
 	// Total number of persisted events in the session at the time of resume
 	EventCount int64 `json:"eventCount"`
+	// On-disk byte size of the session's persisted events.jsonl file at resume time; omitted when the file does not exist or cannot be stat'd
+	EventsFileSizeBytes *int64 `json:"eventsFileSizeBytes,omitempty"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
@@ -1196,6 +1206,8 @@ type SessionShutdownData struct {
 	CurrentTokens *int64 `json:"currentTokens,omitempty"`
 	// Error description when shutdownType is "error"
 	ErrorReason *string `json:"errorReason,omitempty"`
+	// On-disk byte size of the session's persisted events.jsonl file at shutdown time; omitted when the file does not exist or cannot be stat'd
+	EventsFileSizeBytes *int64 `json:"eventsFileSizeBytes,omitempty"`
 	// Per-model usage breakdown, keyed by model identifier
 	ModelMetrics map[string]ShutdownModelMetric `json:"modelMetrics"`
 	// Unix timestamp (milliseconds) when the session started

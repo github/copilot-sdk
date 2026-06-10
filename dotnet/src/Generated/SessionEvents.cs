@@ -1403,6 +1403,11 @@ public sealed partial class SessionResumeData
     [JsonPropertyName("eventCount")]
     public required long EventCount { get; set; }
 
+    /// <summary>On-disk byte size of the session's persisted events.jsonl file at resume time; omitted when the file does not exist or cannot be stat'd.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("eventsFileSizeBytes")]
+    public long? EventsFileSizeBytes { get; set; }
+
     /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
@@ -1508,6 +1513,16 @@ public sealed partial class SessionTitleChangedData
 /// <summary>Scheduled prompt registered via /every or /after.</summary>
 public sealed partial class SessionScheduleCreatedData
 {
+    /// <summary>Absolute fire time (epoch milliseconds) for a one-shot calendar schedule.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("at")]
+    public long? At { get; set; }
+
+    /// <summary>5-field cron expression for a recurring calendar schedule, evaluated in `tz`.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cron")]
+    public string? Cron { get; set; }
+
     /// <summary>Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("displayPrompt")]
@@ -1517,10 +1532,11 @@ public sealed partial class SessionScheduleCreatedData
     [JsonPropertyName("id")]
     public required long Id { get; set; }
 
-    /// <summary>Interval between ticks in milliseconds.</summary>
+    /// <summary>Interval between ticks in milliseconds (relative-interval schedules).</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("intervalMs")]
-    public required TimeSpan Interval { get; set; }
+    public TimeSpan? Interval { get; set; }
 
     /// <summary>Prompt text that gets enqueued on every tick.</summary>
     [JsonPropertyName("prompt")]
@@ -1530,6 +1546,11 @@ public sealed partial class SessionScheduleCreatedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("recurring")]
     public bool? Recurring { get; set; }
+
+    /// <summary>IANA timezone the `cron` expression is evaluated in.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tz")]
+    public string? Tz { get; set; }
 }
 
 /// <summary>Scheduled prompt cancelled from the schedule manager dialog.</summary>
@@ -1795,6 +1816,11 @@ public sealed partial class SessionShutdownData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("errorReason")]
     public string? ErrorReason { get; set; }
+
+    /// <summary>On-disk byte size of the session's persisted events.jsonl file at shutdown time; omitted when the file does not exist or cannot be stat'd.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("eventsFileSizeBytes")]
+    public long? EventsFileSizeBytes { get; set; }
 
     /// <summary>Per-model usage breakdown, keyed by model identifier.</summary>
     [JsonPropertyName("modelMetrics")]
@@ -2819,6 +2845,11 @@ public sealed partial class HookProgressData
     /// <summary>Human-readable progress message from the hook process.</summary>
     [JsonPropertyName("message")]
     public required string Message { get; set; }
+
+    /// <summary>When true, this status message replaces the previous temporary one instead of accumulating.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("temporary")]
+    public bool? Temporary { get; set; }
 }
 
 /// <summary>System/developer instruction content with role and optional template metadata.</summary>

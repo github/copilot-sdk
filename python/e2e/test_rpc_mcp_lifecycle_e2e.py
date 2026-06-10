@@ -13,16 +13,9 @@ from pathlib import Path
 import pytest
 
 from copilot.rpc import (
-    MCPConfigureGitHubRequest,
     MCPIsServerRunningRequest,
     MCPListToolsRequest,
-    MCPOauthRespondRequest,
-    MCPRegisterExternalClientRequest,
-    MCPReloadWithConfigRequest,
-    MCPRestartServerRequest,
-    MCPStartServerRequest,
     MCPStopServerRequest,
-    MCPUnregisterExternalClientRequest,
 )
 from copilot.session import PermissionHandler
 from copilot.session_events import McpServerStatus
@@ -46,15 +39,6 @@ def _test_mcp_servers(*server_names: str) -> dict[str, dict]:
             "working_directory": TEST_HARNESS_DIR,
         }
         for server_name in server_names
-    }
-
-
-def _wire_mcp_server_config() -> dict:
-    return {
-        "command": "node",
-        "args": [TEST_MCP_SERVER],
-        "tools": ["*"],
-        "cwd": TEST_HARNESS_DIR,
     }
 
 
@@ -165,115 +149,3 @@ class TestRpcMcpLifecycle:
             await session.rpc.mcp.stop_server(MCPStopServerRequest(server_name=server_name))
 
             await _wait_for_mcp_running(session, server_name, expected_running=False)
-
-    async def test_should_start_and_restart_mcp_server(self, ctx: E2ETestContext):
-        host_server = "rpc-lifecycle-host-server"
-        async with await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            mcp_servers=_test_mcp_servers(host_server),
-        ) as session:
-            await _wait_for_mcp_server_status(session, host_server)
-
-            started_server = "rpc-lifecycle-started-server"
-            config = _wire_mcp_server_config()
-
-            await session.rpc.mcp.start_server(
-                MCPStartServerRequest(server_name=started_server, config=config)
-            )
-            await _wait_for_mcp_running(session, started_server, expected_running=True)
-
-            tools = await session.rpc.mcp.list_tools(
-                MCPListToolsRequest(server_name=started_server)
-            )
-            assert len(tools.tools) > 0
-
-            await session.rpc.mcp.restart_server(
-                MCPRestartServerRequest(server_name=started_server, config=config)
-            )
-            await _wait_for_mcp_running(session, started_server, expected_running=True)
-
-    async def test_should_register_and_unregister_external_mcp_client(self, ctx: E2ETestContext):
-        host_server = "rpc-lifecycle-extclient-host"
-        async with await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            mcp_servers=_test_mcp_servers(host_server),
-        ) as session:
-            await _wait_for_mcp_server_status(session, host_server)
-
-            external_name = "rpc-lifecycle-external-client"
-            assert (
-                await session.rpc.mcp.is_server_running(
-                    MCPIsServerRunningRequest(server_name=external_name)
-                )
-            ).running is False
-
-            await session.rpc.mcp.register_external_client(
-                MCPRegisterExternalClientRequest(
-                    server_name=external_name,
-                    client={"id": external_name},
-                    transport={"kind": "in-process"},
-                    config={"command": "noop"},
-                )
-            )
-            assert (
-                await session.rpc.mcp.is_server_running(
-                    MCPIsServerRunningRequest(server_name=external_name)
-                )
-            ).running is True
-
-            await session.rpc.mcp.unregister_external_client(
-                MCPUnregisterExternalClientRequest(server_name=external_name)
-            )
-            assert (
-                await session.rpc.mcp.is_server_running(
-                    MCPIsServerRunningRequest(server_name=external_name)
-                )
-            ).running is False
-
-    async def test_should_reload_mcp_servers_with_config(self, ctx: E2ETestContext):
-        host_server = "rpc-lifecycle-reload-host"
-        async with await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            mcp_servers=_test_mcp_servers(host_server),
-        ) as session:
-            await _wait_for_mcp_server_status(session, host_server)
-
-            result = await session.rpc.mcp.reload_with_config(
-                MCPReloadWithConfigRequest(
-                    config={"mcpServers": {}, "disabledServers": []},
-                )
-            )
-
-            assert result is not None
-            assert result.filtered_servers is not None
-            assert result.filtered_servers == []
-
-    async def test_should_configure_github_mcp_server(self, ctx: E2ETestContext):
-        host_server = "rpc-lifecycle-configure-host"
-        async with await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            mcp_servers=_test_mcp_servers(host_server),
-        ) as session:
-            await _wait_for_mcp_server_status(session, host_server)
-
-            result = await session.rpc.mcp.configure_git_hub(
-                MCPConfigureGitHubRequest(auth_info={"type": "api-key"})
-            )
-
-            assert result is not None
-            assert result.changed is False
-
-    async def test_should_respond_to_mcp_oauth_request_without_pending_request(
-        self, ctx: E2ETestContext
-    ):
-        host_server = "rpc-lifecycle-oauth-host"
-        async with await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            mcp_servers=_test_mcp_servers(host_server),
-        ) as session:
-            await _wait_for_mcp_server_status(session, host_server)
-
-            result = await session.rpc.mcp.oauth.respond(
-                MCPOauthRespondRequest(request_id=f"missing-{uuid.uuid4().hex}")
-            )
-            assert result is not None

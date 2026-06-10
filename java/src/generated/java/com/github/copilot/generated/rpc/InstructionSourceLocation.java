@@ -15,7 +15,7 @@ import javax.annotation.processing.Generated;
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum InstructionsSourcesLocation {
+public enum InstructionSourceLocation {
     /** The {@code user} variant. */
     USER("user"),
     /** The {@code repository} variant. */
@@ -26,14 +26,14 @@ public enum InstructionsSourcesLocation {
     PLUGIN("plugin");
 
     private final String value;
-    InstructionsSourcesLocation(String value) { this.value = value; }
+    InstructionSourceLocation(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static InstructionsSourcesLocation fromValue(String value) {
-        for (InstructionsSourcesLocation v : values()) {
+    public static InstructionSourceLocation fromValue(String value) {
+        for (InstructionSourceLocation v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown InstructionsSourcesLocation value: " + value);
+        throw new IllegalArgumentException("Unknown InstructionSourceLocation value: " + value);
     }
 }

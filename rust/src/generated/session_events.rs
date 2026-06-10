@@ -493,6 +493,9 @@ pub struct SessionResumeData {
     pub continue_pending_work: Option<bool>,
     /// Total number of persisted events in the session at the time of resume
     pub event_count: i64,
+    /// On-disk byte size of the session's persisted events.jsonl file at resume time; omitted when the file does not exist or cannot be stat'd
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub events_file_size_bytes: Option<i64>,
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -572,18 +575,28 @@ pub struct SessionTitleChangedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionScheduleCreatedData {
+    /// Absolute fire time (epoch milliseconds) for a one-shot calendar schedule
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub at: Option<i64>,
+    /// 5-field cron expression for a recurring calendar schedule, evaluated in `tz`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cron: Option<String>,
     /// Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_prompt: Option<String>,
     /// Sequential id assigned to the scheduled prompt within the session
     pub id: i64,
-    /// Interval between ticks in milliseconds
-    pub interval_ms: i64,
+    /// Interval between ticks in milliseconds (relative-interval schedules)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interval_ms: Option<i64>,
     /// Prompt text that gets enqueued on every tick
     pub prompt: String,
     /// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurring: Option<bool>,
+    /// IANA timezone the `cron` expression is evaluated in
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tz: Option<String>,
 }
 
 /// Session event "session.schedule_cancelled". Scheduled prompt cancelled from the schedule manager dialog
@@ -886,6 +899,9 @@ pub struct SessionShutdownData {
     /// Error description when shutdownType is "error"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_reason: Option<String>,
+    /// On-disk byte size of the session's persisted events.jsonl file at shutdown time; omitted when the file does not exist or cannot be stat'd
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub events_file_size_bytes: Option<i64>,
     /// Per-model usage breakdown, keyed by model identifier
     pub model_metrics: HashMap<String, ShutdownModelMetric>,
     /// Unix timestamp (milliseconds) when the session started
@@ -2057,6 +2073,9 @@ pub struct HookEndData {
 pub struct HookProgressData {
     /// Human-readable progress message from the hook process
     pub message: String,
+    /// When true, this status message replaces the previous temporary one instead of accumulating
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temporary: Option<bool>,
 }
 
 /// Metadata about the prompt template and its construction

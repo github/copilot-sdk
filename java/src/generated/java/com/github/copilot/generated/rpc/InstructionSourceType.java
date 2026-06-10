@@ -15,7 +15,7 @@ import javax.annotation.processing.Generated;
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum InstructionsSourcesType {
+public enum InstructionSourceType {
     /** The {@code home} variant. */
     HOME("home"),
     /** The {@code repo} variant. */
@@ -32,14 +32,14 @@ public enum InstructionsSourcesType {
     PLUGIN("plugin");
 
     private final String value;
-    InstructionsSourcesType(String value) { this.value = value; }
+    InstructionSourceType(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static InstructionsSourcesType fromValue(String value) {
-        for (InstructionsSourcesType v : values()) {
+    public static InstructionSourceType fromValue(String value) {
+        for (InstructionSourceType v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown InstructionsSourcesType value: " + value);
+        throw new IllegalArgumentException("Unknown InstructionSourceType value: " + value);
     }
 }

@@ -15,7 +15,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Instruction sources loaded for the session, in merge order.
+ * Agents discovered across user, project, plugin, and remote sources.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -24,8 +24,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionInstructionsGetSourcesResult(
-    /** Instruction sources for the session */
-    @JsonProperty("sources") List<InstructionSource> sources
+public record AgentsDiscoverResult(
+    /** All discovered agents across all sources */
+    @JsonProperty("agents") List<AgentInfo> agents
 ) {
 }
