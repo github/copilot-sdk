@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionMetadataApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMetadataSnapshotResult> snapshot() {
         return caller.invoke("session.metadata.snapshot", java.util.Map.of("sessionId", this.sessionId), SessionMetadataSnapshotResult.class);
     }
@@ -45,6 +47,7 @@ public final class SessionMetadataApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMetadataIsProcessingResult> isProcessing() {
         return caller.invoke("session.metadata.isProcessing", java.util.Map.of("sessionId", this.sessionId), SessionMetadataIsProcessingResult.class);
     }
@@ -55,6 +58,7 @@ public final class SessionMetadataApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMetadataActivityResult> activity() {
         return caller.invoke("session.metadata.activity", java.util.Map.of("sessionId", this.sessionId), SessionMetadataActivityResult.class);
     }
@@ -68,6 +72,7 @@ public final class SessionMetadataApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMetadataContextInfoResult> contextInfo(SessionMetadataContextInfoParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -83,6 +88,7 @@ public final class SessionMetadataApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> recordContextChange(SessionMetadataRecordContextChangeParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -98,6 +104,7 @@ public final class SessionMetadataApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMetadataSetWorkingDirectoryResult> setWorkingDirectory(SessionMetadataSetWorkingDirectoryParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -113,6 +120,7 @@ public final class SessionMetadataApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionMetadataRecomputeContextTokensResult> recomputeContextTokens(SessionMetadataRecomputeContextTokensParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionExtensionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionExtensionsListResult> list() {
         return caller.invoke("session.extensions.list", java.util.Map.of("sessionId", this.sessionId), SessionExtensionsListResult.class);
     }
@@ -48,6 +50,7 @@ public final class SessionExtensionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> enable(SessionExtensionsEnableParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -63,6 +66,7 @@ public final class SessionExtensionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> disable(SessionExtensionsDisableParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -75,6 +79,7 @@ public final class SessionExtensionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> reload() {
         return caller.invoke("session.extensions.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
@@ -88,6 +93,7 @@ public final class SessionExtensionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> sendAttachmentsToMessage(SessionExtensionsSendAttachmentsToMessageParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

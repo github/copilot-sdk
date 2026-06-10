@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -33,6 +34,7 @@ public final class SessionUsageApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionUsageGetMetricsResult> getMetrics() {
         return caller.invoke("session.usage.getMetrics", java.util.Map.of("sessionId", this.sessionId), SessionUsageGetMetricsResult.class);
     }

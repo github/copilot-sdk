@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -33,6 +34,7 @@ public final class SessionPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPluginsListResult> list() {
         return caller.invoke("session.plugins.list", java.util.Map.of("sessionId", this.sessionId), SessionPluginsListResult.class);
     }
@@ -43,6 +45,7 @@ public final class SessionPluginsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> reload() {
         return caller.invoke("session.plugins.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }

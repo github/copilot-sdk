@@ -1002,6 +1002,10 @@ async function generateEventVariantClass(
     if (variant.deprecated) {
         lines.push(`@Deprecated`);
     }
+    if (variant.stability === "experimental") {
+        allImports.add("com.github.copilot.CopilotExperimental");
+        lines.push(`@CopilotExperimental`);
+    }
     lines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
     lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
     lines.push(GENERATED_ANNOTATION);
@@ -1404,6 +1408,9 @@ async function generateRpcDataClass(
         "javax.annotation.processing.Generated",
         ...imports,
     ]);
+    if (stability === "experimental") {
+        allImports.add("com.github.copilot.CopilotExperimental");
+    }
     const sortedImports = [...allImports].sort();
     for (const imp of sortedImports) {
         lines.push(`import ${imp};`);
@@ -1425,6 +1432,9 @@ async function generateRpcDataClass(
     lines.push(` */`);
     if (deprecated) {
         lines.push(`@Deprecated`);
+    }
+    if (stability === "experimental") {
+        lines.push(`@CopilotExperimental`);
     }
     lines.push(GENERATED_ANNOTATION);
     lines.push(code);
@@ -1577,7 +1587,7 @@ function generateApiMethod(
     method: RpcMethodNode,
     isSession: boolean,
     sessionIdExpr: string
-): { lines: string[]; needsMapper: boolean } {
+): { lines: string[]; needsMapper: boolean; needsExperimentalImport: boolean } {
     const resultClass = wrapperResultClassName(method);
     const paramsClass = wrapperParamsClassName(method);
     const hasSessionId = methodHasSessionId(method);
@@ -1605,6 +1615,9 @@ function generateApiMethod(
     lines.push(`     */`);
     if (method.deprecated) {
         lines.push(`    @Deprecated`);
+    }
+    if (method.stability === "experimental") {
+        lines.push(`    @CopilotExperimental`);
     }
 
     // Signature
@@ -1639,7 +1652,7 @@ function generateApiMethod(
     lines.push(`    }`);
     lines.push(``);
 
-    return { lines, needsMapper };
+    return { lines, needsMapper, needsExperimentalImport: method.stability === "experimental" };
 }
 
 /**
@@ -1694,9 +1707,10 @@ async function generateNamespaceApiFile(
         }
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
-        const { lines, needsMapper: nm } = generateApiMethod(key, method, isSession, sessionIdExpr);
+        const { lines, needsMapper: nm, needsExperimentalImport } = generateApiMethod(key, method, isSession, sessionIdExpr);
         methodLines.push(...lines);
         if (nm) needsMapper = true;
+        if (needsExperimentalImport) allImports.add("com.github.copilot.CopilotExperimental");
     }
 
     // Build class body
@@ -1819,9 +1833,10 @@ async function generateRpcRootFile(
         }
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
-        const { lines, needsMapper: nm } = generateApiMethod(key, method, isSession, sessionIdExpr);
+        const { lines, needsMapper: nm, needsExperimentalImport } = generateApiMethod(key, method, isSession, sessionIdExpr);
         methodLines.push(...lines);
         if (nm) needsMapper = true;
+        if (needsExperimentalImport) allImports.add("com.github.copilot.CopilotExperimental");
     }
 
     // Build file content
@@ -2043,6 +2058,12 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
 async function main(): Promise<void> {
     console.log("🚀 Java SDK code generator");
     console.log("============================");
+
+    // Clean the generated output directory to remove orphaned files from previous runs
+    const generatedOutputDir = path.join(REPO_ROOT, "src/generated/java/com/github/copilot/generated");
+    console.log(`🧹 Cleaning output directory: ${generatedOutputDir}`);
+    await fs.rm(generatedOutputDir, { recursive: true, force: true });
+    await fs.mkdir(generatedOutputDir, { recursive: true });
 
     const sessionEventsSchemaPath = await getSessionEventsSchemaPath();
     console.log(`📄 Session events schema: ${sessionEventsSchemaPath}`);

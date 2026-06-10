@@ -35,6 +35,20 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `agents.*` sub-namespace.
+    pub fn agents(&self) -> ClientRpcAgents<'a> {
+        ClientRpcAgents {
+            client: self.client,
+        }
+    }
+
+    /// `instructions.*` sub-namespace.
+    pub fn instructions(&self) -> ClientRpcInstructions<'a> {
+        ClientRpcInstructions {
+            client: self.client,
+        }
+    }
+
     /// `mcp.*` sub-namespace.
     pub fn mcp(&self) -> ClientRpcMcp<'a> {
         ClientRpcMcp {
@@ -227,6 +241,81 @@ impl<'a> ClientRpcAgentRegistry<'a> {
         let _value = self
             .client
             .call(rpc_methods::AGENTREGISTRY_SPAWN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `agents.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcAgents<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcAgents<'a> {
+    /// Discovers custom agents across user, project, plugin, and remote sources.
+    ///
+    /// Wire method: `agents.discover`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths to include in agent discovery.
+    ///
+    /// # Returns
+    ///
+    /// Agents discovered across user, project, plugin, and remote sources.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn discover(&self, params: AgentsDiscoverRequest) -> Result<ServerAgentList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `instructions.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcInstructions<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcInstructions<'a> {
+    /// Discovers instruction sources across user, repository, and plugin sources.
+    ///
+    /// Wire method: `instructions.discover`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths to include in instruction discovery.
+    ///
+    /// # Returns
+    ///
+    /// Instruction sources discovered across user, repository, and plugin sources.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn discover(
+        &self,
+        params: InstructionsDiscoverRequest,
+    ) -> Result<ServerInstructionSourceList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::INSTRUCTIONS_DISCOVER, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

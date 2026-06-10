@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -51,6 +52,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsConfigureResult> configure(SessionPermissionsConfigureParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -66,6 +68,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsHandlePendingPermissionRequestResult> handlePendingPermissionRequest(SessionPermissionsHandlePendingPermissionRequestParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -78,6 +81,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsPendingRequestsResult> pendingRequests() {
         return caller.invoke("session.permissions.pendingRequests", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsPendingRequestsResult.class);
     }
@@ -91,6 +95,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsSetApproveAllResult> setApproveAll(SessionPermissionsSetApproveAllParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -106,6 +111,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsSetAllowAllResult> setAllowAll(SessionPermissionsSetAllowAllParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -118,6 +124,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsGetAllowAllResult> getAllowAll() {
         return caller.invoke("session.permissions.getAllowAll", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsGetAllowAllResult.class);
     }
@@ -131,6 +138,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsModifyRulesResult> modifyRules(SessionPermissionsModifyRulesParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -146,6 +154,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsSetRequiredResult> setRequired(SessionPermissionsSetRequiredParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -158,6 +167,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsResetSessionApprovalsResult> resetSessionApprovals() {
         return caller.invoke("session.permissions.resetSessionApprovals", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsResetSessionApprovalsResult.class);
     }
@@ -171,6 +181,7 @@ public final class SessionPermissionsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionPermissionsNotifyPromptShownResult> notifyPromptShown(SessionPermissionsNotifyPromptShownParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

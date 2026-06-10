@@ -72,6 +72,10 @@ pub mod rpc_methods {
     pub const SKILLS_CONFIG_SETDISABLEDSKILLS: &str = "skills.config.setDisabledSkills";
     /// `skills.discover`
     pub const SKILLS_DISCOVER: &str = "skills.discover";
+    /// `agents.discover`
+    pub const AGENTS_DISCOVER: &str = "agents.discover";
+    /// `instructions.discover`
+    pub const INSTRUCTIONS_DISCOVER: &str = "instructions.discover";
     /// `user.settings.reload`
     pub const USER_SETTINGS_RELOAD: &str = "user.settings.reload";
     /// `runtime.shutdown`
@@ -878,6 +882,25 @@ pub struct AgentRegistrySpawnValidationError {
 pub struct AgentReloadResult {
     /// Reloaded custom agents
     pub agents: Vec<AgentInfo>,
+}
+
+/// Optional project paths to include in agent discovery.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentsDiscoverRequest {
+    /// When true, omit the host's agents (the `<COPILOT_HOME>/agents` directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_host_agents: Option<bool>,
+    /// Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_paths: Option<Vec<String>>,
 }
 
 /// Name of the custom agent to select for subsequent turns.
@@ -3060,7 +3083,7 @@ pub struct InstalledPluginSourceUrl {
     pub url: String,
 }
 
-/// Schema for the `InstructionsSources` type.
+/// Optional project paths to include in instruction discovery.
 ///
 /// <div class="warning">
 ///
@@ -3070,7 +3093,26 @@ pub struct InstalledPluginSourceUrl {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InstructionsSources {
+pub struct InstructionsDiscoverRequest {
+    /// When true, omit the host's instruction sources (user/home-level files and plugin rules), leaving only repository and working-directory sources. For multitenant deployments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_host_instructions: Option<bool>,
+    /// Optional list of project directory paths to scan for repository/working-directory instruction sources. When omitted or empty, only user-level and plugin instruction sources are returned (no project scan).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_paths: Option<Vec<String>>,
+}
+
+/// Schema for the `InstructionSource` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionSource {
     /// Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files
     #[serde(skip_serializing_if = "Option::is_none")]
     pub apply_to: Option<Vec<String>>,
@@ -3087,11 +3129,14 @@ pub struct InstructionsSources {
     /// Human-readable label
     pub label: String,
     /// Where this source lives — used for UI grouping
-    pub location: InstructionsSourcesLocation,
+    pub location: InstructionSourceLocation,
+    /// The project path this source was discovered from. Only set by sessionless discovery for repository/working-directory sources, where it disambiguates same-named files (e.g. .github/copilot-instructions.md) across multiple workspace roots. The session-scoped getSources leaves it unset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
     /// File path relative to repo or absolute for home
     pub source_path: String,
     /// Category of instruction source — used for merge logic
-    pub r#type: InstructionsSourcesType,
+    pub r#type: InstructionSourceType,
 }
 
 /// Instruction sources loaded for the session, in merge order.
@@ -3106,7 +3151,7 @@ pub struct InstructionsSources {
 #[serde(rename_all = "camelCase")]
 pub struct InstructionsGetSourcesResult {
     /// Instruction sources for the session
-    pub sources: Vec<InstructionsSources>,
+    pub sources: Vec<InstructionSource>,
 }
 
 /// Pre-resolved working-directory context for session startup.
@@ -7925,19 +7970,29 @@ pub struct SandboxConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScheduleEntry {
+    /// Absolute fire time (epoch milliseconds) for a one-shot calendar schedule.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub at: Option<i64>,
+    /// 5-field cron expression for a recurring calendar schedule, evaluated in `tz`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cron: Option<String>,
     /// Display-only label for the prompt as shown in the UI (e.g. `/skill-name` for a skill-invocation schedule). The actual enqueued prompt is `prompt`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_prompt: Option<String>,
     /// Sequential id assigned by the runtime within the session. Stable across resumes (rebuilt from the event log).
     pub id: i64,
-    /// Interval between scheduled ticks, in milliseconds.
-    pub interval_ms: i64,
+    /// Interval between scheduled ticks, in milliseconds (relative-interval schedules).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interval_ms: Option<i64>,
     /// ISO 8601 timestamp when the next tick is scheduled to fire.
     pub next_run_at: String,
     /// Prompt text that gets enqueued on every tick.
     pub prompt: String,
     /// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`).
     pub recurring: bool,
+    /// IANA timezone the `cron` expression is evaluated in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tz: Option<String>,
 }
 
 /// Snapshot of the currently active recurring prompts for this session.
@@ -8085,6 +8140,36 @@ pub struct SendRequest {
 pub struct SendResult {
     /// Unique identifier assigned to the message
     pub message_id: String,
+}
+
+/// Agents discovered across user, project, plugin, and remote sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerAgentList {
+    /// All discovered agents across all sources
+    pub agents: Vec<AgentInfo>,
+}
+
+/// Instruction sources discovered across user, repository, and plugin sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerInstructionSourceList {
+    /// All discovered instruction sources
+    pub sources: Vec<InstructionSource>,
 }
 
 /// Schema for the `ServerSkill` type.
@@ -10596,11 +10681,14 @@ pub struct TaskAgentInfo {
     /// Most recent response text from the agent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_response: Option<String>,
-    /// Model used for the task when specified
+    /// Requested model override for the task when specified
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Most recent prompt delivered to the agent. Updated whenever the agent receives a follow-up message.
     pub prompt: String,
+    /// Runtime model resolved for the task when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_model: Option<String>,
     /// Result text from the task when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<String>,
@@ -12378,6 +12466,36 @@ pub struct SkillsDiscoverResult {
     pub skills: Vec<ServerSkill>,
 }
 
+/// Agents discovered across user, project, plugin, and remote sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentsDiscoverResult {
+    /// All discovered agents across all sources
+    pub agents: Vec<AgentInfo>,
+}
+
+/// Instruction sources discovered across user, repository, and plugin sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionsDiscoverResult {
+    /// All discovered instruction sources
+    pub sources: Vec<InstructionSource>,
+}
+
 /// Result of opening a session.
 ///
 /// <div class="warning">
@@ -13346,7 +13464,7 @@ pub struct SessionInstructionsGetSourcesParams {
 #[serde(rename_all = "camelCase")]
 pub struct SessionInstructionsGetSourcesResult {
     /// Instruction sources for the session
-    pub sources: Vec<InstructionsSources>,
+    pub sources: Vec<InstructionSource>,
 }
 
 /// Indicates whether fleet mode was successfully activated.
@@ -16519,7 +16637,7 @@ pub enum InstalledPluginSourceUrlSource {
 ///
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstructionsSourcesLocation {
+pub enum InstructionSourceLocation {
     /// Instructions live in user-level configuration.
     #[serde(rename = "user")]
     User,
@@ -16547,7 +16665,7 @@ pub enum InstructionsSourcesLocation {
 ///
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstructionsSourcesType {
+pub enum InstructionSourceType {
     /// Instructions loaded from the user's home configuration.
     #[serde(rename = "home")]
     Home,

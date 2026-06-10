@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionSkillsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionSkillsListResult> list() {
         return caller.invoke("session.skills.list", java.util.Map.of("sessionId", this.sessionId), SessionSkillsListResult.class);
     }
@@ -45,6 +47,7 @@ public final class SessionSkillsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionSkillsGetInvokedResult> getInvoked() {
         return caller.invoke("session.skills.getInvoked", java.util.Map.of("sessionId", this.sessionId), SessionSkillsGetInvokedResult.class);
     }
@@ -58,6 +61,7 @@ public final class SessionSkillsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> enable(SessionSkillsEnableParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -73,6 +77,7 @@ public final class SessionSkillsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> disable(SessionSkillsDisableParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -85,6 +90,7 @@ public final class SessionSkillsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionSkillsReloadResult> reload() {
         return caller.invoke("session.skills.reload", java.util.Map.of("sessionId", this.sessionId), SessionSkillsReloadResult.class);
     }
@@ -95,6 +101,7 @@ public final class SessionSkillsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> ensureLoaded() {
         return caller.invoke("session.skills.ensureLoaded", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
