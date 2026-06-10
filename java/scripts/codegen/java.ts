@@ -2059,6 +2059,12 @@ async function main(): Promise<void> {
     console.log("🚀 Java SDK code generator");
     console.log("============================");
 
+    // Clean the generated output directory to remove orphaned files from previous runs
+    const generatedOutputDir = path.join(REPO_ROOT, "src/generated/java/com/github/copilot/generated");
+    console.log(`🧹 Cleaning output directory: ${generatedOutputDir}`);
+    await fs.rm(generatedOutputDir, { recursive: true, force: true });
+    await fs.mkdir(generatedOutputDir, { recursive: true });
+
     const sessionEventsSchemaPath = await getSessionEventsSchemaPath();
     console.log(`📄 Session events schema: ${sessionEventsSchemaPath}`);
     const apiSchemaPath = await getApiSchemaPath();

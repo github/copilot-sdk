@@ -663,14 +663,6 @@ class GeneratedRpcApiCoverageTest {
         assertEquals("event-123", params.toEventId());
     }
 
-    // ── SessionAgentDeselectResult (empty record) ──────────────────────────
-
-    @Test
-    void sessionAgentDeselectResult_empty_record() {
-        var result = new SessionAgentDeselectResult();
-        assertNotNull(result);
-    }
-
     // ── SessionLogParams enum ──────────────────────────────────────────────
 
     @Test
