@@ -1288,6 +1288,9 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	case *ExternalToolRequestedData:
 		handler, ok := s.getToolHandler(d.ToolName)
 		if !ok {
+			if d.ToolName == "" && d.ToolCallID != "" {
+				s.respondToMissingToolName(d.RequestID, d.Traceparent, d.Tracestate)
+			}
 			return
 		}
 		var tp, ts string
@@ -1333,6 +1336,29 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			})
 		}
 	}
+}
+
+func (s *Session) respondToMissingToolName(requestID string, traceparent, tracestate *string) {
+	var tp, ts string
+	if traceparent != nil {
+		tp = *traceparent
+	}
+	if tracestate != nil {
+		ts = *tracestate
+	}
+
+	ctx := contextWithTraceParent(context.Background(), tp, ts)
+	resultType := "failure"
+	errMsg := "tool name is missing or incorrect"
+	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+		RequestID: requestID,
+		Result: rpc.ExternalToolTextResultForLlm{
+			TextResultForLlm: "Tool call failed: tool name is missing or incorrect. Retry using one of the registered tool names.",
+			ResultType:       &resultType,
+			Error:            &errMsg,
+			ToolTelemetry:    map[string]any{},
+		},
+	})
 }
 
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.

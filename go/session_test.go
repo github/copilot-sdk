@@ -167,6 +167,102 @@ func readTestJSONRPCFrame(r io.Reader) ([]byte, error) {
 	return data, err
 }
 
+func TestSession_HandleBroadcastEventRespondsToMissingToolName(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	paramsCh := make(chan map[string]any, 1)
+	errCh := make(chan error, 1)
+
+	go func() {
+		frame, err := readTestJSONRPCFrame(stdinR)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params map[string]any  `json:"params"`
+		}
+		if err := json.Unmarshal(frame, &request); err != nil {
+			errCh <- err
+			return
+		}
+		if request.Method != "session.tools.handlePendingToolCall" {
+			errCh <- fmt.Errorf("expected session.tools.handlePendingToolCall, got %s", request.Method)
+			return
+		}
+
+		paramsCh <- request.Params
+
+		response := map[string]any{
+			"jsonrpc": "2.0",
+			"id":      json.RawMessage(request.ID),
+			"result":  map[string]any{"success": true},
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+			errCh <- err
+			return
+		}
+	}()
+
+	session := &Session{
+		SessionID: "sess-1",
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, "sess-1"),
+	}
+
+	session.handleBroadcastEvent(SessionEvent{Data: &ExternalToolRequestedData{
+		RequestID:  "req-1",
+		SessionID:  "sess-1",
+		ToolCallID: "call-1",
+		ToolName:   "",
+	}})
+
+	select {
+	case params := <-paramsCh:
+		if params["sessionId"] != "sess-1" {
+			t.Fatalf("expected sessionId sess-1, got %v", params["sessionId"])
+		}
+		if params["requestId"] != "req-1" {
+			t.Fatalf("expected requestId req-1, got %v", params["requestId"])
+		}
+		result, ok := params["result"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected structured result, got %T", params["result"])
+		}
+		if result["resultType"] != "failure" {
+			t.Fatalf("expected resultType failure, got %v", result["resultType"])
+		}
+		if result["error"] != "tool name is missing or incorrect" {
+			t.Fatalf("unexpected error: %v", result["error"])
+		}
+		text, ok := result["textResultForLlm"].(string)
+		if !ok || !strings.Contains(text, "tool name is missing") {
+			t.Fatalf("unexpected textResultForLlm: %v", result["textResultForLlm"])
+		}
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for pending tool call response")
+	}
+}
+
 func TestSession_On(t *testing.T) {
 	t.Run("multiple handlers all receive events", func(t *testing.T) {
 		session, cleanup := newTestSession()
