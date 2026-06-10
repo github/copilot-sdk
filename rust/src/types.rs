@@ -2145,12 +2145,6 @@ impl SessionConfig {
     }
 
     /// Configure the runtime memory feature for this session.
-    ///
-    /// ```
-    /// use github_copilot_sdk::types::{MemoryConfiguration, SessionConfig};
-    ///
-    /// let cfg = SessionConfig::default().with_memory(MemoryConfiguration::enabled());
-    /// ```
     pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
         self.memory = Some(memory);
         self
