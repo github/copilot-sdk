@@ -918,6 +918,7 @@ export class CopilotClient {
                 enableHostGitOperations: false,
                 enableSessionStore: false,
                 enableSkills: false,
+                memory: { enabled: false },
             };
         }
         return {};

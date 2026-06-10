@@ -258,6 +258,21 @@ def _mcp_oauth_token_storage_default(
     return supplied
 
 
+def _memory_default(
+    mode: CopilotClientMode | None,
+    supplied: Any,
+) -> Any:
+    """Empty mode defaults memory to disabled; caller value wins.
+
+    Copilot CLI mode applies no SDK default: the configuration is left unset so
+    the runtime applies its own default for the memory feature. The caller
+    passes the ``MemoryConfiguration`` mapping (or ``None``).
+    """
+    if mode == "empty" and supplied is None:
+        return {"enabled": False}
+    return supplied
+
+
 def _post_create_options_patch(
     mode: CopilotClientMode | None,
     skip_custom_instructions: bool | None,

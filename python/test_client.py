@@ -1361,6 +1361,93 @@ class TestMcpOAuthTokenStorage:
         finally:
             await client.force_stop()
 
+    @pytest.mark.asyncio
+    async def test_create_session_defaults_memory_to_disabled_in_empty_mode(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            mode="empty",
+            base_directory="/tmp/copilot-test",
+        )
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+            )
+            assert captured["session.create"]["memory"] == {"enabled": False}
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_forwards_explicit_memory_in_empty_mode(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            mode="empty",
+            base_directory="/tmp/copilot-test",
+        )
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+                memory={"enabled": True},
+            )
+            assert captured["session.create"]["memory"] == {"enabled": True}
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_defaults_memory_to_disabled_in_empty_mode(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            mode="empty",
+            base_directory="/tmp/copilot-test",
+        )
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+            )
+            assert captured["session.resume"]["memory"] == {"enabled": False}
+        finally:
+            await client.force_stop()
+
 
 class TestCopilotClientContextManager:
     @pytest.mark.asyncio

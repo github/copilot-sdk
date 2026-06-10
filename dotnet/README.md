@@ -422,7 +422,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-When `Memory` is left unset, no memory configuration is sent and the runtime default applies.
+When `Memory` is left unset, no memory configuration is sent and the runtime default applies. In the default `CopilotClientMode.CopilotCli` the SDK leaves `Memory` unset so the runtime applies its own default, while `CopilotClientMode.Empty` defaults `Memory` to disabled unless you set it explicitly.
 
 ## Advanced Usage
 

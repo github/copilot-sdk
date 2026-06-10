@@ -472,7 +472,7 @@ async with await client.create_session(
     ...
 ```
 
-When `memory` is omitted, no memory configuration is sent and the runtime default applies.
+When `memory` is omitted, no memory configuration is sent and the runtime default applies. In the default `"copilot-cli"` client mode the SDK leaves `memory` unset so the runtime applies its own default, while `"empty"` mode defaults `memory` to disabled unless you set it explicitly.
 
 ## Custom Providers
 

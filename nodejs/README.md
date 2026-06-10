@@ -660,7 +660,9 @@ When enabled, sessions emit compaction events:
 
 Sessions can opt in to the memory feature, which lets the agent persist and recall
 information across turns. Provide a `memory` configuration on session create or resume;
-when omitted, the runtime default applies.
+when omitted, the runtime default applies. In the default `"copilot-cli"` client mode the
+SDK leaves `memory` unset so the runtime applies its own default, while `"empty"` mode
+defaults `memory` to disabled unless you set it explicitly.
 
 ```typescript
 // Enable memory for a session

@@ -34,6 +34,7 @@ import com.github.copilot.rpc.GetSessionMetadataResponse;
 import com.github.copilot.rpc.GetModelsResponse;
 import com.github.copilot.rpc.GetStatusResponse;
 import com.github.copilot.rpc.ListSessionsResponse;
+import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ModelInfo;
 import com.github.copilot.rpc.PingResponse;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -551,6 +552,9 @@ public final class CopilotClient implements AutoCloseable {
                 if (request.getEnableSkills() == null) {
                     request.setEnableSkills(false);
                 }
+                if (request.getMemory() == null) {
+                    request.setMemory(new MemoryConfiguration().setEnabled(false));
+                }
                 if (request.getMcpOAuthTokenStorage() == null) {
                     request.setMcpOAuthTokenStorage("in-memory");
                 }
@@ -686,6 +690,9 @@ public final class CopilotClient implements AutoCloseable {
                 }
                 if (request.getEnableSkills() == null) {
                     request.setEnableSkills(false);
+                }
+                if (request.getMemory() == null) {
+                    request.setMemory(new MemoryConfiguration().setEnabled(false));
                 }
                 if (request.getMcpOAuthTokenStorage() == null) {
                     request.setMcpOAuthTokenStorage("in-memory");

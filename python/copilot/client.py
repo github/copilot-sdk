@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any, ClassVar, Literal, TypedDict, cast, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypedDict, cast, overload
 
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
@@ -45,6 +45,7 @@ from ._mode import (
     _enable_session_telemetry_default,
     _enable_skills_default,
     _mcp_oauth_token_storage_default,
+    _memory_default,
     _normalize_tool_filter,
     _post_create_options_patch,
     _require_available_tools_for_empty_mode,
@@ -87,7 +88,6 @@ from .session import (
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MCPServerConfig,
-    MemoryConfiguration,
     ProviderConfig,
     ReasoningEffort,
     ReasoningSummary,
@@ -100,6 +100,9 @@ from .session import (
 )
 from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
 from .tools import Tool
+
+if TYPE_CHECKING:
+    from .session import MemoryConfiguration
 
 logger = logging.getLogger(__name__)
 
@@ -1773,6 +1776,7 @@ class CopilotClient:
         # caller-supplied values win.
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
         skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        memory = _memory_default(mode, memory)
         enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
             mode, enable_on_demand_instruction_discovery
         )
@@ -2348,6 +2352,7 @@ class CopilotClient:
         system_message = _system_message_for_mode(mode, system_message)
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
         skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        memory = _memory_default(mode, memory)
         enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
             mode, enable_on_demand_instruction_discovery
         )

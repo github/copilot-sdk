@@ -577,6 +577,8 @@ let config = SessionConfig::default().with_memory(MemoryConfiguration::enabled()
 
 `MemoryConfiguration` is accepted on both `Client::create_session` and `Client::resume_session` (via `ResumeSessionConfig::with_memory`). `enabled` toggles the feature.
 
+The client mode affects the default: in the default `ClientMode::CopilotCli` the SDK leaves `memory` unset so the runtime applies its own default, while `ClientMode::Empty` defaults `memory` to disabled unless you set it explicitly.
+
 ### Custom Providers (BYOK)
 
 Route model traffic through your own inference endpoint instead of GitHub's hosted models:

@@ -672,6 +672,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.EnableHostGitOperations ??= false;
             config.EnableSessionStore ??= false;
             config.EnableSkills ??= false;
+            config.Memory ??= new MemoryConfiguration { Enabled = false };
             config.McpOAuthTokenStorage ??= McpOAuthTokenStorageMode.InMemory;
         }
     }
