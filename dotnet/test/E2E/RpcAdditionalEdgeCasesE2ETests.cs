@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Targeted gap-filler tests for assorted RPC surface area where the previous suite covered
@@ -151,11 +151,11 @@ public class RpcAdditionalEdgeCasesE2ETests(E2ETestFixture fixture, ITestOutputH
         var metrics = await session.Rpc.Usage.GetMetricsAsync();
 
         // Fresh session = no LLM calls yet. Last-call counters and the user-request count
-        // must be zero, and SessionStartTime must be a positive epoch (set at create-time).
+        // must be zero, and SessionStartTime must be populated at create-time.
         Assert.Equal(0, metrics.LastCallInputTokens);
         Assert.Equal(0, metrics.LastCallOutputTokens);
         Assert.Equal(0, metrics.TotalUserRequests);
-        Assert.True(metrics.SessionStartTime > 0, "SessionStartTime should be a positive epoch.");
+        Assert.NotEqual(default, metrics.SessionStartTime);
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class RpcAdditionalEdgeCasesE2ETests(E2ETestFixture fixture, ITestOutputH
     }
 
     [Fact]
-    public async Task Workspaces_CreateFile_Then_ListFiles_Returns_Sorted_Or_Stable_Order()
+    public async Task Workspaces_CreateFile_Then_ListFiles_Returns_All_Files()
     {
         var session = await CreateSessionAsync();
         var prefix = $"order-{Guid.NewGuid():N}-";
@@ -204,15 +204,16 @@ public class RpcAdditionalEdgeCasesE2ETests(E2ETestFixture fixture, ITestOutputH
             .Where(path => path.StartsWith(prefix, StringComparison.Ordinal))
             .ToList();
 
-        // The files this test created should be returned in sorted order.
-        Assert.Equal(paths, matchingFiles);
+        // The files this test created should all be returned; the runtime does not guarantee
+        // that workspace file enumeration is sorted.
+        Assert.Equal(paths, matchingFiles.OrderBy(path => path, StringComparer.Ordinal));
 
-        // Calling list again immediately must preserve the same order.
+        // A repeated list should still include the files regardless of returned order.
         var listed2 = await session.Rpc.Workspaces.ListFilesAsync();
         var matchingFiles2 = listed2.Files
             .Where(path => path.StartsWith(prefix, StringComparison.Ordinal))
             .ToList();
-        Assert.Equal(matchingFiles, matchingFiles2);
+        Assert.Equal(paths, matchingFiles2.OrderBy(path => path, StringComparer.Ordinal));
     }
 
     [Fact]

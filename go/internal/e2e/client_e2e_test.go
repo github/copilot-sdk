@@ -16,17 +16,12 @@ func TestClientE2E(t *testing.T) {
 
 	t.Run("should start and connect to server using stdio", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
-		}
-
-		if client.State() != copilot.StateConnected {
-			t.Errorf("Expected state to be 'connected', got %q", client.State())
 		}
 
 		pong, err := client.Ping(t.Context(), "test message")
@@ -38,32 +33,23 @@ func TestClientE2E(t *testing.T) {
 			t.Errorf("Expected pong.message to be 'pong: test message', got %q", pong.Message)
 		}
 
-		if pong.Timestamp < 0 {
-			t.Errorf("Expected pong.timestamp >= 0, got %d", pong.Timestamp)
+		if pong.Timestamp.IsZero() {
+			t.Errorf("Expected non-zero pong.timestamp, got %s", pong.Timestamp)
 		}
 
 		if err := client.Stop(); err != nil {
 			t.Errorf("Expected no errors on stop, got %v", err)
-		}
-
-		if client.State() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be 'disconnected', got %q", client.State())
 		}
 	})
 
 	t.Run("should start and connect to server using tcp", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(false),
+			Connection: copilot.TCPConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
-		}
-
-		if client.State() != copilot.StateConnected {
-			t.Errorf("Expected state to be 'connected', got %q", client.State())
 		}
 
 		pong, err := client.Ping(t.Context(), "test message")
@@ -75,22 +61,18 @@ func TestClientE2E(t *testing.T) {
 			t.Errorf("Expected pong.message to be 'pong: test message', got %q", pong.Message)
 		}
 
-		if pong.Timestamp < 0 {
-			t.Errorf("Expected pong.timestamp >= 0, got %d", pong.Timestamp)
+		if pong.Timestamp.IsZero() {
+			t.Errorf("Expected non-zero pong.timestamp, got %s", pong.Timestamp)
 		}
 
 		if err := client.Stop(); err != nil {
 			t.Errorf("Expected no errors on stop, got %v", err)
 		}
-
-		if client.State() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be 'disconnected', got %q", client.State())
-		}
 	})
 
 	t.Run("should return errors on failed cleanup", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath: cliPath,
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -108,15 +90,11 @@ func TestClientE2E(t *testing.T) {
 		if err := client.Stop(); err != nil {
 			t.Logf("Got expected errors: %v", err)
 		}
-
-		if client.State() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be 'disconnected', got %q", client.State())
-		}
 	})
 
 	t.Run("should forceStop without cleanup", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath: cliPath,
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -128,16 +106,11 @@ func TestClientE2E(t *testing.T) {
 		}
 
 		client.ForceStop()
-
-		if client.State() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be 'disconnected', got %q", client.State())
-		}
 	})
 
 	t.Run("should get status with version and protocol info", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -163,8 +136,7 @@ func TestClientE2E(t *testing.T) {
 
 	t.Run("should get auth status", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -192,8 +164,7 @@ func TestClientE2E(t *testing.T) {
 
 	t.Run("should list models when authenticated", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -232,9 +203,10 @@ func TestClientE2E(t *testing.T) {
 
 	t.Run("should report error when CLI fails to start", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			CLIArgs:  []string{"--nonexistent-flag-for-testing"},
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{
+				Path: cliPath,
+				Args: []string{"--nonexistent-flag-for-testing"},
+			},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 

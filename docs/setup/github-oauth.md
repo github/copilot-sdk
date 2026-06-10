@@ -206,7 +206,7 @@ func main() {
 ```go
 func createClientForUser(userToken string) *copilot.Client {
     return copilot.NewClient(&copilot.ClientOptions{
-        GithubToken:     userToken,
+        GitHubToken:     userToken,
         UseLoggedInUser: copilot.Bool(false),
     })
 }
@@ -230,12 +230,12 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"}
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 CopilotClient CreateClientForUser(string userToken) =>
     new CopilotClient(new CopilotClientOptions
     {
-        GithubToken = userToken,
+        GitHubToken = userToken,
         UseLoggedInUser = false,
     });
 
@@ -257,7 +257,7 @@ var response = await session.SendAndWaitAsync(
 CopilotClient CreateClientForUser(string userToken) =>
     new CopilotClient(new CopilotClientOptions
     {
-        GithubToken = userToken,
+        GitHubToken = userToken,
         UseLoggedInUser = false,
     });
 
@@ -278,10 +278,10 @@ var response = await session.SendAndWaitAsync(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 CopilotClient createClientForUser(String userToken) throws Exception {
     var client = new CopilotClient(new CopilotClientOptions()

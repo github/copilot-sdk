@@ -10,17 +10,15 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
-use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, PermissionDecision, PermissionDecisionApproveOnce,
-    PermissionDecisionApproveOnceKind, PermissionDecisionReject, PermissionDecisionRejectKind,
-};
+use crate::canvas::CanvasHandler;
+use crate::generated::api_types::{LogRequest, ModelSwitchToRequest, OpenCanvasInstance};
 use crate::generated::session_events::{
-    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
-    SessionEventType,
+    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData,
+    SessionCanvasClosedData, SessionErrorData, SessionEventType,
 };
 use crate::handler::{
-    AutoModeSwitchResponse, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
-    UserInputResponse,
+    AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
+    PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
 };
 use crate::hooks::SessionHooks;
 use crate::session_fs::SessionFsProvider;
@@ -28,12 +26,33 @@ use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
-    SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultResponse, TraceContext, ensure_attachment_display_names,
+    ElicitationResult, ExitPlanModeData, GetMessagesResponse, MessageOptions,
+    PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride,
+    SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
+    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
+    UiInputOptions, ensure_attachment_display_names,
 };
-use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
+use crate::{
+    Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
+    error_codes,
+};
+
+/// Bundle of the per-session callbacks the SDK dispatches to. Built from a
+/// [`SessionConfig`] / [`ResumeSessionConfig`] at
+/// [`Client::create_session`] / [`Client::resume_session`] time. Each
+/// field is `None` (or an empty map for tools) when the caller didn't
+/// install a handler -- in that case the SDK skips dispatch for that
+/// event type. The wire flags on `session.create` / `session.resume`
+/// are derived from these fields.
+#[derive(Clone)]
+pub(crate) struct SessionHandlers {
+    pub permission: Option<Arc<dyn PermissionHandler>>,
+    pub elicitation: Option<Arc<dyn ElicitationHandler>>,
+    pub user_input: Option<Arc<dyn UserInputHandler>>,
+    pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
+    pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
+    pub tools: Arc<HashMap<String, Arc<dyn crate::tool::ToolHandler>>>,
+}
 
 /// Shared state between a [`Session`] and its event loop, used by [`Session::send_and_wait`].
 struct IdleWaiter {
@@ -52,7 +71,7 @@ struct IdleWaiter {
 /// Without this, an outer cancellation between "install waiter" and
 /// "drain channel" would leave the slot occupied, causing all subsequent
 /// `send` and `send_and_wait` calls on the session to return
-/// [`SendWhileWaiting`](SessionError::SendWhileWaiting). Closes RFD-400
+/// [`SendWhileWaiting`](SessionErrorKind::SendWhileWaiting). Closes RFD-400
 /// review finding #2.
 struct WaiterGuard {
     slot: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
@@ -64,12 +83,51 @@ impl Drop for WaiterGuard {
     }
 }
 
+struct PendingSessionRegistration {
+    client: Client,
+    session_id: SessionId,
+    shutdown: CancellationToken,
+    disarmed: bool,
+}
+
+impl PendingSessionRegistration {
+    fn new(client: Client, session_id: SessionId, shutdown: CancellationToken) -> Self {
+        Self {
+            client,
+            session_id,
+            shutdown,
+            disarmed: false,
+        }
+    }
+
+    async fn cleanup(mut self, event_loop: JoinHandle<()>) {
+        self.shutdown.cancel();
+        let _ = event_loop.await;
+        self.client.unregister_session(&self.session_id);
+        self.disarmed = true;
+    }
+
+    fn disarm(&mut self) {
+        self.disarmed = true;
+    }
+}
+
+impl Drop for PendingSessionRegistration {
+    fn drop(&mut self) {
+        if !self.disarmed {
+            self.shutdown.cancel();
+            self.client.unregister_session(&self.session_id);
+        }
+    }
+}
+
 /// A session on a GitHub Copilot CLI server.
 ///
 /// Created via [`Client::create_session`] or [`Client::resume_session`].
-/// Owns an internal event loop that dispatches events to the [`SessionHandler`].
+/// Owns an internal event loop that dispatches events to the per-callback
+/// handlers installed on the session config.
 ///
-/// Protocol methods (`send`, `get_messages`, `abort`, etc.) automatically
+/// Protocol methods (`send`, `get_events`, `abort`, etc.) automatically
 /// inject the session ID into RPC params.
 ///
 /// Call [`destroy`](Self::destroy) for graceful cleanup (RPC + local). If dropped
@@ -109,6 +167,8 @@ pub struct Session {
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     /// Capabilities negotiated with the CLI, updated on `capabilities.changed` events.
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
+    /// Canvas instances currently known to be open for this session.
+    open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     /// Broadcast channel for runtime event subscribers — see [`Session::subscribe`].
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
 }
@@ -140,6 +200,12 @@ impl Session {
     /// via `capabilities.changed` events.
     pub fn capabilities(&self) -> SessionCapabilities {
         self.capabilities.read().clone()
+    }
+
+    /// Open canvas instances reported by the most recent `session.resume`
+    /// response or surfaced by inbound `canvas.opened` events.
+    pub fn open_canvases(&self) -> Vec<OpenCanvasInstance> {
+        self.open_canvases.read().clone()
     }
 
     /// Returns a [`CancellationToken`] that fires when this session shuts
@@ -181,10 +247,10 @@ impl Session {
     ///
     /// **Observe-only.** Subscribers receive a clone of every
     /// [`SessionEvent`] but cannot influence permission decisions, tool
-    /// results, or anything else that requires returning a
-    /// [`HandlerResponse`]. Those remain
-    /// the responsibility of the [`SessionHandler`] passed via
-    /// [`SessionConfig::handler`](crate::types::SessionConfig::handler).
+    /// results, or anything else that requires returning a value. Those
+    /// remain the responsibility of the per-callback handlers passed via
+    /// [`SessionConfig`]'s `with_*_handler`
+    /// builder methods.
     ///
     /// The returned handle implements both an inherent
     /// [`recv`](crate::subscription::EventSubscription::recv) method and
@@ -194,7 +260,7 @@ impl Session {
     ///
     /// Each subscriber maintains its own queue. If a consumer cannot keep
     /// up, the oldest events are dropped and `recv` returns
-    /// [`RecvError::Lagged`](crate::subscription::RecvError::Lagged)
+    /// [`RecvErrorKind::Lagged`](crate::subscription::RecvErrorKind::Lagged)
     /// reporting the count of skipped events. Slow consumers do not block
     /// the session's event loop.
     ///
@@ -248,9 +314,9 @@ impl Session {
         }
         // Fail any pending send_and_wait so it returns immediately.
         if let Some(waiter) = self.idle_waiter.lock().take() {
-            let _ = waiter
-                .tx
-                .send(Err(Error::Session(SessionError::EventLoopClosed)));
+            let _ = waiter.tx.send(Err(
+                ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()
+            ));
         }
     }
 
@@ -280,7 +346,7 @@ impl Session {
     /// message ID.
     pub async fn send(&self, opts: impl Into<MessageOptions>) -> Result<String, Error> {
         if self.idle_waiter.lock().is_some() {
-            return Err(Error::Session(SessionError::SendWhileWaiting));
+            return Err(ErrorKind::Session(SessionErrorKind::SendWhileWaiting).into());
         }
         self.send_inner(opts.into()).await
     }
@@ -293,6 +359,9 @@ impl Session {
         if let Some(m) = opts.mode {
             params["mode"] = serde_json::to_value(m)?;
         }
+        if let Some(am) = opts.agent_mode {
+            params["agentMode"] = serde_json::to_value(am)?;
+        }
         if let Some(mut a) = opts.attachments {
             ensure_attachment_display_names(&mut a);
             params["attachments"] = serde_json::to_value(a)?;
@@ -301,6 +370,9 @@ impl Session {
             && !headers.is_empty()
         {
             params["requestHeaders"] = serde_json::to_value(headers)?;
+        }
+        if let Some(display_prompt) = opts.display_prompt {
+            params["displayPrompt"] = serde_json::to_value(display_prompt)?;
         }
         let trace_ctx = if opts.traceparent.is_some() || opts.tracestate.is_some() {
             TraceContext {
@@ -358,7 +430,7 @@ impl Session {
         {
             let mut guard = self.idle_waiter.lock();
             if guard.is_some() {
-                return Err(Error::Session(SessionError::SendWhileWaiting));
+                return Err(ErrorKind::Session(SessionErrorKind::SendWhileWaiting).into());
             }
             *guard = Some(IdleWaiter {
                 tx,
@@ -380,7 +452,7 @@ impl Session {
             self.send_inner(opts).await?;
             match rx.await {
                 Ok(result) => result,
-                Err(_) => Err(Error::Session(SessionError::EventLoopClosed)),
+                Err(_) => Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()),
             }
         })
         .await;
@@ -402,13 +474,13 @@ impl Session {
                     completed_by = "timeout",
                     "Session::send_and_wait failed"
                 );
-                Err(Error::Session(SessionError::Timeout(timeout_duration)))
+                Err(ErrorKind::Session(SessionErrorKind::Timeout(timeout_duration)).into())
             }
         }
     }
 
-    /// Retrieve the session's message history.
-    pub async fn get_messages(&self) -> Result<Vec<SessionEvent>, Error> {
+    /// Retrieve the session's timeline events.
+    pub async fn get_events(&self) -> Result<Vec<SessionEvent>, Error> {
         let result = self
             .client
             .call(
@@ -418,6 +490,12 @@ impl Session {
             .await?;
         let response: GetMessagesResponse = serde_json::from_value(result)?;
         Ok(response.events)
+    }
+
+    /// Deprecated alias for [`get_events`](Self::get_events).
+    #[deprecated(since = "0.1.0", note = "Use `get_events()` instead")]
+    pub async fn get_messages(&self) -> Result<Vec<SessionEvent>, Error> {
+        self.get_events().await
     }
 
     /// Abort the current agent turn.
@@ -445,6 +523,8 @@ impl Session {
         let request = ModelSwitchToRequest {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
+            reasoning_summary: opts.reasoning_summary,
+            context_tier: opts.context_tier,
             model_capabilities: opts.model_capabilities,
         };
         self.rpc().model().switch_to(request).await?;
@@ -479,11 +559,11 @@ impl Session {
         Ok(())
     }
 
-    /// Alias for [`disconnect`](Self::disconnect).
-    ///
-    /// Named after the `session.destroy` wire RPC. Prefer `disconnect` in
-    /// new code — the wire-level "destroy" is misleading because on-disk
-    /// state is preserved.
+    /// Deprecated alias for [`disconnect`](Self::disconnect). The
+    /// underlying wire RPC happens to be named `session.destroy`, but it
+    /// only severs the connection — on-disk session state is preserved.
+    /// Prefer `disconnect` in new code.
+    #[deprecated(since = "0.1.0", note = "Use `disconnect()` instead")]
     pub async fn destroy(&self) -> Result<(), Error> {
         self.disconnect().await
     }
@@ -505,6 +585,8 @@ impl Session {
             message: message.to_string(),
             level,
             ephemeral: opts.ephemeral,
+            r#type: None,
+            tip: None,
             url: None,
         };
         self.rpc().log(request).await?;
@@ -530,7 +612,7 @@ impl Session {
             .and_then(|u| u.elicitation)
             != Some(true)
         {
-            return Err(Error::Session(SessionError::ElicitationNotSupported));
+            return Err(ErrorKind::Session(SessionErrorKind::ElicitationNotSupported).into());
         }
         Ok(())
     }
@@ -647,11 +729,11 @@ impl<'a> SessionUi<'a> {
     /// Ask the user for free-form text input.
     ///
     /// Returns the input string on accept, or `None` on decline/cancel.
-    /// Use [`InputOptions`] to set validation constraints and field metadata.
+    /// Use [`UiInputOptions`] to set validation constraints and field metadata.
     pub async fn input(
         &self,
         message: &str,
-        options: Option<&InputOptions<'_>>,
+        options: Option<&UiInputOptions<'_>>,
     ) -> Result<Option<String>, Error> {
         self.session.assert_elicitation()?;
         let mut field = serde_json::json!({ "type": "string" });
@@ -697,77 +779,241 @@ impl Client {
     /// Sends `session.create`, registers the session on the router,
     /// and spawns an internal event loop that dispatches to the handler.
     ///
-    /// All callbacks (event handler, hooks, transform) are configured
-    /// via [`SessionConfig`] using [`with_handler`](SessionConfig::with_handler),
-    /// [`with_hooks`](SessionConfig::with_hooks), and
-    /// [`with_transform`](SessionConfig::with_transform).
+    /// All callbacks (per-event handlers, tool handlers, hooks, transform)
+    /// are configured via [`SessionConfig`] using its `with_*_handler` /
+    /// `with_tools` / `with_hooks` / `with_system_message_transform` builder
+    /// methods.
     ///
     /// If [`hooks_handler`](SessionConfig::hooks_handler) is set, the
     /// wire-level `hooks` flag is automatically enabled.
     ///
-    /// If [`transform`](SessionConfig::transform) is set, the SDK injects
+    /// If [`system_message_transform`](SessionConfig::system_message_transform) is set, the SDK injects
     /// `action: "transform"` sections into the [`SystemMessageConfig`] wire
     /// format and handles `systemMessage.transform` RPC callbacks during
     /// the session.
     ///
-    /// If [`handler`](SessionConfig::handler) is `None`, the session uses
-    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
-    /// requests are denied; other events are no-ops.
+    /// Each per-event handler is independently optional. If a handler is
+    /// not installed, the SDK signals the runtime not to emit the matching
+    /// broadcast (and silently skips dispatch if one arrives anyway).
     pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
-        let handler = config
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
-        let hooks = config.hooks_handler.take();
-        let transforms = config.transform.take();
-        let tools_count = config.tools.as_ref().map_or(0, Vec::len);
-        let commands_count = config.commands.as_ref().map_or(0, Vec::len);
-        let has_hooks = hooks.is_some();
-        let command_handlers = build_command_handler_map(config.commands.as_deref());
-        let session_fs_provider = config.session_fs_provider.take();
-        if self.inner.session_fs_configured && session_fs_provider.is_none() {
-            return Err(Error::Session(SessionError::SessionFsProviderRequired));
-        }
-
-        if hooks.is_some() && config.hooks.is_none() {
+        // For cloud sessions, let the CLI/server assign the session id and
+        // register the session lazily once the response arrives. For non-cloud
+        // sessions we generate the id client-side (when the caller didn't
+        // supply one) so the session can be registered BEFORE the RPC — the
+        // CLI may issue session-scoped requests (e.g. sessionFs.writeFile for
+        // workspace metadata) during session.create processing, before it has
+        // sent the response.
+        let caller_session_id = config.session_id.clone();
+        let use_server_generated_id = config.cloud.is_some() && caller_session_id.is_none();
+        let local_session_id: Option<SessionId> = if use_server_generated_id {
+            None
+        } else {
+            Some(
+                caller_session_id
+                    .clone()
+                    .unwrap_or_else(|| SessionId::new(uuid::Uuid::new_v4().to_string())),
+            )
+        };
+        if config.hooks_handler.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
         }
-        if let Some(ref transforms) = transforms {
+        if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
-        let mut params = serde_json::to_value(&config)?;
+        let mode = self.inner.mode;
+        if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "ClientMode::Empty requires available_tools to be set on the session config. \
+                 Use ToolSet to specify which tools the session may use (e.g. \
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED)).",
+            ));
+        }
+        crate::mode::validate_tool_filter_list(
+            "available_tools",
+            config.available_tools.as_deref(),
+        )?;
+        crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
+        config.system_message =
+            crate::mode::system_message_for_mode(mode, config.system_message.take());
+        if mode == crate::ClientMode::Empty {
+            if config.enable_session_telemetry.is_none() {
+                config.enable_session_telemetry = Some(false);
+            }
+            if config.skip_embedding_retrieval.is_none() {
+                config.skip_embedding_retrieval = Some(true);
+            }
+            if config.enable_on_demand_instruction_discovery.is_none() {
+                config.enable_on_demand_instruction_discovery = Some(false);
+            }
+            if config.enable_file_hooks.is_none() {
+                config.enable_file_hooks = Some(false);
+            }
+            if config.enable_host_git_operations.is_none() {
+                config.enable_host_git_operations = Some(false);
+            }
+            if config.enable_session_store.is_none() {
+                config.enable_session_store = Some(false);
+            }
+            if config.enable_skills.is_none() {
+                config.enable_skills = Some(false);
+            }
+        }
+        if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
+            config.mcp_oauth_token_storage = Some("in-memory".into());
+        }
+        if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
+            config.embedding_cache_storage = Some("in-memory".into());
+        }
+        let opt_skip_custom_instructions = config.skip_custom_instructions;
+        let opt_custom_agents_local_only = config.custom_agents_local_only;
+        let opt_coauthor_enabled = config.coauthor_enabled;
+        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
+        let (wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+
+        let permission_handler = crate::permission::resolve_handler(
+            runtime.permission_handler.take(),
+            runtime.permission_policy.take(),
+        );
+        let handlers = SessionHandlers {
+            permission: permission_handler,
+            elicitation: runtime.elicitation_handler.take(),
+            user_input: runtime.user_input_handler.take(),
+            exit_plan_mode: runtime.exit_plan_mode_handler.take(),
+            auto_mode_switch: runtime.auto_mode_switch_handler.take(),
+            tools: Arc::new(std::mem::take(&mut runtime.tool_handlers)),
+        };
+        let hooks = runtime.hooks_handler.take();
+        let transforms = runtime.system_message_transform.take();
+        let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
+        let commands_count = runtime.commands.as_ref().map_or(0, Vec::len);
+        let has_hooks = hooks.is_some();
+        let command_handlers = build_command_handler_map(runtime.commands.as_deref());
+        let canvas_handler = runtime.canvas_handler.take();
+        let session_fs_provider = runtime.session_fs_provider.take();
+        if self.inner.session_fs_configured && session_fs_provider.is_none() {
+            return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
+        }
+        if self.inner.session_fs_sqlite_declared
+            && let Some(ref provider) = session_fs_provider
+            && provider.sqlite().is_none()
+        {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "SessionFs capabilities declare SQLite support but the provider \
+                 does not implement SessionFsSqliteProvider",
+            ));
+        }
+
+        let mut params = serde_json::to_value(&wire)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
+
+        let setup_start = Instant::now();
+        let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
+        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
+        let shutdown = CancellationToken::new();
+        let (event_tx, _) = tokio::sync::broadcast::channel(512);
+
+        // For cloud sessions (use_server_generated_id), defer session
+        // registration to the inline callback so the read task registers
+        // the session synchronously the instant the response arrives.
+        // For non-cloud sessions, register up-front so the CLI can issue
+        // session-scoped requests during session.create processing.
+        let inline_stash: Arc<
+            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
+        > = Arc::new(ParkingLotMutex::new(None));
+
+        let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
+            local_session_id
+        {
+            let channels = self.register_session(sid);
+            *inline_stash.lock() = Some((sid.clone(), channels));
+            None
+        } else {
+            let client = self.clone();
+            let stash = inline_stash.clone();
+            let expected = caller_session_id.clone();
+            Some(Box::new(move |response| {
+                let result = response.result.as_ref().ok_or_else(|| {
+                    Error::with_message(ErrorKind::Json, "session.create response had no result")
+                })?;
+                let parsed: CreateSessionResult =
+                    serde_json::from_value(result.clone()).map_err(Error::from)?;
+                if let Some(requested) = expected.as_ref()
+                    && parsed.session_id != *requested
+                {
+                    return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                        requested: requested.clone(),
+                        returned: parsed.session_id,
+                    })
+                    .into());
+                }
+                let channels = client.register_session(&parsed.session_id);
+                *stash.lock() = Some((parsed.session_id, channels));
+                Ok(())
+            }))
+        };
+
         let rpc_start = Instant::now();
-        let result = self.call("session.create", Some(params)).await?;
+        let result = match self
+            .call_with_inline_callback("session.create", Some(params), inline_callback)
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                if let Some((id, _channels)) = inline_stash.lock().take() {
+                    self.unregister_session(&id);
+                }
+                return Err(error);
+            }
+        };
         tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
             "Client::create_session session creation request completed successfully"
         );
-        let create_result: CreateSessionResult = serde_json::from_value(result)?;
+        let create_result: CreateSessionResult = match serde_json::from_value(result) {
+            Ok(result) => result,
+            Err(error) => {
+                if let Some((id, _channels)) = inline_stash.lock().take() {
+                    self.unregister_session(&id);
+                }
+                return Err(error.into());
+            }
+        };
 
-        let session_id = create_result.session_id;
-        let setup_start = Instant::now();
-        let capabilities = Arc::new(parking_lot::RwLock::new(
-            create_result.capabilities.unwrap_or_default(),
-        ));
-        let channels = self.register_session(&session_id);
+        if let Some(ref requested) = local_session_id
+            && create_result.session_id != *requested
+        {
+            if let Some((id, _channels)) = inline_stash.lock().take() {
+                self.unregister_session(&id);
+            }
+            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                requested: requested.clone(),
+                returned: create_result.session_id.clone(),
+            })
+            .into());
+        }
 
-        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
-        let shutdown = CancellationToken::new();
-        let (event_tx, _) = tokio::sync::broadcast::channel(512);
+        let (session_id, channels) = inline_stash
+            .lock()
+            .take()
+            .expect("session registration must have populated stash on success");
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
-            handler,
+            handlers,
             hooks,
             transforms,
             command_handlers,
+            canvas_handler,
             session_fs_provider,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
+            open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
         );
@@ -779,13 +1025,14 @@ impl Client {
             has_hooks,
             "Client::create_session local setup complete"
         );
+        *capabilities.write() = create_result.capabilities.unwrap_or_default();
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
             session_id = %session_id,
             "Client::create_session complete"
         );
-        Ok(Session {
+        let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
             workspace_path: create_result.workspace_path,
@@ -795,8 +1042,19 @@ impl Client {
             shutdown,
             idle_waiter,
             capabilities,
+            open_canvases,
             event_tx,
-        })
+        };
+        apply_mode_post_create_patch(
+            &session,
+            mode,
+            opt_skip_custom_instructions,
+            opt_custom_agents_local_only,
+            opt_coauthor_enabled,
+            opt_manage_schedule_enabled,
+        )
+        .await?;
+        Ok(session)
     }
 
     /// Resume an existing session on the CLI.
@@ -811,135 +1069,285 @@ impl Client {
     /// fields are unset.
     pub async fn resume_session(&self, mut config: ResumeSessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
-        let handler = config
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
-        let hooks = config.hooks_handler.take();
-        let transforms = config.transform.take();
-        let tools_count = config.tools.as_ref().map_or(0, Vec::len);
-        let commands_count = config.commands.as_ref().map_or(0, Vec::len);
-        let has_hooks = hooks.is_some();
-        let command_handlers = build_command_handler_map(config.commands.as_deref());
-        let session_fs_provider = config.session_fs_provider.take();
-        if self.inner.session_fs_configured && session_fs_provider.is_none() {
-            return Err(Error::Session(SessionError::SessionFsProviderRequired));
-        }
-
-        if hooks.is_some() && config.hooks.is_none() {
+        let session_id = config.session_id.clone();
+        if config.hooks_handler.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
         }
-        if let Some(ref transforms) = transforms {
+        if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
-        let session_id = config.session_id.clone();
-        let mut params = serde_json::to_value(&config)?;
-        let trace_ctx = self.resolve_trace_context().await;
-        inject_trace_context(&mut params, &trace_ctx);
-        let rpc_start = Instant::now();
-        let result = self.call("session.resume", Some(params)).await?;
-        tracing::debug!(
-            elapsed_ms = rpc_start.elapsed().as_millis(),
-            session_id = %session_id,
-            "Client::resume_session session resume request completed successfully"
+        let mode = self.inner.mode;
+        if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "ClientMode::Empty requires available_tools to be set on the session config. \
+                 Use ToolSet to specify which tools the session may use (e.g. \
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED)).",
+            ));
+        }
+        crate::mode::validate_tool_filter_list(
+            "available_tools",
+            config.available_tools.as_deref(),
+        )?;
+        crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
+        config.system_message =
+            crate::mode::system_message_for_mode(mode, config.system_message.take());
+        if mode == crate::ClientMode::Empty {
+            if config.enable_session_telemetry.is_none() {
+                config.enable_session_telemetry = Some(false);
+            }
+            if config.skip_embedding_retrieval.is_none() {
+                config.skip_embedding_retrieval = Some(true);
+            }
+            if config.enable_on_demand_instruction_discovery.is_none() {
+                config.enable_on_demand_instruction_discovery = Some(false);
+            }
+            if config.enable_file_hooks.is_none() {
+                config.enable_file_hooks = Some(false);
+            }
+            if config.enable_host_git_operations.is_none() {
+                config.enable_host_git_operations = Some(false);
+            }
+            if config.enable_session_store.is_none() {
+                config.enable_session_store = Some(false);
+            }
+            if config.enable_skills.is_none() {
+                config.enable_skills = Some(false);
+            }
+        }
+        if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
+            config.mcp_oauth_token_storage = Some("in-memory".into());
+        }
+        if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
+            config.embedding_cache_storage = Some("in-memory".into());
+        }
+        let opt_skip_custom_instructions = config.skip_custom_instructions;
+        let opt_custom_agents_local_only = config.custom_agents_local_only;
+        let opt_coauthor_enabled = config.coauthor_enabled;
+        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
+        let (wire, mut runtime) = config.into_wire()?;
+
+        let permission_handler = crate::permission::resolve_handler(
+            runtime.permission_handler.take(),
+            runtime.permission_policy.take(),
         );
-
-        // The CLI may reassign the session ID on resume.
-        let cli_session_id: SessionId = result
-            .get("sessionId")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&session_id)
-            .into();
-
-        let resume_capabilities: Option<SessionCapabilities> = result
-            .get("capabilities")
-            .and_then(|v| {
-                serde_json::from_value(v.clone())
-                    .map_err(|e| warn!(error = %e, "failed to deserialize capabilities from resume response"))
-                    .ok()
-            });
-        let remote_url = result
-            .get("remoteUrl")
-            .or_else(|| result.get("remote_url"))
-            .and_then(|value| value.as_str())
-            .map(ToString::to_string);
-
-        // Reload skills after resume (best-effort).
-        let skills_reload_start = Instant::now();
-        if let Err(e) = self
-            .call(
-                "session.skills.reload",
-                Some(serde_json::json!({ "sessionId": cli_session_id })),
-            )
-            .await
+        let handlers = SessionHandlers {
+            permission: permission_handler,
+            elicitation: runtime.elicitation_handler.take(),
+            user_input: runtime.user_input_handler.take(),
+            exit_plan_mode: runtime.exit_plan_mode_handler.take(),
+            auto_mode_switch: runtime.auto_mode_switch_handler.take(),
+            tools: Arc::new(std::mem::take(&mut runtime.tool_handlers)),
+        };
+        let hooks = runtime.hooks_handler.take();
+        let transforms = runtime.system_message_transform.take();
+        let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
+        let commands_count = runtime.commands.as_ref().map_or(0, Vec::len);
+        let has_hooks = hooks.is_some();
+        let command_handlers = build_command_handler_map(runtime.commands.as_deref());
+        let canvas_handler = runtime.canvas_handler.take();
+        let session_fs_provider = runtime.session_fs_provider.take();
+        if self.inner.session_fs_configured && session_fs_provider.is_none() {
+            return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
+        }
+        if self.inner.session_fs_sqlite_declared
+            && let Some(ref provider) = session_fs_provider
+            && provider.sqlite().is_none()
         {
-            warn!(
-                elapsed_ms = skills_reload_start.elapsed().as_millis(),
-                session_id = %cli_session_id,
-                error = %e,
-                "Client::resume_session skills reload request failed"
-            );
-        } else {
-            tracing::debug!(
-                elapsed_ms = skills_reload_start.elapsed().as_millis(),
-                session_id = %cli_session_id,
-                "Client::resume_session skills reload request completed successfully"
-            );
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "SessionFs capabilities declare SQLite support but the provider \
+                 does not implement SessionFsSqliteProvider",
+            ));
         }
 
-        let capabilities = Arc::new(parking_lot::RwLock::new(
-            resume_capabilities.unwrap_or_default(),
-        ));
-        let setup_start = Instant::now();
-        let channels = self.register_session(&cli_session_id);
+        let mut params = serde_json::to_value(&wire)?;
+        let trace_ctx = self.resolve_trace_context().await;
+        inject_trace_context(&mut params, &trace_ctx);
 
+        let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
+        let setup_start = Instant::now();
+        let channels = self.register_session(&session_id);
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
-            cli_session_id.clone(),
+            session_id.clone(),
             self.clone(),
-            handler,
+            handlers,
             hooks,
             transforms,
             command_handlers,
+            canvas_handler,
             session_fs_provider,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
+            open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
         );
+        let mut registration =
+            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
-            session_id = %cli_session_id,
+            session_id = %session_id,
             tools_count,
             commands_count,
             has_hooks,
             "Client::resume_session local setup complete"
         );
 
+        let rpc_start = Instant::now();
+        let result = match self.call("session.resume", Some(params)).await {
+            Ok(result) => result,
+            Err(error) => {
+                registration.cleanup(event_loop).await;
+                return Err(error);
+            }
+        };
+        tracing::debug!(
+            elapsed_ms = rpc_start.elapsed().as_millis(),
+            session_id = %session_id,
+            "Client::resume_session session resume request completed successfully"
+        );
+
+        let resume_result: ResumeSessionResult = match serde_json::from_value(result) {
+            Ok(result) => result,
+            Err(error) => {
+                registration.cleanup(event_loop).await;
+                return Err(error.into());
+            }
+        };
+        let cli_session_id = resume_result
+            .session_id
+            .clone()
+            .unwrap_or_else(|| session_id.clone());
+        if cli_session_id != session_id {
+            registration.cleanup(event_loop).await;
+            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                requested: session_id,
+                returned: cli_session_id,
+            })
+            .into());
+        }
+
+        // Reload skills after resume (best-effort).
+        let skills_reload_start = Instant::now();
+        if let Err(e) = self
+            .call(
+                "session.skills.reload",
+                Some(serde_json::json!({ "sessionId": session_id })),
+            )
+            .await
+        {
+            warn!(
+                elapsed_ms = skills_reload_start.elapsed().as_millis(),
+                session_id = %session_id,
+                error = %e,
+                "Client::resume_session skills reload request failed"
+            );
+        } else {
+            tracing::debug!(
+                elapsed_ms = skills_reload_start.elapsed().as_millis(),
+                session_id = %session_id,
+                "Client::resume_session skills reload request completed successfully"
+            );
+        }
+
+        *capabilities.write() = resume_result.capabilities.unwrap_or_default();
+        // Upsert resume snapshots rather than replacing wholesale. Live
+        // `session.canvas.opened` notifications can arrive on the event loop
+        // while `session.resume` is in flight; a wholesale replace would
+        // discard those updates.
+        {
+            let mut snapshots = open_canvases.write();
+            for snapshot in resume_result.open_canvases.unwrap_or_default() {
+                upsert_open_canvas_snapshot(&mut snapshots, snapshot);
+            }
+        }
+
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
-            session_id = %cli_session_id,
+            session_id = %session_id,
             "Client::resume_session complete"
         );
-        Ok(Session {
-            id: cli_session_id,
+        registration.disarm();
+        let session = Session {
+            id: session_id,
             cwd: self.cwd().clone(),
-            workspace_path: None,
-            remote_url,
+            workspace_path: resume_result.workspace_path,
+            remote_url: resume_result.remote_url,
             client: self.clone(),
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
             idle_waiter,
             capabilities,
+            open_canvases,
             event_tx,
-        })
+        };
+        apply_mode_post_create_patch(
+            &session,
+            mode,
+            opt_skip_custom_instructions,
+            opt_custom_agents_local_only,
+            opt_coauthor_enabled,
+            opt_manage_schedule_enabled,
+        )
+        .await?;
+        Ok(session)
     }
 }
 
 type CommandHandlerMap = HashMap<String, Arc<dyn CommandHandler>>;
+
+async fn apply_mode_post_create_patch(
+    session: &Session,
+    mode: crate::ClientMode,
+    opt_skip_custom_instructions: Option<bool>,
+    opt_custom_agents_local_only: Option<bool>,
+    opt_coauthor_enabled: Option<bool>,
+    opt_manage_schedule_enabled: Option<bool>,
+) -> Result<(), Error> {
+    use crate::generated::api_types::SessionUpdateOptionsParams;
+    let mut patch = SessionUpdateOptionsParams::default();
+    let should_send = if mode == crate::ClientMode::Empty {
+        patch.skip_custom_instructions = Some(opt_skip_custom_instructions.unwrap_or(true));
+        patch.custom_agents_local_only = Some(opt_custom_agents_local_only.unwrap_or(true));
+        patch.coauthor_enabled = Some(opt_coauthor_enabled.unwrap_or(false));
+        patch.manage_schedule_enabled = Some(opt_manage_schedule_enabled.unwrap_or(false));
+        patch.installed_plugins = Some(Vec::new());
+        true
+    } else {
+        let mut any = false;
+        if let Some(v) = opt_skip_custom_instructions {
+            patch.skip_custom_instructions = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_custom_agents_local_only {
+            patch.custom_agents_local_only = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_coauthor_enabled {
+            patch.coauthor_enabled = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_manage_schedule_enabled {
+            patch.manage_schedule_enabled = Some(v);
+            any = true;
+        }
+        any
+    };
+    if !should_send {
+        return Ok(());
+    }
+    if let Err(error) = session.rpc().options().update(patch).await {
+        let _ = session.disconnect().await;
+        return Err(error);
+    }
+    Ok(())
+}
 
 fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<CommandHandlerMap> {
     let map = match commands {
@@ -953,18 +1361,38 @@ fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<Comm
     Arc::new(map)
 }
 
+fn upsert_open_canvas_snapshot(
+    snapshots: &mut Vec<OpenCanvasInstance>,
+    snapshot: OpenCanvasInstance,
+) {
+    if let Some(existing) = snapshots
+        .iter_mut()
+        .find(|open| open.instance_id == snapshot.instance_id)
+    {
+        *existing = snapshot;
+    } else {
+        snapshots.push(snapshot);
+    }
+}
+
+fn remove_open_canvas_snapshot(snapshots: &mut Vec<OpenCanvasInstance>, instance_id: &str) {
+    snapshots.retain(|open| open.instance_id != instance_id);
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_event_loop(
     session_id: SessionId,
     client: Client,
-    handler: Arc<dyn SessionHandler>,
+    handlers: SessionHandlers,
     hooks: Option<Arc<dyn SessionHooks>>,
     transforms: Option<Arc<dyn SystemMessageTransform>>,
     command_handlers: Arc<CommandHandlerMap>,
+    canvas_handler: Option<Arc<dyn CanvasHandler>>,
     session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
+    open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
     shutdown: CancellationToken,
 ) -> JoinHandle<()> {
@@ -991,13 +1419,19 @@ fn spawn_event_loop(
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
-                            &session_id, &client, &handler, &command_handlers, notification, &idle_waiter, &capabilities, &event_tx,
+                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx,
                         ).await;
                     }
                     Some(request) = requests.recv() => {
-                        handle_request(
-                            &session_id, &client, &handler, hooks.as_deref(), transforms.as_deref(), session_fs_provider.as_ref(), request,
-                        ).await;
+                        let ctx = RequestDispatchContext {
+                            client: &client,
+                            handlers: &handlers,
+                            hooks: hooks.as_deref(),
+                            transforms: transforms.as_deref(),
+                            canvas_handler: canvas_handler.as_ref(),
+                            session_fs_provider: session_fs_provider.as_ref(),
+                        };
+                        handle_request(&session_id, ctx, request).await;
                     }
                     else => break,
                 }
@@ -1007,7 +1441,7 @@ fn spawn_event_loop(
             if let Some(waiter) = idle_waiter.lock().take() {
                 let _ = waiter
                     .tx
-                    .send(Err(Error::Session(SessionError::EventLoopClosed)));
+                    .send(Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()));
             }
         }
         .instrument(span),
@@ -1021,68 +1455,29 @@ fn extract_request_id(data: &Value) -> Option<RequestId> {
         .map(RequestId::new)
 }
 
-fn pending_permission_result_kind(response: &HandlerResponse) -> &'static str {
-    match response {
-        HandlerResponse::Permission(PermissionResult::Approved) => "approve-once",
-        HandlerResponse::Permission(PermissionResult::Denied) => "reject",
-        HandlerResponse::Permission(PermissionResult::NoResult) => "no-result",
-        // Fallback to "user-not-available" for UserNotAvailable, Deferred (when
-        // forced through this path), Custom (handled separately upstream), and
-        // any non-permission HandlerResponse that gets here defensively.
-        _ => "user-not-available",
-    }
-}
-
-fn permission_request_response(response: &HandlerResponse) -> PermissionDecision {
-    match response {
-        HandlerResponse::Permission(PermissionResult::Approved) => {
-            PermissionDecision::ApproveOnce(PermissionDecisionApproveOnce {
-                kind: PermissionDecisionApproveOnceKind::ApproveOnce,
-            })
-        }
-        _ => PermissionDecision::Reject(PermissionDecisionReject {
-            kind: PermissionDecisionRejectKind::Reject,
-            feedback: None,
-        }),
-    }
-}
-
-/// Map a handler response into the `result` payload for the notification
-/// path (`session.permissions.handlePendingPermissionRequest`).
+/// Map a [`PermissionResult`] to the `result` payload sent back to the
+/// server via `session.permissions.handlePendingPermissionRequest`.
 ///
-/// Returns `None` when the SDK must not respond — currently only the
-/// [`PermissionResult::Deferred`] case, where the handler takes over
-/// responsibility for the round-trip itself.
-fn notification_permission_payload(response: &HandlerResponse) -> Option<Value> {
-    match response {
-        HandlerResponse::Permission(PermissionResult::Deferred) => None,
-        HandlerResponse::Permission(PermissionResult::Custom(value)) => Some(value.clone()),
-        _ => Some(serde_json::json!({
-            "kind": pending_permission_result_kind(response),
-        })),
+/// Returns `None` when the SDK must not send a response.
+fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
+    match result {
+        PermissionResult::NoResult => None,
+        PermissionResult::Decision(decision) => Some(
+            serde_json::to_value(decision).expect("serializing permission decision should succeed"),
+        ),
     }
 }
 
-/// Map a handler response into the JSON-RPC `result` payload for the
-/// direct-RPC path (`permission.request`).
-///
-/// Always returns a value. [`PermissionResult::Deferred`] is treated as
-/// [`PermissionResult::Approved`] here because the JSON-RPC contract
-/// requires a reply — see the variant's doc comment.
-fn direct_permission_payload(response: &HandlerResponse) -> Value {
-    match response {
-        HandlerResponse::Permission(PermissionResult::Custom(value)) => value.clone(),
-        HandlerResponse::Permission(PermissionResult::Deferred) => serde_json::to_value(
-            permission_request_response(&HandlerResponse::Permission(PermissionResult::Approved)),
-        )
-        .expect("serializing direct permission response should succeed"),
-        HandlerResponse::Permission(PermissionResult::NoResult)
-        | HandlerResponse::Permission(PermissionResult::UserNotAvailable) => serde_json::json!({
-            "kind": pending_permission_result_kind(response),
-        }),
-        _ => serde_json::to_value(permission_request_response(response))
-            .expect("serializing direct permission response should succeed"),
-    }
+fn tool_failure_result(message: impl Into<String>) -> ToolResult {
+    let message = message.into();
+    ToolResult::Expanded(ToolResultExpanded {
+        text_result_for_llm: message.clone(),
+        result_type: "failure".to_string(),
+        binary_results_for_llm: None,
+        session_log: None,
+        error: Some(message),
+        tool_telemetry: None,
+    })
 }
 
 /// Process a notification from the CLI's broadcast channel.
@@ -1090,11 +1485,12 @@ fn direct_permission_payload(response: &HandlerResponse) -> Value {
 async fn handle_notification(
     session_id: &SessionId,
     client: &Client,
-    handler: &Arc<dyn SessionHandler>,
+    handlers: &SessionHandlers,
     command_handlers: &Arc<CommandHandlerMap>,
     notification: SessionEventNotification,
     idle_waiter: &Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
+    open_canvases: &Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
 ) {
     let dispatch_start = Instant::now();
@@ -1149,9 +1545,10 @@ async fn handle_notification(
                                             .map(|s| s.to_string())
                                     })
                                     .unwrap_or_else(|| "session error".to_string());
-                                let _ = waiter
-                                    .tx
-                                    .send(Err(Error::Session(SessionError::AgentError(error_msg))));
+                                let _ = waiter.tx.send(Err(Error::with_message(
+                                    ErrorKind::Session(SessionErrorKind::AgentError),
+                                    error_msg,
+                                )));
                             }
                         }
                     }
@@ -1162,28 +1559,40 @@ async fn handle_notification(
         _ => {}
     }
 
-    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
-    // only errors when there are no receivers, which is the normal case
-    // before any consumer subscribes.
-    let _ = event_tx.send(event.clone());
-
-    // Fire-and-forget dispatch for the general event.
-    handler
-        .on_event(HandlerEvent::SessionEvent {
-            session_id: session_id.clone(),
-            event,
-        })
-        .await;
-
-    // Update capabilities when the CLI reports changes. The CLI sends
-    // the full updated capabilities object — replace wholesale so removals
-    // and new subfields are handled correctly.
+    // Update the snapshot caches BEFORE broadcasting so subscribers that
+    // call `Session::capabilities()` / `Session::open_canvases()` in
+    // response to the event observe the new state.
     if event_type == SessionEventType::CapabilitiesChanged {
         match serde_json::from_value::<SessionCapabilities>(notification.event.data.clone()) {
             Ok(changed) => *capabilities.write() = changed,
             Err(e) => warn!(error = %e, "failed to deserialize capabilities.changed payload"),
         }
     }
+    if event_type == SessionEventType::SessionCanvasOpened {
+        match serde_json::from_value::<OpenCanvasInstance>(notification.event.data.clone()) {
+            Ok(open_canvas) => {
+                upsert_open_canvas_snapshot(&mut open_canvases.write(), open_canvas);
+            }
+            Err(e) => warn!(error = %e, "failed to deserialize session.canvas.opened payload"),
+        }
+    }
+    if event_type == SessionEventType::SessionCanvasClosed {
+        match serde_json::from_value::<SessionCanvasClosedData>(notification.event.data.clone()) {
+            Ok(closed) => {
+                if closed.instance_id.is_empty() {
+                    warn!("failed to deserialize session.canvas.closed payload");
+                } else {
+                    remove_open_canvas_snapshot(&mut open_canvases.write(), &closed.instance_id);
+                }
+            }
+            Err(e) => warn!(error = %e, "failed to deserialize session.canvas.closed payload"),
+        }
+    }
+
+    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
+    // only errors when there are no receivers, which is the normal case
+    // before any consumer subscribes.
+    let _ = event_tx.send(event.clone());
 
     tracing::debug!(
         elapsed_ms = dispatch_start.elapsed().as_millis(),
@@ -1199,8 +1608,25 @@ async fn handle_notification(
             let Some(request_id) = extract_request_id(&notification.event.data) else {
                 return;
             };
+            // Honor the runtime's `resolvedByHook` signal — when the
+            // server has already resolved the permission via a hook,
+            // clients must not send a second response.
+            if notification
+                .event
+                .data
+                .get("resolvedByHook")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                return;
+            }
+            // Multi-client safety: if this client has no permission
+            // handler installed, don't respond — another client on the
+            // same CLI may handle it.
+            let Some(permission_handler) = handlers.permission.clone() else {
+                return;
+            };
             let client = client.clone();
-            let handler = handler.clone();
             let sid = session_id.clone();
             let data: PermissionRequestData =
                 serde_json::from_value(notification.event.data.clone()).unwrap_or_else(|_| {
@@ -1218,22 +1644,19 @@ async fn handle_notification(
             tokio::spawn(
                 async move {
                     let handler_start = Instant::now();
-                    let response = handler
-                        .on_event(HandlerEvent::PermissionRequest {
-                            session_id: sid.clone(),
-                            request_id: request_id.clone(),
-                            data,
-                        })
+                    let result = permission_handler
+                        .handle(sid.clone(), request_id.clone(), data)
                         .await;
                     tracing::debug!(
                         elapsed_ms = handler_start.elapsed().as_millis(),
                         session_id = %sid,
                         request_id = %request_id,
-                        "SessionHandler::on_permission_request dispatch"
+                        "PermissionHandler::handle dispatch"
                     );
-                    let Some(result_value) = notification_permission_payload(&response) else {
-                        // Handler returned Deferred — it will call
-                        // handlePendingPermissionRequest itself.
+                    let Some(result_value) = notification_permission_payload(&result) else {
+                        // Handler returned Deferred / NoResult — it will
+                        // call handlePendingPermissionRequest itself (or
+                        // leave the request unanswered).
                         return;
                     };
                     let rpc_start = Instant::now();
@@ -1298,8 +1721,18 @@ async fn handle_notification(
                         return;
                     }
                 };
+            // Multi-client safety: look up a handler for the requested
+            // tool name. If this client has no handler installed for that
+            // tool, don't respond — another connected client may have one.
+            let tool_handler = if data.tool_name.is_empty() {
+                None
+            } else {
+                handlers.tools.get(&data.tool_name).cloned()
+            };
+            let Some(tool_handler) = tool_handler else {
+                return;
+            };
             let client = client.clone();
-            let handler = handler.clone();
             let sid = session_id.clone();
             let span = tracing::error_span!(
                 "external_tool_handler",
@@ -1308,12 +1741,12 @@ async fn handle_notification(
             );
             tokio::spawn(
                 async move {
-                    if data.tool_call_id.is_empty() || data.tool_name.is_empty() {
-                        let error_msg = if data.tool_call_id.is_empty() {
-                            "Missing toolCallId"
-                        } else {
-                            "Missing toolName"
-                        };
+                    // `tool_name.is_empty()` would have produced a `None`
+                    // lookup in `handlers.tools` and short-circuited at the
+                    // outer guard above, so only the tool_call_id check is
+                    // reachable here.
+                    if data.tool_call_id.is_empty() {
+                        let error_msg = "Missing toolCallId";
                         let rpc_start = Instant::now();
                         let _ = client
                             .call(
@@ -1346,9 +1779,10 @@ async fn handle_notification(
                         tracestate: data.tracestate,
                     };
                     let handler_start = Instant::now();
-                    let response = handler
-                        .on_event(HandlerEvent::ExternalTool { invocation })
-                        .await;
+                    let tool_result = match tool_handler.call(invocation).await {
+                        Ok(r) => r,
+                        Err(e) => tool_failure_result(e.to_string()),
+                    };
                     tracing::debug!(
                         elapsed_ms = handler_start.elapsed().as_millis(),
                         session_id = %sid,
@@ -1357,11 +1791,7 @@ async fn handle_notification(
                         tool_name = %tool_name,
                         "ToolHandler::call dispatch"
                     );
-                    let tool_result = match response {
-                        HandlerResponse::ToolResult(r) => r,
-                        _ => ToolResult::Text("Unexpected handler response".to_string()),
-                    };
-                    let result_value = serde_json::to_value(&tool_result).unwrap_or(Value::Null);
+                    let result_value = serde_json::to_value(tool_result).unwrap_or(Value::Null);
                     let rpc_start = Instant::now();
                     let _ = client
                         .call(
@@ -1388,13 +1818,19 @@ async fn handle_notification(
         SessionEventType::UserInputRequested => {
             // Notification-only signal for observers (UI, telemetry).
             // The CLI follows up with a `userInput.request` JSON-RPC call
-            // that drives `HandlerEvent::UserInput` dispatch — handling
+            // that drives the `UserInputHandler` dispatch — handling
             // the notification here too would double-fire the handler
             // and produce duplicate prompts on the consumer side. See
             // github/github-app#4249.
         }
         SessionEventType::ElicitationRequested => {
             let Some(request_id) = extract_request_id(&notification.event.data) else {
+                return;
+            };
+            // Multi-client safety: if this client has no elicitation
+            // handler installed, don't respond — another client on the
+            // same CLI may handle it.
+            let Some(elicitation_handler) = handlers.elicitation.clone() else {
                 return;
             };
             let elicitation_data: ElicitationRequestedData =
@@ -1423,7 +1859,6 @@ async fn handle_notification(
                 url: elicitation_data.url,
             };
             let client = client.clone();
-            let handler = handler.clone();
             let sid = session_id.clone();
             let span = tracing::error_span!(
                 "elicitation_request_handler",
@@ -1447,26 +1882,22 @@ async fn handle_notification(
                         );
                         async move {
                             let handler_start = Instant::now();
-                            let response = handler
-                                .on_event(HandlerEvent::ElicitationRequest {
-                                    session_id: sid.clone(),
-                                    request_id: request_id.clone(),
-                                    request,
-                                })
+                            let response = elicitation_handler
+                                .handle(sid.clone(), request_id.clone(), request)
                                 .await;
                             tracing::debug!(
                                 elapsed_ms = handler_start.elapsed().as_millis(),
                                 session_id = %sid,
                                 request_id = %request_id,
-                                "SessionHandler::on_elicitation dispatch"
+                                "ElicitationHandler::handle dispatch"
                             );
                             response
                         }
                         .instrument(span)
                     });
                     let result = match handler_task.await {
-                        Ok(HandlerResponse::Elicitation(r)) => r,
-                        _ => cancel.clone(),
+                        Ok(r) => r,
+                        Err(_) => cancel.clone(),
                     };
                     let rpc_start = Instant::now();
                     if let Err(e) = client
@@ -1570,20 +2001,36 @@ async fn handle_notification(
     }
 }
 
+struct RequestDispatchContext<'a> {
+    client: &'a Client,
+    handlers: &'a SessionHandlers,
+    hooks: Option<&'a dyn SessionHooks>,
+    transforms: Option<&'a dyn SystemMessageTransform>,
+    canvas_handler: Option<&'a Arc<dyn CanvasHandler>>,
+    session_fs_provider: Option<&'a Arc<dyn SessionFsProvider>>,
+}
+
 /// Process a JSON-RPC request from the CLI.
 async fn handle_request(
     session_id: &SessionId,
-    client: &Client,
-    handler: &Arc<dyn SessionHandler>,
-    hooks: Option<&dyn SessionHooks>,
-    transforms: Option<&dyn SystemMessageTransform>,
-    session_fs_provider: Option<&Arc<dyn SessionFsProvider>>,
+    ctx: RequestDispatchContext<'_>,
     request: crate::JsonRpcRequest,
 ) {
     let sid = session_id.clone();
+    let client = ctx.client;
+    let handlers = ctx.handlers;
+    let hooks = ctx.hooks;
+    let transforms = ctx.transforms;
+    let canvas_handler = ctx.canvas_handler;
+    let session_fs_provider = ctx.session_fs_provider;
 
     if request.method.starts_with("sessionFs.") {
         crate::session_fs_dispatch::dispatch(client, session_fs_provider, request).await;
+        return;
+    }
+
+    if request.method.starts_with("canvas.") {
+        crate::canvas_dispatch::dispatch(client, canvas_handler, request).await;
         return;
     }
 
@@ -1615,52 +2062,6 @@ async fn handle_request(
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
                 result: Some(rpc_result),
-                error: None,
-            };
-            let _ = client.send_response(&rpc_response).await;
-        }
-
-        "tool.call" => {
-            let invocation: ToolInvocation = match request
-                .params
-                .as_ref()
-                .and_then(|p| serde_json::from_value::<ToolInvocation>(p.clone()).ok())
-            {
-                Some(inv) => inv,
-                None => {
-                    let _ = send_error_response(
-                        client,
-                        request.id,
-                        error_codes::INVALID_PARAMS,
-                        "invalid tool.call params",
-                    )
-                    .await;
-                    return;
-                }
-            };
-            let tool_call_id = invocation.tool_call_id.clone();
-            let tool_name = invocation.tool_name.clone();
-            let handler_start = Instant::now();
-            let response = handler
-                .on_event(HandlerEvent::ExternalTool { invocation })
-                .await;
-            tracing::debug!(
-                elapsed_ms = handler_start.elapsed().as_millis(),
-                session_id = %sid,
-                tool_call_id = %tool_call_id,
-                tool_name = %tool_name,
-                "ToolHandler::call dispatch"
-            );
-            let tool_result = match response {
-                HandlerResponse::ToolResult(r) => r,
-                _ => ToolResult::Text("Unexpected handler response".to_string()),
-            };
-            let rpc_response = JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(serde_json::json!(ToolResultResponse {
-                    result: tool_result
-                })),
                 error: None,
             };
             let _ = client.send_response(&rpc_response).await;
@@ -1700,29 +2101,28 @@ async fn handle_request(
                 .and_then(|v| v.as_bool());
 
             let handler_start = Instant::now();
-            let response = handler
-                .on_event(HandlerEvent::UserInput {
-                    session_id: sid.clone(),
-                    question,
-                    choices,
-                    allow_freeform,
-                })
-                .await;
+            let response = if let Some(user_input_handler) = handlers.user_input.as_ref() {
+                user_input_handler
+                    .handle(sid.clone(), question, choices, allow_freeform)
+                    .await
+            } else {
+                None
+            };
             tracing::debug!(
                 elapsed_ms = handler_start.elapsed().as_millis(),
                 session_id = %sid,
-                "SessionHandler::on_user_input dispatch"
+                "UserInputHandler::handle dispatch"
             );
 
             let rpc_result = match response {
-                HandlerResponse::UserInput(Some(UserInputResponse {
+                Some(UserInputResponse {
                     answer,
                     was_freeform,
-                })) => serde_json::json!({
+                }) => serde_json::json!({
                     "answer": answer,
                     "wasFreeform": was_freeform,
                 }),
-                _ => serde_json::json!({ "noResponse": true }),
+                None => serde_json::json!({ "noResponse": true }),
             };
             let rpc_response = JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
@@ -1747,17 +2147,11 @@ async fn handle_request(
                 }
             };
 
-            let response = handler
-                .on_event(HandlerEvent::ExitPlanMode {
-                    session_id: sid,
-                    data,
-                })
-                .await;
-
-            let rpc_result = match response {
-                HandlerResponse::ExitPlanMode(result) => serde_json::to_value(result)
-                    .expect("ExitPlanModeResult serialization cannot fail"),
-                _ => serde_json::json!({ "approved": true }),
+            let rpc_result = if let Some(exit_plan_handler) = handlers.exit_plan_mode.as_ref() {
+                let result = exit_plan_handler.handle(sid, data).await;
+                serde_json::to_value(result).expect("ExitPlanModeResult serialization cannot fail")
+            } else {
+                serde_json::json!({ "approved": true })
             };
             let rpc_response = JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
@@ -1781,80 +2175,17 @@ async fn handle_request(
                 .and_then(|p| p.get("retryAfterSeconds"))
                 .and_then(|v| v.as_f64());
 
-            let response = handler
-                .on_event(HandlerEvent::AutoModeSwitch {
-                    session_id: sid,
-                    error_code,
-                    retry_after_seconds,
-                })
-                .await;
-
-            let answer = match response {
-                HandlerResponse::AutoModeSwitch(answer) => answer,
-                _ => AutoModeSwitchResponse::No,
+            let answer = if let Some(auto_mode_handler) = handlers.auto_mode_switch.as_ref() {
+                auto_mode_handler
+                    .handle(sid, error_code, retry_after_seconds)
+                    .await
+            } else {
+                AutoModeSwitchResponse::No
             };
             let rpc_response = JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
                 result: Some(serde_json::json!({ "response": answer })),
-                error: None,
-            };
-            let _ = client.send_response(&rpc_response).await;
-        }
-
-        "permission.request" => {
-            let Some(request_id) = request
-                .params
-                .as_ref()
-                .and_then(|p| p.get("requestId"))
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-            else {
-                warn!("permission.request missing 'requestId' field");
-                let rpc_response = JsonRpcResponse {
-                    jsonrpc: "2.0".to_string(),
-                    id: request.id,
-                    result: None,
-                    error: Some(crate::JsonRpcError {
-                        code: error_codes::INVALID_PARAMS,
-                        message: "missing required field: requestId".to_string(),
-                        data: None,
-                    }),
-                };
-                let _ = client.send_response(&rpc_response).await;
-                return;
-            };
-            let request_id = RequestId::new(request_id);
-            let raw_params = request
-                .params
-                .as_ref()
-                .cloned()
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            let data: PermissionRequestData =
-                serde_json::from_value(raw_params.clone()).unwrap_or(PermissionRequestData {
-                    kind: None,
-                    tool_call_id: None,
-                    extra: raw_params,
-                });
-
-            let handler_start = Instant::now();
-            let response = handler
-                .on_event(HandlerEvent::PermissionRequest {
-                    session_id: sid.clone(),
-                    request_id: request_id.clone(),
-                    data,
-                })
-                .await;
-            tracing::debug!(
-                elapsed_ms = handler_start.elapsed().as_millis(),
-                session_id = %sid,
-                request_id = %request_id,
-                "SessionHandler::on_permission_request dispatch"
-            );
-            let rpc_response = JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(direct_permission_payload(&response)),
                 error: None,
             };
             let _ = client.send_response(&rpc_response).await;
@@ -1989,118 +2320,31 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{
-        direct_permission_payload, notification_permission_payload, pending_permission_result_kind,
-        permission_request_response,
-    };
-    use crate::handler::{HandlerResponse, PermissionResult};
+    use super::notification_permission_payload;
+    use crate::handler::PermissionResult;
 
     #[test]
-    fn pending_permission_requests_use_decision_kinds() {
-        assert_eq!(
-            pending_permission_result_kind(&HandlerResponse::Permission(
-                PermissionResult::Approved,
-            )),
-            "approve-once"
-        );
-        assert_eq!(
-            pending_permission_result_kind(&HandlerResponse::Permission(PermissionResult::Denied)),
-            "reject"
-        );
-        assert_eq!(
-            pending_permission_result_kind(&HandlerResponse::Ok),
-            "user-not-available"
-        );
+    fn notification_payload_suppresses_no_result() {
+        assert!(notification_permission_payload(&PermissionResult::NoResult).is_none());
     }
 
     #[test]
-    fn direct_permission_requests_use_decision_response_kinds() {
+    fn notification_payload_serializes_decisions() {
         assert_eq!(
-            serde_json::to_value(permission_request_response(&HandlerResponse::Permission(
-                PermissionResult::Approved
-            ),))
-            .expect("serializing approved permission response should succeed"),
-            json!({ "kind": "approve-once" })
-        );
-        assert_eq!(
-            serde_json::to_value(permission_request_response(&HandlerResponse::Permission(
-                PermissionResult::Denied
-            ),))
-            .expect("serializing denied permission response should succeed"),
-            json!({ "kind": "reject" })
-        );
-        assert_eq!(
-            serde_json::to_value(permission_request_response(&HandlerResponse::Ok))
-                .expect("serializing fallback permission response should succeed"),
-            json!({ "kind": "reject" })
-        );
-    }
-
-    #[test]
-    fn notification_payload_handles_deferred_and_custom() {
-        // Deferred → no payload, SDK must not respond.
-        assert!(
-            notification_permission_payload(&HandlerResponse::Permission(
-                PermissionResult::Deferred,
-            ))
-            .is_none()
-        );
-
-        // Custom → handler-supplied value passed through verbatim.
-        let custom = json!({
-            "kind": "approve-and-remember",
-            "allowlist": ["ls", "grep"],
-        });
-        assert_eq!(
-            notification_permission_payload(&HandlerResponse::Permission(
-                PermissionResult::Custom(custom.clone()),
-            )),
-            Some(custom)
-        );
-
-        // Approved/Denied → existing kind-only shape.
-        assert_eq!(
-            notification_permission_payload(&HandlerResponse::Permission(
-                PermissionResult::Approved,
-            )),
+            notification_permission_payload(&PermissionResult::approve_once()),
             Some(json!({ "kind": "approve-once" }))
         );
         assert_eq!(
-            notification_permission_payload(
-                &HandlerResponse::Permission(PermissionResult::Denied,)
-            ),
+            notification_permission_payload(&PermissionResult::reject(None)),
             Some(json!({ "kind": "reject" }))
         );
-    }
-
-    #[test]
-    fn direct_payload_handles_deferred_and_custom() {
-        // Custom → handler-supplied value passed through verbatim.
-        let custom = json!({
-            "kind": "approve-and-remember",
-            "allowlist": ["ls", "grep"],
-        });
         assert_eq!(
-            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Custom(
-                custom.clone(),
-            ))),
-            custom
-        );
-
-        // Deferred → falls back to Approved because the direct RPC must reply.
-        assert_eq!(
-            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Deferred)),
-            json!({ "kind": "approve-once" })
-        );
-
-        // Approved/Denied → existing kind-only shape.
-        assert_eq!(
-            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Approved)),
-            json!({ "kind": "approve-once" })
+            notification_permission_payload(&PermissionResult::reject(Some("bad".to_string()))),
+            Some(json!({ "kind": "reject", "feedback": "bad" }))
         );
         assert_eq!(
-            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Denied)),
-            json!({ "kind": "reject" })
+            notification_permission_payload(&PermissionResult::user_not_available()),
+            Some(json!({ "kind": "user-not-available" }))
         );
     }
 }

@@ -19,7 +19,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session with streaming: %v", err)
@@ -46,7 +46,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// Should have streaming deltas before the final message
 		var deltaEvents []copilot.SessionEvent
 		for _, e := range snapshot {
-			if e.Type == "assistant.message_delta" {
+			if e.Type() == "assistant.message_delta" {
 				deltaEvents = append(deltaEvents, e)
 			}
 		}
@@ -64,7 +64,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// Should still have a final assistant.message
 		hasAssistantMessage := false
 		for _, e := range snapshot {
-			if e.Type == "assistant.message" {
+			if e.Type() == "assistant.message" {
 				hasAssistantMessage = true
 				break
 			}
@@ -77,10 +77,10 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		firstDeltaIdx := -1
 		lastAssistantIdx := -1
 		for i, e := range snapshot {
-			if e.Type == "assistant.message_delta" && firstDeltaIdx == -1 {
+			if e.Type() == "assistant.message_delta" && firstDeltaIdx == -1 {
 				firstDeltaIdx = i
 			}
-			if e.Type == "assistant.message" {
+			if e.Type() == "assistant.message" {
 				lastAssistantIdx = i
 			}
 		}
@@ -94,7 +94,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           false,
+			Streaming:           copilot.Bool(false),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -121,7 +121,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// No deltas when streaming is off
 		var deltaEvents []copilot.SessionEvent
 		for _, e := range snapshot {
-			if e.Type == "assistant.message_delta" {
+			if e.Type() == "assistant.message_delta" {
 				deltaEvents = append(deltaEvents, e)
 			}
 		}
@@ -132,7 +132,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// But should still have a final assistant.message
 		var assistantEvents []copilot.SessionEvent
 		for _, e := range snapshot {
-			if e.Type == "assistant.message" {
+			if e.Type() == "assistant.message" {
 				assistantEvents = append(assistantEvents, e)
 			}
 		}
@@ -146,7 +146,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           false,
+			Streaming:           copilot.Bool(false),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -163,7 +163,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session2, err := newClient.ResumeSession(t.Context(), session.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -195,7 +195,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// Should have streaming deltas before the final message
 		var deltaEvents []copilot.SessionEvent
 		for _, e := range snapshot {
-			if e.Type == "assistant.message_delta" {
+			if e.Type() == "assistant.message_delta" {
 				deltaEvents = append(deltaEvents, e)
 			}
 		}
@@ -216,7 +216,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session with streaming: %v", err)
@@ -232,7 +232,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session2, err := newClient.ResumeSession(t.Context(), session.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           false,
+			Streaming:           copilot.Bool(false),
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -263,7 +263,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		// No deltas when streaming is toggled off
 		for _, e := range snapshot {
-			if e.Type == "assistant.message_delta" {
+			if e.Type() == "assistant.message_delta" {
 				t.Errorf("Expected no delta events after resume with streaming disabled; got delta at index %d", len(snapshot))
 				break
 			}
@@ -272,7 +272,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// But should still have a final assistant.message
 		hasAssistantMessage := false
 		for _, e := range snapshot {
-			if e.Type == "assistant.message" {
+			if e.Type() == "assistant.message" {
 				hasAssistantMessage = true
 				break
 			}
@@ -291,7 +291,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// the streaming pipeline — deltas still arrive and complete successfully.
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 			ReasoningEffort:     "high",
 		})
 		if err != nil {
@@ -319,7 +319,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// With streaming + reasoning effort, we should still get content deltas
 		var deltaEvents []copilot.SessionEvent
 		for _, e := range snapshot {
-			if e.Type == "assistant.message_delta" {
+			if e.Type() == "assistant.message_delta" {
 				deltaEvents = append(deltaEvents, e)
 			}
 		}
@@ -330,7 +330,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// And a final assistant.message with the answer
 		var lastAssistantContent string
 		for _, e := range snapshot {
-			if e.Type == "assistant.message" {
+			if e.Type() == "assistant.message" {
 				if ad, ok := e.Data.(*copilot.AssistantMessageData); ok {
 					lastAssistantContent = ad.Content
 				}
@@ -343,14 +343,14 @@ func TestStreamingFidelityE2E(t *testing.T) {
 			t.Errorf("Expected assistant message to contain '255' (15*17), got %q", lastAssistantContent)
 		}
 
-		// Verify the session was created with reasoning effort via GetMessages
-		messages, err := session.GetMessages(t.Context())
+		// Verify the session was created with reasoning effort via GetEvents
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
 		var sessionStartReasoningEffort string
 		for _, msg := range messages {
-			if msg.Type == copilot.SessionEventTypeSessionStart {
+			if msg.Type() == copilot.SessionEventTypeSessionStart {
 				if d, ok := msg.Data.(*copilot.SessionStartData); ok {
 					if d.ReasoningEffort != nil {
 						sessionStartReasoningEffort = *d.ReasoningEffort

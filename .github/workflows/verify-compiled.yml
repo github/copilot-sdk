@@ -4,8 +4,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - '.github/workflows/*.md'
-      - '.github/workflows/*.lock.yml'
+      - ".github/workflows/*.md"
+      - ".github/workflows/*.lock.yml"
 
 permissions:
   contents: read
@@ -19,7 +19,7 @@ jobs:
       - name: Install gh-aw CLI
         uses: github/gh-aw/actions/setup-cli@main
         with:
-          version: v0.65.5
+          version: v0.77.5
       - name: Recompile workflows
         run: gh aw compile
       - name: Check for uncommitted changes

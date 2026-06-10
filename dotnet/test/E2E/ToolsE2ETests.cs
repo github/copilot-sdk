@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "tools", output)
 {
@@ -202,7 +202,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = (_, _) =>
             {
                 didRunPermissionRequest = true;
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.NoResult });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.NoResult());
             }
         });
 
@@ -241,7 +241,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             BinaryResultsForLlm = [new() {
                 // 2x2 yellow square
                 Data = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAADklEQVR4nGP4/5/h/38GABkAA/0k+7UAAAAASUVORK5CYII=",
-                Type = "base64",
+                Type = ToolBinaryResultType.Image,
                 MimeType = "image/png",
             }],
             SessionLog = "Returned an image",
@@ -259,7 +259,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequests.Add(request);
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             },
         });
 
@@ -290,7 +290,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
-            OnPermissionRequest = async (request, invocation) => new() { Kind = PermissionRequestResultKind.Rejected },
+            OnPermissionRequest = async (request, invocation) => PermissionDecision.Reject(),
         });
 
         await session.SendAsync(new MessageOptions

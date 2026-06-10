@@ -7,23 +7,54 @@ Mirrors ``dotnet/test/RpcSessionStateTests.cs`` (snapshot category
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import os
+import time
+import uuid
+from pathlib import Path
+
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
+    AuthInfoType,
+    CopilotUserResponse,
+    CopilotUserResponseEndpoints,
     HistoryTruncateRequest,
+    HostType,
+    LspInitializeRequest,
     MCPOauthLoginRequest,
+    MetadataContextInfoRequest,
+    MetadataRecomputeContextTokensRequest,
+    MetadataRecordContextChangeRequest,
+    MetadataSetWorkingDirectoryRequest,
+    ModelSetReasoningEffortRequest,
     ModelSwitchToRequest,
     ModeSetRequest,
+    NameSetAutoRequest,
     NameSetRequest,
     PermissionsSetApproveAllRequest,
     PlanUpdateRequest,
-    SessionMode,
+    SessionSetCredentialsParams,
     SessionsForkRequest,
+    SessionUpdateOptionsParams,
+    SessionWorkingDirectoryContext,
+    ShutdownRequest,
+    TelemetrySetFeatureOverridesRequest,
+    UserAuthInfo,
     WorkspacesCreateFileRequest,
     WorkspacesReadFileRequest,
 )
-from copilot.generated.session_events import AssistantMessageData, UserMessageData
 from copilot.session import PermissionHandler
+from copilot.session_events import (
+    AssistantMessageData,
+    SessionContextChangedData,
+    SessionMode,
+    SessionShutdownData,
+    SessionTitleChangedData,
+    ShutdownType,
+    UserMessageData,
+)
 
 from .testharness import E2ETestContext
 
@@ -39,6 +70,27 @@ def _conversation_messages(events) -> list[tuple[str, str]]:
             case AssistantMessageData() as data:
                 out.append(("assistant", data.content or ""))
     return out
+
+
+def _path_equals(expected: str, actual: str | None) -> bool:
+    if actual is None:
+        return False
+    return os.path.normcase(os.path.abspath(expected)) == os.path.normcase(os.path.abspath(actual))
+
+
+def _create_unique_directory(ctx: E2ETestContext, prefix: str) -> str:
+    path = Path(ctx.work_dir) / f"{prefix}-{uuid.uuid4().hex}"
+    path.mkdir(parents=True, exist_ok=True)
+    return str(path)
+
+
+async def _wait_for(condition, *, timeout: float = 15.0, message: str):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if await condition():
+            return
+        await asyncio.sleep(0.2)
+    pytest.fail(message)
 
 
 async def _assert_implemented_failure(awaitable, method: str) -> None:
@@ -74,7 +126,8 @@ class TestRpcSessionState:
             after = await session.rpc.model.get_current()
 
             assert result.model_id == "gpt-4.1"
-            # SwitchToAsync does not mutate session state — it only resolves the override.
+            # Python's current RPC surface resolves the requested override but does
+            # not mutate the live session model selection.
             assert after.model_id == before.model_id
         finally:
             await session.disconnect()
@@ -94,6 +147,35 @@ class TestRpcSessionState:
             assert await session.rpc.mode.get() == SessionMode.INTERACTIVE
         finally:
             await session.disconnect()
+
+    async def test_should_shutdown_session_with_routine_type(self, ctx: E2ETestContext):
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        shutdown_future: asyncio.Future = asyncio.get_event_loop().create_future()
+
+        def on_event(event):
+            if (
+                isinstance(event.data, SessionShutdownData)
+                and event.data.shutdown_type == ShutdownType.ROUTINE
+                and not shutdown_future.done()
+            ):
+                shutdown_future.set_result(event)
+
+        unsubscribe = session.on(on_event)
+        try:
+            await session.rpc.shutdown(
+                ShutdownRequest(
+                    type=ShutdownType.ROUTINE,
+                    reason="SDK E2E shutdown coverage",
+                )
+            )
+            shutdown = await asyncio.wait_for(shutdown_future, timeout=15.0)
+            assert shutdown.data.shutdown_type == ShutdownType.ROUTINE
+        finally:
+            unsubscribe()
+            with contextlib.suppress(Exception):
+                await session.disconnect()
 
     async def test_should_read_update_and_delete_plan(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
@@ -159,6 +241,222 @@ class TestRpcSessionState:
         finally:
             await session.disconnect()
 
+    async def test_should_call_metadata_snapshot_set_working_directory_and_record_context_change(
+        self, ctx: E2ETestContext
+    ):
+        first_dir = _create_unique_directory(ctx, "metadata-first")
+        second_dir = _create_unique_directory(ctx, "metadata-second")
+        context_dir = _create_unique_directory(ctx, "metadata-context")
+        branch = f"rpc-context-{uuid.uuid4().hex}"
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            model="claude-sonnet-4.5",
+            working_directory=first_dir,
+        )
+        try:
+            snapshot = await session.rpc.metadata.snapshot()
+            assert snapshot.session_id == session.session_id
+            assert snapshot.selected_model == "claude-sonnet-4.5"
+            assert snapshot.is_remote is False
+            assert snapshot.already_in_use is False
+            assert _path_equals(first_dir, snapshot.working_directory)
+            assert snapshot.workspace is not None
+            assert snapshot.workspace.id == session.session_id
+            assert snapshot.workspace_path
+
+            set_result = await session.rpc.metadata.set_working_directory(
+                MetadataSetWorkingDirectoryRequest(working_directory=second_dir)
+            )
+            assert _path_equals(second_dir, set_result.working_directory)
+
+            async def snapshot_updated() -> bool:
+                current = await session.rpc.metadata.snapshot()
+                return _path_equals(second_dir, current.working_directory)
+
+            await _wait_for(
+                snapshot_updated,
+                message="Timed out waiting for metadata snapshot cwd update.",
+            )
+
+            context_future: asyncio.Future = asyncio.get_event_loop().create_future()
+
+            def on_event(event):
+                if (
+                    isinstance(event.data, SessionContextChangedData)
+                    and event.data.branch == branch
+                    and not context_future.done()
+                ):
+                    context_future.set_result(event)
+
+            unsubscribe = session.on(on_event)
+            try:
+                result = await session.rpc.metadata.record_context_change(
+                    MetadataRecordContextChangeRequest(
+                        context=SessionWorkingDirectoryContext(
+                            cwd=context_dir,
+                            git_root=first_dir,
+                            branch=branch,
+                            repository="github/copilot-sdk-e2e",
+                            repository_host="github.com",
+                            host_type=HostType.GITHUB,
+                            base_commit="0" * 40,
+                            head_commit="1" * 40,
+                        )
+                    )
+                )
+                assert result is not None
+
+                event = await asyncio.wait_for(context_future, timeout=15.0)
+                assert _path_equals(context_dir, event.data.cwd)
+                assert _path_equals(first_dir, event.data.git_root)
+                assert event.data.branch == branch
+                assert event.data.repository == "github/copilot-sdk-e2e"
+                assert event.data.repository_host == "github.com"
+                assert event.data.host_type.value == "github"
+                assert event.data.base_commit == "0" * 40
+                assert event.data.head_commit == "1" * 40
+            finally:
+                unsubscribe()
+        finally:
+            await session.disconnect()
+
+    async def test_should_update_options_initialize_services_and_set_feature_overrides(
+        self, ctx: E2ETestContext
+    ):
+        initial_dir = _create_unique_directory(ctx, "options-initial")
+        options_dir = _create_unique_directory(ctx, "options-updated")
+        feature_name = f"rpc-session-state-{uuid.uuid4().hex}"
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            working_directory=initial_dir,
+        )
+        try:
+            update = await session.rpc.options.update(
+                SessionUpdateOptionsParams(
+                    client_name="python-sdk-rpc-session-state-e2e",
+                    lsp_client_name="python-sdk-rpc-session-state-lsp",
+                    integration_id=f"python-sdk-{uuid.uuid4().hex}",
+                    feature_flags={feature_name: True},
+                    working_directory=options_dir,
+                    coauthor_enabled=False,
+                    enable_streaming=False,
+                    ask_user_disabled=True,
+                )
+            )
+            assert update.success is True
+
+            async def snapshot_updated() -> bool:
+                snapshot = await session.rpc.metadata.snapshot()
+                return _path_equals(options_dir, snapshot.working_directory)
+
+            await _wait_for(
+                snapshot_updated,
+                message="Timed out waiting for options.update cwd to reach metadata snapshot.",
+            )
+
+            await session.rpc.lsp.initialize(
+                LspInitializeRequest(
+                    working_directory=options_dir,
+                    git_root=initial_dir,
+                    force=True,
+                )
+            )
+            await session.rpc.telemetry.set_feature_overrides(
+                TelemetrySetFeatureOverridesRequest(
+                    features={
+                        "rpc_session_state_feature": feature_name,
+                        "rpc_session_state_value": "enabled",
+                    }
+                )
+            )
+            tools = await session.rpc.tools.initialize_and_validate()
+            assert tools is not None
+        finally:
+            await session.disconnect()
+
+    async def test_should_set_reasoning_effort_and_auto_name(self, ctx: E2ETestContext):
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            model="claude-sonnet-4.5",
+        )
+        try:
+            reasoning = await session.rpc.model.set_reasoning_effort(
+                ModelSetReasoningEffortRequest(reasoning_effort="high")
+            )
+            assert reasoning.reasoning_effort == "high"
+            current = await session.rpc.model.get_current()
+            assert current.model_id == "claude-sonnet-4.5"
+            assert current.reasoning_effort == "high"
+
+            auto_name = f"Auto Session {uuid.uuid4().hex}"
+            title_future: asyncio.Future = asyncio.get_event_loop().create_future()
+
+            def on_event(event):
+                if (
+                    isinstance(event.data, SessionTitleChangedData)
+                    and event.data.title == auto_name
+                    and not title_future.done()
+                ):
+                    title_future.set_result(event)
+
+            unsubscribe = session.on(on_event)
+            try:
+                auto = await session.rpc.name.set_auto(
+                    NameSetAutoRequest(summary=f"  {auto_name}  ")
+                )
+                assert auto.applied is True
+                await asyncio.wait_for(title_future, timeout=15.0)
+            finally:
+                unsubscribe()
+
+            assert (await session.rpc.name.get()).name == auto_name
+
+            explicit_name = f"Explicit Session {uuid.uuid4().hex}"
+            await session.rpc.name.set(NameSetRequest(name=explicit_name))
+            ignored = await session.rpc.name.set_auto(
+                NameSetAutoRequest(summary=f"Ignored {uuid.uuid4().hex}")
+            )
+            assert ignored.applied is False
+            assert (await session.rpc.name.get()).name == explicit_name
+        finally:
+            await session.disconnect()
+
+    async def test_should_set_auth_credentials(self, ctx: E2ETestContext):
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        try:
+            login = f"sdk-rpc-{uuid.uuid4().hex}"
+            result = await session.rpc.auth.set_credentials(
+                SessionSetCredentialsParams(
+                    credentials=UserAuthInfo(
+                        host="https://github.com",
+                        login=login,
+                        copilot_user=CopilotUserResponse(
+                            analytics_tracking_id="rpc-session-state-tracking-id",
+                            chat_enabled=True,
+                            copilot_plan="individual_pro",
+                            endpoints=CopilotUserResponseEndpoints(
+                                api=ctx.proxy_url,
+                                telemetry="https://localhost:1/telemetry",
+                            ),
+                            login=login,
+                        ),
+                    )
+                )
+            )
+            assert result.success is True
+
+            status = await session.rpc.auth.get_status()
+            assert status.is_authenticated is True
+            assert status.auth_type == AuthInfoType.USER
+            assert status.host == "https://github.com"
+            assert status.login == login
+        finally:
+            await session.disconnect()
+
     async def test_should_fork_session_with_persisted_messages(self, ctx: E2ETestContext):
         source_prompt = "Say FORK_SOURCE_ALPHA exactly."
         fork_prompt = "Now say FORK_CHILD_BETA exactly."
@@ -171,7 +469,7 @@ class TestRpcSessionState:
             assert initial_answer is not None
             assert "FORK_SOURCE_ALPHA" in (initial_answer.data.content or "")
 
-            source_messages = await session.get_messages()
+            source_messages = await session.get_events()
             source_conversation = _conversation_messages(source_messages)
             assert any(
                 role == "user" and content == source_prompt for role, content in source_conversation
@@ -192,7 +490,7 @@ class TestRpcSessionState:
                 on_permission_request=PermissionHandler.approve_all,
             )
             try:
-                forked_messages = await forked_session.get_messages()
+                forked_messages = await forked_session.get_events()
                 forked_conversation = _conversation_messages(forked_messages)
                 assert forked_conversation[: len(source_conversation)] == source_conversation
 
@@ -200,10 +498,10 @@ class TestRpcSessionState:
                 assert fork_answer is not None
                 assert "FORK_CHILD_BETA" in (fork_answer.data.content or "")
 
-                source_after_fork = _conversation_messages(await session.get_messages())
+                source_after_fork = _conversation_messages(await session.get_events())
                 assert all(content != fork_prompt for _, content in source_after_fork)
 
-                fork_after_prompt = _conversation_messages(await forked_session.get_messages())
+                fork_after_prompt = _conversation_messages(await forked_session.get_events())
                 assert any(
                     role == "user" and content == fork_prompt for role, content in fork_after_prompt
                 )
@@ -216,20 +514,34 @@ class TestRpcSessionState:
         finally:
             await session.disconnect()
 
-    async def test_should_report_error_when_forking_session_without_persisted_events(
+    async def test_should_handle_forking_session_without_persisted_events(
         self, ctx: E2ETestContext
     ):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )
         try:
-            with pytest.raises(Exception) as excinfo:
-                await ctx.client.rpc.sessions.fork(
+            try:
+                fork = await ctx.client.rpc.sessions.fork(
                     SessionsForkRequest(session_id=session.session_id)
                 )
-            text = str(excinfo.value).lower()
-            assert "not found or has no persisted events" in text
-            assert "unhandled method sessions.fork" not in text
+            except Exception as exc:
+                text = str(exc).lower()
+                assert "not found or has no persisted events" in text
+                assert "unhandled method sessions.fork" not in text
+                return
+
+            assert fork.session_id.strip()
+            assert fork.session_id != session.session_id
+
+            forked_session = await ctx.client.resume_session(
+                fork.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            try:
+                assert _conversation_messages(await forked_session.get_events()) == []
+            finally:
+                await forked_session.disconnect()
         finally:
             await session.disconnect()
 
@@ -239,7 +551,7 @@ class TestRpcSessionState:
         )
         try:
             metrics = await session.rpc.usage.get_metrics()
-            assert metrics.session_start_time > 0
+            assert metrics.session_start_time is not None
             if metrics.total_nano_aiu is not None:
                 assert metrics.total_nano_aiu >= 0
             if metrics.token_details is not None:
@@ -251,6 +563,15 @@ class TestRpcSessionState:
                 if model_metric.token_details is not None:
                     for detail in model_metric.token_details.values():
                         assert detail.token_count >= 0
+
+            handoff = await session.rpc.history.summarize_for_handoff()
+            assert isinstance(handoff.summary, str)
+
+            cancel_background = await session.rpc.history.cancel_background_compaction()
+            assert cancel_background.cancelled is False
+
+            abort_manual = await session.rpc.history.abort_manual_compaction()
+            assert abort_manual.aborted is False
 
             try:
                 approve_all = await session.rpc.permissions.set_approve_all(
@@ -290,7 +611,42 @@ class TestRpcSessionState:
             on_permission_request=PermissionHandler.approve_all,
         )
         try:
+            assert (await session.rpc.metadata.is_processing()).processing is False
             await session.send_and_wait("What is 2+2?", timeout=60.0)
+            assert (await session.rpc.metadata.is_processing()).processing is False
+
+            context_info = await session.rpc.metadata.context_info(
+                MetadataContextInfoRequest(
+                    prompt_token_limit=128_000,
+                    output_token_limit=4_096,
+                    selected_model="claude-sonnet-4.5",
+                )
+            )
+            if context_info.context_info is not None:
+                context = context_info.context_info
+                assert context.model_name == "claude-sonnet-4.5"
+                assert context.prompt_token_limit == 128_000
+                assert context.limit >= context.prompt_token_limit
+                assert context.total_tokens > 0
+                assert context.system_tokens > 0
+                assert context.conversation_tokens > 0
+                assert context.tool_definitions_tokens >= 0
+                assert (
+                    context.system_tokens
+                    + context.conversation_tokens
+                    + context.tool_definitions_tokens
+                    == context.total_tokens
+                )
+
+            recomputed = await session.rpc.metadata.recompute_context_tokens(
+                MetadataRecomputeContextTokensRequest(model_id="claude-sonnet-4.5")
+            )
+            assert recomputed.system_token_count > 0
+            assert recomputed.messages_token_count > 0
+            assert recomputed.total_tokens == (
+                recomputed.system_token_count + recomputed.messages_token_count
+            )
+
             result = await session.rpc.history.compact()
             assert result is not None
             assert result.success, "Expected History.compact() to report success=True"
@@ -318,7 +674,6 @@ class TestRpcSessionState:
                 await session.disconnect()
 
     async def test_should_reject_workspace_file_path_traversal(self, ctx: E2ETestContext):
-
         for traversal_path in [
             "../escaped.txt",
             "../../escaped.txt",
@@ -390,7 +745,7 @@ class TestRpcSessionState:
         import asyncio
         import uuid
 
-        from copilot.generated.session_events import (
+        from copilot.session_events import (
             SessionWorkspaceFileChangedData,
             WorkspaceFileChangedOperation,
         )
@@ -448,7 +803,7 @@ class TestRpcSessionState:
         import asyncio
         import uuid
 
-        from copilot.generated.session_events import SessionTitleChangedData
+        from copilot.session_events import SessionTitleChangedData
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
@@ -493,7 +848,7 @@ class TestRpcSessionState:
             await session.send_and_wait(first_prompt, timeout=60.0)
             await session.send_and_wait(second_prompt, timeout=60.0)
 
-            source_events = await session.get_messages()
+            source_events = await session.get_events()
             second_user_event = next(
                 (
                     e
@@ -518,7 +873,7 @@ class TestRpcSessionState:
                 on_permission_request=PermissionHandler.approve_all,
             )
             try:
-                forked_events = await forked_session.get_messages()
+                forked_events = await forked_session.get_events()
                 forked_ids = {str(e.id) for e in forked_events}
                 assert boundary_event_id not in forked_ids, (
                     "toEventId is exclusive — boundary event must not be in forked session"

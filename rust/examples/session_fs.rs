@@ -15,7 +15,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::session_fs::{
-    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConfig, SessionFsConventions,
+    DirEntry, DirEntryKind, FileInfo, FsError, FsErrorKind, SessionFsConfig, SessionFsConventions,
     SessionFsProvider,
 };
 use github_copilot_sdk::types::{MessageOptions, SessionConfig};
@@ -46,7 +46,7 @@ impl SessionFsProvider for InMemoryProvider {
             .lock()
             .get(path)
             .cloned()
-            .ok_or_else(|| FsError::NotFound(path.to_string()))
+            .ok_or_else(|| FsError::from(FsErrorKind::NotFound(path.to_string())))
     }
 
     async fn write_file(
@@ -69,7 +69,7 @@ impl SessionFsProvider for InMemoryProvider {
         let files = self.files.lock();
         let content = files
             .get(path)
-            .ok_or_else(|| FsError::NotFound(path.to_string()))?;
+            .ok_or_else(|| FsError::from(FsErrorKind::NotFound(path.to_string())))?;
         Ok(FileInfo::new(
             true,
             false,
@@ -101,7 +101,7 @@ impl SessionFsProvider for InMemoryProvider {
 
     async fn rm(&self, path: &str, _recursive: bool, force: bool) -> Result<(), FsError> {
         if self.files.lock().remove(path).is_none() && !force {
-            return Err(FsError::NotFound(path.to_string()));
+            return Err(FsError::from(FsErrorKind::NotFound(path.to_string())));
         }
         Ok(())
     }
@@ -125,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let session = client
         .create_session(
             SessionConfig::default()
-                .with_handler(Arc::new(ApproveAllHandler))
+                .with_permission_handler(Arc::new(ApproveAllHandler))
                 .with_session_fs_provider(provider),
         )
         .await?;

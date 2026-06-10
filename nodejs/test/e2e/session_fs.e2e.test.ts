@@ -9,7 +9,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../../src/client.js";
-import { createSessionFsAdapter } from "../../src/index.js";
+import { createSessionFsAdapter, RuntimeConnection } from "../../src/index.js";
 import type { SessionFsReaddirWithTypesEntry } from "../../src/generated/rpc.js";
 import {
     approveAll,
@@ -34,7 +34,7 @@ describe("Session Fs", async () => {
     // Single provider for the describe block — session IDs are unique per test,
     // so no cross-contamination between tests.
     const provider = new MemoryProvider();
-    const createSessionFsHandler = (session: CopilotSession) =>
+    const createSessionFsProvider = (session: CopilotSession) =>
         createTestSessionFsHandler(session, provider);
 
     // Helpers to build session-namespaced paths for direct provider assertions
@@ -45,27 +45,41 @@ describe("Session Fs", async () => {
         copilotClientOptions: { sessionFs: sessionFsConfig },
     });
 
-    it("should route file operations through the session fs provider", async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            createSessionFsHandler,
-        });
+    it(
+        "should route file operations through the session fs provider",
+        { timeout: 60000 },
+        async () => {
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                createSessionFsProvider,
+            });
 
-        const msg = await session.sendAndWait({ prompt: "What is 100 + 200?" });
-        expect(msg?.data.content).toContain("300");
-        await session.disconnect();
+            const errors: SessionEvent[] = [];
+            session.on((event) => {
+                if (event.type === "session.error") {
+                    errors.push(event);
+                }
+            });
 
-        const buf = await provider.readFile(
-            p(session.sessionId, `${sessionStatePath}/events.jsonl`)
-        );
-        const content = buf.toString("utf8");
-        expect(content).toContain("300");
-    });
+            const msg = await session.sendAndWait({ prompt: "What is 100 + 200?" });
+            expect(msg?.data.content).toContain("300");
+            await session.disconnect();
+
+            const buf = await provider.readFile(
+                p(session.sessionId, `${sessionStatePath}/events.jsonl`)
+            );
+            const content = buf.toString("utf8");
+            expect(content).toContain("300");
+
+            // No sqlite capabilities declared — verify no errors from missing sqlite
+            expect(errors).toHaveLength(0);
+        }
+    );
 
     it("should load session data from fs provider on resume", async () => {
         const session1 = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
         const sessionId = session1.sessionId;
 
@@ -78,7 +92,7 @@ describe("Session Fs", async () => {
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         // Send another message to verify the session is functional after resume
@@ -90,22 +104,23 @@ describe("Session Fs", async () => {
     it("should reject setProvider when sessions already exist", async () => {
         const tcpConnectionToken = "session-fs-test-token";
         const client = new CopilotClient({
-            useStdio: false, // Use TCP so we can connect from a second client
-            tcpConnectionToken,
+            // Use TCP so we can connect from a second client
+            connection: RuntimeConnection.forTcp({ connectionToken: tcpConnectionToken }),
             env,
         });
         onTestFinished(() => client.forceStop());
-        await client.createSession({ onPermissionRequest: approveAll, createSessionFsHandler });
+        await client.createSession({ onPermissionRequest: approveAll, createSessionFsProvider });
 
-        const { actualPort: port } = client as unknown as { actualPort: number };
+        const { runtimePort: port } = client as unknown as { runtimePort: number };
 
         // Second client tries to connect with a session fs — should fail
         // because sessions already exist on the runtime.
         const client2 = new CopilotClient({
             env,
             logLevel: "error",
-            cliUrl: `localhost:${port}`,
-            tcpConnectionToken,
+            connection: RuntimeConnection.forUri(`localhost:${port}`, {
+                connectionToken: tcpConnectionToken,
+            }),
             sessionFs: sessionFsConfig,
         });
         onTestFinished(() => client2.forceStop());
@@ -117,7 +132,7 @@ describe("Session Fs", async () => {
         const suppliedFileContent = "x".repeat(100_000);
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
             tools: [
                 defineTool("get_big_string", {
                     description: "Returns a large string",
@@ -131,7 +146,7 @@ describe("Session Fs", async () => {
         });
 
         // The tool result should reference a temp file under the session state path
-        const messages = await session.getMessages();
+        const messages = await session.getEvents();
         const toolResult = findToolCallResult(messages, "get_big_string");
         expect(toolResult).toContain(`${sessionStatePath}/temp/`);
         const filename = toolResult?.match(
@@ -148,7 +163,7 @@ describe("Session Fs", async () => {
     it("should write workspace metadata via sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         const msg = await session.sendAndWait({ prompt: "What is 7 * 8?" });
@@ -170,7 +185,7 @@ describe("Session Fs", async () => {
     it("should persist plan.md via sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         // Write a plan via the session RPC
@@ -188,7 +203,7 @@ describe("Session Fs", async () => {
     it("should succeed with compaction while using sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         let compactionEvent: SessionCompactionCompleteEvent | undefined;
@@ -202,12 +217,12 @@ describe("Session Fs", async () => {
         expect(contentBefore).not.toContain("checkpointNumber");
 
         await session.rpc.history.compact();
-        await expect.poll(() => compactionEvent).toBeDefined();
+        await expect.poll(() => compactionEvent, { timeout: 30_000 }).toBeDefined();
         expect(compactionEvent!.data.success).toBe(true);
 
         // Verify the events file was rewritten with a checkpoint via sessionFs
         await expect
-            .poll(() => provider.readFile(eventsPath, "utf8"))
+            .poll(() => provider.readFile(eventsPath, "utf8"), { timeout: 30_000 })
             .toContain("checkpointNumber");
     });
 });
@@ -268,6 +283,25 @@ describe("Session Fs Adapter", () => {
             },
             async rename(src: string, dest: string): Promise<void> {
                 await provider.rename(src, dest);
+            },
+            sqlite: {
+                async query(queryType, query, params) {
+                    return {
+                        columns: ["sessionId", "query", "queryType", "answer"],
+                        rows: [
+                            {
+                                sessionId: "handler-session",
+                                query,
+                                queryType,
+                                answer: params?.answer,
+                            },
+                        ],
+                        rowsAffected: 0,
+                    };
+                },
+                async exists() {
+                    return true;
+                },
             },
         };
         const handler = createSessionFsAdapter(userProvider);
@@ -339,6 +373,25 @@ describe("Session Fs Adapter", () => {
 
         const missing = await handler.stat(params({ path: "/workspace/nested/missing.txt" }));
         expect(missing.error?.code).toBe("ENOENT");
+
+        const sqliteQuery = await handler.sqliteQuery({
+            sessionId,
+            query: "select :answer as answer",
+            queryType: "query",
+            params: { answer: 42 },
+        });
+        expect(sqliteQuery.columns).toContain("answer");
+        expect(sqliteQuery.rows[0]).toMatchObject({
+            sessionId,
+            query: "select :answer as answer",
+            queryType: "query",
+            answer: 42,
+        });
+        expect(sqliteQuery.rowsAffected).toBe(0);
+        expect(sqliteQuery.error).toBeUndefined();
+
+        const sqliteExists = await handler.sqliteExists({ sessionId });
+        expect(sqliteExists.exists).toBe(true);
     });
 
     it("converts provider exceptions to RPC errors", async () => {
@@ -376,6 +429,14 @@ describe("Session Fs Adapter", () => {
             rename: async () => {
                 throw enoent;
             },
+            sqlite: {
+                query: async () => {
+                    throw enoent;
+                },
+                exists: async () => {
+                    throw enoent;
+                },
+            },
         };
 
         const handler = createSessionFsAdapter(throwing);
@@ -410,6 +471,18 @@ describe("Session Fs Adapter", () => {
         assertEnoent((await handler.readdirWithTypes({ path: "missing-dir" } as never)).error);
         assertEnoent(await handler.rm({ path: "missing.txt" } as never));
         assertEnoent(await handler.rename({ src: "missing.txt", dest: "dest.txt" } as never));
+
+        // sqlite methods let errors propagate (no try/catch wrapping)
+        await expect(
+            handler.sqliteQuery({
+                sessionId: "throw-session",
+                query: "select 1",
+                queryType: "query",
+            })
+        ).rejects.toThrow("missing");
+        await expect(handler.sqliteExists({ sessionId: "throw-session" })).rejects.toThrow(
+            "missing"
+        );
 
         // Non-ENOENT errors map to UNKNOWN.
         const unknown: SessionFsProvider = {
@@ -507,6 +580,18 @@ function createTestSessionFsHandler(
         },
         async rename(src: string, dest: string): Promise<void> {
             await provider.rename(sp(src), sp(dest));
+        },
+        sqlite: {
+            async query() {
+                return {
+                    columns: [],
+                    rows: [],
+                    rowsAffected: 0,
+                };
+            },
+            async exists() {
+                return true;
+            },
         },
     };
 }

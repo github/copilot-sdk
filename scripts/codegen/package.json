@@ -14,6 +14,7 @@
     "json-schema": "^0.4.0",
     "json-schema-to-typescript": "^15.0.4",
     "quicktype-core": "^23.2.6",
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "wordwrap": "^1.0.0"
   }
 }

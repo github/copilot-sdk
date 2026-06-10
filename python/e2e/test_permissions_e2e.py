@@ -6,12 +6,17 @@ import asyncio
 
 import pytest
 
-from copilot.generated.session_events import (
+from copilot.rpc import (
+    PermissionDecisionApproveOnce,
+    PermissionDecisionReject,
+    PermissionDecisionUserNotAvailable,
+)
+from copilot.session import PermissionHandler, PermissionNoResult, PermissionRequestResult
+from copilot.session_events import (
     PermissionRequest,
     SessionIdleData,
     ToolExecutionCompleteData,
 )
-from copilot.session import PermissionHandler, PermissionRequestResult
 
 from .testharness import E2ETestContext
 from .testharness.helper import read_file, write_file
@@ -29,7 +34,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             assert invocation["session_id"] == session.session_id
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -41,7 +46,7 @@ class TestPermissions:
         assert len(permission_requests) > 0
 
         # Should include write permission request
-        write_requests = [req for req in permission_requests if req.kind.value == "write"]
+        write_requests = [req for req in permission_requests if req.kind == "write"]
         assert len(write_requests) > 0
 
         await session.disconnect()
@@ -52,14 +57,38 @@ class TestPermissions:
         def on_permission_request(
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
-            return PermissionRequestResult(kind="reject")
+            return PermissionDecisionReject()
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
+
+        # Regression check for https://github.com/github/copilot-sdk/issues/1194:
+        # the reject decision must round-trip through the CLI with its discriminator
+        # intact so the agent surfaces the user-rejected error to the model. The
+        # CLI emits a kind-specific error message ("The user rejected this tool call.")
+        # for the reject decision, which lets us assert the decision was honored
+        # — not merely that the operation didn't happen.
+        user_rejected_events = []
+
+        def on_event(event):
+            match event.data:
+                case ToolExecutionCompleteData(success=False) as data:
+                    error = data.error
+                    msg = (
+                        error
+                        if isinstance(error, str)
+                        else (getattr(error, "message", None) if error is not None else None)
+                    )
+                    if msg and "user rejected" in msg.lower():
+                        user_rejected_events.append(event)
+
+        session.on(on_event)
 
         original_content = "protected content"
         write_file(ctx.work_dir, "protected.txt", original_content)
 
         await session.send_and_wait("Edit protected.txt and replace 'protected' with 'hacked'.")
+
+        assert len(user_rejected_events) > 0
 
         # Verify the file was NOT modified
         content = read_file(ctx.work_dir, "protected.txt")
@@ -73,7 +102,7 @@ class TestPermissions:
         """Test that tool operations are denied when handler explicitly denies"""
 
         def deny_all(request, invocation):
-            return PermissionRequestResult()
+            return PermissionDecisionUserNotAvailable()
 
         session = await ctx.client.create_session(on_permission_request=deny_all)
 
@@ -114,7 +143,7 @@ class TestPermissions:
         await session1.send_and_wait("What is 1+1?")
 
         def deny_all(request, invocation):
-            return PermissionRequestResult()
+            return PermissionDecisionUserNotAvailable()
 
         session2 = await ctx.client.resume_session(session_id, on_permission_request=deny_all)
 
@@ -166,7 +195,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             await asyncio.sleep(0)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -192,7 +221,7 @@ class TestPermissions:
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             permission_requests.append(request)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session2 = await ctx.client.resume_session(
             session_id, on_permission_request=on_permission_request
@@ -207,22 +236,38 @@ class TestPermissions:
 
     async def test_should_handle_permission_handler_errors_gracefully(self, ctx: E2ETestContext):
         """Test that permission handler errors are handled gracefully"""
+        permission_request_received = asyncio.get_running_loop().create_future()
 
         def on_permission_request(
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
+            if not permission_request_received.done():
+                permission_request_received.set_result(request)
             raise RuntimeError("Handler error")
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
+        try:
+            await session.send("Run 'echo test'. If you can't, say 'failed'.")
 
-        message = await session.send_and_wait("Run 'echo test'. If you can't, say 'failed'.")
+            permission_request = await asyncio.wait_for(
+                permission_request_received,
+                timeout=30,
+            )
+            assert permission_request.kind == "shell"
 
-        # Should handle the error and deny permission
-        assert message is not None
-        content_lower = message.data.content.lower()
-        assert any(word in content_lower for word in ["fail", "cannot", "unable", "permission"])
+            exchanges = await ctx.wait_for_exchanges(2, timeout=60)
+            tool_messages = [
+                message
+                for exchange in exchanges
+                for message in exchange["request"]["messages"]
+                if message.get("role") == "tool"
+                and "Permission denied" in str(message.get("content", ""))
+            ]
 
-        await session.disconnect()
+            assert tool_messages
+            assert "could not request permission" in tool_messages[-1]["content"]
+        finally:
+            await session.disconnect()
 
     async def test_should_receive_toolcallid_in_permission_requests(self, ctx: E2ETestContext):
         """Test that toolCallId is included in permission requests"""
@@ -236,7 +281,7 @@ class TestPermissions:
                 received_tool_call_id = True
                 assert isinstance(request.tool_call_id, str)
                 assert len(request.tool_call_id) > 0
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -265,7 +310,7 @@ class TestPermissions:
                 handler_entered.set_result(True)
             await asyncio.wait_for(release_handler, timeout=30.0)
             add_event("permission-complete", tool_call_id)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=slow_permission)
 
@@ -352,7 +397,7 @@ class TestPermissions:
         def deny_noresult(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
             if not permission_called.done():
                 permission_called.set_result(True)
-            return PermissionRequestResult(kind="no-result")
+            return PermissionNoResult()
 
         session = await ctx.client.create_session(on_permission_request=deny_noresult)
         try:
@@ -366,7 +411,7 @@ class TestPermissions:
         self, ctx: E2ETestContext
     ):
         """When set_approve_all is true, the runtime short-circuits the handler."""
-        from copilot.generated.rpc import PermissionsSetApproveAllRequest
+        from copilot.rpc import PermissionsSetApproveAllRequest
 
         handler_call_count = 0
 
@@ -375,7 +420,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             nonlocal handler_call_count
             handler_call_count += 1
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=counting_handler)
         try:
@@ -407,7 +452,7 @@ class TestPermissions:
                 unsubscribe()
         finally:
             try:
-                from copilot.generated.rpc import PermissionsSetApproveAllRequest
+                from copilot.rpc import PermissionsSetApproveAllRequest
 
                 await session.rpc.permissions.set_approve_all(
                     PermissionsSetApproveAllRequest(enabled=False)
@@ -434,7 +479,7 @@ class TestPermissions:
             if permission_request_count >= 2 and not both_started.done():
                 both_started.set_result(True)
             await asyncio.wait_for(both_started, timeout=30.0)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         def first_tool_handler(invocation: ToolInvocation) -> ToolResult:
             nonlocal first_tool_called

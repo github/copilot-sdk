@@ -22,7 +22,7 @@ func TestAbortE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -76,7 +76,7 @@ func TestAbortE2E(t *testing.T) {
 		// Key contract: at least one delta arrived before abort
 		hasDelta := false
 		for _, e := range snapshot {
-			if e.Type == copilot.SessionEventTypeAssistantMessageDelta {
+			if _, ok := e.Data.(*copilot.AssistantMessageDeltaData); ok {
 				hasDelta = true
 				break
 			}

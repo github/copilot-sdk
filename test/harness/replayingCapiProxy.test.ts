@@ -324,6 +324,61 @@ describe("ReplayingCapiProxy", () => {
     expect(result.conversations[0].messages[0].content).toBe("What is 2+2?");
   });
 
+  test("strips plan mode prefix from user messages", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: "[[PLAN]] Create a brief implementation plan.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Plan" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(
+      "Create a brief implementation plan.",
+    );
+  });
+
+  test("normalizes task completion notification wording", async () => {
+    const unreadNotification = [
+      "<system_notification>",
+      'Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve unread results.',
+      "</system_notification>",
+    ].join("\n");
+    const fullNotification = [
+      "<system_notification>",
+      'Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve the full results.',
+      "</system_notification>",
+    ].join("\n");
+
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: unreadNotification,
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(fullNotification);
+  });
+
   test("strips agent_instructions from user messages", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -370,6 +425,45 @@ describe("ReplayingCapiProxy", () => {
     expect(result.conversations[0].messages[0].content).toBe("Say hello.");
   });
 
+  test("strips skill metadata frontmatter from skill-context user messages", async () => {
+    const skillDir = path.join(workDir, ".test_skills", "test-skill");
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: `<skill-context name="test-skill">
+Base directory for this skill: ${skillDir}
+
+---
+name: test-skill
+description: A test skill that adds a marker to responses
+---
+
+# Test Skill Instructions
+
+Always include PINEAPPLE_COCONUT_42.
+</skill-context>`,
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "OK!" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(`<skill-context name="test-skill">
+Base directory for this skill: ${workingDirPlaceholder}/.test_skills/test-skill
+
+# Test Skill Instructions
+
+Always include PINEAPPLE_COCONUT_42.
+</skill-context>`);
+  });
+
   test("applies tool result normalizers to tool response content", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -413,6 +507,48 @@ describe("ReplayingCapiProxy", () => {
     );
     expect(toolMessages[0].content).toBe("ALPHA RESULT");
     expect(toolMessages[1].content).toBe("[beta result]");
+  });
+
+  test("normalizes read_agent timing metadata", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Help me" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: {
+                name: "read_agent",
+                arguments: '{"agent_id":"read-file","wait":true}',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 1.25s, total_turns: 0, duration: 2s\n\nDone.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessage?.content).toBe(
+      "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 0s, total_turns: 0, duration: 0s\n\nDone.",
+    );
   });
 
   test("normalizes GitHub CLI proxy auth failures", async () => {
@@ -609,6 +745,88 @@ describe("ReplayingCapiProxy", () => {
       }
     });
 
+    test("matches shell tool results with shell ID completion markers", async () => {
+      const originalShellConfig =
+        process.platform === "win32" ? ShellConfig.powerShell : ShellConfig.bash;
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Run command" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: {
+                      name: "${shell}",
+                      arguments: '{"command":"echo ok"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content: "ok\n<exited with exit code 0>",
+              },
+              { role: "assistant", content: "Done" },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "System prompt" },
+              { role: "user", content: "Run command" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "runtime-call-id",
+                    type: "function",
+                    function: {
+                      name: originalShellConfig.shellToolName,
+                      arguments: '{"command":"echo ok"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "runtime-call-id",
+                content: "ok\n<shellId: 42 completed with exit code 0>",
+              },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Done");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
     test("expands workdir placeholder in cached response", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
@@ -725,6 +943,60 @@ describe("ReplayingCapiProxy", () => {
           (JSON.parse(response2.body) as ChatCompletion).choices[0].message
             .content,
         ).toBe("I am fine!");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches cached task completion notification wording variants", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const unreadNotification = [
+        "<system_notification>",
+        'Agent "read-file" (explore) has completed successfully. Use read_agent with agent_id "read-file" to retrieve unread results.',
+        "</system_notification>",
+      ].join("\n");
+
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Hello" },
+              { role: "assistant", content: "Hi!" },
+              { role: "user", content: unreadNotification },
+              { role: "assistant", content: "Read agent completed." },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "Be helpful" },
+              { role: "user", content: "Hello" },
+              { role: "assistant", content: "Hi!" },
+              { role: "user", content: unreadNotification },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Read agent completed.");
       } finally {
         await proxy.stop();
       }

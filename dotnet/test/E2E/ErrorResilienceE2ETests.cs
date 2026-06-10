@@ -1,12 +1,11 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Verifies the SDK's behavior at the edges of the session lifecycle: sending or
@@ -33,7 +32,7 @@ public class ErrorResilienceE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var session = await CreateSessionAsync();
         await session.DisposeAsync();
 
-        await Assert.ThrowsAnyAsync<Exception>(() => session.GetMessagesAsync());
+        await Assert.ThrowsAnyAsync<Exception>(() => session.GetEventsAsync());
     }
 
     [Fact]

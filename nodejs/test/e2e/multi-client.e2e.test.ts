@@ -4,7 +4,7 @@
 
 import { describe, expect, it, afterAll } from "vitest";
 import { z } from "zod";
-import { CopilotClient, defineTool, approveAll } from "../../src/index.js";
+import { CopilotClient, defineTool, approveAll, RuntimeConnection } from "../../src/index.js";
 import type { SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
@@ -13,7 +13,9 @@ describe("Multi-client broadcast", async () => {
     const tcpConnectionToken = "multi-client-test-token";
     const ctx = await createSdkTestContext({
         useStdio: false,
-        copilotClientOptions: { tcpConnectionToken },
+        copilotClientOptions: {
+            connection: RuntimeConnection.forTcp({ connectionToken: tcpConnectionToken }),
+        },
     });
     const client1 = ctx.copilotClient;
 
@@ -21,8 +23,12 @@ describe("Multi-client broadcast", async () => {
     const initSession = await client1.createSession({ onPermissionRequest: approveAll });
     await initSession.disconnect();
 
-    const actualPort = (client1 as unknown as { actualPort: number }).actualPort;
-    let client2 = new CopilotClient({ cliUrl: `localhost:${actualPort}`, tcpConnectionToken });
+    const runtimePort = (client1 as unknown as { runtimePort: number }).runtimePort;
+    let client2 = new CopilotClient({
+        connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
+            connectionToken: tcpConnectionToken,
+        }),
+    });
     const EVENT_TIMEOUT_MS = 30_000;
 
     afterAll(async () => {
@@ -351,7 +357,11 @@ describe("Multi-client broadcast", async () => {
         process.removeListener("unhandledRejection", suppressDisposed);
 
         // Recreate client2 for cleanup in afterAll (but don't rejoin the session)
-        client2 = new CopilotClient({ cliUrl: `localhost:${actualPort}`, tcpConnectionToken });
+        client2 = new CopilotClient({
+            connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
+                connectionToken: tcpConnectionToken,
+            }),
+        });
 
         // Now only stable_tool should be available
         const afterResponse = await session1.sendAndWait({

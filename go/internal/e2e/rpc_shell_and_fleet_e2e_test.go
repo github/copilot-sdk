@@ -17,7 +17,7 @@ import (
 )
 
 // Mirrors dotnet/test/RpcShellAndFleetTests.cs (snapshot category "rpc_shell_and_fleet").
-func TestRpcShellAndFleetE2E(t *testing.T) {
+func TestRPCShellAndFleetE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -196,7 +196,7 @@ func waitForFleetCompletion(t *testing.T, session *copilot.Session, contentNeedl
 	t.Helper()
 	deadline := time.Now().Add(120 * time.Second)
 	for time.Now().Before(deadline) {
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err == nil {
 			for _, evt := range messages {
 				if d, ok := evt.Data.(*copilot.AssistantMessageData); ok && strings.Contains(strings.ToLower(d.Content), contentNeedle) {

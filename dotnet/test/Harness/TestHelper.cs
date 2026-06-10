@@ -1,8 +1,8 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-namespace GitHub.Copilot.SDK.Test.Harness;
+namespace GitHub.Copilot.Test.Harness;
 
 public static class TestHelper
 {
@@ -22,7 +22,7 @@ public static class TestHelper
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
         // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
-        // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
+        // subscription callback (CLI read loop) and CheckExistingMessagesAsync (RPC reply).
         // We complete only once we've observed both, regardless of which path saw which.
         var stateLock = new object();
         AssistantMessageEvent? finalAssistantMessage = null;
@@ -40,7 +40,7 @@ public static class TestHelper
             if (snapshot != null && idle) tcs.TrySetResult(snapshot);
         }
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             switch (evt)
             {
@@ -59,18 +59,36 @@ public static class TestHelper
         });
 
         // Backfill from already-delivered messages so we don't lose events that arrived
-        // between SendAsync returning and the subscription being installed.
-        CheckExistingMessages();
+        // between SendAsync returning and the subscription being installed. Run it
+        // concurrently with the live subscription, but keep the Task observable so any
+        // exception is propagated through tcs (not the unobserved-task handler) and so
+        // we can drain it deterministically below. Pass cts.Token so the backfill is
+        // bounded by the same timeout as the wait itself, and so a hung GetEventsAsync
+        // can't block the drain in `finally`.
+        var backfill = CheckExistingMessagesAsync(cts.Token);
 
-        cts.Token.Register(() => tcs.TrySetException(new TimeoutException("Timeout waiting for assistant message")));
+        using var registration = cts.Token.Register(
+            static state => ((TaskCompletionSource<AssistantMessageEvent>)state!).TrySetException(
+                new TimeoutException("Timeout waiting for assistant message")),
+            tcs);
 
-        return await tcs.Task;
+        try
+        {
+            return await tcs.Task;
+        }
+        finally
+        {
+            // Drain the backfill before our `using` scopes (cts, subscription) dispose.
+            // Any exception was already routed through tcs above, so swallow here.
+            try { await backfill.ConfigureAwait(false); }
+            catch (Exception) { /* intentionally ignored: already propagated via tcs */ }
+        }
 
-        async void CheckExistingMessages()
+        async Task CheckExistingMessagesAsync(CancellationToken cancellationToken)
         {
             try
             {
-                var (existingFinal, existingIdle) = await GetExistingMessagesAsync(session, alreadyIdle);
+                var (existingFinal, existingIdle) = await GetExistingMessagesAsync(session, alreadyIdle, cancellationToken);
                 lock (stateLock)
                 {
                     // Preserve a newer message captured by the subscription in the meantime.
@@ -89,9 +107,9 @@ public static class TestHelper
         }
     }
 
-    private static async Task<(AssistantMessageEvent? Final, bool SawIdle)> GetExistingMessagesAsync(CopilotSession session, bool alreadyIdle)
+    private static async Task<(AssistantMessageEvent? Final, bool SawIdle)> GetExistingMessagesAsync(CopilotSession session, bool alreadyIdle, CancellationToken cancellationToken = default)
     {
-        var messages = (await session.GetMessagesAsync()).ToList();
+        var messages = (await session.GetEventsAsync(cancellationToken)).ToList();
 
         var lastUserIdx = messages.FindLastIndex(m => m is UserMessageEvent);
         var currentTurn = lastUserIdx < 0 ? messages : messages.Skip(lastUserIdx).ToList();
@@ -127,7 +145,7 @@ public static class TestHelper
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is T matched && predicate(matched))
             {

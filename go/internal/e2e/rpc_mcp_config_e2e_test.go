@@ -9,9 +9,9 @@ import (
 )
 
 // Mirrors dotnet/test/RpcMcpConfigTests.cs (snapshot category "rpc_mcp_config").
-// Tests server-scoped MCP configuration management via mcp.config.* RPCs.
-func TestRpcMcpConfigE2E(t *testing.T) {
-	t.Run("should call server mcp config rpcs", func(t *testing.T) {
+// Tests server-scoped MCP configuration management via MCP.Config.* RPCs.
+func TestRPCMCPConfigE2E(t *testing.T) {
+	t.Run("should call server MCP config rpcs", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient()
 		t.Cleanup(func() { client.ForceStop() })
@@ -21,19 +21,18 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 
 		serverName := fmt.Sprintf("sdk-test-%s", randomHex(t))
 
-		nodeCmd := "node"
-		baseConfig := rpc.MCPServerConfig{
-			Command: &nodeCmd,
+		baseConfig := &rpc.MCPServerConfigStdio{
+			Command: "node",
 			Args:    []string{"-v"},
 		}
-		updatedConfig := rpc.MCPServerConfig{
-			Command: &nodeCmd,
+		updatedConfig := &rpc.MCPServerConfigStdio{
+			Command: "node",
 			Args:    []string{"--version"},
 		}
 
-		initial, err := client.RPC.Mcp.Config().List(t.Context())
+		initial, err := client.RPC.MCP.Config().List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.Config.List (initial) failed: %v", err)
+			t.Fatalf("MCP.Config.List (initial) failed: %v", err)
 		}
 		if _, present := initial.Servers[serverName]; present {
 			t.Fatalf("Did not expect %q to be present initially", serverName)
@@ -41,67 +40,71 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 
 		// Best-effort cleanup if a subtest assertion fails mid-flight.
 		t.Cleanup(func() {
-			_, _ = client.RPC.Mcp.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName})
+			_, _ = client.RPC.MCP.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName})
 		})
 
-		if _, err := client.RPC.Mcp.Config().Add(t.Context(), &rpc.MCPConfigAddRequest{
+		if _, err := client.RPC.MCP.Config().Add(t.Context(), &rpc.MCPConfigAddRequest{
 			Name:   serverName,
 			Config: baseConfig,
 		}); err != nil {
-			t.Fatalf("Mcp.Config.Add failed: %v", err)
+			t.Fatalf("MCP.Config.Add failed: %v", err)
 		}
 
-		afterAdd, err := client.RPC.Mcp.Config().List(t.Context())
+		afterAdd, err := client.RPC.MCP.Config().List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.Config.List (after add) failed: %v", err)
+			t.Fatalf("MCP.Config.List (after add) failed: %v", err)
 		}
 		if _, present := afterAdd.Servers[serverName]; !present {
 			t.Fatalf("Expected %q to be present after Add", serverName)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Update(t.Context(), &rpc.MCPConfigUpdateRequest{
+		if _, err := client.RPC.MCP.Config().Update(t.Context(), &rpc.MCPConfigUpdateRequest{
 			Name:   serverName,
 			Config: updatedConfig,
 		}); err != nil {
-			t.Fatalf("Mcp.Config.Update failed: %v", err)
+			t.Fatalf("MCP.Config.Update failed: %v", err)
 		}
 
-		afterUpdate, err := client.RPC.Mcp.Config().List(t.Context())
+		afterUpdate, err := client.RPC.MCP.Config().List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.Config.List (after update) failed: %v", err)
+			t.Fatalf("MCP.Config.List (after update) failed: %v", err)
 		}
 		updated, present := afterUpdate.Servers[serverName]
 		if !present {
 			t.Fatalf("Expected %q to still be present after Update", serverName)
 		}
-		if updated.Command == nil || *updated.Command != "node" {
-			t.Errorf("Expected command='node', got %v", updated.Command)
+		updatedLocal, ok := updated.(*rpc.MCPServerConfigStdio)
+		if !ok {
+			t.Fatalf("Expected local MCP config, got %T", updated)
 		}
-		if len(updated.Args) == 0 || updated.Args[0] != "--version" {
-			t.Errorf("Expected args[0]='--version', got %v", updated.Args)
+		if updatedLocal.Command != "node" {
+			t.Errorf("Expected command='node', got %q", updatedLocal.Command)
 		}
-
-		if _, err := client.RPC.Mcp.Config().Disable(t.Context(), &rpc.MCPConfigDisableRequest{Names: []string{serverName}}); err != nil {
-			t.Fatalf("Mcp.Config.Disable failed: %v", err)
-		}
-		if _, err := client.RPC.Mcp.Config().Enable(t.Context(), &rpc.MCPConfigEnableRequest{Names: []string{serverName}}); err != nil {
-			t.Fatalf("Mcp.Config.Enable failed: %v", err)
+		if len(updatedLocal.Args) == 0 || updatedLocal.Args[0] != "--version" {
+			t.Errorf("Expected args[0]='--version', got %v", updatedLocal.Args)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName}); err != nil {
-			t.Fatalf("Mcp.Config.Remove failed: %v", err)
+		if _, err := client.RPC.MCP.Config().Disable(t.Context(), &rpc.MCPConfigDisableRequest{Names: []string{serverName}}); err != nil {
+			t.Fatalf("MCP.Config.Disable failed: %v", err)
+		}
+		if _, err := client.RPC.MCP.Config().Enable(t.Context(), &rpc.MCPConfigEnableRequest{Names: []string{serverName}}); err != nil {
+			t.Fatalf("MCP.Config.Enable failed: %v", err)
 		}
 
-		afterRemove, err := client.RPC.Mcp.Config().List(t.Context())
+		if _, err := client.RPC.MCP.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName}); err != nil {
+			t.Fatalf("MCP.Config.Remove failed: %v", err)
+		}
+
+		afterRemove, err := client.RPC.MCP.Config().List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.Config.List (after remove) failed: %v", err)
+			t.Fatalf("MCP.Config.List (after remove) failed: %v", err)
 		}
 		if _, present := afterRemove.Servers[serverName]; present {
 			t.Errorf("Expected %q to be removed", serverName)
 		}
 	})
 
-	t.Run("should round trip http mcp oauth config rpc", func(t *testing.T) {
+	t.Run("should round trip http MCP oauth config rpc", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient()
 		t.Cleanup(func() { client.ForceStop() })
@@ -111,7 +114,7 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 
 		serverName := fmt.Sprintf("sdk-http-oauth-%s", randomHex(t))
 
-		httpType := rpc.MCPServerConfigTypeHTTP
+		httpType := rpc.MCPServerConfigHTTPTypeHTTP
 		urlBase := "https://example.com/mcp"
 		urlUpdated := "https://example.com/updated-mcp"
 		clientID := "client-id"
@@ -123,9 +126,9 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 		var timeoutBase int64 = 3000
 		var timeoutUpdated int64 = 4000
 
-		baseConfig := rpc.MCPServerConfig{
+		baseConfig := &rpc.MCPServerConfigHTTP{
 			Type:              &httpType,
-			URL:               &urlBase,
+			URL:               urlBase,
 			Headers:           map[string]string{"Authorization": "Bearer token"},
 			OauthClientID:     &clientID,
 			OauthPublicClient: &publicFalse,
@@ -133,9 +136,9 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 			Tools:             []string{"*"},
 			Timeout:           &timeoutBase,
 		}
-		updatedConfig := rpc.MCPServerConfig{
+		updatedConfig := &rpc.MCPServerConfigHTTP{
 			Type:              &httpType,
-			URL:               &urlUpdated,
+			URL:               urlUpdated,
 			OauthClientID:     &clientIDUpdated,
 			OauthPublicClient: &publicTrue,
 			OauthGrantType:    &grantAuthCode,
@@ -144,83 +147,91 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 		}
 
 		t.Cleanup(func() {
-			_, _ = client.RPC.Mcp.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName})
+			_, _ = client.RPC.MCP.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName})
 		})
 
-		if _, err := client.RPC.Mcp.Config().Add(t.Context(), &rpc.MCPConfigAddRequest{
+		if _, err := client.RPC.MCP.Config().Add(t.Context(), &rpc.MCPConfigAddRequest{
 			Name:   serverName,
 			Config: baseConfig,
 		}); err != nil {
-			t.Fatalf("Mcp.Config.Add failed: %v", err)
+			t.Fatalf("MCP.Config.Add failed: %v", err)
 		}
 
-		afterAdd, err := client.RPC.Mcp.Config().List(t.Context())
+		afterAdd, err := client.RPC.MCP.Config().List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.Config.List (after add) failed: %v", err)
+			t.Fatalf("MCP.Config.List (after add) failed: %v", err)
 		}
 		added, present := afterAdd.Servers[serverName]
 		if !present {
 			t.Fatalf("Expected %q to be present after Add", serverName)
 		}
-		if added.Type == nil || *added.Type != "http" {
-			t.Errorf("Expected type='http', got %v", added.Type)
+		addedHTTP, ok := added.(*rpc.MCPServerConfigHTTP)
+		if !ok {
+			t.Fatalf("Expected HTTP MCP config, got %T", added)
 		}
-		if added.URL == nil || *added.URL != "https://example.com/mcp" {
-			t.Errorf("Expected url='https://example.com/mcp', got %v", added.URL)
+		if addedHTTP.Type == nil || *addedHTTP.Type != "http" {
+			t.Errorf("Expected type='http', got %v", addedHTTP.Type)
 		}
-		if got := added.Headers["Authorization"]; got != "Bearer token" {
+		if addedHTTP.URL != "https://example.com/mcp" {
+			t.Errorf("Expected url='https://example.com/mcp', got %q", addedHTTP.URL)
+		}
+		if got := addedHTTP.Headers["Authorization"]; got != "Bearer token" {
 			t.Errorf("Expected Authorization='Bearer token', got %q", got)
 		}
-		if added.OauthClientID == nil || *added.OauthClientID != "client-id" {
-			t.Errorf("Expected oauthClientId='client-id', got %v", added.OauthClientID)
+		if addedHTTP.OauthClientID == nil || *addedHTTP.OauthClientID != "client-id" {
+			t.Errorf("Expected oauthClientId='client-id', got %v", addedHTTP.OauthClientID)
 		}
-		if added.OauthPublicClient == nil || *added.OauthPublicClient {
-			t.Errorf("Expected oauthPublicClient=false, got %v", added.OauthPublicClient)
+		if addedHTTP.OauthPublicClient == nil || *addedHTTP.OauthPublicClient {
+			t.Errorf("Expected oauthPublicClient=false, got %v", addedHTTP.OauthPublicClient)
 		}
-		if added.OauthGrantType == nil || *added.OauthGrantType != "client_credentials" {
-			t.Errorf("Expected oauthGrantType='client_credentials', got %v", added.OauthGrantType)
+		if addedHTTP.OauthGrantType == nil || *addedHTTP.OauthGrantType != "client_credentials" {
+			t.Errorf("Expected oauthGrantType='client_credentials', got %v", addedHTTP.OauthGrantType)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Update(t.Context(), &rpc.MCPConfigUpdateRequest{
+		if _, err := client.RPC.MCP.Config().Update(t.Context(), &rpc.MCPConfigUpdateRequest{
 			Name:   serverName,
 			Config: updatedConfig,
 		}); err != nil {
-			t.Fatalf("Mcp.Config.Update failed: %v", err)
+			t.Fatalf("MCP.Config.Update failed: %v", err)
 		}
-		afterUpdate, err := client.RPC.Mcp.Config().List(t.Context())
+		afterUpdate, err := client.RPC.MCP.Config().List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.Config.List (after update) failed: %v", err)
+			t.Fatalf("MCP.Config.List (after update) failed: %v", err)
 		}
 		updated, present := afterUpdate.Servers[serverName]
 		if !present {
 			t.Fatalf("Expected %q to still be present after Update", serverName)
 		}
-		if updated.URL == nil || *updated.URL != "https://example.com/updated-mcp" {
-			t.Errorf("Expected url='https://example.com/updated-mcp', got %v", updated.URL)
+		updatedHTTP, ok := updated.(*rpc.MCPServerConfigHTTP)
+		if !ok {
+			t.Fatalf("Expected HTTP MCP config, got %T", updated)
 		}
-		if updated.OauthClientID == nil || *updated.OauthClientID != "updated-client-id" {
-			t.Errorf("Expected oauthClientId='updated-client-id', got %v", updated.OauthClientID)
+		if updatedHTTP.URL != "https://example.com/updated-mcp" {
+			t.Errorf("Expected url='https://example.com/updated-mcp', got %q", updatedHTTP.URL)
 		}
-		if updated.OauthPublicClient == nil || !*updated.OauthPublicClient {
-			t.Errorf("Expected oauthPublicClient=true, got %v", updated.OauthPublicClient)
+		if updatedHTTP.OauthClientID == nil || *updatedHTTP.OauthClientID != "updated-client-id" {
+			t.Errorf("Expected oauthClientId='updated-client-id', got %v", updatedHTTP.OauthClientID)
 		}
-		if updated.OauthGrantType == nil || *updated.OauthGrantType != "authorization_code" {
-			t.Errorf("Expected oauthGrantType='authorization_code', got %v", updated.OauthGrantType)
+		if updatedHTTP.OauthPublicClient == nil || !*updatedHTTP.OauthPublicClient {
+			t.Errorf("Expected oauthPublicClient=true, got %v", updatedHTTP.OauthPublicClient)
 		}
-		if len(updated.Tools) == 0 || updated.Tools[0] != "updated-tool" {
-			t.Errorf("Expected tools[0]='updated-tool', got %v", updated.Tools)
+		if updatedHTTP.OauthGrantType == nil || *updatedHTTP.OauthGrantType != "authorization_code" {
+			t.Errorf("Expected oauthGrantType='authorization_code', got %v", updatedHTTP.OauthGrantType)
 		}
-		if updated.Timeout == nil || *updated.Timeout != 4000 {
-			t.Errorf("Expected timeout=4000, got %v", updated.Timeout)
+		if len(updatedHTTP.Tools) == 0 || updatedHTTP.Tools[0] != "updated-tool" {
+			t.Errorf("Expected tools[0]='updated-tool', got %v", updatedHTTP.Tools)
+		}
+		if updatedHTTP.Timeout == nil || *updatedHTTP.Timeout != 4000 {
+			t.Errorf("Expected timeout=4000, got %v", updatedHTTP.Timeout)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName}); err != nil {
-			t.Fatalf("Mcp.Config.Remove failed: %v", err)
+		if _, err := client.RPC.MCP.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName}); err != nil {
+			t.Fatalf("MCP.Config.Remove failed: %v", err)
 		}
 
-		afterRemove, err := client.RPC.Mcp.Config().List(t.Context())
+		afterRemove, err := client.RPC.MCP.Config().List(t.Context())
 		if err != nil {
-			t.Fatalf("Mcp.Config.List (after remove) failed: %v", err)
+			t.Fatalf("MCP.Config.List (after remove) failed: %v", err)
 		}
 		if _, present := afterRemove.Servers[serverName]; present {
 			t.Errorf("Expected %q to be removed", serverName)

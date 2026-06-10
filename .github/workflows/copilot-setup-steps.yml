@@ -36,6 +36,7 @@ jobs:
           cache-dependency-path: |
             ./nodejs/package-lock.json
             ./test/harness/package-lock.json
+            ./java/scripts/codegen/package-lock.json
 
       # Setup Python (for Python SDK)
       - name: Set up Python
@@ -61,14 +62,27 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      # Setup Java (for Java SDK)
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "microsoft"
+          java-version: "17"
+          cache: "maven"
+
       # Install just command runner
       - name: Install just
         uses: extractions/setup-just@v3
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/githubnext/gh-aw/refs/heads/main/install-gh-aw.sh | bash
+        uses: github/gh-aw/actions/setup-cli@0feed75a980b06f247abbbf80127f8eb2c19e2c5 # v0.74.8
+        with:
+          version: v0.74.4
+
+      # Enable repository pre-commit hooks (Spotless checks for Java source changes)
+      - name: Enable pre-commit hooks
+        run: git config core.hooksPath .githooks
 
       # Install JavaScript dependencies
       - name: Install Node.js dependencies
@@ -95,6 +109,11 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
 
+      # Install Java codegen dependencies
+      - name: Install Java codegen dependencies
+        working-directory: ./java/scripts/codegen
+        run: npm ci
+
       # Verify installations
       - name: Verify tool installations
         run: |
@@ -105,6 +124,8 @@ jobs:
           uv --version
           go version
           dotnet --version
+          java -version
+          mvn --version
           just --version
           gh --version
           gh aw version

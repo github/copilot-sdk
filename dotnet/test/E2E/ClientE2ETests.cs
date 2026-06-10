@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 // These tests bypass E2ETestBase because they are about how the CLI subprocess is started
 // Other test classes should instead inherit from E2ETestBase
@@ -15,19 +16,16 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Start_And_Connect_To_Server(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
             await client.StartAsync();
-            Assert.Equal(ConnectionState.Connected, client.State);
-
             var pong = await client.PingAsync("test message");
             Assert.Equal("pong: test message", pong.Message);
-            Assert.True(pong.Timestamp >= 0);
+            Assert.NotEqual(default, pong.Timestamp);
 
             await client.StopAsync();
-            Assert.Equal(ConnectionState.Disconnected, client.State);
         }
         finally
         {
@@ -40,12 +38,10 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Force_Stop_Without_Cleanup(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
-
-        Assert.Equal(ConnectionState.Disconnected, client.State);
     }
 
     [Theory]
@@ -53,7 +49,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Get_Status_With_Version_And_Protocol_Info(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -77,7 +73,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Get_Auth_Status(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -104,7 +100,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_List_Models_When_Authenticated(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -142,7 +138,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client(bool useStdio)
     {
-        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
         await using var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         await client.StopAsync();
@@ -155,16 +151,26 @@ public class ClientE2ETests
     {
         var client = new CopilotClient(new CopilotClientOptions
         {
-            CliArgs = ["--nonexistent-flag-for-testing"],
-            UseStdio = useStdio
+            Connection = useStdio
+                ? RuntimeConnection.ForStdio(args: ["--nonexistent-flag-for-testing"])
+                : RuntimeConnection.ForTcp(args: ["--nonexistent-flag-for-testing"])
         });
 
         var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
 
         var errorMessage = ex.Message;
-        // Verify we get the stderr output in the error message
-        Assert.Contains("stderr", errorMessage, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("nonexistent", errorMessage, StringComparison.OrdinalIgnoreCase);
+        // On .NET Framework with stdio transport, the pipe error may not include stderr content.
+        if (errorMessage.Contains("pipe", StringComparison.OrdinalIgnoreCase))
+        {
+            // .NET Framework pipe behavior — just verify we got an IOException
+            Assert.Contains("pipe", errorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            // Verify we get the stderr output in the error message
+            Assert.Contains("stderr", errorMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("nonexistent", errorMessage, StringComparison.OrdinalIgnoreCase);
+        }
 
         // Verify subsequent calls also fail (don't hang)
         var ex2 = await Assert.ThrowsAnyAsync<Exception>(async () =>
@@ -172,7 +178,10 @@ public class ClientE2ETests
             var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
             await session.SendAsync(new MessageOptions { Prompt = "test" });
         });
-        Assert.Contains("exited", ex2.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            ex2.Message.Contains("exited", StringComparison.OrdinalIgnoreCase) ||
+            ex2.Message.Contains("pipe", StringComparison.OrdinalIgnoreCase),
+            $"Expected error about process exit or pipe, got: {ex2.Message}");
 
         // Cleanup - ForceStop should handle the disconnected state gracefully
         try { await client.ForceStopAsync(); } catch (Exception) { /* Expected */ }
@@ -181,27 +190,36 @@ public class ClientE2ETests
     [Theory]
     [InlineData(true)]   // stdio transport
     [InlineData(false)]  // TCP transport
-    public async Task Should_Throw_When_CreateSession_Called_Without_PermissionHandler(bool useStdio)
+    public async Task Should_Allow_CreateSession_Called_Without_PermissionHandler(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => client.CreateSessionAsync(new SessionConfig()));
-
-        Assert.Contains("OnPermissionRequest", ex.Message);
-        Assert.Contains("is required", ex.Message);
+        Assert.NotNull(session.SessionId);
     }
 
-    [Theory]
-    [InlineData(true)]   // stdio transport
-    [InlineData(false)]  // TCP transport
-    public async Task Should_Throw_When_ResumeSession_Called_Without_PermissionHandler(bool useStdio)
+    [Fact]
+    public async Task Should_Allow_ResumeSession_Called_Without_PermissionHandler()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        const string connectionToken = "client-e2e-resume-token";
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => client.ResumeSessionAsync("some-session-id", new()));
+        await using var ctx = await E2ETestContext.CreateAsync();
+        await using var client = ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForTcp(connectionToken: connectionToken),
+        });
+        await using var originalSession = await client.CreateSessionAsync(new SessionConfig());
 
-        Assert.Contains("OnPermissionRequest", ex.Message);
-        Assert.Contains("is required", ex.Message);
+        var port = client.RuntimePort
+            ?? throw new InvalidOperationException("Client must be using TCP transport to support multi-client resume.");
+
+        await using var resumeClient = ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: connectionToken),
+        });
+        await using var resumedSession = await resumeClient.ResumeSessionAsync(originalSession.SessionId, new());
+
+        Assert.Equal(originalSession.SessionId, resumedSession.SessionId);
     }
 
     [Theory]
@@ -226,7 +244,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            UseStdio = useStdio,
+            Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>
             {
                 callCount++;
@@ -263,7 +281,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            UseStdio = useStdio,
+            Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>
             {
                 callCount++;
@@ -299,7 +317,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            UseStdio = useStdio,
+            Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>
             {
                 callCount++;

@@ -84,7 +84,7 @@ type PreToolUseHandler func(
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,
@@ -102,10 +102,25 @@ public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```java
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
 
-PreToolUseHandler preToolUseHandler;
+public class PreToolUseSignature {
+    PreToolUseHandler handler = (PreToolUseHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+    public static void main(String[] args) {}
+}
+```
+<!-- /docs-validate: hidden -->
+```java
+@FunctionalInterface
+public interface PreToolUseHandler {
+    CompletableFuture<PreToolUseHookOutput> handle(
+        PreToolUseHookInput input,
+        HookInvocation invocation);
+}
 ```
 
 </details>
@@ -138,6 +153,23 @@ Return `null` or `undefined` to allow the tool to execute with no changes. Other
 | `"allow"` | Tool executes normally |
 | `"deny"` | Tool is blocked, reason shown to user |
 | `"ask"` | User is prompted to approve (interactive mode) |
+
+### Skipping permission prompts for trusted custom tools
+
+If you define a custom tool that is safe to run without prompting, set `skipPermission: true` on the tool definition. Use this for trusted, app-owned tools whose inputs are already constrained by your application; use `onPreToolUse` when you need per-call policy checks or argument validation.
+
+```typescript
+const getWeather = defineTool("get_weather", {
+  description: "Get weather for a location.",
+  parameters: {
+    type: "object",
+    properties: { location: { type: "string" } },
+    required: ["location"],
+  },
+  skipPermission: true,
+  handler: async ({ location }) => ({ forecast: `Sunny in ${location}` }),
+});
+```
 
 ## Examples
 
@@ -228,7 +260,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class PreToolUseExample
 {
@@ -275,9 +307,10 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 var hooks = new SessionHooks()

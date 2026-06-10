@@ -6,13 +6,30 @@ import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
 import {
     defaultJoinSessionPermissionHandler,
+    type ExtensionInfo,
     type PermissionHandler,
     type ResumeSessionConfig,
 } from "./types.js";
 
-export type JoinSessionConfig = Omit<ResumeSessionConfig, "onPermissionRequest"> & {
+export {
+    Canvas,
+    CanvasError,
+    createCanvas,
+    type CanvasAction,
+    type CanvasDeclaration,
+    type CanvasHostContext,
+    type CanvasJsonSchema,
+    type CanvasOptions,
+} from "./canvas.js";
+
+export type JoinSessionConfig = Omit<
+    ResumeSessionConfig,
+    "onPermissionRequest" | "extensionSdkPath"
+> & {
     onPermissionRequest?: PermissionHandler;
 };
+
+export type { ExtensionInfo };
 
 /**
  * Joins the current foreground session.
@@ -35,10 +52,20 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
         );
     }
 
-    const client = new CopilotClient({ isChildProcess: true });
+    const client = new CopilotClient({ _internalConnection: { kind: "parent-process" } });
+
+    // Strip `extensionSdkPath` at runtime even though `JoinSessionConfig` omits it
+    // at the type level — untyped (JS) callers can still slip it through, and
+    // honoring it here would be misleading since the extension subprocess has
+    // already been forked by the host with the SDK the host chose.
+    const { extensionSdkPath: _stripped, ...rest } = config as JoinSessionConfig & {
+        extensionSdkPath?: string;
+    };
+    void _stripped;
+
     return client.resumeSession(sessionId, {
-        ...config,
+        ...rest,
         onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
-        disableResume: config.disableResume ?? true,
+        suppressResumeEvent: config.suppressResumeEvent ?? true,
     });
 }

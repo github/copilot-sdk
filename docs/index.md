@@ -1,4 +1,4 @@
-# GitHub Copilot SDK documentation
+# Copilot SDK 
 
 Welcome to the GitHub Copilot SDK docs. Whether you're building your first Copilot-powered app or deploying to production, you'll find what you need here.
 
@@ -28,6 +28,7 @@ How to configure and deploy the SDK for your use case.
 * [GitHub OAuth](./setup/github-oauth.md): implement the OAuth flow
 * [Azure Managed Identity](./setup/azure-managed-identity.md): BYOK with Azure AI Foundry
 * [Scaling & Multi-Tenancy](./setup/scaling.md): horizontal scaling, isolation patterns
+* [Multi-Tenancy & Server Deployments](./setup/multi-tenancy.md): mode: "empty", session isolation, integration IDs, sessionFs
 
 ### [Authentication](./auth/index.md)
 
@@ -44,11 +45,14 @@ Guides for building with the SDK's capabilities.
 * [Custom Agents](./features/custom-agents.md): define specialized sub-agents
 * [MCP Servers](./features/mcp.md): integrate Model Context Protocol servers
 * [Skills](./features/skills.md): load reusable prompt modules
+* [Plugin Directories](./features/plugin-directories.md): bundle skills, hooks, MCP servers, and agents as a single loadable plugin
 * [Image Input](./features/image-input.md): send images as attachments
 * [Streaming Events](./features/streaming-events.md): real-time event reference
 * [Steering & Queueing](./features/steering-and-queueing.md): message delivery modes
 * [Session Persistence](./features/session-persistence.md): resume sessions across restarts
-* [Remote Sessions](./features/remote-sessions.md): share sessions to GitHub web and mobile
+* [Remote Sessions](./features/remote-sessions.md): share sessions to GitHub web and mobile via Mission Control
+* [Cloud Sessions](./features/cloud-sessions.md): run sessions on GitHub-hosted compute with the cloud: option
+* [Fleet Mode](./features/fleet-mode.md): dispatch parallel sub-agents for parallelizable work
 
 ### [Hooks Reference](./hooks/index.md)
 

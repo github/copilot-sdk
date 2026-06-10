@@ -12,26 +12,30 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::handler::SessionHandler;
+use crate::canvas::{CanvasDeclaration, CanvasHandler};
+use crate::generated::api_types::OpenCanvasInstance;
+/// Context window tier for models that support tiered context windows.
+pub use crate::generated::session_events::ContextTier;
+use crate::generated::session_events::ReasoningSummary;
+use crate::handler::{
+    AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
+    UserInputHandler,
+};
 use crate::hooks::SessionHooks;
 pub use crate::session_fs::{
-    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConfig, SessionFsConventions,
-    SessionFsProvider,
+    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
+    SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType,
 };
 pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;
 
-/// Lifecycle state of a [`Client`](crate::Client) connection to the CLI.
-///
-/// The state advances from `Connecting` → `Connected` during construction,
-/// transitions to `Disconnected` after [`Client::stop`](crate::Client::stop) or
-/// [`Client::force_stop`](crate::Client::force_stop), and lands in
-/// `Error` if startup fails or the underlying transport tears down
-/// unexpectedly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// Lifecycle state of a [`Client`](crate::Client) connection. Internal —
+/// not part of the public API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 #[non_exhaustive]
-pub enum ConnectionState {
+pub(crate) enum ConnectionState {
     /// No CLI process is attached or the process has exited cleanly.
     Disconnected,
     /// The client is starting up (spawning the CLI, negotiating protocol).
@@ -206,7 +210,7 @@ impl PartialEq<SessionId> for &SessionId {
 /// A newtype wrapper around `String` that provides type safety — prevents
 /// accidentally passing a session ID or workspace ID where a request ID
 /// is expected. Derefs to `str` for zero-friction borrowing.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RequestId(String);
 
@@ -297,7 +301,14 @@ impl PartialEq<&str> for RequestId {
 /// (rather than using the schema-generated form) so it can carry runtime
 /// hints — `overrides_built_in_tool`, `skip_permission` — that don't appear
 /// in the wire schema but are honored by the CLI.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+///
+/// A `Tool` may optionally carry a [`handler`](Self::handler): an
+/// `Arc<dyn ToolHandler>` that implements the tool's runtime behavior.
+/// When present, the SDK dispatches matching `external_tool.requested`
+/// broadcasts to it automatically. When absent (`None`), the tool is
+/// declaration-only — another connected client must service incoming
+/// invocations.
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Tool {
@@ -326,6 +337,19 @@ pub struct Tool {
     /// access control.
     #[serde(default, skip_serializing_if = "is_false")]
     pub skip_permission: bool,
+    /// Optional runtime implementation. When `Some`, the SDK dispatches
+    /// matching `external_tool.requested` broadcasts to this handler.
+    /// When `None`, the tool is declaration-only.
+    ///
+    /// Skipped during serialization — the handler is runtime behavior,
+    /// not part of the wire representation.
+    ///
+    /// Crate-private to enforce builder semantics: external callers must
+    /// install a handler through [`Tool::with_handler`] and inspect via
+    /// [`Tool::handler`], so an already-attached handler cannot be
+    /// silently overwritten by direct field assignment.
+    #[serde(skip)]
+    pub(crate) handler: Option<Arc<dyn crate::tool::ToolHandler>>,
 }
 
 #[inline]
@@ -381,16 +405,19 @@ impl Tool {
 
     /// Set the JSON Schema for the tool's input parameters.
     ///
-    /// Accepts anything that converts into a JSON object, including a
-    /// `serde_json::Value` produced by `json!({...})`. Non-object values
-    /// are stored as an empty parameter map; callers that need direct
-    /// control over the field can construct a `HashMap<String, Value>`
-    /// and assign it to [`Tool::parameters`] via [`Default::default`].
+    /// Accepts a JSON Schema as a `serde_json::Value`, typically built with
+    /// `serde_json::json!({...})` or returned by `schema_for` (available
+    /// with the `derive` feature). Tool parameter schemas are always
+    /// top-level JSON objects (`{"type": "object", ...}`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `parameters` is not a JSON object. Use
+    /// [`crate::tool::try_tool_parameters`] and assign to
+    /// [`Tool::parameters`] directly when the schema comes from dynamic
+    /// input and should produce a recoverable error instead.
     pub fn with_parameters(mut self, parameters: Value) -> Self {
-        self.parameters = parameters
-            .as_object()
-            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
-            .unwrap_or_default();
+        self.parameters = crate::tool::tool_parameters(parameters);
         self
     }
 
@@ -408,6 +435,40 @@ impl Tool {
     pub fn with_skip_permission(mut self, skip: bool) -> Self {
         self.skip_permission = skip;
         self
+    }
+
+    /// Attach a runtime implementation. The SDK will dispatch matching
+    /// `external_tool.requested` broadcasts to `handler` for this tool's
+    /// name. Without a handler the tool is declaration-only.
+    pub fn with_handler(mut self, handler: Arc<dyn crate::tool::ToolHandler>) -> Self {
+        self.handler = Some(handler);
+        self
+    }
+
+    /// Returns the attached runtime handler, if any.
+    ///
+    /// Read-only inspection — to install or replace a handler, use
+    /// [`Tool::with_handler`].
+    pub fn handler(&self) -> Option<&Arc<dyn crate::tool::ToolHandler>> {
+        self.handler.as_ref()
+    }
+}
+
+impl std::fmt::Debug for Tool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tool")
+            .field("name", &self.name)
+            .field("namespaced_name", &self.namespaced_name)
+            .field("description", &self.description)
+            .field("instructions", &self.instructions)
+            .field("parameters", &self.parameters)
+            .field("overrides_built_in_tool", &self.overrides_built_in_tool)
+            .field("skip_permission", &self.skip_permission)
+            .field(
+                "handler",
+                &self.handler.as_ref().map(|_| "<set>").unwrap_or("None"),
+            )
+            .finish()
     }
 }
 
@@ -526,6 +587,12 @@ pub struct CustomAgentConfig {
     /// Skill names to preload into this agent's context at startup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills: Option<Vec<String>>,
+    /// Model identifier for this agent (e.g. `"claude-haiku-4.5"`).
+    ///
+    /// When set, the runtime will attempt to use this model for the agent,
+    /// falling back to the parent session model if unavailable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 impl CustomAgentConfig {
@@ -587,6 +654,12 @@ impl CustomAgentConfig {
         self.skills = Some(skills.into_iter().map(Into::into).collect());
         self
     }
+
+    /// Set the model identifier for this agent.
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
 }
 
 /// Configures the default (built-in) agent that handles turns when no
@@ -601,6 +674,54 @@ pub struct DefaultAgentConfig {
     /// Tool names to exclude from the default agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
+}
+
+/// Configuration for large tool output handling.
+///
+/// When a tool produces output exceeding [`max_size_bytes`](Self::max_size_bytes),
+/// the SDK writes the full output to a file in [`output_directory`](Self::output_directory)
+/// and returns a truncated preview to the model.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct LargeToolOutputConfig {
+    /// Whether large tool output handling is enabled. Defaults to `true` on the CLI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// Maximum tool output size in bytes before it is redirected to a file.
+    /// Defaults to 50KB on the CLI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_size_bytes: Option<u64>,
+    /// Directory where large tool output files are written. Defaults to
+    /// the OS temp directory on the CLI.
+    #[serde(default, rename = "outputDir", skip_serializing_if = "Option::is_none")]
+    pub output_directory: Option<PathBuf>,
+}
+
+impl LargeToolOutputConfig {
+    /// Construct an empty [`LargeToolOutputConfig`]; all fields default to
+    /// unset (the CLI applies its own defaults).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Toggle large tool output handling on or off.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+
+    /// Set the maximum tool output size in bytes before it is redirected to a file.
+    pub fn with_max_size_bytes(mut self, max_size_bytes: u64) -> Self {
+        self.max_size_bytes = Some(max_size_bytes);
+        self
+    }
+
+    /// Set the directory where large tool output files are written.
+    pub fn with_output_directory<P: Into<PathBuf>>(mut self, output_directory: P) -> Self {
+        self.output_directory = Some(output_directory.into());
+        self
+    }
 }
 
 /// Configures infinite sessions: persistent workspaces with automatic
@@ -655,6 +776,76 @@ impl InfiniteSessionConfig {
     }
 }
 
+/// GitHub repository metadata to associate with a cloud session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CloudSessionRepository {
+    /// Repository owner.
+    pub owner: String,
+    /// Repository name.
+    pub name: String,
+    /// Optional branch name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+}
+
+impl CloudSessionRepository {
+    /// Create repository metadata for a cloud session.
+    pub fn new(owner: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            owner: owner.into(),
+            name: name.into(),
+            branch: None,
+        }
+    }
+
+    /// Set the branch associated with the repository.
+    pub fn with_branch(mut self, branch: impl Into<String>) -> Self {
+        self.branch = Some(branch.into());
+        self
+    }
+}
+
+/// Options for creating a remote session in the cloud.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CloudSessionOptions {
+    /// Optional GitHub repository metadata to associate with the cloud session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<CloudSessionRepository>,
+}
+
+impl CloudSessionOptions {
+    /// Create cloud session options with repository metadata.
+    pub fn with_repository(repository: CloudSessionRepository) -> Self {
+        Self {
+            repository: Some(repository),
+        }
+    }
+}
+
+/// Stable extension identity for session participants that provide canvases.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionInfo {
+    /// Extension namespace/source, e.g. `"github-app"`.
+    pub source: String,
+    /// Stable provider name within the source namespace.
+    pub name: String,
+}
+
+impl ExtensionInfo {
+    /// Create stable extension identity metadata.
+    pub fn new(source: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            source: source.into(),
+            name: name.into(),
+        }
+    }
+}
+
 /// Configuration for a single MCP server.
 ///
 /// MCP (Model Context Protocol) servers expose external tools to the
@@ -673,7 +864,7 @@ impl InfiniteSessionConfig {
 /// servers.insert(
 ///     "playwright".to_string(),
 ///     McpServerConfig::Stdio(McpStdioServerConfig {
-///         tools: vec!["*".to_string()],
+///         tools: Some(vec!["*".to_string()]),
 ///         command: "npx".to_string(),
 ///         args: vec!["-y".to_string(), "@playwright/mcp".to_string()],
 ///         ..Default::default()
@@ -682,7 +873,7 @@ impl InfiniteSessionConfig {
 /// servers.insert(
 ///     "weather".to_string(),
 ///     McpServerConfig::Http(McpHttpServerConfig {
-///         tools: vec!["forecast".to_string()],
+///         tools: Some(vec!["forecast".to_string()]),
 ///         url: "https://example.com/mcp".to_string(),
 ///         ..Default::default()
 ///     }),
@@ -709,24 +900,28 @@ pub enum McpServerConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpStdioServerConfig {
-    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    /// Tools to expose from this server.
+    ///
+    /// - `None` (field omitted on the wire) — expose **all** tools.
+    /// - `Some(vec![])` — expose **no** tools.
+    /// - `Some(vec!["a", ...])` — expose only the listed tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
     /// Optional timeout in milliseconds for tool calls to this server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
     /// Subprocess executable.
     pub command: String,
     /// Arguments to pass to the subprocess.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
     /// Environment variables to set on the subprocess. Values are passed
     /// through literally to the child process.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub env: HashMap<String, String>,
     /// Working directory for the subprocess.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "cwd")]
+    pub working_directory: Option<String>,
 }
 
 /// Configuration for a remote MCP server (HTTP or SSE).
@@ -735,9 +930,13 @@ pub struct McpStdioServerConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpHttpServerConfig {
-    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    /// Tools to expose from this server.
+    ///
+    /// - `None` (field omitted on the wire) — expose **all** tools.
+    /// - `Some(vec![])` — expose **no** tools.
+    /// - `Some(vec!["a", ...])` — expose only the listed tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
     /// Optional timeout in milliseconds for tool calls to this server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
@@ -894,14 +1093,6 @@ pub struct AzureProviderOptions {
     pub api_version: Option<String>,
 }
 
-/// Wire default for [`SessionConfig::env_value_mode`] /
-/// [`ResumeSessionConfig::env_value_mode`]. The runtime understands
-/// `"direct"` (literal values) or `"indirect"` (env-var lookup); the SDK
-/// only ever sends `"direct"`.
-fn default_env_value_mode() -> String {
-    "direct".into()
-}
-
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -944,114 +1135,148 @@ fn default_env_value_mode() -> String {
 /// # Field naming across SDKs
 ///
 /// Rust field names are snake_case (`available_tools`, `system_message`);
-/// they round-trip to the camelCase wire protocol via `#[serde(rename_all =
-/// "camelCase")]`. When porting code from the TypeScript, Go, Python, or
-/// .NET SDKs — or reading the raw JSON-RPC traces — fields appear as
-/// `availableTools`, `systemMessage`, etc.
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// the wire protocol uses camelCase (`availableTools`, `systemMessage`).
+/// The mapping happens inside `SessionConfig::into_wire` (crate-private),
+/// which builds a separate `SessionCreateWire` payload. This config
+/// struct is no longer itself serializable — the trait-object handler
+/// fields (e.g. [`permission_handler`](Self::permission_handler)) could
+/// never round-trip through serde, so the only legitimate serialization
+/// path is now `into_wire`. When porting code from the TypeScript, Go,
+/// Python, or .NET SDKs — or reading the raw JSON-RPC traces — fields
+/// appear as `availableTools`, `systemMessage`, etc.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct SessionConfig {
     /// Custom session ID. When unset, the CLI generates one.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Application name sent as `User-Agent` context.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
     /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    /// Reasoning summary mode for models that support configurable
+    /// reasoning summaries. Use [`ReasoningSummary::None`] to suppress
+    /// summary output regardless of whether reasoning is enabled.
+    pub reasoning_summary: Option<ReasoningSummary>,
+    /// Context window tier for models that support it. Use `"long_context"`
+    /// to pin the session to the long-context tier.
+    pub context_tier: Option<String>,
     /// Enable streaming token deltas via `assistant.message_delta` events.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     /// Custom system message configuration.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
-    /// Client-defined tools to expose to the agent.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Client-defined tool declarations to expose to the agent.
     pub tools: Option<Vec<Tool>>,
+    /// Canvas declarations this connection provides to the runtime.
+    pub canvases: Option<Vec<CanvasDeclaration>>,
+    /// Provider-side canvas lifecycle handler. The SDK routes inbound
+    /// `canvas.open` / `canvas.close` / `canvas.action.invoke` requests to
+    /// this handler. Use [`with_canvas_handler`](Self::with_canvas_handler)
+    /// to install one.
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    /// Request canvas renderer tools for this connection.
+    pub request_canvas_renderer: Option<bool>,
+    /// Request extension tools and dispatch for this connection.
+    pub request_extensions: Option<bool>,
+    /// Optional override path to a `copilot-sdk/` folder to inject into
+    /// extension subprocesses for this session. Invalid paths fall back
+    /// to the bundled SDK; takes precedence over the host's default.
+    pub extension_sdk_path: Option<String>,
+    /// Stable extension identity for canvas/tool providers on this connection.
+    pub extension_info: Option<ExtensionInfo>,
     /// Allowlist of built-in tool names the agent may use.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names the agent must not use.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
-    /// Wire-format hint for MCP `env` map values. The runtime understands
-    /// `"direct"` (literal values) and `"indirect"` (env-var lookup); the
-    /// SDK only ever sends `"direct"` and consumers don't have a knob.
-    #[serde(default = "default_env_value_mode", skip_deserializing)]
-    pub(crate) env_value_mode: String,
+    /// Controls how MCP OAuth tokens are stored for this session.
+    ///
+    /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
+    /// - `"in-memory"` — tokens are stored in memory and discarded when the session ends.
+    ///
+    /// Defaults to `"in-memory"` when the client is in [`crate::ClientMode::Empty`],
+    /// applied automatically at session creation/resume time. `None` means no
+    /// explicit value is set and the runtime default takes effect.
+    pub mcp_oauth_token_storage: Option<String>,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
-    /// Enable the `ask_user` tool for interactive user input. Defaults to
-    /// `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_user_input: Option<bool>,
-    /// Enable `permission.request` JSON-RPC calls from the CLI. Defaults
-    /// to `Some(true)` via [`SessionConfig::default`]; the default
-    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) refuses all
-    /// requests so the wire surface is safe out-of-the-box.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_permission: Option<bool>,
-    /// Enable `exitPlanMode.request` JSON-RPC calls for plan approval.
-    /// Defaults to `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_exit_plan_mode: Option<bool>,
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. When `true`, the CLI
-    /// asks the handler whether to switch to auto model when an eligible
-    /// rate limit is hit. Defaults to `Some(true)` via
-    /// [`SessionConfig::default`]. Without this flag, the CLI surfaces the
-    /// rate-limit error directly without offering the auto-mode switch.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_switch: Option<bool>,
-    /// Advertise elicitation provider capability. When true, the CLI sends
-    /// `elicitation.requested` events that the handler can respond to.
-    /// Defaults to `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_elicitation: Option<bool>,
+    /// When true, skips embedding retrieval for this session.
+    pub skip_embedding_retrieval: Option<bool>,
+    /// Controls how the embedding cache is stored for this session.
+    /// `"persistent"` caches on disk; `"in-memory"` discards when session ends.
+    pub embedding_cache_storage: Option<String>,
+    /// Organization-level custom instructions to apply to this session.
+    pub organization_custom_instructions: Option<String>,
+    /// When true, enables on-demand instruction discovery for this session.
+    pub enable_on_demand_instruction_discovery: Option<bool>,
+    /// When true, enables file hooks for this session.
+    pub enable_file_hooks: Option<bool>,
+    /// When true, allows host Git operations for this session.
+    pub enable_host_git_operations: Option<bool>,
+    /// When true, enables the session store for this session.
+    pub enable_session_store: Option<bool>,
+    /// When true, enables skills for this session.
+    pub enable_skills: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    ///
+    /// When `true` **and** the runtime has MCP Apps enabled (via the
+    /// `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
+    /// override), the runtime adds the `mcp-apps` capability to the
+    /// session, which causes it to advertise the
+    /// `extensions.io.modelcontextprotocol/ui` extension to MCP servers (so
+    /// they expose `_meta.ui.resourceUri` on tools) and to expose the
+    /// `session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,
+    /// getHostContext,diagnose}` JSON-RPC methods.
+    ///
+    /// If the runtime gate is off, the opt-in is silently dropped
+    /// server-side (the runtime logs a warning); the session is created
+    /// normally but the MCP Apps surface is unavailable. Inspect the
+    /// runtime's `capabilities.ui.mcpApps` on the create/resume response to
+    /// detect this.
+    ///
+    /// SDK consumers MUST set this to `true` only when they have an iframe
+    /// renderer that can display `ui://` MCP App bundles. Setting it
+    /// without a renderer will cause MCP servers to register UI-enabled
+    /// tool variants the consumer cannot display.
+    ///
+    /// Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
     /// Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
+    /// Open Plugin directory paths passed through to the CLI.
+    pub plugin_directories: Option<Vec<PathBuf>>,
+    /// Configuration for large tool output handling, forwarded to the CLI.
+    pub large_output: Option<LargeToolOutputConfig>,
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks. When `true`, the CLI sends `hooks.invoke`
     /// RPC requests at key lifecycle points (pre/post tool use, prompt
     /// submission, session start/end, errors).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub hooks: Option<bool>,
     /// Custom agents (sub-agents) configured for this session.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     /// Configures the built-in default agent. Use `excluded_tools` to
     /// hide tools from the default agent while keeping them available
     /// to custom sub-agents that reference them in their `tools` list.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_agent: Option<DefaultAgentConfig>,
     /// Name of the custom agent to activate when the session starts.
     /// Must match the `name` of one of the agents in [`Self::custom_agents`].
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
     /// Configures infinite sessions: persistent workspace + automatic
     /// context-window compaction. Enabled by default on the CLI.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     /// Custom model provider (BYOK). When set, the session routes
     /// requests through this provider instead of the default Copilot
     /// routing.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
     /// Enables or disables internal session telemetry for this session.
     ///
@@ -1060,60 +1285,90 @@ pub struct SessionConfig {
     /// When a custom [`provider`](Self::provider) is configured, session
     /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_telemetry: Option<bool>,
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Override the default configuration directory location. When set,
     /// the session uses this directory for storing config and state.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub config_dir: Option<PathBuf>,
+    pub config_directory: Option<PathBuf>,
     /// Working directory for the session. Tool operations resolve
     /// relative paths against this directory.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<PathBuf>,
     /// Per-session GitHub token. Distinct from
     /// [`ClientOptions::github_token`](crate::ClientOptions::github_token),
     /// which authenticates the CLI process itself; this token determines
     /// the GitHub identity used for content exclusion, model routing, and
     /// quota checks for *this session*.
-    #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
+    /// Per-session remote behavior control:
+    /// - `Off` — local only, no remote export (default)
+    /// - `Export` — export session events to GitHub without
+    ///   enabling remote steering
+    /// - `On` — export to GitHub AND enable remote steering
+    pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
+    /// Creates a remote session in the cloud instead of a local session.
+    /// The optional repository is associated with the cloud session.
+    pub cloud: Option<CloudSessionOptions>,
     /// Forward sub-agent streaming events to this connection. When false,
     /// only non-streaming sub-agent events and `subagent.*` lifecycle events
     /// are delivered. Defaults to true on the CLI.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
     /// Slash commands registered for this session. When the CLI has a TUI,
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
-    #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
     /// See [`SessionFsProvider`].
-    #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
-    /// Session-level event handler. The default is
-    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
-    /// requests are denied; other events are no-ops. Use
-    /// [`with_handler`](Self::with_handler) to install a custom handler.
-    #[serde(skip)]
-    pub handler: Option<Arc<dyn SessionHandler>>,
+    /// Optional permission-request handler. When `None`, the SDK sends
+    /// `requestPermission: false` on the wire so the runtime does not
+    /// emit `permission.requested` broadcasts to this client.
+    pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    /// Optional elicitation-request handler. When `None`,
+    /// `requestElicitation: false` goes on the wire.
+    pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional user-input handler. When `None`,
+    /// `requestUserInput: false` goes on the wire and the `ask_user`
+    /// tool is disabled.
+    pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    /// Optional exit-plan-mode handler. When `None`,
+    /// `requestExitPlanMode: false` goes on the wire.
+    pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
+    /// Optional auto-mode-switch handler. When `None`,
+    /// `requestAutoModeSwitch: false` goes on the wire.
+    pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
     /// Session lifecycle hook handler (pre/post tool use, session
     /// start/end, etc.). When set, the SDK auto-enables the wire-level
     /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
-    #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
+    /// Permission policy applied to the handler. Stored separately from
+    /// `permission_handler` so the order of `with_permission_handler` and
+    /// `approve_all_permissions` (and friends) is irrelevant.
+    pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. When set, the SDK injects the matching
     /// `action: "transform"` sections into the system message and routes
     /// `systemMessage.transform` RPC callbacks to it during the session.
-    /// Use [`with_transform`](Self::with_transform) to install one.
-    #[serde(skip)]
-    pub transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// Use [`with_system_message_transform`](Self::with_system_message_transform) to install one.
+    pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// Whether to skip loading custom-instruction sources for this session.
+    /// Applied via `session.options.update` after create/resume. Defaults to
+    /// `true` in [`crate::ClientMode::Empty`] when unset.
+    pub skip_custom_instructions: Option<bool>,
+    /// Whether to constrain custom agents to local-only execution. Applied
+    /// via `session.options.update` after create/resume. Defaults to `true`
+    /// in [`crate::ClientMode::Empty`] when unset.
+    pub custom_agents_local_only: Option<bool>,
+    /// Whether to include the `Co-authored-by` trailer in commit messages.
+    /// Applied via `session.options.update` after create/resume. Defaults to
+    /// `false` in [`crate::ClientMode::Empty`] when unset.
+    pub coauthor_enabled: Option<bool>,
+    /// Whether to expose the `manage_schedule` tool. Applied via
+    /// `session.options.update` after create/resume. Defaults to `false` in
+    /// [`crate::ClientMode::Empty`] when unset.
+    pub manage_schedule_enabled: Option<bool>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -1123,20 +1378,50 @@ impl std::fmt::Debug for SessionConfig {
             .field("model", &self.model)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
+            .field("reasoning_summary", &self.reasoning_summary)
+            .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
+            .field("canvases", &self.canvases)
+            .field(
+                "canvas_handler",
+                &self.canvas_handler.as_ref().map(|_| "<set>"),
+            )
+            .field("request_canvas_renderer", &self.request_canvas_renderer)
+            .field("request_extensions", &self.request_extensions)
+            .field("extension_sdk_path", &self.extension_sdk_path)
+            .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
+            .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
-            .field("request_user_input", &self.request_user_input)
-            .field("request_permission", &self.request_permission)
-            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
-            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
-            .field("request_elicitation", &self.request_elicitation)
+            .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
+            .field(
+                "organization_custom_instructions",
+                &self
+                    .organization_custom_instructions
+                    .as_ref()
+                    .map(|_| "<redacted>"),
+            )
+            .field(
+                "enable_on_demand_instruction_discovery",
+                &self.enable_on_demand_instruction_discovery,
+            )
+            .field("enable_file_hooks", &self.enable_file_hooks)
+            .field(
+                "enable_host_git_operations",
+                &self.enable_host_git_operations,
+            )
+            .field("enable_session_store", &self.enable_session_store)
+            .field("enable_skills", &self.enable_skills)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
+            .field("plugin_directories", &self.plugin_directories)
+            .field("large_output", &self.large_output)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -1146,12 +1431,14 @@ impl std::fmt::Debug for SessionConfig {
             .field("provider", &self.provider)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
-            .field("config_dir", &self.config_dir)
+            .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field(
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
+            .field("remote_session", &self.remote_session)
+            .field("cloud", &self.cloud)
             .field(
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
@@ -1161,44 +1448,79 @@ impl std::fmt::Debug for SessionConfig {
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
             )
-            .field("handler", &self.handler.as_ref().map(|_| "<set>"))
+            .field(
+                "permission_handler",
+                &self.permission_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "elicitation_handler",
+                &self.elicitation_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "user_input_handler",
+                &self.user_input_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "exit_plan_mode_handler",
+                &self.exit_plan_mode_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "auto_mode_switch_handler",
+                &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
+            )
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
-            .field("transform", &self.transform.as_ref().map(|_| "<set>"))
+            .field(
+                "system_message_transform",
+                &self.system_message_transform.as_ref().map(|_| "<set>"),
+            )
             .finish()
     }
 }
 
 impl Default for SessionConfig {
-    /// Permission and elicitation flows are enabled by default. With
-    /// Rust's trait-based handlers, the SDK installs `DenyAllHandler` when
-    /// no handler is provided, so these flags being `Some(true)` means the
-    /// wire surface advertises the capabilities — and the default handler
-    /// safely refuses requests. Callers that want the wire surface fully
-    /// disabled set these explicitly to `Some(false)`.
+    /// All wire-level "request" flags and handler fields start unset.
+    /// Install a [`PermissionHandler`] via
+    /// [`with_permission_handler`](Self::with_permission_handler) and
+    /// the SDK derives `requestPermission: true` on the wire at
+    /// [`Client::create_session`](crate::Client::create_session) time.
     fn default() -> Self {
         Self {
             session_id: None,
             model: None,
             client_name: None,
             reasoning_effort: None,
+            reasoning_summary: None,
+            context_tier: None,
             streaming: None,
             system_message: None,
             tools: None,
+            canvases: None,
+            canvas_handler: None,
+            request_canvas_renderer: None,
+            request_extensions: None,
+            extension_sdk_path: None,
+            extension_info: None,
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
-            env_value_mode: default_env_value_mode(),
+            mcp_oauth_token_storage: None,
             enable_config_discovery: None,
-            request_user_input: Some(true),
-            request_permission: Some(true),
-            request_exit_plan_mode: Some(true),
-            request_auto_mode_switch: Some(true),
-            request_elicitation: Some(true),
+            skip_embedding_retrieval: None,
+            organization_custom_instructions: None,
+            enable_on_demand_instruction_discovery: None,
+            enable_file_hooks: None,
+            enable_host_git_operations: None,
+            enable_session_store: None,
+            enable_skills: None,
+            embedding_cache_storage: None,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
+            plugin_directories: None,
+            large_output: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -1208,23 +1530,209 @@ impl Default for SessionConfig {
             provider: None,
             enable_session_telemetry: None,
             model_capabilities: None,
-            config_dir: None,
+            config_directory: None,
             working_directory: None,
             github_token: None,
+            remote_session: None,
+            cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
-            handler: None,
+            permission_handler: None,
+            elicitation_handler: None,
+            user_input_handler: None,
+            exit_plan_mode_handler: None,
+            auto_mode_switch_handler: None,
             hooks_handler: None,
-            transform: None,
+            permission_policy: None,
+            system_message_transform: None,
+            skip_custom_instructions: None,
+            custom_agents_local_only: None,
+            coauthor_enabled: None,
+            manage_schedule_enabled: None,
         }
     }
 }
 
+/// Runtime-only bundle drained out of a [`SessionConfig`] or
+/// [`ResumeSessionConfig`] by [`SessionConfig::into_wire`] /
+/// [`ResumeSessionConfig::into_wire`]. Holds the trait-object handlers,
+/// session-fs provider, and slash commands so the wire payload struct
+/// stays a pure data shape.
+pub(crate) struct SessionConfigRuntime {
+    pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    pub permission_policy: Option<crate::permission::Policy>,
+    pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
+    pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    pub hooks_handler: Option<Arc<dyn SessionHooks>>,
+    pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    pub commands: Option<Vec<CommandDefinition>>,
+}
+
 impl SessionConfig {
-    /// Install a custom [`SessionHandler`] for this session.
-    pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
-        self.handler = Some(handler);
+    /// Consume this config to produce the [`SessionCreateWire`] payload
+    /// for `session.create` and a [`SessionConfigRuntime`] bundle holding
+    /// the runtime-only fields (handlers, transforms, providers).
+    ///
+    /// Wire-format flags are derived from handler presence and the policy
+    /// field; runtime fields are moved out into the returned runtime so
+    /// the deep `Vec<Tool>` / `HashMap<String, Value>` clones the previous
+    /// `&self`-based shape required are eliminated, and the order of
+    /// reading-vs-moving is enforced at compile time.
+    ///
+    /// [`SessionCreateWire`]: crate::wire::SessionCreateWire
+    pub(crate) fn into_wire(
+        mut self,
+        session_id: Option<SessionId>,
+    ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
+        let permission_active =
+            self.permission_handler.is_some() || self.permission_policy.is_some();
+        let request_user_input = self.user_input_handler.is_some();
+        let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
+        let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
+        let request_elicitation = self.elicitation_handler.is_some();
+        let hooks_flag = self.hooks_handler.is_some();
+
+        let mut tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
+        if let Some(tools) = self.tools.as_mut() {
+            for tool in tools.iter_mut() {
+                if let Some(handler) = tool.handler.take()
+                    && tool_handlers.insert(tool.name.clone(), handler).is_some()
+                {
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
+                }
+            }
+        }
+
+        let wire_commands = self.commands.as_ref().map(|cmds| {
+            cmds.iter()
+                .map(|c| crate::wire::CommandWireDefinition {
+                    name: c.name.clone(),
+                    description: c.description.clone(),
+                })
+                .collect()
+        });
+        let wire_canvases = self.canvases.clone();
+        let canvas_handler = self.canvas_handler.clone();
+
+        let wire = crate::wire::SessionCreateWire {
+            session_id,
+            model: self.model,
+            client_name: self.client_name,
+            reasoning_effort: self.reasoning_effort,
+            reasoning_summary: self.reasoning_summary,
+            context_tier: self.context_tier,
+            streaming: self.streaming,
+            system_message: self.system_message,
+            tools: self.tools,
+            canvases: wire_canvases,
+            request_canvas_renderer: self.request_canvas_renderer,
+            request_extensions: self.request_extensions,
+            extension_sdk_path: self.extension_sdk_path,
+            extension_info: self.extension_info,
+            available_tools: self.available_tools,
+            excluded_tools: self.excluded_tools,
+            tool_filter_precedence: "excluded",
+            mcp_servers: self.mcp_servers,
+            mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            embedding_cache_storage: self.embedding_cache_storage,
+            env_value_mode: "direct",
+            enable_config_discovery: self.enable_config_discovery,
+            skip_embedding_retrieval: self.skip_embedding_retrieval,
+            organization_custom_instructions: self.organization_custom_instructions,
+            enable_on_demand_instruction_discovery: self.enable_on_demand_instruction_discovery,
+            enable_file_hooks: self.enable_file_hooks,
+            enable_host_git_operations: self.enable_host_git_operations,
+            enable_session_store: self.enable_session_store,
+            enable_skills: self.enable_skills,
+            request_user_input,
+            request_permission: permission_active,
+            request_exit_plan_mode,
+            request_auto_mode_switch,
+            request_elicitation,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            hooks: hooks_flag,
+            skill_directories: self.skill_directories,
+            instruction_directories: self.instruction_directories,
+            plugin_directories: self.plugin_directories,
+            large_output: self.large_output,
+            disabled_skills: self.disabled_skills,
+            custom_agents: self.custom_agents,
+            default_agent: self.default_agent,
+            agent: self.agent,
+            infinite_sessions: self.infinite_sessions,
+            provider: self.provider,
+            enable_session_telemetry: self.enable_session_telemetry,
+            model_capabilities: self.model_capabilities,
+            config_dir: self.config_directory,
+            working_directory: self.working_directory,
+            github_token: self.github_token,
+            remote_session: self.remote_session,
+            cloud: self.cloud,
+            include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            commands: wire_commands,
+        };
+
+        let runtime = SessionConfigRuntime {
+            permission_handler: self.permission_handler,
+            permission_policy: self.permission_policy,
+            elicitation_handler: self.elicitation_handler,
+            user_input_handler: self.user_input_handler,
+            exit_plan_mode_handler: self.exit_plan_mode_handler,
+            auto_mode_switch_handler: self.auto_mode_switch_handler,
+            hooks_handler: self.hooks_handler,
+            system_message_transform: self.system_message_transform,
+            tool_handlers,
+            canvas_handler,
+            session_fs_provider: self.session_fs_provider,
+            commands: self.commands,
+        };
+
+        Ok((wire, runtime))
+    }
+
+    /// Install a [`PermissionHandler`] for this session. When omitted, the
+    /// SDK sends `requestPermission: false` on the wire and the runtime
+    /// short-circuits permission prompts for this client.
+    pub fn with_permission_handler(mut self, handler: Arc<dyn PermissionHandler>) -> Self {
+        self.permission_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ElicitationHandler`]. When omitted, the SDK sends
+    /// `requestElicitation: false` on the wire.
+    pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
+        self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install a [`UserInputHandler`]. Required for the `ask_user` tool
+    /// to be enabled.
+    pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
+        self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ExitPlanModeHandler`].
+    pub fn with_exit_plan_mode_handler(mut self, handler: Arc<dyn ExitPlanModeHandler>) -> Self {
+        self.exit_plan_mode_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`AutoModeSwitchHandler`].
+    pub fn with_auto_mode_switch_handler(
+        mut self,
+        handler: Arc<dyn AutoModeSwitchHandler>,
+    ) -> Self {
+        self.auto_mode_switch_handler = Some(handler);
         self
     }
 
@@ -1255,60 +1763,40 @@ impl SessionConfig {
     /// Install a [`SystemMessageTransform`]. The SDK injects the matching
     /// `action: "transform"` sections into the system message and routes
     /// `systemMessage.transform` RPC callbacks to it during the session.
-    pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
-        self.transform = Some(transform);
+    pub fn with_system_message_transform(
+        mut self,
+        transform: Arc<dyn SystemMessageTransform>,
+    ) -> Self {
+        self.system_message_transform = Some(transform);
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-approved. Forwards every non-permission event to the inner
-    /// handler unchanged.
-    ///
-    /// If no handler has been installed via [`with_handler`](Self::with_handler),
-    /// wraps a [`DenyAllHandler`](crate::handler::DenyAllHandler) — useful
-    /// when you only care about permission policy and want the trait
-    /// fallback responses for everything else.
-    ///
-    /// Order-independent: `with_handler(...).approve_all_permissions()` and
-    /// `approve_all_permissions().with_handler(...)` are NOT equivalent —
-    /// the second form discards the wrap because `with_handler` overwrites
-    /// the handler field. Always call `approve_all_permissions` *after*
-    /// `with_handler`.
+    /// Auto-approve every permission request on this session. Stored as a
+    /// policy that's applied at
+    /// [`Client::create_session`](crate::Client::create_session) time, so
+    /// order with [`with_permission_handler`](Self::with_permission_handler)
+    /// is irrelevant.
     pub fn approve_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
-        self.handler = Some(crate::permission::approve_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::ApproveAll);
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-denied. See [`approve_all_permissions`](Self::approve_all_permissions)
-    /// for ordering and default-handler semantics.
+    /// Auto-deny every permission request on this session. See
+    /// [`approve_all_permissions`](Self::approve_all_permissions).
     pub fn deny_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
-        self.handler = Some(crate::permission::deny_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::DenyAll);
         self
     }
 
-    /// Wrap the configured handler with a closure-based permission policy:
-    /// `predicate` is called for each permission request; `true` approves,
-    /// `false` denies. See
+    /// Apply a closure-based permission policy: `predicate` returns `true`
+    /// to approve, `false` to deny. See
     /// [`approve_all_permissions`](Self::approve_all_permissions) for
-    /// ordering and default-handler semantics.
+    /// ordering semantics.
     pub fn approve_permissions_if<F>(mut self, predicate: F) -> Self
     where
         F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
     {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
-        self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self.permission_policy = Some(crate::permission::Policy::Predicate(Arc::new(predicate)));
         self
     }
 
@@ -1336,6 +1824,18 @@ impl SessionConfig {
         self
     }
 
+    /// Set [`reasoning_summary`](Self::reasoning_summary).
+    pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
+        self.reasoning_summary = Some(summary);
+        self
+    }
+
+    /// Set the context window tier (e.g. `"default"`, `"long_context"`).
+    pub fn with_context_tier(mut self, tier: impl Into<String>) -> Self {
+        self.context_tier = Some(tier.into());
+        self
+    }
+
     /// Enable streaming token deltas via `assistant.message_delta` events.
     pub fn with_streaming(mut self, streaming: bool) -> Self {
         self.streaming = Some(streaming);
@@ -1351,6 +1851,47 @@ impl SessionConfig {
     /// Set the client-defined tools to expose to the agent.
     pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
         self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Set canvas declarations for this connection. The runtime advertises
+    /// these to the agent; install a [`CanvasHandler`] via
+    /// [`with_canvas_handler`](Self::with_canvas_handler) to receive the
+    /// resulting provider callbacks.
+    pub fn with_canvases<I: IntoIterator<Item = CanvasDeclaration>>(mut self, canvases: I) -> Self {
+        self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Install the provider-side [`CanvasHandler`] for this session.
+    pub fn with_canvas_handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
+        self.canvas_handler = Some(handler);
+        self
+    }
+
+    /// Request host canvas renderer tools for this connection.
+    pub fn with_request_canvas_renderer(mut self, request: bool) -> Self {
+        self.request_canvas_renderer = Some(request);
+        self
+    }
+
+    /// Request extension tools and dispatch for this connection.
+    pub fn with_request_extensions(mut self, request: bool) -> Self {
+        self.request_extensions = Some(request);
+        self
+    }
+
+    /// Override the bundled `@github/copilot-sdk` drop injected into extension
+    /// subprocesses for this session. Invalid paths fall back to the bundled
+    /// SDK silently.
+    pub fn with_extension_sdk_path(mut self, path: impl Into<String>) -> Self {
+        self.extension_sdk_path = Some(path.into());
+        self
+    }
+
+    /// Set stable extension identity metadata for this connection.
+    pub fn with_extension_info(mut self, extension_info: ExtensionInfo) -> Self {
+        self.extension_info = Some(extension_info);
         self
     }
 
@@ -1380,39 +1921,85 @@ impl SessionConfig {
         self
     }
 
+    /// Set MCP OAuth token storage mode.
+    ///
+    /// - `"persistent"` — tokens stored in the OS keychain.
+    /// - `"in-memory"` — tokens discarded when the session ends.
+    ///
+    /// Defaults to `"in-memory"` when the client is in [`crate::ClientMode::Empty`],
+    /// applied automatically at session creation/resume time.
+    pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
+        self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set embedding cache storage mode.
+    pub fn with_embedding_cache_storage(
+        mut self,
+        embedding_cache_storage: impl Into<String>,
+    ) -> Self {
+        self.embedding_cache_storage = Some(embedding_cache_storage.into());
+        self
+    }
+
     /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
         self
     }
 
-    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::default`].
-    pub fn with_request_user_input(mut self, enable: bool) -> Self {
-        self.request_user_input = Some(enable);
+    /// Set [`Self::skip_embedding_retrieval`].
+    pub fn with_skip_embedding_retrieval(mut self, value: bool) -> Self {
+        self.skip_embedding_retrieval = Some(value);
         self
     }
 
-    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_permission(mut self, enable: bool) -> Self {
-        self.request_permission = Some(enable);
+    /// Set [`Self::organization_custom_instructions`].
+    pub fn with_organization_custom_instructions(
+        mut self,
+        instructions: impl Into<String>,
+    ) -> Self {
+        self.organization_custom_instructions = Some(instructions.into());
         self
     }
 
-    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
-        self.request_exit_plan_mode = Some(enable);
+    /// Set [`Self::enable_on_demand_instruction_discovery`].
+    pub fn with_enable_on_demand_instruction_discovery(mut self, value: bool) -> Self {
+        self.enable_on_demand_instruction_discovery = Some(value);
         self
     }
 
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
-        self.request_auto_mode_switch = Some(enable);
+    /// Set [`Self::enable_file_hooks`].
+    pub fn with_enable_file_hooks(mut self, value: bool) -> Self {
+        self.enable_file_hooks = Some(value);
         self
     }
 
-    /// Advertise elicitation provider capability. Defaults to `Some(true)`.
-    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
-        self.request_elicitation = Some(enable);
+    /// Set [`Self::enable_host_git_operations`].
+    pub fn with_enable_host_git_operations(mut self, value: bool) -> Self {
+        self.enable_host_git_operations = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_session_store`].
+    pub fn with_enable_session_store(mut self, value: bool) -> Self {
+        self.enable_session_store = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_skills`].
+    pub fn with_enable_skills(mut self, value: bool) -> Self {
+        self.enable_skills = Some(value);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session. Defaults
+    /// to `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = Some(enable);
         self
     }
 
@@ -1435,6 +2022,22 @@ impl SessionConfig {
         P: Into<PathBuf>,
     {
         self.instruction_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set Open Plugin directory paths passed through to the CLI on session create.
+    pub fn with_plugin_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.plugin_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the [`LargeToolOutputConfig`] forwarded to the CLI on session create.
+    pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
+        self.large_output = Some(config);
         self
     }
 
@@ -1501,8 +2104,8 @@ impl SessionConfig {
     }
 
     /// Override the default configuration directory location.
-    pub fn with_config_dir(mut self, dir: impl Into<PathBuf>) -> Self {
-        self.config_dir = Some(dir.into());
+    pub fn with_config_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.config_directory = Some(dir.into());
         self
     }
 
@@ -1528,91 +2131,149 @@ impl SessionConfig {
         self.include_sub_agent_streaming_events = Some(include);
         self
     }
+
+    /// Set per-session remote behavior.
+    pub fn with_remote_session(
+        mut self,
+        mode: crate::generated::api_types::RemoteSessionMode,
+    ) -> Self {
+        self.remote_session = Some(mode);
+        self
+    }
+
+    /// Create a remote session in the cloud instead of a local session.
+    pub fn with_cloud(mut self, cloud: CloudSessionOptions) -> Self {
+        self.cloud = Some(cloud);
+        self
+    }
+
+    /// Set [`Self::skip_custom_instructions`].
+    pub fn with_skip_custom_instructions(mut self, value: bool) -> Self {
+        self.skip_custom_instructions = Some(value);
+        self
+    }
+
+    /// Set [`Self::custom_agents_local_only`].
+    pub fn with_custom_agents_local_only(mut self, value: bool) -> Self {
+        self.custom_agents_local_only = Some(value);
+        self
+    }
+
+    /// Set [`Self::coauthor_enabled`].
+    pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
+        self.coauthor_enabled = Some(value);
+        self
+    }
+
+    /// Set [`Self::manage_schedule_enabled`].
+    pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
+        self.manage_schedule_enabled = Some(value);
+        self
+    }
 }
 
 /// Configuration for resuming an existing session via the `session.resume` RPC.
 ///
 /// See [`SessionConfig`] for the construction patterns (chained `with_*`
 /// builder vs. direct field assignment for `Option<T>` pass-through) and
-/// the note on snake_case vs. camelCase field naming.
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// the note on snake_case vs. camelCase field naming. This config is not
+/// itself serializable — call `ResumeSessionConfig::into_wire`
+/// (crate-private) to produce the wire payload.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct ResumeSessionConfig {
     /// ID of the session to resume.
     pub session_id: SessionId,
     /// Application name sent as User-Agent context.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
+    /// Desired reasoning effort to apply after resuming the session.
+    pub reasoning_effort: Option<String>,
+    /// Reasoning summary mode to apply after resuming the session. Use
+    /// [`ReasoningSummary::None`] to suppress summary output regardless of
+    /// whether reasoning is enabled.
+    pub reasoning_summary: Option<ReasoningSummary>,
+    /// Context window tier to apply after resuming the session. Use
+    /// `"long_context"` to pin the session to the long-context tier.
+    pub context_tier: Option<String>,
     /// Enable streaming token deltas.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     /// Re-supply the system message so the agent retains workspace context
     /// across CLI process restarts.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
-    /// Client-defined tools to re-supply on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Client-defined tool declarations to re-supply on resume.
     pub tools: Option<Vec<Tool>>,
+    /// Canvas declarations this connection provides to the runtime.
+    pub canvases: Option<Vec<CanvasDeclaration>>,
+    /// Provider-side canvas lifecycle handler. See
+    /// [`SessionConfig::canvas_handler`].
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    /// Open canvas instances the caller knows were open before this resume.
+    pub open_canvases: Option<Vec<OpenCanvasInstance>>,
+    /// Request canvas renderer tools for this connection.
+    pub request_canvas_renderer: Option<bool>,
+    /// Request extension tools and dispatch for this connection.
+    pub request_extensions: Option<bool>,
+    /// Optional override path to a `copilot-sdk/` folder to inject into
+    /// extension subprocesses for this session on resume. See
+    /// `SessionConfig::extension_sdk_path`.
+    pub extension_sdk_path: Option<String>,
+    /// Stable extension identity for canvas/tool providers on this connection.
+    pub extension_info: Option<ExtensionInfo>,
     /// Allowlist of tool names the agent may use.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
-    /// See [`SessionConfig::env_value_mode`]. Always `"direct"` on the wire.
-    #[serde(default = "default_env_value_mode", skip_deserializing)]
-    pub(crate) env_value_mode: String,
+    /// Controls how MCP OAuth tokens are stored for this session.
+    /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
+    pub mcp_oauth_token_storage: Option<String>,
     /// Enable config discovery on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
-    /// Enable the ask_user tool.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_user_input: Option<bool>,
-    /// Enable permission request RPCs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_permission: Option<bool>,
-    /// Enable exit-plan-mode request RPCs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_exit_plan_mode: Option<bool>,
-    /// Enable auto-mode-switch request RPCs on resume. Defaults to
-    /// `Some(true)` via [`ResumeSessionConfig::new`]. See
-    /// [`SessionConfig::request_auto_mode_switch`] for details.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_switch: Option<bool>,
-    /// Advertise elicitation provider capability on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_elicitation: Option<bool>,
+    /// When true, skips embedding retrieval on resume.
+    pub skip_embedding_retrieval: Option<bool>,
+    /// Controls how the embedding cache is stored for this session.
+    pub embedding_cache_storage: Option<String>,
+    /// Organization-level custom instructions to apply on resume.
+    pub organization_custom_instructions: Option<String>,
+    /// When true, enables on-demand instruction discovery on resume.
+    pub enable_on_demand_instruction_discovery: Option<bool>,
+    /// When true, enables file hooks on resume.
+    pub enable_file_hooks: Option<bool>,
+    /// When true, allows host Git operations on resume.
+    pub enable_host_git_operations: Option<bool>,
+    /// When true, enables the session store on resume.
+    pub enable_session_store: Option<bool>,
+    /// When true, enables skills on resume.
+    pub enable_skills: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
+    /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
     /// resume. Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
+    /// Open Plugin directory paths passed through to the CLI on resume.
+    pub plugin_directories: Option<Vec<PathBuf>>,
+    /// Configuration for large tool output handling, forwarded to the CLI on resume.
+    pub large_output: Option<LargeToolOutputConfig>,
     /// Skill names to disable on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub hooks: Option<bool>,
     /// Custom agents to re-supply on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     /// Configures the built-in default agent on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_agent: Option<DefaultAgentConfig>,
     /// Name of the custom agent to activate.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
     /// Re-supply infinite session configuration on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     /// Re-supply BYOK provider configuration on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
     /// Enables or disables internal session telemetry for this session.
     ///
@@ -1621,39 +2282,33 @@ pub struct ResumeSessionConfig {
     /// When a custom [`provider`](Self::provider) is configured, session
     /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_telemetry: Option<bool>,
     /// Per-property model capability overrides on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Override the default configuration directory location on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub config_dir: Option<PathBuf>,
+    pub config_directory: Option<PathBuf>,
     /// Per-session working directory on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<PathBuf>,
     /// Per-session GitHub token on resume. See
     /// [`SessionConfig::github_token`].
-    #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
+    /// Per-session remote behavior control on resume. See
+    /// [`SessionConfig::remote_session`].
+    pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
     /// Forward sub-agent streaming events to this connection on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
     /// Slash commands registered for this session on resume. See
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
-    #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
     /// See [`SessionConfig::session_fs_provider`].
-    #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Force-fail resume if the session does not exist on disk, instead of
-    /// silently starting a new session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disable_resume: Option<bool>,
+    /// silently starting a new session. Wire field name stays `disableResume`.
+    pub suppress_resume_event: Option<bool>,
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
     /// was dropped. Use this together with [`Client::force_stop`] to hand
@@ -1661,17 +2316,36 @@ pub struct ResumeSessionConfig {
     /// work.
     ///
     /// [`Client::force_stop`]: crate::Client::force_stop
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_pending_work: Option<bool>,
-    /// Session-level event handler. See [`SessionConfig::handler`].
-    #[serde(skip)]
-    pub handler: Option<Arc<dyn SessionHandler>>,
+    /// Optional permission-request handler. See
+    /// [`SessionConfig::permission_handler`].
+    pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    /// Optional elicitation handler. See
+    /// [`SessionConfig::elicitation_handler`].
+    pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional user-input handler. See
+    /// [`SessionConfig::user_input_handler`].
+    pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    /// Optional exit-plan-mode handler. See
+    /// [`SessionConfig::exit_plan_mode_handler`].
+    pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
+    /// Optional auto-mode-switch handler. See
+    /// [`SessionConfig::auto_mode_switch_handler`].
+    pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
-    #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
-    /// System-message transform. See [`SessionConfig::transform`].
-    #[serde(skip)]
-    pub transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// Permission policy. See `SessionConfig::permission_policy`.
+    pub(crate) permission_policy: Option<crate::permission::Policy>,
+    /// System-message transform. See [`SessionConfig::system_message_transform`].
+    pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// See [`SessionConfig::skip_custom_instructions`].
+    pub skip_custom_instructions: Option<bool>,
+    /// See [`SessionConfig::custom_agents_local_only`].
+    pub custom_agents_local_only: Option<bool>,
+    /// See [`SessionConfig::coauthor_enabled`].
+    pub coauthor_enabled: Option<bool>,
+    /// See [`SessionConfig::manage_schedule_enabled`].
+    pub manage_schedule_enabled: Option<bool>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -1679,20 +2353,52 @@ impl std::fmt::Debug for ResumeSessionConfig {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
             .field("client_name", &self.client_name)
+            .field("reasoning_effort", &self.reasoning_effort)
+            .field("reasoning_summary", &self.reasoning_summary)
+            .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
+            .field("canvases", &self.canvases)
+            .field(
+                "canvas_handler",
+                &self.canvas_handler.as_ref().map(|_| "<set>"),
+            )
+            .field("open_canvases", &self.open_canvases)
+            .field("request_canvas_renderer", &self.request_canvas_renderer)
+            .field("request_extensions", &self.request_extensions)
+            .field("extension_sdk_path", &self.extension_sdk_path)
+            .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
+            .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
-            .field("request_user_input", &self.request_user_input)
-            .field("request_permission", &self.request_permission)
-            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
-            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
-            .field("request_elicitation", &self.request_elicitation)
+            .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
+            .field(
+                "organization_custom_instructions",
+                &self
+                    .organization_custom_instructions
+                    .as_ref()
+                    .map(|_| "<redacted>"),
+            )
+            .field(
+                "enable_on_demand_instruction_discovery",
+                &self.enable_on_demand_instruction_discovery,
+            )
+            .field("enable_file_hooks", &self.enable_file_hooks)
+            .field(
+                "enable_host_git_operations",
+                &self.enable_host_git_operations,
+            )
+            .field("enable_session_store", &self.enable_session_store)
+            .field("enable_skills", &self.enable_skills)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
+            .field("plugin_directories", &self.plugin_directories)
+            .field("large_output", &self.large_output)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -1702,12 +2408,13 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("provider", &self.provider)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
-            .field("config_dir", &self.config_dir)
+            .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field(
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
+            .field("remote_session", &self.remote_session)
             .field(
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
@@ -1717,19 +2424,161 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
             )
-            .field("handler", &self.handler.as_ref().map(|_| "<set>"))
+            .field(
+                "permission_handler",
+                &self.permission_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "elicitation_handler",
+                &self.elicitation_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "user_input_handler",
+                &self.user_input_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "exit_plan_mode_handler",
+                &self.exit_plan_mode_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "auto_mode_switch_handler",
+                &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
+            )
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
-            .field("transform", &self.transform.as_ref().map(|_| "<set>"))
-            .field("disable_resume", &self.disable_resume)
+            .field(
+                "system_message_transform",
+                &self.system_message_transform.as_ref().map(|_| "<set>"),
+            )
+            .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
             .finish()
     }
 }
 
 impl ResumeSessionConfig {
+    /// Consume this config to produce the [`SessionResumeWire`] payload
+    /// for `session.resume` and a [`SessionConfigRuntime`] bundle holding
+    /// the runtime-only fields (handlers, transforms, providers).
+    ///
+    /// See [`SessionConfig::into_wire`] for the design rationale.
+    ///
+    /// [`SessionResumeWire`]: crate::wire::SessionResumeWire
+    pub(crate) fn into_wire(
+        mut self,
+    ) -> Result<(crate::wire::SessionResumeWire, SessionConfigRuntime), crate::Error> {
+        let permission_active =
+            self.permission_handler.is_some() || self.permission_policy.is_some();
+        let request_user_input = self.user_input_handler.is_some();
+        let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
+        let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
+        let request_elicitation = self.elicitation_handler.is_some();
+        let hooks_flag = self.hooks_handler.is_some();
+
+        let mut tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
+        if let Some(tools) = self.tools.as_mut() {
+            for tool in tools.iter_mut() {
+                if let Some(handler) = tool.handler.take()
+                    && tool_handlers.insert(tool.name.clone(), handler).is_some()
+                {
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
+                }
+            }
+        }
+
+        let wire_commands = self.commands.as_ref().map(|cmds| {
+            cmds.iter()
+                .map(|c| crate::wire::CommandWireDefinition {
+                    name: c.name.clone(),
+                    description: c.description.clone(),
+                })
+                .collect()
+        });
+        let wire_canvases = self.canvases.clone();
+        let canvas_handler = self.canvas_handler.clone();
+
+        let wire = crate::wire::SessionResumeWire {
+            session_id: self.session_id,
+            client_name: self.client_name,
+            reasoning_effort: self.reasoning_effort,
+            reasoning_summary: self.reasoning_summary,
+            context_tier: self.context_tier,
+            streaming: self.streaming,
+            system_message: self.system_message,
+            tools: self.tools,
+            canvases: wire_canvases,
+            open_canvases: self.open_canvases,
+            request_canvas_renderer: self.request_canvas_renderer,
+            request_extensions: self.request_extensions,
+            extension_sdk_path: self.extension_sdk_path,
+            extension_info: self.extension_info,
+            available_tools: self.available_tools,
+            excluded_tools: self.excluded_tools,
+            tool_filter_precedence: "excluded",
+            mcp_servers: self.mcp_servers,
+            mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            embedding_cache_storage: self.embedding_cache_storage,
+            env_value_mode: "direct",
+            enable_config_discovery: self.enable_config_discovery,
+            skip_embedding_retrieval: self.skip_embedding_retrieval,
+            organization_custom_instructions: self.organization_custom_instructions,
+            enable_on_demand_instruction_discovery: self.enable_on_demand_instruction_discovery,
+            enable_file_hooks: self.enable_file_hooks,
+            enable_host_git_operations: self.enable_host_git_operations,
+            enable_session_store: self.enable_session_store,
+            enable_skills: self.enable_skills,
+            request_user_input,
+            request_permission: permission_active,
+            request_exit_plan_mode,
+            request_auto_mode_switch,
+            request_elicitation,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            hooks: hooks_flag,
+            skill_directories: self.skill_directories,
+            instruction_directories: self.instruction_directories,
+            plugin_directories: self.plugin_directories,
+            large_output: self.large_output,
+            disabled_skills: self.disabled_skills,
+            custom_agents: self.custom_agents,
+            default_agent: self.default_agent,
+            agent: self.agent,
+            infinite_sessions: self.infinite_sessions,
+            provider: self.provider,
+            enable_session_telemetry: self.enable_session_telemetry,
+            model_capabilities: self.model_capabilities,
+            config_dir: self.config_directory,
+            working_directory: self.working_directory,
+            github_token: self.github_token,
+            remote_session: self.remote_session,
+            include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            commands: wire_commands,
+            suppress_resume_event: self.suppress_resume_event,
+            continue_pending_work: self.continue_pending_work,
+        };
+
+        let runtime = SessionConfigRuntime {
+            permission_handler: self.permission_handler,
+            permission_policy: self.permission_policy,
+            elicitation_handler: self.elicitation_handler,
+            user_input_handler: self.user_input_handler,
+            exit_plan_mode_handler: self.exit_plan_mode_handler,
+            auto_mode_switch_handler: self.auto_mode_switch_handler,
+            hooks_handler: self.hooks_handler,
+            system_message_transform: self.system_message_transform,
+            tool_handlers,
+            canvas_handler,
+            session_fs_provider: self.session_fs_provider,
+            commands: self.commands,
+        };
+
+        Ok((wire, runtime))
+    }
+
     /// Construct a `ResumeSessionConfig` with the given session ID and all
     /// other fields left unset. Combine with `.with_*` builders or struct
     /// update syntax (`..ResumeSessionConfig::new(id)`) to populate the
@@ -1738,21 +2587,37 @@ impl ResumeSessionConfig {
         Self {
             session_id,
             client_name: None,
+            reasoning_effort: None,
+            reasoning_summary: None,
+            context_tier: None,
             streaming: None,
             system_message: None,
             tools: None,
+            canvases: None,
+            canvas_handler: None,
+            open_canvases: None,
+            request_canvas_renderer: None,
+            request_extensions: None,
+            extension_sdk_path: None,
+            extension_info: None,
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
-            env_value_mode: default_env_value_mode(),
+            mcp_oauth_token_storage: None,
             enable_config_discovery: None,
-            request_user_input: Some(true),
-            request_permission: Some(true),
-            request_exit_plan_mode: Some(true),
-            request_auto_mode_switch: Some(true),
-            request_elicitation: Some(true),
+            skip_embedding_retrieval: None,
+            organization_custom_instructions: None,
+            enable_on_demand_instruction_discovery: None,
+            enable_file_hooks: None,
+            enable_host_git_operations: None,
+            enable_session_store: None,
+            enable_skills: None,
+            embedding_cache_storage: None,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
+            plugin_directories: None,
+            large_output: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -1762,23 +2627,60 @@ impl ResumeSessionConfig {
             provider: None,
             enable_session_telemetry: None,
             model_capabilities: None,
-            config_dir: None,
+            config_directory: None,
             working_directory: None,
             github_token: None,
+            remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
-            disable_resume: None,
+            suppress_resume_event: None,
             continue_pending_work: None,
-            handler: None,
+            permission_handler: None,
+            elicitation_handler: None,
+            user_input_handler: None,
+            exit_plan_mode_handler: None,
+            auto_mode_switch_handler: None,
             hooks_handler: None,
-            transform: None,
+            permission_policy: None,
+            system_message_transform: None,
+            skip_custom_instructions: None,
+            custom_agents_local_only: None,
+            coauthor_enabled: None,
+            manage_schedule_enabled: None,
         }
     }
 
-    /// Install a custom [`SessionHandler`] for this session.
-    pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
-        self.handler = Some(handler);
+    /// Install a [`PermissionHandler`] for the resumed session.
+    pub fn with_permission_handler(mut self, handler: Arc<dyn PermissionHandler>) -> Self {
+        self.permission_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ElicitationHandler`] for the resumed session.
+    pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
+        self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install a [`UserInputHandler`] for the resumed session.
+    pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
+        self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ExitPlanModeHandler`] for the resumed session.
+    pub fn with_exit_plan_mode_handler(mut self, handler: Arc<dyn ExitPlanModeHandler>) -> Self {
+        self.exit_plan_mode_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`AutoModeSwitchHandler`] for the resumed session.
+    pub fn with_auto_mode_switch_handler(
+        mut self,
+        handler: Arc<dyn AutoModeSwitchHandler>,
+    ) -> Self {
+        self.auto_mode_switch_handler = Some(handler);
         self
     }
 
@@ -1790,8 +2692,11 @@ impl ResumeSessionConfig {
     }
 
     /// Install a [`SystemMessageTransform`].
-    pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
-        self.transform = Some(transform);
+    pub fn with_system_message_transform(
+        mut self,
+        transform: Arc<dyn SystemMessageTransform>,
+    ) -> Self {
+        self.system_message_transform = Some(transform);
         self
     }
 
@@ -1810,47 +2715,52 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-approved. See
-    /// [`SessionConfig::approve_all_permissions`] for semantics.
+    /// Auto-approve every permission request on the resumed session. See
+    /// [`SessionConfig::approve_all_permissions`].
     pub fn approve_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
-        self.handler = Some(crate::permission::approve_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::ApproveAll);
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-denied. See
-    /// [`SessionConfig::deny_all_permissions`] for semantics.
+    /// Auto-deny every permission request on the resumed session. See
+    /// [`SessionConfig::deny_all_permissions`].
     pub fn deny_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
-        self.handler = Some(crate::permission::deny_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::DenyAll);
         self
     }
 
-    /// Wrap the configured handler with a predicate-based permission policy.
-    /// See [`SessionConfig::approve_permissions_if`] for semantics.
+    /// Apply a closure-based permission policy on the resumed session.
+    /// See [`SessionConfig::approve_permissions_if`].
     pub fn approve_permissions_if<F>(mut self, predicate: F) -> Self
     where
         F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
     {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
-        self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self.permission_policy = Some(crate::permission::Policy::Predicate(Arc::new(predicate)));
         self
     }
 
     /// Set the application name sent as `User-Agent` context.
     pub fn with_client_name(mut self, name: impl Into<String>) -> Self {
         self.client_name = Some(name.into());
+        self
+    }
+
+    /// Set the reasoning effort to apply on resume.
+    pub fn with_reasoning_effort(mut self, effort: impl Into<String>) -> Self {
+        self.reasoning_effort = Some(effort.into());
+        self
+    }
+
+    /// Set [`reasoning_summary`](Self::reasoning_summary).
+    pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
+        self.reasoning_summary = Some(summary);
+        self
+    }
+
+    /// Set the context window tier to apply on resume (e.g. `"default"`,
+    /// `"long_context"`).
+    pub fn with_context_tier(mut self, tier: impl Into<String>) -> Self {
+        self.context_tier = Some(tier.into());
         self
     }
 
@@ -1870,6 +2780,53 @@ impl ResumeSessionConfig {
     /// Re-supply client-defined tools on resume.
     pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
         self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Re-supply canvas declarations on resume.
+    pub fn with_canvases<I: IntoIterator<Item = CanvasDeclaration>>(mut self, canvases: I) -> Self {
+        self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Install the provider-side [`CanvasHandler`] for the resumed session.
+    pub fn with_canvas_handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
+        self.canvas_handler = Some(handler);
+        self
+    }
+
+    /// Seed open canvas instances that were visible before resuming.
+    pub fn with_open_canvases<I: IntoIterator<Item = OpenCanvasInstance>>(
+        mut self,
+        open_canvases: I,
+    ) -> Self {
+        self.open_canvases = Some(open_canvases.into_iter().collect());
+        self
+    }
+
+    /// Request host canvas renderer tools for this connection on resume.
+    pub fn with_request_canvas_renderer(mut self, request: bool) -> Self {
+        self.request_canvas_renderer = Some(request);
+        self
+    }
+
+    /// Request extension tools and dispatch for this connection on resume.
+    pub fn with_request_extensions(mut self, request: bool) -> Self {
+        self.request_extensions = Some(request);
+        self
+    }
+
+    /// Override the bundled `@github/copilot-sdk` drop injected into extension
+    /// subprocesses for this resumed session. Invalid paths fall back to the
+    /// bundled SDK silently.
+    pub fn with_extension_sdk_path(mut self, path: impl Into<String>) -> Self {
+        self.extension_sdk_path = Some(path.into());
+        self
+    }
+
+    /// Set stable extension identity metadata for this connection on resume.
+    pub fn with_extension_info(mut self, extension_info: ExtensionInfo) -> Self {
+        self.extension_info = Some(extension_info);
         self
     }
 
@@ -1899,39 +2856,80 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set MCP OAuth token storage mode on resume.
+    /// See [`SessionConfig::with_mcp_oauth_token_storage`] for details.
+    pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
+        self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set embedding cache storage mode on resume.
+    pub fn with_embedding_cache_storage(
+        mut self,
+        embedding_cache_storage: impl Into<String>,
+    ) -> Self {
+        self.embedding_cache_storage = Some(embedding_cache_storage.into());
+        self
+    }
+
     /// Enable or disable CLI config discovery on resume.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
         self
     }
 
-    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::new`].
-    pub fn with_request_user_input(mut self, enable: bool) -> Self {
-        self.request_user_input = Some(enable);
+    /// Set [`Self::skip_embedding_retrieval`].
+    pub fn with_skip_embedding_retrieval(mut self, value: bool) -> Self {
+        self.skip_embedding_retrieval = Some(value);
         self
     }
 
-    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_permission(mut self, enable: bool) -> Self {
-        self.request_permission = Some(enable);
+    /// Set [`Self::organization_custom_instructions`].
+    pub fn with_organization_custom_instructions(
+        mut self,
+        instructions: impl Into<String>,
+    ) -> Self {
+        self.organization_custom_instructions = Some(instructions.into());
         self
     }
 
-    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
-        self.request_exit_plan_mode = Some(enable);
+    /// Set [`Self::enable_on_demand_instruction_discovery`].
+    pub fn with_enable_on_demand_instruction_discovery(mut self, value: bool) -> Self {
+        self.enable_on_demand_instruction_discovery = Some(value);
         self
     }
 
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
-        self.request_auto_mode_switch = Some(enable);
+    /// Set [`Self::enable_file_hooks`].
+    pub fn with_enable_file_hooks(mut self, value: bool) -> Self {
+        self.enable_file_hooks = Some(value);
         self
     }
 
-    /// Advertise elicitation provider capability on resume. Defaults to `Some(true)`.
-    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
-        self.request_elicitation = Some(enable);
+    /// Set [`Self::enable_host_git_operations`].
+    pub fn with_enable_host_git_operations(mut self, value: bool) -> Self {
+        self.enable_host_git_operations = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_session_store`].
+    pub fn with_enable_session_store(mut self, value: bool) -> Self {
+        self.enable_session_store = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_skills`].
+    pub fn with_enable_skills(mut self, value: bool) -> Self {
+        self.enable_skills = Some(value);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on resume. Defaults to
+    /// `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = Some(enable);
         self
     }
 
@@ -1954,6 +2952,22 @@ impl ResumeSessionConfig {
         P: Into<PathBuf>,
     {
         self.instruction_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set Open Plugin directory paths passed through to the CLI on resume.
+    pub fn with_plugin_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.plugin_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the [`LargeToolOutputConfig`] forwarded to the CLI on resume.
+    pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
+        self.large_output = Some(config);
         self
     }
 
@@ -2018,8 +3032,8 @@ impl ResumeSessionConfig {
     }
 
     /// Override the default configuration directory location on resume.
-    pub fn with_config_dir(mut self, dir: impl Into<PathBuf>) -> Self {
-        self.config_dir = Some(dir.into());
+    pub fn with_config_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.config_directory = Some(dir.into());
         self
     }
 
@@ -2043,10 +3057,19 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set per-session remote behavior on resume.
+    pub fn with_remote_session(
+        mut self,
+        mode: crate::generated::api_types::RemoteSessionMode,
+    ) -> Self {
+        self.remote_session = Some(mode);
+        self
+    }
+
     /// Force-fail resume if the session does not exist on disk, instead
     /// of silently starting a new session.
-    pub fn with_disable_resume(mut self, disable: bool) -> Self {
-        self.disable_resume = Some(disable);
+    pub fn with_suppress_resume_event(mut self, suppress: bool) -> Self {
+        self.suppress_resume_event = Some(suppress);
         self
     }
 
@@ -2057,6 +3080,30 @@ impl ResumeSessionConfig {
     /// session from one process to another without losing in-flight work.
     pub fn with_continue_pending_work(mut self, continue_pending: bool) -> Self {
         self.continue_pending_work = Some(continue_pending);
+        self
+    }
+
+    /// Set [`Self::skip_custom_instructions`].
+    pub fn with_skip_custom_instructions(mut self, value: bool) -> Self {
+        self.skip_custom_instructions = Some(value);
+        self
+    }
+
+    /// Set [`Self::custom_agents_local_only`].
+    pub fn with_custom_agents_local_only(mut self, value: bool) -> Self {
+        self.custom_agents_local_only = Some(value);
+        self
+    }
+
+    /// Set [`Self::coauthor_enabled`].
+    pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
+        self.coauthor_enabled = Some(value);
+        self
+    }
+
+    /// Set [`Self::manage_schedule_enabled`].
+    pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
+        self.manage_schedule_enabled = Some(value);
         self
     }
 }
@@ -2109,7 +3156,7 @@ impl SystemMessageConfig {
     }
 }
 
-/// An override operation for a single system prompt section.
+/// An override operation for a single system message section.
 ///
 /// Used within [`SystemMessageConfig::sections`] when `mode` is `"customize"`.
 /// The `action` field determines the operation: `"replace"`, `"remove"`,
@@ -2140,6 +3187,31 @@ pub struct CreateSessionResult {
     /// Capabilities negotiated with the CLI for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<SessionCapabilities>,
+}
+
+/// Response from `session.resume`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ResumeSessionResult {
+    /// The CLI-assigned session ID. Older runtimes may omit this on resume.
+    #[serde(default)]
+    pub session_id: Option<SessionId>,
+    /// Workspace directory for the session (infinite sessions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_path: Option<PathBuf>,
+    /// Remote session URL, if the session is running remotely.
+    #[serde(default, alias = "remote_url")]
+    pub remote_url: Option<String>,
+    /// Capabilities negotiated with the CLI for this session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<SessionCapabilities>,
+    /// Canvas instances already open when the session was resumed.
+    #[serde(
+        default,
+        alias = "openCanvasInstances",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub open_canvases: Option<Vec<OpenCanvasInstance>>,
 }
 
 /// Severity level for [`Session::log`](crate::session::Session::log) messages.
@@ -2193,6 +3265,13 @@ pub struct SetModelOptions {
     /// Reasoning effort for the new model (e.g. `"low"`, `"medium"`,
     /// `"high"`, `"xhigh"`).
     pub reasoning_effort: Option<String>,
+    /// Reasoning summary mode for the new model. Use
+    /// [`ReasoningSummary::None`] to suppress summary output regardless of
+    /// whether reasoning is enabled.
+    pub reasoning_summary: Option<ReasoningSummary>,
+    /// Explicit context window tier for the new model. Leave unset to use
+    /// normal model behavior with no explicit tier.
+    pub context_tier: Option<ContextTier>,
     /// Override individual model capabilities resolved by the runtime. Only
     /// fields set on the override are applied; the rest fall back to the
     /// runtime-resolved values for the model.
@@ -2203,6 +3282,18 @@ impl SetModelOptions {
     /// Set [`reasoning_effort`](Self::reasoning_effort).
     pub fn with_reasoning_effort(mut self, effort: impl Into<String>) -> Self {
         self.reasoning_effort = Some(effort.into());
+        self
+    }
+
+    /// Set [`reasoning_summary`](Self::reasoning_summary).
+    pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
+        self.reasoning_summary = Some(summary);
+        self
+    }
+
+    /// Set [`context_tier`](Self::context_tier).
+    pub fn with_context_tier(mut self, tier: ContextTier) -> Self {
+        self.context_tier = Some(tier);
         self
     }
 
@@ -2228,9 +3319,9 @@ pub struct PingResponse {
     /// The message echoed back by the CLI.
     #[serde(default)]
     pub message: String,
-    /// Server-side timestamp (Unix epoch milliseconds).
+    /// ISO 8601 timestamp when the ping was processed.
     #[serde(default)]
-    pub timestamp: i64,
+    pub timestamp: String,
     /// The protocol version negotiated by the CLI, if reported.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol_version: Option<u32>,
@@ -2447,6 +3538,24 @@ pub enum DeliveryMode {
     Immediate,
 }
 
+/// The UI mode the agent is in for a given turn, used by
+/// [`MessageOptions::agent_mode`].
+///
+/// Wire values: `"interactive"`, `"plan"`, `"autopilot"`, `"shell"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum AgentMode {
+    /// The agent is responding interactively to the user.
+    Interactive,
+    /// The agent is preparing a plan before making changes.
+    Plan,
+    /// The agent is working autonomously toward task completion.
+    Autopilot,
+    /// The agent is in shell-focused UI mode.
+    Shell,
+}
+
 /// Options for sending a user message to the agent.
 ///
 /// Used by both [`Session::send`](crate::session::Session::send) and
@@ -2486,6 +3595,10 @@ pub struct MessageOptions {
     /// ([`DeliveryMode::Enqueue`], default) or interrupts the session and
     /// runs immediately ([`DeliveryMode::Immediate`]).
     pub mode: Option<DeliveryMode>,
+    /// Optional UI mode the agent was in when this message was sent
+    /// (for example [`AgentMode::Plan`] or [`AgentMode::Autopilot`]).
+    /// Defaults to the session's current mode when `None`.
+    pub agent_mode: Option<AgentMode>,
     /// Optional attachments to include with the message.
     pub attachments: Option<Vec<Attachment>>,
     /// Maximum time to wait for the session to go idle. Honored only by
@@ -2506,6 +3619,8 @@ pub struct MessageOptions {
     ///
     /// Per-turn override paired with [`traceparent`](Self::traceparent).
     pub tracestate: Option<String>,
+    /// If provided, this is shown in the timeline instead of `prompt`.
+    pub display_prompt: Option<String>,
 }
 
 impl MessageOptions {
@@ -2514,11 +3629,13 @@ impl MessageOptions {
         Self {
             prompt: prompt.into(),
             mode: None,
+            agent_mode: None,
             attachments: None,
             wait_timeout: None,
             request_headers: None,
             traceparent: None,
             tracestate: None,
+            display_prompt: None,
         }
     }
 
@@ -2529,6 +3646,14 @@ impl MessageOptions {
     /// prompt behind in-flight work.
     pub fn with_mode(mut self, mode: DeliveryMode) -> Self {
         self.mode = Some(mode);
+        self
+    }
+
+    /// Set the per-message agent UI mode for this turn.
+    ///
+    /// When `None`, the session's current mode is used.
+    pub fn with_agent_mode(mut self, agent_mode: AgentMode) -> Self {
+        self.agent_mode = Some(agent_mode);
         self
     }
 
@@ -2569,6 +3694,12 @@ impl MessageOptions {
     /// Set the W3C `tracestate` header for this turn.
     pub fn with_tracestate(mut self, tracestate: impl Into<String>) -> Self {
         self.tracestate = Some(tracestate.into());
+        self
+    }
+
+    /// Set the display prompt shown in the timeline instead of `prompt`.
+    pub fn with_display_prompt(mut self, display_prompt: impl Into<String>) -> Self {
+        self.display_prompt = Some(display_prompt.into());
         self
     }
 }
@@ -2672,7 +3803,7 @@ pub struct SessionEvent {
 }
 
 impl SessionEvent {
-    /// Parse the string `event_type` into a typed [`SessionEventType`](crate::generated::SessionEventType) enum.
+    /// Parse the string `event_type` into a typed [`SessionEventType`](crate::session_events::SessionEventType) enum.
     ///
     /// Returns `SessionEventType::Unknown` for unrecognized event types,
     /// ensuring forward compatibility with newer CLI versions.
@@ -2853,8 +3984,8 @@ pub struct ListSessionsResponse {
 #[serde(rename_all = "camelCase")]
 pub struct SessionListFilter {
     /// Filter by exact `cwd` match.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "cwd")]
+    pub working_directory: Option<String>,
     /// Filter by git root path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_root: Option<String>,
@@ -2932,9 +4063,10 @@ pub enum ElicitationMode {
 
 /// An incoming elicitation request from the CLI (provider side).
 ///
-/// Received via `elicitation.requested` session event when the session was
-/// created with `request_elicitation: true`. The provider should render a
-/// form or dialog and return an [`ElicitationResult`].
+/// Received via `elicitation.requested` session event when the session has
+/// an [`ElicitationHandler`] installed.
+/// The provider should render a form or dialog and return an
+/// [`ElicitationResult`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ElicitationRequest {
@@ -2973,11 +4105,26 @@ pub struct UiCapabilities {
     /// Whether the host supports interactive elicitation dialogs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation: Option<bool>,
+    /// **Experimental.** This field is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865)
+    /// opt-in. `Some(true)` when the consumer set
+    /// [`SessionConfig::enable_mcp_apps`] / [`ResumeSessionConfig::enable_mcp_apps`]
+    /// to `true` on create/resume **and** the runtime's `MCP_APPS` feature
+    /// flag (or `COPILOT_MCP_APPS=true` env override) is on. Otherwise
+    /// absent or `Some(false)`, indicating the runtime silently dropped the
+    /// opt-in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_apps: Option<bool>,
+    /// Host-specific canvas capabilities.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<bool>,
 }
 
 /// Options for the [`SessionUi::input`](crate::session::SessionUi::input) convenience method.
 #[derive(Debug, Clone, Default)]
-pub struct InputOptions<'a> {
+pub struct UiInputOptions<'a> {
     /// Title label for the input field.
     pub title: Option<&'a str>,
     /// Descriptive text shown below the field.
@@ -3020,11 +4167,12 @@ impl InputFormat {
 
 /// Re-exports of generated protocol types that are part of the SDK's
 /// public API surface. The canonical definitions live in
-/// [`crate::generated::api_types`]; they live here so the crate-root
+/// [`crate::rpc`]; they live here so the crate-root
 /// `pub use types::*` surfaces them alongside hand-written SDK types.
 pub use crate::generated::api_types::{
     Model, ModelBilling, ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
-    ModelCapabilitiesSupports, ModelList, ModelPolicy,
+    ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
+    PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
 };
 
 /// Permission categories the CLI may request approval for.
@@ -3062,8 +4210,7 @@ pub enum PermissionRequestKind {
 ///
 /// Used for both the `permission.request` RPC call (which expects a response)
 /// and `permission.requested` notifications (fire-and-forget). Contains the
-/// full params object. Note that `requestId` is also available as a separate
-/// field on `HandlerEvent::PermissionRequest`.
+/// full params object.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestData {
@@ -3122,10 +4269,11 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, CustomAgentConfig, DeliveryMode, GitHubReferenceType,
-        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
+        AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
+        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, ProviderConfig,
+        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
+        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
@@ -3153,9 +4301,34 @@ mod tests {
     }
 
     #[test]
-    fn tool_with_parameters_handles_non_object_value() {
-        let tool = Tool::new("noop").with_parameters(json!(null));
-        assert!(tool.parameters.is_empty());
+    fn custom_agent_config_builder_with_model() {
+        let agent = CustomAgentConfig::new("my-agent", "You are helpful.")
+            .with_model("claude-haiku-4.5")
+            .with_display_name("My Agent");
+        assert_eq!(agent.name, "my-agent");
+        assert_eq!(agent.model.as_deref(), Some("claude-haiku-4.5"));
+        assert_eq!(agent.display_name.as_deref(), Some("My Agent"));
+    }
+
+    #[test]
+    fn custom_agent_config_serializes_model() {
+        let agent = CustomAgentConfig::new("model-agent", "prompt").with_model("claude-haiku-4.5");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert_eq!(wire["model"], "claude-haiku-4.5");
+        assert_eq!(wire["name"], "model-agent");
+    }
+
+    #[test]
+    fn custom_agent_config_omits_model_when_none() {
+        let agent = CustomAgentConfig::new("no-model-agent", "prompt");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert!(wire.get("model").is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "tool parameter schema must be a JSON object")]
+    fn tool_with_parameters_panics_on_non_object_value() {
+        let _ = Tool::new("noop").with_parameters(json!(null));
     }
 
     #[test]
@@ -3217,23 +4390,221 @@ mod tests {
     }
 
     #[test]
-    fn session_config_default_enables_permission_flow_flags() {
+    fn session_config_default_wire_flags_off_without_handlers() {
         let cfg = SessionConfig::default();
-        assert_eq!(cfg.request_user_input, Some(true));
-        assert_eq!(cfg.request_permission, Some(true));
-        assert_eq!(cfg.request_elicitation, Some(true));
-        assert_eq!(cfg.request_exit_plan_mode, Some(true));
-        assert_eq!(cfg.request_auto_mode_switch, Some(true));
+        assert_eq!(cfg.mcp_oauth_token_storage, None);
+        // Wire flags are derived from handler presence at create_session
+        // time, not stored on the config. With no handlers installed, every
+        // request_* flag should serialize as false.
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("default-flags")))
+            .expect("default config has no duplicate handlers");
+        assert!(!wire.request_user_input);
+        assert!(!wire.request_permission);
+        assert!(!wire.request_elicitation);
+        assert!(!wire.request_exit_plan_mode);
+        assert!(!wire.request_auto_mode_switch);
+        assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
     }
 
     #[test]
-    fn resume_session_config_new_enables_permission_flow_flags() {
-        let cfg = ResumeSessionConfig::new(SessionId::from("test-id"));
-        assert_eq!(cfg.request_user_input, Some(true));
-        assert_eq!(cfg.request_permission, Some(true));
-        assert_eq!(cfg.request_elicitation, Some(true));
-        assert_eq!(cfg.request_exit_plan_mode, Some(true));
-        assert_eq!(cfg.request_auto_mode_switch, Some(true));
+    fn resume_session_config_new_wire_flags_off_without_handlers() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-flags"));
+        assert_eq!(cfg.mcp_oauth_token_storage, None);
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("default resume config has no duplicate handlers");
+        assert!(!wire.request_user_input);
+        assert!(!wire.request_permission);
+        assert!(!wire.request_elicitation);
+        assert!(!wire.request_exit_plan_mode);
+        assert!(!wire.request_auto_mode_switch);
+        assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
+    }
+
+    #[test]
+    fn session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
+        let cfg = SessionConfig::default().with_enable_mcp_apps(true);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("enable-mcp-apps")))
+            .expect("enable_mcp_apps config has no duplicate handlers");
+        assert!(wire.request_mcp_apps);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn resume_session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-enable-mcp-apps"))
+            .with_enable_mcp_apps(true);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
+
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("resume enable_mcp_apps config has no duplicate handlers");
+        assert!(wire.request_mcp_apps);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    fn session_config_into_wire_serializes_bucket_b_fields() {
+        use std::path::PathBuf;
+
+        use super::{CloudSessionOptions, CloudSessionRepository};
+
+        let mut cfg = SessionConfig::default();
+        cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
+        cfg.working_directory = Some(PathBuf::from("/tmp/work"));
+        cfg.github_token = Some("ghs_secret".to_string());
+        cfg.include_sub_agent_streaming_events = Some(false);
+        cfg.enable_session_telemetry = Some(false);
+        cfg.reasoning_summary = Some(ReasoningSummary::Concise);
+        cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::Export);
+        cfg.enable_on_demand_instruction_discovery = Some(false);
+        cfg.cloud = Some(CloudSessionOptions::with_repository(
+            CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
+        ));
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("custom-id")))
+            .expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["sessionId"], "custom-id");
+        assert_eq!(wire_json["configDir"], "/tmp/cfg");
+        assert_eq!(wire_json["workingDirectory"], "/tmp/work");
+        assert_eq!(wire_json["gitHubToken"], "ghs_secret");
+        assert_eq!(wire_json["includeSubAgentStreamingEvents"], false);
+        assert_eq!(wire_json["enableSessionTelemetry"], false);
+        assert_eq!(wire_json["reasoningSummary"], "concise");
+        assert_eq!(wire_json["remoteSession"], "export");
+        assert_eq!(wire_json["enableOnDemandInstructionDiscovery"], false);
+        assert_eq!(wire_json["cloud"]["repository"]["owner"], "github");
+        assert_eq!(wire_json["cloud"]["repository"]["name"], "copilot-sdk");
+        assert_eq!(wire_json["cloud"]["repository"]["branch"], "main");
+
+        // Unset fields are omitted on the wire.
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("empty")))
+            .expect("default has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("gitHubToken").is_none());
+        assert!(empty_json.get("enableSessionTelemetry").is_none());
+        assert!(empty_json.get("reasoningSummary").is_none());
+        assert!(empty_json.get("remoteSession").is_none());
+        assert!(
+            empty_json
+                .get("enableOnDemandInstructionDiscovery")
+                .is_none()
+        );
+        assert!(empty_json.get("cloud").is_none());
+    }
+
+    #[test]
+    fn session_config_into_wire_serializes_plugin_directories_and_large_output() {
+        use std::path::PathBuf;
+
+        let cfg = SessionConfig {
+            plugin_directories: Some(vec![PathBuf::from("/tmp/plugins")]),
+            large_output: Some(
+                LargeToolOutputConfig::new()
+                    .with_enabled(true)
+                    .with_max_size_bytes(1024)
+                    .with_output_directory(PathBuf::from("/tmp/large-output")),
+            ),
+            ..Default::default()
+        };
+
+        let (wire, _) = cfg
+            .into_wire(Some(SessionId::from("sess-1")))
+            .expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["pluginDirectories"][0], "/tmp/plugins");
+        assert_eq!(wire_json["largeOutput"]["enabled"], true);
+        assert_eq!(wire_json["largeOutput"]["maxSizeBytes"], 1024);
+        assert_eq!(wire_json["largeOutput"]["outputDir"], "/tmp/large-output");
+
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("empty")))
+            .expect("default has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("pluginDirectories").is_none());
+        assert!(empty_json.get("largeOutput").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_into_wire_serializes_bucket_b_fields() {
+        use std::path::PathBuf;
+
+        let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
+        cfg.working_directory = Some(PathBuf::from("/tmp/work"));
+        cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
+        cfg.github_token = Some("ghs_secret".to_string());
+        cfg.include_sub_agent_streaming_events = Some(true);
+        cfg.enable_session_telemetry = Some(false);
+        cfg.reasoning_summary = Some(ReasoningSummary::Detailed);
+        cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::On);
+        cfg.enable_on_demand_instruction_discovery = Some(false);
+
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["sessionId"], "sess-1");
+        assert_eq!(wire_json["workingDirectory"], "/tmp/work");
+        assert_eq!(wire_json["configDir"], "/tmp/cfg");
+        assert_eq!(wire_json["gitHubToken"], "ghs_secret");
+        assert_eq!(wire_json["includeSubAgentStreamingEvents"], true);
+        assert_eq!(wire_json["enableSessionTelemetry"], false);
+        assert_eq!(wire_json["reasoningSummary"], "detailed");
+        assert_eq!(wire_json["remoteSession"], "on");
+        assert_eq!(wire_json["enableOnDemandInstructionDiscovery"], false);
+
+        // Unset remote_session is omitted on the wire.
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("reasoningSummary").is_none());
+        assert!(empty_json.get("remoteSession").is_none());
+        assert!(
+            empty_json
+                .get("enableOnDemandInstructionDiscovery")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn resume_session_config_into_wire_serializes_plugin_directories_and_large_output() {
+        use std::path::PathBuf;
+
+        let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
+        cfg.plugin_directories = Some(vec![PathBuf::from("/tmp/plugins-r")]);
+        cfg.large_output = Some(
+            LargeToolOutputConfig::new()
+                .with_enabled(false)
+                .with_max_size_bytes(2048)
+                .with_output_directory(PathBuf::from("/tmp/large-output-r")),
+        );
+
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["pluginDirectories"][0], "/tmp/plugins-r");
+        assert_eq!(wire_json["largeOutput"]["enabled"], false);
+        assert_eq!(wire_json["largeOutput"]["maxSizeBytes"], 2048);
+        assert_eq!(wire_json["largeOutput"]["outputDir"], "/tmp/large-output-r");
+
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("pluginDirectories").is_none());
+        assert!(empty_json.get("largeOutput").is_none());
     }
 
     #[test]
@@ -3245,28 +4616,32 @@ mod tests {
             .with_model("claude-sonnet-4")
             .with_client_name("test-app")
             .with_reasoning_effort("medium")
+            .with_reasoning_summary(ReasoningSummary::Concise)
+            .with_context_tier("long_context")
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
+            .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
-            .with_request_user_input(false)
-            .with_request_exit_plan_mode(false)
-            .with_request_auto_mode_switch(false)
+            .with_enable_on_demand_instruction_discovery(true)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
-            .with_config_dir(PathBuf::from("/tmp/config"))
+            .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
-            .with_include_sub_agent_streaming_events(false);
+            .with_include_sub_agent_streaming_events(false)
+            .with_extension_info(ExtensionInfo::new("github-app", "counter"));
 
         assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
         assert_eq!(cfg.model.as_deref(), Some("claude-sonnet-4"));
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
         assert_eq!(cfg.reasoning_effort.as_deref(), Some("medium"));
+        assert_eq!(cfg.reasoning_summary, Some(ReasoningSummary::Concise));
+        assert_eq!(cfg.context_tier.as_deref(), Some("long_context"));
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(
@@ -3278,11 +4653,9 @@ mod tests {
             Some(&["dangerous".to_string()][..])
         );
         assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.mcp_oauth_token_storage.as_deref(), Some("persistent"));
         assert_eq!(cfg.enable_config_discovery, Some(true));
-        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
-        assert_eq!(cfg.request_permission, Some(true)); // default preserved
-        assert_eq!(cfg.request_exit_plan_mode, Some(false));
-        assert_eq!(cfg.request_auto_mode_switch, Some(false));
+        assert_eq!(cfg.enable_on_demand_instruction_discovery, Some(true));
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])
@@ -3292,11 +4665,15 @@ mod tests {
             Some(&["broken-skill".to_string()][..])
         );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
-        assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
+        assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
+        assert_eq!(
+            cfg.extension_info,
+            Some(ExtensionInfo::new("github-app", "counter"))
+        );
     }
 
     #[test]
@@ -3305,28 +4682,32 @@ mod tests {
 
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"))
             .with_client_name("test-app")
+            .with_reasoning_summary(ReasoningSummary::None)
+            .with_context_tier("default")
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
+            .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
-            .with_request_user_input(false)
-            .with_request_exit_plan_mode(false)
-            .with_request_auto_mode_switch(false)
+            .with_enable_on_demand_instruction_discovery(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
-            .with_config_dir(PathBuf::from("/tmp/config"))
+            .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
-            .with_disable_resume(true)
-            .with_continue_pending_work(true);
+            .with_suppress_resume_event(true)
+            .with_continue_pending_work(true)
+            .with_extension_info(ExtensionInfo::new("github-app", "counter"));
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
+        assert_eq!(cfg.reasoning_summary, Some(ReasoningSummary::None));
+        assert_eq!(cfg.context_tier.as_deref(), Some("default"));
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(
@@ -3338,11 +4719,9 @@ mod tests {
             Some(&["dangerous".to_string()][..])
         );
         assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.mcp_oauth_token_storage.as_deref(), Some("persistent"));
         assert_eq!(cfg.enable_config_discovery, Some(true));
-        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
-        assert_eq!(cfg.request_permission, Some(true)); // default preserved
-        assert_eq!(cfg.request_exit_plan_mode, Some(false));
-        assert_eq!(cfg.request_auto_mode_switch, Some(false));
+        assert_eq!(cfg.enable_on_demand_instruction_discovery, Some(false));
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])
@@ -3352,13 +4731,17 @@ mod tests {
             Some(&["broken-skill".to_string()][..])
         );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
-        assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
+        assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
-        assert_eq!(cfg.disable_resume, Some(true));
+        assert_eq!(cfg.suppress_resume_event, Some(true));
         assert_eq!(cfg.continue_pending_work, Some(true));
+        assert_eq!(
+            cfg.extension_info,
+            Some(ExtensionInfo::new("github-app", "counter"))
+        );
     }
 
     /// `continue_pending_work` must serialize to wire as `continuePendingWork`
@@ -3368,13 +4751,29 @@ mod tests {
     fn resume_session_config_serializes_continue_pending_work_to_camel_case() {
         let cfg =
             ResumeSessionConfig::new(SessionId::from("sess-1")).with_continue_pending_work(true);
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert_eq!(wire["continuePendingWork"], true);
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["continuePendingWork"], true);
 
         // Unset case — skip_serializing_if must omit the field.
-        let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"));
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert!(wire.get("continuePendingWork").is_none());
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("continuePendingWork").is_none());
+    }
+
+    /// The Rust field is `suppress_resume_event`, but the wire field stays
+    /// `disableResume` to preserve compatibility with the runtime and other
+    /// SDKs.
+    #[test]
+    fn resume_session_config_serializes_suppress_resume_event_to_disable_resume_on_wire() {
+        let cfg =
+            ResumeSessionConfig::new(SessionId::from("sess-1")).with_suppress_resume_event(true);
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["disableResume"], true);
+        assert!(json.get("suppressResumeEvent").is_none());
     }
 
     /// `instruction_directories` must serialize to wire as
@@ -3383,16 +4782,21 @@ mod tests {
     fn session_config_serializes_instruction_directories_to_camel_case() {
         let cfg =
             SessionConfig::default().with_instruction_directories([PathBuf::from("/tmp/instr")]);
-        let wire = serde_json::to_value(&cfg).unwrap();
+        let (wire, _) = cfg
+            .into_wire(Some(SessionId::from("instr-on")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
-            wire["instructionDirectories"],
+            json["instructionDirectories"],
             serde_json::json!(["/tmp/instr"])
         );
 
         // Unset case — skip_serializing_if must omit the field.
-        let cfg = SessionConfig::default();
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert!(wire.get("instructionDirectories").is_none());
+        let (wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("instr-off")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("instructionDirectories").is_none());
     }
 
     /// Same check on the resume path. Forwarded to the CLI on
@@ -3401,15 +4805,18 @@ mod tests {
     fn resume_session_config_serializes_instruction_directories_to_camel_case() {
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-1"))
             .with_instruction_directories([PathBuf::from("/tmp/instr")]);
-        let wire = serde_json::to_value(&cfg).unwrap();
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
-            wire["instructionDirectories"],
+            json["instructionDirectories"],
             serde_json::json!(["/tmp/instr"])
         );
 
-        let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"));
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert!(wire.get("instructionDirectories").is_none());
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("instructionDirectories").is_none());
     }
 
     #[test]
@@ -3534,11 +4941,29 @@ mod tests {
     }
 
     #[test]
-    fn connection_state_error_serializes_to_match_go() {
-        let json = serde_json::to_string(&ConnectionState::Error).unwrap();
-        assert_eq!(json, "\"error\"");
-        let parsed: ConnectionState = serde_json::from_str("\"error\"").unwrap();
-        assert_eq!(parsed, ConnectionState::Error);
+    fn agent_mode_serializes_to_kebab_case_strings() {
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Interactive).unwrap(),
+            "\"interactive\""
+        );
+        assert_eq!(serde_json::to_string(&AgentMode::Plan).unwrap(), "\"plan\"");
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Autopilot).unwrap(),
+            "\"autopilot\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Shell).unwrap(),
+            "\"shell\""
+        );
+        let parsed: AgentMode = serde_json::from_str("\"plan\"").unwrap();
+        assert_eq!(parsed, AgentMode::Plan);
+    }
+
+    #[test]
+    fn connection_state_distinguishes_variants() {
+        // ConnectionState is now an internal type; verify we can construct
+        // and compare the variants used by the lifecycle code paths.
+        assert_ne!(ConnectionState::Connected, ConnectionState::Disconnected);
     }
 
     /// `agentId` is the sub-agent attribution field added in copilot-sdk
@@ -3598,19 +5023,14 @@ mod tests {
     }
 
     #[test]
-    fn connection_state_other_variants_serialize_as_lowercase() {
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Disconnected).unwrap(),
-            "\"disconnected\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Connecting).unwrap(),
-            "\"connecting\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Connected).unwrap(),
-            "\"connected\""
-        );
+    fn connection_state_variants_compile() {
+        // Defensive smoke test: all variants must be constructable from
+        // within the crate. (The enum was demoted from pub to pub(crate)
+        // in Phase D; this test guards against accidental removal.)
+        let _ = ConnectionState::Disconnected;
+        let _ = ConnectionState::Connecting;
+        let _ = ConnectionState::Connected;
+        let _ = ConnectionState::Error;
     }
 
     #[test]
@@ -3757,88 +5177,164 @@ mod tests {
 mod permission_builder_tests {
     use std::sync::Arc;
 
-    use crate::handler::{
-        ApproveAllHandler, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
-    };
+    use crate::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
+    use crate::permission;
     use crate::types::{
-        PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
+        PermissionDecision, PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig,
+        SessionId,
     };
 
-    fn permission_event() -> HandlerEvent {
-        HandlerEvent::PermissionRequest {
-            session_id: SessionId::from("s1"),
-            request_id: RequestId::new("1"),
-            data: PermissionRequestData {
-                extra: serde_json::json!({"tool": "shell"}),
-                ..Default::default()
-            },
+    fn data() -> PermissionRequestData {
+        PermissionRequestData {
+            extra: serde_json::json!({"tool": "shell"}),
+            ..Default::default()
         }
     }
 
-    async fn dispatch(handler: &Arc<dyn SessionHandler>) -> HandlerResponse {
-        handler.on_event(permission_event()).await
+    /// Apply the same policy-resolution logic that `Client::create_session`
+    /// uses, so tests exercise the effective handler.
+    fn resolve_create(mut cfg: SessionConfig) -> Option<Arc<dyn PermissionHandler>> {
+        permission::resolve_handler(cfg.permission_handler.take(), cfg.permission_policy.take())
+    }
+
+    fn resolve_resume(mut cfg: ResumeSessionConfig) -> Option<Arc<dyn PermissionHandler>> {
+        permission::resolve_handler(cfg.permission_handler.take(), cfg.permission_policy.take())
+    }
+
+    async fn dispatch(handler: &Arc<dyn PermissionHandler>) -> PermissionResult {
+        handler
+            .handle(SessionId::from("s1"), RequestId::new("1"), data())
+            .await
     }
 
     #[tokio::test]
-    async fn session_config_approve_all_wraps_existing_handler() {
+    async fn approve_all_with_handler_present_approves() {
         let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let h = resolve_create(cfg).expect("policy + handler yields handler");
+        assert!(matches!(
+            dispatch(&h).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 
     #[tokio::test]
-    async fn session_config_approve_all_defaults_to_deny_inner() {
-        // Without with_handler, the wrap defaults to DenyAllHandler. The
-        // approve-all wrap intercepts permission events, so they're still
-        // approved -- the inner handler is consulted only for other events.
+    async fn approve_all_standalone_produces_handler() {
         let cfg = SessionConfig::default().approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let h = resolve_create(cfg).expect("policy alone yields handler");
+        assert!(matches!(
+            dispatch(&h).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 
+    /// Phase I: order between with_permission_handler and the policy
+    /// builder must not matter.
     #[tokio::test]
-    async fn session_config_deny_all_denies() {
-        let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
-            .deny_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("expected Denied, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn session_config_approve_permissions_if_consults_predicate() {
-        let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
-            .approve_permissions_if(|data| {
-                data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
-            });
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("expected Denied for shell, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn resume_session_config_approve_all_wraps_existing_handler() {
-        let cfg = ResumeSessionConfig::new(SessionId::from("s1"))
-            .with_handler(Arc::new(ApproveAllHandler))
+    async fn approve_all_is_order_independent() {
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let b = SessionConfig::default()
+            .approve_all_permissions()
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(
+            dispatch(&ha).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
+        assert!(matches!(
+            dispatch(&hb).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn deny_all_is_order_independent() {
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .deny_all_permissions();
+        let b = SessionConfig::default()
+            .deny_all_permissions()
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(
+            dispatch(&ha).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
+        assert!(matches!(
+            dispatch(&hb).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn approve_permissions_if_consults_predicate() {
+        let cfg = SessionConfig::default().approve_permissions_if(|d| {
+            d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+        });
+        let h = resolve_create(cfg).unwrap();
+        assert!(matches!(
+            dispatch(&h).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn approve_permissions_if_is_order_independent() {
+        let predicate = |d: &PermissionRequestData| {
+            d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+        };
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .approve_permissions_if(predicate);
+        let b = SessionConfig::default()
+            .approve_permissions_if(predicate)
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(
+            dispatch(&ha).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
+        assert!(matches!(
+            dispatch(&hb).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn resume_session_config_approve_all_works() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("s1"))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .approve_all_permissions();
+        let h = resolve_resume(cfg).unwrap();
+        assert!(matches!(
+            dispatch(&h).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn resume_session_config_approve_all_is_order_independent() {
+        let a = ResumeSessionConfig::new(SessionId::from("s1"))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .approve_all_permissions();
+        let b = ResumeSessionConfig::new(SessionId::from("s1"))
+            .approve_all_permissions()
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_resume(a).unwrap();
+        let hb = resolve_resume(b).unwrap();
+        assert!(matches!(
+            dispatch(&ha).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
+        assert!(matches!(
+            dispatch(&hb).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 }

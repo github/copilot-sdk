@@ -15,15 +15,19 @@ from pathlib import Path
 
 import pytest
 
-from copilot.generated.rpc import FleetStartRequest, ShellExecRequest, ShellKillRequest
-from copilot.generated.session_events import (
+from copilot.rpc import (
+    FleetStartRequest,
+    ShellExecRequest,
+    ShellKillRequest,
+)
+from copilot.session import PermissionHandler
+from copilot.session_events import (
     AssistantMessageData,
     SessionErrorData,
     ToolExecutionCompleteData,
     ToolExecutionStartData,
     UserMessageData,
 )
-from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
 from .testharness import E2ETestContext
@@ -128,7 +132,7 @@ class TestRpcShellAndFleet:
         async def _wait_for_messages(timeout: float = 120.0):
             deadline = asyncio.get_event_loop().time() + timeout
             while asyncio.get_event_loop().time() < deadline:
-                messages = await session.get_messages()
+                messages = await session.get_events()
                 if any(
                     isinstance(m.data, AssistantMessageData)
                     and "fleet task" in (m.data.content or "").lower()

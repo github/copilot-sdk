@@ -7,7 +7,6 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
-import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Event Fidelity", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext();
@@ -178,17 +177,20 @@ describe("Event Fidelity", async () => {
 
     it("should emit pending messages modified event when message queue changes", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
+        const events: SessionEvent[] = [];
+        session.on((event) => {
+            events.push(event);
+        });
 
-        const pendingModifiedP = getNextEventOfType(session, "pending_messages.modified");
-
-        void session.send({
+        // sendAndWait collects everything in one round trip and matches the
+        // pattern of every other test in this file (and the Rust E2E equivalent),
+        // avoiding the split fire-and-forget + helper pattern that previously
+        // made this test prone to flakes.
+        const answer = await session.sendAndWait({
             prompt: "What is 9+9? Reply with just the number.",
         });
 
-        const [pendingEvent, answer] = await Promise.all([
-            pendingModifiedP,
-            getFinalAssistantMessage(session),
-        ]);
+        const pendingEvent = events.find((e) => e.type === "pending_messages.modified");
 
         expect(pendingEvent).toBeDefined();
         expect(answer?.data.content).toContain("18");
@@ -205,7 +207,7 @@ describe("Event Fidelity", async () => {
             prompt: "Read the file 'order.txt' and tell me what the number is.",
         });
 
-        const messages = await session.getMessages();
+        const messages = await session.getEvents();
         const types = messages.map((m) => m.type);
 
         const sessionStartIdx = types.indexOf("session.start");

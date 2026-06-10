@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using Microsoft.Extensions.AI;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 public class CloneTests
 {
@@ -14,57 +13,39 @@ public class CloneTests
     {
         var original = new CopilotClientOptions
         {
-            CliPath = "/usr/bin/copilot",
-            CliArgs = ["--verbose", "--debug"],
-            Cwd = "/home/user",
-            Port = 8080,
-            UseStdio = false,
-            CliUrl = "http://localhost:8080",
-            LogLevel = "debug",
-            AutoStart = false,
-
+            Connection = RuntimeConnection.ForTcp(port: 8080, connectionToken: "tok", path: "/usr/bin/copilot", args: ["--verbose", "--debug"]),
+            WorkingDirectory = "/home/user",
+            LogLevel = CopilotLogLevel.Debug,
             Environment = new Dictionary<string, string> { ["KEY"] = "value" },
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
-            CopilotHome = "/custom/copilot/home",
-            Remote = true,
+            BaseDirectory = "/custom/copilot/home",
+            EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
         };
 
         var clone = original.Clone();
 
-        Assert.Equal(original.CliPath, clone.CliPath);
-        Assert.Equal(original.CliArgs, clone.CliArgs);
-        Assert.Equal(original.Cwd, clone.Cwd);
-        Assert.Equal(original.Port, clone.Port);
-        Assert.Equal(original.UseStdio, clone.UseStdio);
-        Assert.Equal(original.CliUrl, clone.CliUrl);
+        Assert.Same(original.Connection, clone.Connection);
+        Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
         Assert.Equal(original.LogLevel, clone.LogLevel);
-        Assert.Equal(original.AutoStart, clone.AutoStart);
-
         Assert.Equal(original.Environment, clone.Environment);
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
-        Assert.Equal(original.CopilotHome, clone.CopilotHome);
-        Assert.Equal(original.Remote, clone.Remote);
+        Assert.Equal(original.BaseDirectory, clone.BaseDirectory);
+        Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
     }
 
     [Fact]
-    public void CopilotClientOptions_Clone_CollectionsAreIndependent()
+    public void CopilotClientOptions_Clone_ConnectionIsShared()
     {
-        var original = new CopilotClientOptions
-        {
-            CliArgs = ["--verbose"],
-        };
+        var connection = RuntimeConnection.ForStdio();
+        var original = new CopilotClientOptions { Connection = connection };
 
         var clone = original.Clone();
 
-        // Mutate clone array
-        clone.CliArgs![0] = "--quiet";
-
-        // Original is unaffected
-        Assert.Equal("--verbose", original.CliArgs![0]);
+        Assert.Same(connection, clone.Connection);
     }
 
     [Fact]
@@ -87,22 +68,37 @@ public class CloneTests
             ClientName = "my-app",
             Model = "gpt-4",
             ReasoningEffort = "high",
-            ConfigDir = "/config",
+            ReasoningSummary = ReasoningSummary.Detailed,
+            ContextTier = ContextTier.LongContext,
+            ConfigDirectory = "/config",
             AvailableTools = ["tool1", "tool2"],
             ExcludedTools = ["tool3"],
             WorkingDirectory = "/workspace",
             Streaming = true,
             EnableSessionTelemetry = false,
+            EnableOnDemandInstructionDiscovery = true,
             IncludeSubAgentStreamingEvents = false,
             McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
-            CustomAgents = [new CustomAgentConfig { Name = "agent1" }],
+            McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
+            CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5" }],
             Agent = "agent1",
+            Cloud = new CloudSessionOptions
+            {
+                Repository = new CloudSessionRepository
+                {
+                    Owner = "github",
+                    Name = "copilot-sdk",
+                    Branch = "main"
+                }
+            },
             DefaultAgent = new DefaultAgentConfig { ExcludedTools = ["hidden-tool"] },
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
-            OnExitPlanMode = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
-            OnAutoModeSwitch = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
+            PluginDirectories = ["/plugins"],
+            LargeOutput = new LargeToolOutputConfig { Enabled = true, MaxSizeBytes = 2048, OutputDirectory = "/tmp/out" },
+            OnExitPlanModeRequest = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
+            OnAutoModeSwitchRequest = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
         };
 
         var clone = original.Clone();
@@ -111,22 +107,30 @@ public class CloneTests
         Assert.Equal(original.ClientName, clone.ClientName);
         Assert.Equal(original.Model, clone.Model);
         Assert.Equal(original.ReasoningEffort, clone.ReasoningEffort);
-        Assert.Equal(original.ConfigDir, clone.ConfigDir);
+        Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
+        Assert.Equal(original.ContextTier, clone.ContextTier);
+        Assert.Equal(original.ConfigDirectory, clone.ConfigDirectory);
         Assert.Equal(original.AvailableTools, clone.AvailableTools);
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
         Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
         Assert.Equal(original.Streaming, clone.Streaming);
         Assert.Equal(original.EnableSessionTelemetry, clone.EnableSessionTelemetry);
+        Assert.Equal(original.EnableOnDemandInstructionDiscovery, clone.EnableOnDemandInstructionDiscovery);
         Assert.Equal(original.IncludeSubAgentStreamingEvents, clone.IncludeSubAgentStreamingEvents);
         Assert.Equal(original.McpServers.Count, clone.McpServers!.Count);
+        Assert.Equal(original.McpOAuthTokenStorage, clone.McpOAuthTokenStorage);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
+        Assert.Equal(original.CustomAgents[0].Model, clone.CustomAgents[0].Model);
         Assert.Equal(original.Agent, clone.Agent);
+        Assert.Same(original.Cloud, clone.Cloud);
         Assert.Equal(original.DefaultAgent!.ExcludedTools, clone.DefaultAgent!.ExcludedTools);
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
-        Assert.Same(original.OnExitPlanMode, clone.OnExitPlanMode);
-        Assert.Same(original.OnAutoModeSwitch, clone.OnAutoModeSwitch);
+        Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
+        Assert.Same(original.LargeOutput, clone.LargeOutput);
+        Assert.Same(original.OnExitPlanModeRequest, clone.OnExitPlanModeRequest);
+        Assert.Same(original.OnAutoModeSwitchRequest, clone.OnAutoModeSwitchRequest);
     }
 
     [Fact]
@@ -227,7 +231,7 @@ public class CloneTests
         var original = new MessageOptions
         {
             Prompt = "Hello",
-            Attachments = [new UserMessageAttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
+            Attachments = [new AttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
             Mode = "chat",
         };
 
@@ -243,12 +247,12 @@ public class CloneTests
     {
         var original = new MessageOptions
         {
-            Attachments = [new UserMessageAttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
+            Attachments = [new AttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
         };
 
         var clone = original.Clone();
 
-        clone.Attachments!.Add(new UserMessageAttachmentFile { Path = "/other.txt", DisplayName = "other.txt" });
+        clone.Attachments!.Add(new AttachmentFile { Path = "/other.txt", DisplayName = "other.txt" });
 
         Assert.Single(original.Attachments!);
     }
@@ -305,14 +309,14 @@ public class CloneTests
     {
         var original = new ResumeSessionConfig
         {
-            OnExitPlanMode = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
-            OnAutoModeSwitch = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
+            OnExitPlanModeRequest = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
+            OnAutoModeSwitchRequest = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
         };
 
         var clone = original.Clone();
 
-        Assert.Same(original.OnExitPlanMode, clone.OnExitPlanMode);
-        Assert.Same(original.OnAutoModeSwitch, clone.OnAutoModeSwitch);
+        Assert.Same(original.OnExitPlanModeRequest, clone.OnExitPlanModeRequest);
+        Assert.Same(original.OnAutoModeSwitchRequest, clone.OnAutoModeSwitchRequest);
     }
 
     [Fact]
@@ -365,6 +369,48 @@ public class CloneTests
     }
 
     [Fact]
+    public void ResumeSessionConfig_Clone_CopiesReasoningSummary()
+    {
+        var original = new ResumeSessionConfig
+        {
+            ReasoningSummary = ReasoningSummary.None,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesContextTier()
+    {
+        var original = new ResumeSessionConfig
+        {
+            ContextTier = ContextTier.LongContext,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(original.ContextTier, clone.ContextTier);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesPluginDirectoriesAndLargeOutput()
+    {
+        var largeOutput = new LargeToolOutputConfig { Enabled = false, MaxSizeBytes = 4096, OutputDirectory = "/tmp/resume" };
+        var original = new ResumeSessionConfig
+        {
+            PluginDirectories = ["/resume/plugins"],
+            LargeOutput = largeOutput,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
+        Assert.Same(original.LargeOutput, clone.LargeOutput);
+    }
+
+    [Fact]
     public void ResumeSessionConfig_Clone_PreservesContinuePendingWorkDefault()
     {
         var original = new ResumeSessionConfig();
@@ -392,5 +438,77 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Null(clone.EnableSessionTelemetry);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesEnableOnDemandInstructionDiscovery()
+    {
+        var original = new SessionConfig
+        {
+            EnableOnDemandInstructionDiscovery = false,
+        };
+
+        var clone = original.Clone();
+
+        Assert.False(clone.EnableOnDemandInstructionDiscovery);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesEnableOnDemandInstructionDiscovery()
+    {
+        var original = new ResumeSessionConfig
+        {
+            EnableOnDemandInstructionDiscovery = true,
+        };
+
+        var clone = original.Clone();
+
+        Assert.True(clone.EnableOnDemandInstructionDiscovery);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_PreservesEnableOnDemandInstructionDiscoveryDefault()
+    {
+        var original = new SessionConfig();
+
+        var clone = original.Clone();
+
+        Assert.Null(clone.EnableOnDemandInstructionDiscovery);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_PreservesEnableOnDemandInstructionDiscoveryDefault()
+    {
+        var original = new ResumeSessionConfig();
+
+        var clone = original.Clone();
+
+        Assert.Null(clone.EnableOnDemandInstructionDiscovery);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesMcpOAuthTokenStorage()
+    {
+        var original = new SessionConfig
+        {
+            McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(McpOAuthTokenStorageMode.Persistent, clone.McpOAuthTokenStorage);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesMcpOAuthTokenStorage()
+    {
+        var original = new ResumeSessionConfig
+        {
+            McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(McpOAuthTokenStorageMode.Persistent, clone.McpOAuthTokenStorage);
     }
 }

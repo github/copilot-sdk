@@ -85,7 +85,7 @@ session.on("assistant.message_delta", (event) => {
 <!-- docs-validate: hidden -->
 ```python
 from copilot import CopilotClient
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 
 client = CopilotClient()
 
@@ -100,7 +100,7 @@ def handle(event):
 <!-- /docs-validate: hidden -->
 
 ```python
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 
 def handle(event):
     if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
@@ -122,6 +122,7 @@ import (
 	"context"
 	"fmt"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -130,9 +131,9 @@ func main() {
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
-		Streaming: true,
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		Streaming: copilot.Bool(true),
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 	})
 
@@ -161,13 +162,13 @@ session.On(func(event copilot.SessionEvent) {
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class StreamingEventsExample
 {
     public static async Task Example(CopilotSession session)
     {
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is AssistantMessageDeltaEvent delta)
             {
@@ -180,7 +181,7 @@ public static class StreamingEventsExample
 <!-- /docs-validate: hidden -->
 
 ```csharp
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     if (evt is AssistantMessageDeltaEvent delta)
     {
@@ -194,6 +195,7 @@ session.On(evt =>
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // All events
 session.on(event -> System.out.println(event.getType()));
@@ -313,6 +315,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 | `duration` | `number` | | API call duration in milliseconds |
 | `initiator` | `string` | | What triggered this call (e.g., `"sub-agent"`); absent for user-initiated |
 | `apiCallId` | `string` | | Completion ID from the provider (e.g., `chatcmpl-abc123`) |
+| `apiEndpoint` | `"/chat/completions" \| "/v1/messages" \| "/responses" \| "ws:/responses"` | | API endpoint used for the model call; useful for observability and cost attribution. `ws:/responses` is the websocket variant of the responses API |
 | `providerCallId` | `string` | | GitHub request tracing ID (`x-github-request-id`) |
 | `parentToolCallId` | `string` | | Set when usage originates from a sub-agent |
 | `quotaSnapshots` | `Record<string, QuotaSnapshot>` | | Per-quota resource usage, keyed by quota identifier |
@@ -757,7 +760,7 @@ session.idle                  → Ready for next message (ephemeral)
 | `assistant.message` | | Assistant | `messageId`, `content`, `toolRequests?`, `outputTokens?`, `phase?` |
 | `assistant.message_delta` | ✅ | Assistant | `messageId`, `deltaContent`, `parentToolCallId?` |
 | `assistant.turn_end` | | Assistant | `turnId` |
-| `assistant.usage` | ✅ | Assistant | `model`, `inputTokens?`, `outputTokens?`, `cost?`, `duration?` |
+| `assistant.usage` | ✅ | Assistant | `model`, `apiEndpoint?`, `inputTokens?`, `outputTokens?`, `cost?`, `duration?` |
 | `tool.user_requested` | | Tool | `toolCallId`, `toolName`, `arguments?` |
 | `tool.execution_start` | | Tool | `toolCallId`, `toolName`, `arguments?`, `mcpServerName?` |
 | `tool.execution_partial_result` | ✅ | Tool | `toolCallId`, `partialOutput` |

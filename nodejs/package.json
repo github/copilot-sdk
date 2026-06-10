@@ -4,7 +4,7 @@
         "type": "git",
         "url": "https://github.com/github/copilot-sdk.git"
     },
-    "version": "0.1.8",
+    "version": "0.0.0-dev",
     "description": "TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC",
     "main": "./dist/cjs/index.js",
     "types": "./dist/index.d.ts",
@@ -40,11 +40,11 @@
         "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" --ignore-path .prettierignore",
         "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
         "lint:fix": "eslint --fix \"src/**/*.ts\" \"test/**/*.ts\"",
-        "typecheck": "tsc --noEmit",
+        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
         "generate": "cd ../scripts/codegen && npm run generate",
         "update:protocol-version": "tsx scripts/update-protocol-version.ts",
         "prepublishOnly": "npm run build",
-        "package": "npm run clean && npm run build && node scripts/set-version.js && npm pack && npm version 0.1.0 --no-git-tag-version --allow-same-version"
+        "package": "npm run clean && npm run build && node scripts/set-version.js && npm pack && npm version 0.0.0-dev --no-git-tag-version --allow-same-version"
     },
     "keywords": [
         "github",
@@ -56,7 +56,7 @@
     "author": "GitHub",
     "license": "MIT",
     "dependencies": {
-        "@github/copilot": "^1.0.44-2",
+        "@github/copilot": "^1.0.61",
         "vscode-jsonrpc": "^8.2.1",
         "zod": "^4.3.6"
     },
@@ -79,7 +79,7 @@
         "vitest": "^4.0.18"
     },
     "engines": {
-        "node": ">=20.0.0"
+        "node": "^20.19.0 || >=22.12.0"
     },
     "files": [
         "dist/**/*",

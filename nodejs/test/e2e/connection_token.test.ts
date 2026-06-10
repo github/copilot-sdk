@@ -3,23 +3,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterAll, describe, expect, it } from "vitest";
-import { CopilotClient } from "../../src/index.js";
+import { CopilotClient, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Connection token", async () => {
     const ctx = await createSdkTestContext({
-        useStdio: false,
-        copilotClientOptions: { tcpConnectionToken: "right-token" },
+        copilotClientOptions: {
+            connection: RuntimeConnection.forTcp({ connectionToken: "right-token" }),
+        },
     });
     const goodClient = ctx.copilotClient;
     await goodClient.start();
-    const port = (goodClient as unknown as { actualPort: number }).actualPort;
+    const port = (goodClient as unknown as { runtimePort: number }).runtimePort;
 
     const wrongClient = new CopilotClient({
-        cliUrl: `localhost:${port}`,
-        tcpConnectionToken: "wrong",
+        connection: RuntimeConnection.forUri(`localhost:${port}`, { connectionToken: "wrong" }),
     });
-    const noTokenClient = new CopilotClient({ cliUrl: `localhost:${port}` });
+    const noTokenClient = new CopilotClient({
+        connection: RuntimeConnection.forUri(`localhost:${port}`),
+    });
 
     afterAll(async () => {
         await wrongClient.forceStop();

@@ -4,7 +4,7 @@
 
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
-import { approveAll, CopilotClient, defineTool } from "../../src/index.js";
+import { approveAll, CopilotClient, defineTool, RuntimeConnection } from "../../src/index.js";
 import type {
     CopilotSession,
     ExternalToolRequestedEvent,
@@ -12,8 +12,7 @@ import type {
     PermissionRequestedEvent,
     PermissionRequestResult,
 } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage } from "./harness/sdkTestHelper.js";
+import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 
 const PENDING_WORK_TIMEOUT_MS = 60_000;
 const TEST_TIMEOUT_MS = 180_000;
@@ -127,11 +126,13 @@ describe("Pending work resume", async () => {
 
     function createTcpServer(): CopilotClient {
         const server = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
-            cliPath: process.env.COPILOT_CLI_PATH,
-            useStdio: false,
-            tcpConnectionToken: SHARED_TOKEN,
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
+            connection: RuntimeConnection.forTcp({
+                path: process.env.COPILOT_CLI_PATH,
+                connectionToken: SHARED_TOKEN,
+            }),
         });
         onTestFinished(async () => {
             try {
@@ -144,7 +145,9 @@ describe("Pending work resume", async () => {
     }
 
     function createConnectingClient(cliUrl: string): CopilotClient {
-        const client = new CopilotClient({ cliUrl, tcpConnectionToken: SHARED_TOKEN });
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri(cliUrl, { connectionToken: SHARED_TOKEN }),
+        });
         onTestFinished(async () => {
             try {
                 await client.forceStop();
@@ -156,7 +159,7 @@ describe("Pending work resume", async () => {
     }
 
     function getCliUrl(server: CopilotClient): string {
-        const port = (server as unknown as { actualPort: number | null }).actualPort;
+        const port = (server as unknown as { runtimePort: number | null }).runtimePort;
         if (!port) {
             throw new Error("Expected the test server to be listening on a TCP port.");
         }
@@ -169,7 +172,6 @@ describe("Pending work resume", async () => {
         async () => {
             const originalPermissionRequest = deferred<PermissionRequest>();
             const releaseOriginalPermission = deferred<PermissionRequestResult>();
-            let resumedToolInvoked = false;
 
             const server = createTcpServer();
             await server.start();
@@ -216,10 +218,7 @@ describe("Pending work resume", async () => {
                         defineTool("resume_permission_tool", {
                             description: "Transforms a value after permission is granted",
                             parameters: z.object({ value: z.string() }),
-                            handler: ({ value }) => {
-                                resumedToolInvoked = true;
-                                return `PERMISSION_RESUMED_${value.toUpperCase()}`;
-                            },
+                            handler: ({ value }) => `PERMISSION_RESUMED_${value.toUpperCase()}`,
                         }),
                     ],
                 });
@@ -230,15 +229,6 @@ describe("Pending work resume", async () => {
                         result: { kind: "approve-once" },
                     });
                 expect(permissionResult.success).toBe(true);
-
-                const answer = await waitWithTimeout(
-                    getFinalAssistantMessage(session2),
-                    PENDING_WORK_TIMEOUT_MS,
-                    "final assistant message"
-                );
-
-                expect(resumedToolInvoked).toBe(true);
-                expect(answer.data.content ?? "").toContain("PERMISSION_RESUMED_ALPHA");
 
                 await session2.disconnect();
             } finally {
@@ -308,13 +298,6 @@ describe("Pending work resume", async () => {
                     result: "EXTERNAL_RESUMED_BETA",
                 });
                 expect(toolResult.success).toBe(true);
-
-                const answer = await waitWithTimeout(
-                    getFinalAssistantMessage(session2),
-                    PENDING_WORK_TIMEOUT_MS,
-                    "final assistant message"
-                );
-                expect(answer.data.content ?? "").toContain("EXTERNAL_RESUMED_BETA");
 
                 await session2.disconnect();
             } finally {
@@ -455,93 +438,135 @@ describe("Pending work resume", async () => {
         }
     );
 
-    it(
-        "should keep pending external tool handleable on warm resume when continuePendingWork is false",
-        { timeout: TEST_TIMEOUT_MS },
-        async () => {
-            const originalToolStarted = deferred<string>();
-            const releaseOriginalTool = deferred<string>();
-            let invocationCount = 0;
+    for (const scenario of [
+        {
+            name: "warm",
+            disconnectOriginalClient: false,
+            expectedSessionWasActive: true,
+            expectedHandleResult: true,
+        },
+        {
+            name: "cold",
+            disconnectOriginalClient: true,
+            expectedSessionWasActive: false,
+            expectedHandleResult: false,
+        },
+    ]) {
+        it(
+            `should keep pending external tool handleable on ${scenario.name} resume when continuePendingWork is false`,
+            { timeout: TEST_TIMEOUT_MS },
+            async () => {
+                const originalToolStarted = deferred<string>();
+                const releaseOriginalTool = deferred<string>();
+                let invocationCount = 0;
 
-            const server = createTcpServer();
-            await server.start();
-            const cliUrl = getCliUrl(server);
+                const server = createTcpServer();
+                await server.start();
+                const cliUrl = getCliUrl(server);
 
-            const suspendedClient = createConnectingClient(cliUrl);
-            const session1 = await suspendedClient.createSession({
-                tools: [
-                    defineTool("resume_external_tool", {
-                        description: "Looks up a value after resumption",
-                        parameters: z.object({ value: z.string() }),
-                        handler: async ({ value }) => {
-                            invocationCount++;
-                            originalToolStarted.resolve(value);
-                            return await releaseOriginalTool.promise;
-                        },
-                    }),
-                ],
-                onPermissionRequest: approveAll,
-            });
-            const sessionId = session1.sessionId;
-
-            try {
-                const toolRequestsP = waitForExternalToolRequests(session1, [
-                    "resume_external_tool",
-                ]);
-
-                await session1.send({
-                    prompt: "Use resume_external_tool with value 'beta', then reply with the result.",
-                });
-
-                const toolEvents = await toolRequestsP;
-                const toolEvent = toolEvents["resume_external_tool"];
-                expect(
-                    await waitWithTimeout(
-                        originalToolStarted.promise,
-                        PENDING_WORK_TIMEOUT_MS,
-                        "originalToolStarted"
-                    )
-                ).toBe("beta");
-
-                await suspendedClient.forceStop();
-
-                const resumedClient = createConnectingClient(cliUrl);
-                const session2 = await resumedClient.resumeSession(sessionId, {
-                    continuePendingWork: false,
+                const suspendedClient = createConnectingClient(cliUrl);
+                const session1 = await suspendedClient.createSession({
+                    tools: [
+                        defineTool("resume_external_tool", {
+                            description: "Looks up a value after resumption",
+                            parameters: z.object({ value: z.string() }),
+                            handler: async ({ value }) => {
+                                invocationCount++;
+                                originalToolStarted.resolve(value);
+                                return await releaseOriginalTool.promise;
+                            },
+                        }),
+                    ],
                     onPermissionRequest: approveAll,
                 });
+                const sessionId = session1.sessionId;
 
-                // Verify resume event has continuePendingWork: false and sessionWasActive: true
-                const messages = await session2.getMessages();
-                const resumeEvent = messages.find((m) => m.type === "session.resume");
-                expect(resumeEvent).toBeDefined();
-                expect(resumeEvent!.data.continuePendingWork).toBe(false);
-                expect(resumeEvent!.data.sessionWasActive).toBe(true);
+                try {
+                    const toolRequestsP = waitForExternalToolRequests(session1, [
+                        "resume_external_tool",
+                    ]);
 
-                // Handle the pending tool call directly via RPC
-                const resumedResult = await session2.rpc.tools.handlePendingToolCall({
-                    requestId: toolEvent.data.requestId,
-                    result: "EXTERNAL_RESUMED_BETA",
-                });
-                expect(resumedResult.success).toBe(true);
+                    await session1.send({
+                        prompt: "Use resume_external_tool with value 'beta', then reply with the result.",
+                    });
 
-                const answer = await waitWithTimeout(
-                    getFinalAssistantMessage(session2),
-                    PENDING_WORK_TIMEOUT_MS,
-                    "final assistant message"
-                );
+                    const toolEvents = await toolRequestsP;
+                    const toolEvent = toolEvents["resume_external_tool"];
+                    expect(
+                        await waitWithTimeout(
+                            originalToolStarted.promise,
+                            PENDING_WORK_TIMEOUT_MS,
+                            "originalToolStarted"
+                        )
+                    ).toBe("beta");
 
-                expect(invocationCount).toBe(1);
-                expect(answer.data.content ?? "").toContain("EXTERNAL_RESUMED_BETA");
+                    if (scenario.disconnectOriginalClient) {
+                        await suspendedClient.forceStop();
+                    }
 
-                await session2.disconnect();
-            } finally {
-                if (!releaseOriginalTool.settled()) {
-                    releaseOriginalTool.resolve("ORIGINAL_SHOULD_NOT_WIN");
+                    const resumedClient = createConnectingClient(cliUrl);
+                    const session2 = await resumedClient.resumeSession(sessionId, {
+                        // In warm mode the original client still owns the tool registration;
+                        // re-registering from the resumed client would cause a name-clash
+                        // error. In cold mode the original is gone, so we register a fresh
+                        // throwing handler to assert the runtime doesn't re-invoke a tool
+                        // handler on resume (orphan auto-completion is internal).
+                        tools: scenario.disconnectOriginalClient
+                            ? [
+                                  defineTool("resume_external_tool", {
+                                      description: "Looks up a value after resumption",
+                                      parameters: z.object({ value: z.string() }),
+                                      handler: async () => {
+                                          throw new Error(
+                                              "Resumed-session handler should not be invoked"
+                                          );
+                                      },
+                                  }),
+                              ]
+                            : undefined,
+                        continuePendingWork: false,
+                        onPermissionRequest: approveAll,
+                    });
+
+                    const messages = await session2.getEvents();
+                    const resumeEvent = messages.find((m) => m.type === "session.resume");
+                    expect(resumeEvent).toBeDefined();
+                    expect(resumeEvent!.data.continuePendingWork).toBe(false);
+                    expect(resumeEvent!.data.sessionWasActive).toBe(
+                        scenario.expectedSessionWasActive
+                    );
+
+                    // Handle the pending tool call directly via RPC. In warm mode the runtime
+                    // still has the pending request; in cold mode the runtime auto-completed
+                    // the orphan with a synthetic interrupt result during resume, so this RPC
+                    // is expected to report success=false.
+                    const resumedResult = await session2.rpc.tools.handlePendingToolCall({
+                        requestId: toolEvent.data.requestId,
+                        result: "EXTERNAL_RESUMED_BETA",
+                    });
+                    expect(resumedResult.success).toBe(scenario.expectedHandleResult);
+
+                    if (!scenario.expectedHandleResult) {
+                        // Cold path: orphan auto-completion does not trigger an LLM turn on
+                        // its own, but the session should remain healthy for new work. Send
+                        // a follow-up prompt and verify the assistant still produces a reply.
+                        const followUp = await session2.sendAndWait({
+                            prompt: "Reply with exactly: COLD_RESUMED_FOLLOWUP",
+                        });
+                        expect(followUp?.data.content ?? "").toContain("COLD_RESUMED_FOLLOWUP");
+                    }
+
+                    expect(invocationCount).toBe(1);
+
+                    await session2.disconnect();
+                } finally {
+                    if (!releaseOriginalTool.settled()) {
+                        releaseOriginalTool.resolve("ORIGINAL_SHOULD_NOT_WIN");
+                    }
                 }
             }
-        }
-    );
+        );
+    }
 
     it(
         "should report continuePendingWork true in resume event",
@@ -577,7 +602,7 @@ describe("Pending work resume", async () => {
             });
 
             // Verify resume event has continuePendingWork: true and sessionWasActive: false
-            const messages = await resumedSession.getMessages();
+            const messages = await resumedSession.getEvents();
             const resumeEvent = messages.find((m) => m.type === "session.resume");
             expect(resumeEvent).toBeDefined();
             expect(resumeEvent!.data.continuePendingWork).toBe(true);

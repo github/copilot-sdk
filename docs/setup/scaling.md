@@ -2,6 +2,8 @@
 
 Design your Copilot SDK deployment to serve multiple users, handle concurrent sessions, and scale horizontally across infrastructure. This guide covers session isolation patterns, scaling topologies, and production best practices.
 
+For SDK-level options and patterns, see [Multi-Tenancy & Server Deployments](./multi-tenancy.md).
+
 **Best for:** Platform developers, SaaS builders, any deployment serving more than a handful of concurrent users.
 
 ## Core concepts

@@ -1,21 +1,21 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "session_fs", output)
 {
     private static readonly SessionFsConfig SessionFsConfig = new()
     {
-        InitialCwd = "/",
+        InitialWorkingDirectory = "/",
         SessionStatePath = CreateSessionStatePath(),
         Conventions = SessionFsSetProviderConventions.Posix,
     };
@@ -31,7 +31,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
             });
 
             var msg = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 100 + 200?" });
@@ -61,7 +61,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session1 = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = createSessionFsHandler,
+                CreateSessionFsProvider = createSessionFsHandler,
             });
             var sessionId = session1.SessionId;
 
@@ -75,7 +75,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session2 = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = createSessionFsHandler,
+                CreateSessionFsProvider = createSessionFsHandler,
             });
 
             var msg2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "What is that times 3?" });
@@ -100,20 +100,18 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             _ = await client1.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = createSessionFsHandler,
+                CreateSessionFsProvider = createSessionFsHandler,
             });
 
-            var port = client1.ActualPort
-                ?? throw new InvalidOperationException("Client1 is not using TCP mode; ActualPort is null");
+            var port = client1.RuntimePort
+                ?? throw new InvalidOperationException("Client1 is not using TCP mode; RuntimePort is null");
 
             var client2 = Ctx.CreateClient(
-                useStdio: false,
                 options: new CopilotClientOptions
                 {
-                    CliUrl = $"localhost:{port}",
-                    LogLevel = "error",
+                    LogLevel = CopilotLogLevel.Error,
                     SessionFs = SessionFsConfig,
-                    TcpConnectionToken = "session-fs-shared-token",
+                    Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: "session-fs-shared-token"),
                 });
 
             try
@@ -294,6 +292,10 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         AssertFsError((await handler.ReaddirWithTypesAsync(new SessionFsReaddirWithTypesRequest { Path = "missing-dir" })).Error);
         AssertFsError(await handler.RmAsync(new SessionFsRmRequest { Path = "missing.txt" }));
         AssertFsError(await handler.RenameAsync(new SessionFsRenameRequest { Src = "missing.txt", Dest = "dest.txt" }));
+        AssertFsError((await handler.SqliteQueryAsync(new SessionFsSqliteQueryRequest { Query = "select 1" })).Error);
+
+        var sqliteExists = await handler.SqliteExistsAsync(new SessionFsSqliteExistsRequest());
+        Assert.False(sqliteExists.Exists);
 
         var unknown = (ISessionFsHandler)new ThrowingSessionFsProvider(new InvalidOperationException("bad path"));
         var unknownError = await unknown.WriteFileAsync(new SessionFsWriteFileRequest { Path = "bad.txt", Content = "content" });
@@ -320,7 +322,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
                 Tools =
                 [
                     AIFunctionFactory.Create(() => suppliedFileContent, "get_big_string", "Returns a large string")
@@ -332,7 +334,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                 Prompt = "Call the get_big_string tool and reply with the word DONE only.",
             });
 
-            var messages = await session.GetMessagesAsync();
+            var messages = await session.GetEventsAsync();
             var toolResult = FindToolCallResult(messages, "get_big_string");
             Assert.NotNull(toolResult);
             Assert.Contains($"{SessionFsConfig.SessionStatePath}/temp/", toolResult);
@@ -362,11 +364,11 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
             });
 
             SessionCompactionCompleteEvent? compactionEvent = null;
-            using var _ = session.On(evt =>
+            using var _ = session.On<SessionEvent>(evt =>
             {
                 if (evt is SessionCompactionCompleteEvent complete)
                 {
@@ -401,15 +403,17 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
             });
 
             var msg = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 7 * 8?" });
             Assert.Contains("56", msg?.Data.Content ?? string.Empty);
 
             var workspaceYamlPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/workspace.yaml");
-            await WaitForConditionAsync(() => File.Exists(workspaceYamlPath), TimeSpan.FromSeconds(30));
-            Assert.Contains(session.SessionId, await ReadAllTextSharedAsync(workspaceYamlPath));
+            await WaitForConditionAsync(
+                async () => File.Exists(workspaceYamlPath)
+                    && (await ReadAllTextSharedAsync(workspaceYamlPath)).Contains(session.SessionId),
+                TimeSpan.FromSeconds(30));
 
             var indexPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/checkpoints/index.md");
             await WaitForConditionAsync(() => File.Exists(indexPath), TimeSpan.FromSeconds(30));
@@ -432,7 +436,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
             });
 
             // Write a plan via the session RPC
@@ -440,8 +444,10 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             await session.Rpc.Plan.UpdateAsync("# Test Plan\n\nThis is a test.");
 
             var planPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/plan.md");
-            await WaitForConditionAsync(() => File.Exists(planPath), TimeSpan.FromSeconds(30));
-            Assert.Contains("This is a test.", await ReadAllTextSharedAsync(planPath));
+            await WaitForConditionAsync(
+                async () => File.Exists(planPath)
+                    && (await ReadAllTextSharedAsync(planPath)).Contains("This is a test."),
+                TimeSpan.FromSeconds(30));
 
             await session.DisposeAsync();
         }
@@ -453,13 +459,16 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
     private CopilotClient CreateSessionFsClient(string providerRoot, bool useStdio = true, string? tcpConnectionToken = null)
     {
+        RuntimeConnection connection = useStdio
+            ? RuntimeConnection.ForStdio()
+            : RuntimeConnection.ForTcp(connectionToken: tcpConnectionToken);
+
         Directory.CreateDirectory(providerRoot);
         return Ctx.CreateClient(
-            useStdio: useStdio,
             options: new CopilotClientOptions
             {
                 SessionFs = SessionFsConfig,
-                TcpConnectionToken = tcpConnectionToken,
+                Connection = connection,
             });
     }
 
@@ -526,7 +535,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
     private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken cancellationToken = default)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var reader = new StreamReader(stream);
         return await reader.ReadToEndAsync(cancellationToken);
     }
@@ -572,7 +581,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         return normalized;
     }
 
-    private sealed class ThrowingSessionFsProvider(Exception exception) : SessionFsProvider
+    private sealed class ThrowingSessionFsProvider(Exception exception) : SessionFsProvider, ISessionFsSqliteProvider
     {
         protected override Task<string> ReadFileAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<string>(exception);
@@ -589,20 +598,26 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         protected override Task<SessionFsStatResult> StatAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<SessionFsStatResult>(exception);
 
-        protected override Task MkdirAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken) =>
+        protected override Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken) =>
             Task.FromException(exception);
 
-        protected override Task<IList<string>> ReaddirAsync(string path, CancellationToken cancellationToken) =>
+        protected override Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<IList<string>>(exception);
 
-        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReaddirWithTypesAsync(string path, CancellationToken cancellationToken) =>
+        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<IList<SessionFsReaddirWithTypesEntry>>(exception);
 
-        protected override Task RmAsync(string path, bool recursive, bool force, CancellationToken cancellationToken) =>
+        protected override Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken) =>
             Task.FromException(exception);
 
         protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
             Task.FromException(exception);
+
+        Task<SessionFsSqliteResult?> ISessionFsSqliteProvider.QueryAsync(SessionFsSqliteQueryType queryType, string query, IDictionary<string, object?>? bindParams, CancellationToken cancellationToken) =>
+            Task.FromException<SessionFsSqliteResult?>(exception);
+
+        Task<bool> ISessionFsSqliteProvider.ExistsAsync(CancellationToken cancellationToken) =>
+            Task.FromException<bool>(exception);
     }
 
     private sealed class TestSessionFsHandler(string sessionId, string rootDir) : SessionFsProvider
@@ -664,13 +679,13 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             });
         }
 
-        protected override Task MkdirAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken)
+        protected override Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken)
         {
             Directory.CreateDirectory(ResolvePath(path));
             return Task.CompletedTask;
         }
 
-        protected override Task<IList<string>> ReaddirAsync(string path, CancellationToken cancellationToken)
+        protected override Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken)
         {
             IList<string> entries = Directory
                 .EnumerateFileSystemEntries(ResolvePath(path))
@@ -681,7 +696,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             return Task.FromResult(entries);
         }
 
-        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReaddirWithTypesAsync(string path, CancellationToken cancellationToken)
+        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken)
         {
             IList<SessionFsReaddirWithTypesEntry> entries = Directory
                 .EnumerateFileSystemEntries(ResolvePath(path))
@@ -694,7 +709,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             return Task.FromResult(entries);
         }
 
-        protected override Task RmAsync(string path, bool recursive, bool force, CancellationToken cancellationToken)
+        protected override Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken)
         {
             var fullPath = ResolvePath(path);
 

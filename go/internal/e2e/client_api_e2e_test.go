@@ -9,7 +9,7 @@ import (
 )
 
 // Mirrors dotnet/test/ClientSessionManagementTests.cs (snapshot category "client_api").
-func TestClientApiE2E(t *testing.T) {
+func TestClientAPIE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

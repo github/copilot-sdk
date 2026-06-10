@@ -23,15 +23,6 @@ conversations:
           Base directory for this skill: ${workdir}/.test_skills/test-skill
 
 
-          ---
-
-          name: test-skill
-
-          description: A test skill that adds a marker to responses
-
-          ---
-
-
           # Test Skill Instructions
 
 

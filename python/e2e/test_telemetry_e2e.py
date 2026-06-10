@@ -22,9 +22,8 @@ from typing import Any
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, RuntimeConnection, TelemetryConfig
 from copilot._telemetry import get_trace_context, trace_context
-from copilot.client import SubprocessConfig, TelemetryConfig
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
@@ -82,18 +81,16 @@ class TestTelemetryExport:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=ctx.cli_path,
-                cwd=ctx.work_dir,
-                env=ctx.get_env(),
-                github_token=github_token,
-                telemetry=TelemetryConfig(
-                    file_path=str(telemetry_path),
-                    exporter_type="file",
-                    source_name=source_name,
-                    capture_content=True,
-                ),
-            )
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=github_token,
+            telemetry=TelemetryConfig(
+                file_path=str(telemetry_path),
+                exporter_type="file",
+                source_name=source_name,
+                capture_content=True,
+            ),
         )
 
         try:
@@ -207,18 +204,6 @@ class TestTelemetryConfig:
         assert cfg["exporter_type"] == "otlp-http"
         assert cfg["source_name"] == "my-app"
         assert cfg["capture_content"] is True
-
-
-class TestSubprocessConfigTelemetry:
-    """Mirrors CopilotClientOptions_Telemetry_DefaultsToNull."""
-
-    async def test_telemetry_defaults_to_none(self):
-        config = SubprocessConfig()
-        assert config.telemetry is None
-
-    # NOTE: CopilotClientOptions_Clone_CopiesTelemetry from the C# baseline has
-    # no Python equivalent: SubprocessConfig is a plain dataclass with no
-    # Clone() method, so there is nothing meaningful to test.
 
 
 class TestTelemetryHelpers:

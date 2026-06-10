@@ -1,22 +1,26 @@
 """E2E Compaction Tests"""
 
+import asyncio
+
 import pytest
 
-from copilot.generated.session_events import SessionEventType
 from copilot.session import PermissionHandler
+from copilot.session_events import (
+    SessionCompactionCompleteData,
+    SessionCompactionStartData,
+    SessionErrorData,
+    SessionEventType,
+)
 
 from .testharness import E2ETestContext
 
 pytestmark = [
     pytest.mark.asyncio(loop_scope="module"),
-    pytest.mark.skip(
-        reason="Compaction tests are skipped due to flakiness — re-enable once stabilized"
-    ),
 ]
 
 
 class TestCompaction:
-    @pytest.mark.timeout(120)
+    @pytest.mark.timeout(180)
     async def test_should_trigger_compaction_with_low_threshold_and_emit_events(
         self, ctx: E2ETestContext
     ):
@@ -32,42 +36,86 @@ class TestCompaction:
             },
         )
 
-        compaction_start_events = []
-        compaction_complete_events = []
+        # The first prompt leaves the session below the compaction processor's minimum
+        # message count. The second prompt is therefore the first deterministic point
+        # at which low thresholds can trigger compaction. Register event waiters before
+        # any prompts are sent so we never miss the events.
+        loop = asyncio.get_event_loop()
+        compaction_started_future: asyncio.Future = loop.create_future()
+        # Wait specifically for a *successful* compaction_complete so that any transient
+        # failed compaction event the daemon may emit before a successful retry is ignored
+        # (mirrors the dotnet/rust references).
+        compaction_completed_future: asyncio.Future = loop.create_future()
 
-        def on_event(event):
-            if event.type == SessionEventType.SESSION_COMPACTION_START:
-                compaction_start_events.append(event)
-            if event.type == SessionEventType.SESSION_COMPACTION_COMPLETE:
-                compaction_complete_events.append(event)
+        def _on_compaction_event(event):
+            if (
+                not compaction_started_future.done()
+                and event.type == SessionEventType.SESSION_COMPACTION_START
+                and isinstance(event.data, SessionCompactionStartData)
+            ):
+                compaction_started_future.set_result(event)
+            elif (
+                not compaction_completed_future.done()
+                and event.type == SessionEventType.SESSION_COMPACTION_COMPLETE
+                and isinstance(event.data, SessionCompactionCompleteData)
+                and event.data.success
+            ):
+                compaction_completed_future.set_result(event)
+            elif isinstance(event.data, SessionErrorData):
+                msg = event.data.message or "session error"
+                if not compaction_started_future.done():
+                    compaction_started_future.set_exception(RuntimeError(msg))
+                if not compaction_completed_future.done():
+                    compaction_completed_future.set_exception(RuntimeError(msg))
 
-        session.on(on_event)
+        unsubscribe_compaction = session.on(_on_compaction_event)
 
-        # Send multiple messages to fill up the context window
-        await session.send_and_wait("Tell me a story about a dragon. Be detailed.")
-        await session.send_and_wait(
-            "Continue the story with more details about the dragon's castle."
+        try:
+            await session.send_and_wait("Tell me a story about a dragon. Be detailed.")
+            await session.send_and_wait(
+                "Continue the story with more details about the dragon's castle."
+            )
+
+            start_event = await asyncio.wait_for(compaction_started_future, timeout=60.0)
+            complete_event = await asyncio.wait_for(compaction_completed_future, timeout=60.0)
+        except BaseException:
+            if not compaction_started_future.done():
+                compaction_started_future.cancel()
+            if not compaction_completed_future.done():
+                compaction_completed_future.cancel()
+            raise
+        finally:
+            unsubscribe_compaction()
+
+        assert start_event.type == SessionEventType.SESSION_COMPACTION_START
+        assert isinstance(start_event.data, SessionCompactionStartData)
+        assert (start_event.data.conversation_tokens or 0) > 0, (
+            "Expected compaction to report conversation tokens at start"
         )
+
+        assert complete_event.type == SessionEventType.SESSION_COMPACTION_COMPLETE
+        assert isinstance(complete_event.data, SessionCompactionCompleteData)
+        assert complete_event.data.success is True, "Expected compaction to succeed"
+        assert complete_event.data.compaction_tokens_used is not None, (
+            "Expected compaction tokens-used data"
+        )
+        assert (complete_event.data.compaction_tokens_used.input_tokens or 0) > 0, (
+            "Expected compaction call to consume input tokens"
+        )
+        summary = (complete_event.data.summary_content or "").lower()
+        assert "<overview>" in summary, "Expected summary to contain <overview>"
+        assert "<history>" in summary, "Expected summary to contain <history>"
+        assert "<checkpoint_title>" in summary, "Expected summary to contain <checkpoint_title>"
+
         await session.send_and_wait("Now describe the dragon's treasure in great detail.")
-
-        # Should have triggered compaction at least once
-        assert len(compaction_start_events) >= 1, "Expected at least 1 compaction_start event"
-        assert len(compaction_complete_events) >= 1, "Expected at least 1 compaction_complete event"
-
-        # Compaction should have succeeded
-        last_complete = compaction_complete_events[-1]
-        assert last_complete.data.success is True, "Expected compaction to succeed"
-
-        # Should have removed some tokens
-        if last_complete.data.tokens_removed is not None:
-            assert last_complete.data.tokens_removed > 0, "Expected tokensRemoved > 0"
 
         # Verify the session still works after compaction
         answer = await session.send_and_wait("What was the story about?")
         assert answer is not None
-        assert answer.data.content is not None
+        content = (answer.data.content or "").lower()
         # Should remember it was about a dragon (context preserved via summary)
-        assert "dragon" in answer.data.content.lower()
+        assert "kaedrith" in content, f"Expected answer to mention 'Kaedrith', got: {content!r}"
+        assert "dragon" in content, f"Expected answer to mention 'dragon', got: {content!r}"
 
     async def test_should_not_emit_compaction_events_when_infinite_sessions_disabled(
         self, ctx: E2ETestContext

@@ -210,12 +210,13 @@ func TestToolResultsE2E(t *testing.T) {
 		}
 
 		session.On(func(event copilot.SessionEvent) {
-			if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok {
+			switch d := event.Data.(type) {
+			case *copilot.ToolExecutionCompleteData:
 				select {
 				case toolCompleted <- d:
 				default:
 				}
-			} else if event.Type == copilot.SessionEventTypeSessionIdle {
+			case *copilot.SessionIdleData:
 				select {
 				case idle <- struct{}{}:
 				default:

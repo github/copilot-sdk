@@ -162,7 +162,7 @@ class TestSessionConfig:
         await session.disconnect()
 
     async def test_should_use_custom_sessionid(self, ctx: E2ETestContext):
-        from copilot.generated.session_events import SessionStartData
+        from copilot.session_events import SessionStartData
 
         requested_session_id = str(uuid.uuid4())
         session = await ctx.client.create_session(
@@ -171,7 +171,7 @@ class TestSessionConfig:
         )
         assert session.session_id == requested_session_id
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         assert messages
         start_event = messages[0]
         assert isinstance(start_event.data, SessionStartData)
@@ -422,11 +422,11 @@ class TestSessionConfig:
             available_tools=["view"],
         )
 
-        await session2.send_and_wait("What is 1+1?")
+        try:
+            await session2.send("What is 1+1?")
 
-        exchanges = await ctx.get_exchanges()
-        assert exchanges
-        assert _get_tool_names(exchanges[-1]) == ["view"]
-
-        await session2.disconnect()
-        await session1.disconnect()
+            exchanges = await ctx.wait_for_exchanges()
+            assert _get_tool_names(exchanges[-1]) == ["view"]
+        finally:
+            await session2.disconnect()
+            await session1.disconnect()

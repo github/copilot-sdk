@@ -12,17 +12,24 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient, SessionFsConfig, define_tool
-from copilot.client import ExternalServerConfig, SubprocessConfig
-from copilot.generated.rpc import (
+from copilot import (
+    CopilotClient,
+    RuntimeConnection,
+    SessionFsConfig,
+    define_tool,
+)
+from copilot.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
 )
-from copilot.generated.session_events import SessionCompactionCompleteData, SessionEvent
 from copilot.session import PermissionHandler
+from copilot.session_events import (
+    SessionCompactionCompleteData,
+    SessionEvent,
+)
 from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider
 
-from .testharness import E2ETestContext
+from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -36,7 +43,7 @@ SESSION_STATE_PATH = (
 )
 
 SESSION_FS_CONFIG: SessionFsConfig = {
-    "initial_cwd": "/",
+    "initial_working_directory": "/",
     "session_state_path": SESSION_STATE_PATH,
     "conventions": "posix",
 }
@@ -44,17 +51,12 @@ SESSION_FS_CONFIG: SessionFsConfig = {
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def session_fs_client(ctx: E2ETestContext):
-    github_token = (
-        "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
-    )
     client = CopilotClient(
-        SubprocessConfig(
-            cli_path=ctx.cli_path,
-            cwd=ctx.work_dir,
-            env=ctx.get_env(),
-            github_token=github_token,
-            session_fs=SESSION_FS_CONFIG,
-        )
+        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+        working_directory=ctx.work_dir,
+        env=ctx.get_env(),
+        github_token=DEFAULT_GITHUB_TOKEN,
+        session_fs=SESSION_FS_CONFIG,
     )
     yield client
     try:
@@ -119,17 +121,11 @@ class TestSessionFs:
         await session2.disconnect()
 
     async def test_should_reject_setprovider_when_sessions_already_exist(self, ctx: E2ETestContext):
-        github_token = (
-            "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
-        )
         client1 = CopilotClient(
-            SubprocessConfig(
-                cli_path=ctx.cli_path,
-                cwd=ctx.work_dir,
-                env=ctx.get_env(),
-                use_stdio=False,
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_tcp(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=DEFAULT_GITHUB_TOKEN,
         )
         session = None
         client2 = None
@@ -138,14 +134,12 @@ class TestSessionFs:
             session = await client1.create_session(
                 on_permission_request=PermissionHandler.approve_all,
             )
-            actual_port = client1.actual_port
+            actual_port = client1.runtime_port
             assert actual_port is not None
 
             client2 = CopilotClient(
-                ExternalServerConfig(
-                    url=f"localhost:{actual_port}",
-                    session_fs=SESSION_FS_CONFIG,
-                )
+                connection=RuntimeConnection.for_uri(f"localhost:{actual_port}"),
+                session_fs=SESSION_FS_CONFIG,
             )
 
             with pytest.raises(Exception):
@@ -177,7 +171,7 @@ class TestSessionFs:
             "Call the get_big_string tool and reply with the word DONE only."
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         tool_result = find_tool_call_result(messages, "get_big_string")
         assert tool_result is not None
         assert f"{SESSION_STATE_PATH}/temp/" in tool_result
@@ -241,9 +235,7 @@ class TestSessionFs:
         workspace_yaml_path = provider_path(
             provider_root, session.session_id, f"{SESSION_STATE_PATH}/workspace.yaml"
         )
-        await wait_for_path(workspace_yaml_path)
-        yaml_content = workspace_yaml_path.read_text(encoding="utf-8")
-        assert "id:" in yaml_content
+        await wait_for_content(workspace_yaml_path, "id:")
 
         # Checkpoint index should also exist
         index_path = provider_path(
@@ -256,7 +248,7 @@ class TestSessionFs:
     async def test_should_persist_plan_md_via_sessionfs(
         self, ctx: E2ETestContext, session_fs_client: CopilotClient
     ):
-        from copilot.generated.rpc import PlanUpdateRequest
+        from copilot.rpc import PlanUpdateRequest
 
         provider_root = Path(ctx.work_dir) / "provider"
         session = await session_fs_client.create_session(
@@ -271,14 +263,12 @@ class TestSessionFs:
         plan_path = provider_path(
             provider_root, session.session_id, f"{SESSION_STATE_PATH}/plan.md"
         )
-        await wait_for_path(plan_path)
-        content = plan_path.read_text(encoding="utf-8")
-        assert "# Test Plan" in content
+        await wait_for_content(plan_path, "# Test Plan")
 
         await session.disconnect()
 
     async def test_should_map_all_sessionfs_handler_operations(self, ctx: E2ETestContext):
-        from copilot.generated.rpc import (
+        from copilot.rpc import (
             SessionFSAppendFileRequest,
             SessionFSExistsRequest,
             SessionFSMkdirRequest,
@@ -287,6 +277,9 @@ class TestSessionFs:
             SessionFSReadFileRequest,
             SessionFSRenameRequest,
             SessionFSRmRequest,
+            SessionFSSqliteExistsRequest,
+            SessionFSSqliteQueryRequest,
+            SessionFSSqliteQueryType,
             SessionFSStatRequest,
             SessionFSWriteFileRequest,
         )
@@ -394,9 +387,26 @@ class TestSessionFs:
                 SessionFSStatRequest(session_id=session_id, path="/workspace/nested/missing.txt")
             )
             assert missing.error is not None
-            from copilot.generated.rpc import SessionFSErrorCode
+            from copilot.rpc import SessionFSErrorCode
 
             assert missing.error.code == SessionFSErrorCode.ENOENT
+
+            # SQLite methods are not on the non-sqlite provider, so the adapter
+            # should return unsupported/not-found results.
+            sqlite_query = await handler.sqlite_query(
+                SessionFSSqliteQueryRequest(
+                    session_id=session_id,
+                    query="select 1",
+                    query_type=SessionFSSqliteQueryType.QUERY,
+                )
+            )
+            assert sqlite_query.error is not None
+            assert sqlite_query.error.code == SessionFSErrorCode.UNKNOWN
+
+            sqlite_exists = await handler.sqlite_exists(
+                SessionFSSqliteExistsRequest(session_id=session_id)
+            )
+            assert sqlite_exists.exists is False
         finally:
             try:
                 import shutil
@@ -406,7 +416,7 @@ class TestSessionFs:
                 pass
 
     async def test_sessionfsprovider_converts_exceptions_to_rpc_errors(self):
-        from copilot.generated.rpc import (
+        from copilot.rpc import (
             SessionFSAppendFileRequest,
             SessionFSErrorCode,
             SessionFSExistsRequest,
@@ -416,6 +426,9 @@ class TestSessionFs:
             SessionFSReadFileRequest,
             SessionFSRenameRequest,
             SessionFSRmRequest,
+            SessionFSSqliteExistsRequest,
+            SessionFSSqliteQueryRequest,
+            SessionFSSqliteQueryType,
             SessionFSStatRequest,
             SessionFSWriteFileRequest,
         )
@@ -511,6 +524,20 @@ class TestSessionFs:
                 SessionFSRenameRequest(session_id=sid, src="missing.txt", dest="dest.txt")
             )
         )
+        # _ThrowingProvider does not implement SessionFsSqliteProvider, so the
+        # adapter returns "not supported" results rather than propagating throws.
+        sqlite_query = await handler.sqlite_query(
+            SessionFSSqliteQueryRequest(
+                session_id=sid, query="select 1", query_type=SessionFSSqliteQueryType.QUERY
+            )
+        )
+        assert sqlite_query.error is not None
+        assert sqlite_query.error.code == SessionFSErrorCode.UNKNOWN
+        assert sqlite_query.columns == []
+        assert sqlite_query.rows == []
+        assert sqlite_query.rows_affected == 0
+        sqlite_exists = await handler.sqlite_exists(SessionFSSqliteExistsRequest(session_id=sid))
+        assert sqlite_exists.exists is False
 
         unknown_handler = create_session_fs_adapter(_ThrowingProvider(RuntimeError("bad path")))
         unknown_error = await unknown_handler.write_file(

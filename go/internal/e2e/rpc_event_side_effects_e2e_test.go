@@ -14,7 +14,7 @@ import (
 const rpcEventSideEffectsTimeout = 30 * time.Second
 
 // Mirrors dotnet/test/RpcEventSideEffectsE2ETests.cs (snapshot category "rpc_event_side_effects").
-func TestRpcEventSideEffectsE2E(t *testing.T) {
+func TestRPCEventSideEffectsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -168,13 +168,14 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 			t.Fatalf("Failed to create persisted message: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read messages: %v", err)
 		}
 		userEvent := firstUserMessageEvent(messages)
 		if userEvent == nil {
 			t.Fatal("Expected at least one user.message in persisted history")
+			return
 		}
 		targetEventID := userEvent.ID
 
@@ -198,11 +199,11 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 		if !strings.EqualFold(rewindData.UpToEventID, targetEventID) {
 			t.Fatalf("Expected rewind to target %q, got %+v", targetEventID, rewindData)
 		}
-		if rewindData.EventsRemoved != float64(truncateResult.EventsRemoved) {
+		if rewindData.EventsRemoved != truncateResult.EventsRemoved {
 			t.Fatalf("Expected rewind count %d, got %+v", truncateResult.EventsRemoved, rewindData)
 		}
 
-		messagesAfter, err := session.GetMessages(t.Context())
+		messagesAfter, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read messages after truncate: %v", err)
 		}
@@ -223,13 +224,14 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 			t.Fatalf("Failed to create persisted message: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read messages: %v", err)
 		}
 		userEvent := firstUserMessageEvent(messages)
 		if userEvent == nil {
 			t.Fatal("Expected at least one user.message in persisted history")
+			return
 		}
 
 		truncateResult, err := session.RPC.History.Truncate(t.Context(), &rpc.HistoryTruncateRequest{EventID: userEvent.ID})
@@ -272,12 +274,12 @@ func waitForMatchingEvent(session *copilot.Session, eventType copilot.SessionEve
 	result := make(chan *copilot.SessionEvent, 1)
 	errCh := make(chan error, 1)
 	unsubscribe := session.On(func(event copilot.SessionEvent) {
-		if event.Type == eventType && predicate(event) {
+		if event.Type() == eventType && predicate(event) {
 			select {
 			case result <- &event:
 			default:
 			}
-		} else if event.Type == copilot.SessionEventTypeSessionError {
+		} else if event.Type() == copilot.SessionEventTypeSessionError {
 			msg := "session error"
 			if data, ok := event.Data.(*copilot.SessionErrorData); ok {
 				msg = data.Message

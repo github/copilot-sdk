@@ -202,11 +202,11 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 			t.Errorf("Expected SessionID=%q, got %q", requestedSessionID, session.SessionID)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
-		if len(messages) == 0 || messages[0].Type != copilot.SessionEventTypeSessionStart {
+		if len(messages) == 0 || messages[0].Type() != copilot.SessionEventTypeSessionStart {
 			t.Fatalf("Expected first event to be session.start, got %+v", messages)
 		}
 		startData := messages[0].Data.(*copilot.SessionStartData)
@@ -635,15 +635,12 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session2.Disconnect() })
 
-		_, err = session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session2.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
-			t.Fatalf("SendAndWait failed: %v", err)
+			t.Fatalf("Send failed: %v", err)
 		}
 
-		exchanges, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("GetExchanges failed: %v", err)
-		}
+		exchanges := ctx.WaitForExchanges(t, 1)
 		if len(exchanges) != 1 {
 			t.Fatalf("Expected exactly 1 exchange, got %d", len(exchanges))
 		}

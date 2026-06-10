@@ -10,8 +10,7 @@ from collections.abc import Callable
 
 import pytest
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import (
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
@@ -50,14 +49,14 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_forwards_commands_in_session_create_rpc(self):
         """Verifies that commands (name + description) are serialized in session.create payload."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 return await original_request(method, params)
 
@@ -89,7 +88,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_forwards_commands_in_session_resume_rpc(self):
         """Verifies that commands are serialized in session.resume payload."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -99,7 +98,7 @@ class TestCommands:
 
             captured: dict = {}
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": params["sessionId"]}
@@ -127,7 +126,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_routes_command_execute_event_to_correct_handler(self):
         """Verifies the command dispatch works for command.execute events."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -147,7 +146,7 @@ class TestCommands:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.commands.handlePendingCommand":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -156,7 +155,7 @@ class TestCommands:
             client._client.request = mock_request
 
             # Simulate a command.execute broadcast event
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
@@ -198,7 +197,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_sends_error_when_command_handler_throws(self):
         """Verifies error is sent via RPC when a command handler raises."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -216,7 +215,7 @@ class TestCommands:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.commands.handlePendingCommand":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -224,7 +223,7 @@ class TestCommands:
 
             client._client.request = mock_request
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
@@ -256,7 +255,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_sends_error_for_unknown_command(self):
         """Verifies error is sent via RPC for an unrecognized command."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -270,7 +269,7 @@ class TestCommands:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.commands.handlePendingCommand":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -278,7 +277,7 @@ class TestCommands:
 
             client._client.request = mock_request
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
@@ -317,13 +316,13 @@ class TestUiElicitation:
     @pytest.mark.asyncio
     async def test_reads_capabilities_from_session_create_response(self):
         """Verifies capabilities are parsed from session.create response."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.create":
                     result = await original_request(method, params)
                     return {**result, "capabilities": {"ui": {"elicitation": True}}}
@@ -341,7 +340,7 @@ class TestUiElicitation:
     @pytest.mark.asyncio
     async def test_defaults_capabilities_when_not_injected(self):
         """Verifies capabilities default to empty when server returns none."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -358,7 +357,7 @@ class TestUiElicitation:
     @pytest.mark.asyncio
     async def test_elicitation_throws_when_capability_is_missing(self):
         """Verifies that UI methods throw when elicitation is not supported."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -385,7 +384,7 @@ class TestUiElicitation:
     @pytest.mark.asyncio
     async def test_confirm_throws_when_capability_is_missing(self):
         """Verifies confirm throws when elicitation is not supported."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -409,14 +408,14 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_request_elicitation_flag_when_handler_provided(self):
         """Verifies requestElicitation=true is sent when onElicitationContext is provided."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 return await original_request(method, params)
 
@@ -441,14 +440,14 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_does_not_send_request_elicitation_when_no_handler(self):
         """Verifies requestElicitation=false when no handler is provided."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 return await original_request(method, params)
 
@@ -469,14 +468,14 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_mode_callback_flags_when_handlers_provided(self):
         """Verifies mode callback flags are sent when handlers are provided."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 return await original_request(method, params)
 
@@ -494,8 +493,8 @@ class TestOnElicitationContext:
 
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
-                on_exit_plan_mode=exit_handler,
-                on_auto_mode_switch=auto_handler,
+                on_exit_plan_mode_request=exit_handler,
+                on_auto_mode_switch_request=auto_handler,
             )
             assert session is not None
 
@@ -508,7 +507,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_mode_callback_flags_on_resume_when_handlers_provided(self):
         """Verifies mode callback flags are sent on session.resume."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -517,7 +516,7 @@ class TestOnElicitationContext:
             )
             captured: dict = {}
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": params["sessionId"]}
@@ -528,8 +527,8 @@ class TestOnElicitationContext:
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
-                on_exit_plan_mode=lambda request, invocation: {"approved": True},
-                on_auto_mode_switch=lambda request, invocation: "yes",
+                on_exit_plan_mode_request=lambda request, invocation: {"approved": True},
+                on_auto_mode_switch_request=lambda request, invocation: "yes",
             )
 
             payload = captured["session.resume"]
@@ -541,7 +540,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_dispatches_mode_callback_requests_to_registered_handlers(self):
         """Verifies direct mode requests are dispatched to registered handlers."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -570,8 +569,8 @@ class TestOnElicitationContext:
 
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
-                on_exit_plan_mode=exit_handler,
-                on_auto_mode_switch=auto_handler,
+                on_exit_plan_mode_request=exit_handler,
+                on_auto_mode_switch_request=auto_handler,
             )
 
             exit_result = await client._handle_exit_plan_mode_request(
@@ -603,7 +602,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_cancel_when_elicitation_handler_throws(self):
         """Verifies auto-cancel when the elicitation handler raises."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -621,7 +620,7 @@ class TestOnElicitationContext:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.ui.handlePendingElicitation":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -648,7 +647,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_dispatches_elicitation_requested_event_to_handler(self):
         """Verifies that an elicitation.requested event dispatches to the handler."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -668,7 +667,7 @@ class TestOnElicitationContext:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.ui.handlePendingElicitation":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -676,7 +675,7 @@ class TestOnElicitationContext:
 
             client._client.request = mock_request
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 ElicitationRequestedData,
                 SessionEvent,
                 SessionEventType,
@@ -709,7 +708,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_elicitation_handler_receives_full_schema(self):
         """Verifies that requestedSchema passes type, properties, and required to handler."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -728,14 +727,14 @@ class TestOnElicitationContext:
 
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.ui.handlePendingElicitation":
                     return {"success": True}
                 return await original_request(method, params)
 
             client._client.request = mock_request
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 ElicitationRequestedData,
                 ElicitationRequestedSchema,
                 SessionEvent,
@@ -785,7 +784,7 @@ class TestCapabilitiesChanged:
     @pytest.mark.asyncio
     async def test_capabilities_changed_event_updates_session(self):
         """Verifies that a capabilities.changed event updates session capabilities."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -794,7 +793,7 @@ class TestCapabilitiesChanged:
             )
             session._set_capabilities({})
 
-            from copilot.generated.session_events import (
+            from copilot.session_events import (
                 CapabilitiesChangedData,
                 CapabilitiesChangedUI,
                 SessionEvent,

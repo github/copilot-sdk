@@ -43,7 +43,7 @@ func TestModeHandlersE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			GitHubToken:         modeHandlerToken,
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			OnExitPlanMode: func(request copilot.ExitPlanModeRequest, invocation copilot.ExitPlanModeInvocation) (copilot.ExitPlanModeResult, error) {
+			OnExitPlanModeRequest: func(request copilot.ExitPlanModeRequest, invocation copilot.ExitPlanModeInvocation) (copilot.ExitPlanModeResult, error) {
 				mu.Lock()
 				exitPlanModeRequests = append(exitPlanModeRequests, request)
 				mu.Unlock()
@@ -84,8 +84,8 @@ func TestModeHandlersE2E(t *testing.T) {
 		)
 
 		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: planPrompt,
-			Mode:   "plan",
+			Prompt:    planPrompt,
+			AgentMode: copilot.AgentModePlan,
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
@@ -132,7 +132,7 @@ func TestModeHandlersE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			GitHubToken:         modeHandlerToken,
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			OnAutoModeSwitch: func(request copilot.AutoModeSwitchRequest, invocation copilot.AutoModeSwitchInvocation) (copilot.AutoModeSwitchResponse, error) {
+			OnAutoModeSwitchRequest: func(request copilot.AutoModeSwitchRequest, invocation copilot.AutoModeSwitchInvocation) (copilot.AutoModeSwitchResponse, error) {
 				mu.Lock()
 				autoModeSwitchRequests = append(autoModeSwitchRequests, request)
 				mu.Unlock()
@@ -235,12 +235,12 @@ func waitForMatchingEventAllowingRateLimit(session *copilot.Session, eventType c
 	result := make(chan *copilot.SessionEvent, 1)
 	errCh := make(chan error, 1)
 	unsubscribe := session.On(func(event copilot.SessionEvent) {
-		if event.Type == eventType && predicate(event) {
+		if event.Type() == eventType && predicate(event) {
 			select {
 			case result <- &event:
 			default:
 			}
-		} else if event.Type == copilot.SessionEventTypeSessionError {
+		} else if event.Type() == copilot.SessionEventTypeSessionError {
 			if data, ok := event.Data.(*copilot.SessionErrorData); ok && data.ErrorType == "rate_limit" {
 				return
 			}

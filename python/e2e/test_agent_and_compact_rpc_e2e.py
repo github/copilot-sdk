@@ -4,9 +4,8 @@ import uuid
 
 import pytest
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
-from copilot.generated.rpc import AgentSelectRequest
+from copilot import CopilotClient, RuntimeConnection
+from copilot.rpc import AgentSelectRequest
 from copilot.session import PermissionHandler
 
 from .testharness import CLI_PATH, E2ETestContext
@@ -18,7 +17,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_list_available_custom_agents(self):
         """Test listing available custom agents via RPC."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -56,7 +55,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_return_null_when_no_agent_is_selected(self):
         """Test getCurrent returns null when no agent is selected."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -83,7 +82,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_select_and_get_current_agent(self):
         """Test selecting an agent and verifying getCurrent returns it."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -118,7 +117,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_deselect_current_agent(self):
         """Test deselecting the current agent."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -150,7 +149,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_return_empty_list_when_no_custom_agents_configured(self):
         """Test listing agents returns no custom agents when none configured."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -175,7 +174,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_call_agent_reload(self):
         """Test reloading agents via RPC."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         reload_agent = {
             "name": f"reload-test-agent-{uuid.uuid4().hex}",
             "display_name": "Reload Agent",

@@ -70,6 +70,25 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "rust"
+          prefix-key: v1-rust-no-bin
+          cache-bin: false
+
+      - name: Read pinned @github/copilot CLI version
+        id: cli-version
+        working-directory: ./nodejs
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Pinned CLI version: $version"
+
+      # Share the bundled-CLI archive cache with the `bundle` job: build.rs
+      # now downloads in both modes (embed for `bundle`, extract-to-cache
+      # for this `test` job's `--no-default-features` build).
+      - name: Cache bundled CLI tarball
+        uses: actions/cache@v4
+        with:
+          path: ./rust/.bundled-cli-cache
+          key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
 
       - name: cargo fmt --check (nightly)
         if: runner.os == 'Linux'
@@ -77,12 +96,15 @@ jobs:
 
       - name: cargo clippy
         if: runner.os == 'Linux'
+        env:
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
         run: cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
 
       - name: cargo doc
         if: runner.os == 'Linux'
         env:
           RUSTDOCFLAGS: "-D warnings"
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
         run: cargo doc --no-deps --all-features
 
       - name: Install test harness dependencies
@@ -94,30 +116,25 @@ jobs:
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
 
       - name: cargo test
+        timeout-minutes: 90
         env:
+          RUST_E2E_CONCURRENCY: 4
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
-        run: cargo test --features test-support
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
+        # `--no-default-features` selects dev mode: build.rs still downloads
+        # + verifies + extracts the CLI to the per-user cache, but doesn't
+        # embed it. Tests exec against the setup-copilot CLI via
+        # COPILOT_CLI_PATH (the env override wins over the dev cache).
+        # The dedicated `bundle` job below exercises the embed pipeline.
+        run: cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
 
-      # Detects accidental public-API breakage against the crate's last
-      # published version on crates.io. Non-blocking until the crate has
-      # a first published release — once a 0.1.0 ships, flip
-      # `continue-on-error` to `false` to enforce SemVer.
-      - name: cargo semver-checks
-        if: runner.os == 'Linux'
-        continue-on-error: true
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: github-copilot-sdk
-          manifest-path: rust/Cargo.toml
-
-  # Validates the `embedded-cli` build path on all three supported
-  # platforms. This is the only place `build.rs` actually runs (the
-  # default `cargo test` job above has `COPILOT_CLI_VERSION` unset, so
-  # `build.rs` returns immediately). Catches regressions in the
-  # download / verify / extract / embed pipeline before they ship to
-  # crates.io and before bundling consumers (e.g. github-app's
-  # bundled-CLI release pipeline) hit them downstream.
+  # Validates the bundled-CLI build path on all three supported
+  # platforms. While the regular `cargo test` job above also exercises
+  # build.rs (bundling is on by default now), this matrix job is the
+  # dedicated cross-platform smoke test for the download / verify /
+  # extract / embed pipeline. Catches regressions before they ship to
+  # crates.io and before bundling consumers hit them downstream.
   bundle:
     name: "Rust SDK Bundled CLI Build"
     if: github.event.repository.fork == false
@@ -142,31 +159,34 @@ jobs:
           toolchain: "1.94.0"
 
       - uses: Swatinem/rust-cache@v2
+        # Cache is only an optimization; the Windows bundled smoke test should
+        # not fail when rust-cache's post-job save flakes after a successful build.
+        continue-on-error: ${{ runner.os == 'Windows' }}
         with:
           workspaces: "rust"
           key: bundled-cli
+          prefix-key: v1-rust-no-bin
+          cache-bin: false
 
       - name: Read pinned @github/copilot CLI version
         id: cli-version
         working-directory: ./nodejs
         run: |
-          version=$(node -p "require('./package.json').dependencies['@github/copilot'].replace(/^[\^~]/, '')")
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Pinned CLI version: $version"
 
       # Cache the downloaded archive across runs so we don't refetch
-      # ~130 MB on every CI invocation. Keyed by OS + CLI version; on
-      # cache miss the bundle job exercises the full ureq download +
-      # SHA-256 + retry path, which is exactly the regression surface
-      # we want validated.
+      # ~130 MB on every CI invocation. Keyed by OS + CLI version so old
+      # archives drop out when the pinned version bumps, keeping the
+      # cache bounded.
       - name: Cache bundled CLI tarball
         uses: actions/cache@v4
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
 
-      - name: cargo build --features embedded-cli
+      - name: cargo build (bundled-cli is the default feature)
         env:
-          COPILOT_CLI_VERSION: ${{ steps.cli-version.outputs.version }}
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo build --features embedded-cli
+        run: cargo build

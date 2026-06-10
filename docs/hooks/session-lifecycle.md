@@ -88,7 +88,7 @@ type SessionStartHandler func(
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public delegate Task<SessionStartHookOutput?> SessionStartHandler(
     SessionStartHookInput input,
@@ -106,10 +106,25 @@ public delegate Task<SessionStartHookOutput?> SessionStartHandler(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```java
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
 
-SessionStartHandler sessionStartHandler;
+public class SessionStartSignature {
+    SessionStartHandler handler = (SessionStartHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(null);
+    public static void main(String[] args) {}
+}
+```
+<!-- /docs-validate: hidden -->
+```java
+@FunctionalInterface
+public interface SessionStartHandler {
+    CompletableFuture<SessionStartHookOutput> handle(
+        SessionStartHookInput input,
+        HookInvocation invocation);
+}
 ```
 
 </details>
@@ -316,10 +331,25 @@ public delegate Task<SessionEndHookOutput?> SessionEndHandler(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```java
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
 
-SessionEndHandler sessionEndHandler;
+public class SessionEndSignature {
+    SessionEndHandler handler = (SessionEndHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(null);
+    public static void main(String[] args) {}
+}
+```
+<!-- /docs-validate: hidden -->
+```java
+@FunctionalInterface
+public interface SessionEndHandler {
+    CompletableFuture<SessionEndHookOutput> handle(
+        SessionEndHookInput input,
+        HookInvocation invocation);
+}
 ```
 
 </details>

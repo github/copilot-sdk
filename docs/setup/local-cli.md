@@ -6,7 +6,7 @@ Use a specific CLI binary instead of the SDK's bundled CLI. This is an advanced 
 
 ## How it works
 
-By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this—for example, to use a system-installed CLI—you can use the `cliPath` option.
+By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this—for example, to use a system-installed CLI—you can use the `Connection` option.
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,7 @@ await client.stop();
 
 ```python
 from copilot import CopilotClient
-from copilot.generated.session_events import AssistantMessageData
+from copilot.session_events import AssistantMessageData
 from copilot.session import PermissionHandler
 
 client = CopilotClient({
@@ -78,7 +78,7 @@ await client.stop()
 <summary><strong>Go</strong></summary>
 
 > [!NOTE]
-> The Go SDK does not bundle a CLI, so you must always provide `CLIPath`.
+> The Go SDK does not bundle a CLI, so you must always provide `Connection`.
 
 <!-- docs-validate: hidden -->
 ```go
@@ -95,7 +95,7 @@ func main() {
 	ctx := context.Background()
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIPath: "/usr/local/bin/copilot",
+		Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
 	})
 	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
@@ -115,7 +115,7 @@ func main() {
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIPath: "/usr/local/bin/copilot",
+    Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
 })
 if err := client.Start(ctx); err != nil {
     log.Fatal(err)
@@ -139,7 +139,7 @@ if response != nil {
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliPath = "/usr/local/bin/copilot",
+    Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot"),
 });
 
 await using var session = await client.CreateSessionAsync(

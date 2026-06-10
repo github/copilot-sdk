@@ -125,7 +125,7 @@ func assertToolTurnOrdering(t *testing.T, events []copilot.SessionEvent, turnDes
 
 	observedTypes := make([]copilot.SessionEventType, 0, len(events))
 	for _, e := range events {
-		observedTypes = append(observedTypes, e.Type)
+		observedTypes = append(observedTypes, e.Type())
 	}
 
 	userMessageIdx := indexOfEventType(events, copilot.SessionEventTypeUserMessage, 0)
@@ -155,14 +155,14 @@ func assertToolTurnOrdering(t *testing.T, events []copilot.SessionEvent, turnDes
 	// Match each tool.execution_complete to a preceding tool.execution_start with the same ToolCallID.
 	starts := make(map[string]int)
 	for i, e := range events {
-		if e.Type == copilot.SessionEventTypeToolExecutionStart {
+		if e.Type() == copilot.SessionEventTypeToolExecutionStart {
 			if d, ok := e.Data.(*copilot.ToolExecutionStartData); ok {
 				starts[d.ToolCallID] = i
 			}
 		}
 	}
 	for _, e := range events {
-		if e.Type == copilot.SessionEventTypeToolExecutionComplete {
+		if e.Type() == copilot.SessionEventTypeToolExecutionComplete {
 			if d, ok := e.Data.(*copilot.ToolExecutionCompleteData); ok {
 				if _, found := starts[d.ToolCallID]; !found {
 					t.Errorf("[%s] tool.execution_complete for %q has no matching tool.execution_start; types=%v",
@@ -188,7 +188,7 @@ func assertToolTurnOrdering(t *testing.T, events []copilot.SessionEvent, turnDes
 
 func indexOfEventType(events []copilot.SessionEvent, typ copilot.SessionEventType, startIdx int) int {
 	for i := startIdx; i < len(events); i++ {
-		if events[i].Type == typ {
+		if events[i].Type() == typ {
 			return i
 		}
 	}
@@ -197,7 +197,7 @@ func indexOfEventType(events []copilot.SessionEvent, typ copilot.SessionEventTyp
 
 func lastIndexOfEventType(events []copilot.SessionEvent, typ copilot.SessionEventType) int {
 	for i := len(events) - 1; i >= 0; i-- {
-		if events[i].Type == typ {
+		if events[i].Type() == typ {
 			return i
 		}
 	}

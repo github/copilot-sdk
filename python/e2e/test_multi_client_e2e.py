@@ -14,9 +14,12 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel, Field
 
-from copilot import CopilotClient, define_tool
-from copilot.client import ExternalServerConfig, SubprocessConfig
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot import CopilotClient, RuntimeConnection, define_tool
+from copilot.rpc import (
+    PermissionDecisionApproveOnce,
+    PermissionDecisionReject,
+)
+from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import ToolInvocation
 
 from .testharness import get_final_assistant_message
@@ -53,14 +56,12 @@ class MultiClientContext:
 
         # Client 1 uses TCP mode so a second client can connect to the same server
         self._client1 = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
-                cwd=self.work_dir,
-                env=self.get_env(),
-                use_stdio=False,
-                github_token=github_token,
-                tcp_connection_token="py-tcp-shared-test-token",
-            )
+            connection=RuntimeConnection.for_tcp(
+                path=self.cli_path, connection_token="py-tcp-shared-test-token"
+            ),
+            working_directory=self.work_dir,
+            env=self.get_env(),
+            github_token=github_token,
         )
 
         # Trigger connection by creating and disconnecting an init session
@@ -70,12 +71,12 @@ class MultiClientContext:
         await init_session.disconnect()
 
         # Read the actual port from client 1 and create client 2
-        actual_port = self._client1.actual_port
+        actual_port = self._client1.runtime_port
         assert actual_port is not None, "Client 1 should have an actual port after connecting"
 
         self._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 
@@ -186,6 +187,25 @@ async def configure_multi_test(request, mctx):
     yield
 
 
+def wait_for_event(session, predicate, timeout: float = 30.0):
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+
+    def on_event(event):
+        if not future.done() and predicate(event):
+            future.set_result(event)
+
+    unsubscribe = session.on(on_event)
+
+    async def wait():
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        finally:
+            unsubscribe()
+
+    return loop.create_task(wait())
+
+
 class TestMultiClientBroadcast:
     async def test_both_clients_see_tool_request_and_completion_events(
         self, mctx: MultiClientContext
@@ -204,33 +224,42 @@ class TestMultiClientBroadcast:
             on_permission_request=PermissionHandler.approve_all, tools=[magic_number]
         )
 
-        # Client 2 resumes with NO tools — should not overwrite client 1's tools
+        # Client 2 resumes with NO tools â€” should not overwrite client 1's tools
         session2 = await mctx.client2.resume_session(
             session1.session_id, on_permission_request=PermissionHandler.approve_all
         )
-        client1_events = []
-        client2_events = []
-        session1.on(lambda event: client1_events.append(event))
-        session2.on(lambda event: client2_events.append(event))
+        waiters = []
+        try:
+            client1_requested = wait_for_event(
+                session1, lambda event: event.type.value == "external_tool.requested"
+            )
+            client2_requested = wait_for_event(
+                session2, lambda event: event.type.value == "external_tool.requested"
+            )
+            client1_completed = wait_for_event(
+                session1, lambda event: event.type.value == "external_tool.completed"
+            )
+            client2_completed = wait_for_event(
+                session2, lambda event: event.type.value == "external_tool.completed"
+            )
+            waiters = [client1_requested, client2_requested, client1_completed, client2_completed]
 
-        # Send a prompt that triggers the custom tool
-        await session1.send("Use the magic_number tool with seed 'hello' and tell me the result")
-        response = await get_final_assistant_message(session1)
-        assert "MAGIC_hello_42" in (response.data.content or "")
+            # Send a prompt that triggers the custom tool
+            await session1.send(
+                "Use the magic_number tool with seed 'hello' and tell me the result"
+            )
+            # Use a longer timeout: first multi-client TCP test on Windows CI needs extra time
+            response = await get_final_assistant_message(session1, timeout=30.0)
+            assert "MAGIC_hello_42" in (response.data.content or "")
 
-        # Both clients should have seen the external_tool.requested event
-        c1_tool_requested = [e for e in client1_events if e.type.value == "external_tool.requested"]
-        c2_tool_requested = [e for e in client2_events if e.type.value == "external_tool.requested"]
-        assert len(c1_tool_requested) > 0
-        assert len(c2_tool_requested) > 0
-
-        # Both clients should have seen the external_tool.completed event
-        c1_tool_completed = [e for e in client1_events if e.type.value == "external_tool.completed"]
-        c2_tool_completed = [e for e in client2_events if e.type.value == "external_tool.completed"]
-        assert len(c1_tool_completed) > 0
-        assert len(c2_tool_completed) > 0
-
-        await session2.disconnect()
+            # Both clients should have seen the external_tool.requested and completed events
+            await asyncio.gather(*waiters)
+        finally:
+            for waiter in waiters:
+                if not waiter.done():
+                    waiter.cancel()
+            await asyncio.gather(*waiters, return_exceptions=True)
+            await session2.disconnect()
 
     async def test_one_client_approves_permission_and_both_see_the_result(
         self, mctx: MultiClientContext
@@ -241,46 +270,52 @@ class TestMultiClientBroadcast:
         # Client 1 creates a session and manually approves permission requests
         session1 = await mctx.client1.create_session(
             on_permission_request=lambda request, invocation: (
-                permission_requests.append(request) or PermissionRequestResult(kind="approve-once")
+                permission_requests.append(request) or PermissionDecisionApproveOnce()
             ),
         )
 
         # Client 2 observes the permission request but leaves the decision to client 1.
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="no-result"
-            ),
+            on_permission_request=lambda request, invocation: PermissionNoResult(),
         )
+        waiters = []
+        try:
+            client1_requested = wait_for_event(
+                session1, lambda event: event.type.value == "permission.requested"
+            )
+            client2_requested = wait_for_event(
+                session2, lambda event: event.type.value == "permission.requested"
+            )
+            client1_completed = wait_for_event(
+                session1, lambda event: event.type.value == "permission.completed"
+            )
+            client2_completed = wait_for_event(
+                session2, lambda event: event.type.value == "permission.completed"
+            )
+            waiters = [client1_requested, client2_requested, client1_completed, client2_completed]
 
-        client1_events = []
-        client2_events = []
-        session1.on(lambda event: client1_events.append(event))
-        session2.on(lambda event: client2_events.append(event))
+            # Send a prompt that triggers a write operation (requires permission)
+            await session1.send("Create a file called hello.txt containing the text 'hello world'")
+            response = await get_final_assistant_message(session1)
+            assert response.data.content
 
-        # Send a prompt that triggers a write operation (requires permission)
-        await session1.send("Create a file called hello.txt containing the text 'hello world'")
-        response = await get_final_assistant_message(session1)
-        assert response.data.content
+            # Client 1 should have handled permission requests
+            assert len(permission_requests) > 0
 
-        # Client 1 should have handled permission requests
-        assert len(permission_requests) > 0
+            # Both clients should have seen permission.requested events
+            await asyncio.gather(client1_requested, client2_requested)
 
-        # Both clients should have seen permission.requested events
-        c1_perm_requested = [e for e in client1_events if e.type.value == "permission.requested"]
-        c2_perm_requested = [e for e in client2_events if e.type.value == "permission.requested"]
-        assert len(c1_perm_requested) > 0
-        assert len(c2_perm_requested) > 0
-
-        # Both clients should have seen permission.completed events with approved result
-        c1_perm_completed = [e for e in client1_events if e.type.value == "permission.completed"]
-        c2_perm_completed = [e for e in client2_events if e.type.value == "permission.completed"]
-        assert len(c1_perm_completed) > 0
-        assert len(c2_perm_completed) > 0
-        for event in c1_perm_completed + c2_perm_completed:
-            assert event.data.result.kind.value == "approved"
-
-        await session2.disconnect()
+            # Both clients should have seen permission.completed events with approved result
+            completed_events = await asyncio.gather(client1_completed, client2_completed)
+            for event in completed_events:
+                assert event.data.result.kind == "approved"
+        finally:
+            for waiter in waiters:
+                if not waiter.done():
+                    waiter.cancel()
+            await asyncio.gather(*waiters, return_exceptions=True)
+            await session2.disconnect()
 
     async def test_one_client_rejects_permission_and_both_see_the_result(
         self, mctx: MultiClientContext
@@ -288,52 +323,56 @@ class TestMultiClientBroadcast:
         """One client rejects a permission request and both see the result."""
         # Client 1 creates a session and denies all permission requests
         session1 = await mctx.client1.create_session(
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="reject"
-            ),
+            on_permission_request=lambda request, invocation: PermissionDecisionReject(),
         )
 
         # Client 2 observes the permission request but leaves the decision to client 1.
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="no-result"
-            ),
+            on_permission_request=lambda request, invocation: PermissionNoResult(),
         )
+        waiters = []
+        try:
+            client1_requested = wait_for_event(
+                session1, lambda event: event.type.value == "permission.requested"
+            )
+            client2_requested = wait_for_event(
+                session2, lambda event: event.type.value == "permission.requested"
+            )
+            client1_completed = wait_for_event(
+                session1, lambda event: event.type.value == "permission.completed"
+            )
+            client2_completed = wait_for_event(
+                session2, lambda event: event.type.value == "permission.completed"
+            )
+            waiters = [client1_requested, client2_requested, client1_completed, client2_completed]
 
-        client1_events = []
-        client2_events = []
-        session1.on(lambda event: client1_events.append(event))
-        session2.on(lambda event: client2_events.append(event))
+            # Create a file that the agent will try to edit
+            test_file = os.path.join(mctx.work_dir, "protected.txt")
+            with open(test_file, "w") as f:
+                f.write("protected content")
 
-        # Create a file that the agent will try to edit
-        test_file = os.path.join(mctx.work_dir, "protected.txt")
-        with open(test_file, "w") as f:
-            f.write("protected content")
+            await session1.send("Edit protected.txt and replace 'protected' with 'hacked'.")
+            await get_final_assistant_message(session1)
 
-        await session1.send("Edit protected.txt and replace 'protected' with 'hacked'.")
-        await get_final_assistant_message(session1)
+            # Verify the file was NOT modified (permission was denied)
+            with open(test_file) as f:
+                content = f.read()
+            assert content == "protected content"
 
-        # Verify the file was NOT modified (permission was denied)
-        with open(test_file) as f:
-            content = f.read()
-        assert content == "protected content"
+            # Both clients should have seen permission.requested and permission.completed
+            await asyncio.gather(client1_requested, client2_requested)
 
-        # Both clients should have seen permission.requested and permission.completed
-        c1_perm_requested = [e for e in client1_events if e.type.value == "permission.requested"]
-        c2_perm_requested = [e for e in client2_events if e.type.value == "permission.requested"]
-        assert len(c1_perm_requested) > 0
-        assert len(c2_perm_requested) > 0
-
-        # Both clients should see the denial
-        c1_perm_completed = [e for e in client1_events if e.type.value == "permission.completed"]
-        c2_perm_completed = [e for e in client2_events if e.type.value == "permission.completed"]
-        assert len(c1_perm_completed) > 0
-        assert len(c2_perm_completed) > 0
-        for event in c1_perm_completed + c2_perm_completed:
-            assert event.data.result.kind.value == "denied-interactively-by-user"
-
-        await session2.disconnect()
+            # Both clients should see the denial
+            completed_events = await asyncio.gather(client1_completed, client2_completed)
+            for event in completed_events:
+                assert event.data.result.kind == "denied-interactively-by-user"
+        finally:
+            for waiter in waiters:
+                if not waiter.done():
+                    waiter.cancel()
+            await asyncio.gather(*waiters, return_exceptions=True)
+            await session2.disconnect()
 
     @pytest.mark.timeout(90)
     async def test_two_clients_register_different_tools_and_agent_uses_both(
@@ -430,10 +469,10 @@ class TestMultiClientBroadcast:
         await asyncio.sleep(0.5)
 
         # Recreate client2 for future tests (but don't rejoin the session)
-        actual_port = mctx.client1.actual_port
+        actual_port = mctx.client1.runtime_port
         mctx._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 
