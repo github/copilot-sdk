@@ -961,6 +961,11 @@ export interface UserInputRequest {
     question: string;
 
     /**
+     * Optional short title summarizing the question, shown as the dialog header/title in some UIs
+     */
+    header?: string;
+
+    /**
      * Optional choices for multiple choice questions
      */
     choices?: string[];

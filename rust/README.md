@@ -481,6 +481,7 @@ impl UserInputHandler for MyUserInput {
         &self,
         _sid: SessionId,
         question: String,
+        _header: Option<String>,
         _choices: Option<Vec<String>>,
         _allow_freeform: Option<bool>,
     ) -> Option<UserInputResponse> {

@@ -660,6 +660,7 @@ Enable the agent to ask questions to the user using the `ask_user` tool by provi
 ```python
 async def handle_user_input(request, invocation):
     # request["question"] - The question to ask
+    # request.get("header") - Optional short title summarizing the question (suitable as a dialog title)
     # request.get("choices") - Optional list of choices for multiple choice
     # request.get("allowFreeform", True) - Whether freeform input is allowed
 

@@ -170,6 +170,7 @@ impl UserInputHandler for RecordingUserInputHandler {
         &self,
         session_id: SessionId,
         question: String,
+        _header: Option<String>,
         choices: Option<Vec<String>>,
         allow_freeform: Option<bool>,
     ) -> Option<UserInputResponse> {

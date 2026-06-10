@@ -2178,6 +2178,7 @@ export class CopilotClient {
             async (params: {
                 sessionId: string;
                 question: string;
+                header?: string;
                 choices?: string[];
                 allowFreeform?: boolean;
             }): Promise<{ answer: string; wasFreeform: boolean }> =>
@@ -2309,6 +2310,7 @@ export class CopilotClient {
     private async handleUserInputRequest(params: {
         sessionId: string;
         question: string;
+        header?: string;
         choices?: string[];
         allowFreeform?: boolean;
     }): Promise<{ answer: string; wasFreeform: boolean }> {
@@ -2327,6 +2329,7 @@ export class CopilotClient {
 
         const result = await session._handleUserInputRequest({
             question: params.question,
+            header: params.header,
             choices: params.choices,
             allowFreeform: params.allowFreeform,
         });

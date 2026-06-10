@@ -251,6 +251,7 @@ final class RpcHandlerDispatcher {
                 String sessionId = params.get("sessionId").asText();
                 String question = params.get("question").asText();
                 LOG.fine("Processing userInput for session " + sessionId + ", question: " + question);
+                JsonNode headerNode = params.get("header");
                 JsonNode choicesNode = params.get("choices");
                 JsonNode allowFreeformNode = params.get("allowFreeform");
 
@@ -263,6 +264,9 @@ final class RpcHandlerDispatcher {
                 }
 
                 var request = new UserInputRequest().setQuestion(question);
+                if (headerNode != null && !headerNode.isNull()) {
+                    request.setHeader(headerNode.asText());
+                }
                 if (choicesNode != null && choicesNode.isArray()) {
                     var choices = new ArrayList<String>();
                     for (JsonNode choice : choicesNode) {

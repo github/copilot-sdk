@@ -28,6 +28,9 @@ public class UserInputRequest {
     @JsonProperty("question")
     private String question;
 
+    @JsonProperty("header")
+    private String header;
+
     @JsonProperty("choices")
     private List<String> choices;
 
@@ -52,6 +55,28 @@ public class UserInputRequest {
      */
     public UserInputRequest setQuestion(String question) {
         this.question = question;
+        return this;
+    }
+
+    /**
+     * Gets the optional short title summarizing the question, suitable for display
+     * as the dialog header/title.
+     *
+     * @return the header text, or {@code null} if not specified
+     */
+    public String getHeader() {
+        return header;
+    }
+
+    /**
+     * Sets the optional short title summarizing the question.
+     *
+     * @param header
+     *            the header text
+     * @return this instance for method chaining
+     */
+    public UserInputRequest setHeader(String header) {
+        this.header = header;
         return this;
     }
 

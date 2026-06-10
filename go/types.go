@@ -312,6 +312,7 @@ type PermissionInvocation struct {
 // UserInputRequest represents a request for user input from the agent
 type UserInputRequest struct {
 	Question      string
+	Header        *string
 	Choices       []string
 	AllowFreeform *bool
 }
@@ -1980,6 +1981,7 @@ type sessionEventRequest struct {
 type userInputRequest struct {
 	SessionID     string   `json:"sessionId"`
 	Question      string   `json:"question"`
+	Header        *string  `json:"header,omitempty"`
 	Choices       []string `json:"choices,omitempty"`
 	AllowFreeform *bool    `json:"allowFreeform,omitempty"`
 }

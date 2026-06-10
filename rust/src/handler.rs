@@ -171,6 +171,7 @@ pub trait UserInputHandler: Send + Sync + 'static {
         &self,
         session_id: SessionId,
         question: String,
+        header: Option<String>,
         choices: Option<Vec<String>>,
         allow_freeform: Option<bool>,
     ) -> Option<UserInputResponse>;

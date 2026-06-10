@@ -2088,6 +2088,10 @@ async fn handle_request(
                 return;
             };
             let question = question.to_string();
+            let header = params
+                .and_then(|p| p.get("header"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             let choices = params
                 .and_then(|p| p.get("choices"))
                 .and_then(|v| v.as_array())
@@ -2103,7 +2107,7 @@ async fn handle_request(
             let handler_start = Instant::now();
             let response = if let Some(user_input_handler) = handlers.user_input.as_ref() {
                 user_input_handler
-                    .handle(sid.clone(), question, choices, allow_freeform)
+                    .handle(sid.clone(), question, header, choices, allow_freeform)
                     .await
             } else {
                 None

@@ -303,6 +303,7 @@ class UserInputRequest(TypedDict, total=False):
     """Request for user input from the agent (enables ask_user tool)"""
 
     question: str
+    header: str
     choices: list[str]
     allowFreeform: bool
 
@@ -2088,12 +2089,16 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
+            user_input_request = UserInputRequest(
+                question=request.get("question", ""),
+                choices=request.get("choices") or [],
+                allowFreeform=request.get("allowFreeform", True),
+            )
+            header = request.get("header")
+            if header is not None:
+                user_input_request["header"] = header
             result = handler(
-                UserInputRequest(
-                    question=request.get("question", ""),
-                    choices=request.get("choices") or [],
-                    allowFreeform=request.get("allowFreeform", True),
-                ),
+                user_input_request,
                 {"session_id": self.session_id},
             )
             if inspect.isawaitable(result):

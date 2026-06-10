@@ -760,6 +760,12 @@ public sealed class UserInputRequest
     public string Question { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional short title summarizing the question, shown as the dialog header/title in some UIs.
+    /// </summary>
+    [JsonPropertyName("header")]
+    public string? Header { get; set; }
+
+    /// <summary>
     /// Optional choices for multiple choice questions.
     /// </summary>
     [JsonPropertyName("choices")]

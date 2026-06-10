@@ -649,6 +649,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
     Model: "gpt-5",
     OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
         // request.Question - The question to ask
+        // request.Header - Optional short title summarizing the question (suitable as a dialog title)
         // request.Choices - Optional slice of choices for multiple choice
         // request.AllowFreeform - Whether freeform input is allowed (default: true)
 

@@ -1366,6 +1366,7 @@ async fn user_input_request_dispatches_to_handler() {
             &self,
             _session_id: SessionId,
             question: String,
+            _header: Option<String>,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
         ) -> Option<UserInputResponse> {
@@ -1530,6 +1531,7 @@ async fn user_input_requested_notification_does_not_double_dispatch() {
             &self,
             _session_id: SessionId,
             _question: String,
+            _header: Option<String>,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
         ) -> Option<UserInputResponse> {
@@ -1945,6 +1947,7 @@ async fn stop_event_loop_completes_in_flight_handler() {
             &self,
             _session_id: SessionId,
             _question: String,
+            _header: Option<String>,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
         ) -> Option<UserInputResponse> {
@@ -2023,6 +2026,7 @@ async fn drop_session_does_not_abort_handler() {
             &self,
             _session_id: SessionId,
             _question: String,
+            _header: Option<String>,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
         ) -> Option<UserInputResponse> {

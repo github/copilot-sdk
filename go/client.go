@@ -1955,6 +1955,7 @@ func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputRespons
 
 	response, err := session.handleUserInputRequest(UserInputRequest{
 		Question:      req.Question,
+		Header:        req.Header,
 		Choices:       req.Choices,
 		AllowFreeform: req.AllowFreeform,
 	})

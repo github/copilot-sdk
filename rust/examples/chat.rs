@@ -26,6 +26,7 @@ impl UserInputHandler for StdinUserInputHandler {
         &self,
         _session_id: SessionId,
         question: String,
+        _header: Option<String>,
         _choices: Option<Vec<String>>,
         _allow_freeform: Option<bool>,
     ) -> Option<UserInputResponse> {

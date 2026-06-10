@@ -888,6 +888,7 @@ const session = await client.createSession({
     model: "gpt-5",
     onUserInputRequest: async (request, invocation) => {
         // request.question - The question to ask
+        // request.header - Optional short title summarizing the question (suitable as a dialog title)
         // request.choices - Optional array of choices for multiple choice
         // request.allowFreeform - Whether freeform input is allowed (default: true)
 
