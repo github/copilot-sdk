@@ -50,9 +50,13 @@ import com.github.copilot.generated.CommandExecuteEvent;
 import com.github.copilot.generated.ElicitationRequestedEvent;
 import com.github.copilot.generated.ExternalToolRequestedEvent;
 import com.github.copilot.generated.PermissionRequestedEvent;
+import com.github.copilot.generated.SessionCanvasClosedEvent;
+import com.github.copilot.generated.SessionCanvasOpenedEvent;
 import com.github.copilot.generated.SessionErrorEvent;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionIdleEvent;
+import com.github.copilot.generated.rpc.CanvasInstanceAvailability;
+import com.github.copilot.generated.rpc.OpenCanvasInstance;
 import com.github.copilot.rpc.AgentInfo;
 import com.github.copilot.rpc.AutoModeSwitchHandler;
 import com.github.copilot.rpc.AutoModeSwitchInvocation;
@@ -157,6 +161,8 @@ public final class CopilotSession implements AutoCloseable {
     private volatile String sessionId;
     private volatile String workspacePath;
     private volatile SessionCapabilities capabilities = new SessionCapabilities();
+    private final Object openCanvasesLock = new Object();
+    private final List<OpenCanvasInstance> openCanvases = new ArrayList<>();
     private final SessionUiApi ui;
     private final JsonRpcClient rpc;
     private volatile SessionRpc sessionRpc;
@@ -761,8 +767,9 @@ public final class CopilotSession implements AutoCloseable {
      * @see #setEventErrorPolicy(EventErrorPolicy)
      */
     void dispatchEvent(SessionEvent event) {
-        // Handle broadcast request events (protocol v3) before dispatching to user
-        // handlers. These are fire-and-forget: the response is sent asynchronously.
+        // Handle broadcast request events (protocol v3) and passive in-memory state
+        // updates (capabilities, open-canvases snapshot) before dispatching to user
+        // handlers. Fire-and-forget: any RPC response is sent asynchronously.
         handleBroadcastEventAsync(event);
 
         for (Consumer<SessionEvent> handler : eventHandlers) {
@@ -788,14 +795,24 @@ public final class CopilotSession implements AutoCloseable {
 
     /**
      * Handles broadcast request events by executing local handlers and responding
-     * via RPC (protocol v3).
+     * via RPC (protocol v3), and applies passive in-memory state updates such as
+     * the open-canvases snapshot.
      * <p>
-     * Fire-and-forget: the response is sent asynchronously.
+     * Fire-and-forget: any RPC response is sent asynchronously.
      *
      * @param event
      *            the event to handle
      */
     private void handleBroadcastEventAsync(SessionEvent event) {
+        // Maintain the in-memory open-canvases snapshot before user handlers run so
+        // they observe the freshest state. Best-effort: snapshot upkeep must never
+        // disrupt event delivery, so failures are logged and swallowed.
+        try {
+            updateOpenCanvasesFromEvent(event);
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Failed to update open-canvases snapshot", e);
+        }
+
         if (event instanceof ExternalToolRequestedEvent toolEvent) {
             var data = toolEvent.getData();
             if (data == null || data.requestId() == null || data.toolName() == null) {
@@ -1367,6 +1384,114 @@ public final class CopilotSession implements AutoCloseable {
      */
     void setCapabilities(SessionCapabilities sessionCapabilities) {
         this.capabilities = sessionCapabilities != null ? sessionCapabilities : new SessionCapabilities();
+    }
+
+    /**
+     * Returns a snapshot of the canvas instances currently known to be open for
+     * this session.
+     * <p>
+     * The snapshot is seeded from the {@code session.create} /
+     * {@code session.resume} response and kept up to date by
+     * {@code session.canvas.opened} (upsert) and {@code session.canvas.closed}
+     * (remove) events. The returned list is an immutable defensive copy; mutating
+     * it has no effect on the session.
+     *
+     * @return an immutable list of the currently open canvas instances, never
+     *         {@code null}
+     * @since 1.0.1
+     */
+    public List<OpenCanvasInstance> getOpenCanvases() {
+        synchronized (openCanvasesLock) {
+            return List.copyOf(openCanvases);
+        }
+    }
+
+    /**
+     * Replaces the open-canvases snapshot for this session.
+     * <p>
+     * Called internally after a {@code session.create} / {@code session.resume}
+     * response to seed the snapshot. {@code null} entries are ignored.
+     *
+     * @param instances
+     *            the open canvas instances from the create/resume response, or
+     *            {@code null} to clear the snapshot
+     */
+    void setOpenCanvases(List<OpenCanvasInstance> instances) {
+        synchronized (openCanvasesLock) {
+            openCanvases.clear();
+            if (instances != null) {
+                for (OpenCanvasInstance instance : instances) {
+                    if (instance != null) {
+                        openCanvases.add(instance);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Updates the in-memory open-canvases snapshot in response to a session event.
+     * <p>
+     * {@code session.canvas.opened} upserts by {@code instanceId}; a stale re-emit
+     * (provider unregister) arrives as another {@code opened} event and replaces
+     * the prior entry rather than removing it. {@code session.canvas.closed}
+     * removes the matching entry. Invalid payloads are logged and ignored.
+     *
+     * @param event
+     *            the dispatched session event
+     */
+    private void updateOpenCanvasesFromEvent(SessionEvent event) {
+        if (event instanceof SessionCanvasClosedEvent closedEvent) {
+            var data = closedEvent.getData();
+            if (data == null || isNullOrEmpty(data.instanceId())) {
+                LOG.warning("failed to deserialize session.canvas.closed payload");
+                return;
+            }
+            removeOpenCanvas(data.instanceId());
+            return;
+        }
+
+        if (event instanceof SessionCanvasOpenedEvent openedEvent) {
+            var data = openedEvent.getData();
+            if (data == null || isNullOrEmpty(data.instanceId()) || isNullOrEmpty(data.canvasId())
+                    || isNullOrEmpty(data.extensionId()) || data.availability() == null) {
+                LOG.warning("failed to deserialize session.canvas.opened payload");
+                return;
+            }
+            upsertOpenCanvas(new OpenCanvasInstance(data.instanceId(), data.extensionId(), data.extensionName(),
+                    data.canvasId(), data.title(), data.status(), data.url(), data.input(), data.reopen(),
+                    CanvasInstanceAvailability.fromValue(data.availability().getValue())));
+        }
+    }
+
+    /**
+     * Inserts or replaces a canvas instance in the snapshot, matching by
+     * {@code instanceId}.
+     */
+    private void upsertOpenCanvas(OpenCanvasInstance instance) {
+        synchronized (openCanvasesLock) {
+            for (int i = 0; i < openCanvases.size(); i++) {
+                if (instance.instanceId().equals(openCanvases.get(i).instanceId())) {
+                    openCanvases.set(i, instance);
+                    return;
+                }
+            }
+            openCanvases.add(instance);
+        }
+    }
+
+    /**
+     * Removes the canvas instance matching {@code instanceId} from the snapshot.
+     * Idempotent: removing an absent instance is a no-op.
+     */
+    private void removeOpenCanvas(String instanceId) {
+        synchronized (openCanvasesLock) {
+            openCanvases.removeIf(open -> instanceId.equals(open.instanceId()));
+        }
+    }
+
+    private static boolean isNullOrEmpty(String value) {
+        return value == null || value.isEmpty();
     }
 
     /**
