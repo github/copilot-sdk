@@ -1,5 +1,16 @@
 models:
   - claude-sonnet-4.5
+# Two stored conversations cover the two legal histories after aborting an
+# in-flight streaming turn:
+#   conv0 (race-win):  the essay assistant turn finalized before the abort, so
+#                      it remains in history -> [system, user(essay),
+#                      assistant(essay), user(recovery)].
+#   conv1 (race-lose): the abort dropped the in-flight essay assistant turn, so
+#                      it is absent from history -> [system, user(essay),
+#                      user(recovery)]. This is the common outcome with the
+#                      Rust-reqwest transport in CLI 1.0.61+.
+# The replay proxy matches a request as a strict prefix of a stored conversation
+# and returns the next assistant message, so both histories resolve correctly.
 conversations:
   - messages:
       - role: system
@@ -24,6 +35,16 @@ conversations:
           During this same period, the theoretical foundations were being laid by pioneers like Alan Turing and John von
           Neumann. Turing's concept of a universal machine and von Neumann's architecture for stored-program computers
           would shape the entire future of the field.
+      - role: user
+        content: Say 'abort_recovery_ok'.
+      - role: assistant
+        content: abort_recovery_ok
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Write a very long essay about the history of computing, covering every decade from the 1940s to the 2020s in
+          great detail.
       - role: user
         content: Say 'abort_recovery_ok'.
       - role: assistant

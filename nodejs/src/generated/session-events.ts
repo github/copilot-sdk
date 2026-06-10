@@ -716,6 +716,10 @@ export interface ResumeData {
    */
   eventCount: number;
   /**
+   * On-disk byte size of the session's persisted events.jsonl file at resume time; omitted when the file does not exist or cannot be stat'd
+   */
+  eventsFileSizeBytes?: number;
+  /**
    * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
@@ -960,6 +964,14 @@ export interface ScheduleCreatedEvent {
  */
 export interface ScheduleCreatedData {
   /**
+   * Absolute fire time (epoch milliseconds) for a one-shot calendar schedule
+   */
+  at?: number;
+  /**
+   * 5-field cron expression for a recurring calendar schedule, evaluated in `tz`
+   */
+  cron?: string;
+  /**
    * Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion)
    */
   displayPrompt?: string;
@@ -968,9 +980,9 @@ export interface ScheduleCreatedData {
    */
   id: number;
   /**
-   * Interval between ticks in milliseconds
+   * Interval between ticks in milliseconds (relative-interval schedules)
    */
-  intervalMs: number;
+  intervalMs?: number;
   /**
    * Prompt text that gets enqueued on every tick
    */
@@ -979,6 +991,10 @@ export interface ScheduleCreatedData {
    * Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
    */
   recurring?: boolean;
+  /**
+   * IANA timezone the `cron` expression is evaluated in
+   */
+  tz?: string;
 }
 /**
  * Session event "session.schedule_cancelled". Scheduled prompt cancelled from the schedule manager dialog
@@ -1610,6 +1626,10 @@ export interface ShutdownData {
    * Error description when shutdownType is "error"
    */
   errorReason?: string;
+  /**
+   * On-disk byte size of the session's persisted events.jsonl file at shutdown time; omitted when the file does not exist or cannot be stat'd
+   */
+  eventsFileSizeBytes?: number;
   /**
    * Per-model usage breakdown, keyed by model identifier
    */
@@ -4271,6 +4291,10 @@ export interface HookProgressData {
    * Human-readable progress message from the hook process
    */
   message: string;
+  /**
+   * When true, this status message replaces the previous temporary one instead of accumulating
+   */
+  temporary?: boolean;
 }
 /**
  * Session event "system.message". System/developer instruction content with role and optional template metadata
