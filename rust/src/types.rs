@@ -1325,8 +1325,7 @@ pub struct SessionConfig {
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
-    /// Per-session configuration for the runtime memory feature. When unset,
-    /// the runtime applies its own default for the memory feature.
+    /// Per-session configuration for the runtime memory feature.
     pub memory: Option<MemoryConfiguration>,
     /// Override the default configuration directory location. When set,
     /// the session uses this directory for storing config and state.
@@ -2147,8 +2146,6 @@ impl SessionConfig {
 
     /// Configure the runtime memory feature for this session.
     ///
-    /// When unset, the runtime applies its own default for the memory feature.
-    ///
     /// ```
     /// use github_copilot_sdk::types::{MemoryConfiguration, SessionConfig};
     ///
@@ -2342,7 +2339,6 @@ pub struct ResumeSessionConfig {
     /// Per-property model capability overrides on resume.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Per-session configuration for the runtime memory feature on resume.
-    /// When unset, the runtime applies its own default for the memory feature.
     pub memory: Option<MemoryConfiguration>,
     /// Override the default configuration directory location on resume.
     pub config_directory: Option<PathBuf>,
@@ -3094,8 +3090,6 @@ impl ResumeSessionConfig {
     }
 
     /// Configure the runtime memory feature for the resumed session.
-    ///
-    /// When unset, the runtime applies its own default for the memory feature.
     pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
         self.memory = Some(memory);
         self

@@ -567,7 +567,7 @@ The CLI emits `session.compaction_start` / `session.compaction_complete` events 
 
 ### Memory
 
-Configure the runtime memory feature for a session. When unset, the runtime applies its own default for the memory feature:
+Configure the runtime memory feature for a session:
 
 ```rust,ignore
 use github_copilot_sdk::types::MemoryConfiguration;
@@ -575,7 +575,7 @@ use github_copilot_sdk::types::MemoryConfiguration;
 let config = SessionConfig::default().with_memory(MemoryConfiguration::enabled());
 ```
 
-`MemoryConfiguration` is accepted on both `Client::create_session` and `Client::resume_session` (via `ResumeSessionConfig::with_memory`). It is extensible: `enabled` toggles the feature, and further tuning knobs can be added as optional fields without a breaking change.
+`MemoryConfiguration` is accepted on both `Client::create_session` and `Client::resume_session` (via `ResumeSessionConfig::with_memory`). `enabled` toggles the feature.
 
 ### Custom Providers (BYOK)
 
