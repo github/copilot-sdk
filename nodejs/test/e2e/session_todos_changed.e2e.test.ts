@@ -36,11 +36,9 @@ describe("Todos changed event + readSqlTodosWithDependencies", async () => {
             await session.sendAndWait({
                 prompt:
                     "Use the sql tool to execute exactly these statements, in order, with no extra rows:\n" +
-                    "1. CREATE TABLE todos (id TEXT PRIMARY KEY, title TEXT, description TEXT, status TEXT, created_at TEXT, updated_at TEXT);\n" +
-                    "2. CREATE TABLE todo_deps (todo_id TEXT, depends_on TEXT, PRIMARY KEY (todo_id, depends_on));\n" +
-                    "3. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');\n" +
-                    "4. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');\n" +
-                    "5. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');\n" +
+                    "1. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');\n" +
+                    "2. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');\n" +
+                    "3. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');\n" +
                     "Then stop. Do not insert any other rows or create any other tables.",
             });
 

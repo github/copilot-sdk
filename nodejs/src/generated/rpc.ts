@@ -7425,20 +7425,20 @@ export interface PlanReadSqlTodosWithDependenciesResult {
   /**
    * Rows from the session SQL todos table, ordered by creation time and id. Empty when no database, no todos table, or the SELECT failed.
    */
-  rows: PlanSqlTodosWithDependenciesRow[];
+  rows: PlanTodo[];
   /**
    * Edges from the session SQL todo_deps table. Empty when no database, no todo_deps table, or the SELECT failed. Read independently from `rows`, so a broken todo_deps table does not affect the rows result and vice versa.
    */
-  dependencies: PlanSqlTodosWithDependencies[];
+  dependencies: PlanTodoDependency[];
 }
 /**
- * Schema for the `PlanSqlTodosWithDependenciesRow` type.
+ * Schema for the `PlanTodo` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PlanSqlTodosWithDependenciesRow".
+ * via the `definition` "PlanTodo".
  */
 /** @experimental */
-export interface PlanSqlTodosWithDependenciesRow {
+export interface PlanTodo {
   /**
    * Todo identifier.
    */
@@ -7457,13 +7457,13 @@ export interface PlanSqlTodosWithDependenciesRow {
   status?: string;
 }
 /**
- * Schema for the `PlanSqlTodosWithDependencies` type.
+ * Schema for the `PlanTodoDependency` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PlanSqlTodosWithDependencies".
+ * via the `definition` "PlanTodoDependency".
  */
 /** @experimental */
-export interface PlanSqlTodosWithDependencies {
+export interface PlanTodoDependency {
   /**
    * ID of the todo that has the dependency.
    */
