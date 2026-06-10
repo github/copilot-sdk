@@ -776,6 +776,42 @@ impl InfiniteSessionConfig {
     }
 }
 
+/// Per-session configuration for the runtime memory feature.
+///
+/// Supplied via [`SessionConfig::with_memory`] /
+/// [`ResumeSessionConfig::with_memory`]. When a session is created or resumed
+/// without a memory configuration, the runtime applies its own default for the
+/// memory feature.
+///
+/// The type is extensible: today it carries [`enabled`](Self::enabled), and
+/// further tuning knobs can be added as optional fields without a breaking
+/// change.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct MemoryConfiguration {
+    /// Whether the memory feature is enabled for this session.
+    pub enabled: bool,
+}
+
+impl MemoryConfiguration {
+    /// A configuration with the memory feature enabled.
+    pub fn enabled() -> Self {
+        Self { enabled: true }
+    }
+
+    /// A configuration with the memory feature disabled.
+    pub fn disabled() -> Self {
+        Self { enabled: false }
+    }
+
+    /// Set whether the memory feature is enabled.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+}
+
 /// GitHub repository metadata to associate with a cloud session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1289,6 +1325,9 @@ pub struct SessionConfig {
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Per-session configuration for the runtime memory feature. When unset,
+    /// the runtime applies its own default for the memory feature.
+    pub memory: Option<MemoryConfiguration>,
     /// Override the default configuration directory location. When set,
     /// the session uses this directory for storing config and state.
     pub config_directory: Option<PathBuf>,
@@ -1431,6 +1470,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("provider", &self.provider)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
+            .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field(
@@ -1530,6 +1570,7 @@ impl Default for SessionConfig {
             provider: None,
             enable_session_telemetry: None,
             model_capabilities: None,
+            memory: None,
             config_directory: None,
             working_directory: None,
             github_token: None,
@@ -1672,6 +1713,7 @@ impl SessionConfig {
             provider: self.provider,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
+            memory: self.memory,
             config_dir: self.config_directory,
             working_directory: self.working_directory,
             github_token: self.github_token,
@@ -2103,6 +2145,20 @@ impl SessionConfig {
         self
     }
 
+    /// Configure the runtime memory feature for this session.
+    ///
+    /// When unset, the runtime applies its own default for the memory feature.
+    ///
+    /// ```
+    /// use github_copilot_sdk::types::{MemoryConfiguration, SessionConfig};
+    ///
+    /// let cfg = SessionConfig::default().with_memory(MemoryConfiguration::enabled());
+    /// ```
+    pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
+        self.memory = Some(memory);
+        self
+    }
+
     /// Override the default configuration directory location.
     pub fn with_config_directory(mut self, dir: impl Into<PathBuf>) -> Self {
         self.config_directory = Some(dir.into());
@@ -2285,6 +2341,9 @@ pub struct ResumeSessionConfig {
     pub enable_session_telemetry: Option<bool>,
     /// Per-property model capability overrides on resume.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Per-session configuration for the runtime memory feature on resume.
+    /// When unset, the runtime applies its own default for the memory feature.
+    pub memory: Option<MemoryConfiguration>,
     /// Override the default configuration directory location on resume.
     pub config_directory: Option<PathBuf>,
     /// Per-session working directory on resume.
@@ -2408,6 +2467,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("provider", &self.provider)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
+            .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field(
@@ -2551,6 +2611,7 @@ impl ResumeSessionConfig {
             provider: self.provider,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
+            memory: self.memory,
             config_dir: self.config_directory,
             working_directory: self.working_directory,
             github_token: self.github_token,
@@ -2627,6 +2688,7 @@ impl ResumeSessionConfig {
             provider: None,
             enable_session_telemetry: None,
             model_capabilities: None,
+            memory: None,
             config_directory: None,
             working_directory: None,
             github_token: None,
@@ -3028,6 +3090,14 @@ impl ResumeSessionConfig {
         capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
     ) -> Self {
         self.model_capabilities = Some(capabilities);
+        self
+    }
+
+    /// Configure the runtime memory feature for the resumed session.
+    ///
+    /// When unset, the runtime applies its own default for the memory feature.
+    pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
+        self.memory = Some(memory);
         self
     }
 
@@ -4271,9 +4341,9 @@ mod tests {
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
-        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, ProviderConfig,
-        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration,
+        ProviderConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
@@ -4451,6 +4521,57 @@ mod tests {
 
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn memory_configuration_constructors_and_serde() {
+        assert!(MemoryConfiguration::enabled().enabled);
+        assert!(!MemoryConfiguration::disabled().enabled);
+        assert!(MemoryConfiguration::default().with_enabled(true).enabled);
+
+        let json = serde_json::to_value(MemoryConfiguration::enabled()).unwrap();
+        assert_eq!(json, serde_json::json!({ "enabled": true }));
+    }
+
+    #[test]
+    fn session_config_with_memory_serializes() {
+        let (wire, _runtime) = SessionConfig::default()
+            .with_memory(MemoryConfiguration::enabled())
+            .into_wire(Some(SessionId::from("memory-on")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["memory"], serde_json::json!({ "enabled": true }));
+
+        let (wire_off, _) = SessionConfig::default()
+            .with_memory(MemoryConfiguration::disabled())
+            .into_wire(Some(SessionId::from("memory-off")))
+            .expect("no duplicate handlers");
+        let json_off = serde_json::to_value(&wire_off).unwrap();
+        assert_eq!(json_off["memory"], serde_json::json!({ "enabled": false }));
+
+        // Unset memory is omitted on the wire.
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("memory-unset")))
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("memory").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_with_memory_serializes() {
+        let (wire, _runtime) = ResumeSessionConfig::new(SessionId::from("resume-memory-on"))
+            .with_memory(MemoryConfiguration::enabled())
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["memory"], serde_json::json!({ "enabled": true }));
+
+        // Unset memory is omitted on the wire.
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-memory-unset"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("memory").is_none());
     }
 
     #[test]
