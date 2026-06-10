@@ -1,5 +1,16 @@
 models:
   - claude-sonnet-4.5
+# Two stored conversations cover the two legal histories after aborting an
+# in-flight streaming turn:
+#   conv0 (race-win):  the essay assistant turn finalized before the abort, so
+#                      it remains in history -> [system, user(essay),
+#                      assistant(essay), user(recovery)].
+#   conv1 (race-lose): the abort dropped the in-flight essay assistant turn, so
+#                      it is absent from history -> [system, user(essay),
+#                      user(recovery)]. This is the common outcome with the
+#                      Rust-reqwest transport in CLI 1.0.61+.
+# The replay proxy matches a request as a strict prefix of a stored conversation
+# and returns the next assistant message, so both histories resolve correctly.
 conversations:
   - messages:
       - role: system
