@@ -1,0 +1,141 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: >-
+          Use the sql tool to execute exactly these statements, in order, with no extra rows:
+
+          1. CREATE TABLE todos (id TEXT PRIMARY KEY, title TEXT, description TEXT, status TEXT, created_at TEXT,
+          updated_at TEXT);
+
+          2. CREATE TABLE todo_deps (todo_id TEXT, depends_on TEXT, PRIMARY KEY (todo_id, depends_on));
+
+          3. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');
+
+          4. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');
+
+          5. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');
+
+          Then stop. Do not insert any other rows or create any other tables.
+      - role: assistant
+        content: "I'll execute those SQL statements exactly as requested, in order:"
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: sql
+              arguments: '{"description":"Create todos table","query":"CREATE TABLE todos (id TEXT PRIMARY KEY, title TEXT,
+                description TEXT, status TEXT, created_at TEXT, updated_at TEXT)"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: sql
+              arguments: '{"description":"Create todo_deps table","query":"CREATE TABLE todo_deps (todo_id TEXT, depends_on TEXT,
+                PRIMARY KEY (todo_id, depends_on))"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert alpha todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES ('alpha',
+                'First todo', 'pending')\"}"
+      - role: assistant
+        tool_calls:
+          - id: toolcall_3
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert beta todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES ('beta',
+                'Second todo', 'done')\"}"
+      - role: assistant
+        tool_calls:
+          - id: toolcall_4
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert dependency\",\"query\":\"INSERT INTO todo_deps (todo_id, depends_on) VALUES
+                ('beta', 'alpha')\"}"
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: >-
+          Use the sql tool to execute exactly these statements, in order, with no extra rows:
+
+          1. CREATE TABLE todos (id TEXT PRIMARY KEY, title TEXT, description TEXT, status TEXT, created_at TEXT,
+          updated_at TEXT);
+
+          2. CREATE TABLE todo_deps (todo_id TEXT, depends_on TEXT, PRIMARY KEY (todo_id, depends_on));
+
+          3. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');
+
+          4. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');
+
+          5. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');
+
+          Then stop. Do not insert any other rows or create any other tables.
+      - role: assistant
+        content: "I'll execute those SQL statements exactly as requested, in order:"
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: sql
+              arguments: '{"description":"Create todos table","query":"CREATE TABLE todos (id TEXT PRIMARY KEY, title TEXT,
+                description TEXT, status TEXT, created_at TEXT, updated_at TEXT)"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: sql
+              arguments: '{"description":"Create todo_deps table","query":"CREATE TABLE todo_deps (todo_id TEXT, depends_on TEXT,
+                PRIMARY KEY (todo_id, depends_on))"}'
+          - id: toolcall_2
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert alpha todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES ('alpha',
+                'First todo', 'pending')\"}"
+          - id: toolcall_3
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert beta todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES ('beta',
+                'Second todo', 'done')\"}"
+          - id: toolcall_4
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert dependency\",\"query\":\"INSERT INTO todo_deps (todo_id, depends_on) VALUES
+                ('beta', 'alpha')\"}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "SQL Error: Error: table todos already exists"
+      - role: tool
+        tool_call_id: toolcall_1
+        content: "SQL Error: Error: table todo_deps already exists"
+      - role: tool
+        tool_call_id: toolcall_2
+        content: "1 row(s) inserted. Last inserted row ID: 1."
+      - role: tool
+        tool_call_id: toolcall_3
+        content: "1 row(s) inserted. Last inserted row ID: 2."
+      - role: tool
+        tool_call_id: toolcall_4
+        content: "1 row(s) inserted. Last inserted row ID: 1."
+      - role: assistant
+        content: >-
+          The tables already existed (they were auto-created), but I've successfully inserted the three rows as
+          requested:
+
+          - 'alpha' todo with status 'pending'
+
+          - 'beta' todo with status 'done'  
+
+          - Dependency linking beta to alpha
