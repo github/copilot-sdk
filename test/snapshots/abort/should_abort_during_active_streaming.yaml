@@ -28,3 +28,13 @@ conversations:
         content: Say 'abort_recovery_ok'.
       - role: assistant
         content: abort_recovery_ok
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Write a very long essay about the history of computing, covering every decade from the 1940s to the 2020s in
+          great detail.
+      - role: user
+        content: Say 'abort_recovery_ok'.
+      - role: assistant
+        content: abort_recovery_ok
