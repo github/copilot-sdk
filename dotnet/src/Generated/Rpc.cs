@@ -821,6 +821,145 @@ internal sealed class SkillsConfigSetDisabledSkillsRequest
     public IList<string> DisabledSkills { get => field ??= []; set; }
 }
 
+/// <summary>Schema for the `AgentInfo` type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AgentInfo
+{
+    /// <summary>Description of the agent's purpose.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Human-readable display name.</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Stable identifier for selection. For most agents this is the same as `name`; for plugin/builtin agents it may differ. Always populated; defaults to `name` when no distinct id was assigned.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("mcpServers")]
+    public IDictionary<string, JsonElement>? McpServers { get; set; }
+
+    /// <summary>Preferred model id for this agent. When omitted, inherits the outer agent's model.</summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Unique identifier of the custom agent.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path.</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    /// <summary>Skill names preloaded into this agent's context. Omitted means none.</summary>
+    [JsonPropertyName("skills")]
+    public IList<string>? Skills { get; set; }
+
+    /// <summary>Where the agent definition was loaded from.</summary>
+    [JsonPropertyName("source")]
+    public AgentInfoSource? Source { get; set; }
+
+    /// <summary>Allowed tool names for this agent. Empty array means none; omitted means inherit defaults.</summary>
+    [JsonPropertyName("tools")]
+    public IList<string>? Tools { get; set; }
+
+    /// <summary>Whether the agent can be selected directly by the user. Agents marked `false` are subagent-only.</summary>
+    [JsonPropertyName("userInvocable")]
+    public bool? UserInvocable { get; set; }
+}
+
+/// <summary>Agents discovered across user, project, plugin, and remote sources.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerAgentList
+{
+    /// <summary>All discovered agents across all sources.</summary>
+    [JsonPropertyName("agents")]
+    public IList<AgentInfo> Agents { get => field ??= []; set; }
+}
+
+/// <summary>Optional project paths to include in agent discovery.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class AgentsDiscoverRequest
+{
+    /// <summary>When true, omit the host's agents (the `&lt;COPILOT_HOME&gt;/agents` directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.</summary>
+    [JsonPropertyName("excludeHostAgents")]
+    public bool? ExcludeHostAgents { get; set; }
+
+    /// <summary>Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
+}
+
+/// <summary>Schema for the `InstructionSource` type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class InstructionSource
+{
+    /// <summary>Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files.</summary>
+    [JsonPropertyName("applyTo")]
+    public IList<string>? ApplyTo { get; set; }
+
+    /// <summary>Raw content of the instruction file.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>When true, this source starts disabled and must be toggled on by the user.</summary>
+    [JsonPropertyName("defaultDisabled")]
+    public bool? DefaultDisabled { get; set; }
+
+    /// <summary>Short description (body after frontmatter) for use in instruction tables.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Unique identifier for this source (used for toggling).</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Human-readable label.</summary>
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Where this source lives — used for UI grouping.</summary>
+    [JsonPropertyName("location")]
+    public InstructionSourceLocation Location { get; set; }
+
+    /// <summary>The project path this source was discovered from. Only set by sessionless discovery for repository/working-directory sources, where it disambiguates same-named files (e.g. .github/copilot-instructions.md) across multiple workspace roots. The session-scoped getSources leaves it unset.</summary>
+    [JsonPropertyName("projectPath")]
+    public string? ProjectPath { get; set; }
+
+    /// <summary>File path relative to repo or absolute for home.</summary>
+    [JsonPropertyName("sourcePath")]
+    public string SourcePath { get; set; } = string.Empty;
+
+    /// <summary>Category of instruction source — used for merge logic.</summary>
+    [JsonPropertyName("type")]
+    public InstructionSourceType Type { get; set; }
+}
+
+/// <summary>Instruction sources discovered across user, repository, and plugin sources.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerInstructionSourceList
+{
+    /// <summary>All discovered instruction sources.</summary>
+    [JsonPropertyName("sources")]
+    public IList<InstructionSource> Sources { get => field ??= []; set; }
+}
+
+/// <summary>Optional project paths to include in instruction discovery.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class InstructionsDiscoverRequest
+{
+    /// <summary>When true, omit the host's instruction sources (user/home-level files and plugin rules), leaving only repository and working-directory sources. For multitenant deployments.</summary>
+    [JsonPropertyName("excludeHostInstructions")]
+    public bool? ExcludeHostInstructions { get; set; }
+
+    /// <summary>Optional list of project directory paths to scan for repository/working-directory instruction sources. When omitted or empty, only user-level and plugin instruction sources are returned (no project scan).</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
+}
+
 /// <summary>Indicates whether the calling client was registered as the session filesystem provider.</summary>
 public sealed class SessionFsSetProviderResult
 {
@@ -3795,54 +3934,13 @@ internal sealed class WorkspacesDiffRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Schema for the `InstructionsSources` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class InstructionsSources
-{
-    /// <summary>Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files.</summary>
-    [JsonPropertyName("applyTo")]
-    public IList<string>? ApplyTo { get; set; }
-
-    /// <summary>Raw content of the instruction file.</summary>
-    [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
-
-    /// <summary>When true, this source starts disabled and must be toggled on by the user.</summary>
-    [JsonPropertyName("defaultDisabled")]
-    public bool? DefaultDisabled { get; set; }
-
-    /// <summary>Short description (body after frontmatter) for use in instruction tables.</summary>
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
-
-    /// <summary>Unique identifier for this source (used for toggling).</summary>
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
-
-    /// <summary>Human-readable label.</summary>
-    [JsonPropertyName("label")]
-    public string Label { get; set; } = string.Empty;
-
-    /// <summary>Where this source lives — used for UI grouping.</summary>
-    [JsonPropertyName("location")]
-    public InstructionsSourcesLocation Location { get; set; }
-
-    /// <summary>File path relative to repo or absolute for home.</summary>
-    [JsonPropertyName("sourcePath")]
-    public string SourcePath { get; set; } = string.Empty;
-
-    /// <summary>Category of instruction source — used for merge logic.</summary>
-    [JsonPropertyName("type")]
-    public InstructionsSourcesType Type { get; set; }
-}
-
 /// <summary>Instruction sources loaded for the session, in merge order.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class InstructionsGetSourcesResult
 {
     /// <summary>Instruction sources for the session.</summary>
     [JsonPropertyName("sources")]
-    public IList<InstructionsSources> Sources { get => field ??= []; set; }
+    public IList<InstructionSource> Sources { get => field ??= []; set; }
 }
 
 /// <summary>Identifies the target session.</summary>
@@ -3874,56 +3972,6 @@ internal sealed class FleetStartRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Schema for the `AgentInfo` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class AgentInfo
-{
-    /// <summary>Description of the agent's purpose.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>Human-readable display name.</summary>
-    [JsonPropertyName("displayName")]
-    public string DisplayName { get; set; } = string.Empty;
-
-    /// <summary>Stable identifier for selection. For most agents this is the same as `name`; for plugin/builtin agents it may differ. Always populated; defaults to `name` when no distinct id was assigned.</summary>
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
-
-    /// <summary>MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.</summary>
-    [Experimental(Diagnostics.Experimental)]
-    [JsonPropertyName("mcpServers")]
-    public IDictionary<string, JsonElement>? McpServers { get; set; }
-
-    /// <summary>Preferred model id for this agent. When omitted, inherits the outer agent's model.</summary>
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
-
-    /// <summary>Unique identifier of the custom agent.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path.</summary>
-    [JsonPropertyName("path")]
-    public string? Path { get; set; }
-
-    /// <summary>Skill names preloaded into this agent's context. Omitted means none.</summary>
-    [JsonPropertyName("skills")]
-    public IList<string>? Skills { get; set; }
-
-    /// <summary>Where the agent definition was loaded from.</summary>
-    [JsonPropertyName("source")]
-    public AgentInfoSource? Source { get; set; }
-
-    /// <summary>Allowed tool names for this agent. Empty array means none; omitted means inherit defaults.</summary>
-    [JsonPropertyName("tools")]
-    public IList<string>? Tools { get; set; }
-
-    /// <summary>Whether the agent can be selected directly by the user. Agents marked `false` are subagent-only.</summary>
-    [JsonPropertyName("userInvocable")]
-    public bool? UserInvocable { get; set; }
 }
 
 /// <summary>Custom agents available to the session.</summary>
@@ -4127,7 +4175,7 @@ public partial class TaskInfoAgent : TaskInfo
     [JsonPropertyName("latestResponse")]
     public string? LatestResponse { get; set; }
 
-    /// <summary>Model used for the task when specified.</summary>
+    /// <summary>Requested model override for the task when specified.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
@@ -4135,6 +4183,11 @@ public partial class TaskInfoAgent : TaskInfo
     /// <summary>Most recent prompt delivered to the agent. Updated whenever the agent receives a follow-up message.</summary>
     [JsonPropertyName("prompt")]
     public required string Prompt { get; set; }
+
+    /// <summary>Runtime model resolved for the task when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedModel")]
+    public string? ResolvedModel { get; set; }
 
     /// <summary>Result text from the task when available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4849,7 +4902,7 @@ public sealed class McpFilteredServer
 
 /// <summary>MCP server startup filtering result.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class McpStartServersResult
+internal sealed class McpStartServersResult
 {
     /// <summary>Non-default servers allowed by policy.</summary>
     [JsonPropertyName("allowedServers")]
@@ -4992,7 +5045,7 @@ internal sealed class SessionMcpRemoveGitHubRequest
 
 /// <summary>Result of configuring GitHub MCP.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class McpConfigureGitHubResult
+internal sealed class McpConfigureGitHubResult
 {
     /// <summary>Whether GitHub MCP configuration changed.</summary>
     [JsonPropertyName("changed")]
@@ -5127,7 +5180,7 @@ internal sealed class McpIsServerRunningRequest
 
 /// <summary>Empty result after recording the MCP OAuth response.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class McpOauthRespondResult
+internal sealed class McpOauthRespondResult
 {
 }
 
@@ -9462,6 +9515,14 @@ internal sealed class RemoteNotifySteerableChangedRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class ScheduleEntry
 {
+    /// <summary>Absolute fire time (epoch milliseconds) for a one-shot calendar schedule.</summary>
+    [JsonPropertyName("at")]
+    public long? At { get; set; }
+
+    /// <summary>5-field cron expression for a recurring calendar schedule, evaluated in `tz`.</summary>
+    [JsonPropertyName("cron")]
+    public string? Cron { get; set; }
+
     /// <summary>Display-only label for the prompt as shown in the UI (e.g. `/skill-name` for a skill-invocation schedule). The actual enqueued prompt is `prompt`.</summary>
     [JsonPropertyName("displayPrompt")]
     public string? DisplayPrompt { get; set; }
@@ -9470,10 +9531,10 @@ public sealed class ScheduleEntry
     [JsonPropertyName("id")]
     public long Id { get; set; }
 
-    /// <summary>Interval between scheduled ticks, in milliseconds.</summary>
+    /// <summary>Interval between scheduled ticks, in milliseconds (relative-interval schedules).</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("intervalMs")]
-    public TimeSpan Interval { get; set; }
+    public TimeSpan? Interval { get; set; }
 
     /// <summary>ISO 8601 timestamp when the next tick is scheduled to fire.</summary>
     [JsonPropertyName("nextRunAt")]
@@ -9486,6 +9547,10 @@ public sealed class ScheduleEntry
     /// <summary>Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`).</summary>
     [JsonPropertyName("recurring")]
     public bool Recurring { get; set; }
+
+    /// <summary>IANA timezone the `cron` expression is evaluated in.</summary>
+    [JsonPropertyName("tz")]
+    public string? Tz { get; set; }
 }
 
 /// <summary>Snapshot of the currently active recurring prompts for this session.</summary>
@@ -10250,6 +10315,228 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
         public override void Write(Utf8JsonWriter writer, DiscoveredMcpServerType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerType));
+        }
+    }
+}
+
+
+/// <summary>Where the agent definition was loaded from.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentInfoSource : IEquatable<AgentInfoSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentInfoSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentInfoSource"/>.</param>
+    [JsonConstructor]
+    public AgentInfoSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentInfoSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Agent loaded from the user's personal agent configuration.</summary>
+    public static AgentInfoSource User { get; } = new("user");
+
+    /// <summary>Agent loaded from the current project's repository configuration.</summary>
+    public static AgentInfoSource Project { get; } = new("project");
+
+    /// <summary>Agent inherited from a parent project or workspace.</summary>
+    public static AgentInfoSource Inherited { get; } = new("inherited");
+
+    /// <summary>Agent provided by a remote runtime or service.</summary>
+    public static AgentInfoSource Remote { get; } = new("remote");
+
+    /// <summary>Agent contributed by an installed plugin.</summary>
+    public static AgentInfoSource Plugin { get; } = new("plugin");
+
+    /// <summary>Agent built into the Copilot runtime.</summary>
+    public static AgentInfoSource Builtin { get; } = new("builtin");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentInfoSource"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentInfoSource left, AgentInfoSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentInfoSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentInfoSource left, AgentInfoSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentInfoSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentInfoSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentInfoSource}"/> for serializing <see cref="AgentInfoSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentInfoSource>
+    {
+        /// <inheritdoc />
+        public override AgentInfoSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentInfoSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentInfoSource));
+        }
+    }
+}
+
+
+/// <summary>Where this source lives — used for UI grouping.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct InstructionSourceLocation : IEquatable<InstructionSourceLocation>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="InstructionSourceLocation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="InstructionSourceLocation"/>.</param>
+    [JsonConstructor]
+    public InstructionSourceLocation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="InstructionSourceLocation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Instructions live in user-level configuration.</summary>
+    public static InstructionSourceLocation User { get; } = new("user");
+
+    /// <summary>Instructions live in repository-level configuration.</summary>
+    public static InstructionSourceLocation Repository { get; } = new("repository");
+
+    /// <summary>Instructions live under the current working directory.</summary>
+    public static InstructionSourceLocation WorkingDirectory { get; } = new("working-directory");
+
+    /// <summary>Instructions live in plugin-provided configuration.</summary>
+    public static InstructionSourceLocation Plugin { get; } = new("plugin");
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionSourceLocation"/> instances are equivalent.</summary>
+    public static bool operator ==(InstructionSourceLocation left, InstructionSourceLocation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionSourceLocation"/> instances are not equivalent.</summary>
+    public static bool operator !=(InstructionSourceLocation left, InstructionSourceLocation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is InstructionSourceLocation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(InstructionSourceLocation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{InstructionSourceLocation}"/> for serializing <see cref="InstructionSourceLocation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<InstructionSourceLocation>
+    {
+        /// <inheritdoc />
+        public override InstructionSourceLocation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, InstructionSourceLocation value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionSourceLocation));
+        }
+    }
+}
+
+
+/// <summary>Category of instruction source — used for merge logic.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct InstructionSourceType : IEquatable<InstructionSourceType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="InstructionSourceType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="InstructionSourceType"/>.</param>
+    [JsonConstructor]
+    public InstructionSourceType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="InstructionSourceType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Instructions loaded from the user's home configuration.</summary>
+    public static InstructionSourceType Home { get; } = new("home");
+
+    /// <summary>Instructions loaded from repository-scoped files.</summary>
+    public static InstructionSourceType Repo { get; } = new("repo");
+
+    /// <summary>Instructions loaded from model-specific files.</summary>
+    public static InstructionSourceType Model { get; } = new("model");
+
+    /// <summary>Instructions loaded from VS Code instruction files.</summary>
+    public static InstructionSourceType Vscode { get; } = new("vscode");
+
+    /// <summary>Instructions discovered from nested agent files.</summary>
+    public static InstructionSourceType NestedAgents { get; } = new("nested-agents");
+
+    /// <summary>Instructions inherited from child instruction files.</summary>
+    public static InstructionSourceType ChildInstructions { get; } = new("child-instructions");
+
+    /// <summary>Instructions supplied by an installed plugin.</summary>
+    public static InstructionSourceType Plugin { get; } = new("plugin");
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionSourceType"/> instances are equivalent.</summary>
+    public static bool operator ==(InstructionSourceType left, InstructionSourceType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionSourceType"/> instances are not equivalent.</summary>
+    public static bool operator !=(InstructionSourceType left, InstructionSourceType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is InstructionSourceType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(InstructionSourceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{InstructionSourceType}"/> for serializing <see cref="InstructionSourceType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<InstructionSourceType>
+    {
+        /// <inheritdoc />
+        public override InstructionSourceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, InstructionSourceType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionSourceType));
         }
     }
 }
@@ -11854,228 +12141,6 @@ public readonly struct WorkspaceDiffMode : IEquatable<WorkspaceDiffMode>
         public override void Write(Utf8JsonWriter writer, WorkspaceDiffMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceDiffMode));
-        }
-    }
-}
-
-
-/// <summary>Where this source lives — used for UI grouping.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSourcesLocation>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="InstructionsSourcesLocation"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="InstructionsSourcesLocation"/>.</param>
-    [JsonConstructor]
-    public InstructionsSourcesLocation(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="InstructionsSourcesLocation"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Instructions live in user-level configuration.</summary>
-    public static InstructionsSourcesLocation User { get; } = new("user");
-
-    /// <summary>Instructions live in repository-level configuration.</summary>
-    public static InstructionsSourcesLocation Repository { get; } = new("repository");
-
-    /// <summary>Instructions live under the current working directory.</summary>
-    public static InstructionsSourcesLocation WorkingDirectory { get; } = new("working-directory");
-
-    /// <summary>Instructions live in plugin-provided configuration.</summary>
-    public static InstructionsSourcesLocation Plugin { get; } = new("plugin");
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesLocation"/> instances are equivalent.</summary>
-    public static bool operator ==(InstructionsSourcesLocation left, InstructionsSourcesLocation right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesLocation"/> instances are not equivalent.</summary>
-    public static bool operator !=(InstructionsSourcesLocation left, InstructionsSourcesLocation right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is InstructionsSourcesLocation other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(InstructionsSourcesLocation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{InstructionsSourcesLocation}"/> for serializing <see cref="InstructionsSourcesLocation"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<InstructionsSourcesLocation>
-    {
-        /// <inheritdoc />
-        public override InstructionsSourcesLocation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, InstructionsSourcesLocation value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesLocation));
-        }
-    }
-}
-
-
-/// <summary>Category of instruction source — used for merge logic.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="InstructionsSourcesType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="InstructionsSourcesType"/>.</param>
-    [JsonConstructor]
-    public InstructionsSourcesType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="InstructionsSourcesType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Instructions loaded from the user's home configuration.</summary>
-    public static InstructionsSourcesType Home { get; } = new("home");
-
-    /// <summary>Instructions loaded from repository-scoped files.</summary>
-    public static InstructionsSourcesType Repo { get; } = new("repo");
-
-    /// <summary>Instructions loaded from model-specific files.</summary>
-    public static InstructionsSourcesType Model { get; } = new("model");
-
-    /// <summary>Instructions loaded from VS Code instruction files.</summary>
-    public static InstructionsSourcesType Vscode { get; } = new("vscode");
-
-    /// <summary>Instructions discovered from nested agent files.</summary>
-    public static InstructionsSourcesType NestedAgents { get; } = new("nested-agents");
-
-    /// <summary>Instructions inherited from child instruction files.</summary>
-    public static InstructionsSourcesType ChildInstructions { get; } = new("child-instructions");
-
-    /// <summary>Instructions supplied by an installed plugin.</summary>
-    public static InstructionsSourcesType Plugin { get; } = new("plugin");
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesType"/> instances are equivalent.</summary>
-    public static bool operator ==(InstructionsSourcesType left, InstructionsSourcesType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesType"/> instances are not equivalent.</summary>
-    public static bool operator !=(InstructionsSourcesType left, InstructionsSourcesType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is InstructionsSourcesType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(InstructionsSourcesType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{InstructionsSourcesType}"/> for serializing <see cref="InstructionsSourcesType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<InstructionsSourcesType>
-    {
-        /// <inheritdoc />
-        public override InstructionsSourcesType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, InstructionsSourcesType value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesType));
-        }
-    }
-}
-
-
-/// <summary>Where the agent definition was loaded from.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct AgentInfoSource : IEquatable<AgentInfoSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="AgentInfoSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AgentInfoSource"/>.</param>
-    [JsonConstructor]
-    public AgentInfoSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="AgentInfoSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Agent loaded from the user's personal agent configuration.</summary>
-    public static AgentInfoSource User { get; } = new("user");
-
-    /// <summary>Agent loaded from the current project's repository configuration.</summary>
-    public static AgentInfoSource Project { get; } = new("project");
-
-    /// <summary>Agent inherited from a parent project or workspace.</summary>
-    public static AgentInfoSource Inherited { get; } = new("inherited");
-
-    /// <summary>Agent provided by a remote runtime or service.</summary>
-    public static AgentInfoSource Remote { get; } = new("remote");
-
-    /// <summary>Agent contributed by an installed plugin.</summary>
-    public static AgentInfoSource Plugin { get; } = new("plugin");
-
-    /// <summary>Agent built into the Copilot runtime.</summary>
-    public static AgentInfoSource Builtin { get; } = new("builtin");
-
-    /// <summary>Returns a value indicating whether two <see cref="AgentInfoSource"/> instances are equivalent.</summary>
-    public static bool operator ==(AgentInfoSource left, AgentInfoSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="AgentInfoSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(AgentInfoSource left, AgentInfoSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is AgentInfoSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(AgentInfoSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{AgentInfoSource}"/> for serializing <see cref="AgentInfoSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<AgentInfoSource>
-    {
-        /// <inheritdoc />
-        public override AgentInfoSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, AgentInfoSource value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentInfoSource));
         }
     }
 }
@@ -15159,6 +15224,18 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Agents APIs.</summary>
+    public ServerAgentsApi Agents =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>Instructions APIs.</summary>
+    public ServerInstructionsApi Instructions =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>User APIs.</summary>
     public ServerUserApi User =>
         field ??
@@ -15594,6 +15671,52 @@ public sealed class ServerSkillsConfigApi
 
         var request = new SkillsConfigSetDisabledSkillsRequest { DisabledSkills = disabledSkills };
         await CopilotClient.InvokeRpcAsync(_rpc, "skills.config.setDisabledSkills", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Agents APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerAgentsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerAgentsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Discovers custom agents across user, project, plugin, and remote sources.</summary>
+    /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).</param>
+    /// <param name="excludeHostAgents">When true, omit the host's agents (the `&lt;COPILOT_HOME&gt;/agents` directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Agents discovered across user, project, plugin, and remote sources.</returns>
+    public async Task<ServerAgentList> DiscoverAsync(IList<string>? projectPaths = null, bool? excludeHostAgents = null, CancellationToken cancellationToken = default)
+    {
+        var request = new AgentsDiscoverRequest { ProjectPaths = projectPaths, ExcludeHostAgents = excludeHostAgents };
+        return await CopilotClient.InvokeRpcAsync<ServerAgentList>(_rpc, "agents.discover", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Instructions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerInstructionsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerInstructionsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Discovers instruction sources across user, repository, and plugin sources.</summary>
+    /// <param name="projectPaths">Optional list of project directory paths to scan for repository/working-directory instruction sources. When omitted or empty, only user-level and plugin instruction sources are returned (no project scan).</param>
+    /// <param name="excludeHostInstructions">When true, omit the host's instruction sources (user/home-level files and plugin rules), leaving only repository and working-directory sources. For multitenant deployments.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Instruction sources discovered across user, repository, and plugin sources.</returns>
+    public async Task<ServerInstructionSourceList> DiscoverAsync(IList<string>? projectPaths = null, bool? excludeHostInstructions = null, CancellationToken cancellationToken = default)
+    {
+        var request = new InstructionsDiscoverRequest { ProjectPaths = projectPaths, ExcludeHostInstructions = excludeHostInstructions };
+        return await CopilotClient.InvokeRpcAsync<ServerInstructionSourceList>(_rpc, "instructions.discover", [request], cancellationToken);
     }
 }
 
@@ -17200,7 +17323,7 @@ public sealed class McpApi
     /// <param name="config">Opaque runtime MCP reload configuration. Marked internal: an in-process runtime shape (reloadMcpServers throws over the wire).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>MCP server startup filtering result.</returns>
-    public async Task<McpStartServersResult> ReloadWithConfigAsync(object config, CancellationToken cancellationToken = default)
+    internal async Task<McpStartServersResult> ReloadWithConfigAsync(object config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(config);
         _session.ThrowIfDisposed();
@@ -17268,7 +17391,7 @@ public sealed class McpApi
     /// <param name="authInfo">Opaque runtime auth info for GitHub MCP configuration. Marked internal: an in-process runtime shape (configureGitHubMcp is a no-op over the wire).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of configuring GitHub MCP.</returns>
-    public async Task<McpConfigureGitHubResult> ConfigureGitHubAsync(object authInfo, CancellationToken cancellationToken = default)
+    internal async Task<McpConfigureGitHubResult> ConfigureGitHubAsync(object authInfo, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(authInfo);
         _session.ThrowIfDisposed();
@@ -17281,7 +17404,7 @@ public sealed class McpApi
     /// <param name="serverName">Name of the MCP server to start.</param>
     /// <param name="config">Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task StartServerAsync(string serverName, object config, CancellationToken cancellationToken = default)
+    internal async Task StartServerAsync(string serverName, object config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
         ArgumentNullException.ThrowIfNull(config);
@@ -17295,7 +17418,7 @@ public sealed class McpApi
     /// <param name="serverName">Name of the MCP server to restart.</param>
     /// <param name="config">Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task RestartServerAsync(string serverName, object config, CancellationToken cancellationToken = default)
+    internal async Task RestartServerAsync(string serverName, object config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
         ArgumentNullException.ThrowIfNull(config);
@@ -17323,7 +17446,7 @@ public sealed class McpApi
     /// <param name="transport">In-process MCP Transport instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</param>
     /// <param name="config">In-process server config (MCPServerConfig) paired with the in-process client/transport. Marked internal alongside its companions.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task RegisterExternalClientAsync(string serverName, object client, object transport, object config, CancellationToken cancellationToken = default)
+    internal async Task RegisterExternalClientAsync(string serverName, object client, object transport, object config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
         ArgumentNullException.ThrowIfNull(client);
@@ -17338,7 +17461,7 @@ public sealed class McpApi
     /// <summary>Unregisters a previously registered external MCP client by server name. Marked internal as the paired companion of `registerExternalClient`: only in-process callers that registered a client this way can meaningfully unregister it. Disappears alongside `registerExternalClient`: once external clients are described to the runtime as config rather than handed in as instances, lifecycle (including deregistration) is owned entirely by the runtime.</summary>
     /// <param name="serverName">Server name of the external client to unregister.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task UnregisterExternalClientAsync(string serverName, CancellationToken cancellationToken = default)
+    internal async Task UnregisterExternalClientAsync(string serverName, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
@@ -17389,7 +17512,7 @@ public sealed class McpOauthApi
     /// <param name="provider">In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be serialized across the JSON-RPC boundary.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Empty result after recording the MCP OAuth response.</returns>
-    public async Task<McpOauthRespondResult> RespondAsync(string requestId, object? provider = null, CancellationToken cancellationToken = default)
+    internal async Task<McpOauthRespondResult> RespondAsync(string requestId, object? provider = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(requestId);
         _session.ThrowIfDisposed();
@@ -19304,6 +19427,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AgentReloadResult))]
 [JsonSerializable(typeof(AgentSelectRequest))]
 [JsonSerializable(typeof(AgentSelectResult))]
+[JsonSerializable(typeof(AgentsDiscoverRequest))]
 [JsonSerializable(typeof(AllowAllPermissionSetResult))]
 [JsonSerializable(typeof(AllowAllPermissionState))]
 [JsonSerializable(typeof(AuthInfo))]
@@ -19377,8 +19501,9 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(HistoryTruncateResult))]
 [JsonSerializable(typeof(InstalledPlugin))]
 [JsonSerializable(typeof(InstalledPluginInfo))]
+[JsonSerializable(typeof(InstructionSource))]
+[JsonSerializable(typeof(InstructionsDiscoverRequest))]
 [JsonSerializable(typeof(InstructionsGetSourcesResult))]
-[JsonSerializable(typeof(InstructionsSources))]
 [JsonSerializable(typeof(LocalSessionMetadataValue))]
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
@@ -19608,6 +19733,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SendAttachmentsToMessageParams))]
 [JsonSerializable(typeof(SendRequest))]
 [JsonSerializable(typeof(SendResult))]
+[JsonSerializable(typeof(ServerAgentList))]
+[JsonSerializable(typeof(ServerInstructionSourceList))]
 [JsonSerializable(typeof(ServerSkill))]
 [JsonSerializable(typeof(ServerSkillList))]
 [JsonSerializable(typeof(SessionActivity))]
