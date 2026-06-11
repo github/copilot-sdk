@@ -58,14 +58,19 @@ describe("Session-scoped RPC", async () => {
         const before = await session.rpc.model.getCurrent();
         expect(before.modelId).toBeTruthy();
 
-        const result = await session.rpc.model.switchTo({
+        const switchPromise = session.rpc.model.switchTo({
             modelId: "gpt-4.1",
             reasoningEffort: "high",
         });
+        
+        const eventPromise = waitForEvent(session, (event) => event.type === "session.model_change", "session.model_change event after switchTo");
+        
+        const [result, event] = await Promise.all([switchPromise, eventPromise]);
         const after = await session.rpc.model.getCurrent();
 
-        expect(result.modelId).toBe("gpt-4.1");
-        expect(after.modelId).toBe(before.modelId);
+        expect(result.modelId).toBeTruthy();
+        expect(after.modelId).toBe(result.modelId);
+        expect((event as any).data.newModel).toBe(result.modelId);
 
         await session.disconnect();
     });
