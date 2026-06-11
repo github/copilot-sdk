@@ -86,15 +86,22 @@ impl Drop for WaiterGuard {
 struct PendingSessionRegistration {
     client: Client,
     session_id: SessionId,
+    registration_id: u64,
     shutdown: CancellationToken,
     disarmed: bool,
 }
 
 impl PendingSessionRegistration {
-    fn new(client: Client, session_id: SessionId, shutdown: CancellationToken) -> Self {
+    fn new(
+        client: Client,
+        session_id: SessionId,
+        registration_id: u64,
+        shutdown: CancellationToken,
+    ) -> Self {
         Self {
             client,
             session_id,
+            registration_id,
             shutdown,
             disarmed: false,
         }
@@ -103,7 +110,8 @@ impl PendingSessionRegistration {
     async fn cleanup(mut self, event_loop: JoinHandle<()>) {
         self.shutdown.cancel();
         let _ = event_loop.await;
-        self.client.unregister_session(&self.session_id);
+        self.client
+            .unregister_session_registration(&self.session_id, self.registration_id);
         self.disarmed = true;
     }
 
@@ -116,7 +124,8 @@ impl Drop for PendingSessionRegistration {
     fn drop(&mut self) {
         if !self.disarmed {
             self.shutdown.cancel();
-            self.client.unregister_session(&self.session_id);
+            self.client
+                .unregister_session_registration(&self.session_id, self.registration_id);
         }
     }
 }
@@ -135,6 +144,7 @@ impl Drop for PendingSessionRegistration {
 /// unregisters from the router as a best-effort safety net.
 pub struct Session {
     id: SessionId,
+    registration_id: u64,
     cwd: PathBuf,
     workspace_path: Option<PathBuf>,
     remote_url: Option<String>,
@@ -171,6 +181,14 @@ pub struct Session {
     open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     /// Broadcast channel for runtime event subscribers — see [`Session::subscribe`].
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+}
+
+/// Result returned by [`Session::reset`].
+pub struct ResetSessionResult {
+    /// Session ID that was closed and replaced.
+    pub previous_session_id: SessionId,
+    /// Fresh session created from the supplied reset configuration.
+    pub session: Session,
 }
 
 impl Session {
@@ -555,8 +573,51 @@ impl Session {
             )
             .await?;
         self.stop_event_loop().await;
-        self.client.unregister_session(&self.id);
+        self.client
+            .unregister_session_registration(&self.id, self.registration_id);
         Ok(())
+    }
+
+    /// Reset this conversation by closing the underlying runtime session and
+    /// creating a fresh session from `config`.
+    ///
+    /// Use the returned session for subsequent work. The SDK does not clear
+    /// host-owned UI state, local drafts, or app persistence. If reset fails
+    /// after the old session has been torn down, treat this session handle as
+    /// inactive and create or resume another session explicitly.
+    pub async fn reset(&self, mut config: SessionConfig) -> Result<ResetSessionResult, Error> {
+        let previous_session_id = self.id.clone();
+        if !self
+            .client
+            .is_session_registration_active(&previous_session_id, self.registration_id)
+        {
+            return Err(Error::with_message(
+                ErrorKind::Session(SessionErrorKind::NotFound(previous_session_id)),
+                "cannot reset session: it is not active on this client",
+            ));
+        }
+        if !self.client.begin_session_reset(&previous_session_id) {
+            return Err(
+                ErrorKind::Session(SessionErrorKind::ResetInProgress(previous_session_id)).into(),
+            );
+        }
+
+        let result = async {
+            self.rpc().queue().clear().await?;
+            self.disconnect().await?;
+
+            config.session_id = None;
+            let session = self.client.create_session(config).await?;
+
+            Ok(ResetSessionResult {
+                previous_session_id: previous_session_id.clone(),
+                session,
+            })
+        }
+        .await;
+
+        self.client.end_session_reset(&previous_session_id);
+        result
     }
 
     /// Deprecated alias for [`disconnect`](Self::disconnect). The
@@ -632,7 +693,8 @@ impl Drop for Session {
         // tokio runtime when it next polls; we intentionally don't await
         // it here because Drop is sync.
         self.shutdown.cancel();
-        self.client.unregister_session(&self.id);
+        self.client
+            .unregister_session_registration(&self.id, self.registration_id);
     }
 }
 
@@ -923,14 +985,14 @@ impl Client {
         // For non-cloud sessions, register up-front so the CLI can issue
         // session-scoped requests during session.create processing.
         let inline_stash: Arc<
-            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
+            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels, u64)>>,
         > = Arc::new(ParkingLotMutex::new(None));
 
         let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
             local_session_id
         {
-            let channels = self.register_session(sid);
-            *inline_stash.lock() = Some((sid.clone(), channels));
+            let (channels, registration_id) = self.register_session(sid);
+            *inline_stash.lock() = Some((sid.clone(), channels, registration_id));
             None
         } else {
             let client = self.clone();
@@ -951,8 +1013,8 @@ impl Client {
                     })
                     .into());
                 }
-                let channels = client.register_session(&parsed.session_id);
-                *stash.lock() = Some((parsed.session_id, channels));
+                let (channels, registration_id) = client.register_session(&parsed.session_id);
+                *stash.lock() = Some((parsed.session_id, channels, registration_id));
                 Ok(())
             }))
         };
@@ -964,8 +1026,8 @@ impl Client {
         {
             Ok(result) => result,
             Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
-                    self.unregister_session(&id);
+                if let Some((id, _channels, registration_id)) = inline_stash.lock().take() {
+                    self.unregister_session_registration(&id, registration_id);
                 }
                 return Err(error);
             }
@@ -977,8 +1039,8 @@ impl Client {
         let create_result: CreateSessionResult = match serde_json::from_value(result) {
             Ok(result) => result,
             Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
-                    self.unregister_session(&id);
+                if let Some((id, _channels, registration_id)) = inline_stash.lock().take() {
+                    self.unregister_session_registration(&id, registration_id);
                 }
                 return Err(error.into());
             }
@@ -987,8 +1049,8 @@ impl Client {
         if let Some(ref requested) = local_session_id
             && create_result.session_id != *requested
         {
-            if let Some((id, _channels)) = inline_stash.lock().take() {
-                self.unregister_session(&id);
+            if let Some((id, _channels, registration_id)) = inline_stash.lock().take() {
+                self.unregister_session_registration(&id, registration_id);
             }
             return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: requested.clone(),
@@ -997,7 +1059,7 @@ impl Client {
             .into());
         }
 
-        let (session_id, channels) = inline_stash
+        let (session_id, channels, registration_id) = inline_stash
             .lock()
             .take()
             .expect("session registration must have populated stash on success");
@@ -1034,6 +1096,7 @@ impl Client {
         );
         let session = Session {
             id: session_id,
+            registration_id,
             cwd: self.cwd().clone(),
             workspace_path: create_result.workspace_path,
             remote_url: create_result.remote_url,
@@ -1167,7 +1230,7 @@ impl Client {
 
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let setup_start = Instant::now();
-        let channels = self.register_session(&session_id);
+        let (channels, registration_id) = self.register_session(&session_id);
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let shutdown = CancellationToken::new();
@@ -1188,8 +1251,12 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
-        let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
+        let mut registration = PendingSessionRegistration::new(
+            self.clone(),
+            session_id.clone(),
+            registration_id,
+            shutdown.clone(),
+        );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -1276,6 +1343,7 @@ impl Client {
         registration.disarm();
         let session = Session {
             id: session_id,
+            registration_id,
             cwd: self.cwd().clone(),
             workspace_path: resume_result.workspace_path,
             remote_url: resume_result.remote_url,
@@ -2318,10 +2386,18 @@ fn inject_transform_sections_resume(
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use std::path::PathBuf;
+    use std::sync::Arc;
 
+    use parking_lot::Mutex as ParkingLotMutex;
+    use serde_json::json;
+    use tokio_util::sync::CancellationToken;
+
+    use super::Session;
     use super::notification_permission_payload;
     use crate::handler::PermissionResult;
+    use crate::types::{SessionConfig, SessionId};
+    use crate::{Client, ErrorKind, SessionErrorKind};
 
     #[test]
     fn notification_payload_suppresses_no_result() {
@@ -2345,6 +2421,45 @@ mod tests {
         assert_eq!(
             notification_permission_payload(&PermissionResult::user_not_available()),
             Some(json!({ "kind": "user-not-available" }))
+        );
+    }
+
+    #[tokio::test]
+    async fn reset_rejects_inactive_session_handle() {
+        let (client_read, _server_write) = tokio::io::duplex(1024);
+        let (_server_read, client_write) = tokio::io::duplex(1024);
+        let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
+        let session_id = SessionId::new("inactive-reset-test");
+        let (_channels, registration_id) = client.register_session(&session_id);
+        client.unregister_session_registration(&session_id, registration_id);
+
+        let session = Session {
+            id: session_id.clone(),
+            registration_id,
+            cwd: PathBuf::from("."),
+            workspace_path: None,
+            remote_url: None,
+            client,
+            event_loop: ParkingLotMutex::new(None),
+            shutdown: CancellationToken::new(),
+            idle_waiter: Arc::new(ParkingLotMutex::new(None)),
+            capabilities: Arc::new(parking_lot::RwLock::new(Default::default())),
+            open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
+            event_tx: tokio::sync::broadcast::channel(1).0,
+        };
+
+        let error = match session.reset(SessionConfig::default()).await {
+            Ok(_) => panic!("inactive reset should fail before sending RPC"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            error.kind(),
+            &ErrorKind::Session(SessionErrorKind::NotFound(session_id))
+        );
+        assert_eq!(
+            error.message(),
+            Some("cannot reset session: it is not active on this client")
         );
     }
 }

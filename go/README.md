@@ -788,6 +788,24 @@ session, err := client.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfi
 
 If a handler returns an error, the SDK sends the error message back to the server. Unknown commands automatically receive an error response.
 
+## Resetting a Session
+
+Use `session.Reset(ctx, config)` to abandon the current runtime session and create a fresh session from explicit configuration. This mirrors the SDK-owned lifecycle part of the CLI TUI `/clear` command; `/reset` is its alias in the TUI.
+
+```go
+result, err := session.Reset(ctx, &copilot.SessionConfig{
+    Model:               "gpt-5",
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+})
+if err != nil {
+    return err
+}
+session = result.Session
+// Clear your app's visible transcript, local drafts, and route state here.
+```
+
+The returned `PreviousSessionID` identifies the abandoned session. The old `Session` object is closed after a successful reset, and the new session starts unnamed. If reset fails after teardown starts, treat the old session as no longer usable and create or resume another session explicitly. Host applications own UI cleanup and event listener rebinding.
+
 ## UI Elicitation
 
 The SDK provides convenience methods to ask the user questions via elicitation dialogs. These are gated by host capabilities — check `session.Capabilities().UI.Elicitation` before calling.

@@ -791,6 +791,21 @@ async with await client.create_session(
 
 Commands can also be provided when resuming a session via `resume_session(commands=[...])`.
 
+## Resetting a Session
+
+Use `await session.reset(**config)` to abandon the current runtime session and create a fresh session from explicit configuration. This mirrors the SDK-owned lifecycle part of the CLI TUI `/clear` command; `/reset` is its alias in the TUI.
+
+```python
+result = await session.reset(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+)
+session = result.session
+# Clear your app's visible transcript, local drafts, and route state here.
+```
+
+The returned `previous_session_id` identifies the abandoned session. The old `CopilotSession` object is disconnected after a successful reset, and the new session starts unnamed. If reset fails after teardown starts, treat the old session as no longer usable and create or resume another session explicitly. Host applications own UI cleanup and event listener rebinding.
+
 ## UI Elicitation
 
 The `session.ui` API provides convenience methods for asking the user questions through interactive dialogs. These methods are only available when the CLI host supports elicitation — check `session.capabilities` before calling.

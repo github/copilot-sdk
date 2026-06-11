@@ -88,17 +88,18 @@ func validateSessionFSConfig(config *SessionFSConfig) error {
 //	}
 //	defer client.Stop()
 type Client struct {
-	options          ClientOptions
-	process          *exec.Cmd
-	client           *jsonrpc2.Client
-	actualPort       int
-	actualHost       string
-	state            connectionState
-	sessions         map[string]*Session
-	sessionsMux      sync.Mutex
-	isExternalServer bool
-	conn             net.Conn // stores net.Conn for external TCP connections
-	useStdio         bool     // resolved value from options
+	options           ClientOptions
+	process           *exec.Cmd
+	client            *jsonrpc2.Client
+	actualPort        int
+	actualHost        string
+	state             connectionState
+	sessions          map[string]*Session
+	resettingSessions map[string]struct{}
+	sessionsMux       sync.Mutex
+	isExternalServer  bool
+	conn              net.Conn // stores net.Conn for external TCP connections
+	useStdio          bool     // resolved value from options
 	// resolved process options for the spawned runtime (zero values for URIConnection)
 	cliPath            string
 	cliArgs            []string
@@ -156,12 +157,13 @@ func NewClient(options *ClientOptions) *Client {
 	opts := ClientOptions{}
 
 	client := &Client{
-		options:          opts,
-		state:            stateDisconnected,
-		sessions:         make(map[string]*Session),
-		actualHost:       "localhost",
-		isExternalServer: false,
-		useStdio:         true,
+		options:           opts,
+		state:             stateDisconnected,
+		sessions:          make(map[string]*Session),
+		resettingSessions: make(map[string]struct{}),
+		actualHost:        "localhost",
+		isExternalServer:  false,
+		useStdio:          true,
 	}
 
 	if options != nil {
@@ -239,6 +241,10 @@ func NewClient(options *ClientOptions) *Client {
 	client.options = opts
 	validateNewClientForMode(&client.options)
 	return client
+}
+
+func (c *Client) forgetSessionLocked(sessionID string) {
+	delete(c.sessions, sessionID)
 }
 
 // getEnvValue looks up a key in an environment slice ([]string of "KEY=VALUE").
@@ -411,6 +417,7 @@ func (c *Client) Stop() error {
 
 	c.sessionsMux.Lock()
 	c.sessions = make(map[string]*Session)
+	c.resettingSessions = make(map[string]struct{})
 	c.sessionsMux.Unlock()
 
 	c.startStopMux.Lock()
@@ -485,6 +492,7 @@ func (c *Client) ForceStop() {
 	// Clear sessions immediately without trying to destroy them
 	c.sessionsMux.Lock()
 	c.sessions = make(map[string]*Session)
+	c.resettingSessions = make(map[string]struct{})
 	c.sessionsMux.Unlock()
 
 	c.startStopMux.Lock()
@@ -728,7 +736,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	// message is dispatched) so notifications for the new session id are
 	// routed to a registered session.
 	initializeSession := func(sessionID string) (*Session, error) {
-		s := newSession(sessionID, c.client, "")
+		s := newSession(sessionID, c, c.client, "")
 
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
@@ -762,12 +770,13 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 		c.sessionsMux.Lock()
 		c.sessions[sessionID] = s
+
 		c.sessionsMux.Unlock()
 
 		if c.options.SessionFS != nil {
 			if config.CreateSessionFSProvider == nil {
 				c.sessionsMux.Lock()
-				delete(c.sessions, sessionID)
+				c.forgetSessionLocked(sessionID)
 				c.sessionsMux.Unlock()
 				return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
 			}
@@ -775,7 +784,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Sqlite {
 				if _, ok := provider.(SessionFSSqliteProvider); !ok {
 					c.sessionsMux.Lock()
-					delete(c.sessions, sessionID)
+					c.forgetSessionLocked(sessionID)
 					c.sessionsMux.Unlock()
 					return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
 				}
@@ -834,7 +843,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if err != nil {
 		if registeredSessionID != "" {
 			c.sessionsMux.Lock()
-			delete(c.sessions, registeredSessionID)
+			c.forgetSessionLocked(registeredSessionID)
 			c.sessionsMux.Unlock()
 		}
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -844,7 +853,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if err := json.Unmarshal(result, &response); err != nil {
 		if registeredSessionID != "" {
 			c.sessionsMux.Lock()
-			delete(c.sessions, registeredSessionID)
+			c.forgetSessionLocked(registeredSessionID)
 			c.sessionsMux.Unlock()
 		}
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
@@ -856,7 +865,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	if localSessionID != "" && response.SessionID != "" && response.SessionID != localSessionID {
 		c.sessionsMux.Lock()
-		delete(c.sessions, registeredSessionID)
+		c.forgetSessionLocked(registeredSessionID)
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("session.create returned sessionId %s but the caller requested %s", response.SessionID, localSessionID)
 	}
@@ -1020,7 +1029,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
-	session := newSession(sessionID, c.client, "")
+	session := newSession(sessionID, c, c.client, "")
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -1059,7 +1068,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if c.options.SessionFS != nil {
 		if config.CreateSessionFSProvider == nil {
 			c.sessionsMux.Lock()
-			delete(c.sessions, sessionID)
+			c.forgetSessionLocked(sessionID)
 			c.sessionsMux.Unlock()
 			return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
 		}
@@ -1067,7 +1076,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Sqlite {
 			if _, ok := provider.(SessionFSSqliteProvider); !ok {
 				c.sessionsMux.Lock()
-				delete(c.sessions, sessionID)
+				c.forgetSessionLocked(sessionID)
 				c.sessionsMux.Unlock()
 				return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
 			}
@@ -1078,7 +1087,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	result, err := c.client.Request("session.resume", req)
 	if err != nil {
 		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
+		c.forgetSessionLocked(sessionID)
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("failed to resume session: %w", err)
 	}
@@ -1086,7 +1095,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	var response resumeSessionResponse
 	if err := json.Unmarshal(result, &response); err != nil {
 		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
+		c.forgetSessionLocked(sessionID)
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
@@ -1105,6 +1114,58 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 
 	return session, nil
+}
+
+func (c *Client) resetSession(ctx context.Context, session *Session, config *SessionConfig) (*ResetResult, error) {
+	if err := c.ensureConnected(ctx); err != nil {
+		return nil, err
+	}
+	if config == nil {
+		return nil, errors.New("reset config is required")
+	}
+
+	previousSessionID := session.SessionID
+	c.sessionsMux.Lock()
+	if _, ok := c.resettingSessions[previousSessionID]; ok {
+		c.sessionsMux.Unlock()
+		return nil, fmt.Errorf("cannot reset session %s: reset is already in progress", previousSessionID)
+	}
+	if c.sessions[previousSessionID] != session {
+		c.sessionsMux.Unlock()
+		return nil, fmt.Errorf("cannot reset session %s: it is not active on this client", previousSessionID)
+	}
+	c.resettingSessions[previousSessionID] = struct{}{}
+	c.sessionsMux.Unlock()
+	defer func() {
+		c.sessionsMux.Lock()
+		delete(c.resettingSessions, previousSessionID)
+		c.sessionsMux.Unlock()
+	}()
+
+	if _, err := session.RPC.Queue.Clear(ctx); err != nil {
+		return nil, fmt.Errorf("failed to clear pending queue for session %s: %w", previousSessionID, err)
+	}
+	if err := session.Disconnect(); err != nil {
+		return nil, err
+	}
+
+	resetConfig := *config
+	resetConfig.SessionID = ""
+	freshSession, err := c.CreateSession(ctx, &resetConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ResetResult{
+		PreviousSessionID: previousSessionID,
+		Session:           freshSession,
+	}, nil
+}
+
+func (c *Client) unregisterSession(sessionID string) {
+	c.sessionsMux.Lock()
+	c.forgetSessionLocked(sessionID)
+	c.sessionsMux.Unlock()
 }
 
 // ListSessions returns metadata about all sessions known to the server.
@@ -1219,7 +1280,7 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 
 	// Remove from local sessions map if present
 	c.sessionsMux.Lock()
-	delete(c.sessions, sessionID)
+	c.forgetSessionLocked(sessionID)
 	c.sessionsMux.Unlock()
 
 	return nil

@@ -470,7 +470,10 @@ internal sealed partial class JsonRpc : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Inline response callback for request {RequestId} threw", id);
+                    if (_logger.IsEnabled(LogLevel.Warning))
+                    {
+                        _logger.LogWarning(ex, "Inline response callback for request {RequestId} threw", id);
+                    }
                     pending.TrySetException(ex);
                     return;
                 }

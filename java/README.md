@@ -130,6 +130,20 @@ Or run it directly from the repository:
 jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
 
+## Resetting a Session
+
+Use `session.resetAsync(config)` to abandon the current runtime session and create a fresh session from explicit configuration. This mirrors the SDK-owned lifecycle part of the CLI TUI `/clear` command; `/reset` is its alias in the TUI.
+
+```java
+var result = session.resetAsync(new SessionConfig()
+        .setModel("gpt-5")
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+session = result.session();
+// Clear your app's visible transcript, local drafts, and route state here.
+```
+
+The returned `previousSessionId` identifies the abandoned session. The old `CopilotSession` object is closed after a successful reset, and the new session starts unnamed. If reset fails after teardown starts, treat the old session as no longer usable and create or resume another session explicitly. Host applications own UI cleanup and event listener rebinding.
+
 ## Using experimental APIs
 
 Some SDK APIs are marked as experimental with `@CopilotExperimental`. These APIs may change or be removed in future versions without notice.
@@ -272,4 +286,3 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
-

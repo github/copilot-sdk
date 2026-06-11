@@ -1108,6 +1108,15 @@ type SessionConfig struct {
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
 }
+
+// ResetResult is returned by [Session.Reset].
+type ResetResult struct {
+	// PreviousSessionID is the session ID that was closed and replaced.
+	PreviousSessionID string
+	// Session is the fresh session created from the supplied reset configuration.
+	Session *Session
+}
+
 type Tool struct {
 	Name                 string         `json:"name"`
 	Description          string         `json:"description,omitempty"`

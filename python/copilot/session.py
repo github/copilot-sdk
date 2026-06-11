@@ -89,6 +89,21 @@ if TYPE_CHECKING:
 # Re-export SessionEvent under an alias used internally
 SessionEventTypeAlias = SessionEvent
 
+
+@dataclass
+class ResetSessionResult:
+    """Result returned by :meth:`CopilotSession.reset`."""
+
+    previous_session_id: str
+    """The session ID that was closed and replaced."""
+
+    session: CopilotSession
+    """The fresh session created from the supplied reset configuration."""
+
+
+_ResetSessionCallback = Callable[["CopilotSession", dict[str, Any]], Awaitable[ResetSessionResult]]
+_UnregisterSessionCallback = Callable[[str], None]
+
 # ============================================================================
 # Reasoning Effort
 # ============================================================================
@@ -1097,7 +1112,12 @@ class CopilotSession:
     """
 
     def __init__(
-        self, session_id: str, client: Any, workspace_path: os.PathLike[str] | str | None = None
+        self,
+        session_id: str,
+        client: Any,
+        workspace_path: os.PathLike[str] | str | None = None,
+        reset_callback: _ResetSessionCallback | None = None,
+        unregister_callback: _UnregisterSessionCallback | None = None,
     ):
         """
         Initialize a new CopilotSession.
@@ -1143,6 +1163,8 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._reset_callback = reset_callback
+        self._unregister_callback = unregister_callback
 
     @property
     def rpc(self) -> SessionRpc:
@@ -2352,21 +2374,70 @@ class CopilotSession:
         try:
             await self._client.request("session.destroy", {"sessionId": self.session_id})
         finally:
-            # Clear handlers even if the request fails.
+            self._clear_local_state_after_disconnect()
+
+    async def _disconnect_for_reset(self) -> None:
+        with self._event_handlers_lock:
+            if self._destroyed:
+                return
+            self._destroyed = True
+
+        try:
+            await self._client.request("session.destroy", {"sessionId": self.session_id})
+        except Exception:
             with self._event_handlers_lock:
-                self._event_handlers.clear()
-            with self._tool_handlers_lock:
-                self._tool_handlers.clear()
-            with self._permission_handler_lock:
-                self._permission_handler = None
-            with self._command_handlers_lock:
-                self._command_handlers.clear()
-            with self._elicitation_handler_lock:
-                self._elicitation_handler = None
-            with self._exit_plan_mode_handler_lock:
-                self._exit_plan_mode_handler = None
-            with self._auto_mode_switch_handler_lock:
-                self._auto_mode_switch_handler = None
+                self._destroyed = False
+            raise
+
+        self._clear_local_state_after_disconnect()
+
+    def _clear_local_state_after_disconnect(self) -> None:
+        with self._event_handlers_lock:
+            self._event_handlers.clear()
+        with self._tool_handlers_lock:
+            self._tool_handlers.clear()
+        with self._permission_handler_lock:
+            self._permission_handler = None
+        with self._command_handlers_lock:
+            self._command_handlers.clear()
+        with self._elicitation_handler_lock:
+            self._elicitation_handler = None
+        with self._exit_plan_mode_handler_lock:
+            self._exit_plan_mode_handler = None
+        with self._auto_mode_switch_handler_lock:
+            self._auto_mode_switch_handler = None
+        self._reset_callback = None
+        if self._unregister_callback is not None:
+            self._unregister_callback(self.session_id)
+        self._unregister_callback = None
+
+    async def reset(self, **config: Any) -> ResetSessionResult:
+        """
+        Reset this conversation by closing the underlying runtime session and
+        creating a fresh session from the supplied configuration.
+
+        The returned session is the one callers should use going forward. The
+        current session object is detached after a successful reset.
+
+        The SDK does not clear host-owned UI state, local drafts, or app
+        persistence. Clear those after this method resolves successfully.
+        If reset fails after teardown starts, treat the old session as no
+        longer usable and create or resume another session explicitly.
+        Any ``session_id`` in ``config`` is ignored so the reset always creates
+        a fresh runtime session identity.
+
+        Returns:
+            A :class:`ResetSessionResult` containing the fresh session and the
+            previous session ID.
+
+        Raises:
+            RuntimeError: If this session is no longer attached to its creating client.
+        """
+        if self._reset_callback is None:
+            raise RuntimeError(
+                "Cannot reset a session that is not attached to its creating client."
+            )
+        return await self._reset_callback(self, config)
 
     async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""

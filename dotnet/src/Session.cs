@@ -194,7 +194,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     internal void RemoveFromClient()
     {
-        ((ICollection<KeyValuePair<string, CopilotSession>>)_parentClient._sessions).Remove(new(SessionId, this));
+        _parentClient.RemoveSession(this);
     }
 
     internal void StartProcessingEvents()
@@ -1729,6 +1729,35 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
 
         _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<EventSubscription>.Empty);
+        ClearLocalState();
+    }
+
+    internal async Task DestroyForResetAsync(CancellationToken cancellationToken)
+    {
+        if (Interlocked.Exchange(ref _isDisposed, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeRpcAsync<object>(
+                "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], cancellationToken);
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _isDisposed, 0);
+            throw;
+        }
+
+        _eventChannel.Writer.TryComplete();
+        RemoveFromClient();
+        _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<EventSubscription>.Empty);
+        ClearLocalState();
+    }
+
+    private void ClearLocalState()
+    {
         _toolHandlers.Clear();
         _commandHandlers.Clear();
 
@@ -1737,6 +1766,25 @@ public sealed partial class CopilotSession : IAsyncDisposable
         _elicitationHandler = null;
         _exitPlanModeHandler = null;
         _autoModeSwitchHandler = null;
+    }
+
+    /// <summary>
+    /// Resets this conversation by closing the underlying runtime session and
+    /// creating a fresh session from <paramref name="config"/>.
+    /// </summary>
+    /// <remarks>
+    /// Use the returned session for subsequent work. The SDK does not clear
+    /// host-owned UI state, local drafts, or app persistence. If reset fails
+    /// after teardown starts, treat the old session as no longer usable and
+    /// create or resume another session explicitly.
+    /// </remarks>
+    /// <param name="config">Configuration for the replacement session. Any <see cref="SessionConfig.SessionId"/> is ignored.</param>
+    /// <param name="cancellationToken">A token to cancel the reset operation.</param>
+    /// <returns>The fresh session and the previous session ID.</returns>
+    public Task<ResetSessionResult> ResetAsync(SessionConfig config, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        return _parentClient.ResetSessionAsync(this, config, cancellationToken);
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in broadcast event handler")]

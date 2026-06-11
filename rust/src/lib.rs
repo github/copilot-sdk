@@ -55,9 +55,11 @@ pub(crate) mod generated;
 /// source-qualified tool filter patterns.
 pub mod mode;
 
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
@@ -769,6 +771,9 @@ struct ClientInner {
     request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
+    session_registrations: parking_lot::Mutex<HashMap<SessionId, u64>>,
+    next_session_registration_id: AtomicU64,
+    resetting_sessions: parking_lot::Mutex<HashSet<SessionId>>,
     negotiated_protocol_version: OnceLock<u32>,
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
@@ -1131,6 +1136,9 @@ impl Client {
                 request_rx: parking_lot::Mutex::new(Some(request_rx)),
                 notification_tx: notification_broadcast_tx,
                 router: router::SessionRouter::new(),
+                session_registrations: parking_lot::Mutex::new(HashMap::new()),
+                next_session_registration_id: AtomicU64::new(1),
+                resetting_sessions: parking_lot::Mutex::new(HashSet::new()),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
@@ -1534,16 +1542,53 @@ impl Client {
     pub(crate) fn register_session(
         &self,
         session_id: &SessionId,
-    ) -> crate::router::SessionChannels {
+    ) -> (crate::router::SessionChannels, u64) {
         self.inner
             .router
             .ensure_started(&self.inner.notification_tx, &self.inner.request_rx);
-        self.inner.router.register(session_id)
+        let registration_id = self
+            .inner
+            .next_session_registration_id
+            .fetch_add(1, Ordering::Relaxed);
+        let channels = self.inner.router.register(session_id);
+        self.inner
+            .session_registrations
+            .lock()
+            .insert(session_id.clone(), registration_id);
+        (channels, registration_id)
     }
 
-    /// Unregister a session, dropping its per-session channels.
-    pub(crate) fn unregister_session(&self, session_id: &SessionId) {
+    pub(crate) fn unregister_session_registration(
+        &self,
+        session_id: &SessionId,
+        registration_id: u64,
+    ) {
+        let mut registrations = self.inner.session_registrations.lock();
+        if registrations.get(session_id) != Some(&registration_id) {
+            return;
+        }
+        registrations.remove(session_id);
+        drop(registrations);
         self.inner.router.unregister(session_id);
+    }
+
+    pub(crate) fn is_session_registration_active(
+        &self,
+        session_id: &SessionId,
+        registration_id: u64,
+    ) -> bool {
+        self.inner.session_registrations.lock().get(session_id) == Some(&registration_id)
+    }
+
+    pub(crate) fn begin_session_reset(&self, session_id: &SessionId) -> bool {
+        self.inner
+            .resetting_sessions
+            .lock()
+            .insert(session_id.clone())
+    }
+
+    pub(crate) fn end_session_reset(&self, session_id: &SessionId) {
+        self.inner.resetting_sessions.lock().remove(session_id);
     }
 
     /// Returns the protocol version negotiated with the CLI server, if any.
@@ -1871,6 +1916,8 @@ impl Client {
         let child = self.inner.child.lock().take();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
+        self.inner.session_registrations.lock().clear();
+        self.inner.resetting_sessions.lock().clear();
         if let Some(mut child) = child
             && let Err(e) = child.kill().await
         {
@@ -1926,6 +1973,8 @@ impl Client {
         // Drop all session channels so any awaiters see a closed channel
         // instead of waiting for responses that will never arrive.
         self.inner.router.clear();
+        self.inner.session_registrations.lock().clear();
+        self.inner.resetting_sessions.lock().clear();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
     }
@@ -2541,6 +2590,9 @@ mod tests {
                 request_rx: parking_lot::Mutex::new(None),
                 notification_tx: broadcast::channel(16).0,
                 router: router::SessionRouter::new(),
+                session_registrations: parking_lot::Mutex::new(HashMap::new()),
+                next_session_registration_id: AtomicU64::new(1),
+                resetting_sessions: parking_lot::Mutex::new(HashSet::new()),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(16).0,

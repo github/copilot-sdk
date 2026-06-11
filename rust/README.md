@@ -525,6 +525,20 @@ config.commands = Some(vec![
 
 Only `name` and `description` are sent over the wire; the handler stays in your process. Returning `Err(_)` surfaces the message back through the TUI.
 
+### Resetting a Session
+
+Use `session.reset(config).await` to abandon the current runtime session and create a fresh session from explicit configuration. This mirrors the SDK-owned lifecycle part of the CLI TUI `/clear` command; `/reset` is its alias in the TUI.
+
+```rust,ignore
+let result = session.reset(SessionConfig::default()
+    .with_model("gpt-5")
+    .with_permission_handler(Arc::new(ApproveAllHandler))).await?;
+let session = result.session;
+// Clear your app's visible transcript, local drafts, and route state here.
+```
+
+The returned `previous_session_id` identifies the abandoned session. The old `Session` handle is closed after a successful reset, and the new session starts unnamed. If reset fails after teardown starts, treat the old session as no longer usable and create or resume another session explicitly. Host applications own UI cleanup and event listener rebinding.
+
 ### Streaming
 
 Set `streaming: true` to receive incremental delta events alongside finalized messages:

@@ -106,6 +106,148 @@ describe("CopilotClient", () => {
         expect(payload.openCanvasInstances).toBeUndefined();
     });
 
+    it("reset closes the current session and returns a fresh session from explicit config", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.queue.clear") return undefined;
+                if (method === "session.destroy") return { success: true };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            sessionId: "original-session",
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
+
+        const result = await session.reset({
+            sessionId: "ignored-reset-id",
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
+
+        expect(result.previousSessionId).toBe("original-session");
+        expect(result.session.sessionId).not.toBe("original-session");
+        await expect(session.reset({ onPermissionRequest: approveAll })).rejects.toThrow(
+            /not attached to its creating client/
+        );
+
+        const calls = spy.mock.calls.map(([method, params]) => ({ method, params }));
+        expect(calls.map(({ method }) => method)).toEqual([
+            "session.create",
+            "session.queue.clear",
+            "session.destroy",
+            "session.create",
+        ]);
+        expect(calls[1].params).toEqual({ sessionId: "original-session" });
+        expect(calls[2].params).toEqual({ sessionId: "original-session" });
+        expect(calls[3].params.sessionId).not.toBe("original-session");
+        expect(calls[3].params.sessionId).not.toBe("ignored-reset-id");
+        expect(calls[3].params.model).toBe("claude-sonnet-4.5");
+        expect(spy).not.toHaveBeenCalledWith("session.abort", expect.anything());
+        expect(spy).not.toHaveBeenCalledWith("session.delete", expect.anything());
+        expect(spy).not.toHaveBeenCalledWith("session.shutdown", expect.anything());
+    });
+
+    it("reset uses the supplied create config for resumed sessions", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.queue.clear") return undefined;
+                if (method === "session.destroy") return { success: true };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.resumeSession("resumed-session", {
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+            suppressResumeEvent: true,
+            continuePendingWork: true,
+            openCanvases: [],
+        });
+
+        const result = await session.reset({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
+
+        expect(result.previousSessionId).toBe("resumed-session");
+        expect(result.session.sessionId).not.toBe("resumed-session");
+
+        const createPayload = spy.mock.calls
+            .filter(([method]) => method === "session.create")
+            .at(-1)![1] as any;
+        expect(createPayload.sessionId).not.toBe("resumed-session");
+        expect(createPayload.model).toBe("claude-sonnet-4.5");
+        expect(createPayload.suppressResumeEvent).toBeUndefined();
+        expect(createPayload.continuePendingWork).toBeUndefined();
+        expect(createPayload.openCanvases).toBeUndefined();
+        expect(createPayload.disableResume).toBeUndefined();
+    });
+
+    it("reset rejects concurrent calls for the same session", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        let releaseQueueClear!: () => void;
+        let queueClearStarted!: () => void;
+        const queueClearStartedPromise = new Promise<void>((resolve) => {
+            queueClearStarted = resolve;
+        });
+        const queueClearPromise = new Promise<void>((resolve) => {
+            releaseQueueClear = resolve;
+        });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.queue.clear") {
+                    queueClearStarted();
+                    await queueClearPromise;
+                    return undefined;
+                }
+                if (method === "session.destroy") return { success: true };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            sessionId: "concurrent-clear-session",
+            onPermissionRequest: approveAll,
+        });
+
+        const firstReset = session.reset({ onPermissionRequest: approveAll });
+        await queueClearStartedPromise;
+
+        await expect(session.reset({ onPermissionRequest: approveAll })).rejects.toThrow(
+            /reset is already in progress/
+        );
+
+        releaseQueueClear();
+        await expect(firstReset).resolves.toMatchObject({
+            previousSessionId: "concurrent-clear-session",
+        });
+
+        expect(spy.mock.calls.filter(([method]) => method === "session.queue.clear")).toHaveLength(
+            1
+        );
+        expect(spy.mock.calls.filter(([method]) => method === "session.destroy")).toHaveLength(1);
+        expect(spy.mock.calls.filter(([method]) => method === "session.create")).toHaveLength(2);
+    });
+
     it("forwards reasoningSummary in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();

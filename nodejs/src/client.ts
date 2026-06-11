@@ -52,6 +52,7 @@ import type {
     LargeToolOutputConfig,
     MCPServerConfig,
     ModelInfo,
+    ResetSessionResult,
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
@@ -304,6 +305,7 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
+    private resettingSessions: Set<string> = new Set();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -561,6 +563,10 @@ export class CopilotClient {
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
     }
 
+    private forgetSession(sessionId: string): void {
+        this.sessions.delete(sessionId);
+    }
+
     /**
      * Starts the CLI server and establishes a connection.
      *
@@ -672,6 +678,7 @@ export class CopilotClient {
             }
         }
         this.sessions.clear();
+        this.resettingSessions.clear();
 
         // Close connection
         if (this.connection) {
@@ -792,6 +799,7 @@ export class CopilotClient {
 
         // Clear sessions immediately without trying to destroy them
         this.sessions.clear();
+        this.resettingSessions.clear();
 
         // Force close connection
         if (this.connection) {
@@ -1046,7 +1054,9 @@ export class CopilotClient {
                 sessionId,
                 this.connection!,
                 undefined,
-                this.onGetTraceContext
+                this.onGetTraceContext,
+                (sessionToReset, config) => this.resetSession(sessionToReset, config),
+                (sessionIdToForget) => this.forgetSession(sessionIdToForget)
             );
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
@@ -1186,11 +1196,10 @@ export class CopilotClient {
             }
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
-
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
             if (registeredId !== undefined) {
-                this.sessions.delete(registeredId);
+                this.forgetSession(registeredId);
             }
             throw e;
         }
@@ -1233,7 +1242,9 @@ export class CopilotClient {
             sessionId,
             this.connection!,
             undefined,
-            this.onGetTraceContext
+            this.onGetTraceContext,
+            (sessionToReset, config) => this.resetSession(sessionToReset, config),
+            (sessionIdToForget) => this.forgetSession(sessionIdToForget)
         );
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
@@ -1354,14 +1365,45 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
-
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
-            this.sessions.delete(sessionId);
+            this.forgetSession(sessionId);
             throw e;
         }
 
         return session;
+    }
+
+    private async resetSession(
+        session: CopilotSession,
+        config: SessionConfig
+    ): Promise<ResetSessionResult> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+
+        const previousSessionId = session.sessionId;
+        if (this.resettingSessions.has(previousSessionId)) {
+            throw new Error(
+                `Cannot reset session ${previousSessionId}: reset is already in progress.`
+            );
+        }
+        if (this.sessions.get(previousSessionId) !== session) {
+            throw new Error(
+                `Cannot reset session ${previousSessionId}: it is not active on this client.`
+            );
+        }
+
+        this.resettingSessions.add(previousSessionId);
+        try {
+            await session.rpc.queue.clear();
+            await session.disconnect();
+
+            const freshSession = await this.createSession({ ...config, sessionId: undefined });
+            return { previousSessionId, session: freshSession };
+        } finally {
+            this.resettingSessions.delete(previousSessionId);
+        }
     }
 
     /**
@@ -1593,7 +1635,7 @@ export class CopilotClient {
         }
 
         // Remove from local sessions map if present
-        this.sessions.delete(sessionId);
+        this.forgetSession(sessionId);
     }
 
     /**

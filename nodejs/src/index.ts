@@ -49,6 +49,7 @@ export type {
     CommandHandler,
     CloudSessionOptions,
     CloudSessionRepository,
+    ResetSessionResult,
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,

@@ -2038,6 +2038,21 @@ export interface SessionConfig extends SessionConfigBase {
 }
 
 /**
+ * Result returned by {@link CopilotSession.reset}.
+ */
+export interface ResetSessionResult {
+    /**
+     * The session ID that was closed and replaced.
+     */
+    previousSessionId: string;
+
+    /**
+     * The fresh session created from the supplied reset configuration.
+     */
+    session: CopilotSession;
+}
+
+/**
  * Configuration for resuming an existing session via
  * {@link CopilotClient.resumeSession}.
  */

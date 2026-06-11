@@ -52,6 +52,7 @@ type Session struct {
 	// SessionID is the unique identifier for this session.
 	SessionID             string
 	workspacePath         string
+	parentClient          *Client
 	client                *jsonrpc2.Client
 	clientSessionAPIs     *rpc.ClientSessionAPIHandlers
 	handlers              []sessionHandler
@@ -296,10 +297,11 @@ func canvasResultError(err error) error {
 }
 
 // newSession creates a new session wrapper with the given session ID and client.
-func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
+func newSession(sessionID string, parentClient *Client, client *jsonrpc2.Client, workspacePath string) *Session {
 	s := &Session{
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
+		parentClient:      parentClient,
 		client:            client,
 		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 		handlers:          make([]sessionHandler, 0),
@@ -1525,7 +1527,28 @@ func (s *Session) Disconnect() error {
 	s.elicitationHandler = nil
 	s.elicitationMu.Unlock()
 
+	if s.parentClient != nil {
+		s.parentClient.unregisterSession(s.SessionID)
+	}
+
 	return nil
+}
+
+// Reset closes this conversation and creates a fresh session from config.
+//
+// The returned session is the one callers should use going forward. The current
+// session object is disconnected after a successful reset. The SDK does not
+// clear host-owned UI state, local drafts, or app persistence. If reset fails
+// after teardown starts, treat the old session as no longer usable and create
+// or resume another session explicitly.
+//
+// Any SessionID in config is ignored so the reset always creates a fresh runtime
+// session identity.
+func (s *Session) Reset(ctx context.Context, config *SessionConfig) (*ResetResult, error) {
+	if s.parentClient == nil {
+		return nil, fmt.Errorf("cannot reset session %s: it is not attached to its creating client", s.SessionID)
+	}
+	return s.parentClient.resetSession(ctx, s, config)
 }
 
 // Abort aborts the currently processing message in this session.

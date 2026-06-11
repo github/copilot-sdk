@@ -15,6 +15,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | **Session Management** | | |
 | Create session | `createSession()` | Full config support |
 | Resume session | `resumeSession()` | With infinite session workspaces |
+| Reset session | `session.reset(config)` | Abandon current runtime session and return a fresh one from explicit config; host apps clear their own UI |
 | Disconnect session | `disconnect()` | Release in-memory resources |
 | Destroy session *(deprecated)* | `destroy()` | Use `disconnect()` instead |
 | Delete session | `deleteSession()` | Remove from storage |
@@ -99,7 +100,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Export to file | `--share`, `/share` | Not in protocol |
 | Export to gist | `--share-gist`, `/share gist` | Not in protocol |
 | **Interactive UI** | | |
-| Slash commands | `/help`, `/clear`, `/exit`, etc. | TUI-only |
+| Slash commands | `/help`, `/exit`, etc. | TUI-only; use `session.reset(config)` for the lifecycle portion of `/clear` / `/reset` behavior |
 | Agent picker dialog | `/agent` | Interactive UI |
 | Diff mode dialog | `/diff` | Interactive UI |
 | Feedback dialog | `/feedback` | Interactive UI |
@@ -137,7 +138,6 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Logout | `/logout`, `copilot auth logout` | Direct CLI |
 | User info | `/user` | TUI command |
 | **Session Operations** | | |
-| Clear conversation | `/clear` | TUI-only |
 | Plan view | `/plan` | TUI-only (use SDK `session.rpc.plan.*` instead) |
 | Session management | `/session`, `/resume`, `/rename` | TUI workflow |
 | Fleet mode (interactive) | `/fleet` | TUI-only (use SDK `session.rpc.fleet.start()` instead) |

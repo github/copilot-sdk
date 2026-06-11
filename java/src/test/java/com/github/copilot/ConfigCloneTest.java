@@ -24,6 +24,7 @@ import com.github.copilot.rpc.InfiniteSessionConfig;
 import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.ModelInfo;
+import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SystemMessageConfig;
@@ -132,6 +133,19 @@ class ConfigCloneTest {
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
         assertEquals(original.isStreaming(), cloned.isStreaming());
+    }
+
+    @Test
+    void sessionConfigCloneCanClearSessionIdForResetWithoutMutatingSource() {
+        SessionConfig original = new SessionConfig().setSessionId("old-session").setModel("gpt-5")
+                .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
+
+        SessionConfig resetConfig = original.clone().setSessionId(null);
+
+        assertEquals("old-session", original.getSessionId());
+        assertNull(resetConfig.getSessionId());
+        assertEquals("gpt-5", resetConfig.getModel());
+        assertSame(original.getOnPermissionRequest(), resetConfig.getOnPermissionRequest());
     }
 
     @Test

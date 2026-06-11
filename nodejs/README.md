@@ -506,6 +506,21 @@ When the user types `/deploy staging` in the CLI, the SDK receives a `command.ex
 
 Commands are sent to the CLI on both `createSession` and `resumeSession`, so you can update the command set when resuming.
 
+### Resetting a Session
+
+Use `session.reset(config)` to abandon the current runtime session and create a fresh session from explicit configuration. This mirrors the SDK-owned lifecycle part of the CLI TUI `/clear` command; `/reset` is its alias in the TUI.
+
+```ts
+const result = await session.reset({
+    model: "gpt-5",
+    onPermissionRequest,
+});
+session = result.session;
+// Clear your app's visible transcript, local drafts, and route state here.
+```
+
+The returned `previousSessionId` identifies the abandoned session. The old `CopilotSession` object is disconnected after a successful reset, and the new session starts unnamed. If reset fails after teardown starts, treat the old session as no longer usable and create or resume another session explicitly. Host applications own UI cleanup and event listener rebinding.
+
 ### UI Elicitation
 
 When the session has elicitation support — either from the CLI's TUI or from another client that registered an `onElicitationRequest` handler (see [Elicitation Requests](#elicitation-requests)) — the SDK can request interactive form dialogs from the user. The `session.ui` object provides convenience methods built on a single generic `elicitation` RPC.

@@ -2929,6 +2929,13 @@ public sealed class SessionConfig : SessionConfigBase
 }
 
 /// <summary>
+/// Result returned by <see cref="CopilotSession.ResetAsync"/>.
+/// </summary>
+/// <param name="PreviousSessionId">The session ID that was closed and replaced.</param>
+/// <param name="Session">The fresh session created from the supplied reset configuration.</param>
+public sealed record ResetSessionResult(string PreviousSessionId, CopilotSession Session);
+
+/// <summary>
 /// Configuration options for resuming an existing Copilot session.
 /// </summary>
 public sealed class ResumeSessionConfig : SessionConfigBase

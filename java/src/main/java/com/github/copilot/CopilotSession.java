@@ -92,6 +92,7 @@ import com.github.copilot.rpc.SendMessageRequest;
 import com.github.copilot.rpc.SendMessageResponse;
 import com.github.copilot.rpc.SessionCapabilities;
 import com.github.copilot.rpc.SessionEndHookInput;
+import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.SessionStartHookInput;
 import com.github.copilot.rpc.SessionUiApi;
@@ -164,6 +165,7 @@ public final class CopilotSession implements AutoCloseable {
     private final Object openCanvasesLock = new Object();
     private final List<OpenCanvasInstance> openCanvases = new ArrayList<>();
     private final SessionUiApi ui;
+    private final CopilotClient parentClient;
     private final JsonRpcClient rpc;
     private volatile SessionRpc sessionRpc;
     private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
@@ -196,7 +198,7 @@ public final class CopilotSession implements AutoCloseable {
      *            the JSON-RPC client for communication
      */
     CopilotSession(String sessionId, JsonRpcClient rpc) {
-        this(sessionId, rpc, null);
+        this(sessionId, rpc, null, null);
     }
 
     /**
@@ -213,7 +215,12 @@ public final class CopilotSession implements AutoCloseable {
      *            the workspace path if infinite sessions are enabled
      */
     CopilotSession(String sessionId, JsonRpcClient rpc, String workspacePath) {
+        this(sessionId, rpc, workspacePath, null);
+    }
+
+    CopilotSession(String sessionId, JsonRpcClient rpc, String workspacePath, CopilotClient parentClient) {
         this.sessionId = sessionId;
+        this.parentClient = parentClient;
         this.rpc = rpc;
         this.workspacePath = workspacePath;
         this.ui = new SessionUiApiImpl();
@@ -325,6 +332,7 @@ public final class CopilotSession implements AutoCloseable {
         if (rpc == null) {
             throw new IllegalStateException("Session is not connected — RPC client is unavailable");
         }
+
         SessionRpc current = sessionRpc;
         if (current == null) {
             synchronized (this) {
@@ -335,6 +343,28 @@ public final class CopilotSession implements AutoCloseable {
             }
         }
         return current;
+    }
+
+    /**
+     * Resets this conversation by closing the underlying runtime session and
+     * creating a fresh session from {@code config}.
+     * <p>
+     * Use the returned session for subsequent work. The SDK does not clear
+     * host-owned UI state, local drafts, or app persistence. If reset fails after
+     * teardown starts, treat the old session as no longer usable and create or
+     * resume another session explicitly.
+     *
+     * @param config
+     *            configuration for the replacement session; any session ID is
+     *            ignored
+     * @return a future resolving to the fresh session and previous session ID
+     */
+    public CompletableFuture<ResetSessionResult> resetAsync(SessionConfig config) {
+        if (parentClient == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("Cannot reset a session that is not attached to its creating client."));
+        }
+        return parentClient.resetSession(this, config);
     }
 
     /**
@@ -2118,21 +2148,52 @@ public final class CopilotSession implements AutoCloseable {
      */
     @Override
     public void close() {
+        var destroy = destroyForCloseAsync();
+        try {
+            destroy.get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            forceLocalClose();
+            LOG.log(Level.FINE, "Error destroying session", e);
+        }
+    }
+
+    CompletableFuture<Void> destroyForResetAsync() {
+        return destroyAsync(false);
+    }
+
+    private CompletableFuture<Void> destroyForCloseAsync() {
+        return destroyAsync(true);
+    }
+
+    private CompletableFuture<Void> destroyAsync(boolean cleanupOnFailure) {
         synchronized (this) {
             if (isTerminated) {
-                return; // Already terminated - no-op
+                return CompletableFuture.completedFuture(null);
             }
             isTerminated = true;
         }
 
+        return rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class)
+                .whenComplete((ignored, error) -> {
+                    if (error == null || cleanupOnFailure) {
+                        forceLocalClose();
+                    } else {
+                        synchronized (this) {
+                            isTerminated = false;
+                        }
+                    }
+                });
+    }
+
+    private void forceLocalClose() {
         timeoutScheduler.shutdownNow();
-
-        try {
-            rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class).get(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            LOG.log(Level.FINE, "Error destroying session", e);
+        clearLocalState();
+        if (parentClient != null) {
+            parentClient.unregisterSession(sessionId);
         }
+    }
 
+    private void clearLocalState() {
         eventHandlers.clear();
         toolHandlers.clear();
         commandHandlers.clear();

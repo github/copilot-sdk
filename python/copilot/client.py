@@ -90,6 +90,7 @@ from .session import (
     ProviderConfig,
     ReasoningEffort,
     ReasoningSummary,
+    ResetSessionResult,
     SectionTransformFn,
     SessionFsConfig,
     SessionHooks,
@@ -1230,6 +1231,7 @@ class CopilotClient:
         self._state: _ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
+        self._resetting_sessions: set[str] = set()
         self._models_cache: list[ModelInfo] | None = None
         self._models_cache_lock = asyncio.Lock()
         self._lifecycle_handlers: list[SessionLifecycleHandler] = []
@@ -1462,6 +1464,7 @@ class CopilotClient:
         with self._sessions_lock:
             sessions_to_destroy = list(self._sessions.values())
             self._sessions.clear()
+            self._resetting_sessions.clear()
 
         for session in sessions_to_destroy:
             try:
@@ -1521,6 +1524,7 @@ class CopilotClient:
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
             self._sessions.clear()
+            self._resetting_sessions.clear()
 
         # Close the transport first to signal the server immediately.
         # For external servers (TCP), this closes the socket.
@@ -1987,7 +1991,13 @@ class CopilotClient:
             to a registered session.
             """
             setup_start = time.perf_counter()
-            s = CopilotSession(sid, self._client, workspace_path=None)
+            s = CopilotSession(
+                sid,
+                self._client,
+                workspace_path=None,
+                reset_callback=self._reset_session,
+                unregister_callback=self._forget_session,
+            )
             if self._session_fs_config:
                 if create_session_fs_handler is None:
                     raise ValueError(
@@ -2510,7 +2520,13 @@ class CopilotClient:
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         setup_start = time.perf_counter()
-        session = CopilotSession(session_id, self._client, workspace_path=None)
+        session = CopilotSession(
+            session_id,
+            self._client,
+            workspace_path=None,
+            reset_callback=self._reset_session,
+            unregister_callback=self._forget_session,
+        )
         if self._session_fs_config:
             if create_session_fs_handler is None:
                 raise ValueError(
@@ -2609,6 +2625,44 @@ class CopilotClient:
             session_id=session_id,
         )
         return session
+
+    async def _reset_session(
+        self, session: CopilotSession, config: dict[str, Any]
+    ) -> ResetSessionResult:
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        previous_session_id = session.session_id
+        with self._sessions_lock:
+            if previous_session_id in self._resetting_sessions:
+                raise RuntimeError(
+                    f"Cannot reset session {previous_session_id}: reset is already in progress."
+                )
+            if self._sessions.get(previous_session_id) is not session:
+                raise RuntimeError(
+                    f"Cannot reset session {previous_session_id}: it is not active on this client."
+                )
+            self._resetting_sessions.add(previous_session_id)
+
+        try:
+            await session.rpc.queue.clear()
+
+            await session._disconnect_for_reset()
+
+            reset_config = config.copy()
+            reset_config.pop("session_id", None)
+            fresh_session = await self.create_session(**reset_config)
+            return ResetSessionResult(
+                previous_session_id=previous_session_id,
+                session=fresh_session,
+            )
+        finally:
+            with self._sessions_lock:
+                self._resetting_sessions.discard(previous_session_id)
+
+    def _forget_session(self, session_id: str) -> None:
+        with self._sessions_lock:
+            self._sessions.pop(session_id, None)
 
     async def ping(self, message: str | None = None) -> PingResponse:
         """

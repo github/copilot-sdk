@@ -19,6 +19,7 @@ import type {
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    ResetSessionResult,
     ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
@@ -30,6 +31,7 @@ import type {
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
+    SessionConfig,
     ContextTier,
     ReasoningEffort,
     ReasoningSummary,
@@ -52,6 +54,12 @@ import type {
     UserInputRequest,
     UserInputResponse,
 } from "./types.js";
+
+type ResetSessionDelegate = (
+    session: CopilotSession,
+    config: SessionConfig
+) => Promise<ResetSessionResult>;
+type UnregisterSessionDelegate = (sessionId: string) => void;
 
 /**
  * Convert a raw hook input received over the wire into its public-facing shape.
@@ -134,6 +142,8 @@ export class CopilotSession {
     private traceContextProvider?: TraceContextProvider;
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
+    private resetDelegate?: ResetSessionDelegate;
+    private unregisterDelegate?: UnregisterSessionDelegate;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -151,9 +161,45 @@ export class CopilotSession {
         public readonly sessionId: string,
         private connection: MessageConnection,
         private _workspacePath?: string,
-        traceContextProvider?: TraceContextProvider
+        traceContextProvider?: TraceContextProvider,
+        resetDelegate?: ResetSessionDelegate,
+        unregisterDelegate?: UnregisterSessionDelegate
     ) {
         this.traceContextProvider = traceContextProvider;
+        this.resetDelegate = resetDelegate;
+        this.unregisterDelegate = unregisterDelegate;
+    }
+
+    /** @internal */
+    setResetDelegate(resetDelegate: ResetSessionDelegate): void {
+        this.resetDelegate = resetDelegate;
+    }
+
+    private clearLocalState(): void {
+        this.eventHandlers.clear();
+        this.typedEventHandlers.clear();
+        this.toolHandlers.clear();
+        this.canvases.clear();
+        this.commandHandlers.clear();
+        this.permissionHandler = undefined;
+        this.userInputHandler = undefined;
+        this.elicitationHandler = undefined;
+        this.exitPlanModeHandler = undefined;
+        this.autoModeSwitchHandler = undefined;
+        this.hooks = undefined;
+        this.transformCallbacks = undefined;
+        this.traceContextProvider = undefined;
+        this._capabilities = {};
+        this.openCanvasInstances = [];
+        this.clientSessionApis = {};
+        this.resetDelegate = undefined;
+        this.unregisterDelegate = undefined;
+        this._rpc = null;
+    }
+
+    /** @internal */
+    detachAfterReset(): void {
+        this.clearLocalState();
     }
 
     /**
@@ -1170,17 +1216,17 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
-        await this.connection.sendRequest("session.destroy", {
+        const response = await this.connection.sendRequest("session.destroy", {
             sessionId: this.sessionId,
         });
-        this.eventHandlers.clear();
-        this.typedEventHandlers.clear();
-        this.toolHandlers.clear();
-        this.permissionHandler = undefined;
-        this.userInputHandler = undefined;
-        this.elicitationHandler = undefined;
-        this.exitPlanModeHandler = undefined;
-        this.autoModeSwitchHandler = undefined;
+        const { success, error } = response as { success?: boolean; error?: string };
+        if (success === false) {
+            throw new Error(
+                `Failed to destroy session ${this.sessionId}: ${error || "Unknown error"}`
+            );
+        }
+        this.unregisterDelegate?.(this.sessionId);
+        this.clearLocalState();
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */
@@ -1212,6 +1258,37 @@ export class CopilotSession {
         await this.connection.sendRequest("session.abort", {
             sessionId: this.sessionId,
         });
+    }
+
+    /**
+     * Resets this conversation by closing the underlying runtime session and
+     * creating a fresh session from the supplied configuration.
+     *
+     * The returned session is the one callers should use going forward. The
+     * current session object is detached after a successful reset.
+     *
+     * The SDK does not clear host-owned UI state, local drafts, or app
+     * persistence. Clear those after this method resolves successfully. If
+     * reset fails after teardown starts, treat the old session as no longer
+     * usable and create or resume another session explicitly.
+     *
+     * Any `sessionId` on the supplied config is ignored so the reset always
+     * creates a fresh runtime session identity.
+     *
+     * @param config - Configuration for the replacement session
+     * @returns The fresh session and the ID of the session that was replaced
+     * @throws Error if this session is no longer attached to its creating client
+     *
+     * @example
+     * ```typescript
+     * const { session: freshSession } = await session.reset(config);
+     * ```
+     */
+    async reset(config: SessionConfig): Promise<ResetSessionResult> {
+        if (!this.resetDelegate) {
+            throw new Error("Cannot reset a session that is not attached to its creating client.");
+        }
+        return this.resetDelegate(this, config);
     }
 
     /**

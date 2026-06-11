@@ -67,6 +67,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <see cref="CopilotClient"/> that has not been explicitly disposed or removed.
     /// </remarks>
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
+    private readonly ConcurrentDictionary<string, byte> _resettingSessions = new();
 
     private readonly CopilotClientOptions _options;
     private readonly RuntimeConnection _connection;
@@ -345,6 +346,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         _sessions.Clear();
+        _resettingSessions.Clear();
 
         await CleanupConnectionAsync(errors);
 
@@ -376,6 +378,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task ForceStopAsync()
     {
         _sessions.Clear();
+        _resettingSessions.Clear();
 
         var errors = new List<Exception>();
         await CleanupConnectionAsync(errors);
@@ -1153,6 +1156,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
         }
+
         catch (Exception ex)
         {
             session.RemoveFromClient();
@@ -1171,6 +1175,41 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             totalTimestamp,
             sessionId);
         return session;
+    }
+
+    internal async Task<ResetSessionResult> ResetSessionAsync(
+        CopilotSession session,
+        SessionConfig config,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(config);
+
+        var previousSessionId = session.SessionId;
+        if (!_sessions.TryGetValue(previousSessionId, out var trackedSession) || !ReferenceEquals(trackedSession, session))
+        {
+            throw new InvalidOperationException($"Cannot reset session {previousSessionId}: it is not active on this client.");
+        }
+
+        if (!_resettingSessions.TryAdd(previousSessionId, 0))
+        {
+            throw new InvalidOperationException($"Cannot reset session {previousSessionId}: reset is already in progress.");
+        }
+
+        try
+        {
+            await session.Rpc.Queue.ClearAsync(cancellationToken).ConfigureAwait(false);
+            await session.DestroyForResetAsync(cancellationToken).ConfigureAwait(false);
+
+            var resetConfig = config.Clone();
+            resetConfig.SessionId = null;
+            var freshSession = await CreateSessionAsync(resetConfig, cancellationToken).ConfigureAwait(false);
+            return new ResetSessionResult(previousSessionId, freshSession);
+        }
+        finally
+        {
+            _resettingSessions.TryRemove(previousSessionId, out _);
+        }
     }
 
     /// <summary>
@@ -1331,6 +1370,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         RemoveSession(sessionId);
+        _resettingSessions.TryRemove(sessionId, out _);
     }
 
     /// <summary>
@@ -2074,6 +2114,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _sessions.TryRemove(sessionId, out _);
     }
 
+    internal void RemoveSession(CopilotSession session)
+    {
+        ((ICollection<KeyValuePair<string, CopilotSession>>)_sessions).Remove(new(session.SessionId, session));
+    }
+
     /// <summary>
     /// Disposes the <see cref="CopilotClient"/> synchronously.
     /// </summary>
@@ -2245,7 +2290,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         Buffer.AppendLine(line);
                     }
 
-                    logger.LogWarning("[CLI] {Line}", line);
+                    if (logger.IsEnabled(LogLevel.Warning))
+                    {
+                        logger.LogWarning("[CLI] {Line}", line);
+                    }
                 }
             }
             catch (Exception e) when (cancellationToken.IsCancellationRequested

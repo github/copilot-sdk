@@ -119,6 +119,9 @@ pub enum SessionErrorKind {
     /// `send` was called while a `send_and_wait` is in flight.
     SendWhileWaiting,
 
+    /// A reset operation is already in progress for this session.
+    ResetInProgress(SessionId),
+
     /// The session event loop exited before a pending `send_and_wait` completed.
     EventLoopClosed,
 
@@ -153,6 +156,9 @@ impl fmt::Display for SessionErrorKind {
             SessionErrorKind::Timeout(d) => write!(f, "timed out after {d:?}"),
             SessionErrorKind::SendWhileWaiting => {
                 write!(f, "cannot send while send_and_wait is in flight")
+            }
+            SessionErrorKind::ResetInProgress(id) => {
+                write!(f, "reset already in progress for session {id}")
             }
             SessionErrorKind::EventLoopClosed => {
                 write!(f, "event loop closed before session reached idle")

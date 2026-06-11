@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -102,6 +103,7 @@ public final class CopilotClient implements AutoCloseable {
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
+    private final Set<String> resettingSessions = ConcurrentHashMap.newKeySet();
     private volatile CompletableFuture<Connection> connectionFuture;
     private volatile boolean disposed = false;
     private final String optionsHost;
@@ -361,6 +363,7 @@ public final class CopilotClient implements AutoCloseable {
             closeFutures.add(future);
         }
         sessions.clear();
+        resettingSessions.clear();
 
         return CompletableFuture.allOf(closeFutures.toArray(new CompletableFuture[0]))
                 .thenCompose(v -> cleanupConnection());
@@ -374,6 +377,7 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<Void> forceStop() {
         disposed = true;
         sessions.clear();
+        resettingSessions.clear();
         // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
         // cleanupConnection() is chained off async work running on the owned
         // executor, so a plain whenComplete(...) here could land the awaitTermination
@@ -489,7 +493,7 @@ public final class CopilotClient implements AutoCloseable {
             // sessions map.
             java.util.function.Function<String, CopilotSession> initializeSession = sid -> {
                 long setupNanos = System.nanoTime();
-                var s = new CopilotSession(sid, connection.rpc);
+                var s = new CopilotSession(sid, connection.rpc, null, this);
                 s.setExecutor(executor);
                 SessionRequestBuilder.configureSession(s, config);
                 if (extracted.transformCallbacks() != null) {
@@ -638,7 +642,7 @@ public final class CopilotClient implements AutoCloseable {
             long totalNanos = System.nanoTime();
             // Register the session before the RPC call to avoid missing early events.
             long setupNanos = System.nanoTime();
-            var session = new CopilotSession(sessionId, connection.rpc);
+            var session = new CopilotSession(sessionId, connection.rpc, null, this);
             session.setExecutor(executor);
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
@@ -735,6 +739,32 @@ public final class CopilotClient implements AutoCloseable {
                         throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
                     });
         });
+    }
+
+    CompletableFuture<ResetSessionResult> resetSession(CopilotSession session, SessionConfig config) {
+        if (config == null) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("config cannot be null"));
+        }
+        String previousSessionId = session.getSessionId();
+        if (!resettingSessions.add(previousSessionId)) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Cannot reset session " + previousSessionId + ": reset is already in progress."));
+        }
+        if (sessions.get(previousSessionId) != session) {
+            resettingSessions.remove(previousSessionId);
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Cannot reset session " + previousSessionId + ": it is not active on this client."));
+        }
+
+        SessionConfig resetConfig = config.clone().setSessionId(null);
+        return session.getRpc().queue.clear().thenCompose(v -> session.destroyForResetAsync())
+                .thenCompose(v -> createSession(resetConfig))
+                .thenApply(freshSession -> new ResetSessionResult(previousSessionId, freshSession))
+                .whenComplete((ignored, error) -> resettingSessions.remove(previousSessionId));
+    }
+
+    void unregisterSession(String sessionId) {
+        sessions.remove(sessionId);
     }
 
     /**
@@ -1040,6 +1070,7 @@ public final class CopilotClient implements AutoCloseable {
                         throw new RuntimeException("Failed to delete session " + sessionId + ": " + response.error());
                     }
                     sessions.remove(sessionId);
+                    resettingSessions.remove(sessionId);
                 }));
     }
 
