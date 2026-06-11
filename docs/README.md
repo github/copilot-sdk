@@ -7,9 +7,9 @@ Welcome to the GitHub Copilot SDK docs. Whether you're building your first Copil
 | I want to... | Go to |
 |---|---|
 | **Build my first app** | [Getting Started](./getting-started.md)—end-to-end tutorial with streaming & custom tools |
-| **Set up for production** | [Setup Guides](./setup/index.md)—architecture, deployment patterns, scaling |
-| **Configure authentication** | [Authentication](./auth/index.md)—GitHub OAuth, environment variables, BYOK |
-| **Add features to my app** | [Features](./features/index.md)—hooks, custom agents, MCP, skills, and more |
+| **Set up for production** | [Setup Guides](./setup/README.md)—architecture, deployment patterns, scaling |
+| **Configure authentication** | [Authentication](./auth/README.md)—GitHub OAuth, environment variables, BYOK |
+| **Add features to my app** | [Features](./features/README.md)—hooks, custom agents, MCP, skills, and more |
 | **Debug an issue** | [Troubleshooting](./troubleshooting/debugging.md)—common problems and solutions |
 
 ## Documentation map
@@ -18,7 +18,7 @@ Welcome to the GitHub Copilot SDK docs. Whether you're building your first Copil
 
 Step-by-step tutorial that takes you from zero to a working Copilot app with streaming responses and custom tools.
 
-### [Setup](./setup/index.md)
+### [Setup](./setup/README.md)
 
 How to configure and deploy the SDK for your use case.
 
@@ -30,14 +30,14 @@ How to configure and deploy the SDK for your use case.
 * [Scaling & Multi-Tenancy](./setup/scaling.md): horizontal scaling, isolation patterns
 * [Multi-Tenancy & Server Deployments](./setup/multi-tenancy.md): mode: "empty", session isolation, integration IDs, sessionFs
 
-### [Authentication](./auth/index.md)
+### [Authentication](./auth/README.md)
 
 Configuring how users and services authenticate with Copilot.
 
-* [Authentication Overview](./auth/index.md): methods, priority order, and examples
+* [Authentication Overview](./auth/README.md): methods, priority order, and examples
 * [Bring Your Own Key (BYOK)](./auth/byok.md): use your own API keys from OpenAI, Azure, Anthropic, and more
 
-### [Features](./features/index.md)
+### [Features](./features/README.md)
 
 Guides for building with the SDK's capabilities.
 
@@ -54,7 +54,7 @@ Guides for building with the SDK's capabilities.
 * [Cloud Sessions](./features/cloud-sessions.md): run sessions on GitHub-hosted compute with the cloud: option
 * [Fleet Mode](./features/fleet-mode.md): dispatch parallel sub-agents for parallelizable work
 
-### [Hooks Reference](./hooks/index.md)
+### [Hooks Reference](./hooks/README.md)
 
 Detailed API reference for each session hook.
 
