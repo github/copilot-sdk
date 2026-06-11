@@ -17,6 +17,9 @@ public static class CopilotTool
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to indicate that a tool can execute without a permission prompt.</summary>
     internal const string SkipPermissionKey = "skip_permission";
 
+    /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's <see cref="CopilotToolDefer"/> deferral mode.</summary>
+    internal const string DeferKey = "defer";
+
     /// <summary>
     /// Defines a tool for use in a <see cref="CopilotSession"/>.
     /// </summary>
@@ -84,7 +87,7 @@ public static class CopilotTool
 
         static void ApplyToolOptions(AIFunctionFactoryOptions factoryOptions, CopilotToolOptions? toolOptions)
         {
-            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission))
+            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.Defer is not null))
             {
                 Dictionary<string, object?> additionalProperties = new(StringComparer.Ordinal);
                 if (factoryOptions.AdditionalProperties is not null)
@@ -103,6 +106,11 @@ public static class CopilotTool
                 if (toolOptions.SkipPermission)
                 {
                     additionalProperties[SkipPermissionKey] = true;
+                }
+
+                if (toolOptions.Defer is { } defer)
+                {
+                    additionalProperties[DeferKey] = defer;
                 }
 
                 factoryOptions.AdditionalProperties = additionalProperties;
@@ -134,4 +142,28 @@ public sealed class CopilotToolOptions
     /// the resulting <see cref="AIFunction"/> will include "skip_permission": true in its <see cref="AITool.AdditionalProperties"/>.
     /// </remarks>
     public bool SkipPermission { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value controlling whether this tool may be deferred (loaded lazily via tool search) rather than always pre-loaded.
+    /// </summary>
+    /// <remarks>
+    /// When set, the resulting <see cref="AIFunction"/> carries the value in its <see cref="AITool.AdditionalProperties"/> and the
+    /// SDK forwards it to the CLI as the tool's <c>defer</c> mode. When <see langword="null"/>, the runtime decides.
+    /// </remarks>
+    public CopilotToolDefer? Defer { get; set; }
+}
+
+/// <summary>
+/// Controls whether a tool may be deferred (loaded lazily via tool search) rather than always pre-loaded.
+/// </summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<CopilotToolDefer>))]
+public enum CopilotToolDefer
+{
+    /// <summary>The tool can be deferred and surfaced through tool search.</summary>
+    [System.Text.Json.Serialization.JsonStringEnumMemberName("auto")]
+    Auto,
+
+    /// <summary>The tool is always pre-loaded.</summary>
+    [System.Text.Json.Serialization.JsonStringEnumMemberName("never")]
+    Never
 }
