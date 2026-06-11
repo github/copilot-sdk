@@ -737,7 +737,7 @@ class ModelBillingTokenPrices:
         long_context_dict = obj.get("longContext")
         long_context = (
             ModelBillingTokenPricesLongContext.from_dict(long_context_dict)
-            if long_context_dict
+            if long_context_dict is not None
             else None
         )
         return ModelBillingTokenPrices(
@@ -779,7 +779,9 @@ class ModelBilling:
         multiplier = obj.get("multiplier")
         token_prices_dict = obj.get("tokenPrices")
         token_prices = (
-            ModelBillingTokenPrices.from_dict(token_prices_dict) if token_prices_dict else None
+            ModelBillingTokenPrices.from_dict(token_prices_dict)
+            if token_prices_dict is not None
+            else None
         )
         return ModelBilling(
             multiplier=float(multiplier) if multiplier is not None else None,

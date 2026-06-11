@@ -552,6 +552,34 @@ class TestModelBilling:
         assert billing.token_prices is None
         assert billing.to_dict() == {"multiplier": 1.0}
 
+    def test_token_prices_empty_object_round_trip(self):
+        """ModelBilling preserves present but empty tokenPrices."""
+        billing = ModelBilling.from_dict({"tokenPrices": {}})
+
+        assert isinstance(billing.token_prices, ModelBillingTokenPrices)
+        prices = billing.token_prices
+        assert prices.input_price is None
+        assert prices.output_price is None
+        assert prices.cache_price is None
+        assert prices.batch_size is None
+        assert prices.context_max is None
+        assert prices.long_context is None
+        assert billing.to_dict() == {"tokenPrices": {}}
+
+    def test_long_context_empty_object_round_trip(self):
+        """ModelBilling preserves present but empty longContext."""
+        billing = ModelBilling.from_dict({"tokenPrices": {"longContext": {}}})
+
+        assert isinstance(billing.token_prices, ModelBillingTokenPrices)
+        prices = billing.token_prices
+        assert isinstance(prices.long_context, ModelBillingTokenPricesLongContext)
+        long_context = prices.long_context
+        assert long_context.input_price is None
+        assert long_context.output_price is None
+        assert long_context.cache_price is None
+        assert long_context.context_max is None
+        assert billing.to_dict() == {"tokenPrices": {"longContext": {}}}
+
 
 class TestOnListModels:
     @pytest.mark.asyncio

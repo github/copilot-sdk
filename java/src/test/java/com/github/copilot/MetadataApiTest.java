@@ -186,7 +186,7 @@ public class MetadataApiTest {
 
         // Billing
         assertNotNull(model.getBilling());
-        assertEquals(1.5, model.getBilling().getMultiplier());
+        assertEquals(Double.valueOf(1.5), model.getBilling().getMultiplier());
 
         // Token prices
         ModelBillingTokenPrices tokenPrices = model.getBilling().getTokenPrices();
@@ -204,6 +204,15 @@ public class MetadataApiTest {
         assertEquals(16.0, longContext.getOutputPrice());
         assertEquals(1.0, longContext.getCachePrice());
         assertEquals(1000000, longContext.getContextMax());
+    }
+
+    @Test
+    void testModelBillingSerializationOmitsNullMultiplier() throws Exception {
+        var billing = new ModelBilling();
+
+        String json = MAPPER.writeValueAsString(billing);
+
+        assertFalse(json.contains("multiplier"));
     }
 
     @Test
