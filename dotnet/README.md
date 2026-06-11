@@ -2,6 +2,11 @@
 
 SDK for programmatic control of GitHub Copilot CLI.
 
+## Prerequisites
+
+- Any of the [.NET Standard 2.0-compatible .NET implementations](https://learn.microsoft.com/dotnet/standard/net-standard?tabs=net-standard-2-0#select-net-standard-version)
+- GitHub Copilot CLI installed and in PATH (or provide custom `Connection = RuntimeConnection.ForStdio(path: ...)`)
+
 ## Installation
 
 ```bash
@@ -981,11 +986,6 @@ catch (Exception ex)
     Console.Error.WriteLine($"Error: {ex.Message}");
 }
 ```
-
-## Requirements
-
-- .NET 8.0 or later
-- GitHub Copilot CLI installed and in PATH (or provide custom `Connection = RuntimeConnection.ForStdio(path: ...)`)
 
 ## License
 
