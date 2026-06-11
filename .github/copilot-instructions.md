@@ -15,6 +15,7 @@
 - Test harness & E2E: `test/harness/*`, Python harness wrapper `python/e2e/testharness/proxy.py`
 - Schemas & type generation: `nodejs/scripts/generate-session-types.ts`
 - Session snapshots used by E2E: `test/snapshots/` (used by the replay proxy)
+- Docs style guide: `.github/instructions/docs-style.instructions.md` (used for `docs/**`)
 
 ## Developer workflows (commands you’ll use often) ▶️
 
