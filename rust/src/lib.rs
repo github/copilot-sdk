@@ -160,8 +160,10 @@ pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 /// it directly so callers (health checks, diagnostics, version probes)
 /// can reach the bundled binary without spinning up a full [`Client`].
 ///
-/// Subsequent calls return the cached result. Extraction is skipped
-/// when the target file already exists.
+/// Subsequent calls return the cached result. Extraction is skipped when
+/// an already-published binary passes a cheap integrity re-check; a
+/// truncated, empty, or antivirus-quarantined binary is re-extracted and
+/// re-verified rather than returned.
 ///
 /// Returns `None` when the `bundled-cli` feature is off, the target
 /// platform isn't supported by `build.rs`, or extraction failed (the
