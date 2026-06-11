@@ -381,4 +381,4 @@ Use remote sessions when the session should execute where the SDK runtime is alr
 * [Remote Sessions](./remote-sessions.md): share locally hosted sessions through Mission Control
 * [Streaming Events](./streaming-events.md): subscribe to `assistant.*` deltas for live UI rendering
 * [Multi-tenancy](../setup/multi-tenancy.md): integration IDs and server deployment patterns
-* [Authentication](../auth/index.md): configure GitHub authentication for SDK sessions
+* [Authentication](../auth/README.md): configure GitHub authentication for SDK sessions

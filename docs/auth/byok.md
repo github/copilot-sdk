@@ -612,5 +612,5 @@ foundry model run phi-4-mini
 
 ## Next steps
 
-* [Authentication Overview](./index.md) - Learn about all authentication methods
+* [Authentication Overview](./README.md) - Learn about all authentication methods
 * [Getting Started Guide](../getting-started.md) - Build your first Copilot-powered app

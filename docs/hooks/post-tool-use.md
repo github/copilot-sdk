@@ -507,6 +507,6 @@ const session = await client.createSession({
 
 ## See also
 
-- [Hooks Overview](./index.md)
+- [Hooks Overview](./README.md)
 - [Pre-Tool Use Hook](./pre-tool-use.md)
 - [Error Handling Hook](./error-handling.md)
