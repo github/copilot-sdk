@@ -788,12 +788,21 @@ public final class ResumeSessionRequest {
         this.requestMcpApps = null;
     }
 
-    /** Gets the isExperimentalMode flag. @return the flag */
+    /**
+     * Gets the isExperimentalMode flag.
+     *
+     * @return the flag
+     */
     public Boolean getIsExperimentalMode() {
         return isExperimentalMode;
     }
 
-    /** Sets the isExperimentalMode flag. @param isExperimentalMode the flag */
+    /**
+     * Sets the isExperimentalMode flag.
+     *
+     * @param isExperimentalMode
+     *            the flag
+     */
     public void setIsExperimentalMode(boolean isExperimentalMode) {
         this.isExperimentalMode = isExperimentalMode;
     }
