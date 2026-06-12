@@ -62,9 +62,13 @@ describe("Session-scoped RPC", async () => {
             modelId: "gpt-4.1",
             reasoningEffort: "high",
         });
-        
-        const eventPromise = waitForEvent(session, (event) => event.type === "session.model_change", "session.model_change event after switchTo");
-        
+
+        const eventPromise = waitForEvent(
+            session,
+            (event) => event.type === "session.model_change",
+            "session.model_change event after switchTo"
+        );
+
         const [result, event] = await Promise.all([switchPromise, eventPromise]);
         const after = await session.rpc.model.getCurrent();
 
