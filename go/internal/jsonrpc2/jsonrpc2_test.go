@@ -208,8 +208,11 @@ func TestRequestReturnsContextErrorIfCanceledBeforeSend(t *testing.T) {
 	if stdin.Len() != 0 {
 		t.Fatalf("expected no request to be written after cancellation, got %d bytes", stdin.Len())
 	}
-	if len(client.pendingRequests) != 0 {
-		t.Fatalf("expected no pending requests after cancellation, got %d", len(client.pendingRequests))
+	client.mu.Lock()
+	pending := len(client.pendingRequests)
+	client.mu.Unlock()
+	if pending != 0 {
+		t.Fatalf("expected no pending requests after cancellation, got %d", pending)
 	}
 }
 
