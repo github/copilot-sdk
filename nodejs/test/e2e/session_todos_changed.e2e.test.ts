@@ -23,7 +23,7 @@ describe("Todos changed event + readSqlTodosWithDependencies", async () => {
     });
 
     it(
-        "fires session.todos_changed and exposes rows + dependencies",
+        "fires session.todos_changed and exposes rows and dependencies",
         { timeout: 120_000 },
         async () => {
             const session = await client.createSession({ onPermissionRequest: approveAll });

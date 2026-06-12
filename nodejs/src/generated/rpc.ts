@@ -2840,6 +2840,10 @@ export interface SlashCommandInfo {
    * Whether the command is experimental
    */
   experimental?: boolean;
+  /**
+   * Whether the command may be the target of `/every` / `/after` schedules. Resolution happens at every tick, so only set this when the command is safe to re-invoke and produces an agent prompt.
+   */
+  schedulable?: boolean;
 }
 /**
  * Optional unstructured input hint
@@ -5384,6 +5388,19 @@ export interface McpUnregisterExternalClientRequest {
   serverName: string;
 }
 /**
+ * Memory configuration for this session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MemoryConfiguration".
+ */
+/** @experimental */
+export interface MemoryConfiguration {
+  /**
+   * Whether memory is enabled for the session.
+   */
+  enabled: boolean;
+}
+/**
  * Model identifier and token limits used to compute the context-info breakdown.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7390,7 +7407,7 @@ export interface PlanReadSqlTodosResult {
   rows: PlanSqlTodosRow[];
 }
 /**
- * Schema for the `PlanSqlTodosRow` type.
+ * A single todo row read from the session SQL `todos` table. All fields are optional because the SQL schema is best-effort and the agent may not have populated every column.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PlanSqlTodosRow".
@@ -7425,45 +7442,20 @@ export interface PlanReadSqlTodosWithDependenciesResult {
   /**
    * Rows from the session SQL todos table, ordered by creation time and id. Empty when no database, no todos table, or the SELECT failed.
    */
-  rows: PlanTodo[];
+  rows: PlanSqlTodosRow[];
   /**
    * Edges from the session SQL todo_deps table. Empty when no database, no todo_deps table, or the SELECT failed. Read independently from `rows`, so a broken todo_deps table does not affect the rows result and vice versa.
    */
-  dependencies: PlanTodoDependency[];
+  dependencies: PlanSqlTodoDependency[];
 }
 /**
- * Schema for the `PlanTodo` type.
+ * A single dependency edge read from the session SQL `todo_deps` table, indicating that one todo must complete before another.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PlanTodo".
+ * via the `definition` "PlanSqlTodoDependency".
  */
 /** @experimental */
-export interface PlanTodo {
-  /**
-   * Todo identifier.
-   */
-  id?: string;
-  /**
-   * Todo title.
-   */
-  title?: string;
-  /**
-   * Todo description.
-   */
-  description?: string;
-  /**
-   * Todo status.
-   */
-  status?: string;
-}
-/**
- * Schema for the `PlanTodoDependency` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PlanTodoDependency".
- */
-/** @experimental */
-export interface PlanTodoDependency {
+export interface PlanSqlTodoDependency {
   /**
    * ID of the todo that has the dependency.
    */
@@ -9795,6 +9787,7 @@ export interface SessionOpenOptions {
    * @experimental
    */
   additionalContentExclusionPolicies?: SessionOpenOptionsAdditionalContentExclusionPolicy[];
+  memory?: MemoryConfiguration;
   /**
    * Capabilities enabled for this session.
    */
