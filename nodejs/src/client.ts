@@ -923,6 +923,11 @@ export class CopilotClient {
         return {};
     }
 
+    /** Mode-specific default for enableExperimentalMode. */
+    private experimentalModeForMode(supplied: boolean | undefined): boolean | undefined {
+        return this.options.mode === "empty" ? (supplied ?? false) : supplied;
+    }
+
     /**
      * Returns the systemMessage config to use, adjusted for the current mode.
      * In empty mode we ensure the environment_context section is removed
@@ -1100,7 +1105,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
-                isExperimentalMode: config.enableExperimentalMode,
+                isExperimentalMode: this.experimentalModeForMode(config.enableExperimentalMode),
                 contextTier: config.contextTier,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
@@ -1282,7 +1287,7 @@ export class CopilotClient {
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
-                isExperimentalMode: config.enableExperimentalMode,
+                isExperimentalMode: this.experimentalModeForMode(config.enableExperimentalMode),
                 contextTier: config.contextTier,
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ElicitationHandler;
@@ -112,6 +113,13 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildCreateRequestDefaultsEnableExperimentalModeFalseInEmptyMode() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "sid-empty",
+                CopilotClientMode.EMPTY);
+        assertFalse(request.getIsExperimentalMode());
+    }
+
+    @Test
     void testBuildCreateRequestSetsContextTier() {
         var config = new SessionConfig().setContextTier("long_context");
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
@@ -201,6 +209,13 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig();
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
         assertNull(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildResumeRequestDefaultsEnableExperimentalModeFalseInEmptyMode() {
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-empty", new ResumeSessionConfig(),
+                CopilotClientMode.EMPTY);
+        assertFalse(request.getIsExperimentalMode());
     }
 
     @Test

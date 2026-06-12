@@ -229,6 +229,24 @@ func TestApplyConfigDefaultsForMode_emptyDefaultsTelemetryFalse(t *testing.T) {
 	}
 }
 
+func TestApplyConfigDefaultsForMode_emptyDefaultsExperimentalModeFalse(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	cfg := &SessionConfig{}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.EnableExperimentalMode == nil || *cfg.EnableExperimentalMode != false {
+		t.Errorf("expected experimental mode default false in empty mode, got %v", cfg.EnableExperimentalMode)
+	}
+}
+
+func TestApplyConfigDefaultsForMode_copilotCliLeavesExperimentalModeNil(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeCopilotCli})
+	cfg := &SessionConfig{}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.EnableExperimentalMode != nil {
+		t.Errorf("non-empty mode must not default experimental mode")
+	}
+}
+
 func TestApplyConfigDefaultsForMode_emptyHonorsCallerTelemetry(t *testing.T) {
 	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
 	trueVal := true
@@ -360,5 +378,23 @@ func TestApplyConfigDefaultsForMode_copilotCliLeavesMCPOAuthTokenStorageEmpty(t 
 	c.applyConfigDefaultsForMode(cfg)
 	if cfg.MCPOAuthTokenStorage != "" {
 		t.Errorf("non-empty mode must not default MCPOAuthTokenStorage, got %q", cfg.MCPOAuthTokenStorage)
+	}
+}
+
+func TestApplyResumeDefaultsForMode_emptyDefaultsExperimentalModeFalse(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	cfg := &ResumeSessionConfig{}
+	c.applyResumeDefaultsForMode(cfg)
+	if cfg.EnableExperimentalMode == nil || *cfg.EnableExperimentalMode != false {
+		t.Errorf("expected experimental mode default false in empty mode, got %v", cfg.EnableExperimentalMode)
+	}
+}
+
+func TestApplyResumeDefaultsForMode_copilotCliLeavesExperimentalModeNil(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeCopilotCli})
+	cfg := &ResumeSessionConfig{}
+	c.applyResumeDefaultsForMode(cfg)
+	if cfg.EnableExperimentalMode != nil {
+		t.Errorf("non-empty mode must not default experimental mode")
 	}
 }

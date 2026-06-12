@@ -41,6 +41,7 @@ from ._mode import (
     _enable_file_hooks_default,
     _enable_host_git_operations_default,
     _enable_on_demand_instruction_discovery_default,
+    _enable_experimental_mode_default,
     _enable_session_store_default,
     _enable_session_telemetry_default,
     _enable_skills_default,
@@ -1637,11 +1638,9 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
-            enable_experimental_mode: Per-session experimental feature-flag tier
-                override. Set ``True`` to force-enable the experimental tier for
-                this session or ``False`` to resolve feature flags as if
-                experimental were off. Omit to inherit the runtime process
-                defaults unchanged.
+            enable_experimental_mode: Controls whether the session enables
+                experimental features. Defaults to ``False`` in ``"empty"``
+                mode; otherwise the runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -1780,6 +1779,9 @@ class CopilotClient:
         )
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
+        enable_experimental_mode = _enable_experimental_mode_default(
+            mode, enable_experimental_mode
+        )
 
         payload: dict[str, Any] = {}
         if model:
@@ -2215,11 +2217,9 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
-            enable_experimental_mode: Per-session experimental feature-flag tier
-                override. Set ``True`` to force-enable the experimental tier for
-                this resumed session or ``False`` to resolve feature flags as if
-                experimental were off. Omit to inherit the runtime process
-                defaults unchanged.
+            enable_experimental_mode: Controls whether the session enables
+                experimental features. Defaults to ``False`` in ``"empty"``
+                mode; otherwise the runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -2358,6 +2358,9 @@ class CopilotClient:
         )
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
+        enable_experimental_mode = _enable_experimental_mode_default(
+            mode, enable_experimental_mode
+        )
 
         payload: dict[str, Any] = {"sessionId": session_id}
 

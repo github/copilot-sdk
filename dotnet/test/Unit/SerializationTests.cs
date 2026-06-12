@@ -334,6 +334,35 @@ public class SerializationTests
     }
 
     [Fact]
+    public void ApplyConfigDefaultsForMode_EmptyDefaultsEnableExperimentalModeFalse()
+    {
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = System.IO.Path.GetTempPath(),
+        });
+        var config = new SessionConfig();
+
+        InvokeApplyConfigDefaultsForMode(client, config);
+
+        Assert.False(config.EnableExperimentalMode);
+    }
+
+    [Fact]
+    public void ApplyConfigDefaultsForMode_CopilotCliLeavesEnableExperimentalModeNull()
+    {
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            Mode = CopilotClientMode.CopilotCli,
+        });
+        var config = new ResumeSessionConfig();
+
+        InvokeApplyConfigDefaultsForMode(client, config);
+
+        Assert.Null(config.EnableExperimentalMode);
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableOnDemandInstructionDiscovery_WithSdkOptions()
     {
         var options = GetSerializerOptions();
@@ -600,6 +629,15 @@ public class SerializationTests
         var type = containingType.GetNestedType(name, System.Reflection.BindingFlags.NonPublic);
         Assert.NotNull(type);
         return type!;
+    }
+
+    private static void InvokeApplyConfigDefaultsForMode(CopilotClient client, SessionConfigBase config)
+    {
+        var method = typeof(CopilotClient).GetMethod(
+            "ApplyConfigDefaultsForMode",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        method!.Invoke(client, [config]);
     }
 
     [Fact]

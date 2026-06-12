@@ -6,11 +6,13 @@ package com.github.copilot;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.CommandWireDefinition;
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.ResumeSessionRequest;
 import com.github.copilot.rpc.SectionOverride;
@@ -93,6 +95,10 @@ final class SessionRequestBuilder {
      * @return the built request object
      */
     static CreateSessionRequest buildCreateRequest(SessionConfig config, String sessionId) {
+        return buildCreateRequest(config, sessionId, CopilotClientMode.COPILOT_CLI);
+    }
+
+    static CreateSessionRequest buildCreateRequest(SessionConfig config, String sessionId, CopilotClientMode mode) {
         var request = new CreateSessionRequest();
         // Always request permission callbacks to enable deny-by-default behavior
         request.setRequestPermission(true);
@@ -114,7 +120,8 @@ final class SessionRequestBuilder {
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
-        config.getEnableExperimentalMode().ifPresent(request::setIsExperimentalMode);
+        experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
+                .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -204,6 +211,11 @@ final class SessionRequestBuilder {
      * @return the built request object
      */
     static ResumeSessionRequest buildResumeRequest(String sessionId, ResumeSessionConfig config) {
+        return buildResumeRequest(sessionId, config, CopilotClientMode.COPILOT_CLI);
+    }
+
+    static ResumeSessionRequest buildResumeRequest(String sessionId, ResumeSessionConfig config,
+            CopilotClientMode mode) {
         var request = new ResumeSessionRequest();
         request.setSessionId(sessionId);
         // Always request permission callbacks to enable deny-by-default behavior
@@ -226,7 +238,8 @@ final class SessionRequestBuilder {
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
-        config.getEnableExperimentalMode().ifPresent(request::setIsExperimentalMode);
+        experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
+                .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -290,6 +303,13 @@ final class SessionRequestBuilder {
         request.setRemoteSession(config.getRemoteSession());
 
         return request;
+    }
+
+    private static Optional<Boolean> experimentalModeForMode(CopilotClientMode mode, Boolean supplied) {
+        if (mode == CopilotClientMode.EMPTY) {
+            return Optional.of(supplied != null ? supplied : false);
+        }
+        return Optional.ofNullable(supplied);
     }
 
     /**

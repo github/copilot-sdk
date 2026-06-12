@@ -1587,11 +1587,8 @@ export interface SessionConfigBase {
     reasoningSummary?: ReasoningSummary;
 
     /**
-     * Per-session experimental feature-flag tier override.
-     *
-     * Set to `true` to force-enable the experimental tier for this session, or
-     * `false` to resolve feature flags as if experimental were off. Leave
-     * unset to inherit the runtime process defaults unchanged.
+     * Controls whether the session enables experimental features.
+     * Defaults to `false` in `"empty"` mode; otherwise the runtime decides when unset.
      */
     enableExperimentalMode?: boolean;
 

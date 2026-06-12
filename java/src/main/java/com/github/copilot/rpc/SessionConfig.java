@@ -400,11 +400,10 @@ public class SessionConfig {
     }
 
     /**
-     * Overrides the session's experimental feature-flag tier resolution.
+     * Controls whether the session enables experimental features.
      *
-     * @return {@code true} to force-enable the experimental tier, {@code false} to
-     *         resolve feature flags as if experimental were off, or empty to
-     *         inherit the runtime process defaults unchanged
+     * @return {@code true} when experimental features are enabled, {@code false}
+     *         when they are disabled, or empty to use the mode-specific default
      */
     @JsonIgnore
     public Optional<Boolean> getEnableExperimentalMode() {
@@ -412,12 +411,11 @@ public class SessionConfig {
     }
 
     /**
-     * Overrides the session's experimental feature-flag tier resolution.
+     * Controls whether the session enables experimental features.
      *
      * @param enableExperimentalMode
-     *            {@code true} to force-enable the experimental tier for this
-     *            session, {@code false} to resolve feature flags as if experimental
-     *            were off
+     *            {@code true} to enable experimental features; {@code false} to
+     *            disable them
      * @return this config instance for method chaining
      */
     public SessionConfig setEnableExperimentalMode(boolean enableExperimentalMode) {
@@ -426,8 +424,8 @@ public class SessionConfig {
     }
 
     /**
-     * Clears the enableExperimentalMode setting, reverting to the runtime default
-     * behavior.
+     * Clears the enableExperimentalMode setting. In {@link CopilotClientMode#EMPTY
+     * EMPTY} mode this defaults to {@code false}; otherwise the runtime decides.
      *
      * @return this instance for method chaining
      */

@@ -2641,13 +2641,11 @@ public abstract class SessionConfigBase
     public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
-    /// Overrides the session's experimental feature-flag tier resolution.
+    /// Controls whether the session enables experimental features.
     /// </summary>
     /// <remarks>
-    /// Set to <see langword="true"/> to force-enable the experimental tier for this
-    /// session, or <see langword="false"/> to resolve feature flags as if
-    /// experimental were off. Leave <see langword="null"/> to inherit the runtime
-    /// process defaults unchanged.
+    /// Defaults to <see langword="false"/> in <see cref="CopilotClientMode.Empty"/>.
+    /// Otherwise, the runtime decides when left <see langword="null"/>.
     /// </remarks>
     public bool? EnableExperimentalMode { get; set; }
 

@@ -664,6 +664,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         if (_options.Mode == CopilotClientMode.Empty)
         {
+            config.EnableExperimentalMode ??= false;
             config.EnableSessionTelemetry ??= false;
             config.SkipEmbeddingRetrieval ??= true;
             config.EmbeddingCacheStorage ??= EmbeddingCacheStorageMode.InMemory;

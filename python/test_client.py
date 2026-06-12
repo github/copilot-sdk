@@ -5,6 +5,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 """
 
 from datetime import UTC, datetime
+from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -167,6 +168,75 @@ class TestCreateSessionConfig:
 
             assert captured["session.create"]["isExperimentalMode"] is False
             assert captured["session.resume"]["isExperimentalMode"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_default_enable_experimental_mode_by_mode(self):
+        with TemporaryDirectory() as base_directory:
+            client = CopilotClient(
+                connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+                mode="empty",
+                base_directory=base_directory,
+            )
+            await client.start()
+            try:
+                captured = {}
+
+                async def mock_request(method, params, **kwargs):
+                    captured[method] = params
+                    if method in ("session.create", "session.resume"):
+                        result = {"sessionId": params.get("sessionId") or "session-1"}
+                        callback = kwargs.get("on_response_inline")
+                        if callback is not None:
+                            callback(result)
+                        return result
+                    if method == "session.options.update":
+                        return {"success": True}
+                    return {}
+
+                client._client.request = mock_request
+                session = await client.create_session(
+                    on_permission_request=PermissionHandler.approve_all,
+                    available_tools=[],
+                )
+                await client.resume_session(
+                    session.session_id,
+                    on_permission_request=PermissionHandler.approve_all,
+                    available_tools=[],
+                )
+
+                assert captured["session.create"]["isExperimentalMode"] is False
+                assert captured["session.resume"]["isExperimentalMode"] is False
+            finally:
+                await client.force_stop()
+
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+
+            assert "isExperimentalMode" not in captured["session.create"]
+            assert "isExperimentalMode" not in captured["session.resume"]
         finally:
             await client.force_stop()
 

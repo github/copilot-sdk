@@ -837,6 +837,8 @@ impl Client {
         crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
         config.system_message =
             crate::mode::system_message_for_mode(mode, config.system_message.take());
+        config.enable_experimental_mode =
+            crate::mode::experimental_mode_for_mode(mode, config.enable_experimental_mode);
         if mode == crate::ClientMode::Empty {
             if config.enable_session_telemetry.is_none() {
                 config.enable_session_telemetry = Some(false);
@@ -1092,6 +1094,8 @@ impl Client {
         crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
         config.system_message =
             crate::mode::system_message_for_mode(mode, config.system_message.take());
+        config.enable_experimental_mode =
+            crate::mode::experimental_mode_for_mode(mode, config.enable_experimental_mode);
         if mode == crate::ClientMode::Empty {
             if config.enable_session_telemetry.is_none() {
                 config.enable_session_telemetry = Some(false);

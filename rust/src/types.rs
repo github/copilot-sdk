@@ -1246,19 +1246,10 @@ pub struct SessionConfig {
     ///
     /// Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
-    /// Disable, force-enable, or inherit the experimental feature-flag tier
-    /// for this session only.
+    /// Controls whether the session enables experimental features.
     ///
-    /// - `Some(false)` — the runtime re-resolves this session's feature flags
-    ///   as if experimental mode were off, stripping experimental-tier flags.
-    /// - `Some(true)` — force-enables the experimental tier even if the CLI
-    ///   process didn't start with it.
-    /// - `None` (default) — inherits the CLI process's flags unchanged.
-    ///
-    /// This never persists anything to the user's shared config; it only
-    /// affects the feature-flag resolution for this one session. Serializes
-    /// as `isExperimentalMode` and is omitted from the wire when `None`, so
-    /// older CLIs that don't understand it are unaffected.
+    /// Defaults to `false` in [`crate::ClientMode::Empty`]. Otherwise, the
+    /// runtime decides when this is `None`.
     pub enable_experimental_mode: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -2275,19 +2266,10 @@ pub struct ResumeSessionConfig {
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
     /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
-    /// Disable, force-enable, or inherit the experimental feature-flag tier
-    /// for this resumed session only.
+    /// Controls whether the session enables experimental features.
     ///
-    /// - `Some(false)` — re-resolves this session's feature flags as if
-    ///   experimental mode were off, stripping experimental-tier flags.
-    /// - `Some(true)` — force-enables the experimental tier even if the CLI
-    ///   process didn't start with it.
-    /// - `None` (default) — inherits the CLI process's flags unchanged.
-    ///
-    /// Never persists to config. Note: resume only re-resolves flags on the
-    /// cold-load path (the session is not already live in-process); an
-    /// already-active session keeps the flags it was created with. Serializes
-    /// as `isExperimentalMode` and is omitted from the wire when `None`.
+    /// Defaults to `false` in [`crate::ClientMode::Empty`]. Otherwise, the
+    /// runtime decides when this is `None`.
     pub enable_experimental_mode: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     pub skill_directories: Option<Vec<PathBuf>>,
