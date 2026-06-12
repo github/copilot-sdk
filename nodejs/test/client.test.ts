@@ -225,8 +225,12 @@ describe("CopilotClient", () => {
             onPermissionRequest: approveAll,
         });
 
-        const cliCreatePayload = cliSpy.mock.calls.find(([method]) => method === "session.create")![1] as any;
-        const cliResumePayload = cliSpy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        const cliCreatePayload = cliSpy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const cliResumePayload = cliSpy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
         expect(cliCreatePayload.isExperimentalMode).toBeUndefined();
         expect(cliResumePayload.isExperimentalMode).toBeUndefined();
     });

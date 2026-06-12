@@ -38,10 +38,10 @@ from ._mode import (
     CopilotClientMode,
     ToolSet,
     _embedding_cache_storage_default,
+    _enable_experimental_mode_default,
     _enable_file_hooks_default,
     _enable_host_git_operations_default,
     _enable_on_demand_instruction_discovery_default,
-    _enable_experimental_mode_default,
     _enable_session_store_default,
     _enable_session_telemetry_default,
     _enable_skills_default,
@@ -1779,9 +1779,7 @@ class CopilotClient:
         )
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
-        enable_experimental_mode = _enable_experimental_mode_default(
-            mode, enable_experimental_mode
-        )
+        enable_experimental_mode = _enable_experimental_mode_default(mode, enable_experimental_mode)
 
         payload: dict[str, Any] = {}
         if model:
@@ -2142,6 +2140,7 @@ class CopilotClient:
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        enable_experimental_mode: bool | None = None,
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
@@ -2184,7 +2183,6 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         enable_mcp_apps: bool = False,
-        enable_experimental_mode: bool | None = None,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
@@ -2358,9 +2356,7 @@ class CopilotClient:
         )
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
-        enable_experimental_mode = _enable_experimental_mode_default(
-            mode, enable_experimental_mode
-        )
+        enable_experimental_mode = _enable_experimental_mode_default(mode, enable_experimental_mode)
 
         payload: dict[str, Any] = {"sessionId": session_id}
 
