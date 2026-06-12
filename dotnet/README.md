@@ -506,7 +506,7 @@ If you want to use `AIFunctionFactory.Create` directly, you can set `skip_permis
 
 #### Deferring Tools
 
-Set `CopilotToolOptions.Defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `CopilotToolDefer.Auto` to allow the tool to be deferred and surfaced through tool search, or `CopilotToolDefer.Never` to force it to always be pre-loaded. When unset, the runtime decides.
+Set `CopilotToolOptions.Defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `CopilotToolDefer.Auto` to allow the tool to be deferred and surfaced through tool search, or `CopilotToolDefer.Never` to force it to always be pre-loaded. Defaults to `CopilotToolDefer.Auto`.
 
 ```csharp
 var lookupIssue = CopilotTool.DefineTool(

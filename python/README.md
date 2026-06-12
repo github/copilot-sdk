@@ -321,7 +321,7 @@ async def safe_lookup(params: LookupParams) -> str:
 
 #### Deferring Tools
 
-Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. When omitted, the runtime decides.
+Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
 
 ```python
 @define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")

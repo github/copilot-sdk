@@ -515,7 +515,7 @@ export interface Tool<TArgs = unknown> {
      * Controls whether the tool may be deferred (loaded lazily via tool search)
      * rather than always pre-loaded. When `"auto"`, the tool can be deferred and
      * surfaced through tool search. When `"never"`, the tool is always pre-loaded.
-     * Optional; when omitted the runtime decides.
+     * Optional; defaults to `"auto"`.
      */
     defer?: "auto" | "never";
 }

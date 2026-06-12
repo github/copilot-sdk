@@ -129,7 +129,7 @@ public sealed class CopilotToolOptions
     /// Gets or sets a value indicating whether this tool intentionally overrides a built-in Copilot tool with the same name.
     /// </summary>
     /// <remarks>
-    /// When a <see cref="CopilotToolOptions"/> with <see cref="OverridesBuiltInTool"/> set to true is used to define a tool, 
+    /// When a <see cref="CopilotToolOptions"/> with <see cref="OverridesBuiltInTool"/> set to true is used to define a tool,
     /// the resulting <see cref="AIFunction"/> will include "is_override": true in its <see cref="AITool.AdditionalProperties"/>.
     /// </remarks>
     public bool OverridesBuiltInTool { get; set; }
@@ -138,7 +138,7 @@ public sealed class CopilotToolOptions
     /// Gets or sets a value indicating whether this tool can execute without a permission prompt.
     /// </summary>
     /// <remarks>
-    /// When a <see cref="CopilotToolOptions"/> with <see cref="SkipPermission"/> set to true is used to define a tool, 
+    /// When a <see cref="CopilotToolOptions"/> with <see cref="SkipPermission"/> set to true is used to define a tool,
     /// the resulting <see cref="AIFunction"/> will include "skip_permission": true in its <see cref="AITool.AdditionalProperties"/>.
     /// </remarks>
     public bool SkipPermission { get; set; }
@@ -148,7 +148,7 @@ public sealed class CopilotToolOptions
     /// </summary>
     /// <remarks>
     /// When set, the resulting <see cref="AIFunction"/> carries the value in its <see cref="AITool.AdditionalProperties"/> and the
-    /// SDK forwards it to the CLI as the tool's <c>defer</c> mode. When <see langword="null"/>, the runtime decides.
+    /// SDK forwards it to the CLI as the tool's <c>defer</c> mode. Defaults to "auto".
     /// </remarks>
     public CopilotToolDefer? Defer { get; set; }
 }
