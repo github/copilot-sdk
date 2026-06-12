@@ -307,6 +307,15 @@ func TestTelemetryConfigUnit(t *testing.T) {
 		if cfg.OTLPEndpoint != "" {
 			t.Errorf("Expected empty OTLPEndpoint, got %q", cfg.OTLPEndpoint)
 		}
+		if cfg.OTLPProtocol != "" {
+			t.Errorf("Expected empty OTLPProtocol, got %q", cfg.OTLPProtocol)
+		}
+		if cfg.OTLPTracesProtocol != "" {
+			t.Errorf("Expected empty OTLPTracesProtocol, got %q", cfg.OTLPTracesProtocol)
+		}
+		if cfg.OTLPMetricsProtocol != "" {
+			t.Errorf("Expected empty OTLPMetricsProtocol, got %q", cfg.OTLPMetricsProtocol)
+		}
 		if cfg.FilePath != "" {
 			t.Errorf("Expected empty FilePath, got %q", cfg.FilePath)
 		}
@@ -324,14 +333,26 @@ func TestTelemetryConfigUnit(t *testing.T) {
 	t.Run("can set all properties", func(t *testing.T) {
 		// Mirrors: TelemetryConfig_CanSetAllProperties
 		cfg := copilot.TelemetryConfig{
-			OTLPEndpoint:   "http://localhost:4318",
-			FilePath:       "/tmp/traces.json",
-			ExporterType:   "otlp-http",
-			SourceName:     "my-app",
-			CaptureContent: copilot.Bool(true),
+			OTLPEndpoint:        "http://localhost:4318",
+			OTLPProtocol:        "http/protobuf",
+			OTLPTracesProtocol:  "http/json",
+			OTLPMetricsProtocol: "http/protobuf",
+			FilePath:            "/tmp/traces.json",
+			ExporterType:        "otlp-http",
+			SourceName:          "my-app",
+			CaptureContent:      copilot.Bool(true),
 		}
 		if cfg.OTLPEndpoint != "http://localhost:4318" {
 			t.Errorf("OTLPEndpoint mismatch: %q", cfg.OTLPEndpoint)
+		}
+		if cfg.OTLPProtocol != "http/protobuf" {
+			t.Errorf("OTLPProtocol mismatch: %q", cfg.OTLPProtocol)
+		}
+		if cfg.OTLPTracesProtocol != "http/json" {
+			t.Errorf("OTLPTracesProtocol mismatch: %q", cfg.OTLPTracesProtocol)
+		}
+		if cfg.OTLPMetricsProtocol != "http/protobuf" {
+			t.Errorf("OTLPMetricsProtocol mismatch: %q", cfg.OTLPMetricsProtocol)
 		}
 		if cfg.FilePath != "/tmp/traces.json" {
 			t.Errorf("FilePath mismatch: %q", cfg.FilePath)

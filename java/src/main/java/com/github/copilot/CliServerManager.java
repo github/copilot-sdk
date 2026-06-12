@@ -150,6 +150,15 @@ final class CliServerManager {
             if (telemetry.getOtlpEndpoint() != null) {
                 pb.environment().put("OTEL_EXPORTER_OTLP_ENDPOINT", telemetry.getOtlpEndpoint());
             }
+            if (telemetry.getOtlpProtocol() != null) {
+                pb.environment().put("OTEL_EXPORTER_OTLP_PROTOCOL", telemetry.getOtlpProtocol());
+            }
+            if (telemetry.getOtlpTracesProtocol() != null) {
+                pb.environment().put("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", telemetry.getOtlpTracesProtocol());
+            }
+            if (telemetry.getOtlpMetricsProtocol() != null) {
+                pb.environment().put("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", telemetry.getOtlpMetricsProtocol());
+            }
             if (telemetry.getFilePath() != null) {
                 pb.environment().put("COPILOT_OTEL_FILE_EXPORTER_PATH", telemetry.getFilePath());
             }

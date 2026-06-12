@@ -29,6 +29,9 @@ function saveCapture() {
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+      OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
+      OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL,
+      OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
       COPILOT_OTEL_FILE_EXPORTER_PATH: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
       COPILOT_OTEL_EXPORTER_TYPE: process.env.COPILOT_OTEL_EXPORTER_TYPE,
       COPILOT_OTEL_SOURCE_NAME: process.env.COPILOT_OTEL_SOURCE_NAME,
@@ -247,6 +250,9 @@ describe("Client options", async () => {
             sessionIdleTimeoutSeconds: 17,
             telemetry: {
                 otlpEndpoint: "http://127.0.0.1:4318",
+                otlpProtocol: "http/protobuf",
+                otlpTracesProtocol: "http/json",
+                otlpMetricsProtocol: "http/protobuf",
                 filePath: telemetryPath,
                 exporterType: "file",
                 sourceName: "ts-sdk-e2e",
@@ -283,6 +289,9 @@ describe("Client options", async () => {
         expect(capture.env.COPILOT_SDK_AUTH_TOKEN).toBe("process-option-token");
         expect(capture.env.COPILOT_OTEL_ENABLED).toBe("true");
         expect(capture.env.OTEL_EXPORTER_OTLP_ENDPOINT).toBe("http://127.0.0.1:4318");
+        expect(capture.env.OTEL_EXPORTER_OTLP_PROTOCOL).toBe("http/protobuf");
+        expect(capture.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL).toBe("http/json");
+        expect(capture.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL).toBe("http/protobuf");
         expect(capture.env.COPILOT_OTEL_FILE_EXPORTER_PATH).toBe(telemetryPath);
         expect(capture.env.COPILOT_OTEL_EXPORTER_TYPE).toBe("file");
         expect(capture.env.COPILOT_OTEL_SOURCE_NAME).toBe("ts-sdk-e2e");
@@ -313,6 +322,49 @@ describe("Client options", async () => {
         expect(createRequests[0].params.includeSubAgentStreamingEvents).toBe(false);
 
         await session.disconnect();
+    });
+
+    it("should only set configured otlp protocol env vars", async () => {
+        const cliPath = path.join(
+            workDir,
+            `fake-cli-${Date.now()}-${Math.random().toString(36).slice(2)}.js`
+        );
+        const capturePath = path.join(
+            workDir,
+            `fake-cli-capture-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+        );
+        fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
+
+        const client = new CopilotClient({
+            workingDirectory: workDir,
+            env,
+            connection: RuntimeConnection.forStdio({
+                path: cliPath,
+                args: ["--capture-file", capturePath],
+            }),
+            gitHubToken: "process-option-token",
+            telemetry: {
+                otlpTracesProtocol: "http/protobuf",
+            },
+            useLoggedInUser: false,
+        });
+        onTestFinished(async () => {
+            try {
+                await client.forceStop();
+            } catch {
+                // Ignore cleanup errors
+            }
+        });
+
+        await client.start();
+
+        const capture = JSON.parse(fs.readFileSync(capturePath, "utf8")) as {
+            env: Record<string, string | undefined>;
+        };
+        expect(capture.env.COPILOT_OTEL_ENABLED).toBe("true");
+        expect(capture.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL).toBe("http/protobuf");
+        expect(capture.env).not.toHaveProperty("OTEL_EXPORTER_OTLP_PROTOCOL");
+        expect(capture.env).not.toHaveProperty("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL");
     });
 
     it("should throw when gitHubToken used with forUri", () => {

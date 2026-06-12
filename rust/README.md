@@ -588,11 +588,12 @@ Provider types include `"openai"`, `"azure"`, and `"anthropic"`. Set `wire_api` 
 Forward OpenTelemetry signals from the spawned CLI process to your collector:
 
 ```rust,ignore
-use github_copilot_sdk::{ClientOptions, OtelExporterType, TelemetryConfig};
+use github_copilot_sdk::{ClientOptions, OtelExporterType, OtlpHttpProtocol, TelemetryConfig};
 
 let mut telem = TelemetryConfig::default();
 telem.exporter_type = Some(OtelExporterType::OtlpHttp);
 telem.otlp_endpoint = Some("http://localhost:4318".to_string());
+telem.otlp_protocol = Some(OtlpHttpProtocol::HttpProtobuf);
 telem.source_name = Some("my-app".to_string());
 
 let mut opts = ClientOptions::default();
@@ -600,7 +601,7 @@ opts.telemetry = Some(telem);
 let client = Client::start(opts).await?;
 ```
 
-The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
+The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
 
 ### Progress Reporting (`send_and_wait`)
 

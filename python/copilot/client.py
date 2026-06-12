@@ -182,6 +182,12 @@ class TelemetryConfig(TypedDict, total=False):
 
     otlp_endpoint: str
     """OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT."""
+    otlp_protocol: str
+    """OTLP HTTP protocol for all signals. Sets OTEL_EXPORTER_OTLP_PROTOCOL."""
+    otlp_traces_protocol: str
+    """OTLP HTTP protocol for traces. Sets OTEL_EXPORTER_OTLP_TRACES_PROTOCOL."""
+    otlp_metrics_protocol: str
+    """OTLP HTTP protocol for metrics. Sets OTEL_EXPORTER_OTLP_METRICS_PROTOCOL."""
     file_path: str
     """File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH."""
     exporter_type: str
@@ -3225,6 +3231,12 @@ class CopilotClient:
             env["COPILOT_OTEL_ENABLED"] = "true"
             if "otlp_endpoint" in telemetry:
                 env["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry["otlp_endpoint"]
+            if "otlp_protocol" in telemetry:
+                env["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry["otlp_protocol"]
+            if "otlp_traces_protocol" in telemetry:
+                env["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = telemetry["otlp_traces_protocol"]
+            if "otlp_metrics_protocol" in telemetry:
+                env["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"] = telemetry["otlp_metrics_protocol"]
             if "file_path" in telemetry:
                 env["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry["file_path"]
             if "exporter_type" in telemetry:

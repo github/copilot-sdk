@@ -186,6 +186,9 @@ class TestTelemetryConfig:
         # constructor leaves every field unset (equivalent to C#'s null defaults).
         cfg: TelemetryConfig = TelemetryConfig()
         assert cfg.get("otlp_endpoint") is None
+        assert cfg.get("otlp_protocol") is None
+        assert cfg.get("otlp_traces_protocol") is None
+        assert cfg.get("otlp_metrics_protocol") is None
         assert cfg.get("file_path") is None
         assert cfg.get("exporter_type") is None
         assert cfg.get("source_name") is None
@@ -194,12 +197,18 @@ class TestTelemetryConfig:
     async def test_can_set_all_properties(self):
         cfg: TelemetryConfig = TelemetryConfig(
             otlp_endpoint="http://localhost:4318",
+            otlp_protocol="http/protobuf",
+            otlp_traces_protocol="http/json",
+            otlp_metrics_protocol="http/protobuf",
             file_path="/tmp/traces.json",
             exporter_type="otlp-http",
             source_name="my-app",
             capture_content=True,
         )
         assert cfg["otlp_endpoint"] == "http://localhost:4318"
+        assert cfg["otlp_protocol"] == "http/protobuf"
+        assert cfg["otlp_traces_protocol"] == "http/json"
+        assert cfg["otlp_metrics_protocol"] == "http/protobuf"
         assert cfg["file_path"] == "/tmp/traces.json"
         assert cfg["exporter_type"] == "otlp-http"
         assert cfg["source_name"] == "my-app"

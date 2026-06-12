@@ -78,6 +78,9 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Telemetry = new TelemetryConfig
             {
                 OtlpEndpoint = "http://127.0.0.1:4318",
+                OtlpProtocol = "http/protobuf",
+                OtlpTracesProtocol = "http/json",
+                OtlpMetricsProtocol = "http/protobuf",
                 FilePath = telemetryPath,
                 ExporterType = "file",
                 SourceName = "dotnet-sdk-e2e",
@@ -104,6 +107,9 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Equal("process-option-token", capturedEnv.GetProperty("COPILOT_SDK_AUTH_TOKEN").GetString());
         Assert.Equal("true", capturedEnv.GetProperty("COPILOT_OTEL_ENABLED").GetString());
         Assert.Equal("http://127.0.0.1:4318", capturedEnv.GetProperty("OTEL_EXPORTER_OTLP_ENDPOINT").GetString());
+        Assert.Equal("http/protobuf", capturedEnv.GetProperty("OTEL_EXPORTER_OTLP_PROTOCOL").GetString());
+        Assert.Equal("http/json", capturedEnv.GetProperty("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL").GetString());
+        Assert.Equal("http/protobuf", capturedEnv.GetProperty("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL").GetString());
         Assert.Equal(telemetryPath, capturedEnv.GetProperty("COPILOT_OTEL_FILE_EXPORTER_PATH").GetString());
         Assert.Equal("file", capturedEnv.GetProperty("COPILOT_OTEL_EXPORTER_TYPE").GetString());
         Assert.Equal("dotnet-sdk-e2e", capturedEnv.GetProperty("COPILOT_OTEL_SOURCE_NAME").GetString());
@@ -122,6 +128,32 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(createRequest.GetProperty("includeSubAgentStreamingEvents").GetBoolean());
 
         await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Only_Set_Configured_Otlp_Protocol_Env_Vars()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
+            GitHubToken = "process-option-token",
+            Telemetry = new TelemetryConfig
+            {
+                OtlpTracesProtocol = "http/protobuf",
+            },
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var capturedEnv = capture.RootElement.GetProperty("env");
+        Assert.Equal("true", capturedEnv.GetProperty("COPILOT_OTEL_ENABLED").GetString());
+        Assert.Equal("http/protobuf", capturedEnv.GetProperty("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL").GetString());
+        Assert.False(capturedEnv.TryGetProperty("OTEL_EXPORTER_OTLP_PROTOCOL", out _));
+        Assert.False(capturedEnv.TryGetProperty("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", out _));
     }
 
     [Fact]
@@ -642,6 +674,9 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
               COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
               COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
               OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+              OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
+              OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL,
+              OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
               COPILOT_OTEL_FILE_EXPORTER_PATH: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
               COPILOT_OTEL_EXPORTER_TYPE: process.env.COPILOT_OTEL_EXPORTER_TYPE,
               COPILOT_OTEL_SOURCE_NAME: process.env.COPILOT_OTEL_SOURCE_NAME,

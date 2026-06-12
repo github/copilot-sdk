@@ -30,6 +30,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class TelemetryConfig {
 
     private String otlpEndpoint;
+    private String otlpProtocol;
+    private String otlpTracesProtocol;
+    private String otlpMetricsProtocol;
     private String filePath;
     private String exporterType;
     private String sourceName;
@@ -55,6 +58,75 @@ public class TelemetryConfig {
      */
     public TelemetryConfig setOtlpEndpoint(String otlpEndpoint) {
         this.otlpEndpoint = otlpEndpoint;
+        return this;
+    }
+
+    /**
+     * Gets the OTLP HTTP protocol for all signals.
+     * <p>
+     * Maps to the {@code OTEL_EXPORTER_OTLP_PROTOCOL} environment variable.
+     *
+     * @return the OTLP HTTP protocol, or {@code null}
+     */
+    public String getOtlpProtocol() {
+        return otlpProtocol;
+    }
+
+    /**
+     * Sets the OTLP HTTP protocol for all signals.
+     *
+     * @param otlpProtocol
+     *            the protocol ({@code "http/json"} or {@code "http/protobuf"})
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setOtlpProtocol(String otlpProtocol) {
+        this.otlpProtocol = otlpProtocol;
+        return this;
+    }
+
+    /**
+     * Gets the OTLP HTTP protocol for traces.
+     * <p>
+     * Maps to the {@code OTEL_EXPORTER_OTLP_TRACES_PROTOCOL} environment variable.
+     *
+     * @return the traces protocol, or {@code null}
+     */
+    public String getOtlpTracesProtocol() {
+        return otlpTracesProtocol;
+    }
+
+    /**
+     * Sets the OTLP HTTP protocol for traces.
+     *
+     * @param otlpTracesProtocol
+     *            the protocol ({@code "http/json"} or {@code "http/protobuf"})
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setOtlpTracesProtocol(String otlpTracesProtocol) {
+        this.otlpTracesProtocol = otlpTracesProtocol;
+        return this;
+    }
+
+    /**
+     * Gets the OTLP HTTP protocol for metrics.
+     * <p>
+     * Maps to the {@code OTEL_EXPORTER_OTLP_METRICS_PROTOCOL} environment variable.
+     *
+     * @return the metrics protocol, or {@code null}
+     */
+    public String getOtlpMetricsProtocol() {
+        return otlpMetricsProtocol;
+    }
+
+    /**
+     * Sets the OTLP HTTP protocol for metrics.
+     *
+     * @param otlpMetricsProtocol
+     *            the protocol ({@code "http/json"} or {@code "http/protobuf"})
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setOtlpMetricsProtocol(String otlpMetricsProtocol) {
+        this.otlpMetricsProtocol = otlpMetricsProtocol;
         return this;
     }
 

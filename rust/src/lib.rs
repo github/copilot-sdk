@@ -402,6 +402,33 @@ impl OtelExporterType {
     }
 }
 
+/// OTLP HTTP protocol used by the CLI's OpenTelemetry OTLP exporter.
+///
+/// Maps to the standard `OTEL_EXPORTER_OTLP_PROTOCOL`,
+/// `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL`, and
+/// `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` environment variables on the spawned
+/// CLI process. Wire values are `"http/json"` and `"http/protobuf"`.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum OtlpHttpProtocol {
+    /// Export using OTLP/HTTP JSON.
+    #[serde(rename = "http/json")]
+    HttpJson,
+    /// Export using OTLP/HTTP protobuf.
+    #[serde(rename = "http/protobuf")]
+    HttpProtobuf,
+}
+
+impl OtlpHttpProtocol {
+    /// Environment-variable value (`"http/json"` or `"http/protobuf"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::HttpJson => "http/json",
+            Self::HttpProtobuf => "http/protobuf",
+        }
+    }
+}
+
 /// OpenTelemetry configuration forwarded to the spawned GitHub Copilot CLI
 /// process.
 ///
@@ -417,6 +444,9 @@ impl OtelExporterType {
 /// |----------------------|-------------------------------------------------------|
 /// | (any field set)      | `COPILOT_OTEL_ENABLED=true`                           |
 /// | [`otlp_endpoint`]    | `OTEL_EXPORTER_OTLP_ENDPOINT`                         |
+/// | [`otlp_protocol`]    | `OTEL_EXPORTER_OTLP_PROTOCOL`                         |
+/// | [`otlp_traces_protocol`] | `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL`              |
+/// | [`otlp_metrics_protocol`] | `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL`            |
 /// | [`file_path`]        | `COPILOT_OTEL_FILE_EXPORTER_PATH`                     |
 /// | [`exporter_type`]    | `COPILOT_OTEL_EXPORTER_TYPE`                          |
 /// | [`source_name`]      | `COPILOT_OTEL_SOURCE_NAME`                            |
@@ -430,6 +460,9 @@ impl OtelExporterType {
 /// added without breaking callers.
 ///
 /// [`otlp_endpoint`]: Self::otlp_endpoint
+/// [`otlp_protocol`]: Self::otlp_protocol
+/// [`otlp_traces_protocol`]: Self::otlp_traces_protocol
+/// [`otlp_metrics_protocol`]: Self::otlp_metrics_protocol
 /// [`file_path`]: Self::file_path
 /// [`exporter_type`]: Self::exporter_type
 /// [`source_name`]: Self::source_name
@@ -439,6 +472,12 @@ impl OtelExporterType {
 pub struct TelemetryConfig {
     /// OTLP HTTP endpoint URL for trace/metric export.
     pub otlp_endpoint: Option<String>,
+    /// OTLP HTTP protocol for all signals.
+    pub otlp_protocol: Option<OtlpHttpProtocol>,
+    /// OTLP HTTP protocol for traces.
+    pub otlp_traces_protocol: Option<OtlpHttpProtocol>,
+    /// OTLP HTTP protocol for metrics.
+    pub otlp_metrics_protocol: Option<OtlpHttpProtocol>,
     /// File path for JSON-lines trace output.
     pub file_path: Option<PathBuf>,
     /// Exporter backend type. Typically [`OtelExporterType::OtlpHttp`] or
@@ -464,6 +503,24 @@ impl TelemetryConfig {
     /// Set the OTLP HTTP endpoint URL for trace/metric export.
     pub fn with_otlp_endpoint(mut self, endpoint: impl Into<String>) -> Self {
         self.otlp_endpoint = Some(endpoint.into());
+        self
+    }
+
+    /// Set the OTLP HTTP protocol for all signals.
+    pub fn with_otlp_protocol(mut self, protocol: OtlpHttpProtocol) -> Self {
+        self.otlp_protocol = Some(protocol);
+        self
+    }
+
+    /// Set the OTLP HTTP protocol for traces.
+    pub fn with_otlp_traces_protocol(mut self, protocol: OtlpHttpProtocol) -> Self {
+        self.otlp_traces_protocol = Some(protocol);
+        self
+    }
+
+    /// Set the OTLP HTTP protocol for metrics.
+    pub fn with_otlp_metrics_protocol(mut self, protocol: OtlpHttpProtocol) -> Self {
+        self.otlp_metrics_protocol = Some(protocol);
         self
     }
 
@@ -499,6 +556,9 @@ impl TelemetryConfig {
     /// to decide whether to set `COPILOT_OTEL_ENABLED`.
     pub fn is_empty(&self) -> bool {
         self.otlp_endpoint.is_none()
+            && self.otlp_protocol.is_none()
+            && self.otlp_traces_protocol.is_none()
+            && self.otlp_metrics_protocol.is_none()
             && self.file_path.is_none()
             && self.exporter_type.is_none()
             && self.source_name.is_none()
@@ -1208,6 +1268,15 @@ impl Client {
             command.env("COPILOT_OTEL_ENABLED", "true");
             if let Some(endpoint) = &telemetry.otlp_endpoint {
                 command.env("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
+            }
+            if let Some(protocol) = telemetry.otlp_protocol {
+                command.env("OTEL_EXPORTER_OTLP_PROTOCOL", protocol.as_str());
+            }
+            if let Some(protocol) = telemetry.otlp_traces_protocol {
+                command.env("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", protocol.as_str());
+            }
+            if let Some(protocol) = telemetry.otlp_metrics_protocol {
+                command.env("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", protocol.as_str());
             }
             if let Some(path) = &telemetry.file_path {
                 command.env("COPILOT_OTEL_FILE_EXPORTER_PATH", path);
@@ -2115,12 +2184,21 @@ mod tests {
     fn telemetry_config_builder_composes() {
         let cfg = TelemetryConfig::new()
             .with_otlp_endpoint("http://collector:4318")
+            .with_otlp_protocol(OtlpHttpProtocol::HttpProtobuf)
+            .with_otlp_traces_protocol(OtlpHttpProtocol::HttpJson)
+            .with_otlp_metrics_protocol(OtlpHttpProtocol::HttpProtobuf)
             .with_file_path(PathBuf::from("/var/log/copilot.jsonl"))
             .with_exporter_type(OtelExporterType::OtlpHttp)
             .with_source_name("my-app")
             .with_capture_content(true);
 
         assert_eq!(cfg.otlp_endpoint.as_deref(), Some("http://collector:4318"));
+        assert_eq!(cfg.otlp_protocol, Some(OtlpHttpProtocol::HttpProtobuf));
+        assert_eq!(cfg.otlp_traces_protocol, Some(OtlpHttpProtocol::HttpJson),);
+        assert_eq!(
+            cfg.otlp_metrics_protocol,
+            Some(OtlpHttpProtocol::HttpProtobuf),
+        );
         assert_eq!(
             cfg.file_path.as_deref(),
             Some(Path::new("/var/log/copilot.jsonl")),
@@ -2137,6 +2215,9 @@ mod tests {
         let opts = ClientOptions {
             telemetry: Some(TelemetryConfig {
                 otlp_endpoint: Some("http://collector:4318".to_string()),
+                otlp_protocol: Some(OtlpHttpProtocol::HttpProtobuf),
+                otlp_traces_protocol: Some(OtlpHttpProtocol::HttpJson),
+                otlp_metrics_protocol: Some(OtlpHttpProtocol::HttpProtobuf),
                 file_path: Some(PathBuf::from("/var/log/copilot.jsonl")),
                 exporter_type: Some(OtelExporterType::OtlpHttp),
                 source_name: Some("my-app".to_string()),
@@ -2152,6 +2233,18 @@ mod tests {
         assert_eq!(
             env_value(&cmd, "OTEL_EXPORTER_OTLP_ENDPOINT"),
             Some(std::ffi::OsStr::new("http://collector:4318")),
+        );
+        assert_eq!(
+            env_value(&cmd, "OTEL_EXPORTER_OTLP_PROTOCOL"),
+            Some(std::ffi::OsStr::new("http/protobuf")),
+        );
+        assert_eq!(
+            env_value(&cmd, "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"),
+            Some(std::ffi::OsStr::new("http/json")),
+        );
+        assert_eq!(
+            env_value(&cmd, "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"),
+            Some(std::ffi::OsStr::new("http/protobuf")),
         );
         assert_eq!(
             env_value(&cmd, "COPILOT_OTEL_FILE_EXPORTER_PATH"),
@@ -2178,6 +2271,9 @@ mod tests {
         for key in [
             "COPILOT_OTEL_ENABLED",
             "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_PROTOCOL",
+            "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+            "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
             "COPILOT_OTEL_FILE_EXPORTER_PATH",
             "COPILOT_OTEL_EXPORTER_TYPE",
             "COPILOT_OTEL_SOURCE_NAME",
@@ -2211,6 +2307,9 @@ mod tests {
         );
         // None of the other fields should leak as env vars.
         for key in [
+            "OTEL_EXPORTER_OTLP_PROTOCOL",
+            "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+            "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
             "COPILOT_OTEL_FILE_EXPORTER_PATH",
             "COPILOT_OTEL_EXPORTER_TYPE",
             "COPILOT_OTEL_SOURCE_NAME",

@@ -1695,6 +1695,15 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		if t.OTLPEndpoint != "" {
 			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_ENDPOINT", t.OTLPEndpoint)
 		}
+		if t.OTLPProtocol != "" {
+			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_PROTOCOL", t.OTLPProtocol)
+		}
+		if t.OTLPTracesProtocol != "" {
+			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", t.OTLPTracesProtocol)
+		}
+		if t.OTLPMetricsProtocol != "" {
+			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", t.OTLPMetricsProtocol)
+		}
 		if t.FilePath != "" {
 			c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_FILE_EXPORTER_PATH", t.FilePath)
 		}

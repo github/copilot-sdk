@@ -104,10 +104,15 @@ let client = Client::start(ClientOptions::new()
 | Option | Node.js | Python | Go | .NET | Java | Rust | Description |
 |---|---|---|---|---|---|---|---|
 | OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `OtlpEndpoint` | `otlpEndpoint` | `otlp_endpoint` | OTLP HTTP endpoint URL |
+| OTLP protocol | `otlpProtocol` | `otlp_protocol` | `OTLPProtocol` | `OtlpProtocol` | `otlpProtocol` | `otlp_protocol` | OTLP HTTP protocol for all signals: `"http/json"` or `"http/protobuf"` |
+| OTLP traces protocol | `otlpTracesProtocol` | `otlp_traces_protocol` | `OTLPTracesProtocol` | `OtlpTracesProtocol` | `otlpTracesProtocol` | `otlp_traces_protocol` | OTLP HTTP protocol override for traces |
+| OTLP metrics protocol | `otlpMetricsProtocol` | `otlp_metrics_protocol` | `OTLPMetricsProtocol` | `OtlpMetricsProtocol` | `otlpMetricsProtocol` | `otlp_metrics_protocol` | OTLP HTTP protocol override for metrics |
 | File path | `filePath` | `file_path` | `FilePath` | `FilePath` | `filePath` | `file_path` | File path for JSON-lines trace output |
 | Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `ExporterType` | `exporterType` | `exporter_type` | `"otlp-http"` or `"file"` |
 | Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | `sourceName` | `source_name` | Instrumentation scope name |
 | Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | `captureContent` | `capture_content` | Whether to capture message content |
+
+The OTLP protocol fields configure the CLI's `"otlp-http"` exporter. Leave them unset to use the CLI default (`"http/json"`), set the general protocol for both traces and metrics, or use the traces/metrics fields to override one signal.
 
 ### Trace context propagation
 

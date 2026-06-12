@@ -92,6 +92,9 @@ function saveCapture() {
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+      OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
+      OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL,
+      OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
       COPILOT_OTEL_FILE_EXPORTER_PATH: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
       COPILOT_OTEL_EXPORTER_TYPE: process.env.COPILOT_OTEL_EXPORTER_TYPE,
       COPILOT_OTEL_SOURCE_NAME: process.env.COPILOT_OTEL_SOURCE_NAME,
@@ -218,6 +221,9 @@ class TestClientOptions:
                 session_idle_timeout_seconds=17,
                 telemetry={
                     "otlp_endpoint": "http://127.0.0.1:4318",
+                    "otlp_protocol": "http/protobuf",
+                    "otlp_traces_protocol": "http/json",
+                    "otlp_metrics_protocol": "http/protobuf",
                     "file_path": telemetry_path,
                     "exporter_type": "file",
                     "source_name": "python-sdk-e2e",
@@ -246,6 +252,9 @@ class TestClientOptions:
             assert env["COPILOT_SDK_AUTH_TOKEN"] == "process-option-token"
             assert env["COPILOT_OTEL_ENABLED"] == "true"
             assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://127.0.0.1:4318"
+            assert env["OTEL_EXPORTER_OTLP_PROTOCOL"] == "http/protobuf"
+            assert env["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] == "http/json"
+            assert env["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"] == "http/protobuf"
             assert env["COPILOT_OTEL_FILE_EXPORTER_PATH"] == telemetry_path
             assert env["COPILOT_OTEL_EXPORTER_TYPE"] == "file"
             assert env["COPILOT_OTEL_SOURCE_NAME"] == "python-sdk-e2e"
@@ -269,6 +278,41 @@ class TestClientOptions:
                 assert params["includeSubAgentStreamingEvents"] is False
             finally:
                 await session.disconnect()
+        finally:
+            try:
+                await client.stop()
+            except Exception:
+                await client.force_stop()
+
+    async def test_should_only_set_configured_otlp_protocol_env_vars(self, ctx: E2ETestContext):
+        cli_path = os.path.join(ctx.work_dir, "fake-cli-protocol-partial.js")
+        capture_path = os.path.join(ctx.work_dir, "fake-cli-protocol-partial-capture.json")
+        with open(cli_path, "w") as f:
+            f.write(FAKE_STDIO_CLI_SCRIPT)
+
+        client = CopilotClient(
+            **_make_options(
+                ctx,
+                cli_path=cli_path,
+                cli_args=["--capture-file", capture_path],
+                github_token="process-option-token",
+                telemetry={
+                    "otlp_traces_protocol": "http/protobuf",
+                },
+                use_logged_in_user=False,
+            ),
+        )
+        try:
+            await client.start()
+
+            with open(capture_path) as f:
+                capture = json.load(f)
+            env = capture["env"]
+
+            assert env["COPILOT_OTEL_ENABLED"] == "true"
+            assert env["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] == "http/protobuf"
+            assert "OTEL_EXPORTER_OTLP_PROTOCOL" not in env
+            assert "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL" not in env
         finally:
             try:
                 await client.stop()

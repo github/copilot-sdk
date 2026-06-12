@@ -786,6 +786,9 @@ With just this configuration, the CLI emits spans for every session, message, an
 **TelemetryConfig options:**
 
 - `otlpEndpoint?: string` - OTLP HTTP endpoint URL
+- `otlpProtocol?: "http/json" | "http/protobuf"` - OTLP HTTP protocol for all signals
+- `otlpTracesProtocol?: "http/json" | "http/protobuf"` - OTLP HTTP protocol override for traces
+- `otlpMetricsProtocol?: "http/json" | "http/protobuf"` - OTLP HTTP protocol override for metrics
 - `filePath?: string` - File path for JSON-lines trace output
 - `exporterType?: string` - `"otlp-http"` or `"file"`
 - `sourceName?: string` - Instrumentation scope name

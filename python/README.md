@@ -557,6 +557,9 @@ client = CopilotClient(
 **TelemetryConfig options:**
 
 - `otlp_endpoint` (str): OTLP HTTP endpoint URL
+- `otlp_protocol` (str): OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
+- `otlp_traces_protocol` (str): OTLP HTTP protocol override for traces
+- `otlp_metrics_protocol` (str): OTLP HTTP protocol override for metrics
 - `file_path` (str): File path for JSON-lines trace output
 - `exporter_type` (str): `"otlp-http"` or `"file"`
 - `source_name` (str): Instrumentation scope name
