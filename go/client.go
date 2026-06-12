@@ -629,6 +629,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ToolFilterPrecedence = precedence
 	req.Provider = config.Provider
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.IsExperimentalMode = config.IsExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
@@ -923,6 +924,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.Tools = config.Tools
 	req.Provider = config.Provider
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.IsExperimentalMode = config.IsExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled

@@ -2474,6 +2474,7 @@ public abstract class SessionConfigBase
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
+        IsExperimentalMode = other.IsExperimentalMode;
         SkipCustomInstructions = other.SkipCustomInstructions;
         CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
         CoauthorEnabled = other.CoauthorEnabled;
@@ -2638,6 +2639,17 @@ public abstract class SessionConfigBase
     /// OpenTelemetry export for observability.
     /// </summary>
     public bool? EnableSessionTelemetry { get; set; }
+
+    /// <summary>
+    /// Overrides the session's experimental feature-flag tier resolution.
+    /// </summary>
+    /// <remarks>
+    /// Set to <see langword="true"/> to force-enable the experimental tier for this
+    /// session, or <see langword="false"/> to resolve feature flags as if
+    /// experimental were off. Leave <see langword="null"/> to inherit the runtime
+    /// process defaults unchanged.
+    /// </remarks>
+    public bool? IsExperimentalMode { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, suppresses loading of custom instruction files

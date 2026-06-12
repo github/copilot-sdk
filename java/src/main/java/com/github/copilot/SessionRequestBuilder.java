@@ -114,6 +114,7 @@ final class SessionRequestBuilder {
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
+        config.getIsExperimentalMode().ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -225,6 +226,7 @@ final class SessionRequestBuilder {
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
+        config.getIsExperimentalMode().ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }

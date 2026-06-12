@@ -1587,6 +1587,15 @@ export interface SessionConfigBase {
     reasoningSummary?: ReasoningSummary;
 
     /**
+     * Per-session experimental feature-flag tier override.
+     *
+     * Set to `true` to force-enable the experimental tier for this session, or
+     * `false` to resolve feature flags as if experimental were off. Leave
+     * unset to inherit the runtime process defaults unchanged.
+     */
+    isExperimentalMode?: boolean;
+
+    /**
      * Context window tier for models that support it. Use "long_context" to pin
      * the session to the long-context tier; omit or use "default" otherwise.
      */

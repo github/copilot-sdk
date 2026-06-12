@@ -46,6 +46,7 @@ public class ResumeSessionConfig {
     private List<String> excludedTools;
     private ProviderConfig provider;
     private Boolean enableSessionTelemetry;
+    private Boolean isExperimentalMode;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
@@ -294,6 +295,43 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Overrides the resumed session's experimental feature-flag tier resolution.
+     *
+     * @return {@code true} to force-enable the experimental tier, {@code false} to
+     *         resolve feature flags as if experimental were off, or empty to
+     *         inherit the runtime process defaults unchanged
+     */
+    @JsonIgnore
+    public Optional<Boolean> getIsExperimentalMode() {
+        return Optional.ofNullable(isExperimentalMode);
+    }
+
+    /**
+     * Overrides the resumed session's experimental feature-flag tier resolution.
+     *
+     * @param isExperimentalMode
+     *            {@code true} to force-enable the experimental tier for this
+     *            session, {@code false} to resolve feature flags as if experimental
+     *            were off
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setIsExperimentalMode(boolean isExperimentalMode) {
+        this.isExperimentalMode = isExperimentalMode;
+        return this;
+    }
+
+    /**
+     * Clears the isExperimentalMode setting, reverting to the runtime default
+     * behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearIsExperimentalMode() {
+        this.isExperimentalMode = null;
         return this;
     }
 
@@ -1527,6 +1565,7 @@ public class ResumeSessionConfig {
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
+        copy.isExperimentalMode = this.isExperimentalMode;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;

@@ -164,6 +164,10 @@ public final class CreateSessionRequest {
     @JsonProperty("requestMcpApps")
     private Boolean requestMcpApps;
 
+    @JsonProperty("isExperimentalMode")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean isExperimentalMode;
+
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
 
@@ -757,6 +761,21 @@ public final class CreateSessionRequest {
     /** Clears the requestMcpApps setting, reverting to the default behavior. */
     public void clearRequestMcpApps() {
         this.requestMcpApps = null;
+    }
+
+    /** Gets the isExperimentalMode flag. @return the flag */
+    public Boolean getIsExperimentalMode() {
+        return isExperimentalMode;
+    }
+
+    /** Sets the isExperimentalMode flag. @param isExperimentalMode the flag */
+    public void setIsExperimentalMode(boolean isExperimentalMode) {
+        this.isExperimentalMode = isExperimentalMode;
+    }
+
+    /** Clears the isExperimentalMode setting, reverting to the default behavior. */
+    public void clearIsExperimentalMode() {
+        this.isExperimentalMode = null;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */

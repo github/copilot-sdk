@@ -980,6 +980,12 @@ type SessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// IsExperimentalMode, when non-nil, overrides the session's experimental
+	// feature-flag tier resolution. Use Bool(true) to force-enable the
+	// experimental tier for this session, Bool(false) to resolve feature flags
+	// as if experimental were off, or nil to inherit the runtime process
+	// defaults unchanged.
+	IsExperimentalMode *bool
 	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
 	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
 	SkipCustomInstructions *bool
@@ -1295,6 +1301,12 @@ type ResumeSessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// IsExperimentalMode, when non-nil, overrides the resumed session's
+	// experimental feature-flag tier resolution. Use Bool(true) to force-enable
+	// the experimental tier for this session, Bool(false) to resolve feature
+	// flags as if experimental were off, or nil to inherit the runtime process
+	// defaults unchanged.
+	IsExperimentalMode *bool
 	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
 	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
 	SkipCustomInstructions *bool
@@ -1690,6 +1702,7 @@ type createSessionRequest struct {
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
 	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`
@@ -1768,6 +1781,7 @@ type resumeSessionRequest struct {
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
 	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`

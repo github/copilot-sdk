@@ -99,6 +99,19 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildCreateRequestSetsIsExperimentalMode() {
+        var config = new SessionConfig().setIsExperimentalMode(false);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertFalse(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildCreateRequestOmitsIsExperimentalModeWhenNotSet() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        assertNull(request.getIsExperimentalMode());
+    }
+
+    @Test
     void testBuildCreateRequestSetsContextTier() {
         var config = new SessionConfig().setContextTier("long_context");
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
@@ -174,6 +187,20 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig();
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
         assertNull(request.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsIsExperimentalMode() {
+        var config = new ResumeSessionConfig().setIsExperimentalMode(true);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertTrue(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildResumeRequestOmitsIsExperimentalModeWhenNotSet() {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertNull(request.getIsExperimentalMode());
     }
 
     @Test

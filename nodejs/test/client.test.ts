@@ -138,6 +138,38 @@ describe("CopilotClient", () => {
         expect(resumePayload.reasoningSummary).toBe("none");
     });
 
+    it("forwards isExperimentalMode in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            isExperimentalMode: false,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            isExperimentalMode: true,
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.isExperimentalMode).toBe(false);
+        expect(resumePayload.isExperimentalMode).toBe(true);
+    });
+
     it("forwards contextTier in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();

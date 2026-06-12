@@ -1563,6 +1563,7 @@ class CopilotClient:
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        is_experimental_mode: bool | None = None,
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
@@ -1636,6 +1637,11 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
+            is_experimental_mode: Per-session experimental feature-flag tier
+                override. Set ``True`` to force-enable the experimental tier for
+                this session or ``False`` to resolve feature flags as if
+                experimental were off. Omit to inherit the runtime process
+                defaults unchanged.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -1784,6 +1790,8 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if reasoning_summary:
             payload["reasoningSummary"] = reasoning_summary
+        if is_experimental_mode is not None:
+            payload["isExperimentalMode"] = is_experimental_mode
         if context_tier:
             payload["contextTier"] = context_tier
         if tool_defs:
@@ -2174,6 +2182,7 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         enable_mcp_apps: bool = False,
+        is_experimental_mode: bool | None = None,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
@@ -2206,6 +2215,11 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
+            is_experimental_mode: Per-session experimental feature-flag tier
+                override. Set ``True`` to force-enable the experimental tier for
+                this resumed session or ``False`` to resolve feature flags as if
+                experimental were off. Omit to inherit the runtime process
+                defaults unchanged.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -2355,6 +2369,8 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if reasoning_summary:
             payload["reasoningSummary"] = reasoning_summary
+        if is_experimental_mode is not None:
+            payload["isExperimentalMode"] = is_experimental_mode
         if context_tier:
             payload["contextTier"] = context_tier
         if tool_defs:
