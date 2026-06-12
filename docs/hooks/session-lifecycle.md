@@ -554,6 +554,6 @@ Session Summary:
 
 ## See also
 
-* [Hooks Overview](./index.md)
+* [Hooks Overview](./README.md)
 * [Error Handling Hook](./error-handling.md)
 * [Debugging Guide](../troubleshooting/debugging.md)
