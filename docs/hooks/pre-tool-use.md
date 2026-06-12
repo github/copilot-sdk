@@ -454,6 +454,6 @@ const session = await client.createSession({
 
 ## See also
 
-* [Hooks Overview](./index.md)
+* [Hooks Overview](./README.md)
 * [Post-Tool Use Hook](./post-tool-use.md)
 * [Debugging Guide](../troubleshooting/debugging.md)
