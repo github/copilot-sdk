@@ -58,11 +58,8 @@ describe("Session-scoped RPC", async () => {
         const before = await session.rpc.model.getCurrent();
         expect(before.modelId).toBeTruthy();
 
-        const switchPromise = session.rpc.model.switchTo({
-            modelId: "gpt-4.1",
-            reasoningEffort: "high",
-        });
-
+        // Subscribe before triggering the switch so a fast model_change event
+        // can't fire before the listener is registered (the original race).
         const eventPromise = waitForEvent(
             session,
             (event): event is Extract<SessionEvent, { type: "session.model_change" }> =>
@@ -70,12 +67,21 @@ describe("Session-scoped RPC", async () => {
             "session.model_change event after switchTo"
         );
 
+        const switchPromise = session.rpc.model.switchTo({
+            modelId: "gpt-4.1",
+            reasoningEffort: "high",
+        });
+
         const [result, event] = await Promise.all([switchPromise, eventPromise]);
         const after = await session.rpc.model.getCurrent();
 
+        // Don't hard-code the resolved model: environments without auth fall
+        // back to a default. Assert the switchTo result and the model_change
+        // event agree (same server operation), and that getCurrent stays
+        // readable -- switchTo does not synchronously update it.
         expect(result.modelId).toBeTruthy();
+        expect(event.data.newModel).toBe(result.modelId);
         expect(after.modelId).toBeTruthy();
-        expect(event.data.newModel).toBeTruthy();
 
         await session.disconnect();
     });
