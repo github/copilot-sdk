@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict
 
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcError, ProcessExitedError
+from ._model_capabilities import ModelCapabilitiesOverride, capabilities_to_dict
+from ._reset import ResetSessionResult
 from ._telemetry import get_trace_context, trace_context
 from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
 from .generated.rpc import (
@@ -83,22 +85,10 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from .client import ModelCapabilitiesOverride
     from .session_fs_provider import SessionFsProvider
 
 # Re-export SessionEvent under an alias used internally
 SessionEventTypeAlias = SessionEvent
-
-
-@dataclass
-class ResetSessionResult:
-    """Result returned by :meth:`CopilotSession.reset`."""
-
-    previous_session_id: str
-    """The session ID that was closed and replaced."""
-
-    session: CopilotSession
-    """The fresh session created from the supplied reset configuration."""
 
 
 _ResetSessionCallback = Callable[["CopilotSession", dict[str, Any]], Awaitable[ResetSessionResult]]
@@ -2513,10 +2503,8 @@ class CopilotSession:
         """
         rpc_caps = None
         if model_capabilities is not None:
-            from .client import _capabilities_to_dict
-
             rpc_caps = _RpcModelCapabilitiesOverride.from_dict(
-                _capabilities_to_dict(model_capabilities)
+                capabilities_to_dict(model_capabilities)
             )
         await self.rpc.model.switch_to(
             ModelSwitchToRequest(

@@ -2393,8 +2393,7 @@ mod tests {
     use serde_json::json;
     use tokio_util::sync::CancellationToken;
 
-    use super::Session;
-    use super::notification_permission_payload;
+    use super::{Session, notification_permission_payload};
     use crate::handler::PermissionResult;
     use crate::types::{SessionConfig, SessionId};
     use crate::{Client, ErrorKind, SessionErrorKind};

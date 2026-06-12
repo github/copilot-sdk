@@ -16,6 +16,7 @@ from ._mode import (
     CopilotClientMode,
     ToolSet,
 )
+from ._reset import ResetSessionResult
 from .canvas import (
     CanvasAction,
     CanvasDeclaration,
@@ -114,7 +115,6 @@ from .session import (
     PreToolUseHookOutput,
     ProviderConfig,
     ReasoningSummary,
-    ResetSessionResult,
     SessionCapabilities,
     SessionEndHandler,
     SessionEndHookInput,

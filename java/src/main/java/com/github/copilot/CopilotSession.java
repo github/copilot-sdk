@@ -2173,11 +2173,15 @@ public final class CopilotSession implements AutoCloseable {
             isTerminated = true;
         }
 
+        if (cleanupOnFailure) {
+            forceLocalClose();
+        }
+
         return rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class)
                 .whenComplete((ignored, error) -> {
-                    if (error == null || cleanupOnFailure) {
+                    if (error == null && !cleanupOnFailure) {
                         forceLocalClose();
-                    } else {
+                    } else if (error != null && !cleanupOnFailure) {
                         synchronized (this) {
                             isTerminated = false;
                         }

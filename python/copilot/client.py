@@ -32,6 +32,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
+from . import _model_capabilities
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._mode import (
@@ -53,6 +54,7 @@ from ._mode import (
     _system_message_for_mode,
     _validate_tool_filter_list,
 )
+from ._reset import ResetSessionResult
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context
 from .canvas import (
@@ -90,7 +92,6 @@ from .session import (
     ProviderConfig,
     ReasoningEffort,
     ReasoningSummary,
-    ResetSessionResult,
     SectionTransformFn,
     SessionFsConfig,
     SessionHooks,
@@ -102,6 +103,12 @@ from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
 from .tools import Tool
 
 logger = logging.getLogger(__name__)
+
+ModelCapabilitiesOverride = _model_capabilities.ModelCapabilitiesOverride
+ModelLimitsOverride = _model_capabilities.ModelLimitsOverride
+ModelSupportsOverride = _model_capabilities.ModelSupportsOverride
+ModelVisionLimitsOverride = _model_capabilities.ModelVisionLimitsOverride
+_capabilities_to_dict = _model_capabilities.capabilities_to_dict
 
 # ============================================================================
 # Connection Types
@@ -581,66 +588,6 @@ class ModelCapabilities:
         result["supports"] = self.supports.to_dict()
         result["limits"] = self.limits.to_dict()
         return result
-
-
-@dataclass
-class ModelVisionLimitsOverride:
-    supported_media_types: list[str] | None = None
-    max_prompt_images: int | None = None
-    max_prompt_image_size: int | None = None
-
-
-@dataclass
-class ModelLimitsOverride:
-    max_prompt_tokens: int | None = None
-    max_output_tokens: int | None = None
-    max_context_window_tokens: int | None = None
-    vision: ModelVisionLimitsOverride | None = None
-
-
-@dataclass
-class ModelSupportsOverride:
-    vision: bool | None = None
-    reasoning_effort: bool | None = None
-
-
-@dataclass
-class ModelCapabilitiesOverride:
-    supports: ModelSupportsOverride | None = None
-    limits: ModelLimitsOverride | None = None
-
-
-def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
-    result: dict = {}
-    if caps.supports is not None:
-        s: dict = {}
-        if caps.supports.vision is not None:
-            s["vision"] = caps.supports.vision
-        if caps.supports.reasoning_effort is not None:
-            s["reasoningEffort"] = caps.supports.reasoning_effort
-        if s:
-            result["supports"] = s
-    if caps.limits is not None:
-        lim: dict = {}
-        if caps.limits.max_prompt_tokens is not None:
-            lim["max_prompt_tokens"] = caps.limits.max_prompt_tokens
-        if caps.limits.max_output_tokens is not None:
-            lim["max_output_tokens"] = caps.limits.max_output_tokens
-        if caps.limits.max_context_window_tokens is not None:
-            lim["max_context_window_tokens"] = caps.limits.max_context_window_tokens
-        if caps.limits.vision is not None:
-            v: dict = {}
-            if caps.limits.vision.supported_media_types is not None:
-                v["supported_media_types"] = caps.limits.vision.supported_media_types
-            if caps.limits.vision.max_prompt_images is not None:
-                v["max_prompt_images"] = caps.limits.vision.max_prompt_images
-            if caps.limits.vision.max_prompt_image_size is not None:
-                v["max_prompt_image_size"] = caps.limits.vision.max_prompt_image_size
-            if v:
-                lim["vision"] = v
-        if lim:
-            result["limits"] = lim
-    return result
 
 
 @dataclass
