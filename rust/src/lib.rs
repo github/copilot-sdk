@@ -1550,11 +1550,9 @@ impl Client {
             .inner
             .next_session_registration_id
             .fetch_add(1, Ordering::Relaxed);
+        let mut registrations = self.inner.session_registrations.lock();
         let channels = self.inner.router.register(session_id);
-        self.inner
-            .session_registrations
-            .lock()
-            .insert(session_id.clone(), registration_id);
+        registrations.insert(session_id.clone(), registration_id);
         (channels, registration_id)
     }
 
@@ -1568,7 +1566,6 @@ impl Client {
             return;
         }
         registrations.remove(session_id);
-        drop(registrations);
         self.inner.router.unregister(session_id);
     }
 

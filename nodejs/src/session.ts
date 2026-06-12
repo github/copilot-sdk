@@ -1216,17 +1216,24 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
-        const response = await this.connection.sendRequest("session.destroy", {
-            sessionId: this.sessionId,
-        });
-        const { success, error } = response as { success?: boolean; error?: string };
-        if (success === false) {
-            throw new Error(
-                `Failed to destroy session ${this.sessionId}: ${error || "Unknown error"}`
-            );
+        const unregisterDelegate = this.unregisterDelegate;
+        try {
+            const response = await this.connection.sendRequest("session.destroy", {
+                sessionId: this.sessionId,
+            });
+            const { success, error } = response as { success?: boolean; error?: string };
+            if (success === false) {
+                throw new Error(
+                    `Failed to destroy session ${this.sessionId}: ${error || "Unknown error"}`
+                );
+            }
+        } finally {
+            try {
+                unregisterDelegate?.(this.sessionId);
+            } finally {
+                this.clearLocalState();
+            }
         }
-        this.unregisterDelegate?.(this.sessionId);
-        this.clearLocalState();
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */

@@ -756,11 +756,16 @@ public final class CopilotClient implements AutoCloseable {
                     "Cannot reset session " + previousSessionId + ": it is not active on this client."));
         }
 
-        SessionConfig resetConfig = config.clone().setSessionId(null);
-        return session.getRpc().queue.clear().thenCompose(v -> session.destroyForResetAsync())
-                .thenCompose(v -> createSession(resetConfig))
-                .thenApply(freshSession -> new ResetSessionResult(previousSessionId, freshSession))
-                .whenComplete((ignored, error) -> resettingSessions.remove(previousSessionId));
+        try {
+            SessionConfig resetConfig = config.clone().setSessionId(null);
+            return session.getRpc().queue.clear().thenCompose(v -> session.destroyForResetAsync())
+                    .thenCompose(v -> createSession(resetConfig))
+                    .thenApply(freshSession -> new ResetSessionResult(previousSessionId, freshSession))
+                    .whenComplete((ignored, error) -> resettingSessions.remove(previousSessionId));
+        } catch (RuntimeException | Error ex) {
+            resettingSessions.remove(previousSessionId);
+            return CompletableFuture.failedFuture(ex);
+        }
     }
 
     void unregisterSession(String sessionId) {

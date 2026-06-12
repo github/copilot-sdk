@@ -13,6 +13,43 @@ import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
+    it.each([
+        {
+            name: "transport failure",
+            sendRequest: async () => {
+                throw new Error("transport down");
+            },
+            expectedError: /transport down/,
+        },
+        {
+            name: "destroy failure response",
+            sendRequest: async () => ({ success: false, error: "destroy failed" }),
+            expectedError: /Failed to destroy session session-1: destroy failed/,
+        },
+    ])("disconnect clears local state and unregisters after $name", async (scenario) => {
+        const sendRequest = vi.fn(scenario.sendRequest);
+        const unregister = vi.fn();
+        const session = new CopilotSession(
+            "session-1",
+            { sendRequest } as any,
+            undefined,
+            undefined,
+            vi.fn(),
+            unregister
+        );
+        session.registerPermissionHandler(vi.fn());
+        session.registerTools([{ name: "cleanup-tool", handler: vi.fn() }] as any);
+
+        await expect(session.disconnect()).rejects.toThrow(scenario.expectedError);
+
+        expect(sendRequest).toHaveBeenCalledWith("session.destroy", { sessionId: "session-1" });
+        expect(unregister).toHaveBeenCalledWith("session-1");
+        expect((session as any).permissionHandler).toBeUndefined();
+        expect(session.getToolHandler("cleanup-tool")).toBeUndefined();
+        expect((session as any).resetDelegate).toBeUndefined();
+        expect((session as any).unregisterDelegate).toBeUndefined();
+    });
+
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
         const session = new CopilotSession("session-1", {} as any);
         session.registerPermissionHandler(() => ({ kind: "no-result" }));
