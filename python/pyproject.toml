@@ -44,6 +44,11 @@ dev = [
     "httpx>=0.24.0",
     "opentelemetry-sdk>=1.0.0",
 ]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-autodoc-typehints>=2.0",
+    "furo>=2024.0",
+]
 telemetry = [
     "opentelemetry-api>=1.0.0",
 ]
