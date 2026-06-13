@@ -896,31 +896,92 @@ function collapsePlaceholderPythonDataclasses(code: string, knownDefinitionNames
 }
 
 function removeUnusedSyntheticPythonDataclasses(code: string, knownDefinitionNames: Set<string>): string {
-    let changed = true;
+    interface DataclassBlock {
+        name: string;
+        text: string;
+        start: number;
+        end: number;
+        synthetic: boolean;
+    }
 
-    while (changed) {
-        changed = false;
-        const classBlockRe =
-            /((?:^# (?:Experimental|Deprecated|Internal):[^\n]*\r?\n)*@dataclass\r?\nclass\s+(\w+):[\s\S]*?)(?=^(?:# (?:Experimental|Deprecated|Internal):[^\n]*\r?\n)*@dataclass|^class\s+\w|^def\s+\w|^[A-Z]\w+\s*=|\Z)/gm;
-        const matches = [...code.matchAll(classBlockRe)];
+    const classBlockRe =
+        /((?:^# (?:Experimental|Deprecated|Internal):[^\n]*\r?\n)*@dataclass(?:\([^\r\n]*\))?\r?\nclass\s+(\w+):[\s\S]*?)(?=^(?:# (?:Experimental|Deprecated|Internal):[^\n]*\r?\n)*@dataclass(?:\([^\r\n]*\))?\r?\nclass\s+\w|^class\s+\w|^def\s+\w|^[A-Z]\w+\s*=|\Z)/gm;
+    const blocks: DataclassBlock[] = [...code.matchAll(classBlockRe)].map((match) => ({
+        name: match[2],
+        text: match[1],
+        start: match.index ?? 0,
+        end: (match.index ?? 0) + match[1].length,
+        synthetic: !knownDefinitionNames.has(match[2].toLowerCase()),
+    }));
+    const syntheticBlocks = blocks.filter((block) => block.synthetic);
+    if (syntheticBlocks.length === 0) return code;
 
-        for (const match of matches) {
-            const fullBlock = match[1];
-            const className = match[2];
-            if (knownDefinitionNames.has(className.toLowerCase())) continue;
+    let outsideSyntheticBlocks = "";
+    let cursor = 0;
+    for (const block of syntheticBlocks) {
+        outsideSyntheticBlocks += code.slice(cursor, block.start);
+        cursor = block.end;
+    }
+    outsideSyntheticBlocks += code.slice(cursor);
 
-            const before = code.slice(0, match.index);
-            const after = code.slice((match.index ?? 0) + fullBlock.length);
-            const referenceRe = new RegExp(`\\b${escapeRegExp(className)}\\b`);
-            if (referenceRe.test(before) || referenceRe.test(after)) continue;
+    const syntheticNames = new Set(syntheticBlocks.map((block) => block.name));
+    const dependencies = new Map<string, Set<string>>();
+    const live = new Set<string>();
 
-            code = `${before}${after}`;
-            changed = true;
-            break;
+    for (const block of syntheticBlocks) {
+        const referenceRe = new RegExp(`\\b${escapeRegExp(block.name)}\\b`);
+        if (referenceRe.test(outsideSyntheticBlocks)) {
+            live.add(block.name);
+        }
+
+        const blockDependencies = new Set<string>();
+        for (const dependency of syntheticNames) {
+            if (dependency === block.name) continue;
+            const dependencyRe = new RegExp(`\\b${escapeRegExp(dependency)}\\b`);
+            if (dependencyRe.test(block.text)) {
+                blockDependencies.add(dependency);
+            }
+        }
+        dependencies.set(block.name, blockDependencies);
+    }
+
+    const worklist = [...live];
+    while (worklist.length > 0) {
+        const name = worklist.pop()!;
+        for (const dependency of dependencies.get(name) ?? []) {
+            if (live.has(dependency)) continue;
+            live.add(dependency);
+            worklist.push(dependency);
         }
     }
 
-    return code;
+    const blocksToRemove = new Set(syntheticBlocks.filter((block) => !live.has(block.name)).map((block) => block.name));
+    if (blocksToRemove.size === 0) return code;
+
+    const appendSegment = (parts: string[], segment: string): void => {
+        if (parts.length === 0 || segment.length === 0) {
+            parts.push(segment);
+            return;
+        }
+        const previous = parts[parts.length - 1];
+        const trailingNewlines = previous.match(/\n+$/)?.[0].length ?? 0;
+        const leadingNewlines = segment.match(/^\n+/)?.[0].length ?? 0;
+        if (trailingNewlines + leadingNewlines > 2) {
+            segment = "\n".repeat(Math.max(0, 2 - trailingNewlines)) + segment.slice(leadingNewlines);
+        }
+        parts.push(segment);
+    };
+
+    const parts: string[] = [];
+    cursor = 0;
+    for (const block of blocks) {
+        if (!blocksToRemove.has(block.name)) continue;
+        appendSegment(parts, code.slice(cursor, block.start));
+        cursor = block.end;
+    }
+    appendSegment(parts, code.slice(cursor));
+
+    return parts.join("");
 }
 
 /**
