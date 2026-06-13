@@ -1,6 +1,7 @@
 package jsonrpc2
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -202,8 +203,8 @@ func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
 }
 
 // Request sends a JSON-RPC request and waits for the response
-func (c *Client) Request(method string, params any) (json.RawMessage, error) {
-	return c.RequestWithInlineResponse(method, params, nil)
+func (c *Client) Request(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	return c.RequestWithInlineResponse(ctx, method, params, nil)
 }
 
 // RequestWithInlineResponse sends a JSON-RPC request and waits for the response,
@@ -214,7 +215,13 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 // server in the response) before any subsequent notification on the same
 // connection is dispatched. If the callback returns an error, that error is
 // returned to the awaiter in place of the response.
-func (c *Client) RequestWithInlineResponse(method string, params any, onResponseInline func(json.RawMessage) error) (json.RawMessage, error) {
+func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, params any, onResponseInline func(json.RawMessage) error) (json.RawMessage, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	requestID := generateUUID()
 
 	// Create response channel
@@ -237,6 +244,8 @@ func (c *Client) RequestWithInlineResponse(method string, params any, onResponse
 	// Check if process already exited before sending
 	if c.processDone != nil {
 		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-c.processDone:
 			if err := c.getProcessError(); err != nil {
 				return nil, err
@@ -266,13 +275,18 @@ func (c *Client) RequestWithInlineResponse(method string, params any, onResponse
 		Params:  paramsData,
 	}
 
-	if err := c.sendMessage(request); err != nil {
+	if err := c.sendMessage(ctx, request); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
 	// Wait for response, also checking for process exit
 	if c.processDone != nil {
 		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case response := <-responseChan:
 			if response.Error != nil {
 				return nil, response.Error
@@ -288,6 +302,8 @@ func (c *Client) RequestWithInlineResponse(method string, params any, onResponse
 		}
 	}
 	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case response := <-responseChan:
 		if response.Error != nil {
 			return nil, response.Error
@@ -301,13 +317,26 @@ func (c *Client) RequestWithInlineResponse(method string, params any, onResponse
 // sendMessage writes a message to the stream.
 // Write serialization is achieved via a 1-buffered channel that holds the
 // writer when not in use, avoiding the need for a mutex on the write path.
-func (c *Client) sendMessage(message any) error {
+func (c *Client) sendMessage(ctx context.Context, message any) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	w := <-c.writer
+	var w *headerWriter
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.stopChan:
+		return fmt.Errorf("client stopped")
+	case w = <-c.writer:
+	}
 	defer func() { c.writer <- w }()
 	return w.Write(data)
 }
@@ -402,13 +431,15 @@ func (c *Client) handleResponse(response *Response) {
 }
 
 func (c *Client) handleRequest(request *Request) {
+	ctx := context.Background()
+
 	c.mu.Lock()
 	handler := c.requestHandlers[request.Method]
 	c.mu.Unlock()
 
 	if handler == nil {
 		if request.IsCall() {
-			c.sendErrorResponse(request.ID, &Error{
+			c.sendErrorResponse(ctx, request.ID, &Error{
 				Code:    ErrMethodNotFound.Code,
 				Message: fmt.Sprintf("Method not found: %s", request.Method),
 			})
@@ -425,7 +456,7 @@ func (c *Client) handleRequest(request *Request) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				c.sendErrorResponse(request.ID, &Error{
+				c.sendErrorResponse(ctx, request.ID, &Error{
 					Code:    ErrInternal.Code,
 					Message: fmt.Sprintf("request handler panic: %v", r),
 				})
@@ -434,31 +465,31 @@ func (c *Client) handleRequest(request *Request) {
 
 		result, err := handler(request.Params)
 		if err != nil {
-			c.sendErrorResponse(request.ID, err)
+			c.sendErrorResponse(ctx, request.ID, err)
 			return
 		}
-		c.sendResponse(request.ID, result)
+		c.sendResponse(ctx, request.ID, result)
 	}()
 }
 
-func (c *Client) sendResponse(id json.RawMessage, result json.RawMessage) {
+func (c *Client) sendResponse(ctx context.Context, id json.RawMessage, result json.RawMessage) {
 	response := Response{
 		JSONRPC: version,
 		ID:      id,
 		Result:  result,
 	}
-	if err := c.sendMessage(response); err != nil {
+	if err := c.sendMessage(ctx, response); err != nil {
 		fmt.Printf("Failed to send JSON-RPC response: %v\n", err)
 	}
 }
 
-func (c *Client) sendErrorResponse(id json.RawMessage, rpcErr *Error) {
+func (c *Client) sendErrorResponse(ctx context.Context, id json.RawMessage, rpcErr *Error) {
 	response := Response{
 		JSONRPC: version,
 		ID:      id,
 		Error:   rpcErr,
 	}
-	if err := c.sendMessage(response); err != nil {
+	if err := c.sendMessage(ctx, response); err != nil {
 		fmt.Printf("Failed to send JSON-RPC error response: %v\n", err)
 	}
 }
