@@ -5,6 +5,7 @@ use std::time::Duration;
 use sha2::Digest;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=DOCS_RS");
     println!("cargo:rerun-if-env-changed=COPILOT_SKIP_CLI_DOWNLOAD");
     println!("cargo:rerun-if-env-changed=COPILOT_CLI_EXTRACT_DIR");
     println!("cargo:rerun-if-env-changed=BUNDLED_CLI_CACHE_DIR");
@@ -40,6 +41,13 @@ fn main() {
         println!(
             "cargo:warning=COPILOT_SKIP_CLI_DOWNLOAD is set — skipping CLI download/bundle/cache"
         );
+        return;
+    }
+
+    // docs.rs builds in a sandboxed environment without network access.
+    // Skip the CLI download so documentation can be generated successfully.
+    if std::env::var_os("DOCS_RS").is_some() {
+        println!("cargo:warning=DOCS_RS is set — skipping CLI download/bundle/cache");
         return;
     }
 
