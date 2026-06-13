@@ -80,6 +80,7 @@ public final class CopilotClient implements AutoCloseable {
      * shutdown via {@link #stop()}.
      */
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
+    private static final int RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10;
     private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
 
     /**
@@ -260,7 +261,7 @@ public final class CopilotClient implements AutoCloseable {
             }
             // Clean up the spawned process if connection setup failed
             if (process != null) {
-                cleanupCliProcess(process);
+                cleanupCliProcess(process, true);
             }
             String stderr = serverManager.getStderrOutput();
             if (!stderr.isEmpty()) {
@@ -329,6 +330,7 @@ public final class CopilotClient implements AutoCloseable {
      * This method performs graceful cleanup:
      * <ol>
      * <li>Closes all active sessions (releases in-memory resources)</li>
+     * <li>Requests runtime shutdown for SDK-owned CLI processes</li>
      * <li>Closes the JSON-RPC connection</li>
      * <li>Terminates the CLI server process (if spawned by this client)</li>
      * </ol>
@@ -363,7 +365,7 @@ public final class CopilotClient implements AutoCloseable {
         sessions.clear();
 
         return CompletableFuture.allOf(closeFutures.toArray(new CompletableFuture[0]))
-                .thenCompose(v -> cleanupConnection());
+                .thenCompose(v -> cleanupConnection(true));
     }
 
     /**
@@ -379,10 +381,11 @@ public final class CopilotClient implements AutoCloseable {
         // executor, so a plain whenComplete(...) here could land the awaitTermination
         // call on one of the very threads it is waiting to drain, forcing the full
         // AUTOCLOSEABLE_TIMEOUT_SECONDS timeout followed by shutdownNow().
-        return cleanupConnection().whenCompleteAsync((ignored, error) -> shutdownOwnedExecutor(), SHUTDOWN_DISPATCHER);
+        return cleanupConnection(false).whenCompleteAsync((ignored, error) -> shutdownOwnedExecutor(),
+                SHUTDOWN_DISPATCHER);
     }
 
-    private CompletableFuture<Void> cleanupConnection() {
+    private CompletableFuture<Void> cleanupConnection(boolean gracefulRuntimeShutdown) {
         CompletableFuture<Connection> future = connectionFuture;
         connectionFuture = null;
 
@@ -393,27 +396,67 @@ public final class CopilotClient implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        return future.thenAccept(connection -> {
-            try {
-                connection.rpc.close();
-            } catch (Exception e) {
-                LOG.log(Level.FINE, "Error closing RPC", e);
+        return future.handle((connection, startupError) -> {
+            if (startupError != null) {
+                LOG.log(Level.FINE, "Ignoring failed Copilot client startup during cleanup", startupError);
+                return CompletableFuture.<Void>completedFuture(null);
             }
 
-            if (connection.process != null) {
-                cleanupCliProcess(connection.process);
+            CompletableFuture<Void> shutdownFuture = CompletableFuture.completedFuture(null);
+            if (gracefulRuntimeShutdown && connection.process != null) {
+                long runtimeShutdownStartNanos = System.nanoTime();
+                shutdownFuture = connection.rpc.invoke("runtime.shutdown", Map.of(), Void.class)
+                        .orTimeout(RUNTIME_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                        .whenComplete((ignored, error) -> {
+                            if (error == null) {
+                                LoggingHelpers.logTiming(LOG, Level.FINE,
+                                        "CopilotClient.stop runtime shutdown complete. Elapsed={Elapsed}",
+                                        runtimeShutdownStartNanos);
+                            } else {
+                                LoggingHelpers.logTiming(LOG, Level.FINE, error,
+                                        "CopilotClient.stop runtime shutdown failed. Elapsed={Elapsed}",
+                                        runtimeShutdownStartNanos);
+                            }
+                        });
             }
-        }).exceptionally(ex -> {
-            LOG.log(Level.FINE, "Ignoring failed Copilot client startup during cleanup", ex);
-            return null;
-        });
+
+            return shutdownFuture.handle((ignored, error) -> {
+                try {
+                    connection.rpc.close();
+                } catch (Exception e) {
+                    LOG.log(Level.FINE, "Error closing RPC", e);
+                }
+
+                if (connection.process != null) {
+                    cleanupCliProcess(connection.process, !gracefulRuntimeShutdown || error != null);
+                }
+                return (Void) null;
+            });
+        }).thenCompose(result -> result);
     }
 
-    private static void cleanupCliProcess(Process process) {
+    private static void cleanupCliProcess(Process process, boolean forceImmediately) {
         try {
             if (process.isAlive()) {
-                Process destroyedProcess = process.destroyForcibly();
-                if (!destroyedProcess.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                if (!forceImmediately && process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                    return;
+                }
+
+                if (forceImmediately) {
+                    process.destroyForcibly();
+                    if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                        LOG.fine("Process did not terminate within force kill timeout");
+                    }
+                    return;
+                } else {
+                    process.destroy();
+                }
+                if (!forceImmediately && process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                    return;
+                }
+
+                process.destroyForcibly();
+                if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     LOG.fine("Process did not terminate within force kill timeout");
                 }
             }

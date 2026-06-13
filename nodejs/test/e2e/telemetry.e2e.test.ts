@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { existsSync, statSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
@@ -34,32 +33,19 @@ function isRootSpan(entry: TelemetryEntry): boolean {
     return parent === "" || parent === "0000000000000000";
 }
 
-async function readTelemetryEntries(
-    path: string,
-    isComplete: (entries: TelemetryEntry[]) => boolean,
-    timeoutMs = 30_000
-): Promise<TelemetryEntry[]> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-        if (existsSync(path) && statSync(path).size > 0) {
-            const content = await readFile(path, "utf8");
-            const entries: TelemetryEntry[] = [];
-            for (const line of content.split("\n")) {
-                const trimmed = line.trim();
-                if (!trimmed) continue;
-                try {
-                    entries.push(JSON.parse(trimmed));
-                } catch {
-                    // Skip malformed lines (file may still be writing)
-                }
-            }
-            if (entries.length > 0 && isComplete(entries)) {
-                return entries;
-            }
+async function readTelemetryEntries(path: string): Promise<TelemetryEntry[]> {
+    const content = await readFile(path, "utf8");
+    const entries: TelemetryEntry[] = [];
+    for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+            continue;
         }
-        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        entries.push(JSON.parse(trimmed));
     }
-    throw new Error(`Timed out waiting for telemetry records in '${path}'.`);
+
+    return entries;
 }
 
 describe("Telemetry export", async () => {
@@ -103,13 +89,7 @@ describe("Telemetry export", async () => {
 
         // Telemetry exporter writes to telemetryFileName resolved relative to the CLI cwd (workDir).
         const telemetryPath = join(workDir, telemetryFileName);
-        const entries = await readTelemetryEntries(telemetryPath, (entries) =>
-            entries.some(
-                (entry) =>
-                    entry.type === "span" &&
-                    getStringAttribute(entry, "gen_ai.operation.name") === "invoke_agent"
-            )
-        );
+        const entries = await readTelemetryEntries(telemetryPath);
         const spans = entries.filter((entry) => entry.type === "span");
 
         expect(spans.length).toBeGreaterThan(0);

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { EventEmitter } from "node:events";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
@@ -2312,6 +2313,79 @@ describe("CopilotClient", () => {
             expect(response).toEqual({
                 output: { additionalContext: "context from failure hook" },
             });
+        });
+    });
+
+    describe("shutdown", () => {
+        it("requests runtime shutdown when stopping an SDK-owned process", async () => {
+            const client = new CopilotClient();
+            const calls: string[] = [];
+            const child = new EventEmitter() as EventEmitter & {
+                exitCode: number | null;
+                signalCode: string | null;
+                kill: ReturnType<typeof vi.fn>;
+            };
+            child.exitCode = null;
+            child.signalCode = null;
+            child.kill = vi.fn(() => {
+                calls.push("kill");
+                child.signalCode = "SIGTERM";
+                child.emit("exit", null, "SIGTERM");
+                return true;
+            });
+
+            (client as any).connection = {
+                sendRequest: vi.fn(async (method: string) => {
+                    calls.push(method);
+                    if (method === "runtime.shutdown") {
+                        child.exitCode = 0;
+                        child.emit("exit", 0, null);
+                        return {};
+                    }
+                    throw new Error(`unexpected method ${method}`);
+                }),
+                dispose: vi.fn(() => calls.push("dispose")),
+            };
+            (client as any).cliProcess = child;
+            (client as any).isExternalServer = false;
+
+            await expect(client.stop()).resolves.toEqual([]);
+            expect(calls).toEqual(["runtime.shutdown", "dispose"]);
+            expect(child.kill).not.toHaveBeenCalled();
+        });
+
+        it("does not request runtime shutdown for force stop or external runtimes", async () => {
+            const forceClient = new CopilotClient();
+            const forceChild = new EventEmitter() as EventEmitter & {
+                exitCode: number | null;
+                signalCode: string | null;
+                kill: ReturnType<typeof vi.fn>;
+            };
+            forceChild.exitCode = null;
+            forceChild.signalCode = null;
+            forceChild.kill = vi.fn(() => true);
+            const forceSendRequest = vi.fn();
+            (forceClient as any).connection = {
+                sendRequest: forceSendRequest,
+                dispose: vi.fn(),
+            };
+            (forceClient as any).cliProcess = forceChild;
+            (forceClient as any).isExternalServer = false;
+
+            await forceClient.forceStop();
+            expect(forceSendRequest).not.toHaveBeenCalled();
+            expect(forceChild.kill).toHaveBeenCalledWith("SIGKILL");
+
+            const externalClient = new CopilotClient();
+            const externalSendRequest = vi.fn();
+            (externalClient as any).connection = {
+                sendRequest: externalSendRequest,
+                dispose: vi.fn(),
+            };
+            (externalClient as any).isExternalServer = true;
+
+            await expect(externalClient.stop()).resolves.toEqual([]);
+            expect(externalSendRequest).not.toHaveBeenCalled();
         });
     });
 });
