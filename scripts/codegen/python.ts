@@ -895,6 +895,34 @@ function collapsePlaceholderPythonDataclasses(code: string, knownDefinitionNames
     return code.replace(/\n{3,}/g, "\n\n");
 }
 
+function removeUnusedSyntheticPythonDataclasses(code: string, knownDefinitionNames: Set<string>): string {
+    let changed = true;
+
+    while (changed) {
+        changed = false;
+        const classBlockRe =
+            /((?:^# (?:Experimental|Deprecated|Internal):[^\n]*\r?\n)*@dataclass\r?\nclass\s+(\w+):[\s\S]*?)(?=^(?:# (?:Experimental|Deprecated|Internal):[^\n]*\r?\n)*@dataclass|^class\s+\w|^def\s+\w|^[A-Z]\w+\s*=|\Z)/gm;
+        const matches = [...code.matchAll(classBlockRe)];
+
+        for (const match of matches) {
+            const fullBlock = match[1];
+            const className = match[2];
+            if (knownDefinitionNames.has(className.toLowerCase())) continue;
+
+            const before = code.slice(0, match.index);
+            const after = code.slice((match.index ?? 0) + fullBlock.length);
+            const referenceRe = new RegExp(`\\b${escapeRegExp(className)}\\b`);
+            if (referenceRe.test(before) || referenceRe.test(after)) continue;
+
+            code = `${before}${after}`;
+            changed = true;
+            break;
+        }
+    }
+
+    return code;
+}
+
 /**
  * Reorder Python class/enum definitions so forward references are resolved.
  * Quicktype may emit classes in an order where a class references another
@@ -3208,6 +3236,10 @@ def _patch_model_capabilities(data: dict) -> dict:
     finalCode = applyUnionRewritesToPython(finalCode, refBasedUnions);
     finalCode = postProcessDiscriminatorDefaultsForPython(finalCode, refBasedUnions);
     finalCode = unwrapRedundantPythonLambdas(finalCode);
+    finalCode = removeUnusedSyntheticPythonDataclasses(
+        finalCode,
+        new Set(Object.keys(allDefinitions).map((name) => name.toLowerCase()))
+    );
 
     // Apply `_`-prefix to type names of internal RPC types so the leading-underscore
     // Python convention signals "internal, no stability guarantees" to consumers.
