@@ -887,6 +887,47 @@ func TestOverridesBuiltInTool(t *testing.T) {
 	})
 }
 
+func TestToolDefer(t *testing.T) {
+	t.Run("Defer is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:        "lookup_issue",
+			Description: "Fetch issue details",
+			Defer:       ToolDeferAuto,
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if v, ok := m["defer"]; !ok || v != "auto" {
+			t.Errorf("expected defer=auto, got %v", m)
+		}
+	})
+
+	t.Run("Defer omitted when unset", func(t *testing.T) {
+		tool := Tool{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if _, ok := m["defer"]; ok {
+			t.Errorf("expected defer to be omitted, got %v", m)
+		}
+	})
+}
+
 func TestClient_CreateSession_AllowsMissingPermissionHandler(t *testing.T) {
 	t.Run("accepts nil config before connection validation", func(t *testing.T) {
 		client := NewClient(&ClientOptions{Connection: StdioConnection{Path: "/__nonexistent_copilot_binary__"}})

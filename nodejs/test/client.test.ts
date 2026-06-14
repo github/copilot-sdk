@@ -1512,6 +1512,63 @@ describe("CopilotClient", () => {
         });
     });
 
+    describe("defer in tool definitions", () => {
+        it("sends defer in tool definition on session.create", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                tools: [
+                    {
+                        name: "lookup_issue",
+                        description: "Fetch issue details",
+                        handler: async () => "ok",
+                        defer: "auto",
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.tools).toEqual([
+                expect.objectContaining({ name: "lookup_issue", defer: "auto" }),
+            ]);
+        });
+
+        it("sends defer in tool definition on session.resume", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                tools: [
+                    {
+                        name: "lookup_issue",
+                        description: "Fetch issue details",
+                        handler: async () => "ok",
+                        defer: "auto",
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+            expect(payload.tools).toEqual([
+                expect.objectContaining({ name: "lookup_issue", defer: "auto" }),
+            ]);
+            spy.mockRestore();
+        });
+    });
+
     describe("agent parameter in session creation", () => {
         it("forwards agent in session.create request", async () => {
             const client = new CopilotClient();

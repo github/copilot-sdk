@@ -319,6 +319,16 @@ async def safe_lookup(params: LookupParams) -> str:
     # your logic
 ```
 
+#### Deferring Tools
+
+Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
+
+```python
+@define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")
+async def lookup_issue(params: LookupParams) -> str:
+    # your logic
+```
+
 ## Image Support
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:

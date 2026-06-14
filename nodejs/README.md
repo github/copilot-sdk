@@ -482,6 +482,21 @@ defineTool("safe_lookup", {
 });
 ```
 
+#### Deferring Tools
+
+Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
+
+```ts
+defineTool("lookup_issue", {
+    description: "Fetch issue details",
+    parameters: z.object({ id: z.string() }),
+    defer: "auto",
+    handler: async ({ id }) => {
+        /* your logic */
+    },
+});
+```
+
 ### Commands
 
 Register slash commands so that users of the CLI's TUI can invoke custom actions via `/commandName`. Each command has a `name`, optional `description`, and a `handler` called when the user executes it.

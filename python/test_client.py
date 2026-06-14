@@ -507,6 +507,70 @@ class TestOverridesBuiltInTool:
             await client.force_stop()
 
 
+class TestDefer:
+    @pytest.mark.asyncio
+    async def test_defer_sent_in_tool_definition(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+
+            @define_tool(description="Fetch issue details", defer="auto")
+            def lookup_issue(params) -> str:
+                return "ok"
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all, tools=[lookup_issue]
+            )
+            tool_defs = captured["session.create"]["tools"]
+            assert len(tool_defs) == 1
+            assert tool_defs[0]["name"] == "lookup_issue"
+            assert tool_defs[0]["defer"] == "auto"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_sends_defer(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return {"sessionId": params["sessionId"]}
+
+            client._client.request = mock_request
+
+            @define_tool(description="Fetch issue details", defer="auto")
+            def lookup_issue(params) -> str:
+                return "ok"
+
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[lookup_issue],
+            )
+            tool_defs = captured["session.resume"]["tools"]
+            assert len(tool_defs) == 1
+            assert tool_defs[0]["defer"] == "auto"
+        finally:
+            await client.force_stop()
+
+
 class TestInstructionDirectories:
     @pytest.mark.asyncio
     async def test_create_session_sends_instruction_directories(self):

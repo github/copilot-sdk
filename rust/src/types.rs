@@ -337,6 +337,13 @@ pub struct Tool {
     /// access control.
     #[serde(default, skip_serializing_if = "is_false")]
     pub skip_permission: bool,
+    /// Controls whether the tool may be deferred (loaded lazily via tool
+    /// search) rather than always pre-loaded. When [`DeferMode::Auto`], the
+    /// tool can be deferred and surfaced through tool search. When
+    /// [`DeferMode::Never`], the tool is always pre-loaded. `None` lets the
+    /// runtime decide.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defer: Option<DeferMode>,
     /// Optional runtime implementation. When `Some`, the SDK dispatches
     /// matching `external_tool.requested` broadcasts to this handler.
     /// When `None`, the tool is declaration-only.
@@ -355,6 +362,17 @@ pub struct Tool {
 #[inline]
 fn is_false(b: &bool) -> bool {
     !*b
+}
+
+/// Controls whether a [`Tool`] may be deferred (loaded lazily via tool search)
+/// rather than always pre-loaded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DeferMode {
+    /// The tool can be deferred and surfaced through tool search.
+    Auto,
+    /// The tool is always pre-loaded.
+    Never,
 }
 
 impl Tool {
@@ -437,6 +455,14 @@ impl Tool {
         self
     }
 
+    /// Set the deferral mode controlling whether the tool may be loaded
+    /// lazily via tool search ([`DeferMode::Auto`]) or always pre-loaded
+    /// ([`DeferMode::Never`]).
+    pub fn with_defer(mut self, defer: DeferMode) -> Self {
+        self.defer = Some(defer);
+        self
+    }
+
     /// Attach a runtime implementation. The SDK will dispatch matching
     /// `external_tool.requested` broadcasts to `handler` for this tool's
     /// name. Without a handler the tool is declaration-only.
@@ -464,6 +490,7 @@ impl std::fmt::Debug for Tool {
             .field("parameters", &self.parameters)
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
+            .field("defer", &self.defer)
             .field(
                 "handler",
                 &self.handler.as_ref().map(|_| "<set>").unwrap_or("None"),
@@ -4356,6 +4383,18 @@ mod tests {
         assert_eq!(tool.parameters.get("type").unwrap(), &json!("object"));
         assert!(tool.overrides_built_in_tool);
         assert!(tool.skip_permission);
+    }
+
+    #[test]
+    fn tool_defer_serialization() {
+        let tool = Tool::new("lookup").with_defer(super::DeferMode::Auto);
+        assert_eq!(tool.defer, Some(super::DeferMode::Auto));
+        let value = serde_json::to_value(&tool).unwrap();
+        assert_eq!(value.get("defer").unwrap(), &json!("auto"));
+
+        let plain = Tool::new("plain");
+        let value = serde_json::to_value(&plain).unwrap();
+        assert!(value.get("defer").is_none());
     }
 
     #[test]

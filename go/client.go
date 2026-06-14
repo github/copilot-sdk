@@ -831,7 +831,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		}
 	}
 
-	result, err := c.client.RequestWithInlineResponse("session.create", req, inlineCb)
+	result, err := c.client.RequestWithInlineResponse(ctx, "session.create", req, inlineCb)
 	if err != nil {
 		if registeredSessionID != "" {
 			c.sessionsMux.Lock()
@@ -1077,7 +1077,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		session.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
 	}
 
-	result, err := c.client.Request("session.resume", req)
+	result, err := c.client.Request(ctx, "session.resume", req)
 	if err != nil {
 		c.sessionsMux.Lock()
 		delete(c.sessions, sessionID)
@@ -1138,7 +1138,7 @@ func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([
 	if filter != nil {
 		params.Filter = filter
 	}
-	result, err := c.client.Request("session.list", params)
+	result, err := c.client.Request(ctx, "session.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -1170,7 +1170,7 @@ func (c *Client) GetSessionMetadata(ctx context.Context, sessionID string) (*Ses
 		return nil, err
 	}
 
-	result, err := c.client.Request("session.getMetadata", getSessionMetadataRequest{SessionID: sessionID})
+	result, err := c.client.Request(ctx, "session.getMetadata", getSessionMetadataRequest{SessionID: sessionID})
 	if err != nil {
 		return nil, err
 	}
@@ -1201,7 +1201,7 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 		return err
 	}
 
-	result, err := c.client.Request("session.delete", deleteSessionRequest{SessionID: sessionID})
+	result, err := c.client.Request(ctx, "session.delete", deleteSessionRequest{SessionID: sessionID})
 	if err != nil {
 		return err
 	}
@@ -1248,7 +1248,7 @@ func (c *Client) GetLastSessionID(ctx context.Context) (*string, error) {
 		return nil, err
 	}
 
-	result, err := c.client.Request("session.getLastId", getLastSessionIDRequest{})
+	result, err := c.client.Request(ctx, "session.getLastId", getLastSessionIDRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1280,7 +1280,7 @@ func (c *Client) GetForegroundSessionID(ctx context.Context) (*string, error) {
 		return nil, err
 	}
 
-	result, err := c.client.Request("session.getForeground", getForegroundSessionRequest{})
+	result, err := c.client.Request(ctx, "session.getForeground", getForegroundSessionRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1308,7 +1308,7 @@ func (c *Client) SetForegroundSessionID(ctx context.Context, sessionID string) e
 		return err
 	}
 
-	result, err := c.client.Request("session.setForeground", setForegroundSessionRequest{SessionID: sessionID})
+	result, err := c.client.Request(ctx, "session.setForeground", setForegroundSessionRequest{SessionID: sessionID})
 	if err != nil {
 		return err
 	}
@@ -1448,7 +1448,7 @@ func (c *Client) Ping(ctx context.Context, message string) (*PingResponse, error
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("ping", pingRequest{Message: message})
+	result, err := c.client.Request(ctx, "ping", pingRequest{Message: message})
 	if err != nil {
 		return nil, err
 	}
@@ -1466,7 +1466,7 @@ func (c *Client) GetStatus(ctx context.Context) (*GetStatusResponse, error) {
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("status.get", getStatusRequest{})
+	result, err := c.client.Request(ctx, "status.get", getStatusRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1484,7 +1484,7 @@ func (c *Client) GetAuthStatus(ctx context.Context) (*GetAuthStatusResponse, err
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("auth.getStatus", getAuthStatusRequest{})
+	result, err := c.client.Request(ctx, "auth.getStatus", getAuthStatusRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1525,7 +1525,7 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 			return nil, fmt.Errorf("client not connected")
 		}
 		// Cache miss - fetch from backend while holding lock
-		result, err := c.client.Request("models.list", listModelsRequest{})
+		result, err := c.client.Request(ctx, "models.list", listModelsRequest{})
 		if err != nil {
 			return nil, err
 		}

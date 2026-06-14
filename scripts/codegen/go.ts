@@ -4191,10 +4191,10 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
             }
             lines.push(`\t}`);
         }
-        lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", req)`);
+        lines.push(`\traw, err := ${clientRef}.Request(ctx, "${method.rpcMethod}", req)`);
     } else {
         const arg = hasParams ? paramsRef : "nil";
-        lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", ${arg})`);
+        lines.push(`\traw, err := ${clientRef}.Request(ctx, "${method.rpcMethod}", ${arg})`);
     }
 
     lines.push(`\tif err != nil {`);
