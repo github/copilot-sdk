@@ -7,6 +7,7 @@ import {
     RuntimeConnection,
     type ModelInfo,
 } from "../src/index.js";
+import { applyElectronSpawnEnv, getNodeExecPath } from "../src/client.js";
 import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
@@ -2139,6 +2140,93 @@ describe("CopilotClient", () => {
             });
 
             expect((client as any).options.sessionIdleTimeoutSeconds).toBe(600);
+        });
+    });
+
+    describe("Electron spawn environment", () => {
+        it("injects ELECTRON_RUN_AS_NODE and COPILOT_CLI_RUN_AS_NODE when process.versions.electron is set", () => {
+            // Temporarily set process.versions.electron to simulate an Electron host.
+            const versions = process.versions as Record<string, string>;
+            const original = versions["electron"];
+            try {
+                versions["electron"] = "28.0.0";
+
+                const env: Record<string, string | undefined> = { PATH: "/usr/bin" };
+                applyElectronSpawnEnv(env, /* isJsFile */ true);
+
+                expect(env.ELECTRON_RUN_AS_NODE).toBe("1");
+                expect(env.COPILOT_CLI_RUN_AS_NODE).toBe("1");
+                // Unrelated keys are untouched
+                expect(env.PATH).toBe("/usr/bin");
+            } finally {
+                if (original === undefined) {
+                    delete versions["electron"];
+                } else {
+                    versions["electron"] = original;
+                }
+            }
+        });
+
+        it("does not overwrite caller-provided ELECTRON_RUN_AS_NODE / COPILOT_CLI_RUN_AS_NODE", () => {
+            const versions = process.versions as Record<string, string>;
+            const original = versions["electron"];
+            try {
+                versions["electron"] = "28.0.0";
+
+                const env: Record<string, string | undefined> = {
+                    ELECTRON_RUN_AS_NODE: "0",
+                    COPILOT_CLI_RUN_AS_NODE: "custom",
+                };
+                applyElectronSpawnEnv(env, /* isJsFile */ true);
+
+                // Caller values must be preserved
+                expect(env.ELECTRON_RUN_AS_NODE).toBe("0");
+                expect(env.COPILOT_CLI_RUN_AS_NODE).toBe("custom");
+            } finally {
+                if (original === undefined) {
+                    delete versions["electron"];
+                } else {
+                    versions["electron"] = original;
+                }
+            }
+        });
+
+        it("does not inject env vars when the CLI is not a .js file", () => {
+            const versions = process.versions as Record<string, string>;
+            const original = versions["electron"];
+            try {
+                versions["electron"] = "28.0.0";
+
+                const env: Record<string, string | undefined> = {};
+                applyElectronSpawnEnv(env, /* isJsFile */ false);
+
+                expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+                expect(env.COPILOT_CLI_RUN_AS_NODE).toBeUndefined();
+            } finally {
+                if (original === undefined) {
+                    delete versions["electron"];
+                } else {
+                    versions["electron"] = original;
+                }
+            }
+        });
+
+        it("does not inject env vars when not running under Electron", () => {
+            // process.versions.electron should be undefined in Node test runner
+            const env: Record<string, string | undefined> = {};
+            applyElectronSpawnEnv(env, /* isJsFile */ true);
+
+            expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+            expect(env.COPILOT_CLI_RUN_AS_NODE).toBeUndefined();
+        });
+
+        it("nodeExecPath overrides process.execPath", () => {
+            expect(getNodeExecPath("/custom/node")).toBe("/custom/node");
+        });
+
+        it("nodeExecPath stored in client options", () => {
+            const client = new CopilotClient({ nodeExecPath: "/my/node" });
+            expect((client as any).options.nodeExecPath).toBe("/my/node");
         });
     });
 
