@@ -65,7 +65,7 @@ describe("Session-scoped RPC", async () => {
         const after = await session.rpc.model.getCurrent();
 
         expect(result.modelId).toBe("gpt-4.1");
-        expect(after.modelId).toBe(before.modelId);
+        expect(after.modelId).toBe("gpt-4.1");
 
         await session.disconnect();
     });
