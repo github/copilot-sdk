@@ -43,7 +43,7 @@ public class SessionTodosChangedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         var ids = result.Rows
             .Select(row => row.Id)
             .OfType<string>()
-            .Order(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
             .ToArray();
 
         Assert.Equal(ExpectedTodoIds, ids);
