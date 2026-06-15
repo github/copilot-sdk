@@ -15,3 +15,11 @@ type Config = embeddedcli.Config
 func Setup(cfg Config) {
 	embeddedcli.Setup(cfg)
 }
+
+// Path returns the absolute path to the embedded Copilot CLI, installing it on
+// first call if necessary. It returns an empty string when no embedded CLI was
+// configured via Setup (e.g. a build compiled without the embedded runtime).
+// The result is computed once and cached for the life of the process.
+func Path() string {
+	return embeddedcli.Path()
+}
