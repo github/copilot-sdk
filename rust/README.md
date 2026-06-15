@@ -8,6 +8,8 @@ See [github/copilot-sdk](https://github.com/github/copilot-sdk) for the equivale
 
 ## Prerequisites
 
+To use the SDK:
+
 - Rust 1.94.0 or later
 - GitHub Copilot CLI: bundled by default via the `bundled-cli` feature (see [Features](#features)); or supply via `COPILOT_CLI_PATH`
 
