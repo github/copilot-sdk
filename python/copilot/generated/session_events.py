@@ -51,7 +51,8 @@ def from_timedelta(x: Any) -> timedelta:
 def to_timedelta_int(x: timedelta) -> int:
     assert isinstance(x, timedelta)
     milliseconds = x.total_seconds() * 1000.0
-    # Durations can carry sub-millisecond precision; round to the nearest whole ms.
+    # Durations can carry sub-millisecond precision; round to the nearest whole ms
+    # using Python's default banker's rounding (round-half-to-even).
     return round(milliseconds)
 
 

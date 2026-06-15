@@ -2538,7 +2538,8 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
             out.push(`def to_timedelta_int(x: timedelta) -> int:`);
             out.push(`    assert isinstance(x, timedelta)`);
             out.push(`    milliseconds = x.total_seconds() * 1000.0`);
-            out.push(`    # Durations can carry sub-millisecond precision; round to the nearest whole ms.`);
+            out.push(`    # Durations can carry sub-millisecond precision; round to the nearest whole ms`);
+            out.push(`    # using Python's default banker's rounding (round-half-to-even).`);
             out.push(`    return round(milliseconds)`);
             out.push(``);
             out.push(``);
