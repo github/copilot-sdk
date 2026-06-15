@@ -46,7 +46,10 @@ describe("Todos changed event + readSqlTodosWithDependencies", async () => {
             expect(todosEvents.length).toBeGreaterThanOrEqual(1);
 
             const result = await session.rpc.plan.readSqlTodosWithDependencies();
-            const ids = result.rows.map((r) => r.id).filter((x): x is string => !!x).sort();
+            const ids = result.rows
+                .map((r) => r.id)
+                .filter((x): x is string => !!x)
+                .sort();
             expect(ids).toEqual(["alpha", "beta"]);
 
             const edge = result.dependencies.find(
