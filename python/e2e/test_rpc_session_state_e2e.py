@@ -111,7 +111,7 @@ class TestRpcSessionState:
         finally:
             await session.disconnect()
 
-    async def test_should_call_session_rpc_model_switch_to(self, ctx: E2ETestContext):
+    async def test_should_call_session_rpc_model_switchto(self, ctx: E2ETestContext):
         # The runtime caches /models per (auth, base_url) for 30 minutes (see
         # capi_client.rs LIST_MODELS_CACHE). Tests in this class share one CLI
         # subprocess and proxy URL via the module-scoped `ctx` fixture, so the
@@ -123,7 +123,7 @@ class TestRpcSessionState:
         await isolated_ctx.setup()
         try:
             await isolated_ctx.configure_for_test(
-                "rpc_session_state", "should_call_session_rpc_model_switch_to"
+                "rpc_session_state", "should_call_session_rpc_model_switchto"
             )
             session = await isolated_ctx.client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
