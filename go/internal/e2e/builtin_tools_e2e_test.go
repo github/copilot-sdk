@@ -68,7 +68,7 @@ func TestBuiltinToolsE2E(t *testing.T) {
 		sendCtx, cancel := context.WithTimeout(t.Context(), sendTimeout)
 		defer cancel()
 		msg, err := session.SendAndWait(sendCtx, copilot.MessageOptions{
-			Prompt: "Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content.",
+			Prompt: "Run 'echo error_msg >&2; sleep 0.5; echo ok' and tell me what stderr said. Reply with just the stderr content.",
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)

@@ -47,7 +47,7 @@ class TestBuiltinTools:
         )
         try:
             message = await session.send_and_wait(
-                "Run 'echo error_msg >&2; echo ok' and tell me what stderr said. "
+                "Run 'echo error_msg >&2; sleep 0.5; echo ok' and tell me what stderr said. "
                 "Reply with just the stderr content.",
                 timeout=SEND_TIMEOUT,
             )

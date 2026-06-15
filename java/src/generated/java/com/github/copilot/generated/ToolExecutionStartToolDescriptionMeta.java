@@ -13,21 +13,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ExtensionsLoadedExtension` type.
+ * MCP Apps metadata for UI resource association
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ExtensionsLoadedExtension(
-    /** Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext') */
-    @JsonProperty("id") String id,
-    /** Extension name (directory name) */
-    @JsonProperty("name") String name,
-    /** Discovery source */
-    @JsonProperty("source") ExtensionsLoadedExtensionSource source,
-    /** Current status: running, disabled, failed, or starting */
-    @JsonProperty("status") ExtensionsLoadedExtensionStatus status
+public record ToolExecutionStartToolDescriptionMeta(
+    /** Schema for the `ToolExecutionStartToolDescriptionMetaUI` type. */
+    @JsonProperty("ui") ToolExecutionStartToolDescriptionMetaUI ui
 ) {
 }

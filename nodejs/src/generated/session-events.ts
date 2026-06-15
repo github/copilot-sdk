@@ -22,6 +22,7 @@ export type SessionEvent =
   | ModeChangedEvent
   | PermissionsChangedEvent
   | PlanChangedEvent
+  | TodosChangedEvent
   | WorkspaceFileChangedEvent
   | HandoffEvent
   | TruncationEvent
@@ -260,6 +261,14 @@ export type AbortReason =
   | "remote_command"
   /** An MCP server delivered a user.abort notification. */
   | "user_abort";
+/**
+ * Allowed values for the `ToolExecutionStartToolDescriptionMetaUIVisibility` enumeration.
+ */
+export type ToolExecutionStartToolDescriptionMetaUIVisibility =
+  /** Tool is callable by the model (LLM tool surface) */
+  | "model"
+  /** Tool is callable by the MCP App view (iframe) via session.mcp.apps.callTool */
+  | "app";
 /**
  * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
  */
@@ -527,7 +536,11 @@ export type ExtensionsLoadedExtensionSource =
   /** Extension discovered from the current project. */
   | "project"
   /** Extension discovered from the user's extension directory. */
-  | "user";
+  | "user"
+  /** Extension contributed by an installed plugin. */
+  | "plugin"
+  /** Extension discovered from the current session's state directory. */
+  | "session";
 /**
  * Current status: running, disabled, failed, or starting
  */
@@ -1351,6 +1364,40 @@ export interface PlanChangedEvent {
 export interface PlanChangedData {
   operation: PlanChangedOperation;
 }
+/**
+ * Session event "session.todos_changed". Signal-only event: the agent's todos or todo_deps table was written to. No payload — clients should call session.plan.readSqlTodosWithDependencies() to fetch the current state. Events arrive in order; clients can debounce on arrival if needed.
+ */
+export interface TodosChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: TodosChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.todos_changed".
+   */
+  type: "session.todos_changed";
+}
+/**
+ * Signal-only event: the agent's todos or todo_deps table was written to. No payload — clients should call session.plan.readSqlTodosWithDependencies() to fetch the current state. Events arrive in order; clients can debounce on arrival if needed.
+ */
+export interface TodosChangedData {}
 /**
  * Session event "session.workspace_file_changed". Workspace file change details including path and operation type
  */
@@ -2654,18 +2701,6 @@ export interface AssistantMessageEvent {
  */
 export interface AssistantMessageData {
   /**
-   * Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
-   *
-   * @experimental
-   */
-  anthropicAdvisorBlocks?: unknown[];
-  /**
-   * Anthropic advisor model ID used for this response, for timeline display on replay
-   *
-   * @experimental
-   */
-  anthropicAdvisorModel?: string;
-  /**
    * Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
    */
   apiCallId?: string;
@@ -2714,6 +2749,7 @@ export interface AssistantMessageData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   requestId?: string;
+  serverTools?: AssistantMessageServerTools;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
    */
@@ -2726,6 +2762,19 @@ export interface AssistantMessageData {
    * Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event
    */
   turnId?: string;
+}
+/**
+ * Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
+ */
+/** @experimental */
+export interface AssistantMessageServerTools {
+  advisorModel?: string;
+  functionCallNamespaces?: {
+    [k: string]: string | undefined;
+  };
+  items?: unknown[];
+  provider: string;
+  rawContentBlocks?: unknown[];
 }
 /**
  * A tool invocation request from the assistant
@@ -3317,6 +3366,7 @@ export interface ToolExecutionStartData {
    * Unique identifier for this tool call
    */
   toolCallId: string;
+  toolDescription?: ToolExecutionStartToolDescription;
   /**
    * Name of the tool being executed
    */
@@ -3325,6 +3375,39 @@ export interface ToolExecutionStartData {
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
    */
   turnId?: string;
+}
+/**
+ * Tool definition metadata, present for MCP tools with MCP Apps support
+ */
+export interface ToolExecutionStartToolDescription {
+  _meta?: ToolExecutionStartToolDescriptionMeta;
+  /**
+   * Tool description
+   */
+  description?: string;
+  /**
+   * Tool name
+   */
+  name: string;
+}
+/**
+ * MCP Apps metadata for UI resource association
+ */
+export interface ToolExecutionStartToolDescriptionMeta {
+  ui?: ToolExecutionStartToolDescriptionMetaUI;
+}
+/**
+ * Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.
+ */
+export interface ToolExecutionStartToolDescriptionMetaUI {
+  /**
+   * URI of the UI resource
+   */
+  resourceUri?: string;
+  /**
+   * Who can access this tool
+   */
+  visibility?: ToolExecutionStartToolDescriptionMetaUIVisibility[];
 }
 /**
  * Session event "tool.execution_partial_result". Streaming tool execution output for incremental result display
@@ -3862,7 +3945,7 @@ export interface SkillInvokedData {
    */
   pluginVersion?: string;
   /**
-   * Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), personal-claude (~/.claude/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+   * Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
    */
   source?: string;
   trigger?: SkillInvokedTrigger;
@@ -6812,7 +6895,7 @@ export interface ExtensionsLoadedData {
  */
 export interface ExtensionsLoadedExtension {
   /**
-   * Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper')
+   * Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext')
    */
   id: string;
   /**

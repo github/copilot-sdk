@@ -1546,6 +1546,7 @@ function generateApiTypesCode(
 	out.push("");
 	out.push("#![allow(clippy::large_enum_variant)]");
 	out.push("#![allow(dead_code)]");
+	out.push("#![allow(rustdoc::invalid_html_tags)]");
 	out.push("");
 	out.push("use std::collections::HashMap;");
 	out.push("");

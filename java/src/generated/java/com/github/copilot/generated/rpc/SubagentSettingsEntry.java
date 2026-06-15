@@ -13,23 +13,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `Extension` type.
+ * Subagent model, reasoning effort, and context tier settings
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record Extension(
-    /** Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext') */
-    @JsonProperty("id") String id,
-    /** Extension name (directory name) */
-    @JsonProperty("name") String name,
-    /** Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/) */
-    @JsonProperty("source") ExtensionSource source,
-    /** Current status: running, disabled, failed, or starting */
-    @JsonProperty("status") ExtensionStatus status,
-    /** Process ID if the extension is running */
-    @JsonProperty("pid") Long pid
+public record SubagentSettingsEntry(
+    /** Model override for matching subagents */
+    @JsonProperty("model") String model,
+    /** Reasoning effort override for matching subagents */
+    @JsonProperty("effortLevel") String effortLevel,
+    /** Context tier override for matching subagents */
+    @JsonProperty("contextTier") SubagentSettingsEntryContextTier contextTier
 ) {
 }
