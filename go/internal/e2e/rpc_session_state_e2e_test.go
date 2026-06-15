@@ -70,12 +70,20 @@ func TestRPCSessionStateE2E(t *testing.T) {
 		if result.ModelID == nil || *result.ModelID != "gpt-4.1" {
 			t.Fatalf("Expected switch result model gpt-4.1, got %+v", result)
 		}
-		after, err := session.RPC.Model.GetCurrent(t.Context())
-		if err != nil {
-			t.Fatalf("Model.GetCurrent after switch failed: %v", err)
+		var after *rpc.CurrentModel
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			after, err = session.RPC.Model.GetCurrent(t.Context())
+			if err != nil {
+				t.Fatalf("Model.GetCurrent after switch failed: %v", err)
+			}
+			if after.ModelID != nil && *after.ModelID == "gpt-4.1" {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
-		if after.ModelID == nil || (*after.ModelID != "gpt-4.1" && *after.ModelID != *before.ModelID) {
-			t.Fatalf("Unexpected current model after switch; before=%q after=%+v", *before.ModelID, after)
+		if after.ModelID == nil || *after.ModelID != "gpt-4.1" {
+			t.Fatalf("Model.GetCurrent did not reflect SwitchTo; before=%q after=%+v", *before.ModelID, after)
 		}
 	})
 

@@ -41,10 +41,18 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.Equal("claude-sonnet-4.5", before.ModelId);
 
         var result = await session.Rpc.Model.SwitchToAsync(modelId: "gpt-4.1", reasoningEffort: "high");
-        var after = await session.Rpc.Model.GetCurrentAsync();
-
         Assert.Equal("gpt-4.1", result.ModelId);
-        Assert.True(after.ModelId is "gpt-4.1" || after.ModelId == before.ModelId, $"Unexpected current model after switch: {after.ModelId}");
+
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        CurrentModel after;
+        do
+        {
+            after = await session.Rpc.Model.GetCurrentAsync();
+            if (after.ModelId == "gpt-4.1") break;
+            await Task.Delay(100);
+        } while (DateTime.UtcNow < deadline);
+
+        Assert.Equal("gpt-4.1", after.ModelId);
     }
 
     [Fact]

@@ -123,12 +123,18 @@ class TestRpcSessionState:
             result = await session.rpc.model.switch_to(
                 ModelSwitchToRequest(model_id="gpt-4.1", reasoning_effort="high")
             )
-            after = await session.rpc.model.get_current()
-
             assert result.model_id == "gpt-4.1"
-            # Python's current RPC surface resolves the requested override but does
-            # not mutate the live session model selection.
-            assert after.model_id == before.model_id
+
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                after = await session.rpc.model.get_current()
+                if after.model_id == "gpt-4.1":
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                pytest.fail("session.rpc.model.get_current did not reflect switch_to")
+
+            assert after.model_id == "gpt-4.1"
         finally:
             await session.disconnect()
 
