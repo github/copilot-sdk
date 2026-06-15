@@ -313,7 +313,7 @@ export type EventsCursorStatus =
   /** The cursor referred to history that is no longer available. */
   | "expired";
 /**
- * Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+ * Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExtensionSource".
@@ -323,7 +323,11 @@ export type ExtensionSource =
   /** Extension discovered from the current project's .github/extensions directory. */
   | "project"
   /** Extension discovered from the user's ~/.copilot/extensions directory. */
-  | "user";
+  | "user"
+  /** Extension contributed by an installed plugin. */
+  | "plugin"
+  /** Extension discovered from the current session's state directory (loaded only for this session). */
+  | "session";
 /**
  * Current status: running, disabled, failed, or starting
  *
@@ -1012,6 +1016,32 @@ export type ProviderConfigWireApi =
   /** OpenAI Responses API wire format. */
   | "responses";
 /**
+ * Provider family. Matches the `type` field of a BYOK provider config.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderEndpointType".
+ */
+/** @experimental */
+export type ProviderEndpointType =
+  /** OpenAI-compatible endpoint (use the OpenAI client library). */
+  | "openai"
+  /** Azure OpenAI endpoint (use the OpenAI client library with the Azure base URL). */
+  | "azure"
+  /** Anthropic endpoint (use the Anthropic client library). */
+  | "anthropic";
+/**
+ * Wire API to be used, when required for the provider type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderEndpointWireApi".
+ */
+/** @experimental */
+export type ProviderEndpointWireApi =
+  /** Classic chat-completions request shape. */
+  | "completions"
+  /** Newer responses request shape. */
+  | "responses";
+/**
  * Schema for the `PushAttachment` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1429,6 +1459,39 @@ export type SlashCommandInvocationResult =
   | SlashCommandAgentPromptResult
   | SlashCommandCompletedResult
   | SlashCommandSelectSubcommandResult;
+/**
+ * Subagent settings to apply, or null to clear the live session override
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SubagentSettings".
+ */
+/** @experimental */
+export type SubagentSettings = {
+  /**
+   * Per-agent settings keyed by subagent agent_type
+   */
+  agents?: {
+    [k: string]: SubagentSettingsEntry | undefined;
+  };
+  /**
+   * Names of subagents the user has turned off; they cannot be dispatched
+   */
+  disabledSubagents?: string[];
+} | null;
+/**
+ * Context tier override for matching subagents
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SubagentSettingsEntryContextTier".
+ */
+/** @experimental */
+export type SubagentSettingsEntryContextTier =
+  /** Inherit the parent session's effective context tier at dispatch time. */
+  | "inherit"
+  /** Use the model's default context window. */
+  | "default"
+  /** Pin the subagent to the long-context tier when supported. */
+  | "long_context";
 /**
  * Current lifecycle status of the task
  *
@@ -3342,7 +3405,7 @@ export interface ExecuteCommandResult {
 /** @experimental */
 export interface Extension {
   /**
-   * Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
+   * Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext')
    */
   id: string;
   /**
@@ -7861,6 +7924,70 @@ export interface ProviderConfigAzure {
   apiVersion?: string;
 }
 /**
+ * A snapshot of the provider endpoint the session is currently configured to talk to.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderEndpoint".
+ */
+/** @experimental */
+export interface ProviderEndpoint {
+  type: ProviderEndpointType;
+  wireApi?: ProviderEndpointWireApi;
+  /**
+   * Base URL to pass to the LLM client library.
+   */
+  baseUrl: string;
+  /**
+   * A credential the caller should use with this endpoint. Omitted only when the endpoint accepts unauthenticated requests.
+   */
+  apiKey?: string;
+  /**
+   * HTTP headers the caller must include on every outbound request.
+   */
+  headers: {
+    [k: string]: string | undefined;
+  };
+  sessionToken?: ProviderSessionToken;
+}
+/**
+ * Short-lived, rotating credential the caller must send on every request, in addition to `apiKey` if one is present. Omitted when the endpoint does not require one.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderSessionToken".
+ */
+/** @experimental */
+export interface ProviderSessionToken {
+  /**
+   * The short-lived token value.
+   */
+  token: string;
+  /**
+   * HTTP header name the token must be sent under.
+   */
+  header: string;
+  /**
+   * The model the token is bound to, when applicable. When set, the token is only valid for requests against this model.
+   */
+  model?: string;
+  /**
+   * When the token expires, if known. Callers should refresh by calling `getEndpoint` again before this time, or reactively on any 401/403 response from `baseUrl`.
+   */
+  expiresAt?: string;
+}
+/**
+ * Optional model identifier to scope the endpoint snapshot to.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderGetEndpointRequest".
+ */
+/** @experimental */
+export interface ProviderGetEndpointRequest {
+  /**
+   * Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
+   */
+  modelId?: string;
+}
+/**
  * File attachment
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9650,6 +9777,14 @@ export interface SessionOpenOptions {
    */
   integrationId?: string;
   /**
+   * ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the Copilot CLI fetches from the experimentation service (CopilotExpAssignmentResponse). When supplied this is fed into the FeatureFlagService exactly like CLI-fetched assignments and ExP-backed flags wait for it. When absent the session does not block on ExP.
+   *
+   * @internal
+   */
+  expAssignments?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
    * Feature-flag values resolved by the host.
    */
   featureFlags?: {
@@ -11183,6 +11318,24 @@ export interface SlashCommandSelectSubcommandOption {
   group?: string;
 }
 /**
+ * Subagent model, reasoning effort, and context tier settings
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SubagentSettingsEntry".
+ */
+/** @experimental */
+export interface SubagentSettingsEntry {
+  /**
+   * Model override for matching subagents
+   */
+  model?: string;
+  /**
+   * Reasoning effort override for matching subagents
+   */
+  effortLevel?: string;
+  contextTier?: SubagentSettingsEntryContextTier;
+}
+/**
  * Schema for the `TaskAgentInfo` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -11691,6 +11844,14 @@ export interface ToolsListRequest {
    */
   model?: string;
 }
+/**
+ * Empty result after applying subagent settings
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ToolsUpdateSubagentSettingsResult".
+ */
+/** @experimental */
+export interface ToolsUpdateSubagentSettingsResult {}
 /**
  * Multi-select string field where each option pairs a value with a display label.
  *
@@ -12257,6 +12418,19 @@ export interface UIUnregisterDirectAutoModeSwitchHandlerResult {
    * True if the handle was active and decremented the counter; false if the handle was unknown.
    */
   unregistered: boolean;
+}
+/**
+ * Subagent settings to apply to the current session
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UpdateSubagentSettingsRequest".
+ */
+/** @experimental */
+export interface UpdateSubagentSettingsRequest {
+  /**
+   * Subagent settings to apply, or null to clear the live session override
+   */
+  subagents?: SubagentSettings | null;
 }
 /**
  * Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
@@ -13970,6 +14144,18 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.plugins.reload", { sessionId, ...params }),
         },
         /** @experimental */
+        provider: {
+            /**
+             * Returns the provider endpoint and credentials the session is currently configured to talk to, so the caller can make inference calls directly against the same backend the session uses.
+             *
+             * @param params Optional model identifier to scope the endpoint snapshot to.
+             *
+             * @returns A snapshot of the provider endpoint the session is currently configured to talk to.
+             */
+            getEndpoint: async (params?: ProviderGetEndpointRequest): Promise<ProviderEndpoint> =>
+                connection.sendRequest("session.provider.getEndpoint", { sessionId, ...params }),
+        },
+        /** @experimental */
         options: {
             /**
              * Patches the genuinely-mutable subset of session options.
@@ -14052,6 +14238,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getCurrentMetadata: async (): Promise<ToolsGetCurrentMetadataResult> =>
                 connection.sendRequest("session.tools.getCurrentMetadata", { sessionId }),
+            /**
+             * Updates the current session's live subagent settings after user settings change. The persisted user settings remain the source of truth for future sessions.
+             *
+             * @param params Subagent settings to apply to the current session
+             *
+             * @returns Empty result after applying subagent settings
+             */
+            updateSubagentSettings: async (params: UpdateSubagentSettingsRequest): Promise<ToolsUpdateSubagentSettingsResult> =>
+                connection.sendRequest("session.tools.updateSubagentSettings", { sessionId, ...params }),
         },
         /** @experimental */
         commands: {
