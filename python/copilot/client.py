@@ -183,7 +183,10 @@ class TelemetryConfig(TypedDict, total=False):
     otlp_endpoint: str
     """OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT."""
     otlp_protocol: Literal["http/json", "http/protobuf"]
-    """OTLP HTTP protocol for all signals ("http/json" or "http/protobuf"). Sets OTEL_EXPORTER_OTLP_PROTOCOL."""
+    """OTLP HTTP protocol for all signals.
+
+    Allowed values are "http/json" and "http/protobuf". Sets OTEL_EXPORTER_OTLP_PROTOCOL.
+    """
     file_path: str
     """File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH."""
     exporter_type: str
