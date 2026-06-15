@@ -13,7 +13,7 @@ package com.github.copilot.rpc;
  * @deprecated Use {@link SystemMessageSections} — this class will be removed in
  *             a future major version.
  * @see SystemMessageSections
- * @since 1.2.0
+ * @since 1.0.2
  */
 @Deprecated(since = "1.0.2", forRemoval = true)
 public final class SystemPromptSections extends SystemMessageSections {

@@ -25,7 +25,7 @@ package com.github.copilot.rpc;
  * @see SectionOverride
  * @since 1.0.2
  */
-public sealed class SystemMessageSections permits SystemPromptSections {
+public abstract sealed class SystemMessageSections permits SystemPromptSections {
 
     /** Agent identity preamble and mode statement. */
     public static final String IDENTITY = "identity";
