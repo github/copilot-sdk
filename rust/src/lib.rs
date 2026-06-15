@@ -2175,6 +2175,22 @@ mod tests {
     }
 
     #[test]
+    fn otlp_http_protocol_serde_matches_env_value() {
+        for (protocol, wire) in [
+            (OtlpHttpProtocol::HttpJson, "http/json"),
+            (OtlpHttpProtocol::HttpProtobuf, "http/protobuf"),
+        ] {
+            assert_eq!(protocol.as_str(), wire);
+
+            let serialized = serde_json::to_string(&protocol).unwrap();
+            assert_eq!(serialized, format!("\"{wire}\""));
+
+            let deserialized: OtlpHttpProtocol = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized, protocol);
+        }
+    }
+
+    #[test]
     fn build_command_sets_otel_env_when_telemetry_enabled() {
         let opts = ClientOptions {
             telemetry: Some(TelemetryConfig {
