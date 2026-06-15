@@ -506,6 +506,7 @@ export interface ApiSchema {
     server?: Record<string, unknown>;
     session?: Record<string, unknown>;
     clientSession?: Record<string, unknown>;
+    clientGlobal?: Record<string, unknown>;
 }
 
 export function isRpcMethod(node: unknown): node is RpcMethod {
@@ -555,6 +556,7 @@ export function fixNullableRequiredRefsInApiSchema(schema: ApiSchema): ApiSchema
         server: walkApiNode(schema.server),
         session: walkApiNode(schema.session),
         clientSession: walkApiNode(schema.clientSession),
+        clientGlobal: walkApiNode(schema.clientGlobal),
     };
 }
 

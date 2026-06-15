@@ -21,6 +21,12 @@ import type {
 export interface LlmInferenceRequest {
     /** Opaque runtime-minted id for this request. Stable across the request lifecycle, useful for logging. */
     requestId: string;
+    /**
+     * Id of the runtime session that triggered this request. Absent for
+     * requests issued outside any session (e.g. startup model catalog /
+     * capability resolution).
+     */
+    sessionId?: string;
     /** HTTP method (`GET`, `POST`, ...). */
     method: string;
     /** Absolute URL the runtime would have sent the request to. */
@@ -89,6 +95,7 @@ export function createLlmInferenceAdapter(provider: LlmInferenceProvider): LlmIn
             try {
                 response = await provider.onLlmRequest({
                     requestId: params.requestId,
+                    sessionId: params.sessionId,
                     method: params.method,
                     url: params.url,
                     headers: params.headers,

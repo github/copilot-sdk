@@ -2113,17 +2113,6 @@ export interface SessionConfigBase {
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
     createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
-
-    /**
-     * Per-session LLM inference provider override (experimental).
-     *
-     * Takes effect only if {@link CopilotClientOptions.llmInference} is
-     * configured. When supplied, overrides the client-level provider for
-     * this session.
-     *
-     * @experimental
-     */
-    createLlmInferenceProvider?: (session: CopilotSession) => LlmInferenceProvider;
 }
 
 /**
@@ -2519,14 +2508,15 @@ export interface SessionFsConfig {
  */
 export interface LlmInferenceConfig {
     /**
-     * Factory invoked once per session to obtain the provider instance for
-     * that session. Receives the {@link CopilotSession}; ignore the argument
-     * if the same provider should be used for every session.
+     * Factory invoked once during client construction to obtain the
+     * process-wide LLM inference provider. The runtime routes all outbound
+     * model HTTP requests through this provider for the lifetime of the
+     * client, regardless of which session triggered them.
      *
-     * If a {@link SessionConfigBase.createLlmInferenceProvider} is also
-     * supplied on session creation, that per-session factory wins.
+     * Per-request session correlation is available on
+     * {@link LlmInferenceRequest.sessionId}.
      */
-    createLlmInferenceProvider?: (session: CopilotSession) => LlmInferenceProvider;
+    createLlmInferenceProvider?: () => LlmInferenceProvider;
 }
 
 /**

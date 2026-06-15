@@ -29,13 +29,14 @@ import {
 import {
     createServerRpc,
     createInternalServerRpc,
+    registerClientGlobalApiHandlers,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
 import type { OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
-import { createLlmInferenceAdapter, type LlmInferenceProvider } from "./llmInferenceProvider.js";
+import { createLlmInferenceAdapter } from "./llmInferenceProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import { ToolSet } from "./toolSet.js";
 import type {
@@ -421,6 +422,7 @@ export class CopilotClient {
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private llmInferenceConfig: LlmInferenceConfig | null = null;
+    private llmInferenceHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
 
     /**
      * Typed server-scoped RPC methods.
@@ -533,6 +535,7 @@ export class CopilotClient {
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
         this.llmInferenceConfig = options.llmInference ?? null;
+        this.setupLlmInference();
 
         const effectiveEnv = options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
@@ -649,23 +652,18 @@ export class CopilotClient {
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
     }
 
-    private setupLlmInference(
-        session: CopilotSession,
-        config: { createLlmInferenceProvider?: (session: CopilotSession) => LlmInferenceProvider }
-    ): void {
+    private setupLlmInference(): void {
         if (!this.llmInferenceConfig) {
             return;
         }
-        const factory =
-            config.createLlmInferenceProvider ?? this.llmInferenceConfig.createLlmInferenceProvider;
+        const factory = this.llmInferenceConfig.createLlmInferenceProvider;
         if (!factory) {
             throw new Error(
-                "createLlmInferenceProvider is required (either on client options.llmInference " +
-                    "or on the session config) when llmInference is enabled."
+                "createLlmInferenceProvider is required on client options.llmInference when llmInference is enabled."
             );
         }
-        const provider = factory(session);
-        session.clientSessionApis.llmInference = createLlmInferenceAdapter(provider);
+        const provider = factory();
+        this.llmInferenceHandlers = { llmInference: createLlmInferenceAdapter(provider) };
     }
 
     /**
@@ -1232,7 +1230,6 @@ export class CopilotClient {
             }
             this.sessions.set(sessionId, s);
             this.setupSessionFs(s, config);
-            this.setupLlmInference(s, config);
             return s;
         };
 
@@ -1432,7 +1429,6 @@ export class CopilotClient {
         }
         this.sessions.set(sessionId, session);
         this.setupSessionFs(session, config);
-        this.setupLlmInference(session, config);
 
         const toolFilterOptions = this.resolveToolFilterOptions(config);
 
@@ -2393,6 +2389,11 @@ export class CopilotClient {
             if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
             return session.clientSessionApis;
         });
+
+        // Register client *global* API handlers (e.g. LLM inference) on the
+        // same connection. These methods carry no implicit sessionId dispatch
+        // — the runtime calls into a single handler for the whole connection.
+        registerClientGlobalApiHandlers(this.connection, this.llmInferenceHandlers);
 
         this.connection.onClose(() => {
             this.state = "disconnected";
