@@ -35,6 +35,7 @@ import type { OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
+import { createLlmInferenceAdapter, type LlmInferenceProvider } from "./llmInferenceProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import { ToolSet } from "./toolSet.js";
 import type {
@@ -60,6 +61,7 @@ import type {
     SessionCapabilities,
     SessionEvent,
     SessionFsConfig,
+    LlmInferenceConfig,
     SessionLifecycleEvent,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
@@ -418,6 +420,7 @@ export class CopilotClient {
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
+    private llmInferenceConfig: LlmInferenceConfig | null = null;
 
     /**
      * Typed server-scoped RPC methods.
@@ -529,6 +532,7 @@ export class CopilotClient {
         this.onListModels = options.onListModels;
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
+        this.llmInferenceConfig = options.llmInference ?? null;
 
         const effectiveEnv = options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
@@ -645,6 +649,25 @@ export class CopilotClient {
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
     }
 
+    private setupLlmInference(
+        session: CopilotSession,
+        config: { createLlmInferenceProvider?: (session: CopilotSession) => LlmInferenceProvider }
+    ): void {
+        if (!this.llmInferenceConfig) {
+            return;
+        }
+        const factory =
+            config.createLlmInferenceProvider ?? this.llmInferenceConfig.createLlmInferenceProvider;
+        if (!factory) {
+            throw new Error(
+                "createLlmInferenceProvider is required (either on client options.llmInference " +
+                    "or on the session config) when llmInference is enabled."
+            );
+        }
+        const provider = factory(session);
+        session.clientSessionApis.llmInference = createLlmInferenceAdapter(provider);
+    }
+
     /**
      * Starts the CLI server and establishes a connection.
      *
@@ -690,6 +713,13 @@ export class CopilotClient {
                     conventions: this.sessionFsConfig.conventions,
                     capabilities: this.sessionFsConfig.capabilities,
                 });
+            }
+
+            // If an LLM inference provider was configured, register it.
+            // The runtime will then route outbound model HTTP requests
+            // through the registered handler for the duration of each session.
+            if (this.llmInferenceConfig) {
+                await this.connection!.sendRequest("llmInference.setProvider", {});
             }
 
             this.state = "connected";
@@ -1202,6 +1232,7 @@ export class CopilotClient {
             }
             this.sessions.set(sessionId, s);
             this.setupSessionFs(s, config);
+            this.setupLlmInference(s, config);
             return s;
         };
 
@@ -1401,6 +1432,7 @@ export class CopilotClient {
         }
         this.sessions.set(sessionId, session);
         this.setupSessionFs(session, config);
+        this.setupLlmInference(session, config);
 
         const toolFilterOptions = this.resolveToolFilterOptions(config);
 

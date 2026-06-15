@@ -9,6 +9,7 @@
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
+import type { LlmInferenceProvider } from "./llmInferenceProvider.js";
 import type {
     ReasoningSummary,
     SessionEvent as GeneratedSessionEvent,
@@ -33,6 +34,20 @@ export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
+export type {
+    LlmInferenceProvider,
+    LlmInferenceRequest,
+    LlmInferenceResponse,
+} from "./llmInferenceProvider.js";
+export type {
+    LlmInferenceHeaders,
+    LlmInferenceRequestMetadata,
+    LlmInferenceRequestMetadataProviderType,
+    LlmInferenceRequestMetadataEndpointKind,
+    LlmInferenceRequestMetadataWireApi,
+    LlmInferenceRequestMetadataTransport,
+} from "./generated/rpc.js";
+export { createLlmInferenceAdapter } from "./llmInferenceProvider.js";
 
 /**
  * Options for creating a CopilotClient
@@ -304,6 +319,26 @@ export interface CopilotClientOptions {
      * instead of the server's default local filesystem storage.
      */
     sessionFs?: SessionFsConfig;
+
+    /**
+     * Custom LLM inference callback provider (experimental).
+     *
+     * When provided, the client registers as the runtime's LLM inference
+     * provider on connection: every outbound, non-streaming model-layer HTTP
+     * request the runtime would otherwise have issued itself is dispatched
+     * back to the callback over JSON-RPC. The callback returns the response
+     * verbatim, exactly as if the runtime had issued the request itself.
+     *
+     * v1 limitations:
+     * - Only non-streaming HTTP requests are intercepted. Streaming SSE
+     *   (e.g. `/responses` with `stream: true`) and WebSocket transports
+     *   currently bypass the callback and go upstream directly.
+     * - The callback is set process-globally on the runtime; the same
+     *   provider is invoked for every session created on this client.
+     *
+     * @experimental
+     */
+    llmInference?: LlmInferenceConfig;
 
     /**
      * Server-wide idle timeout for sessions in seconds.
@@ -2078,6 +2113,17 @@ export interface SessionConfigBase {
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
     createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
+
+    /**
+     * Per-session LLM inference provider override (experimental).
+     *
+     * Takes effect only if {@link CopilotClientOptions.llmInference} is
+     * configured. When supplied, overrides the client-level provider for
+     * this session.
+     *
+     * @experimental
+     */
+    createLlmInferenceProvider?: (session: CopilotSession) => LlmInferenceProvider;
 }
 
 /**
@@ -2463,6 +2509,24 @@ export interface SessionFsConfig {
          */
         sqlite?: boolean;
     };
+}
+
+/**
+ * Configuration for a custom LLM inference callback provider
+ * (experimental).
+ *
+ * @experimental
+ */
+export interface LlmInferenceConfig {
+    /**
+     * Factory invoked once per session to obtain the provider instance for
+     * that session. Receives the {@link CopilotSession}; ignore the argument
+     * if the same provider should be used for every session.
+     *
+     * If a {@link SessionConfigBase.createLlmInferenceProvider} is also
+     * supplied on session creation, that per-session factory wins.
+     */
+    createLlmInferenceProvider?: (session: CopilotSession) => LlmInferenceProvider;
 }
 
 /**
