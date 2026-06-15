@@ -40,8 +40,7 @@ public class SessionTodosChangedTest {
 
     @Test
     void firesSessionTodosChangedAndExposesRowsAndDependencies() throws Exception {
-        ctx.configureForTest("session_todos_changed",
-                "fires_session_todos_changed_and_exposes_rows_and_dependencies");
+        ctx.configureForTest("session_todos_changed", "fires_session_todos_changed_and_exposes_rows_and_dependencies");
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
@@ -50,8 +49,8 @@ public class SessionTodosChangedTest {
             List<SessionEvent> events = Collections.synchronizedList(new ArrayList<>());
             session.on(events::add);
 
-            session.sendAndWait(new MessageOptions().setPrompt(
-                    "Use the sql tool to execute exactly these statements, in order, with no extra rows:\n"
+            session.sendAndWait(new MessageOptions()
+                    .setPrompt("Use the sql tool to execute exactly these statements, in order, with no extra rows:\n"
                             + "1. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');\n"
                             + "2. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');\n"
                             + "3. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');\n"
