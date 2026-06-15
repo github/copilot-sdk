@@ -6,16 +6,13 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionTodosChangedEvent;
 import com.github.copilot.generated.rpc.PlanSqlTodoDependency;
 import com.github.copilot.rpc.MessageOptions;
@@ -46,8 +43,12 @@ public class SessionTodosChangedTest {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            List<SessionEvent> events = Collections.synchronizedList(new ArrayList<>());
-            session.on(events::add);
+            CompletableFuture<SessionTodosChangedEvent> todosChanged = new CompletableFuture<>();
+            session.on(event -> {
+                if (event instanceof SessionTodosChangedEvent todosEvent && !todosChanged.isDone()) {
+                    todosChanged.complete(todosEvent);
+                }
+            });
 
             session.sendAndWait(new MessageOptions()
                     .setPrompt("Use the sql tool to execute exactly these statements, in order, with no extra rows:\n"
@@ -57,14 +58,14 @@ public class SessionTodosChangedTest {
                             + "Then stop. Do not insert any other rows or create any other tables."))
                     .get(120, TimeUnit.SECONDS);
 
-            assertTrue(events.stream().anyMatch(SessionTodosChangedEvent.class::isInstance),
+            assertNotNull(todosChanged.get(15, TimeUnit.SECONDS),
                     "Should have received at least one session.todos_changed event");
 
             var result = session.getRpc().plan.readSqlTodosWithDependencies().get(15, TimeUnit.SECONDS);
             assertEquals(2, result.rows().size());
             var ids = result.rows().stream().map(row -> row.id()).filter(id -> id != null).sorted().toList();
 
-            assertEquals(List.of("alpha", "beta"), ids);
+            assertEquals(java.util.List.of("alpha", "beta"), ids);
             assertTrue(result.dependencies().stream().anyMatch(SessionTodosChangedTest::isBetaDependsOnAlpha),
                     "Should contain beta -> alpha dependency");
 

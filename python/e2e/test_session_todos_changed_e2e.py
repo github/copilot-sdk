@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from copilot.session import PermissionHandler
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, get_next_event_of_type
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -18,10 +20,6 @@ PROMPT = """Use the sql tool to execute exactly these statements, in order, with
 Then stop. Do not insert any other rows or create any other tables."""
 
 
-def _event_type_value(event) -> str:
-    return getattr(event.type, "value", event.type)
-
-
 class TestSessionTodosChanged:
     async def test_fires_session_todos_changed_and_exposes_rows_and_dependencies(
         self, ctx: E2ETestContext
@@ -29,17 +27,11 @@ class TestSessionTodosChanged:
         async with await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         ) as session:
-            events = []
-            unsubscribe = session.on(events.append)
-            try:
-                await session.send_and_wait(PROMPT, timeout=120.0)
-            finally:
-                unsubscribe()
-
-            todos_events = [
-                event for event in events if _event_type_value(event) == "session.todos_changed"
-            ]
-            assert len(todos_events) >= 1
+            todos_changed = asyncio.create_task(
+                get_next_event_of_type(session, "session.todos_changed", timeout=120.0)
+            )
+            await session.send_and_wait(PROMPT, timeout=120.0)
+            await todos_changed
 
             result = await session.rpc.plan.read_sql_todos_with_dependencies()
             ids = sorted(row.id for row in result.rows if row.id)

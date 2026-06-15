@@ -6,8 +6,9 @@ import fs, { realpathSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { approveAll, type SessionEvent } from "../../src/index.js";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 /**
  * E2E coverage for the runtime's `session.todos_changed` event and
@@ -28,10 +29,7 @@ describe("Todos changed event + readSqlTodosWithDependencies", async () => {
         async () => {
             const session = await client.createSession({ onPermissionRequest: approveAll });
 
-            const events: SessionEvent[] = [];
-            session.on((event) => {
-                events.push(event);
-            });
+            const todosChanged = getNextEventOfType(session, "session.todos_changed");
 
             await session.sendAndWait({
                 prompt:
@@ -42,8 +40,7 @@ describe("Todos changed event + readSqlTodosWithDependencies", async () => {
                     "Then stop. Do not insert any other rows or create any other tables.",
             });
 
-            const todosEvents = events.filter((e) => e.type === "session.todos_changed");
-            expect(todosEvents.length).toBeGreaterThanOrEqual(1);
+            await todosChanged;
 
             const result = await session.rpc.plan.readSqlTodosWithDependencies();
             const ids = result.rows
