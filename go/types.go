@@ -163,14 +163,6 @@ type TelemetryConfig struct {
 	// Sets OTEL_EXPORTER_OTLP_PROTOCOL.
 	OTLPProtocol string
 
-	// OTLPTracesProtocol is the OTLP HTTP protocol for traces.
-	// Sets OTEL_EXPORTER_OTLP_TRACES_PROTOCOL.
-	OTLPTracesProtocol string
-
-	// OTLPMetricsProtocol is the OTLP HTTP protocol for metrics.
-	// Sets OTEL_EXPORTER_OTLP_METRICS_PROTOCOL.
-	OTLPMetricsProtocol string
-
 	// FilePath is the file path for JSON-lines trace output.
 	// Sets COPILOT_OTEL_FILE_EXPORTER_PATH.
 	FilePath string

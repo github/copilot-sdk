@@ -2228,14 +2228,12 @@ Dependency: `io.opentelemetry:opentelemetry-api`
 |---|---|---|---|---|---|---|---|
 | OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `otlp_endpoint` | `otlpEndpoint` | `OtlpEndpoint` | OTLP HTTP endpoint URL |
 | OTLP protocol | `otlpProtocol` | `otlp_protocol` | `OTLPProtocol` | `otlp_protocol` | `otlpProtocol` | `OtlpProtocol` | OTLP HTTP protocol for all signals: `"http/json"` or `"http/protobuf"` |
-| OTLP traces protocol | `otlpTracesProtocol` | `otlp_traces_protocol` | `OTLPTracesProtocol` | `otlp_traces_protocol` | `otlpTracesProtocol` | `OtlpTracesProtocol` | OTLP HTTP protocol override for traces |
-| OTLP metrics protocol | `otlpMetricsProtocol` | `otlp_metrics_protocol` | `OTLPMetricsProtocol` | `otlp_metrics_protocol` | `otlpMetricsProtocol` | `OtlpMetricsProtocol` | OTLP HTTP protocol override for metrics |
 | File path | `filePath` | `file_path` | `FilePath` | `file_path` | `filePath` | `FilePath` | File path for JSON-lines trace output |
 | Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `exporter_type` | `exporterType` | `ExporterType` | `"otlp-http"` or `"file"` |
 | Source name | `sourceName` | `source_name` | `SourceName` | `source_name` | `sourceName` | `SourceName` | Instrumentation scope name |
 | Capture content | `captureContent` | `capture_content` | `CaptureContent` | `capture_content` | `captureContent` | `CaptureContent` | Whether to capture message content |
 
-The OTLP protocol fields configure the CLI's `"otlp-http"` exporter. Leave them unset to use the CLI default (`"http/json"`), set the general protocol for both traces and metrics, or use the traces/metrics fields to override one signal.
+The OTLP protocol field configures the CLI's `"otlp-http"` exporter for all signals. Leave it unset to use the CLI default (`"http/json"`), or set it to `"http/protobuf"` to export protobuf over HTTP.
 
 ### File export
 

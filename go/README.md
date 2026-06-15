@@ -574,8 +574,6 @@ client, err := copilot.NewClient(copilot.ClientOptions{
 
 - `OTLPEndpoint` (string): OTLP HTTP endpoint URL
 - `OTLPProtocol` (string): OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
-- `OTLPTracesProtocol` (string): OTLP HTTP protocol override for traces
-- `OTLPMetricsProtocol` (string): OTLP HTTP protocol override for metrics
 - `FilePath` (string): File path for JSON-lines trace output
 - `ExporterType` (string): `"otlp-http"` or `"file"`
 - `SourceName` (string): Instrumentation scope name

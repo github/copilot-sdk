@@ -1931,10 +1931,6 @@ export class CopilotClient {
                     envWithoutNodeDebug.OTEL_EXPORTER_OTLP_ENDPOINT = t.otlpEndpoint;
                 if (t.otlpProtocol !== undefined)
                     envWithoutNodeDebug.OTEL_EXPORTER_OTLP_PROTOCOL = t.otlpProtocol;
-                if (t.otlpTracesProtocol !== undefined)
-                    envWithoutNodeDebug.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL = t.otlpTracesProtocol;
-                if (t.otlpMetricsProtocol !== undefined)
-                    envWithoutNodeDebug.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL = t.otlpMetricsProtocol;
                 if (t.filePath !== undefined)
                     envWithoutNodeDebug.COPILOT_OTEL_FILE_EXPORTER_PATH = t.filePath;
                 if (t.exporterType !== undefined)

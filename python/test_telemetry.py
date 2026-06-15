@@ -78,8 +78,6 @@ class TestTelemetryConfig:
         config: TelemetryConfig = {
             "otlp_endpoint": "http://localhost:4318",
             "otlp_protocol": "http/protobuf",
-            "otlp_traces_protocol": "http/json",
-            "otlp_metrics_protocol": "http/protobuf",
             "file_path": "/tmp/traces.jsonl",
             "exporter_type": "file",
             "source_name": "test-app",
@@ -92,10 +90,6 @@ class TestTelemetryConfig:
             env["OTEL_EXPORTER_OTLP_ENDPOINT"] = config["otlp_endpoint"]
         if "otlp_protocol" in config:
             env["OTEL_EXPORTER_OTLP_PROTOCOL"] = config["otlp_protocol"]
-        if "otlp_traces_protocol" in config:
-            env["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = config["otlp_traces_protocol"]
-        if "otlp_metrics_protocol" in config:
-            env["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"] = config["otlp_metrics_protocol"]
         if "file_path" in config:
             env["COPILOT_OTEL_FILE_EXPORTER_PATH"] = config["file_path"]
         if "exporter_type" in config:
@@ -110,8 +104,6 @@ class TestTelemetryConfig:
         assert env["COPILOT_OTEL_ENABLED"] == "true"
         assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://localhost:4318"
         assert env["OTEL_EXPORTER_OTLP_PROTOCOL"] == "http/protobuf"
-        assert env["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] == "http/json"
-        assert env["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"] == "http/protobuf"
         assert env["COPILOT_OTEL_FILE_EXPORTER_PATH"] == "/tmp/traces.jsonl"
         assert env["COPILOT_OTEL_EXPORTER_TYPE"] == "file"
         assert env["COPILOT_OTEL_SOURCE_NAME"] == "test-app"

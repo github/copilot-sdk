@@ -17,8 +17,6 @@ public class TelemetryTests
 
         Assert.Null(config.OtlpEndpoint);
         Assert.Null(config.OtlpProtocol);
-        Assert.Null(config.OtlpTracesProtocol);
-        Assert.Null(config.OtlpMetricsProtocol);
         Assert.Null(config.FilePath);
         Assert.Null(config.ExporterType);
         Assert.Null(config.SourceName);
@@ -32,8 +30,6 @@ public class TelemetryTests
         {
             OtlpEndpoint = "http://localhost:4318",
             OtlpProtocol = "http/protobuf",
-            OtlpTracesProtocol = "http/json",
-            OtlpMetricsProtocol = "http/protobuf",
             FilePath = "/tmp/traces.json",
             ExporterType = "otlp-http",
             SourceName = "my-app",
@@ -42,8 +38,6 @@ public class TelemetryTests
 
         Assert.Equal("http://localhost:4318", config.OtlpEndpoint);
         Assert.Equal("http/protobuf", config.OtlpProtocol);
-        Assert.Equal("http/json", config.OtlpTracesProtocol);
-        Assert.Equal("http/protobuf", config.OtlpMetricsProtocol);
         Assert.Equal("/tmp/traces.json", config.FilePath);
         Assert.Equal("otlp-http", config.ExporterType);
         Assert.Equal("my-app", config.SourceName);

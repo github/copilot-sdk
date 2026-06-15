@@ -20,8 +20,6 @@ class TelemetryConfigTest {
         var config = new TelemetryConfig();
         assertNull(config.getOtlpEndpoint());
         assertNull(config.getOtlpProtocol());
-        assertNull(config.getOtlpTracesProtocol());
-        assertNull(config.getOtlpMetricsProtocol());
         assertNull(config.getFilePath());
         assertNull(config.getExporterType());
         assertNull(config.getSourceName());
@@ -40,20 +38,6 @@ class TelemetryConfigTest {
         var config = new TelemetryConfig();
         config.setOtlpProtocol("http/protobuf");
         assertEquals("http/protobuf", config.getOtlpProtocol());
-    }
-
-    @Test
-    void otlpTracesProtocolGetterSetter() {
-        var config = new TelemetryConfig();
-        config.setOtlpTracesProtocol("http/json");
-        assertEquals("http/json", config.getOtlpTracesProtocol());
-    }
-
-    @Test
-    void otlpMetricsProtocolGetterSetter() {
-        var config = new TelemetryConfig();
-        config.setOtlpMetricsProtocol("http/protobuf");
-        assertEquals("http/protobuf", config.getOtlpMetricsProtocol());
     }
 
     @Test
@@ -90,14 +74,11 @@ class TelemetryConfigTest {
     @Test
     void fluentChainingReturnsThis() {
         var config = new TelemetryConfig().setOtlpEndpoint("http://localhost:4318").setOtlpProtocol("http/protobuf")
-                .setOtlpTracesProtocol("http/json").setOtlpMetricsProtocol("http/protobuf")
                 .setFilePath("/tmp/spans.json").setExporterType("file").setSourceName("sdk-test")
                 .setCaptureContent(true);
 
         assertEquals("http://localhost:4318", config.getOtlpEndpoint());
         assertEquals("http/protobuf", config.getOtlpProtocol());
-        assertEquals("http/json", config.getOtlpTracesProtocol());
-        assertEquals("http/protobuf", config.getOtlpMetricsProtocol());
         assertEquals("/tmp/spans.json", config.getFilePath());
         assertEquals("file", config.getExporterType());
         assertEquals("sdk-test", config.getSourceName());

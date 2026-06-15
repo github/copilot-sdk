@@ -57,10 +57,6 @@ export interface TelemetryConfig {
     otlpEndpoint?: string;
     /** OTLP HTTP protocol for all signals. Sets OTEL_EXPORTER_OTLP_PROTOCOL. */
     otlpProtocol?: "http/json" | "http/protobuf";
-    /** OTLP HTTP protocol for traces. Sets OTEL_EXPORTER_OTLP_TRACES_PROTOCOL. */
-    otlpTracesProtocol?: "http/json" | "http/protobuf";
-    /** OTLP HTTP protocol for metrics. Sets OTEL_EXPORTER_OTLP_METRICS_PROTOCOL. */
-    otlpMetricsProtocol?: "http/json" | "http/protobuf";
     /** File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH. */
     filePath?: string;
     /** Exporter backend type: "otlp-http" or "file". Sets COPILOT_OTEL_EXPORTER_TYPE. */

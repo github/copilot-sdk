@@ -109,14 +109,12 @@ func TestClientOptionsE2E(t *testing.T) {
 			opts.LogLevel = "debug"
 			opts.SessionIdleTimeoutSeconds = 17
 			opts.Telemetry = &copilot.TelemetryConfig{
-				OTLPEndpoint:        "http://127.0.0.1:4318",
-				OTLPProtocol:        "http/protobuf",
-				OTLPTracesProtocol:  "http/json",
-				OTLPMetricsProtocol: "http/protobuf",
-				FilePath:            telemetryPath,
-				ExporterType:        "file",
-				SourceName:          "go-sdk-e2e",
-				CaptureContent:      copilot.Bool(true),
+				OTLPEndpoint:   "http://127.0.0.1:4318",
+				OTLPProtocol:   "http/protobuf",
+				FilePath:       telemetryPath,
+				ExporterType:   "file",
+				SourceName:     "go-sdk-e2e",
+				CaptureContent: copilot.Bool(true),
 			}
 			opts.UseLoggedInUser = copilot.Bool(false)
 		})
@@ -151,8 +149,6 @@ func TestClientOptionsE2E(t *testing.T) {
 			"COPILOT_OTEL_ENABLED":                               "true",
 			"OTEL_EXPORTER_OTLP_ENDPOINT":                        "http://127.0.0.1:4318",
 			"OTEL_EXPORTER_OTLP_PROTOCOL":                        "http/protobuf",
-			"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL":                 "http/json",
-			"OTEL_EXPORTER_OTLP_METRICS_PROTOCOL":                "http/protobuf",
 			"COPILOT_OTEL_FILE_EXPORTER_PATH":                    telemetryPath,
 			"COPILOT_OTEL_EXPORTER_TYPE":                         "file",
 			"COPILOT_OTEL_SOURCE_NAME":                           "go-sdk-e2e",
@@ -202,45 +198,6 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should only set configured OTLP protocol env vars", func(t *testing.T) {
-		ctx := testharness.NewTestContext(t)
-
-		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-"+randomHex(t)+".js")
-		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-capture-"+randomHex(t)+".json")
-		if err := os.WriteFile(cliPath, []byte(fakeStdioCliScript), 0644); err != nil {
-			t.Fatalf("Failed to write fake CLI script: %v", err)
-		}
-
-		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.StdioConnection{
-				Path: cliPath,
-				Args: []string{"--capture-file", capturePath},
-			}
-			opts.GitHubToken = "process-option-token"
-			opts.Telemetry = &copilot.TelemetryConfig{
-				OTLPTracesProtocol: "http/protobuf",
-			}
-			opts.UseLoggedInUser = copilot.Bool(false)
-		})
-		t.Cleanup(func() { client.ForceStop() })
-
-		if err := client.Start(t.Context()); err != nil {
-			t.Fatalf("Start failed: %v", err)
-		}
-
-		capture := readCapture(t, capturePath)
-		if got := capture.Env["COPILOT_OTEL_ENABLED"]; got != "true" {
-			t.Errorf("Expected COPILOT_OTEL_ENABLED=true, got %q", got)
-		}
-		if got := capture.Env["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"]; got != "http/protobuf" {
-			t.Errorf("Expected OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf, got %q", got)
-		}
-		for _, key := range []string{"OTEL_EXPORTER_OTLP_PROTOCOL", "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"} {
-			if got, ok := capture.Env[key]; ok {
-				t.Errorf("Expected %s to be unset, got %q", key, got)
-			}
-		}
-	})
 }
 
 // ---------------------------------------------------------------------------
@@ -419,8 +376,6 @@ function saveCapture() {
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
       OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
-      OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL,
-      OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
       COPILOT_OTEL_FILE_EXPORTER_PATH: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
       COPILOT_OTEL_EXPORTER_TYPE: process.env.COPILOT_OTEL_EXPORTER_TYPE,
       COPILOT_OTEL_SOURCE_NAME: process.env.COPILOT_OTEL_SOURCE_NAME,
