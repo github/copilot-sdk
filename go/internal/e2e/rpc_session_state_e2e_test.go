@@ -42,8 +42,22 @@ func TestRPCSessionStateE2E(t *testing.T) {
 		}
 	})
 
+	// The runtime caches /models per (auth, base_url) for 30 minutes (see
+	// capi_client.rs LIST_MODELS_CACHE). Within this test function all subtests
+	// share one CLI subprocess and proxy URL, so the first subtest's snapshot
+	// models list is reused by every later one. SwitchTo needs gpt-5.4 in the
+	// cache; rather than poison every other snapshot we give this subtest its
+	// own dedicated client + proxy → its own cache entry.
 	t.Run("should call session rpc model switchTo", func(t *testing.T) {
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+		switchCtx := testharness.NewTestContext(t)
+		switchClient := switchCtx.NewClient()
+		t.Cleanup(func() { switchClient.ForceStop() })
+		if err := switchClient.Start(t.Context()); err != nil {
+			t.Fatalf("Failed to start switch client: %v", err)
+		}
+		switchCtx.ConfigureForTest(t)
+
+		session, err := switchClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model:               "claude-sonnet-4.5",
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})
