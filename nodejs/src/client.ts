@@ -663,7 +663,15 @@ export class CopilotClient {
             );
         }
         const provider = factory();
-        this.llmInferenceHandlers = { llmInference: createLlmInferenceAdapter(provider) };
+        this.llmInferenceHandlers = {
+            llmInference: createLlmInferenceAdapter(provider, () => {
+                if (!this.connection) {
+                    return undefined;
+                }
+                this._rpc ??= createServerRpc(this.connection);
+                return this._rpc;
+            }),
+        };
     }
 
     /**
