@@ -10,30 +10,26 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
+ * Wire API to be used, when required for the provider type.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum ExtensionSource {
-    /** The {@code project} variant. */
-    PROJECT("project"),
-    /** The {@code user} variant. */
-    USER("user"),
-    /** The {@code plugin} variant. */
-    PLUGIN("plugin"),
-    /** The {@code session} variant. */
-    SESSION("session");
+public enum ProviderEndpointWireApi {
+    /** The {@code completions} variant. */
+    COMPLETIONS("completions"),
+    /** The {@code responses} variant. */
+    RESPONSES("responses");
 
     private final String value;
-    ExtensionSource(String value) { this.value = value; }
+    ProviderEndpointWireApi(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static ExtensionSource fromValue(String value) {
-        for (ExtensionSource v : values()) {
+    public static ProviderEndpointWireApi fromValue(String value) {
+        for (ProviderEndpointWireApi v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown ExtensionSource value: " + value);
+        throw new IllegalArgumentException("Unknown ProviderEndpointWireApi value: " + value);
     }
 }

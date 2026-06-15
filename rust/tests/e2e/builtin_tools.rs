@@ -62,7 +62,7 @@ async fn should_capture_stderr_output() {
                 .expect("create session");
 
             let msg = session
-                .send_and_wait(message("Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content."))
+                .send_and_wait(message("Run 'echo error_msg >&2; sleep 0.5; echo ok' and tell me what stderr said. Reply with just the stderr content."))
                 .await
                 .expect("send")
                 .expect("assistant message");

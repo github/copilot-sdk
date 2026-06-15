@@ -10,30 +10,26 @@ package com.github.copilot.generated;
 import javax.annotation.processing.Generated;
 
 /**
- * Discovery source
+ * Allowed values for the `ToolExecutionStartToolDescriptionMetaUIVisibility` enumeration.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum ExtensionsLoadedExtensionSource {
-    /** The {@code project} variant. */
-    PROJECT("project"),
-    /** The {@code user} variant. */
-    USER("user"),
-    /** The {@code plugin} variant. */
-    PLUGIN("plugin"),
-    /** The {@code session} variant. */
-    SESSION("session");
+public enum ToolExecutionStartToolDescriptionMetaUIVisibility {
+    /** The {@code model} variant. */
+    MODEL("model"),
+    /** The {@code app} variant. */
+    APP("app");
 
     private final String value;
-    ExtensionsLoadedExtensionSource(String value) { this.value = value; }
+    ToolExecutionStartToolDescriptionMetaUIVisibility(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static ExtensionsLoadedExtensionSource fromValue(String value) {
-        for (ExtensionsLoadedExtensionSource v : values()) {
+    public static ToolExecutionStartToolDescriptionMetaUIVisibility fromValue(String value) {
+        for (ToolExecutionStartToolDescriptionMetaUIVisibility v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown ExtensionsLoadedExtensionSource value: " + value);
+        throw new IllegalArgumentException("Unknown ToolExecutionStartToolDescriptionMetaUIVisibility value: " + value);
     }
 }

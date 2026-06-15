@@ -1290,13 +1290,15 @@ type ExecuteCommandResult struct {
 // Schema for the `Extension` type.
 // Experimental: Extension is part of an experimental API and may change or be removed.
 type Extension struct {
-	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
+	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper',
+	// 'plugin:my-plugin:my-ext')
 	ID string `json:"id"`
 	// Extension name (directory name)
 	Name string `json:"name"`
 	// Process ID if the extension is running
 	Pid *int64 `json:"pid,omitempty"`
-	// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+	// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin
+	// (installed plugin), or session (session-state/<id>/extensions/)
 	Source ExtensionSource `json:"source"`
 	// Current status: running, disabled, failed, or starting
 	Status ExtensionStatus `json:"status"`
@@ -2713,6 +2715,14 @@ type MCPTools struct {
 type MCPUnregisterExternalClientRequest struct {
 	// Server name of the external client to unregister
 	ServerName string `json:"serverName"`
+}
+
+// Memory configuration for this session.
+// Experimental: MemoryConfiguration is part of an experimental API and may change or be
+// removed.
+type MemoryConfiguration struct {
+	// Whether memory is enabled for the session.
+	Enabled bool `json:"enabled"`
 }
 
 // Model identifier and token limits used to compute the context-info breakdown.
@@ -4277,7 +4287,32 @@ type PlanReadSQLTodosResult struct {
 	Rows []PlanSQLTodosRow `json:"rows"`
 }
 
-// Schema for the `PlanSqlTodosRow` type.
+// Todo rows + dependency edges read from the session SQL database.
+// Experimental: PlanReadSQLTodosWithDependenciesResult is part of an experimental API and
+// may change or be removed.
+type PlanReadSQLTodosWithDependenciesResult struct {
+	// Edges from the session SQL todo_deps table. Empty when no database, no todo_deps table,
+	// or the SELECT failed. Read independently from `rows`, so a broken todo_deps table does
+	// not affect the rows result and vice versa.
+	Dependencies []PlanSQLTodoDependency `json:"dependencies"`
+	// Rows from the session SQL todos table, ordered by creation time and id. Empty when no
+	// database, no todos table, or the SELECT failed.
+	Rows []PlanSQLTodosRow `json:"rows"`
+}
+
+// A single dependency edge read from the session SQL `todo_deps` table, indicating that one
+// todo must complete before another.
+// Experimental: PlanSQLTodoDependency is part of an experimental API and may change or be
+// removed.
+type PlanSQLTodoDependency struct {
+	// ID of the todo it depends on.
+	DependsOn string `json:"dependsOn"`
+	// ID of the todo that has the dependency.
+	TodoID string `json:"todoId"`
+}
+
+// A single todo row read from the session SQL `todos` table. All fields are optional
+// because the SQL schema is best-effort and the agent may not have populated every column.
 // Experimental: PlanSQLTodosRow is part of an experimental API and may change or be removed.
 type PlanSQLTodosRow struct {
 	// Todo description.
@@ -4550,6 +4585,52 @@ type ProviderConfigAzure struct {
 	// API version. When set, uses the versioned deployment route. When omitted, uses the GA
 	// versionless v1 route.
 	APIVersion *string `json:"apiVersion,omitempty"`
+}
+
+// A snapshot of the provider endpoint the session is currently configured to talk to.
+// Experimental: ProviderEndpoint is part of an experimental API and may change or be
+// removed.
+type ProviderEndpoint struct {
+	// A credential the caller should use with this endpoint. Omitted only when the endpoint
+	// accepts unauthenticated requests.
+	APIKey *string `json:"apiKey,omitempty"`
+	// Base URL to pass to the LLM client library.
+	BaseURL string `json:"baseUrl"`
+	// HTTP headers the caller must include on every outbound request.
+	Headers map[string]string `json:"headers"`
+	// Short-lived, rotating credential the caller must send on every request, in addition to
+	// `apiKey` if one is present. Omitted when the endpoint does not require one.
+	SessionToken *ProviderSessionToken `json:"sessionToken,omitempty"`
+	// Provider family. Matches the `type` field of a BYOK provider config.
+	Type ProviderEndpointType `json:"type"`
+	// Wire API to be used, when required for the provider type.
+	WireAPI *ProviderEndpointWireAPI `json:"wireApi,omitempty"`
+}
+
+// Optional model identifier to scope the endpoint snapshot to.
+// Experimental: ProviderGetEndpointRequest is part of an experimental API and may change or
+// be removed.
+type ProviderGetEndpointRequest struct {
+	// Model identifier the caller intends to use against the returned endpoint. Used to pick
+	// the correct wire shape. Omit to use whichever model the session is currently using.
+	ModelID *string `json:"modelId,omitempty"`
+}
+
+// Short-lived, rotating credential the caller must send on every request, in addition to
+// `apiKey` if one is present. Omitted when the endpoint does not require one.
+// Experimental: ProviderSessionToken is part of an experimental API and may change or be
+// removed.
+type ProviderSessionToken struct {
+	// When the token expires, if known. Callers should refresh by calling `getEndpoint` again
+	// before this time, or reactively on any 401/403 response from `baseUrl`.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	// HTTP header name the token must be sent under.
+	Header string `json:"header"`
+	// The model the token is bound to, when applicable. When set, the token is only valid for
+	// requests against this model.
+	Model *string `json:"model,omitempty"`
+	// The short-lived token value.
+	Token string `json:"token"`
 }
 
 // Schema for the `PushAttachment` type.
@@ -6008,6 +6089,13 @@ type SessionOpenOptions struct {
 	EventsLogDirectory *string `json:"eventsLogDirectory,omitempty"`
 	// Denylist of tool names.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
+	// ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the
+	// Copilot CLI fetches from the experimentation service (CopilotExpAssignmentResponse). When
+	// supplied this is fed into the FeatureFlagService exactly like CLI-fetched assignments and
+	// ExP-backed flags wait for it. When absent the session does not block on ExP.
+	// Internal: ExpAssignments is part of the SDK's internal API surface and is not intended
+	// for external use.
+	ExpAssignments any `json:"expAssignments,omitempty"`
 	// Feature-flag values resolved by the host.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
 	// Installed plugins visible to the session.
@@ -6020,6 +6108,8 @@ type SessionOpenOptions struct {
 	LogInteractiveShells *bool `json:"logInteractiveShells,omitempty"`
 	// Identifier sent to LSP-style integrations.
 	LspClientName *string `json:"lspClientName,omitempty"`
+	// Memory configuration for this session.
+	Memory *MemoryConfiguration `json:"memory,omitempty"`
 	// Initial model identifier.
 	Model *string `json:"model,omitempty"`
 	// Initial model capability overrides.
@@ -7086,6 +7176,10 @@ type SlashCommandInfo struct {
 	Kind SlashCommandKind `json:"kind"`
 	// Canonical command name without a leading slash
 	Name string `json:"name"`
+	// Whether the command may be the target of `/every` / `/after` schedules. Resolution
+	// happens at every tick, so only set this when the command is safe to re-invoke and
+	// produces an agent prompt.
+	Schedulable *bool `json:"schedulable,omitempty"`
 }
 
 // Optional unstructured input hint
@@ -7209,6 +7303,28 @@ type SlashCommandSelectSubcommandOption struct {
 	Group *string `json:"group,omitempty"`
 	// Subcommand name to invoke
 	Name string `json:"name"`
+}
+
+// Configured per-agent subagent overrides
+// Experimental: SubagentSettings is part of an experimental API and may change or be
+// removed.
+type SubagentSettings struct {
+	// Per-agent settings keyed by subagent agent_type
+	Agents map[string]SubagentSettingsEntry `json:"agents,omitzero"`
+	// Names of subagents the user has turned off; they cannot be dispatched
+	DisabledSubagents []string `json:"disabledSubagents,omitzero"`
+}
+
+// Subagent model, reasoning effort, and context tier settings
+// Experimental: SubagentSettingsEntry is part of an experimental API and may change or be
+// removed.
+type SubagentSettingsEntry struct {
+	// Context tier override for matching subagents
+	ContextTier *SubagentSettingsEntryContextTier `json:"contextTier,omitempty"`
+	// Reasoning effort override for matching subagents
+	EffortLevel *string `json:"effortLevel,omitempty"`
+	// Model override for matching subagents
+	Model *string `json:"model,omitempty"`
 }
 
 // Schema for the `TaskInfo` type.
@@ -7575,6 +7691,12 @@ type ToolsListRequest struct {
 	// Optional model ID — when provided, the returned tool list reflects model-specific
 	// overrides
 	Model *string `json:"model,omitempty"`
+}
+
+// Empty result after applying subagent settings
+// Experimental: ToolsUpdateSubagentSettingsResult is part of an experimental API and may
+// change or be removed.
+type ToolsUpdateSubagentSettingsResult struct {
 }
 
 // Schema applied to each item in the array.
@@ -8008,6 +8130,14 @@ type UIUserInputResponse struct {
 	// True if the user typed a freeform response, false if they selected a presented choice.
 	// Used by telemetry to differentiate between free text input and choice selection.
 	WasFreeform bool `json:"wasFreeform"`
+}
+
+// Subagent settings to apply to the current session
+// Experimental: UpdateSubagentSettingsRequest is part of an experimental API and may change
+// or be removed.
+type UpdateSubagentSettingsRequest struct {
+	// Subagent settings to apply, or null to clear the live session override
+	Subagents *SubagentSettings `json:"subagents,omitempty"`
 }
 
 // Accumulated session usage metrics, including premium request cost, token counts, model
@@ -8758,13 +8888,19 @@ const (
 	EventsCursorStatusOk EventsCursorStatus = "ok"
 )
 
-// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin
+// (installed plugin), or session (session-state/<id>/extensions/)
 // Experimental: ExtensionSource is part of an experimental API and may change or be removed.
 type ExtensionSource string
 
 const (
+	// Extension contributed by an installed plugin.
+	ExtensionSourcePlugin ExtensionSource = "plugin"
 	// Extension discovered from the current project's .github/extensions directory.
 	ExtensionSourceProject ExtensionSource = "project"
+	// Extension discovered from the current session's state directory (loaded only for this
+	// session).
+	ExtensionSourceSession ExtensionSource = "session"
 	// Extension discovered from the user's ~/.copilot/extensions directory.
 	ExtensionSourceUser ExtensionSource = "user"
 )
@@ -9377,6 +9513,32 @@ const (
 	ProviderConfigWireAPIResponses ProviderConfigWireAPI = "responses"
 )
 
+// Provider family. Matches the `type` field of a BYOK provider config.
+// Experimental: ProviderEndpointType is part of an experimental API and may change or be
+// removed.
+type ProviderEndpointType string
+
+const (
+	// Anthropic endpoint (use the Anthropic client library).
+	ProviderEndpointTypeAnthropic ProviderEndpointType = "anthropic"
+	// Azure OpenAI endpoint (use the OpenAI client library with the Azure base URL).
+	ProviderEndpointTypeAzure ProviderEndpointType = "azure"
+	// OpenAI-compatible endpoint (use the OpenAI client library).
+	ProviderEndpointTypeOpenai ProviderEndpointType = "openai"
+)
+
+// Wire API to be used, when required for the provider type.
+// Experimental: ProviderEndpointWireAPI is part of an experimental API and may change or be
+// removed.
+type ProviderEndpointWireAPI string
+
+const (
+	// Classic chat-completions request shape.
+	ProviderEndpointWireAPICompletions ProviderEndpointWireAPI = "completions"
+	// Newer responses request shape.
+	ProviderEndpointWireAPIResponses ProviderEndpointWireAPI = "responses"
+)
+
 // Type of GitHub reference
 // Experimental: PushAttachmentGitHubReferenceType is part of an experimental API and may
 // change or be removed.
@@ -9850,6 +10012,20 @@ const (
 	SlashCommandKindClient SlashCommandKind = "client"
 	// Command backed by a skill.
 	SlashCommandKindSkill SlashCommandKind = "skill"
+)
+
+// Context tier override for matching subagents
+// Experimental: SubagentSettingsEntryContextTier is part of an experimental API and may
+// change or be removed.
+type SubagentSettingsEntryContextTier string
+
+const (
+	// Use the model's default context window.
+	SubagentSettingsEntryContextTierDefault SubagentSettingsEntryContextTier = "default"
+	// Inherit the parent session's effective context tier at dispatch time.
+	SubagentSettingsEntryContextTierInherit SubagentSettingsEntryContextTier = "inherit"
+	// Pin the subagent to the long-context tier when supported.
+	SubagentSettingsEntryContextTierLongContext SubagentSettingsEntryContextTier = "long_context"
 )
 
 // Whether task execution is synchronously awaited or managed in the background
@@ -13941,6 +14117,28 @@ func (a *PlanAPI) ReadSqlTodos(ctx context.Context) (*PlanReadSQLTodosResult, er
 	return &result, nil
 }
 
+// ReadSqlTodosWithDependencies reads todo rows AND dependency edges from the session SQL
+// database for structured progress UI. Same defensive behavior as readSqlTodos — returns
+// empty arrays when the database, tables, or columns aren't available. Clients should call
+// this on session start and after every `session.todos_changed` event to refresh
+// structured-UI rendering.
+//
+// RPC method: session.plan.readSqlTodosWithDependencies.
+//
+// Returns: Todo rows + dependency edges read from the session SQL database.
+func (a *PlanAPI) ReadSqlTodosWithDependencies(ctx context.Context) (*PlanReadSQLTodosWithDependenciesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.plan.readSqlTodosWithDependencies", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PlanReadSQLTodosWithDependenciesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Update writes new content to the session plan file.
 //
 // RPC method: session.plan.update.
@@ -14014,6 +14212,41 @@ func (a *PluginsAPI) Reload(ctx context.Context, params ...*PluginsReloadRequest
 		return nil, err
 	}
 	var result SessionPluginsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ProviderAPI contains experimental APIs that may change or be removed.
+type ProviderAPI sessionAPI
+
+// GetEndpoint returns the provider endpoint and credentials the session is currently
+// configured to talk to, so the caller can make inference calls directly against the same
+// backend the session uses.
+//
+// RPC method: session.provider.getEndpoint.
+//
+// Parameters: Optional model identifier to scope the endpoint snapshot to.
+//
+// Returns: A snapshot of the provider endpoint the session is currently configured to talk
+// to.
+func (a *ProviderAPI) GetEndpoint(ctx context.Context, params ...*ProviderGetEndpointRequest) (*ProviderEndpoint, error) {
+	var requestParams *ProviderGetEndpointRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	req := map[string]any{"sessionId": a.sessionID}
+	if requestParams != nil {
+		if requestParams.ModelID != nil {
+			req["modelId"] = *requestParams.ModelID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.provider.getEndpoint", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ProviderEndpoint
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -14794,6 +15027,33 @@ func (a *ToolsAPI) InitializeAndValidate(ctx context.Context) (*ToolsInitializeA
 	return &result, nil
 }
 
+// UpdateSubagentSettings updates the current session's live subagent settings after user
+// settings change. The persisted user settings remain the source of truth for future
+// sessions.
+//
+// RPC method: session.tools.updateSubagentSettings.
+//
+// Parameters: Subagent settings to apply to the current session
+//
+// Returns: Empty result after applying subagent settings
+func (a *ToolsAPI) UpdateSubagentSettings(ctx context.Context, params *UpdateSubagentSettingsRequest) (*ToolsUpdateSubagentSettingsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Subagents != nil {
+			req["subagents"] = *params.Subagents
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.tools.updateSubagentSettings", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ToolsUpdateSubagentSettingsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: UIAPI contains experimental APIs that may change or be removed.
 type UIAPI sessionAPI
 
@@ -15251,6 +15511,7 @@ type SessionRPC struct {
 	Permissions  *PermissionsAPI
 	Plan         *PlanAPI
 	Plugins      *PluginsAPI
+	Provider     *ProviderAPI
 	Queue        *QueueAPI
 	Remote       *RemoteAPI
 	Schedule     *ScheduleAPI
@@ -15461,6 +15722,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Permissions = (*PermissionsAPI)(&r.common)
 	r.Plan = (*PlanAPI)(&r.common)
 	r.Plugins = (*PluginsAPI)(&r.common)
+	r.Provider = (*ProviderAPI)(&r.common)
 	r.Queue = (*QueueAPI)(&r.common)
 	r.Remote = (*RemoteAPI)(&r.common)
 	r.Schedule = (*ScheduleAPI)(&r.common)

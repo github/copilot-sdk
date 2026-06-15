@@ -12,6 +12,7 @@ type (
 	AssistantIntentData                                            = rpc.AssistantIntentData
 	AssistantMessageData                                           = rpc.AssistantMessageData
 	AssistantMessageDeltaData                                      = rpc.AssistantMessageDeltaData
+	AssistantMessageServerTools                                    = rpc.AssistantMessageServerTools
 	AssistantMessageStartData                                      = rpc.AssistantMessageStartData
 	AssistantMessageToolRequest                                    = rpc.AssistantMessageToolRequest
 	AssistantMessageToolRequestType                                = rpc.AssistantMessageToolRequestType
@@ -190,6 +191,7 @@ type (
 	SessionStartData                                               = rpc.SessionStartData
 	SessionTaskCompleteData                                        = rpc.SessionTaskCompleteData
 	SessionTitleChangedData                                        = rpc.SessionTitleChangedData
+	SessionTodosChangedData                                        = rpc.SessionTodosChangedData
 	SessionToolsUpdatedData                                        = rpc.SessionToolsUpdatedData
 	SessionTruncationData                                          = rpc.SessionTruncationData
 	SessionUsageInfoData                                           = rpc.SessionUsageInfoData
@@ -254,6 +256,10 @@ type (
 	ToolExecutionPartialResultData                                 = rpc.ToolExecutionPartialResultData
 	ToolExecutionProgressData                                      = rpc.ToolExecutionProgressData
 	ToolExecutionStartData                                         = rpc.ToolExecutionStartData
+	ToolExecutionStartToolDescription                              = rpc.ToolExecutionStartToolDescription
+	ToolExecutionStartToolDescriptionMeta                          = rpc.ToolExecutionStartToolDescriptionMeta
+	ToolExecutionStartToolDescriptionMetaUI                        = rpc.ToolExecutionStartToolDescriptionMetaUI
+	ToolExecutionStartToolDescriptionMetaUIVisibility              = rpc.ToolExecutionStartToolDescriptionMetaUIVisibility
 	ToolUserRequestedData                                          = rpc.ToolUserRequestedData
 	UserInputCompletedData                                         = rpc.UserInputCompletedData
 	UserInputRequestedData                                         = rpc.UserInputRequestedData
@@ -318,7 +324,9 @@ const (
 	ExitPlanModeActionAutopilotFleet                                   = rpc.ExitPlanModeActionAutopilotFleet
 	ExitPlanModeActionExitOnly                                         = rpc.ExitPlanModeActionExitOnly
 	ExitPlanModeActionInteractive                                      = rpc.ExitPlanModeActionInteractive
+	ExtensionsLoadedExtensionSourcePlugin                              = rpc.ExtensionsLoadedExtensionSourcePlugin
 	ExtensionsLoadedExtensionSourceProject                             = rpc.ExtensionsLoadedExtensionSourceProject
+	ExtensionsLoadedExtensionSourceSession                             = rpc.ExtensionsLoadedExtensionSourceSession
 	ExtensionsLoadedExtensionSourceUser                                = rpc.ExtensionsLoadedExtensionSourceUser
 	ExtensionsLoadedExtensionStatusDisabled                            = rpc.ExtensionsLoadedExtensionStatusDisabled
 	ExtensionsLoadedExtensionStatusFailed                              = rpc.ExtensionsLoadedExtensionStatusFailed
@@ -455,6 +463,7 @@ const (
 	SessionEventTypeSessionStart                                       = rpc.SessionEventTypeSessionStart
 	SessionEventTypeSessionTaskComplete                                = rpc.SessionEventTypeSessionTaskComplete
 	SessionEventTypeSessionTitleChanged                                = rpc.SessionEventTypeSessionTitleChanged
+	SessionEventTypeSessionTodosChanged                                = rpc.SessionEventTypeSessionTodosChanged
 	SessionEventTypeSessionToolsUpdated                                = rpc.SessionEventTypeSessionToolsUpdated
 	SessionEventTypeSessionTruncation                                  = rpc.SessionEventTypeSessionTruncation
 	SessionEventTypeSessionUsageInfo                                   = rpc.SessionEventTypeSessionUsageInfo
@@ -511,6 +520,8 @@ const (
 	ToolExecutionCompleteContentTypeText                               = rpc.ToolExecutionCompleteContentTypeText
 	ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp            = rpc.ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp
 	ToolExecutionCompleteToolDescriptionMetaUIVisibilityModel          = rpc.ToolExecutionCompleteToolDescriptionMetaUIVisibilityModel
+	ToolExecutionStartToolDescriptionMetaUIVisibilityApp               = rpc.ToolExecutionStartToolDescriptionMetaUIVisibilityApp
+	ToolExecutionStartToolDescriptionMetaUIVisibilityModel             = rpc.ToolExecutionStartToolDescriptionMetaUIVisibilityModel
 	UserMessageAgentModeAutopilot                                      = rpc.UserMessageAgentModeAutopilot
 	UserMessageAgentModeInteractive                                    = rpc.UserMessageAgentModeInteractive
 	UserMessageAgentModePlan                                           = rpc.UserMessageAgentModePlan

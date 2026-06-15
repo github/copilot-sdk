@@ -13,23 +13,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `Extension` type.
+ * A single dependency edge read from the session SQL `todo_deps` table, indicating that one todo must complete before another.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record Extension(
-    /** Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext') */
-    @JsonProperty("id") String id,
-    /** Extension name (directory name) */
-    @JsonProperty("name") String name,
-    /** Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/) */
-    @JsonProperty("source") ExtensionSource source,
-    /** Current status: running, disabled, failed, or starting */
-    @JsonProperty("status") ExtensionStatus status,
-    /** Process ID if the extension is running */
-    @JsonProperty("pid") Long pid
+public record PlanSqlTodoDependency(
+    /** ID of the todo that has the dependency. */
+    @JsonProperty("todoId") String todoId,
+    /** ID of the todo it depends on. */
+    @JsonProperty("dependsOn") String dependsOn
 ) {
 }

@@ -57,6 +57,8 @@ public final class SessionRpc {
     public final SessionMcpApi mcp;
     /** API methods for the {@code plugins} namespace. */
     public final SessionPluginsApi plugins;
+    /** API methods for the {@code provider} namespace. */
+    public final SessionProviderApi provider;
     /** API methods for the {@code options} namespace. */
     public final SessionOptionsApi options;
     /** API methods for the {@code lsp} namespace. */
@@ -113,6 +115,7 @@ public final class SessionRpc {
         this.skills = new SessionSkillsApi(caller, sessionId);
         this.mcp = new SessionMcpApi(caller, sessionId);
         this.plugins = new SessionPluginsApi(caller, sessionId);
+        this.provider = new SessionProviderApi(caller, sessionId);
         this.options = new SessionOptionsApi(caller, sessionId);
         this.lsp = new SessionLspApi(caller, sessionId);
         this.extensions = new SessionExtensionsApi(caller, sessionId);

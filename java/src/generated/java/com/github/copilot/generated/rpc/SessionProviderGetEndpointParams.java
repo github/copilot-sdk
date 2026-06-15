@@ -10,26 +10,21 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `Extension` type.
+ * Optional model identifier to scope the endpoint snapshot to.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record Extension(
-    /** Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext') */
-    @JsonProperty("id") String id,
-    /** Extension name (directory name) */
-    @JsonProperty("name") String name,
-    /** Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/) */
-    @JsonProperty("source") ExtensionSource source,
-    /** Current status: running, disabled, failed, or starting */
-    @JsonProperty("status") ExtensionStatus status,
-    /** Process ID if the extension is running */
-    @JsonProperty("pid") Long pid
+public record SessionProviderGetEndpointParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId
 ) {
 }
