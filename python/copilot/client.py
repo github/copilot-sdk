@@ -45,6 +45,7 @@ from ._mode import (
     _enable_session_telemetry_default,
     _enable_skills_default,
     _mcp_oauth_token_storage_default,
+    _memory_default,
     _normalize_tool_filter,
     _post_create_options_patch,
     _require_available_tools_for_empty_mode,
@@ -87,6 +88,8 @@ from .session import (
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MCPServerConfig,
+    MemoryConfiguration,
+    ModelCapabilitiesOverride,
     ProviderConfig,
     ReasoningEffort,
     ReasoningSummary,
@@ -95,6 +98,7 @@ from .session import (
     SessionHooks,
     SystemMessageConfig,
     UserInputHandler,
+    _capabilities_to_dict,
     _PermissionHandlerFn,
 )
 from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
@@ -175,6 +179,11 @@ def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     if "output_directory" in config:
         wire["outputDir"] = config["output_directory"]
     return wire
+
+
+def _memory_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``MemoryConfiguration`` mapping to wire format."""
+    return {"enabled": config["enabled"]}
 
 
 class TelemetryConfig(TypedDict, total=False):
@@ -583,66 +592,6 @@ class ModelCapabilities:
 
 
 @dataclass
-class ModelVisionLimitsOverride:
-    supported_media_types: list[str] | None = None
-    max_prompt_images: int | None = None
-    max_prompt_image_size: int | None = None
-
-
-@dataclass
-class ModelLimitsOverride:
-    max_prompt_tokens: int | None = None
-    max_output_tokens: int | None = None
-    max_context_window_tokens: int | None = None
-    vision: ModelVisionLimitsOverride | None = None
-
-
-@dataclass
-class ModelSupportsOverride:
-    vision: bool | None = None
-    reasoning_effort: bool | None = None
-
-
-@dataclass
-class ModelCapabilitiesOverride:
-    supports: ModelSupportsOverride | None = None
-    limits: ModelLimitsOverride | None = None
-
-
-def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
-    result: dict = {}
-    if caps.supports is not None:
-        s: dict = {}
-        if caps.supports.vision is not None:
-            s["vision"] = caps.supports.vision
-        if caps.supports.reasoning_effort is not None:
-            s["reasoningEffort"] = caps.supports.reasoning_effort
-        if s:
-            result["supports"] = s
-    if caps.limits is not None:
-        lim: dict = {}
-        if caps.limits.max_prompt_tokens is not None:
-            lim["max_prompt_tokens"] = caps.limits.max_prompt_tokens
-        if caps.limits.max_output_tokens is not None:
-            lim["max_output_tokens"] = caps.limits.max_output_tokens
-        if caps.limits.max_context_window_tokens is not None:
-            lim["max_context_window_tokens"] = caps.limits.max_context_window_tokens
-        if caps.limits.vision is not None:
-            v: dict = {}
-            if caps.limits.vision.supported_media_types is not None:
-                v["supported_media_types"] = caps.limits.vision.supported_media_types
-            if caps.limits.vision.max_prompt_images is not None:
-                v["max_prompt_images"] = caps.limits.vision.max_prompt_images
-            if caps.limits.vision.max_prompt_image_size is not None:
-                v["max_prompt_image_size"] = caps.limits.vision.max_prompt_image_size
-            if v:
-                lim["vision"] = v
-        if lim:
-            result["limits"] = lim
-    return result
-
-
-@dataclass
 class ModelPolicy:
     """Model policy state"""
 
@@ -980,6 +929,8 @@ HandlerUnsubcribe = Callable[[], None]
 # Minimum protocol version this SDK can communicate with.
 # Servers reporting a version below this are rejected.
 _MIN_PROTOCOL_VERSION = 3
+_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
+_CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
 def _get_bundled_cli_path() -> str | None:
@@ -1225,7 +1176,8 @@ class CopilotClient:
             if options.use_logged_in_user is None:
                 options.use_logged_in_user = not bool(options.github_token)
 
-        self._process: subprocess.Popen | None = None
+        self._process: Any = None
+        self._cli_process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
         self._state: _ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
@@ -1422,8 +1374,9 @@ class CopilotClient:
                 exc_info=True,
             )
             # Check if process exited and capture any remaining stderr
-            if self._process and hasattr(self._process, "poll"):
-                return_code = self._process.poll()
+            process = self._cli_process if self._cli_process is not None else self._process
+            if process and hasattr(process, "poll"):
+                return_code = process.poll()
                 if return_code is not None and self._client:
                     stderr_output = self._client.get_stderr_output()
                     if stderr_output:
@@ -1438,8 +1391,9 @@ class CopilotClient:
 
         This method performs graceful cleanup:
         1. Closes all active sessions (releases in-memory resources)
-        2. Closes the JSON-RPC connection
-        3. Terminates the CLI server process (if spawned by this client)
+        2. Requests runtime shutdown for SDK-owned CLI processes
+        3. Closes the JSON-RPC connection
+        4. Terminates the CLI server process (if spawned by this client)
 
         Note: session data on disk is preserved, so sessions can be resumed
         later. To permanently remove session data before stopping, call
@@ -1476,6 +1430,28 @@ class CopilotClient:
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
 
+        runtime_shutdown_completed = False
+        if self._rpc is not None and self._cli_process is not None and not self._is_external_server:
+            runtime_shutdown_start = time.perf_counter()
+            try:
+                await self._rpc.runtime.shutdown(timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS)
+                runtime_shutdown_completed = True
+                log_timing(
+                    logger,
+                    logging.DEBUG,
+                    "CopilotClient.stop runtime shutdown complete",
+                    runtime_shutdown_start,
+                )
+            except Exception as e:
+                log_timing(
+                    logger,
+                    logging.DEBUG,
+                    "CopilotClient.stop runtime shutdown failed",
+                    runtime_shutdown_start,
+                    exc_info=True,
+                )
+                errors.append(StopError(message=f"Failed to gracefully shut down runtime: {e}"))
+
         # Close client
         if self._client:
             await self._client.stop()
@@ -1486,14 +1462,73 @@ class CopilotClient:
         async with self._models_cache_lock:
             self._models_cache = None
 
-        # Kill CLI process (only if we spawned it)
-        if self._process and not self._is_external_server:
-            self._process.terminate()
+        # Close TCP socket wrappers without treating them as owned processes.
+        if self._process is not None and self._process is not self._cli_process:
             try:
-                self._process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._process.kill()
+                self._process.terminate()
+            except Exception:
+                logger.debug("Error while closing Copilot runtime transport", exc_info=True)
             self._process = None
+
+        # Terminate CLI process (only if we spawned it)
+        if self._cli_process and not self._is_external_server:
+            poll = getattr(self._cli_process, "poll", None)
+            is_running = poll is None or poll() is None
+            if is_running:
+                if runtime_shutdown_completed:
+                    try:
+                        await asyncio.to_thread(
+                            self._cli_process.wait,
+                            timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS,
+                        )
+                    except subprocess.TimeoutExpired:
+                        self._cli_process.terminate()
+                        try:
+                            await asyncio.to_thread(
+                                self._cli_process.wait,
+                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                            )
+                        except subprocess.TimeoutExpired:
+                            self._cli_process.kill()
+                            try:
+                                await asyncio.to_thread(
+                                    self._cli_process.wait,
+                                    timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                                )
+                            except subprocess.TimeoutExpired as e:
+                                errors.append(
+                                    StopError(
+                                        message=(
+                                            "Timed out waiting for CLI process to exit after kill: "
+                                            f"{e}"
+                                        )
+                                    )
+                                )
+                else:
+                    self._cli_process.terminate()
+                    try:
+                        await asyncio.to_thread(
+                            self._cli_process.wait,
+                            timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                        )
+                    except subprocess.TimeoutExpired:
+                        self._cli_process.kill()
+                        try:
+                            await asyncio.to_thread(
+                                self._cli_process.wait,
+                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                            )
+                        except subprocess.TimeoutExpired as e:
+                            errors.append(
+                                StopError(
+                                    message=(
+                                        f"Timed out waiting for CLI process to exit after kill: {e}"
+                                    )
+                                )
+                            )
+            if self._process is self._cli_process:
+                self._process = None
+            self._cli_process = None
 
         self._state = "disconnected"
         if not self._is_external_server:
@@ -1525,13 +1560,20 @@ class CopilotClient:
         # Close the transport first to signal the server immediately.
         # For external servers (TCP), this closes the socket.
         # For spawned processes (stdio), this kills the process.
-        if self._process:
+        if self._process is not None or self._cli_process is not None:
             try:
                 if self._is_external_server:
-                    self._process.terminate()  # closes the TCP socket
-                else:
-                    self._process.kill()
+                    if self._process is not None:
+                        self._process.terminate()  # closes the TCP socket
                     self._process = None
+                    self._cli_process = None
+                else:
+                    if self._process is not None and self._process is not self._cli_process:
+                        self._process.terminate()
+                    if self._cli_process is not None:
+                        self._cli_process.kill()
+                    self._process = None
+                    self._cli_process = None
             except Exception:
                 logger.debug("Error while force-stopping Copilot CLI process", exc_info=True)
 
@@ -1601,6 +1643,7 @@ class CopilotClient:
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
+        memory: MemoryConfiguration | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
@@ -1700,6 +1743,7 @@ class CopilotClient:
                 instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
+            memory: Session memory configuration.
             cloud: Creates a remote session in the cloud instead of a local
                 session. Optionally associates repository metadata with the
                 cloud session.
@@ -1767,6 +1811,7 @@ class CopilotClient:
         # caller-supplied values win.
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
         skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        memory = _memory_default(mode, memory)
         enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
             mode, enable_on_demand_instruction_discovery
         )
@@ -1946,6 +1991,9 @@ class CopilotClient:
 
         if large_output is not None:
             payload["largeOutput"] = _large_output_to_wire(large_output)
+
+        if memory is not None:
+            payload["memory"] = _memory_to_wire(memory)
 
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
@@ -2172,6 +2220,7 @@ class CopilotClient:
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
+        memory: MemoryConfiguration | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
@@ -2272,6 +2321,7 @@ class CopilotClient:
                 instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
+            memory: Session memory configuration.
             on_event: Callback for session events.
             enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
                 passthrough on resume. This parameter is part of an experimental
@@ -2339,6 +2389,7 @@ class CopilotClient:
         system_message = _system_message_for_mode(mode, system_message)
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
         skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        memory = _memory_default(mode, memory)
         enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
             mode, enable_on_demand_instruction_discovery
         )
@@ -2489,6 +2540,9 @@ class CopilotClient:
 
         if large_output is not None:
             payload["largeOutput"] = _large_output_to_wire(large_output)
+
+        if memory is not None:
+            payload["memory"] = _memory_to_wire(memory)
 
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
@@ -3256,6 +3310,7 @@ class CopilotClient:
                 env=env,
                 creationflags=creationflags,
             )
+            self._cli_process = self._process
         else:
             if tcp_port > 0:
                 args.extend(["--port", str(tcp_port)])
@@ -3268,6 +3323,7 @@ class CopilotClient:
                 env=env,
                 creationflags=creationflags,
             )
+            self._cli_process = self._process
         log_timing(
             logger,
             logging.DEBUG,

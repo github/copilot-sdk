@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ExtensionsLoadedExtension(
-    /** Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper') */
+    /** Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext') */
     @JsonProperty("id") String id,
     /** Extension name (directory name) */
     @JsonProperty("name") String name,

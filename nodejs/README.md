@@ -671,6 +671,28 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+### Memory
+
+Sessions can opt in to the memory feature, which lets the agent persist and recall
+information across turns. Provide a `memory` configuration on session create or resume;
+when omitted, the runtime default applies. In the default `"copilot-cli"` client mode the
+SDK leaves `memory` unset so the runtime applies its own default, while `"empty"` mode
+defaults `memory` to disabled unless you set it explicitly.
+
+```typescript
+// Enable memory for a session
+const session = await client.createSession({
+    model: "gpt-5",
+    memory: { enabled: true },
+});
+
+// Disable memory for a session
+const session = await client.createSession({
+    model: "gpt-5",
+    memory: { enabled: false },
+});
+```
+
 ### Multiple Sessions
 
 ```typescript

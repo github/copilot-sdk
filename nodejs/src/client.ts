@@ -78,6 +78,7 @@ import { defaultJoinSessionPermissionHandler } from "./types.js";
  * Servers reporting a version below this are rejected.
  */
 const MIN_PROTOCOL_VERSION = 3;
+const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 /**
  * Check if value is a Zod schema (has toJSONSchema method)
@@ -89,6 +90,53 @@ function isZodSchema(value: unknown): value is { toJSONSchema(): Record<string, 
         "toJSONSchema" in value &&
         typeof (value as { toJSONSchema: unknown }).toJSONSchema === "function"
     );
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<never>((_, reject) => {
+                timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timeout !== undefined) {
+            clearTimeout(timeout);
+        }
+    }
+}
+
+async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+    if (child.exitCode != null || child.signalCode != null) {
+        return true;
+    }
+
+    return new Promise<boolean>((resolve) => {
+        let timeout: ReturnType<typeof setTimeout>;
+        let settled = false;
+        const onExit = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(timeout);
+            resolve(true);
+        };
+        timeout = setTimeout(() => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            child.off("exit", onExit);
+            resolve(false);
+        }, timeoutMs);
+        child.once("exit", onExit);
+        if (child.exitCode != null || child.signalCode != null) {
+            onExit();
+        }
+    });
 }
 
 /**
@@ -370,6 +418,13 @@ export class CopilotClient {
         return this._internalRpc;
     }
 
+    private logDebugTiming(message: string, startMs: number): void {
+        const level = this.options.logLevel?.toLowerCase();
+        if (level === "debug" || level === "all") {
+            process.stderr.write(`[copilot-sdk] ${message}. Elapsed=${Date.now() - startMs}ms\n`);
+        }
+    }
+
     /**
      * Creates a new CopilotClient instance.
      *
@@ -620,8 +675,9 @@ export class CopilotClient {
      *
      * This method performs graceful cleanup:
      * 1. Closes all active sessions (releases in-memory resources)
-     * 2. Closes the JSON-RPC connection
-     * 3. Terminates the CLI server process (if spawned by this client)
+     * 2. Requests runtime shutdown for SDK-owned CLI processes
+     * 3. Closes the JSON-RPC connection
+     * 4. Terminates the CLI server process (if spawned by this client)
      *
      * Note: session data on disk is preserved, so sessions can be resumed later.
      * To permanently remove session data before stopping, call
@@ -673,6 +729,38 @@ export class CopilotClient {
         }
         this.sessions.clear();
 
+        // Ask SDK-owned runtimes to flush and clean up before we tear down
+        // their transport/process. External runtimes may be shared, so only
+        // close our connection to them.
+        let runtimeShutdownCompleted = false;
+        if (this.connection && this.cliProcess && !this.isExternalServer) {
+            const runtimeShutdownStart = Date.now();
+            const shutdownPromise = this.rpc.runtime.shutdown();
+            void shutdownPromise.catch(() => undefined);
+            try {
+                await withTimeout(
+                    shutdownPromise,
+                    RUNTIME_SHUTDOWN_TIMEOUT_MS,
+                    `runtime.shutdown timed out after ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
+                );
+                runtimeShutdownCompleted = true;
+                this.logDebugTiming(
+                    "CopilotClient.stop runtime shutdown complete",
+                    runtimeShutdownStart
+                );
+            } catch (error) {
+                this.logDebugTiming(
+                    "CopilotClient.stop runtime shutdown failed",
+                    runtimeShutdownStart
+                );
+                errors.push(
+                    new Error(
+                        `Failed to gracefully shut down runtime: ${error instanceof Error ? error.message : String(error)}`
+                    )
+                );
+            }
+        }
+
         // Close connection
         if (this.connection) {
             try {
@@ -686,6 +774,7 @@ export class CopilotClient {
             }
             this.connection = null;
             this._rpc = null;
+            this._internalRpc = null;
         }
 
         // Clear models cache
@@ -711,19 +800,26 @@ export class CopilotClient {
             }
         }
 
-        // Send SIGTERM and await child exit. If the child ignores SIGTERM we
-        // intentionally block here — callers who need a guaranteed-bounded
-        // shutdown should reach for forceStop() instead, which sends SIGKILL.
+        // Give runtime.shutdown a bounded window to let the child exit on its
+        // own before falling back to SIGTERM.
         if (this.cliProcess && !this.isExternalServer) {
             const child = this.cliProcess;
             this.cliProcess = null;
             try {
-                if (child.exitCode === null && child.signalCode === null) {
-                    const exited = new Promise<void>((resolve) => {
-                        child.once("exit", () => resolve());
-                    });
-                    child.kill();
-                    await exited;
+                if (child.exitCode == null && child.signalCode == null) {
+                    const exitedGracefully = runtimeShutdownCompleted
+                        ? await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS)
+                        : false;
+                    if (!exitedGracefully) {
+                        child.kill();
+                        if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
+                            errors.push(
+                                new Error(
+                                    `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
+                                )
+                            );
+                        }
+                    }
                 }
             } catch (error) {
                 errors.push(
@@ -802,6 +898,7 @@ export class CopilotClient {
             }
             this.connection = null;
             this._rpc = null;
+            this._internalRpc = null;
         }
 
         // Clear models cache
@@ -918,6 +1015,7 @@ export class CopilotClient {
                 enableHostGitOperations: false,
                 enableSessionStore: false,
                 enableSkills: false,
+                memory: { enabled: false },
             };
         }
         return {};
@@ -1157,6 +1255,7 @@ export class CopilotClient {
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
+                memory: config.memory,
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
@@ -1340,6 +1439,7 @@ export class CopilotClient {
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
+                memory: config.memory,
                 disableResume: config.suppressResumeEvent,
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,

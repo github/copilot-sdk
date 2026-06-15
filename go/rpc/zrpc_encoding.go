@@ -2694,12 +2694,14 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		EnvValueMode                           *SessionOpenOptionsEnvValueMode                      `json:"envValueMode,omitempty"`
 		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
+		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
 		InstalledPlugins                       []InstalledPlugin                                    `json:"installedPlugins,omitzero"`
 		IntegrationID                          *string                                              `json:"integrationId,omitempty"`
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
+		Memory                                 *MemoryConfiguration                                 `json:"memory,omitempty"`
 		Model                                  *string                                              `json:"model,omitempty"`
 		ModelCapabilitiesOverrides             *ModelCapabilitiesOverride                           `json:"modelCapabilitiesOverrides,omitempty"`
 		Name                                   *string                                              `json:"name,omitempty"`
@@ -2753,12 +2755,14 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.EnvValueMode = raw.EnvValueMode
 	r.EventsLogDirectory = raw.EventsLogDirectory
 	r.ExcludedTools = raw.ExcludedTools
+	r.ExpAssignments = raw.ExpAssignments
 	r.FeatureFlags = raw.FeatureFlags
 	r.InstalledPlugins = raw.InstalledPlugins
 	r.IntegrationID = raw.IntegrationID
 	r.IsExperimentalMode = raw.IsExperimentalMode
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
+	r.Memory = raw.Memory
 	r.Model = raw.Model
 	r.ModelCapabilitiesOverrides = raw.ModelCapabilitiesOverrides
 	r.Name = raw.Name

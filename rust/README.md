@@ -565,6 +565,20 @@ config.infinite_sessions = Some(infinite);
 
 The CLI emits `session.compaction_start` / `session.compaction_complete` events around each compaction. The session id remains stable across compactions; resume with `Client::resume_session` to pick up a prior conversation. Workspace state lives under `~/.copilot/session-state/{sessionId}` by default — override with `workspace_path` to relocate.
 
+### Memory
+
+Configure the runtime memory feature for a session:
+
+```rust,ignore
+use github_copilot_sdk::types::{MemoryConfiguration, SessionConfig};
+
+let config = SessionConfig::default().with_memory(MemoryConfiguration::enabled());
+```
+
+`MemoryConfiguration` is accepted on both `Client::create_session` and `Client::resume_session` (via `ResumeSessionConfig::with_memory`). `enabled` toggles the feature.
+
+The client mode affects the default: in the default `ClientMode::CopilotCli` the SDK leaves `memory` unset so the runtime applies its own default, while `ClientMode::Empty` defaults `memory` to disabled unless you set it explicitly.
+
 ### Custom Providers (BYOK)
 
 Route model traffic through your own inference endpoint instead of GitHub's hosted models:

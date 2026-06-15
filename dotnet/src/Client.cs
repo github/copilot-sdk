@@ -58,6 +58,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     private const int MinProtocolVersion = 3;
     private static readonly TimeSpan s_stderrPumpShutdownTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_runtimeShutdownTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
     /// Provides a thread-safe collection of active Copilot sessions, indexed by session identifier.
@@ -291,7 +292,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
                 if (connection is not null)
                 {
-                    await CleanupConnectionAsync(connection, errors: null);
+                    await CleanupConnectionAsync(connection, errors: null, gracefulRuntimeShutdown: false);
                 }
                 else if (cliProcess is not null)
                 {
@@ -312,6 +313,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// This method performs graceful cleanup:
     /// <list type="number">
     ///     <item>Closes all active sessions (releases in-memory resources)</item>
+    ///     <item>Requests runtime shutdown for SDK-owned CLI processes</item>
     ///     <item>Closes the JSON-RPC connection</item>
     ///     <item>Terminates the CLI server process (if spawned by this client)</item>
     /// </list>
@@ -346,7 +348,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _sessions.Clear();
 
-        await CleanupConnectionAsync(errors);
+        await CleanupConnectionAsync(errors, gracefulRuntimeShutdown: true);
 
         ThrowErrors(errors);
     }
@@ -378,7 +380,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _sessions.Clear();
 
         var errors = new List<Exception>();
-        await CleanupConnectionAsync(errors);
+        await CleanupConnectionAsync(errors, gracefulRuntimeShutdown: false);
         ThrowErrors(errors);
     }
 
@@ -398,7 +400,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
     }
 
-    private async Task CleanupConnectionAsync(List<Exception>? errors)
+    private async Task CleanupConnectionAsync(List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
         var connectionTask = _connectionTask;
         if (connectionTask is null)
@@ -419,11 +421,36 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return;
         }
 
-        await CleanupConnectionAsync(ctx, errors);
+        await CleanupConnectionAsync(ctx, errors, gracefulRuntimeShutdown);
     }
 
-    private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors)
+    private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
+        var runtimeShutdownCompleted = false;
+        if (gracefulRuntimeShutdown && ctx.CliProcess is not null)
+        {
+            var runtimeShutdownTimestamp = Stopwatch.GetTimestamp();
+            try
+            {
+                using var cancellation = new CancellationTokenSource(s_runtimeShutdownTimeout);
+                await ctx.Server.Runtime.ShutdownAsync(cancellation.Token);
+                runtimeShutdownCompleted = true;
+                LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
+                    "CopilotClient.StopAsync runtime shutdown complete. Elapsed={Elapsed}",
+                    runtimeShutdownTimestamp);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException
+                or InvalidOperationException
+                or ObjectDisposedException
+                or IOException
+                or SocketException)
+            {
+                LoggingHelpers.LogTiming(_logger, LogLevel.Debug, ex,
+                    "CopilotClient.StopAsync runtime shutdown failed. Elapsed={Elapsed}",
+                    runtimeShutdownTimestamp);
+            }
+        }
+
         try { ctx.Rpc.Dispose(); }
         catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
 
@@ -439,11 +466,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (ctx.CliProcess is { } childProcess)
         {
-            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger);
+            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger, runtimeShutdownCompleted);
         }
     }
 
-    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger)
+    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger, bool waitForGracefulExit = false)
     {
         stderrPump?.Cancel();
 
@@ -451,10 +478,50 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             if (!childProcess.HasExited)
             {
+                if (waitForGracefulExit)
+                {
+                    var shutdownWaitTimestamp = Stopwatch.GetTimestamp();
+                    try
+                    {
+                        await childProcess.WaitForExitAsync().WaitAsync(s_runtimeShutdownTimeout);
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        if (logger is not null)
+                        {
+                            LoggingHelpers.LogTiming(logger, LogLevel.Debug, ex,
+                                "Timed out waiting for runtime process to exit after graceful shutdown. Elapsed={Elapsed}, Timeout={Timeout}",
+                                shutdownWaitTimestamp,
+                                s_runtimeShutdownTimeout);
+                        }
+                    }
+                }
+
+                if (childProcess.HasExited)
+                {
+                    return;
+                }
+
                 childProcess.Kill(entireProcessTree: true);
                 // Kill is asynchronous; wait for the root CLI process to exit so cleanup callers
                 // do not observe StopAsync/DisposeAsync completion while it is still tearing down.
-                await childProcess.WaitForExitAsync();
+                var killWaitTimestamp = Stopwatch.GetTimestamp();
+                try
+                {
+                    await childProcess.WaitForExitAsync().WaitAsync(s_runtimeShutdownTimeout);
+                }
+                catch (TimeoutException ex)
+                {
+                    if (logger is not null)
+                    {
+                        LoggingHelpers.LogTiming(logger, LogLevel.Debug, ex,
+                            "Timed out waiting for runtime process to exit after kill. Elapsed={Elapsed}, Timeout={Timeout}",
+                            killWaitTimestamp,
+                            s_runtimeShutdownTimeout);
+                    }
+
+                    AddCleanupError(errors, ex, logger);
+                }
             }
         }
         catch (Exception ex)
@@ -672,6 +739,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.EnableHostGitOperations ??= false;
             config.EnableSessionStore ??= false;
             config.EnableSkills ??= false;
+            config.Memory ??= new MemoryConfiguration { Enabled = false };
             config.McpOAuthTokenStorage ??= McpOAuthTokenStorageMode.InMemory;
         }
     }
@@ -935,6 +1003,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 InstructionDirectories: config.InstructionDirectories,
                 PluginDirectories: config.PluginDirectories,
                 LargeOutput: config.LargeOutput,
+                Memory: config.Memory,
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
                 RequestExtensions: config.RequestExtensions,
@@ -1131,6 +1200,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 InstructionDirectories: config.InstructionDirectories,
                 PluginDirectories: config.PluginDirectories,
                 LargeOutput: config.LargeOutput,
+                Memory: config.Memory,
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
                 RequestExtensions: config.RequestExtensions,
@@ -2002,9 +2072,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
                 setupTimestamp);
 
-            _serverRpc = new ServerRpc(rpc);
+            var connection = new Connection(rpc, cliProcess, networkStream, stderrPump);
+            _serverRpc = connection.Server;
 
-            return new Connection(rpc, cliProcess, networkStream, stderrPump);
+            return connection;
         }
         catch
         {
@@ -2208,6 +2279,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         public Process? CliProcess => cliProcess;
         public JsonRpc Rpc => rpc;
+        public ServerRpc Server => field ?? Interlocked.CompareExchange(ref field, new(rpc), null) ?? field;
         public NetworkStream? NetworkStream => networkStream;
         public ProcessStderrPump? StderrPump => stderrPump;
         public StringBuilder? StderrBuffer => stderrPump?.Buffer;
@@ -2322,6 +2394,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? InstructionDirectories = null,
         IList<string>? PluginDirectories = null,
         LargeToolOutputConfig? LargeOutput = null,
+        MemoryConfiguration? Memory = null,
 #pragma warning disable GHCP001
         IList<CanvasDeclaration>? Canvases = null,
         bool? RequestCanvasRenderer = null,
@@ -2412,6 +2485,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? InstructionDirectories = null,
         IList<string>? PluginDirectories = null,
         LargeToolOutputConfig? LargeOutput = null,
+        MemoryConfiguration? Memory = null,
 #pragma warning disable GHCP001
         IList<CanvasDeclaration>? Canvases = null,
         bool? RequestCanvasRenderer = null,

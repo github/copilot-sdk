@@ -9,7 +9,7 @@ use github_copilot_sdk::{
 };
 use serde_json::json;
 
-use super::support::{assistant_message_content, wait_for_condition, with_e2e_context};
+use super::support::{assistant_message_content, with_e2e_context};
 
 #[tokio::test]
 async fn should_export_file_telemetry_for_sdk_interactions() {
@@ -66,7 +66,7 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
 
-                let entries = read_telemetry_entries(&telemetry_path).await;
+                let entries = read_telemetry_entries(&telemetry_path);
                 let spans: Vec<_> = entries
                     .iter()
                     .filter(|entry| string_property(entry, "type") == Some("span"))
@@ -155,34 +155,13 @@ impl ToolHandler for EchoTelemetryTool {
     }
 }
 
-async fn read_telemetry_entries(path: &std::path::Path) -> Vec<serde_json::Value> {
-    wait_for_condition("telemetry file to contain spans", || {
-        let path = path.to_path_buf();
-        async move {
-            read_telemetry_entries_once(&path).is_ok_and(|entries| {
-                entries.iter().any(|entry| {
-                    string_property(entry, "type") == Some("span")
-                        && string_attribute(entry, "gen_ai.operation.name").as_deref()
-                            == Some("invoke_agent")
-                })
-            })
-        }
-    })
-    .await;
-    read_telemetry_entries_once(path).expect("read telemetry entries")
-}
-
-fn read_telemetry_entries_once(path: &std::path::Path) -> std::io::Result<Vec<serde_json::Value>> {
-    if !path.exists() || path.metadata()?.len() == 0 {
-        return Ok(Vec::new());
-    }
-    std::fs::read_to_string(path).map(|content| {
-        content
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .map(|line| serde_json::from_str(line).expect("telemetry JSON line"))
-            .collect()
-    })
+fn read_telemetry_entries(path: &std::path::Path) -> Vec<serde_json::Value> {
+    std::fs::read_to_string(path)
+        .expect("read telemetry entries")
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).expect("telemetry JSON line"))
+        .collect()
 }
 
 fn find_span<'a>(spans: &'a [&'a serde_json::Value], operation: &str) -> &'a serde_json::Value {

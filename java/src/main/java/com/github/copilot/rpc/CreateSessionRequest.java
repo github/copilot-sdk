@@ -114,6 +114,9 @@ public final class CreateSessionRequest {
     @JsonProperty("largeOutput")
     private LargeToolOutputConfig largeOutput;
 
+    @JsonProperty("memory")
+    private MemoryConfiguration memory;
+
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
@@ -522,6 +525,16 @@ public final class CreateSessionRequest {
     /** Sets large output config. @param largeOutput the large output config */
     public void setLargeOutput(LargeToolOutputConfig largeOutput) {
         this.largeOutput = largeOutput;
+    }
+
+    /** Gets memory config. @return the memory config */
+    public MemoryConfiguration getMemory() {
+        return memory;
+    }
+
+    /** Sets memory config. @param memory the memory config */
+    public void setMemory(MemoryConfiguration memory) {
+        this.memory = memory;
     }
 
     /** Gets disabled skills. @return the disabled skill names */

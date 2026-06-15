@@ -560,7 +560,15 @@ describe("Pending work resume", async () => {
 
                     await session2.disconnect();
                 } finally {
-                    if (!releaseOriginalTool.settled()) {
+                    // Release the still-pending original tool handler so it doesn't
+                    // leak — but only in the warm scenario where the original client
+                    // is still connected. In the cold scenario the original client was
+                    // force-stopped, so its connection (and underlying socket) is gone;
+                    // resolving the handler would make the SDK try to send the tool
+                    // result over the destroyed stream, surfacing an ERR_STREAM_DESTROYED
+                    // unhandled rejection (most visibly on Windows). The orphaned handler
+                    // is harmless left pending since its client no longer exists.
+                    if (!scenario.disconnectOriginalClient && !releaseOriginalTool.settled()) {
                         releaseOriginalTool.resolve("ORIGINAL_SHOULD_NOT_WIN");
                     }
                 }

@@ -74,6 +74,7 @@ export type {
     GetStatusResponse,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
+    MemoryConfiguration,
     UiInputOptions,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,

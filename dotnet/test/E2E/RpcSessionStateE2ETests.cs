@@ -35,16 +35,31 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_Call_Session_Rpc_Model_SwitchTo()
     {
-        await using var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
+        // The runtime caches /models per (auth, base_url) for 30 minutes (see
+        // capi_client.rs LIST_MODELS_CACHE). Tests in this class share one CLI
+        // subprocess and proxy URL via E2ETestFixture, so the first snapshot's
+        // models list is reused by every later test. SwitchTo needs gpt-5.4 in
+        // the cache; rather than poisoning every other snapshot we spin up an
+        // isolated context with its own proxy → its own (auth, base_url) cache
+        // key.
+        await using var isolatedCtx = await E2ETestContext.CreateAsync();
+        await isolatedCtx.ConfigureForTestAsync("rpc_session_state", nameof(Should_Call_Session_Rpc_Model_SwitchTo));
+        var isolatedClient = isolatedCtx.CreateClient();
+
+        await using var session = await isolatedClient.CreateSessionAsync(new SessionConfig
+        {
+            Model = "claude-sonnet-4.5",
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
 
         var before = await session.Rpc.Model.GetCurrentAsync();
         Assert.Equal("claude-sonnet-4.5", before.ModelId);
 
-        var result = await session.Rpc.Model.SwitchToAsync(modelId: "gpt-4.1", reasoningEffort: "high");
-        var after = await session.Rpc.Model.GetCurrentAsync();
+        var result = await session.Rpc.Model.SwitchToAsync(modelId: "gpt-5.4", reasoningEffort: "high");
+        Assert.Equal("gpt-5.4", result.ModelId);
 
-        Assert.Equal("gpt-4.1", result.ModelId);
-        Assert.True(after.ModelId is "gpt-4.1" || after.ModelId == before.ModelId, $"Unexpected current model after switch: {after.ModelId}");
+        var after = await session.Rpc.Model.GetCurrentAsync();
+        Assert.Equal("gpt-5.4", after.ModelId);
     }
 
     [Fact]

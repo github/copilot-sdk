@@ -63,23 +63,39 @@ async fn should_call_session_rpc_model_switchto() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let session = client
-                    .create_session(ctx.approve_all_session_config())
+                    .create_session(ctx.approve_all_session_config().with_model(MODEL_ID))
                     .await
                     .expect("create session");
+
+                let before = session
+                    .rpc()
+                    .model()
+                    .get_current()
+                    .await
+                    .expect("get current model before switch");
+                assert!(before.model_id.is_some(), "expected a model before switch");
 
                 let switched = session
                     .rpc()
                     .model()
                     .switch_to(ModelSwitchToRequest {
-                        model_id: MODEL_ID.to_string(),
-                        reasoning_effort: Some("none".to_string()),
+                        model_id: "gpt-5.4".to_string(),
+                        reasoning_effort: Some("high".to_string()),
                         model_capabilities: None,
                         reasoning_summary: None,
                         ..Default::default()
                     })
                     .await
                     .expect("switch model");
-                assert_eq!(switched.model_id.as_deref(), Some(MODEL_ID));
+                assert_eq!(switched.model_id.as_deref(), Some("gpt-5.4"));
+
+                let after = session
+                    .rpc()
+                    .model()
+                    .get_current()
+                    .await
+                    .expect("get current model after switch");
+                assert_eq!(after.model_id.as_deref(), Some("gpt-5.4"));
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
