@@ -80,6 +80,7 @@ public class ResumeSessionConfig {
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
+    private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
     private Consumer<SessionEvent> onEvent;
@@ -1252,6 +1253,27 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the configuration for session memory.
+     *
+     * @return the memory config, or {@code null} for default
+     */
+    public MemoryConfiguration getMemory() {
+        return memory;
+    }
+
+    /**
+     * Sets the configuration for session memory.
+     *
+     * @param memory
+     *            the memory config
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setMemory(MemoryConfiguration memory) {
+        this.memory = memory;
+        return this;
+    }
+
+    /**
      * Gets the disabled skills.
      *
      * @return the list of disabled skill names
@@ -1558,6 +1580,7 @@ public class ResumeSessionConfig {
                 : null;
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
+        copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.infiniteSessions = this.infiniteSessions;
         copy.onEvent = this.onEvent;

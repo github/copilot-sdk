@@ -135,6 +135,7 @@ final class SessionRequestBuilder {
         request.setInstructionDirectories(config.getInstructionDirectories());
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
+        request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
@@ -262,6 +263,7 @@ final class SessionRequestBuilder {
         request.setInstructionDirectories(config.getInstructionDirectories());
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
+        request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setModelCapabilities(config.getModelCapabilities());

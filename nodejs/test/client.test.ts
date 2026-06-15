@@ -736,6 +736,97 @@ describe("CopilotClient", () => {
         expect(payload.mcpOAuthTokenStorage).toBe("persistent");
     });
 
+    it("defaults memory to { enabled: false } in session.create when mode is empty", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.memory).toEqual({ enabled: false });
+    });
+
+    it("does not send memory in session.create when mode is copilot-cli", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.memory).toBeUndefined();
+    });
+
+    it("forwards explicit memory config in session.create even in empty mode", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            memory: { enabled: true },
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.memory).toEqual({ enabled: true });
+    });
+
+    it("defaults memory to { enabled: false } in session.resume when mode is empty", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+        await client.resumeSession("s1", { onPermissionRequest: approveAll, availableTools: [] });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.memory).toEqual({ enabled: false });
+    });
+
+    it("does not send memory in session.resume when mode is copilot-cli", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.memory).toBeUndefined();
+        spy.mockRestore();
+    });
+
     it("forwards continuePendingWork in session.resume request", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -774,6 +865,72 @@ describe("CopilotClient", () => {
 
         const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
         expect(payload.continuePendingWork).toBeUndefined();
+        spy.mockRestore();
+    });
+
+    it("forwards memory configuration in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create")
+                    return { sessionId: params.sessionId ?? "session-id" };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            memory: { enabled: true },
+        });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
+        expect(payload.memory).toEqual({ enabled: true });
+        spy.mockRestore();
+    });
+
+    it("forwards memory configuration in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            memory: { enabled: false },
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.memory).toEqual({ enabled: false });
+        spy.mockRestore();
+    });
+
+    it("omits memory from session.create payload when not specified", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create")
+                    return { sessionId: params.sessionId ?? "session-id" };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
+        const serialized = JSON.parse(JSON.stringify(payload));
+        expect(serialized).not.toHaveProperty("memory");
         spy.mockRestore();
     });
 

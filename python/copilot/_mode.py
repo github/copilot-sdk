@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from .session import MemoryConfiguration
 
 CopilotClientMode = Literal["copilot-cli", "empty"]
 
@@ -255,6 +258,21 @@ def _mcp_oauth_token_storage_default(
     """Empty mode defaults MCP OAuth token storage to in-memory; caller value wins."""
     if mode == "empty" and supplied is None:
         return "in-memory"
+    return supplied
+
+
+def _memory_default(
+    mode: CopilotClientMode | None,
+    supplied: MemoryConfiguration | None,
+) -> MemoryConfiguration | None:
+    """Empty mode defaults memory to disabled; caller value wins.
+
+    Copilot CLI mode applies no SDK default: the configuration is left unset so
+    the runtime applies its own default for the memory feature. The caller
+    passes the ``MemoryConfiguration`` mapping (or ``None``).
+    """
+    if mode == "empty" and supplied is None:
+        return {"enabled": False}
     return supplied
 
 

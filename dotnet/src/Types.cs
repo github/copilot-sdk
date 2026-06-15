@@ -2365,6 +2365,18 @@ public sealed class LargeToolOutputConfig
 }
 
 /// <summary>
+/// Configuration for session memory.
+/// </summary>
+public sealed class MemoryConfiguration
+{
+    /// <summary>
+    /// Whether memory is enabled for the session.
+    /// </summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+}
+
+/// <summary>
 /// GitHub repository metadata to associate with a cloud session.
 /// </summary>
 public sealed class CloudSessionRepository
@@ -2458,6 +2470,7 @@ public abstract class SessionConfigBase
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         LargeOutput = other.LargeOutput;
+        Memory = other.Memory;
         McpServers = other.McpServers is not null
             ? (other.McpServers is Dictionary<string, McpServerConfig> dict
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
@@ -2804,6 +2817,12 @@ public abstract class SessionConfigBase
     /// payload.
     /// </summary>
     public LargeToolOutputConfig? LargeOutput { get; set; }
+
+    /// <summary>
+    /// Configuration for session memory. When set, controls whether the
+    /// session can read and write persistent memory.
+    /// </summary>
+    public MemoryConfiguration? Memory { get; set; }
 
     /// <summary>
     /// Optional event handler registered on the session before the session.create / session.resume

@@ -45,6 +45,7 @@ from ._mode import (
     _enable_session_telemetry_default,
     _enable_skills_default,
     _mcp_oauth_token_storage_default,
+    _memory_default,
     _normalize_tool_filter,
     _post_create_options_patch,
     _require_available_tools_for_empty_mode,
@@ -87,6 +88,8 @@ from .session import (
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MCPServerConfig,
+    MemoryConfiguration,
+    ModelCapabilitiesOverride,
     ProviderConfig,
     ReasoningEffort,
     ReasoningSummary,
@@ -95,6 +98,7 @@ from .session import (
     SessionHooks,
     SystemMessageConfig,
     UserInputHandler,
+    _capabilities_to_dict,
     _PermissionHandlerFn,
 )
 from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
@@ -175,6 +179,11 @@ def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     if "output_directory" in config:
         wire["outputDir"] = config["output_directory"]
     return wire
+
+
+def _memory_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``MemoryConfiguration`` mapping to wire format."""
+    return {"enabled": config["enabled"]}
 
 
 class TelemetryConfig(TypedDict, total=False):
@@ -580,66 +589,6 @@ class ModelCapabilities:
         result["supports"] = self.supports.to_dict()
         result["limits"] = self.limits.to_dict()
         return result
-
-
-@dataclass
-class ModelVisionLimitsOverride:
-    supported_media_types: list[str] | None = None
-    max_prompt_images: int | None = None
-    max_prompt_image_size: int | None = None
-
-
-@dataclass
-class ModelLimitsOverride:
-    max_prompt_tokens: int | None = None
-    max_output_tokens: int | None = None
-    max_context_window_tokens: int | None = None
-    vision: ModelVisionLimitsOverride | None = None
-
-
-@dataclass
-class ModelSupportsOverride:
-    vision: bool | None = None
-    reasoning_effort: bool | None = None
-
-
-@dataclass
-class ModelCapabilitiesOverride:
-    supports: ModelSupportsOverride | None = None
-    limits: ModelLimitsOverride | None = None
-
-
-def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
-    result: dict = {}
-    if caps.supports is not None:
-        s: dict = {}
-        if caps.supports.vision is not None:
-            s["vision"] = caps.supports.vision
-        if caps.supports.reasoning_effort is not None:
-            s["reasoningEffort"] = caps.supports.reasoning_effort
-        if s:
-            result["supports"] = s
-    if caps.limits is not None:
-        lim: dict = {}
-        if caps.limits.max_prompt_tokens is not None:
-            lim["max_prompt_tokens"] = caps.limits.max_prompt_tokens
-        if caps.limits.max_output_tokens is not None:
-            lim["max_output_tokens"] = caps.limits.max_output_tokens
-        if caps.limits.max_context_window_tokens is not None:
-            lim["max_context_window_tokens"] = caps.limits.max_context_window_tokens
-        if caps.limits.vision is not None:
-            v: dict = {}
-            if caps.limits.vision.supported_media_types is not None:
-                v["supported_media_types"] = caps.limits.vision.supported_media_types
-            if caps.limits.vision.max_prompt_images is not None:
-                v["max_prompt_images"] = caps.limits.vision.max_prompt_images
-            if caps.limits.vision.max_prompt_image_size is not None:
-                v["max_prompt_image_size"] = caps.limits.vision.max_prompt_image_size
-            if v:
-                lim["vision"] = v
-        if lim:
-            result["limits"] = lim
-    return result
 
 
 @dataclass
@@ -1601,6 +1550,7 @@ class CopilotClient:
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
+        memory: MemoryConfiguration | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
@@ -1700,6 +1650,7 @@ class CopilotClient:
                 instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
+            memory: Session memory configuration.
             cloud: Creates a remote session in the cloud instead of a local
                 session. Optionally associates repository metadata with the
                 cloud session.
@@ -1767,6 +1718,7 @@ class CopilotClient:
         # caller-supplied values win.
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
         skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        memory = _memory_default(mode, memory)
         enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
             mode, enable_on_demand_instruction_discovery
         )
@@ -1946,6 +1898,9 @@ class CopilotClient:
 
         if large_output is not None:
             payload["largeOutput"] = _large_output_to_wire(large_output)
+
+        if memory is not None:
+            payload["memory"] = _memory_to_wire(memory)
 
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
@@ -2172,6 +2127,7 @@ class CopilotClient:
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
+        memory: MemoryConfiguration | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
@@ -2272,6 +2228,7 @@ class CopilotClient:
                 instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
+            memory: Session memory configuration.
             on_event: Callback for session events.
             enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
                 passthrough on resume. This parameter is part of an experimental
@@ -2339,6 +2296,7 @@ class CopilotClient:
         system_message = _system_message_for_mode(mode, system_message)
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
         skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        memory = _memory_default(mode, memory)
         enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
             mode, enable_on_demand_instruction_discovery
         )
@@ -2489,6 +2447,9 @@ class CopilotClient:
 
         if large_output is not None:
             payload["largeOutput"] = _large_output_to_wire(large_output)
+
+        if memory is not None:
+            payload["memory"] = _memory_to_wire(memory)
 
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]

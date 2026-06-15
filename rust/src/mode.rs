@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 
-use crate::types::{SectionOverride, SystemMessageConfig};
+use crate::types::{MemoryConfiguration, SectionOverride, SystemMessageConfig};
 
 /// Controls SDK defaults for ambient CLI-style behavior.
 ///
@@ -266,6 +266,23 @@ pub(crate) fn system_message_for_mode(
     }
 }
 
+/// Returns the memory configuration to use, adjusted for the current mode.
+///
+/// In [`ClientMode::Empty`] the memory feature defaults to disabled so an app
+/// must opt in explicitly. In [`ClientMode::CopilotCli`] no SDK default is
+/// applied: the configuration is left unset so the runtime applies its own
+/// default for the memory feature. A value supplied by the app always wins.
+pub(crate) fn memory_for_mode(
+    mode: ClientMode,
+    supplied: Option<MemoryConfiguration>,
+) -> Option<MemoryConfiguration> {
+    match supplied {
+        Some(config) => Some(config),
+        None if mode == ClientMode::Empty => Some(MemoryConfiguration::disabled()),
+        None => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -463,5 +480,34 @@ mod tests {
         assert!(secs.contains_key("other_section"));
         let env = secs.get("environment_context").unwrap();
         assert_eq!(env.action.as_deref(), Some("remove"));
+    }
+
+    #[test]
+    fn memory_copilot_cli_leaves_unset_when_not_supplied() {
+        assert_eq!(memory_for_mode(ClientMode::CopilotCli, None), None);
+    }
+
+    #[test]
+    fn memory_copilot_cli_preserves_supplied() {
+        assert_eq!(
+            memory_for_mode(ClientMode::CopilotCli, Some(MemoryConfiguration::enabled())),
+            Some(MemoryConfiguration::enabled())
+        );
+    }
+
+    #[test]
+    fn memory_empty_defaults_to_disabled() {
+        assert_eq!(
+            memory_for_mode(ClientMode::Empty, None),
+            Some(MemoryConfiguration::disabled())
+        );
+    }
+
+    #[test]
+    fn memory_empty_preserves_supplied() {
+        assert_eq!(
+            memory_for_mode(ClientMode::Empty, Some(MemoryConfiguration::enabled())),
+            Some(MemoryConfiguration::enabled())
+        );
     }
 }

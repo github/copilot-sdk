@@ -268,6 +268,58 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeMemory_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("Memory", new MemoryConfiguration { Enabled = true }));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        var createRoot = createDocument.RootElement;
+        Assert.True(createRoot.GetProperty("memory").GetProperty("enabled").GetBoolean());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("Memory", new MemoryConfiguration { Enabled = false }));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        var resumeRoot = resumeDocument.RootElement;
+        Assert.False(resumeRoot.GetProperty("memory").GetProperty("enabled").GetBoolean());
+    }
+
+    [Fact]
+    public void SessionRequests_OmitMemory_WhenUnset()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.False(createDocument.RootElement.TryGetProperty("memory", out _));
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.False(resumeDocument.RootElement.TryGetProperty("memory", out _));
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
     {
         var options = GetSerializerOptions();

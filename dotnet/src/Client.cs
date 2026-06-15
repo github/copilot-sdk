@@ -672,6 +672,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.EnableHostGitOperations ??= false;
             config.EnableSessionStore ??= false;
             config.EnableSkills ??= false;
+            config.Memory ??= new MemoryConfiguration { Enabled = false };
             config.McpOAuthTokenStorage ??= McpOAuthTokenStorageMode.InMemory;
         }
     }
@@ -935,6 +936,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 InstructionDirectories: config.InstructionDirectories,
                 PluginDirectories: config.PluginDirectories,
                 LargeOutput: config.LargeOutput,
+                Memory: config.Memory,
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
                 RequestExtensions: config.RequestExtensions,
@@ -1131,6 +1133,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 InstructionDirectories: config.InstructionDirectories,
                 PluginDirectories: config.PluginDirectories,
                 LargeOutput: config.LargeOutput,
+                Memory: config.Memory,
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
                 RequestExtensions: config.RequestExtensions,
@@ -2322,6 +2325,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? InstructionDirectories = null,
         IList<string>? PluginDirectories = null,
         LargeToolOutputConfig? LargeOutput = null,
+        MemoryConfiguration? Memory = null,
 #pragma warning disable GHCP001
         IList<CanvasDeclaration>? Canvases = null,
         bool? RequestCanvasRenderer = null,
@@ -2412,6 +2416,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? InstructionDirectories = null,
         IList<string>? PluginDirectories = null,
         LargeToolOutputConfig? LargeOutput = null,
+        MemoryConfiguration? Memory = null,
 #pragma warning disable GHCP001
         IList<CanvasDeclaration>? Canvases = null,
         bool? RequestCanvasRenderer = null,

@@ -918,6 +918,7 @@ export class CopilotClient {
                 enableHostGitOperations: false,
                 enableSessionStore: false,
                 enableSkills: false,
+                memory: { enabled: false },
             };
         }
         return {};
@@ -1157,6 +1158,7 @@ export class CopilotClient {
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
+                memory: config.memory,
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
@@ -1340,6 +1342,7 @@ export class CopilotClient {
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
+                memory: config.memory,
                 disableResume: config.suppressResumeEvent,
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
