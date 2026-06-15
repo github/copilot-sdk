@@ -121,20 +121,12 @@ class TestRpcSessionState:
             assert before.model_id
 
             result = await session.rpc.model.switch_to(
-                ModelSwitchToRequest(model_id="gpt-4.1", reasoning_effort="high")
+                ModelSwitchToRequest(model_id="gpt-5.4", reasoning_effort="high")
             )
-            assert result.model_id == "gpt-4.1"
+            assert result.model_id == "gpt-5.4"
 
-            deadline = time.monotonic() + 5
-            while time.monotonic() < deadline:
-                after = await session.rpc.model.get_current()
-                if after.model_id == "gpt-4.1":
-                    break
-                await asyncio.sleep(0.1)
-            else:
-                pytest.fail("session.rpc.model.get_current did not reflect switch_to")
-
-            assert after.model_id == "gpt-4.1"
+            after = await session.rpc.model.get_current()
+            assert after.model_id == "gpt-5.4"
         finally:
             await session.disconnect()
 

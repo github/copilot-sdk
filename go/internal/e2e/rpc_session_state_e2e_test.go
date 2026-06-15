@@ -61,28 +61,20 @@ func TestRPCSessionStateE2E(t *testing.T) {
 
 		reasoningEffort := "high"
 		result, err := session.RPC.Model.SwitchTo(t.Context(), &rpc.ModelSwitchToRequest{
-			ModelID:         "gpt-4.1",
+			ModelID:         "gpt-5.4",
 			ReasoningEffort: &reasoningEffort,
 		})
 		if err != nil {
 			t.Fatalf("Model.SwitchTo failed: %v", err)
 		}
-		if result.ModelID == nil || *result.ModelID != "gpt-4.1" {
-			t.Fatalf("Expected switch result model gpt-4.1, got %+v", result)
+		if result.ModelID == nil || *result.ModelID != "gpt-5.4" {
+			t.Fatalf("Expected switch result model gpt-5.4, got %+v", result)
 		}
-		var after *rpc.CurrentModel
-		deadline := time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			after, err = session.RPC.Model.GetCurrent(t.Context())
-			if err != nil {
-				t.Fatalf("Model.GetCurrent after switch failed: %v", err)
-			}
-			if after.ModelID != nil && *after.ModelID == "gpt-4.1" {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
+		after, err := session.RPC.Model.GetCurrent(t.Context())
+		if err != nil {
+			t.Fatalf("Model.GetCurrent after switch failed: %v", err)
 		}
-		if after.ModelID == nil || *after.ModelID != "gpt-4.1" {
+		if after.ModelID == nil || *after.ModelID != "gpt-5.4" {
 			t.Fatalf("Model.GetCurrent did not reflect SwitchTo; before=%q after=%+v", *before.ModelID, after)
 		}
 	})
