@@ -62,10 +62,14 @@ describe("Session-scoped RPC", async () => {
             modelId: "gpt-4.1",
             reasoningEffort: "high",
         });
+        await waitForCondition(
+            async () => (await session.rpc.model.getCurrent()).modelId === "gpt-4.1",
+            { timeoutMessage: "session.model.getCurrent did not reflect switchTo" }
+        );
         const after = await session.rpc.model.getCurrent();
 
         expect(result.modelId).toBe("gpt-4.1");
-        expect(after.modelId).toBe(before.modelId);
+        expect(after.modelId).toBe("gpt-4.1");
 
         await session.disconnect();
     });
