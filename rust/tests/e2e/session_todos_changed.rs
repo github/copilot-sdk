@@ -1,6 +1,4 @@
 use github_copilot_sdk::session_events::SessionEventType;
-use serde::Deserialize;
-use serde_json::json;
 
 use super::support::{wait_for_event, with_e2e_context};
 
@@ -11,26 +9,6 @@ const PROMPT: &str = concat!(
     "3. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');\n",
     "Then stop. Do not insert any other rows or create any other tables."
 );
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PlanReadSqlTodosWithDependenciesResult {
-    rows: Vec<PlanTodo>,
-    dependencies: Vec<PlanTodoDependency>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PlanTodo {
-    id: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PlanTodoDependency {
-    todo_id: String,
-    depends_on: String,
-}
 
 #[tokio::test]
 async fn fires_session_todos_changed_and_exposes_rows_and_dependencies() {
@@ -53,16 +31,12 @@ async fn fires_session_todos_changed_and_exposes_rows_and_dependencies() {
                 session.send_and_wait(PROMPT).await.expect("send");
                 todos_changed.await;
 
-                let value = session
-                    .client()
-                    .call(
-                        "session.plan.readSqlTodosWithDependencies",
-                        Some(json!({ "sessionId": session.id() })),
-                    )
+                let result = session
+                    .rpc()
+                    .plan()
+                    .read_sql_todos_with_dependencies()
                     .await
                     .expect("read SQL todos with dependencies");
-                let result: PlanReadSqlTodosWithDependenciesResult =
-                    serde_json::from_value(value).expect("deserialize todos with dependencies");
 
                 let mut ids: Vec<String> =
                     result.rows.into_iter().filter_map(|row| row.id).collect();
