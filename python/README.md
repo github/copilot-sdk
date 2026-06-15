@@ -7,7 +7,6 @@ Python SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 To use the SDK, you'll need:
 
 - Python 3.11+
-- GitHub Copilot CLI installed and in `PATH` (or provide a custom `connection=RuntimeConnection.for_stdio(path=...)`)
 
 ## Installation
 
