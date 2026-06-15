@@ -1,12 +1,3 @@
-# gpt-5.4 is listed here only because this is the first test in
-# rpc_session_state.e2e.test.ts to create a session. The runtime caches
-# /models per (auth, base_url) for 30 minutes (see capi_client.rs
-# LIST_MODELS_CACHE), so the first snapshot's models are reused by every
-# subsequent test sharing the same client. The "should call session rpc
-# model switchto" test needs gpt-5.4 in that cached list to validate.
-# If you reorder the tests, move this comment + entry to whichever test
-# now runs first.
 models:
   - claude-sonnet-4.5
-  - gpt-5.4
 conversations: []
