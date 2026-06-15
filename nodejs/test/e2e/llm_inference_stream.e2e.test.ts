@@ -88,7 +88,7 @@ async function handleStreamRequest(
     sink: LlmInferenceStreamSink,
 ): Promise<LlmInferenceStreamStartResponse> {
     const url = req.url.toLowerCase();
-    const isResponsesApi = req.metadata.wireApi === "responses" || url.includes("/responses");
+    const isResponsesApi = url.includes("/responses");
 
     queueMicrotask(async () => {
         try {
@@ -220,16 +220,21 @@ describe("LLM inference callback — fully mocked streaming", async () => {
 
             // The runtime intercepted at least one inference request — by
             // either the streaming or non-streaming codepath depending on
-            // which the agent chose.
-            const inferenceReqs = [...streamed, ...received].filter(
-                (r) => r.metadata.endpointKind === "inference",
-            );
+            // which the agent chose. The callback exposes raw HTTP only
+            // (no runtime-side classification), so identify inference
+            // requests by URL.
+            const inferenceReqs = [...streamed, ...received].filter((r) => {
+                const u = r.url.toLowerCase();
+                return (
+                    u.endsWith("/chat/completions") ||
+                    u.endsWith("/responses") ||
+                    u.endsWith("/v1/messages") ||
+                    u.endsWith("/messages")
+                );
+            });
             expect(inferenceReqs.length, "expected at least one inference request via the callback").toBeGreaterThan(
                 0,
             );
-            for (const r of inferenceReqs) {
-                expect(r.metadata.transport).toBe("http");
-            }
 
             // The synthetic content surfaced in the assistant response.
             expect(resultJson).toMatch(/OK from the synthetic/);

@@ -99,13 +99,13 @@ describe("LLM inference callback", async () => {
             for (const r of newRequests) {
                 expect(r.url).toMatch(/^https?:\/\//);
                 expect(typeof r.method).toBe("string");
-                expect(r.metadata).toBeDefined();
-                expect(r.metadata.transport).toBe("http");
             }
 
             // At least one of the intercepted requests should be the models
             // catalog — that's the very first thing the runtime asks for.
-            const catalog = newRequests.find((r) => r.metadata.endpointKind === "models-catalog");
+            // Match on URL since the callback exposes raw HTTP only, with no
+            // runtime-side classification of the request kind.
+            const catalog = newRequests.find((r) => r.url.toLowerCase().endsWith("/models"));
             expect(catalog, "expected to intercept the /models catalog request").toBeDefined();
 
             // Any request that originated inside the session should carry

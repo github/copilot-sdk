@@ -38,14 +38,11 @@ export type {
     LlmInferenceProvider,
     LlmInferenceRequest,
     LlmInferenceResponse,
+    LlmInferenceStreamSink,
+    LlmInferenceStreamStartResponse,
 } from "./llmInferenceProvider.js";
 export type {
     LlmInferenceHeaders,
-    LlmInferenceRequestMetadata,
-    LlmInferenceRequestMetadataProviderType,
-    LlmInferenceRequestMetadataEndpointKind,
-    LlmInferenceRequestMetadataWireApi,
-    LlmInferenceRequestMetadataTransport,
 } from "./generated/rpc.js";
 export { createLlmInferenceAdapter } from "./llmInferenceProvider.js";
 

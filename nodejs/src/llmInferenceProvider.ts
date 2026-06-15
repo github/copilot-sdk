@@ -9,7 +9,6 @@ import type {
     LlmInferenceHttpRequestResult,
     LlmInferenceHttpStreamStartRequest,
     LlmInferenceHttpStreamStartResult,
-    LlmInferenceRequestMetadata,
 } from "./generated/rpc.js";
 import type { createServerRpc } from "./generated/rpc.js";
 
@@ -19,9 +18,14 @@ type ServerRpc = ReturnType<typeof createServerRpc>;
  * An outbound LLM HTTP request the runtime is asking the SDK consumer to
  * handle on its behalf.
  *
- * `body` is provided as both `bodyText` (when the runtime sent a text body)
- * and `bodyBase64` (when the runtime sent binary bytes) — exactly one is set,
- * mirroring the wire shape.
+ * This is a deliberately low-level shape: the runtime forwards the request
+ * verbatim and does not classify it (no provider type, endpoint kind, wire
+ * API, model id, etc.). Consumers that need that information should derive
+ * it themselves from the URL / headers / body.
+ *
+ * `body` is provided as either `bodyText` (when the runtime sent a text
+ * body) or `bodyBase64` (when the runtime sent binary bytes) — at most one
+ * is set, mirroring the wire shape.
  */
 export interface LlmInferenceRequest {
     /** Opaque runtime-minted id for this request. Stable across the request lifecycle, useful for logging. */
@@ -45,8 +49,6 @@ export interface LlmInferenceRequest {
     bodyText?: string;
     /** Body as base64-encoded bytes. Set instead of `bodyText` when the body is binary. */
     bodyBase64?: string;
-    /** Metadata describing the request (provider, endpoint kind, etc.). */
-    metadata: LlmInferenceRequestMetadata;
 }
 
 /**
@@ -153,7 +155,6 @@ export function createLlmInferenceAdapter(
                     headers: params.headers,
                     bodyText: params.bodyText,
                     bodyBase64: params.bodyBase64,
-                    metadata: params.metadata,
                 });
             } catch (err) {
                 const message = err instanceof Error ? err.message : String(err);
@@ -212,7 +213,6 @@ export function createLlmInferenceAdapter(
                 headers: params.headers,
                 bodyText: params.bodyText,
                 bodyBase64: params.bodyBase64,
-                metadata: params.metadata,
             };
             let head: LlmInferenceStreamStartResponse;
             try {
