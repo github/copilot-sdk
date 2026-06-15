@@ -47,8 +47,7 @@ async fn fires_session_todos_changed_and_exposes_rows_and_dependencies() {
                     .expect("create session");
 
                 let todos_changed = wait_for_event(session.subscribe(), "todos changed", |event| {
-                    event.parsed_type() == SessionEventType::Unknown
-                        && event.event_type == "session.todos_changed"
+                    event.parsed_type() == SessionEventType::SessionTodosChanged
                 });
 
                 session.send_and_wait(PROMPT).await.expect("send");
