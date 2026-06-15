@@ -37,9 +37,8 @@ export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
 export type {
     LlmInferenceProvider,
     LlmInferenceRequest,
-    LlmInferenceResponse,
-    LlmInferenceStreamSink,
-    LlmInferenceStreamStartResponse,
+    LlmInferenceResponseInit,
+    LlmInferenceResponseSink,
 } from "./llmInferenceProvider.js";
 export type {
     LlmInferenceHeaders,

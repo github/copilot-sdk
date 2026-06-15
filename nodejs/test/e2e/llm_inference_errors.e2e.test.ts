@@ -3,33 +3,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll, type LlmInferenceRequest, type LlmInferenceResponse } from "../../src/index.js";
+import { approveAll, type LlmInferenceRequest } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
+async function drainRequest(req: LlmInferenceRequest): Promise<void> {
+    for await (const _chunk of req.requestBody) {
+        // discard
+    }
+}
+
+async function respondBuffered(
+    req: LlmInferenceRequest,
+    init: { status: number; headers?: Record<string, string[]> },
+    body: string,
+): Promise<void> {
+    await drainRequest(req);
+    await req.responseBody.start(init);
+    if (body.length > 0) {
+        await req.responseBody.write(body);
+    }
+    await req.responseBody.end();
+}
+
 /**
- * Verifies that errors returned (or thrown) by the LLM inference callback
- * surface to the SDK consumer as transport-level failures, so the runtime's
- * existing retry / error-reporting machinery handles them uniformly.
+ * Verifies that errors thrown (or signalled via `responseBody.error`) by
+ * the LLM inference callback surface to the SDK consumer as transport
+ * failures, so the runtime's existing retry / error-reporting machinery
+ * handles them uniformly.
  */
 describe("LLM inference callback — error mapping", async () => {
-    let callsBeforeThrow = 0;
+    let callsBeforeError = 0;
     let totalCalls = 0;
 
     const { copilotClient: client } = await createSdkTestContext({
         copilotClientOptions: {
             llmInference: {
                 createLlmInferenceProvider: () => ({
-                    async onLlmRequest(req: LlmInferenceRequest): Promise<LlmInferenceResponse> {
+                    async onLlmRequest(req: LlmInferenceRequest): Promise<void> {
                         totalCalls += 1;
                         const url = req.url.toLowerCase();
 
-                        // Service models / session / policy normally so the agent
-                        // can reach the inference step.
+                        // Service models / session / policy normally so the
+                        // agent can reach the inference step.
                         if (url.endsWith("/models")) {
-                            return {
-                                status: 200,
-                                headers: { "content-type": ["application/json"] },
-                                bodyText: JSON.stringify({
+                            await respondBuffered(
+                                req,
+                                { status: 200, headers: { "content-type": ["application/json"] } },
+                                JSON.stringify({
                                     data: [
                                         {
                                             id: "claude-sonnet-4.5",
@@ -57,29 +77,37 @@ describe("LLM inference callback — error mapping", async () => {
                                         },
                                     ],
                                 }),
-                            };
+                            );
+                            return;
                         }
                         if (url.includes("/models/session")) {
-                            return { status: 200, headers: {}, bodyText: "{}" };
+                            await respondBuffered(req, { status: 200, headers: {} }, "{}");
+                            return;
                         }
                         if (url.includes("/policy")) {
-                            return { status: 200, headers: {}, bodyText: JSON.stringify({ state: "enabled" }) };
+                            await respondBuffered(
+                                req,
+                                { status: 200, headers: {} },
+                                JSON.stringify({ state: "enabled" }),
+                            );
+                            return;
                         }
 
                         // Inference: throw a transport-level error from the
-                        // callback. The runtime should surface this back to
-                        // the SDK consumer rather than treat it as a model
-                        // response.
+                        // callback. The adapter converts this into a
+                        // terminal `httpResponseChunk` with `error` set, so
+                        // the runtime surfaces it as `APIConnectionError`.
                         if (url.includes("/chat/completions") || url.includes("/responses")) {
-                            callsBeforeThrow += 1;
+                            await drainRequest(req);
+                            callsBeforeError += 1;
                             throw new Error("synthetic-callback-transport-failure");
                         }
 
-                        return {
-                            status: 200,
-                            headers: { "content-type": ["application/json"] },
-                            bodyText: "{}",
-                        };
+                        await respondBuffered(
+                            req,
+                            { status: 200, headers: { "content-type": ["application/json"] } },
+                            "{}",
+                        );
                     },
                 }),
             },
@@ -101,14 +129,14 @@ describe("LLM inference callback — error mapping", async () => {
                 await session.disconnect();
             }
 
-            // The agent layer typically wraps inference failures in its own
-            // error type and may convert them to an event rather than a
-            // thrown exception, so the assertion is loose: either we caught
-            // an error referencing the callback failure, or the inference
-            // call was attempted at least once and the runtime did NOT
-            // hang waiting for a response.
+            // The agent layer typically wraps inference failures in its
+            // own error type and may convert them to an event rather than
+            // a thrown exception, so the assertion is loose: either we
+            // caught an error referencing the callback failure, or the
+            // inference call was attempted at least once and the runtime
+            // did NOT hang waiting for a response.
             expect(totalCalls).toBeGreaterThan(0);
-            expect(callsBeforeThrow).toBeGreaterThan(0);
+            expect(callsBeforeError).toBeGreaterThan(0);
             if (caught) {
                 const message = caught instanceof Error ? caught.message : String(caught);
                 expect(message.length).toBeGreaterThan(0);
