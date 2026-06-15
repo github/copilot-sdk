@@ -841,6 +841,12 @@ type InfiniteSessionConfig struct {
 	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
+// MemoryConfiguration configures the memory feature for a session.
+type MemoryConfiguration struct {
+	// Enabled controls whether the memory feature is enabled for this session.
+	Enabled bool `json:"enabled"`
+}
+
 // LargeToolOutputConfig configures handling of large tool outputs. When a tool
 // produces output exceeding the configured size, the output is written to a
 // temp file and a reference is returned to the model instead of the full
@@ -1028,6 +1034,9 @@ type SessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// Memory configures the memory feature for the session. When omitted, the
+	// runtime default applies.
+	Memory *MemoryConfiguration
 	// OnEvent is an optional event handler that is registered on the session before
 	// the session.create RPC is issued. This guarantees that early events emitted
 	// by the CLI during session creation (e.g. session.start) are delivered to the
@@ -1108,12 +1117,27 @@ type SessionConfig struct {
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
 }
+
+// ToolDefer controls whether a tool may be deferred (loaded lazily via tool
+// search) rather than always pre-loaded.
+type ToolDefer string
+
+const (
+	// ToolDeferAuto allows the tool to be deferred and surfaced through tool search.
+	ToolDeferAuto ToolDefer = "auto"
+	// ToolDeferNever forces the tool to always be pre-loaded.
+	ToolDeferNever ToolDefer = "never"
+)
+
 type Tool struct {
 	Name                 string         `json:"name"`
 	Description          string         `json:"description,omitempty"`
 	Parameters           map[string]any `json:"parameters,omitzero"`
 	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
 	SkipPermission       bool           `json:"skipPermission,omitempty"`
+	// Defer controls whether the tool may be deferred (loaded lazily via tool
+	// search) rather than always pre-loaded. When empty, the runtime decides.
+	Defer ToolDefer `json:"defer,omitempty"`
 	// Handler is optional. When nil, the SDK exposes the tool declaration but does
 	// not automatically invoke it.
 	Handler ToolHandler `json:"-"`
@@ -1409,6 +1433,9 @@ type ResumeSessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// Memory configures the memory feature for the session. When omitted, the
+	// runtime default applies.
+	Memory *MemoryConfiguration
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -1725,6 +1752,7 @@ type createSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
@@ -1805,6 +1833,7 @@ type resumeSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`

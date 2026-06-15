@@ -68,4 +68,20 @@ public final class SessionToolsApi {
         return caller.invoke("session.tools.getCurrentMetadata", java.util.Map.of("sessionId", this.sessionId), SessionToolsGetCurrentMetadataResult.class);
     }
 
+    /**
+     * Subagent settings to apply to the current session
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> updateSubagentSettings(SessionToolsUpdateSubagentSettingsParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.tools.updateSubagentSettings", _p, Void.class);
+    }
+
 }

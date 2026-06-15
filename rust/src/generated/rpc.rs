@@ -2209,6 +2209,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.provider.*` sub-namespace.
+    pub fn provider(&self) -> SessionRpcProvider<'a> {
+        SessionRpcProvider {
+            session: self.session,
+        }
+    }
+
     /// `session.queue.*` sub-namespace.
     pub fn queue(&self) -> SessionRpcQueue<'a> {
         SessionRpcQueue {
@@ -5862,6 +5869,36 @@ impl<'a> SessionRpcPlan<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Reads todo rows AND dependency edges from the session SQL database for structured progress UI. Same defensive behavior as readSqlTodos — returns empty arrays when the database, tables, or columns aren't available. Clients should call this on session start and after every `session.todos_changed` event to refresh structured-UI rendering.
+    ///
+    /// Wire method: `session.plan.readSqlTodosWithDependencies`.
+    ///
+    /// # Returns
+    ///
+    /// Todo rows + dependency edges read from the session SQL database.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn read_sql_todos_with_dependencies(
+        &self,
+    ) -> Result<PlanReadSqlTodosWithDependenciesResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PLAN_READSQLTODOSWITHDEPENDENCIES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `session.plugins.*` RPCs.
@@ -5941,6 +5978,72 @@ impl<'a> SessionRpcPlugins<'a> {
             .call(rpc_methods::SESSION_PLUGINS_RELOAD, Some(wire_params))
             .await?;
         Ok(())
+    }
+}
+
+/// `session.provider.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcProvider<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcProvider<'a> {
+    /// Returns the provider endpoint and credentials the session is currently configured to talk to, so the caller can make inference calls directly against the same backend the session uses.
+    ///
+    /// Wire method: `session.provider.getEndpoint`.
+    ///
+    /// # Returns
+    ///
+    /// A snapshot of the provider endpoint the session is currently configured to talk to.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_endpoint(&self) -> Result<ProviderEndpoint, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PROVIDER_GETENDPOINT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the provider endpoint and credentials the session is currently configured to talk to, so the caller can make inference calls directly against the same backend the session uses.
+    ///
+    /// Wire method: `session.provider.getEndpoint`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional model identifier to scope the endpoint snapshot to.
+    ///
+    /// # Returns
+    ///
+    /// A snapshot of the provider endpoint the session is currently configured to talk to.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_endpoint_with_params(
+        &self,
+        params: ProviderGetEndpointRequest,
+    ) -> Result<ProviderEndpoint, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PROVIDER_GETENDPOINT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
@@ -6977,6 +7080,42 @@ impl<'a> SessionRpcTools<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_TOOLS_GETCURRENTMETADATA,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Updates the current session's live subagent settings after user settings change. The persisted user settings remain the source of truth for future sessions.
+    ///
+    /// Wire method: `session.tools.updateSubagentSettings`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Subagent settings to apply to the current session
+    ///
+    /// # Returns
+    ///
+    /// Empty result after applying subagent settings
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn update_subagent_settings(
+        &self,
+        params: UpdateSubagentSettingsRequest,
+    ) -> Result<ToolsUpdateSubagentSettingsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_UPDATESUBAGENTSETTINGS,
                 Some(wire_params),
             )
             .await?;

@@ -2,6 +2,7 @@
 
 #![allow(clippy::large_enum_variant)]
 #![allow(dead_code)]
+#![allow(rustdoc::invalid_html_tags)]
 
 use std::collections::HashMap;
 
@@ -191,6 +192,9 @@ pub mod rpc_methods {
     pub const SESSION_PLAN_DELETE: &str = "session.plan.delete";
     /// `session.plan.readSqlTodos`
     pub const SESSION_PLAN_READSQLTODOS: &str = "session.plan.readSqlTodos";
+    /// `session.plan.readSqlTodosWithDependencies`
+    pub const SESSION_PLAN_READSQLTODOSWITHDEPENDENCIES: &str =
+        "session.plan.readSqlTodosWithDependencies";
     /// `session.workspaces.getWorkspace`
     pub const SESSION_WORKSPACES_GETWORKSPACE: &str = "session.workspaces.getWorkspace";
     /// `session.workspaces.listFiles`
@@ -310,6 +314,8 @@ pub mod rpc_methods {
     pub const SESSION_PLUGINS_LIST: &str = "session.plugins.list";
     /// `session.plugins.reload`
     pub const SESSION_PLUGINS_RELOAD: &str = "session.plugins.reload";
+    /// `session.provider.getEndpoint`
+    pub const SESSION_PROVIDER_GETENDPOINT: &str = "session.provider.getEndpoint";
     /// `session.options.update`
     pub const SESSION_OPTIONS_UPDATE: &str = "session.options.update";
     /// `session.lsp.initialize`
@@ -331,6 +337,8 @@ pub mod rpc_methods {
     pub const SESSION_TOOLS_INITIALIZEANDVALIDATE: &str = "session.tools.initializeAndValidate";
     /// `session.tools.getCurrentMetadata`
     pub const SESSION_TOOLS_GETCURRENTMETADATA: &str = "session.tools.getCurrentMetadata";
+    /// `session.tools.updateSubagentSettings`
+    pub const SESSION_TOOLS_UPDATESUBAGENTSETTINGS: &str = "session.tools.updateSubagentSettings";
     /// `session.commands.list`
     pub const SESSION_COMMANDS_LIST: &str = "session.commands.list";
     /// `session.commands.invoke`
@@ -1878,6 +1886,9 @@ pub struct SlashCommandInfo {
     pub kind: SlashCommandKind,
     /// Canonical command name without a leading slash
     pub name: String,
+    /// Whether the command may be the target of `/every` / `/after` schedules. Resolution happens at every tick, so only set this when the command is safe to re-invoke and produces an agent prompt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schedulable: Option<bool>,
 }
 
 /// Slash commands available in the session, after applying any include/exclude filters.
@@ -2384,14 +2395,14 @@ pub struct ExecuteCommandResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Extension {
-    /// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
+    /// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext')
     pub id: String,
     /// Extension name (directory name)
     pub name: String,
     /// Process ID if the extension is running
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pid: Option<i64>,
-    /// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+    /// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
     pub source: ExtensionSource,
     /// Current status: running, disabled, failed, or starting
     pub status: ExtensionStatus,
@@ -4462,6 +4473,21 @@ pub struct McpStopServerRequest {
 pub(crate) struct McpUnregisterExternalClientRequest {
     /// Server name of the external client to unregister
     pub server_name: String,
+}
+
+/// Memory configuration for this session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryConfiguration {
+    /// Whether memory is enabled for the session.
+    pub enabled: bool,
 }
 
 /// Model identifier and token limits used to compute the context-info breakdown.
@@ -6674,7 +6700,7 @@ pub struct PlanReadResult {
     pub path: Option<String>,
 }
 
-/// Schema for the `PlanSqlTodosRow` type.
+/// A single todo row read from the session SQL `todos` table. All fields are optional because the SQL schema is best-effort and the agent may not have populated every column.
 ///
 /// <div class="warning">
 ///
@@ -6711,6 +6737,40 @@ pub struct PlanSqlTodosRow {
 #[serde(rename_all = "camelCase")]
 pub struct PlanReadSqlTodosResult {
     /// Rows from the session SQL todos table, ordered by creation time and id.
+    pub rows: Vec<PlanSqlTodosRow>,
+}
+
+/// A single dependency edge read from the session SQL `todo_deps` table, indicating that one todo must complete before another.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanSqlTodoDependency {
+    /// ID of the todo it depends on.
+    pub depends_on: String,
+    /// ID of the todo that has the dependency.
+    pub todo_id: String,
+}
+
+/// Todo rows + dependency edges read from the session SQL database.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanReadSqlTodosWithDependenciesResult {
+    /// Edges from the session SQL todo_deps table. Empty when no database, no todo_deps table, or the SELECT failed. Read independently from `rows`, so a broken todo_deps table does not affect the rows result and vice versa.
+    pub dependencies: Vec<PlanSqlTodoDependency>,
+    /// Rows from the session SQL todos table, ordered by creation time and id. Empty when no database, no todos table, or the SELECT failed.
     pub rows: Vec<PlanSqlTodosRow>,
 }
 
@@ -7132,6 +7192,73 @@ pub struct ProviderConfig {
     /// The model identifier sent to the provider API for inference (the "wire" model), as opposed to modelId which is the well-known base.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wire_model: Option<String>,
+}
+
+/// Short-lived, rotating credential the caller must send on every request, in addition to `apiKey` if one is present. Omitted when the endpoint does not require one.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSessionToken {
+    /// When the token expires, if known. Callers should refresh by calling `getEndpoint` again before this time, or reactively on any 401/403 response from `baseUrl`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    /// HTTP header name the token must be sent under.
+    pub header: String,
+    /// The model the token is bound to, when applicable. When set, the token is only valid for requests against this model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// The short-lived token value.
+    pub token: String,
+}
+
+/// A snapshot of the provider endpoint the session is currently configured to talk to.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderEndpoint {
+    /// A credential the caller should use with this endpoint. Omitted only when the endpoint accepts unauthenticated requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// Base URL to pass to the LLM client library.
+    pub base_url: String,
+    /// HTTP headers the caller must include on every outbound request.
+    pub headers: HashMap<String, String>,
+    /// Short-lived, rotating credential the caller must send on every request, in addition to `apiKey` if one is present. Omitted when the endpoint does not require one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_token: Option<ProviderSessionToken>,
+    /// Provider family. Matches the `type` field of a BYOK provider config.
+    pub r#type: ProviderEndpointType,
+    /// Wire API to be used, when required for the provider type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<ProviderEndpointWireApi>,
+}
+
+/// Optional model identifier to scope the endpoint snapshot to.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderGetEndpointRequest {
+    /// Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
 }
 
 /// Blob attachment with inline base64-encoded data
@@ -9111,6 +9238,10 @@ pub struct SessionOpenOptions {
     /// Denylist of tool names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
+    /// ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the Copilot CLI fetches from the experimentation service (CopilotExpAssignmentResponse). When supplied this is fed into the FeatureFlagService exactly like CLI-fetched assignments and ExP-backed flags wait for it. When absent the session does not block on ExP.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) exp_assignments: Option<serde_json::Value>,
     /// Feature-flag values resolved by the host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feature_flags: Option<HashMap<String, bool>>,
@@ -9129,6 +9260,9 @@ pub struct SessionOpenOptions {
     /// Identifier sent to LSP-style integrations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lsp_client_name: Option<String>,
+    /// Memory configuration for this session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory: Option<MemoryConfiguration>,
     /// Initial model identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -10640,6 +10774,47 @@ pub struct SlashCommandSelectSubcommandResult {
     pub title: String,
 }
 
+/// Subagent model, reasoning effort, and context tier settings
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentSettingsEntry {
+    /// Context tier override for matching subagents
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<SubagentSettingsEntryContextTier>,
+    /// Reasoning effort override for matching subagents
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort_level: Option<String>,
+    /// Model override for matching subagents
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+/// Subagent settings to apply, or null to clear the live session override
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentSettings {
+    /// Per-agent settings keyed by subagent agent_type
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agents: Option<HashMap<String, SubagentSettingsEntry>>,
+    /// Names of subagents the user has turned off; they cannot be dispatched
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_subagents: Option<Vec<String>>,
+}
+
 /// Schema for the `TaskAgentInfo` type.
 ///
 /// <div class="warning">
@@ -11169,6 +11344,18 @@ pub struct ToolsListRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
 }
+
+/// Empty result after applying subagent settings
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsUpdateSubagentSettingsResult {}
 
 /// Schema for the `UIElicitationArrayAnyOfFieldItemsAnyOf` type.
 ///
@@ -11747,6 +11934,33 @@ pub struct UIUnregisterDirectAutoModeSwitchHandlerRequest {
 pub struct UIUnregisterDirectAutoModeSwitchHandlerResult {
     /// True if the handle was active and decremented the counter; false if the handle was unknown.
     pub unregistered: bool,
+}
+
+/// Configured per-agent subagent overrides
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSubagentSettingsRequestSubagents {
+    /// Per-agent settings keyed by subagent agent_type
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agents: Option<HashMap<String, SubagentSettingsEntry>>,
+    /// Names of subagents the user has turned off; they cannot be dispatched
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_subagents: Option<Vec<String>>,
+}
+
+/// Subagent settings to apply to the current session
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSubagentSettingsRequest {
+    /// Subagent settings to apply, or null to clear the live session override
+    pub subagents: Option<UpdateSubagentSettingsRequestSubagents>,
 }
 
 /// Aggregated code change metrics
@@ -13232,6 +13446,38 @@ pub struct SessionPlanReadSqlTodosResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionPlanReadSqlTodosWithDependenciesParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Todo rows + dependency edges read from the session SQL database.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPlanReadSqlTodosWithDependenciesResult {
+    /// Edges from the session SQL todo_deps table. Empty when no database, no todo_deps table, or the SELECT failed. Read independently from `rows`, so a broken todo_deps table does not affect the rows result and vice versa.
+    pub dependencies: Vec<PlanSqlTodoDependency>,
+    /// Rows from the session SQL todos table, ordered by creation time and id. Empty when no database, no todos table, or the SELECT failed.
+    pub rows: Vec<PlanSqlTodosRow>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionWorkspacesGetWorkspaceParams {
     /// Target session identifier
     pub session_id: SessionId,
@@ -14275,6 +14521,34 @@ pub struct SessionPluginsListResult {
     pub plugins: Vec<Plugin>,
 }
 
+/// A snapshot of the provider endpoint the session is currently configured to talk to.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProviderGetEndpointResult {
+    /// A credential the caller should use with this endpoint. Omitted only when the endpoint accepts unauthenticated requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// Base URL to pass to the LLM client library.
+    pub base_url: String,
+    /// HTTP headers the caller must include on every outbound request.
+    pub headers: HashMap<String, String>,
+    /// Short-lived, rotating credential the caller must send on every request, in addition to `apiKey` if one is present. Omitted when the endpoint does not require one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_token: Option<ProviderSessionToken>,
+    /// Provider family. Matches the `type` field of a BYOK provider config.
+    pub r#type: ProviderEndpointType,
+    /// Wire API to be used, when required for the provider type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<ProviderEndpointWireApi>,
+}
+
 /// Indicates whether the session options patch was applied successfully.
 ///
 /// <div class="warning">
@@ -14406,6 +14680,18 @@ pub struct SessionToolsGetCurrentMetadataResult {
     /// Current tool metadata, or null when tools have not been initialized yet
     pub tools: Option<Vec<CurrentToolMetadata>>,
 }
+
+/// Empty result after applying subagent settings
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionToolsUpdateSubagentSettingsResult {}
 
 /// Slash commands available in the session, after applying any include/exclude filters.
 ///
@@ -16430,7 +16716,7 @@ pub enum EventsCursorStatus {
     Unknown,
 }
 
-/// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+/// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
 ///
 /// <div class="warning">
 ///
@@ -16446,6 +16732,12 @@ pub enum ExtensionSource {
     /// Extension discovered from the user's ~/.copilot/extensions directory.
     #[serde(rename = "user")]
     User,
+    /// Extension contributed by an installed plugin.
+    #[serde(rename = "plugin")]
+    Plugin,
+    /// Extension discovered from the current session's state directory (loaded only for this session).
+    #[serde(rename = "session")]
+    Session,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -17853,6 +18145,53 @@ pub enum ProviderConfigWireApi {
     Unknown,
 }
 
+/// Provider family. Matches the `type` field of a BYOK provider config.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderEndpointType {
+    /// OpenAI-compatible endpoint (use the OpenAI client library).
+    #[serde(rename = "openai")]
+    Openai,
+    /// Azure OpenAI endpoint (use the OpenAI client library with the Azure base URL).
+    #[serde(rename = "azure")]
+    Azure,
+    /// Anthropic endpoint (use the Anthropic client library).
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Wire API to be used, when required for the provider type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderEndpointWireApi {
+    /// Classic chat-completions request shape.
+    #[serde(rename = "completions")]
+    Completions,
+    /// Newer responses request shape.
+    #[serde(rename = "responses")]
+    Responses,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Attachment type discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PushAttachmentBlobType {
@@ -18586,6 +18925,31 @@ pub enum SlashCommandInvocationResult {
     AgentPrompt(SlashCommandAgentPromptResult),
     Completed(SlashCommandCompletedResult),
     SelectSubcommand(SlashCommandSelectSubcommandResult),
+}
+
+/// Context tier override for matching subagents
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentSettingsEntryContextTier {
+    /// Inherit the parent session's effective context tier at dispatch time.
+    #[serde(rename = "inherit")]
+    Inherit,
+    /// Use the model's default context window.
+    #[serde(rename = "default")]
+    Default,
+    /// Pin the subagent to the long-context tier when supported.
+    #[serde(rename = "long_context")]
+    LongContext,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Whether task execution is synchronously awaited or managed in the background

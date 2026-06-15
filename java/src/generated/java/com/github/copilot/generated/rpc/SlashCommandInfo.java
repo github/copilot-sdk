@@ -35,6 +35,8 @@ public record SlashCommandInfo(
     /** Whether the command may run while an agent turn is active */
     @JsonProperty("allowDuringAgentExecution") Boolean allowDuringAgentExecution,
     /** Whether the command is experimental */
-    @JsonProperty("experimental") Boolean experimental
+    @JsonProperty("experimental") Boolean experimental,
+    /** Whether the command may be the target of `/every` / `/after` schedules. Resolution happens at every tick, so only set this when the command is safe to re-invoke and produces an agent prompt. */
+    @JsonProperty("schedulable") Boolean schedulable
 ) {
 }

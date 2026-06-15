@@ -1290,13 +1290,15 @@ type ExecuteCommandResult struct {
 // Schema for the `Extension` type.
 // Experimental: Extension is part of an experimental API and may change or be removed.
 type Extension struct {
-	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
+	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper',
+	// 'plugin:my-plugin:my-ext')
 	ID string `json:"id"`
 	// Extension name (directory name)
 	Name string `json:"name"`
 	// Process ID if the extension is running
 	Pid *int64 `json:"pid,omitempty"`
-	// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+	// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin
+	// (installed plugin), or session (session-state/<id>/extensions/)
 	Source ExtensionSource `json:"source"`
 	// Current status: running, disabled, failed, or starting
 	Status ExtensionStatus `json:"status"`
@@ -2713,6 +2715,14 @@ type MCPTools struct {
 type MCPUnregisterExternalClientRequest struct {
 	// Server name of the external client to unregister
 	ServerName string `json:"serverName"`
+}
+
+// Memory configuration for this session.
+// Experimental: MemoryConfiguration is part of an experimental API and may change or be
+// removed.
+type MemoryConfiguration struct {
+	// Whether memory is enabled for the session.
+	Enabled bool `json:"enabled"`
 }
 
 // Model identifier and token limits used to compute the context-info breakdown.
@@ -4277,7 +4287,32 @@ type PlanReadSQLTodosResult struct {
 	Rows []PlanSQLTodosRow `json:"rows"`
 }
 
-// Schema for the `PlanSqlTodosRow` type.
+// Todo rows + dependency edges read from the session SQL database.
+// Experimental: PlanReadSQLTodosWithDependenciesResult is part of an experimental API and
+// may change or be removed.
+type PlanReadSQLTodosWithDependenciesResult struct {
+	// Edges from the session SQL todo_deps table. Empty when no database, no todo_deps table,
+	// or the SELECT failed. Read independently from `rows`, so a broken todo_deps table does
+	// not affect the rows result and vice versa.
+	Dependencies []PlanSQLTodoDependency `json:"dependencies"`
+	// Rows from the session SQL todos table, ordered by creation time and id. Empty when no
+	// database, no todos table, or the SELECT failed.
+	Rows []PlanSQLTodosRow `json:"rows"`
+}
+
+// A single dependency edge read from the session SQL `todo_deps` table, indicating that one
+// todo must complete before another.
+// Experimental: PlanSQLTodoDependency is part of an experimental API and may change or be
+// removed.
+type PlanSQLTodoDependency struct {
+	// ID of the todo it depends on.
+	DependsOn string `json:"dependsOn"`
+	// ID of the todo that has the dependency.
+	TodoID string `json:"todoId"`
+}
+
+// A single todo row read from the session SQL `todos` table. All fields are optional
+// because the SQL schema is best-effort and the agent may not have populated every column.
 // Experimental: PlanSQLTodosRow is part of an experimental API and may change or be removed.
 type PlanSQLTodosRow struct {
 	// Todo description.
@@ -4550,6 +4585,52 @@ type ProviderConfigAzure struct {
 	// API version. When set, uses the versioned deployment route. When omitted, uses the GA
 	// versionless v1 route.
 	APIVersion *string `json:"apiVersion,omitempty"`
+}
+
+// A snapshot of the provider endpoint the session is currently configured to talk to.
+// Experimental: ProviderEndpoint is part of an experimental API and may change or be
+// removed.
+type ProviderEndpoint struct {
+	// A credential the caller should use with this endpoint. Omitted only when the endpoint
+	// accepts unauthenticated requests.
+	APIKey *string `json:"apiKey,omitempty"`
+	// Base URL to pass to the LLM client library.
+	BaseURL string `json:"baseUrl"`
+	// HTTP headers the caller must include on every outbound request.
+	Headers map[string]string `json:"headers"`
+	// Short-lived, rotating credential the caller must send on every request, in addition to
+	// `apiKey` if one is present. Omitted when the endpoint does not require one.
+	SessionToken *ProviderSessionToken `json:"sessionToken,omitempty"`
+	// Provider family. Matches the `type` field of a BYOK provider config.
+	Type ProviderEndpointType `json:"type"`
+	// Wire API to be used, when required for the provider type.
+	WireAPI *ProviderEndpointWireAPI `json:"wireApi,omitempty"`
+}
+
+// Optional model identifier to scope the endpoint snapshot to.
+// Experimental: ProviderGetEndpointRequest is part of an experimental API and may change or
+// be removed.
+type ProviderGetEndpointRequest struct {
+	// Model identifier the caller intends to use against the returned endpoint. Used to pick
+	// the correct wire shape. Omit to use whichever model the session is currently using.
+	ModelID *string `json:"modelId,omitempty"`
+}
+
+// Short-lived, rotating credential the caller must send on every request, in addition to
+// `apiKey` if one is present. Omitted when the endpoint does not require one.
+// Experimental: ProviderSessionToken is part of an experimental API and may change or be
+// removed.
+type ProviderSessionToken struct {
+	// When the token expires, if known. Callers should refresh by calling `getEndpoint` again
+	// before this time, or reactively on any 401/403 response from `baseUrl`.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	// HTTP header name the token must be sent under.
+	Header string `json:"header"`
+	// The model the token is bound to, when applicable. When set, the token is only valid for
+	// requests against this model.
+	Model *string `json:"model,omitempty"`
+	// The short-lived token value.
+	Token string `json:"token"`
 }
 
 // Schema for the `PushAttachment` type.
@@ -6008,6 +6089,13 @@ type SessionOpenOptions struct {
 	EventsLogDirectory *string `json:"eventsLogDirectory,omitempty"`
 	// Denylist of tool names.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
+	// ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the
+	// Copilot CLI fetches from the experimentation service (CopilotExpAssignmentResponse). When
+	// supplied this is fed into the FeatureFlagService exactly like CLI-fetched assignments and
+	// ExP-backed flags wait for it. When absent the session does not block on ExP.
+	// Internal: ExpAssignments is part of the SDK's internal API surface and is not intended
+	// for external use.
+	ExpAssignments any `json:"expAssignments,omitempty"`
 	// Feature-flag values resolved by the host.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
 	// Installed plugins visible to the session.
@@ -6020,6 +6108,8 @@ type SessionOpenOptions struct {
 	LogInteractiveShells *bool `json:"logInteractiveShells,omitempty"`
 	// Identifier sent to LSP-style integrations.
 	LspClientName *string `json:"lspClientName,omitempty"`
+	// Memory configuration for this session.
+	Memory *MemoryConfiguration `json:"memory,omitempty"`
 	// Initial model identifier.
 	Model *string `json:"model,omitempty"`
 	// Initial model capability overrides.
@@ -7086,6 +7176,10 @@ type SlashCommandInfo struct {
 	Kind SlashCommandKind `json:"kind"`
 	// Canonical command name without a leading slash
 	Name string `json:"name"`
+	// Whether the command may be the target of `/every` / `/after` schedules. Resolution
+	// happens at every tick, so only set this when the command is safe to re-invoke and
+	// produces an agent prompt.
+	Schedulable *bool `json:"schedulable,omitempty"`
 }
 
 // Optional unstructured input hint
@@ -7209,6 +7303,28 @@ type SlashCommandSelectSubcommandOption struct {
 	Group *string `json:"group,omitempty"`
 	// Subcommand name to invoke
 	Name string `json:"name"`
+}
+
+// Configured per-agent subagent overrides
+// Experimental: SubagentSettings is part of an experimental API and may change or be
+// removed.
+type SubagentSettings struct {
+	// Per-agent settings keyed by subagent agent_type
+	Agents map[string]SubagentSettingsEntry `json:"agents,omitzero"`
+	// Names of subagents the user has turned off; they cannot be dispatched
+	DisabledSubagents []string `json:"disabledSubagents,omitzero"`
+}
+
+// Subagent model, reasoning effort, and context tier settings
+// Experimental: SubagentSettingsEntry is part of an experimental API and may change or be
+// removed.
+type SubagentSettingsEntry struct {
+	// Context tier override for matching subagents
+	ContextTier *SubagentSettingsEntryContextTier `json:"contextTier,omitempty"`
+	// Reasoning effort override for matching subagents
+	EffortLevel *string `json:"effortLevel,omitempty"`
+	// Model override for matching subagents
+	Model *string `json:"model,omitempty"`
 }
 
 // Schema for the `TaskInfo` type.
@@ -7575,6 +7691,12 @@ type ToolsListRequest struct {
 	// Optional model ID — when provided, the returned tool list reflects model-specific
 	// overrides
 	Model *string `json:"model,omitempty"`
+}
+
+// Empty result after applying subagent settings
+// Experimental: ToolsUpdateSubagentSettingsResult is part of an experimental API and may
+// change or be removed.
+type ToolsUpdateSubagentSettingsResult struct {
 }
 
 // Schema applied to each item in the array.
@@ -8008,6 +8130,14 @@ type UIUserInputResponse struct {
 	// True if the user typed a freeform response, false if they selected a presented choice.
 	// Used by telemetry to differentiate between free text input and choice selection.
 	WasFreeform bool `json:"wasFreeform"`
+}
+
+// Subagent settings to apply to the current session
+// Experimental: UpdateSubagentSettingsRequest is part of an experimental API and may change
+// or be removed.
+type UpdateSubagentSettingsRequest struct {
+	// Subagent settings to apply, or null to clear the live session override
+	Subagents *SubagentSettings `json:"subagents,omitempty"`
 }
 
 // Accumulated session usage metrics, including premium request cost, token counts, model
@@ -8758,13 +8888,19 @@ const (
 	EventsCursorStatusOk EventsCursorStatus = "ok"
 )
 
-// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin
+// (installed plugin), or session (session-state/<id>/extensions/)
 // Experimental: ExtensionSource is part of an experimental API and may change or be removed.
 type ExtensionSource string
 
 const (
+	// Extension contributed by an installed plugin.
+	ExtensionSourcePlugin ExtensionSource = "plugin"
 	// Extension discovered from the current project's .github/extensions directory.
 	ExtensionSourceProject ExtensionSource = "project"
+	// Extension discovered from the current session's state directory (loaded only for this
+	// session).
+	ExtensionSourceSession ExtensionSource = "session"
 	// Extension discovered from the user's ~/.copilot/extensions directory.
 	ExtensionSourceUser ExtensionSource = "user"
 )
@@ -9377,6 +9513,32 @@ const (
 	ProviderConfigWireAPIResponses ProviderConfigWireAPI = "responses"
 )
 
+// Provider family. Matches the `type` field of a BYOK provider config.
+// Experimental: ProviderEndpointType is part of an experimental API and may change or be
+// removed.
+type ProviderEndpointType string
+
+const (
+	// Anthropic endpoint (use the Anthropic client library).
+	ProviderEndpointTypeAnthropic ProviderEndpointType = "anthropic"
+	// Azure OpenAI endpoint (use the OpenAI client library with the Azure base URL).
+	ProviderEndpointTypeAzure ProviderEndpointType = "azure"
+	// OpenAI-compatible endpoint (use the OpenAI client library).
+	ProviderEndpointTypeOpenai ProviderEndpointType = "openai"
+)
+
+// Wire API to be used, when required for the provider type.
+// Experimental: ProviderEndpointWireAPI is part of an experimental API and may change or be
+// removed.
+type ProviderEndpointWireAPI string
+
+const (
+	// Classic chat-completions request shape.
+	ProviderEndpointWireAPICompletions ProviderEndpointWireAPI = "completions"
+	// Newer responses request shape.
+	ProviderEndpointWireAPIResponses ProviderEndpointWireAPI = "responses"
+)
+
 // Type of GitHub reference
 // Experimental: PushAttachmentGitHubReferenceType is part of an experimental API and may
 // change or be removed.
@@ -9852,6 +10014,20 @@ const (
 	SlashCommandKindSkill SlashCommandKind = "skill"
 )
 
+// Context tier override for matching subagents
+// Experimental: SubagentSettingsEntryContextTier is part of an experimental API and may
+// change or be removed.
+type SubagentSettingsEntryContextTier string
+
+const (
+	// Use the model's default context window.
+	SubagentSettingsEntryContextTierDefault SubagentSettingsEntryContextTier = "default"
+	// Inherit the parent session's effective context tier at dispatch time.
+	SubagentSettingsEntryContextTierInherit SubagentSettingsEntryContextTier = "inherit"
+	// Pin the subagent to the long-context tier when supported.
+	SubagentSettingsEntryContextTierLongContext SubagentSettingsEntryContextTier = "long_context"
+)
+
 // Whether task execution is synchronously awaited or managed in the background
 // Experimental: TaskExecutionMode is part of an experimental API and may change or be
 // removed.
@@ -10090,7 +10266,7 @@ type ServerAccountAPI serverAPI
 //
 // Returns: Quota usage snapshots for the resolved user, keyed by quota type.
 func (a *ServerAccountAPI) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
-	raw, err := a.client.Request("account.getQuota", params)
+	raw, err := a.client.Request(ctx, "account.getQuota", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10116,7 +10292,7 @@ type ServerAgentRegistryAPI serverAPI
 //
 // Returns: Outcome of an agentRegistry.spawn call.
 func (a *ServerAgentRegistryAPI) Spawn(ctx context.Context, params *AgentRegistrySpawnRequest) (AgentRegistrySpawnResult, error) {
-	raw, err := a.client.Request("agentRegistry.spawn", params)
+	raw, err := a.client.Request(ctx, "agentRegistry.spawn", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10138,7 +10314,7 @@ type ServerAgentsAPI serverAPI
 //
 // Returns: Agents discovered across user, project, plugin, and remote sources.
 func (a *ServerAgentsAPI) Discover(ctx context.Context, params *AgentsDiscoverRequest) (*ServerAgentList, error) {
-	raw, err := a.client.Request("agents.discover", params)
+	raw, err := a.client.Request(ctx, "agents.discover", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10161,7 +10337,7 @@ type ServerInstructionsAPI serverAPI
 //
 // Returns: Instruction sources discovered across user, repository, and plugin sources.
 func (a *ServerInstructionsAPI) Discover(ctx context.Context, params *InstructionsDiscoverRequest) (*ServerInstructionSourceList, error) {
-	raw, err := a.client.Request("instructions.discover", params)
+	raw, err := a.client.Request(ctx, "instructions.discover", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10182,7 +10358,7 @@ type ServerMCPAPI serverAPI
 //
 // Returns: MCP servers discovered from user, workspace, plugin, and built-in sources.
 func (a *ServerMCPAPI) Discover(ctx context.Context, params *MCPDiscoverRequest) (*MCPDiscoverResult, error) {
-	raw, err := a.client.Request("mcp.discover", params)
+	raw, err := a.client.Request(ctx, "mcp.discover", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10201,7 +10377,7 @@ type ServerMCPConfigAPI serverAPI
 //
 // Parameters: MCP server name and configuration to add to user configuration.
 func (a *ServerMCPConfigAPI) Add(ctx context.Context, params *MCPConfigAddRequest) (*MCPConfigAddResult, error) {
-	raw, err := a.client.Request("mcp.config.add", params)
+	raw, err := a.client.Request(ctx, "mcp.config.add", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10218,7 +10394,7 @@ func (a *ServerMCPConfigAPI) Add(ctx context.Context, params *MCPConfigAddReques
 //
 // Parameters: MCP server names to disable for new sessions.
 func (a *ServerMCPConfigAPI) Disable(ctx context.Context, params *MCPConfigDisableRequest) (*MCPConfigDisableResult, error) {
-	raw, err := a.client.Request("mcp.config.disable", params)
+	raw, err := a.client.Request(ctx, "mcp.config.disable", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10235,7 +10411,7 @@ func (a *ServerMCPConfigAPI) Disable(ctx context.Context, params *MCPConfigDisab
 //
 // Parameters: MCP server names to enable for new sessions.
 func (a *ServerMCPConfigAPI) Enable(ctx context.Context, params *MCPConfigEnableRequest) (*MCPConfigEnableResult, error) {
-	raw, err := a.client.Request("mcp.config.enable", params)
+	raw, err := a.client.Request(ctx, "mcp.config.enable", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10252,7 +10428,7 @@ func (a *ServerMCPConfigAPI) Enable(ctx context.Context, params *MCPConfigEnable
 //
 // Returns: User-configured MCP servers, keyed by server name.
 func (a *ServerMCPConfigAPI) List(ctx context.Context) (*MCPConfigList, error) {
-	raw, err := a.client.Request("mcp.config.list", nil)
+	raw, err := a.client.Request(ctx, "mcp.config.list", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10268,7 +10444,7 @@ func (a *ServerMCPConfigAPI) List(ctx context.Context) (*MCPConfigList, error) {
 //
 // RPC method: mcp.config.reload.
 func (a *ServerMCPConfigAPI) Reload(ctx context.Context) (*MCPConfigReloadResult, error) {
-	raw, err := a.client.Request("mcp.config.reload", nil)
+	raw, err := a.client.Request(ctx, "mcp.config.reload", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10285,7 +10461,7 @@ func (a *ServerMCPConfigAPI) Reload(ctx context.Context) (*MCPConfigReloadResult
 //
 // Parameters: MCP server name to remove from user configuration.
 func (a *ServerMCPConfigAPI) Remove(ctx context.Context, params *MCPConfigRemoveRequest) (*MCPConfigRemoveResult, error) {
-	raw, err := a.client.Request("mcp.config.remove", params)
+	raw, err := a.client.Request(ctx, "mcp.config.remove", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10302,7 +10478,7 @@ func (a *ServerMCPConfigAPI) Remove(ctx context.Context, params *MCPConfigRemove
 //
 // Parameters: MCP server name and replacement configuration to write to user configuration.
 func (a *ServerMCPConfigAPI) Update(ctx context.Context, params *MCPConfigUpdateRequest) (*MCPConfigUpdateResult, error) {
-	raw, err := a.client.Request("mcp.config.update", params)
+	raw, err := a.client.Request(ctx, "mcp.config.update", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10329,7 +10505,7 @@ type ServerModelsAPI serverAPI
 // Returns: List of Copilot models available to the resolved user, including capabilities
 // and billing metadata.
 func (a *ServerModelsAPI) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
-	raw, err := a.client.Request("models.list", params)
+	raw, err := a.client.Request(ctx, "models.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10349,7 +10525,7 @@ type ServerPluginsAPI serverAPI
 //
 // Parameters: Plugin names (or specs) to disable.
 func (a *ServerPluginsAPI) Disable(ctx context.Context, params *PluginsDisableRequest) (*PluginsDisableResult, error) {
-	raw, err := a.client.Request("plugins.disable", params)
+	raw, err := a.client.Request(ctx, "plugins.disable", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10366,7 +10542,7 @@ func (a *ServerPluginsAPI) Disable(ctx context.Context, params *PluginsDisableRe
 //
 // Parameters: Plugin names (or specs) to enable.
 func (a *ServerPluginsAPI) Enable(ctx context.Context, params *PluginsEnableRequest) (*PluginsEnableResult, error) {
-	raw, err := a.client.Request("plugins.enable", params)
+	raw, err := a.client.Request(ctx, "plugins.enable", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10385,7 +10561,7 @@ func (a *ServerPluginsAPI) Enable(ctx context.Context, params *PluginsEnableRequ
 //
 // Returns: Result of installing a plugin.
 func (a *ServerPluginsAPI) Install(ctx context.Context, params *PluginsInstallRequest) (*PluginInstallResult, error) {
-	raw, err := a.client.Request("plugins.install", params)
+	raw, err := a.client.Request(ctx, "plugins.install", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10402,7 +10578,7 @@ func (a *ServerPluginsAPI) Install(ctx context.Context, params *PluginsInstallRe
 //
 // Returns: Plugins installed in user/global state.
 func (a *ServerPluginsAPI) List(ctx context.Context) (*PluginListResult, error) {
-	raw, err := a.client.Request("plugins.list", nil)
+	raw, err := a.client.Request(ctx, "plugins.list", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10419,7 +10595,7 @@ func (a *ServerPluginsAPI) List(ctx context.Context) (*PluginListResult, error) 
 //
 // Parameters: Name (or spec) of the plugin to uninstall.
 func (a *ServerPluginsAPI) Uninstall(ctx context.Context, params *PluginsUninstallRequest) (*PluginsUninstallResult, error) {
-	raw, err := a.client.Request("plugins.uninstall", params)
+	raw, err := a.client.Request(ctx, "plugins.uninstall", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10438,7 +10614,7 @@ func (a *ServerPluginsAPI) Uninstall(ctx context.Context, params *PluginsUninsta
 //
 // Returns: Result of updating a single plugin.
 func (a *ServerPluginsAPI) Update(ctx context.Context, params *PluginsUpdateRequest) (*PluginUpdateResult, error) {
-	raw, err := a.client.Request("plugins.update", params)
+	raw, err := a.client.Request(ctx, "plugins.update", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10455,7 +10631,7 @@ func (a *ServerPluginsAPI) Update(ctx context.Context, params *PluginsUpdateRequ
 //
 // Returns: Result of updating all installed plugins.
 func (a *ServerPluginsAPI) UpdateAll(ctx context.Context) (*PluginUpdateAllResult, error) {
-	raw, err := a.client.Request("plugins.updateAll", nil)
+	raw, err := a.client.Request(ctx, "plugins.updateAll", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10478,7 +10654,7 @@ type ServerPluginsMarketplacesAPI serverAPI
 //
 // Returns: Result of registering a new marketplace.
 func (a *ServerPluginsMarketplacesAPI) Add(ctx context.Context, params *PluginsMarketplacesAddRequest) (*MarketplaceAddResult, error) {
-	raw, err := a.client.Request("plugins.marketplaces.add", params)
+	raw, err := a.client.Request(ctx, "plugins.marketplaces.add", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10497,7 +10673,7 @@ func (a *ServerPluginsMarketplacesAPI) Add(ctx context.Context, params *PluginsM
 //
 // Returns: Plugins advertised by the marketplace.
 func (a *ServerPluginsMarketplacesAPI) Browse(ctx context.Context, params *PluginsMarketplacesBrowseRequest) (*MarketplaceBrowseResult, error) {
-	raw, err := a.client.Request("plugins.marketplaces.browse", params)
+	raw, err := a.client.Request(ctx, "plugins.marketplaces.browse", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10514,7 +10690,7 @@ func (a *ServerPluginsMarketplacesAPI) Browse(ctx context.Context, params *Plugi
 //
 // Returns: All registered marketplaces, including built-in defaults.
 func (a *ServerPluginsMarketplacesAPI) List(ctx context.Context) (*MarketplaceListResult, error) {
-	raw, err := a.client.Request("plugins.marketplaces.list", nil)
+	raw, err := a.client.Request(ctx, "plugins.marketplaces.list", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10533,7 +10709,7 @@ func (a *ServerPluginsMarketplacesAPI) List(ctx context.Context) (*MarketplaceLi
 //
 // Returns: Result of refreshing one or more marketplace catalogs.
 func (a *ServerPluginsMarketplacesAPI) Refresh(ctx context.Context, params *PluginsMarketplacesRefreshRequest) (*MarketplaceRefreshResult, error) {
-	raw, err := a.client.Request("plugins.marketplaces.refresh", params)
+	raw, err := a.client.Request(ctx, "plugins.marketplaces.refresh", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10554,7 +10730,7 @@ func (a *ServerPluginsMarketplacesAPI) Refresh(ctx context.Context, params *Plug
 //
 // Returns: Outcome of the remove attempt, including dependent-plugin info when applicable.
 func (a *ServerPluginsMarketplacesAPI) Remove(ctx context.Context, params *PluginsMarketplacesRemoveRequest) (*MarketplaceRemoveResult, error) {
-	raw, err := a.client.Request("plugins.marketplaces.remove", params)
+	raw, err := a.client.Request(ctx, "plugins.marketplaces.remove", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10577,7 +10753,7 @@ type ServerRuntimeAPI serverAPI
 //
 // RPC method: runtime.shutdown.
 func (a *ServerRuntimeAPI) Shutdown(ctx context.Context) (*RuntimeShutdownResult, error) {
-	raw, err := a.client.Request("runtime.shutdown", nil)
+	raw, err := a.client.Request(ctx, "runtime.shutdown", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10599,7 +10775,7 @@ type ServerSecretsAPI serverAPI
 //
 // Returns: Confirmation that the secret values were registered.
 func (a *ServerSecretsAPI) AddFilterValues(ctx context.Context, params *SecretsAddFilterValuesRequest) (*SecretsAddFilterValuesResult, error) {
-	raw, err := a.client.Request("secrets.addFilterValues", params)
+	raw, err := a.client.Request(ctx, "secrets.addFilterValues", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10622,7 +10798,7 @@ type ServerSessionFSAPI serverAPI
 // Returns: Indicates whether the calling client was registered as the session filesystem
 // provider.
 func (a *ServerSessionFSAPI) SetProvider(ctx context.Context, params *SessionFSSetProviderRequest) (*SessionFSSetProviderResult, error) {
-	raw, err := a.client.Request("sessionFs.setProvider", params)
+	raw, err := a.client.Request(ctx, "sessionFs.setProvider", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10645,7 +10821,7 @@ type ServerSessionsAPI serverAPI
 //
 // Returns: Map of sessionId -> bytes freed by removing the session's workspace directory.
 func (a *ServerSessionsAPI) BulkDelete(ctx context.Context, params *SessionsBulkDeleteRequest) (*SessionBulkDeleteResult, error) {
-	raw, err := a.client.Request("sessions.bulkDelete", params)
+	raw, err := a.client.Request(ctx, "sessions.bulkDelete", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10665,7 +10841,7 @@ func (a *ServerSessionsAPI) BulkDelete(ctx context.Context, params *SessionsBulk
 //
 // Returns: Session IDs from the input set that are currently in use by another process.
 func (a *ServerSessionsAPI) CheckInUse(ctx context.Context, params *SessionsCheckInUseRequest) (*SessionsCheckInUseResult, error) {
-	raw, err := a.client.Request("sessions.checkInUse", params)
+	raw, err := a.client.Request(ctx, "sessions.checkInUse", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10687,7 +10863,7 @@ func (a *ServerSessionsAPI) CheckInUse(ctx context.Context, params *SessionsChec
 // in-use lock, disposes the active session. Idempotent: succeeds even if the session is not
 // currently active.
 func (a *ServerSessionsAPI) Close(ctx context.Context, params *SessionsCloseRequest) (*SessionsCloseResult, error) {
-	raw, err := a.client.Request("sessions.close", params)
+	raw, err := a.client.Request(ctx, "sessions.close", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10706,7 +10882,7 @@ func (a *ServerSessionsAPI) Close(ctx context.Context, params *SessionsCloseRequ
 //
 // Returns: Remote session connection result.
 func (a *ServerSessionsAPI) Connect(ctx context.Context, params *ConnectRemoteSessionParams) (*RemoteSessionConnectionResult, error) {
-	raw, err := a.client.Request("sessions.connect", params)
+	raw, err := a.client.Request(ctx, "sessions.connect", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10727,7 +10903,7 @@ func (a *ServerSessionsAPI) Connect(ctx context.Context, params *ConnectRemoteSe
 // Returns: The enriched metadata records, with summary and context fields backfilled where
 // available. Sessions confirmed empty and unnamed are omitted.
 func (a *ServerSessionsAPI) EnrichMetadata(ctx context.Context, params *SessionsEnrichMetadataRequest) (*SessionEnrichMetadataResult, error) {
-	raw, err := a.client.Request("sessions.enrichMetadata", params)
+	raw, err := a.client.Request(ctx, "sessions.enrichMetadata", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10747,7 +10923,7 @@ func (a *ServerSessionsAPI) EnrichMetadata(ctx context.Context, params *Sessions
 //
 // Returns: Session ID matching the prefix, omitted when no unique match exists.
 func (a *ServerSessionsAPI) FindByPrefix(ctx context.Context, params *SessionsFindByPrefixRequest) (*SessionsFindByPrefixResult, error) {
-	raw, err := a.client.Request("sessions.findByPrefix", params)
+	raw, err := a.client.Request(ctx, "sessions.findByPrefix", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10766,7 +10942,7 @@ func (a *ServerSessionsAPI) FindByPrefix(ctx context.Context, params *SessionsFi
 //
 // Returns: ID of the local session bound to the given GitHub task, or omitted when none.
 func (a *ServerSessionsAPI) FindByTaskId(ctx context.Context, params *SessionsFindByTaskIDRequest) (*SessionsFindByTaskIDResult, error) {
-	raw, err := a.client.Request("sessions.findByTaskId", params)
+	raw, err := a.client.Request(ctx, "sessions.findByTaskId", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10786,7 +10962,7 @@ func (a *ServerSessionsAPI) FindByTaskId(ctx context.Context, params *SessionsFi
 //
 // Returns: Identifier and optional friendly name assigned to the newly forked session.
 func (a *ServerSessionsAPI) Fork(ctx context.Context, params *SessionsForkRequest) (*SessionsForkResult, error) {
-	raw, err := a.client.Request("sessions.fork", params)
+	raw, err := a.client.Request(ctx, "sessions.fork", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10807,7 +10983,7 @@ func (a *ServerSessionsAPI) Fork(ctx context.Context, params *SessionsForkReques
 // Returns: Most-relevant session ID for the supplied context, or omitted when no sessions
 // exist.
 func (a *ServerSessionsAPI) GetLastForContext(ctx context.Context, params *SessionsGetLastForContextRequest) (*SessionsGetLastForContextResult, error) {
-	raw, err := a.client.Request("sessions.getLastForContext", params)
+	raw, err := a.client.Request(ctx, "sessions.getLastForContext", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10825,7 +11001,7 @@ func (a *ServerSessionsAPI) GetLastForContext(ctx context.Context, params *Sessi
 //
 // Returns: Wrapper for the singleton's current status.
 func (a *ServerSessionsAPI) GetRemoteControlStatus(ctx context.Context) (*RemoteControlStatusResult, error) {
-	raw, err := a.client.Request("sessions.getRemoteControlStatus", nil)
+	raw, err := a.client.Request(ctx, "sessions.getRemoteControlStatus", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10842,7 +11018,7 @@ func (a *ServerSessionsAPI) GetRemoteControlStatus(ctx context.Context) (*Remote
 //
 // Returns: Map of sessionId -> on-disk size in bytes for each session's workspace directory.
 func (a *ServerSessionsAPI) GetSizes(ctx context.Context) (*SessionSizes, error) {
-	raw, err := a.client.Request("sessions.getSizes", nil)
+	raw, err := a.client.Request(ctx, "sessions.getSizes", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10865,7 +11041,7 @@ func (a *ServerSessionsAPI) GetSizes(ctx context.Context) (*SessionSizes, error)
 //
 // Returns: Sessions matching the filter, ordered most-recently-modified first.
 func (a *ServerSessionsAPI) List(ctx context.Context, params *SessionsListRequest) (*SessionList, error) {
-	raw, err := a.client.Request("sessions.list", params)
+	raw, err := a.client.Request(ctx, "sessions.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10885,7 +11061,7 @@ func (a *ServerSessionsAPI) List(ctx context.Context, params *SessionsListReques
 //
 // Returns: Queued repo-level startup prompts and the total hook command count after loading.
 func (a *ServerSessionsAPI) LoadDeferredRepoHooks(ctx context.Context, params *SessionsLoadDeferredRepoHooksRequest) (*SessionLoadDeferredRepoHooksResult, error) {
-	raw, err := a.client.Request("sessions.loadDeferredRepoHooks", params)
+	raw, err := a.client.Request(ctx, "sessions.loadDeferredRepoHooks", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10905,7 +11081,7 @@ func (a *ServerSessionsAPI) LoadDeferredRepoHooks(ctx context.Context, params *S
 //
 // Returns: Result of opening a session.
 func (a *ServerSessionsAPI) Open(ctx context.Context, params *SessionOpenParams) (*SessionOpenResult, error) {
-	raw, err := a.client.Request("sessions.open", params)
+	raw, err := a.client.Request(ctx, "sessions.open", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10927,7 +11103,7 @@ func (a *ServerSessionsAPI) Open(ctx context.Context, params *SessionOpenParams)
 // Returns: Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs,
 // total bytes freed, and the dry-run flag.
 func (a *ServerSessionsAPI) PruneOld(ctx context.Context, params *SessionsPruneOldRequest) (*SessionPruneResult, error) {
-	raw, err := a.client.Request("sessions.pruneOld", params)
+	raw, err := a.client.Request(ctx, "sessions.pruneOld", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10947,7 +11123,7 @@ func (a *ServerSessionsAPI) PruneOld(ctx context.Context, params *SessionsPruneO
 // Returns: Release the in-use lock held by this process for the given session. No-op when
 // this process does not currently hold a lock for the session.
 func (a *ServerSessionsAPI) ReleaseLock(ctx context.Context, params *SessionsReleaseLockRequest) (*SessionsReleaseLockResult, error) {
-	raw, err := a.client.Request("sessions.releaseLock", params)
+	raw, err := a.client.Request(ctx, "sessions.releaseLock", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10969,7 +11145,7 @@ func (a *ServerSessionsAPI) ReleaseLock(ctx context.Context, params *SessionsRel
 // session. Call after installing or removing plugins so their hooks take effect
 // immediately. No-op when no active session matches the given sessionId.
 func (a *ServerSessionsAPI) ReloadPluginHooks(ctx context.Context, params *SessionsReloadPluginHooksRequest) (*SessionsReloadPluginHooksResult, error) {
-	raw, err := a.client.Request("sessions.reloadPluginHooks", params)
+	raw, err := a.client.Request(ctx, "sessions.reloadPluginHooks", params)
 	if err != nil {
 		return nil, err
 	}
@@ -10989,7 +11165,7 @@ func (a *ServerSessionsAPI) ReloadPluginHooks(ctx context.Context, params *Sessi
 // Returns: Flush a session's pending events to disk. No-op when no writer exists for the
 // session (e.g., already closed).
 func (a *ServerSessionsAPI) Save(ctx context.Context, params *SessionsSaveRequest) (*SessionsSaveResult, error) {
-	raw, err := a.client.Request("sessions.save", params)
+	raw, err := a.client.Request(ctx, "sessions.save", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11012,7 +11188,7 @@ func (a *ServerSessionsAPI) Save(ctx context.Context, params *SessionsSaveReques
 // subsequent hook reloads see the new set; already-running sessions keep their existing
 // hook installation until the next reload.
 func (a *ServerSessionsAPI) SetAdditionalPlugins(ctx context.Context, params *SessionsSetAdditionalPluginsRequest) (*SessionsSetAdditionalPluginsResult, error) {
-	raw, err := a.client.Request("sessions.setAdditionalPlugins", params)
+	raw, err := a.client.Request(ctx, "sessions.setAdditionalPlugins", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11034,7 +11210,7 @@ func (a *ServerSessionsAPI) SetAdditionalPlugins(ctx context.Context, params *Se
 //
 // Returns: Wrapper for the singleton's current status.
 func (a *ServerSessionsAPI) SetRemoteControlSteering(ctx context.Context, params *SessionsSetRemoteControlSteeringRequest) (*RemoteControlStatusResult, error) {
-	raw, err := a.client.Request("sessions.setRemoteControlSteering", params)
+	raw, err := a.client.Request(ctx, "sessions.setRemoteControlSteering", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11056,7 +11232,7 @@ func (a *ServerSessionsAPI) SetRemoteControlSteering(ctx context.Context, params
 //
 // Returns: Wrapper for the singleton's current status.
 func (a *ServerSessionsAPI) StartRemoteControl(ctx context.Context, params *SessionsStartRemoteControlRequest) (*RemoteControlStatusResult, error) {
-	raw, err := a.client.Request("sessions.startRemoteControl", params)
+	raw, err := a.client.Request(ctx, "sessions.startRemoteControl", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11078,7 +11254,7 @@ func (a *ServerSessionsAPI) StartRemoteControl(ctx context.Context, params *Sess
 //
 // Returns: Outcome of a stopRemoteControl call.
 func (a *ServerSessionsAPI) StopRemoteControl(ctx context.Context, params *SessionsStopRemoteControlRequest) (*RemoteControlStopResult, error) {
-	raw, err := a.client.Request("sessions.stopRemoteControl", params)
+	raw, err := a.client.Request(ctx, "sessions.stopRemoteControl", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11101,7 +11277,7 @@ func (a *ServerSessionsAPI) StopRemoteControl(ctx context.Context, params *Sessi
 //
 // Returns: Outcome of a transferRemoteControl call.
 func (a *ServerSessionsAPI) TransferRemoteControl(ctx context.Context, params *SessionsTransferRemoteControlRequest) (*RemoteControlTransferResult, error) {
-	raw, err := a.client.Request("sessions.transferRemoteControl", params)
+	raw, err := a.client.Request(ctx, "sessions.transferRemoteControl", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11123,7 +11299,7 @@ type ServerSkillsAPI serverAPI
 //
 // Returns: Skills discovered across global and project sources.
 func (a *ServerSkillsAPI) Discover(ctx context.Context, params *SkillsDiscoverRequest) (*ServerSkillList, error) {
-	raw, err := a.client.Request("skills.discover", params)
+	raw, err := a.client.Request(ctx, "skills.discover", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11143,7 +11319,7 @@ type ServerSkillsConfigAPI serverAPI
 // Parameters: Skill names to mark as disabled in global configuration, replacing any
 // previous list.
 func (a *ServerSkillsConfigAPI) SetDisabledSkills(ctx context.Context, params *SkillsConfigSetDisabledSkillsRequest) (*SkillsConfigSetDisabledSkillsResult, error) {
-	raw, err := a.client.Request("skills.config.setDisabledSkills", params)
+	raw, err := a.client.Request(ctx, "skills.config.setDisabledSkills", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11170,7 +11346,7 @@ type ServerToolsAPI serverAPI
 // Returns: Built-in tools available for the requested model, with their parameters and
 // instructions.
 func (a *ServerToolsAPI) List(ctx context.Context, params *ToolsListRequest) (*ToolList, error) {
-	raw, err := a.client.Request("tools.list", params)
+	raw, err := a.client.Request(ctx, "tools.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11190,7 +11366,7 @@ type ServerUserSettingsAPI serverAPI
 //
 // RPC method: user.settings.reload.
 func (a *ServerUserSettingsAPI) Reload(ctx context.Context) (*UserSettingsReloadResult, error) {
-	raw, err := a.client.Request("user.settings.reload", nil)
+	raw, err := a.client.Request(ctx, "user.settings.reload", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -11235,7 +11411,7 @@ type ServerRPC struct {
 // Returns: Server liveness response, including the echoed message, current server
 // timestamp, and protocol version.
 func (a *ServerRPC) Ping(ctx context.Context, params *PingRequest) (*PingResult, error) {
-	raw, err := a.common.client.Request("ping", params)
+	raw, err := a.common.client.Request(ctx, "ping", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11288,7 +11464,7 @@ type InternalServerSessionsAPI internalServerAPI
 // Internal: ConfigureSessionExtensions is part of the SDK's internal handshake/plumbing;
 // external callers should not use it.
 func (a *InternalServerSessionsAPI) ConfigureSessionExtensions(ctx context.Context, params *ConfigureSessionExtensionsParams) (*SessionsConfigureSessionExtensionsResult, error) {
-	raw, err := a.client.Request("sessions.configureSessionExtensions", params)
+	raw, err := a.client.Request(ctx, "sessions.configureSessionExtensions", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11314,7 +11490,7 @@ func (a *InternalServerSessionsAPI) ConfigureSessionExtensions(ctx context.Conte
 // Internal: GetBoardEntryCount is part of the SDK's internal handshake/plumbing; external
 // callers should not use it.
 func (a *InternalServerSessionsAPI) GetBoardEntryCount(ctx context.Context, params *SessionsGetBoardEntryCountRequest) (*SessionsGetBoardEntryCountResult, error) {
-	raw, err := a.client.Request("sessions.getBoardEntryCount", params)
+	raw, err := a.client.Request(ctx, "sessions.getBoardEntryCount", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11339,7 +11515,7 @@ func (a *InternalServerSessionsAPI) GetBoardEntryCount(ctx context.Context, para
 // Internal: GetEventFilePath is part of the SDK's internal handshake/plumbing; external
 // callers should not use it.
 func (a *InternalServerSessionsAPI) GetEventFilePath(ctx context.Context, params *SessionsGetEventFilePathRequest) (*SessionsGetEventFilePathResult, error) {
-	raw, err := a.client.Request("sessions.getEventFilePath", params)
+	raw, err := a.client.Request(ctx, "sessions.getEventFilePath", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11365,7 +11541,7 @@ func (a *InternalServerSessionsAPI) GetEventFilePath(ctx context.Context, params
 // Internal: GetPersistedRemoteSteerable is part of the SDK's internal handshake/plumbing;
 // external callers should not use it.
 func (a *InternalServerSessionsAPI) GetPersistedRemoteSteerable(ctx context.Context, params *SessionsGetPersistedRemoteSteerableRequest) (*SessionsGetPersistedRemoteSteerableResult, error) {
-	raw, err := a.client.Request("sessions.getPersistedRemoteSteerable", params)
+	raw, err := a.client.Request(ctx, "sessions.getPersistedRemoteSteerable", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11392,7 +11568,7 @@ func (a *InternalServerSessionsAPI) GetPersistedRemoteSteerable(ctx context.Cont
 // Internal: PollSpawnedSessions is part of the SDK's internal handshake/plumbing; external
 // callers should not use it.
 func (a *InternalServerSessionsAPI) PollSpawnedSessions(ctx context.Context, params *SessionsPollSpawnedSessionsRequest) (*PollSpawnedSessionsResult, error) {
-	raw, err := a.client.Request("sessions.pollSpawnedSessions", params)
+	raw, err := a.client.Request(ctx, "sessions.pollSpawnedSessions", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11420,7 +11596,7 @@ func (a *InternalServerSessionsAPI) PollSpawnedSessions(ctx context.Context, par
 // Internal: RegisterExtensionToolsOnSession is part of the SDK's internal
 // handshake/plumbing; external callers should not use it.
 func (a *InternalServerSessionsAPI) RegisterExtensionToolsOnSession(ctx context.Context, params *RegisterExtensionToolsParams) (*RegisterExtensionToolsResult, error) {
-	raw, err := a.client.Request("sessions.registerExtensionToolsOnSession", params)
+	raw, err := a.client.Request(ctx, "sessions.registerExtensionToolsOnSession", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11455,7 +11631,7 @@ type InternalServerRPC struct {
 // Internal: Connect is part of the SDK's internal handshake/plumbing; external callers
 // should not use it.
 func (a *InternalServerRPC) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
-	raw, err := a.common.client.Request("connect", params)
+	raw, err := a.common.client.Request(ctx, "connect", params)
 	if err != nil {
 		return nil, err
 	}
@@ -11486,7 +11662,7 @@ type AgentAPI sessionAPI
 // RPC method: session.agent.deselect.
 func (a *AgentAPI) Deselect(ctx context.Context) (*SessionAgentDeselectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.agent.deselect", req)
+	raw, err := a.client.Request(ctx, "session.agent.deselect", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11504,7 +11680,7 @@ func (a *AgentAPI) Deselect(ctx context.Context) (*SessionAgentDeselectResult, e
 // Returns: The currently selected custom agent, or null when using the default agent.
 func (a *AgentAPI) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.agent.getCurrent", req)
+	raw, err := a.client.Request(ctx, "session.agent.getCurrent", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11522,7 +11698,7 @@ func (a *AgentAPI) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, erro
 // Returns: Custom agents available to the session.
 func (a *AgentAPI) List(ctx context.Context) (*AgentList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.agent.list", req)
+	raw, err := a.client.Request(ctx, "session.agent.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11540,7 +11716,7 @@ func (a *AgentAPI) List(ctx context.Context) (*AgentList, error) {
 // Returns: Custom agents available to the session after reloading definitions from disk.
 func (a *AgentAPI) Reload(ctx context.Context) (*AgentReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.agent.reload", req)
+	raw, err := a.client.Request(ctx, "session.agent.reload", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11563,7 +11739,7 @@ func (a *AgentAPI) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 	if params != nil {
 		req["name"] = params.Name
 	}
-	raw, err := a.client.Request("session.agent.select", req)
+	raw, err := a.client.Request(ctx, "session.agent.select", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11584,7 +11760,7 @@ type AuthAPI sessionAPI
 // Returns: Authentication status and account metadata for the session.
 func (a *AuthAPI) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.auth.getStatus", req)
+	raw, err := a.client.Request(ctx, "session.auth.getStatus", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11611,7 +11787,7 @@ func (a *AuthAPI) SetCredentials(ctx context.Context, params *SessionSetCredenti
 			req["credentials"] = params.Credentials
 		}
 	}
-	raw, err := a.client.Request("session.auth.setCredentials", req)
+	raw, err := a.client.Request(ctx, "session.auth.setCredentials", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11635,7 +11811,7 @@ func (a *CanvasAPI) Close(ctx context.Context, params *CanvasCloseRequest) (*Ses
 	if params != nil {
 		req["instanceId"] = params.InstanceID
 	}
-	raw, err := a.client.Request("session.canvas.close", req)
+	raw, err := a.client.Request(ctx, "session.canvas.close", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11653,7 +11829,7 @@ func (a *CanvasAPI) Close(ctx context.Context, params *CanvasCloseRequest) (*Ses
 // Returns: Declared canvases available in this session.
 func (a *CanvasAPI) List(ctx context.Context) (*CanvasList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.canvas.list", req)
+	raw, err := a.client.Request(ctx, "session.canvas.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11671,7 +11847,7 @@ func (a *CanvasAPI) List(ctx context.Context) (*CanvasList, error) {
 // Returns: Live open-canvas snapshot.
 func (a *CanvasAPI) ListOpen(ctx context.Context) (*CanvasListOpenResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.canvas.listOpen", req)
+	raw, err := a.client.Request(ctx, "session.canvas.listOpen", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11701,7 +11877,7 @@ func (a *CanvasAPI) Open(ctx context.Context, params *CanvasOpenRequest) (*OpenC
 		}
 		req["instanceId"] = params.InstanceID
 	}
-	raw, err := a.client.Request("session.canvas.open", req)
+	raw, err := a.client.Request(ctx, "session.canvas.open", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11731,7 +11907,7 @@ func (a *CanvasActionAPI) Invoke(ctx context.Context, params *CanvasActionInvoke
 		}
 		req["instanceId"] = params.InstanceID
 	}
-	raw, err := a.client.Request("session.canvas.action.invoke", req)
+	raw, err := a.client.Request(ctx, "session.canvas.action.invoke", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11762,7 +11938,7 @@ func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams)
 	if params != nil {
 		req["command"] = params.Command
 	}
-	raw, err := a.client.Request("session.commands.enqueue", req)
+	raw, err := a.client.Request(ctx, "session.commands.enqueue", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11786,7 +11962,7 @@ func (a *CommandsAPI) Execute(ctx context.Context, params *ExecuteCommandParams)
 		req["args"] = params.Args
 		req["commandName"] = params.CommandName
 	}
-	raw, err := a.client.Request("session.commands.execute", req)
+	raw, err := a.client.Request(ctx, "session.commands.execute", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11812,7 +11988,7 @@ func (a *CommandsAPI) HandlePendingCommand(ctx context.Context, params *Commands
 		}
 		req["requestId"] = params.RequestID
 	}
-	raw, err := a.client.Request("session.commands.handlePendingCommand", req)
+	raw, err := a.client.Request(ctx, "session.commands.handlePendingCommand", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11839,7 +12015,7 @@ func (a *CommandsAPI) Invoke(ctx context.Context, params *CommandsInvokeRequest)
 		}
 		req["name"] = params.Name
 	}
-	raw, err := a.client.Request("session.commands.invoke", req)
+	raw, err := a.client.Request(ctx, "session.commands.invoke", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11875,7 +12051,7 @@ func (a *CommandsAPI) List(ctx context.Context, params ...*CommandsListRequest) 
 			req["includeSkills"] = *requestParams.IncludeSkills
 		}
 	}
-	raw, err := a.client.Request("session.commands.list", req)
+	raw, err := a.client.Request(ctx, "session.commands.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11901,7 +12077,7 @@ func (a *CommandsAPI) RespondToQueuedCommand(ctx context.Context, params *Comman
 		req["requestId"] = params.RequestID
 		req["result"] = params.Result
 	}
-	raw, err := a.client.Request("session.commands.respondToQueuedCommand", req)
+	raw, err := a.client.Request(ctx, "session.commands.respondToQueuedCommand", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11943,7 +12119,7 @@ func (a *EventLogAPI) Read(ctx context.Context, params *EventLogReadRequest) (*E
 			req["waitMs"] = *params.WaitMs
 		}
 	}
-	raw, err := a.client.Request("session.eventLog.read", req)
+	raw, err := a.client.Request(ctx, "session.eventLog.read", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11966,7 +12142,7 @@ func (a *EventLogAPI) RegisterInterest(ctx context.Context, params *RegisterEven
 	if params != nil {
 		req["eventType"] = params.EventType
 	}
-	raw, err := a.client.Request("session.eventLog.registerInterest", req)
+	raw, err := a.client.Request(ctx, "session.eventLog.registerInterest", req)
 	if err != nil {
 		return nil, err
 	}
@@ -11989,7 +12165,7 @@ func (a *EventLogAPI) ReleaseInterest(ctx context.Context, params *ReleaseEventI
 	if params != nil {
 		req["handle"] = params.Handle
 	}
-	raw, err := a.client.Request("session.eventLog.releaseInterest", req)
+	raw, err := a.client.Request(ctx, "session.eventLog.releaseInterest", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12010,7 +12186,7 @@ func (a *EventLogAPI) ReleaseInterest(ctx context.Context, params *ReleaseEventI
 // cursor on a long-lived session).
 func (a *EventLogAPI) Tail(ctx context.Context) (*EventLogTailResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.eventLog.tail", req)
+	raw, err := a.client.Request(ctx, "session.eventLog.tail", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12034,7 +12210,7 @@ func (a *ExtensionsAPI) Disable(ctx context.Context, params *ExtensionsDisableRe
 	if params != nil {
 		req["id"] = params.ID
 	}
-	raw, err := a.client.Request("session.extensions.disable", req)
+	raw, err := a.client.Request(ctx, "session.extensions.disable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12055,7 +12231,7 @@ func (a *ExtensionsAPI) Enable(ctx context.Context, params *ExtensionsEnableRequ
 	if params != nil {
 		req["id"] = params.ID
 	}
-	raw, err := a.client.Request("session.extensions.enable", req)
+	raw, err := a.client.Request(ctx, "session.extensions.enable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12073,7 +12249,7 @@ func (a *ExtensionsAPI) Enable(ctx context.Context, params *ExtensionsEnableRequ
 // Returns: Extensions discovered for the session, with their current status.
 func (a *ExtensionsAPI) List(ctx context.Context) (*ExtensionList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.extensions.list", req)
+	raw, err := a.client.Request(ctx, "session.extensions.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12089,7 +12265,7 @@ func (a *ExtensionsAPI) List(ctx context.Context) (*ExtensionList, error) {
 // RPC method: session.extensions.reload.
 func (a *ExtensionsAPI) Reload(ctx context.Context) (*SessionExtensionsReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.extensions.reload", req)
+	raw, err := a.client.Request(ctx, "session.extensions.reload", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12115,7 +12291,7 @@ func (a *ExtensionsAPI) SendAttachmentsToMessage(ctx context.Context, params *Se
 			req["instanceId"] = *params.InstanceID
 		}
 	}
-	raw, err := a.client.Request("session.extensions.sendAttachmentsToMessage", req)
+	raw, err := a.client.Request(ctx, "session.extensions.sendAttachmentsToMessage", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12143,7 +12319,7 @@ func (a *FleetAPI) Start(ctx context.Context, params *FleetStartRequest) (*Fleet
 			req["prompt"] = *params.Prompt
 		}
 	}
-	raw, err := a.client.Request("session.fleet.start", req)
+	raw, err := a.client.Request(ctx, "session.fleet.start", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12164,7 +12340,7 @@ type HistoryAPI sessionAPI
 // Returns: Indicates whether an in-progress manual compaction was aborted.
 func (a *HistoryAPI) AbortManualCompaction(ctx context.Context) (*HistoryAbortManualCompactionResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.history.abortManualCompaction", req)
+	raw, err := a.client.Request(ctx, "session.history.abortManualCompaction", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12183,7 +12359,7 @@ func (a *HistoryAPI) AbortManualCompaction(ctx context.Context) (*HistoryAbortMa
 // Returns: Indicates whether an in-progress background compaction was cancelled.
 func (a *HistoryAPI) CancelBackgroundCompaction(ctx context.Context) (*HistoryCancelBackgroundCompactionResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.history.cancelBackgroundCompaction", req)
+	raw, err := a.client.Request(ctx, "session.history.cancelBackgroundCompaction", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12213,7 +12389,7 @@ func (a *HistoryAPI) Compact(ctx context.Context, params ...*HistoryCompactReque
 			req["customInstructions"] = *requestParams.CustomInstructions
 		}
 	}
-	raw, err := a.client.Request("session.history.compact", req)
+	raw, err := a.client.Request(ctx, "session.history.compact", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12232,7 +12408,7 @@ func (a *HistoryAPI) Compact(ctx context.Context, params ...*HistoryCompactReque
 // Returns: Markdown summary of the conversation context (empty when not available).
 func (a *HistoryAPI) SummarizeForHandoff(ctx context.Context) (*HistorySummarizeForHandoffResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.history.summarizeForHandoff", req)
+	raw, err := a.client.Request(ctx, "session.history.summarizeForHandoff", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12256,7 +12432,7 @@ func (a *HistoryAPI) Truncate(ctx context.Context, params *HistoryTruncateReques
 	if params != nil {
 		req["eventId"] = params.EventID
 	}
-	raw, err := a.client.Request("session.history.truncate", req)
+	raw, err := a.client.Request(ctx, "session.history.truncate", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12277,7 +12453,7 @@ type InstructionsAPI sessionAPI
 // Returns: Instruction sources loaded for the session, in merge order.
 func (a *InstructionsAPI) GetSources(ctx context.Context) (*InstructionsGetSourcesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.instructions.getSources", req)
+	raw, err := a.client.Request(ctx, "session.instructions.getSources", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12309,7 +12485,7 @@ func (a *LspAPI) Initialize(ctx context.Context, params *LspInitializeRequest) (
 			req["workingDirectory"] = *params.WorkingDirectory
 		}
 	}
-	raw, err := a.client.Request("session.lsp.initialize", req)
+	raw, err := a.client.Request(ctx, "session.lsp.initialize", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12336,7 +12512,7 @@ func (a *MCPAPI) CancelSamplingExecution(ctx context.Context, params *MCPCancelS
 	if params != nil {
 		req["requestId"] = params.RequestID
 	}
-	raw, err := a.client.Request("session.mcp.cancelSamplingExecution", req)
+	raw, err := a.client.Request(ctx, "session.mcp.cancelSamplingExecution", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12357,7 +12533,7 @@ func (a *MCPAPI) Disable(ctx context.Context, params *MCPDisableRequest) (*Sessi
 	if params != nil {
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.disable", req)
+	raw, err := a.client.Request(ctx, "session.mcp.disable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12378,7 +12554,7 @@ func (a *MCPAPI) Enable(ctx context.Context, params *MCPEnableRequest) (*Session
 	if params != nil {
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.enable", req)
+	raw, err := a.client.Request(ctx, "session.mcp.enable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12406,7 +12582,7 @@ func (a *MCPAPI) ExecuteSampling(ctx context.Context, params *MCPExecuteSampling
 		req["requestId"] = params.RequestID
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.executeSampling", req)
+	raw, err := a.client.Request(ctx, "session.mcp.executeSampling", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12430,7 +12606,7 @@ func (a *MCPAPI) IsServerRunning(ctx context.Context, params *MCPIsServerRunning
 	if params != nil {
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.isServerRunning", req)
+	raw, err := a.client.Request(ctx, "session.mcp.isServerRunning", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12452,7 +12628,7 @@ func (a *MCPAPI) IsServerRunning(ctx context.Context, params *MCPIsServerRunning
 // host-level state.
 func (a *MCPAPI) List(ctx context.Context) (*MCPServerList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.mcp.list", req)
+	raw, err := a.client.Request(ctx, "session.mcp.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12476,7 +12652,7 @@ func (a *MCPAPI) ListTools(ctx context.Context, params *MCPListToolsRequest) (*M
 	if params != nil {
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.listTools", req)
+	raw, err := a.client.Request(ctx, "session.mcp.listTools", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12492,7 +12668,7 @@ func (a *MCPAPI) ListTools(ctx context.Context, params *MCPListToolsRequest) (*M
 // RPC method: session.mcp.reload.
 func (a *MCPAPI) Reload(ctx context.Context) (*SessionMCPReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.mcp.reload", req)
+	raw, err := a.client.Request(ctx, "session.mcp.reload", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12511,7 +12687,7 @@ func (a *MCPAPI) Reload(ctx context.Context) (*SessionMCPReloadResult, error) {
 // nothing to remove).
 func (a *MCPAPI) RemoveGitHub(ctx context.Context) (*MCPRemoveGitHubResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.mcp.removeGitHub", req)
+	raw, err := a.client.Request(ctx, "session.mcp.removeGitHub", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12536,7 +12712,7 @@ func (a *MCPAPI) SetEnvValueMode(ctx context.Context, params *MCPSetEnvValueMode
 	if params != nil {
 		req["mode"] = params.Mode
 	}
-	raw, err := a.client.Request("session.mcp.setEnvValueMode", req)
+	raw, err := a.client.Request(ctx, "session.mcp.setEnvValueMode", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12557,7 +12733,7 @@ func (a *MCPAPI) StopServer(ctx context.Context, params *MCPStopServerRequest) (
 	if params != nil {
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.stopServer", req)
+	raw, err := a.client.Request(ctx, "session.mcp.stopServer", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12590,7 +12766,7 @@ func (a *MCPAppsAPI) CallTool(ctx context.Context, params *MCPAppsCallToolReques
 		req["serverName"] = params.ServerName
 		req["toolName"] = params.ToolName
 	}
-	raw, err := a.client.Request("session.mcp.apps.callTool", req)
+	raw, err := a.client.Request(ctx, "session.mcp.apps.callTool", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12614,7 +12790,7 @@ func (a *MCPAppsAPI) Diagnose(ctx context.Context, params *MCPAppsDiagnoseReques
 	if params != nil {
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.apps.diagnose", req)
+	raw, err := a.client.Request(ctx, "session.mcp.apps.diagnose", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12632,7 +12808,7 @@ func (a *MCPAppsAPI) Diagnose(ctx context.Context, params *MCPAppsDiagnoseReques
 // Returns: Current host context advertised to MCP App guests.
 func (a *MCPAppsAPI) GetHostContext(ctx context.Context) (*MCPAppsHostContext, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.mcp.apps.getHostContext", req)
+	raw, err := a.client.Request(ctx, "session.mcp.apps.getHostContext", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12658,7 +12834,7 @@ func (a *MCPAppsAPI) ListTools(ctx context.Context, params *MCPAppsListToolsRequ
 		req["originServerName"] = params.OriginServerName
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.apps.listTools", req)
+	raw, err := a.client.Request(ctx, "session.mcp.apps.listTools", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12683,7 +12859,7 @@ func (a *MCPAppsAPI) ReadResource(ctx context.Context, params *MCPAppsReadResour
 		req["serverName"] = params.ServerName
 		req["uri"] = params.URI
 	}
-	raw, err := a.client.Request("session.mcp.apps.readResource", req)
+	raw, err := a.client.Request(ctx, "session.mcp.apps.readResource", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12705,7 +12881,7 @@ func (a *MCPAppsAPI) SetHostContext(ctx context.Context, params *MCPAppsSetHostC
 	if params != nil {
 		req["context"] = params.Context
 	}
-	raw, err := a.client.Request("session.mcp.apps.setHostContext", req)
+	raw, err := a.client.Request(ctx, "session.mcp.apps.setHostContext", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12747,7 +12923,7 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 		}
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.oauth.login", req)
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.login", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12773,7 +12949,7 @@ type MetadataAPI sessionAPI
 // Returns: Current activity flags for the session.
 func (a *MetadataAPI) Activity(ctx context.Context) (*SessionActivity, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.metadata.activity", req)
+	raw, err := a.client.Request(ctx, "session.metadata.activity", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12802,7 +12978,7 @@ func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextIn
 			req["selectedModel"] = *params.SelectedModel
 		}
 	}
-	raw, err := a.client.Request("session.metadata.contextInfo", req)
+	raw, err := a.client.Request(ctx, "session.metadata.contextInfo", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12822,7 +12998,7 @@ func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextIn
 // continuation.
 func (a *MetadataAPI) IsProcessing(ctx context.Context) (*MetadataIsProcessingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.metadata.isProcessing", req)
+	raw, err := a.client.Request(ctx, "session.metadata.isProcessing", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12849,7 +13025,7 @@ func (a *MetadataAPI) RecomputeContextTokens(ctx context.Context, params *Metada
 	if params != nil {
 		req["modelId"] = params.ModelID
 	}
-	raw, err := a.client.Request("session.metadata.recomputeContextTokens", req)
+	raw, err := a.client.Request(ctx, "session.metadata.recomputeContextTokens", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12876,7 +13052,7 @@ func (a *MetadataAPI) RecordContextChange(ctx context.Context, params *MetadataR
 	if params != nil {
 		req["context"] = params.Context
 	}
-	raw, err := a.client.Request("session.metadata.recordContextChange", req)
+	raw, err := a.client.Request(ctx, "session.metadata.recordContextChange", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12902,7 +13078,7 @@ func (a *MetadataAPI) SetWorkingDirectory(ctx context.Context, params *MetadataS
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
 	}
-	raw, err := a.client.Request("session.metadata.setWorkingDirectory", req)
+	raw, err := a.client.Request(ctx, "session.metadata.setWorkingDirectory", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12921,7 +13097,7 @@ func (a *MetadataAPI) SetWorkingDirectory(ctx context.Context, params *MetadataS
 // Returns: Point-in-time snapshot of slow-changing session identifier and state fields
 func (a *MetadataAPI) Snapshot(ctx context.Context) (*SessionMetadataSnapshot, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.metadata.snapshot", req)
+	raw, err := a.client.Request(ctx, "session.metadata.snapshot", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12942,7 +13118,7 @@ type ModeAPI sessionAPI
 // Returns: The session mode the agent is operating in
 func (a *ModeAPI) Get(ctx context.Context) (*SessionMode, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.mode.get", req)
+	raw, err := a.client.Request(ctx, "session.mode.get", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12963,7 +13139,7 @@ func (a *ModeAPI) Set(ctx context.Context, params *ModeSetRequest) (*SessionMode
 	if params != nil {
 		req["mode"] = params.Mode
 	}
-	raw, err := a.client.Request("session.mode.set", req)
+	raw, err := a.client.Request(ctx, "session.mode.set", req)
 	if err != nil {
 		return nil, err
 	}
@@ -12986,7 +13162,7 @@ type ModelAPI sessionAPI
 // journal on resume.
 func (a *ModelAPI) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.model.getCurrent", req)
+	raw, err := a.client.Request(ctx, "session.model.getCurrent", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13017,7 +13193,7 @@ func (a *ModelAPI) List(ctx context.Context, params ...*ModelListRequest) (*Sess
 			req["skipCache"] = *requestParams.SkipCache
 		}
 	}
-	raw, err := a.client.Request("session.model.list", req)
+	raw, err := a.client.Request(ctx, "session.model.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13043,7 +13219,7 @@ func (a *ModelAPI) SetReasoningEffort(ctx context.Context, params *ModelSetReaso
 	if params != nil {
 		req["reasoningEffort"] = params.ReasoningEffort
 	}
-	raw, err := a.client.Request("session.model.setReasoningEffort", req)
+	raw, err := a.client.Request(ctx, "session.model.setReasoningEffort", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13079,7 +13255,7 @@ func (a *ModelAPI) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (
 			req["reasoningSummary"] = *params.ReasoningSummary
 		}
 	}
-	raw, err := a.client.Request("session.model.switchTo", req)
+	raw, err := a.client.Request(ctx, "session.model.switchTo", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13100,7 +13276,7 @@ type NameAPI sessionAPI
 // Returns: The session's friendly name, or null when not yet set.
 func (a *NameAPI) Get(ctx context.Context) (*NameGetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.name.get", req)
+	raw, err := a.client.Request(ctx, "session.name.get", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13121,7 +13297,7 @@ func (a *NameAPI) Set(ctx context.Context, params *NameSetRequest) (*SessionName
 	if params != nil {
 		req["name"] = params.Name
 	}
-	raw, err := a.client.Request("session.name.set", req)
+	raw, err := a.client.Request(ctx, "session.name.set", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13146,7 +13322,7 @@ func (a *NameAPI) SetAuto(ctx context.Context, params *NameSetAutoRequest) (*Nam
 	if params != nil {
 		req["summary"] = params.Summary
 	}
-	raw, err := a.client.Request("session.name.setAuto", req)
+	raw, err := a.client.Request(ctx, "session.name.setAuto", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13315,7 +13491,7 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 			req["workingDirectory"] = *params.WorkingDirectory
 		}
 	}
-	raw, err := a.client.Request("session.options.update", req)
+	raw, err := a.client.Request(ctx, "session.options.update", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13360,7 +13536,7 @@ func (a *PermissionsAPI) Configure(ctx context.Context, params *PermissionsConfi
 			req["urls"] = *params.URLs
 		}
 	}
-	raw, err := a.client.Request("session.permissions.configure", req)
+	raw, err := a.client.Request(ctx, "session.permissions.configure", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13379,7 +13555,7 @@ func (a *PermissionsAPI) Configure(ctx context.Context, params *PermissionsConfi
 // Returns: Current full allow-all permission state.
 func (a *PermissionsAPI) GetAllowAll(ctx context.Context) (*AllowAllPermissionState, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.permissions.getAllowAll", req)
+	raw, err := a.client.Request(ctx, "session.permissions.getAllowAll", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13405,7 +13581,7 @@ func (a *PermissionsAPI) HandlePendingPermissionRequest(ctx context.Context, par
 		req["requestId"] = params.RequestID
 		req["result"] = params.Result
 	}
-	raw, err := a.client.Request("session.permissions.handlePendingPermissionRequest", req)
+	raw, err := a.client.Request(ctx, "session.permissions.handlePendingPermissionRequest", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13438,7 +13614,7 @@ func (a *PermissionsAPI) ModifyRules(ctx context.Context, params *PermissionsMod
 		}
 		req["scope"] = params.Scope
 	}
-	raw, err := a.client.Request("session.permissions.modifyRules", req)
+	raw, err := a.client.Request(ctx, "session.permissions.modifyRules", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13463,7 +13639,7 @@ func (a *PermissionsAPI) NotifyPromptShown(ctx context.Context, params *Permissi
 	if params != nil {
 		req["message"] = params.Message
 	}
-	raw, err := a.client.Request("session.permissions.notifyPromptShown", req)
+	raw, err := a.client.Request(ctx, "session.permissions.notifyPromptShown", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13482,7 +13658,7 @@ func (a *PermissionsAPI) NotifyPromptShown(ctx context.Context, params *Permissi
 // Returns: List of pending permission requests reconstructed from event history.
 func (a *PermissionsAPI) PendingRequests(ctx context.Context) (*PendingPermissionRequestList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.permissions.pendingRequests", req)
+	raw, err := a.client.Request(ctx, "session.permissions.pendingRequests", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13500,7 +13676,7 @@ func (a *PermissionsAPI) PendingRequests(ctx context.Context) (*PendingPermissio
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsAPI) ResetSessionApprovals(ctx context.Context) (*PermissionsResetSessionApprovalsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.permissions.resetSessionApprovals", req)
+	raw, err := a.client.Request(ctx, "session.permissions.resetSessionApprovals", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13532,7 +13708,7 @@ func (a *PermissionsAPI) SetAllowAll(ctx context.Context, params *PermissionsSet
 			req["source"] = *params.Source
 		}
 	}
-	raw, err := a.client.Request("session.permissions.setAllowAll", req)
+	raw, err := a.client.Request(ctx, "session.permissions.setAllowAll", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13560,7 +13736,7 @@ func (a *PermissionsAPI) SetApproveAll(ctx context.Context, params *PermissionsS
 			req["source"] = *params.Source
 		}
 	}
-	raw, err := a.client.Request("session.permissions.setApproveAll", req)
+	raw, err := a.client.Request(ctx, "session.permissions.setApproveAll", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13584,7 +13760,7 @@ func (a *PermissionsAPI) SetRequired(ctx context.Context, params *PermissionsSet
 	if params != nil {
 		req["required"] = params.Required
 	}
-	raw, err := a.client.Request("session.permissions.setRequired", req)
+	raw, err := a.client.Request(ctx, "session.permissions.setRequired", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13611,7 +13787,7 @@ func (a *PermissionsFolderTrustAPI) AddTrusted(ctx context.Context, params *Fold
 	if params != nil {
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.permissions.folderTrust.addTrusted", req)
+	raw, err := a.client.Request(ctx, "session.permissions.folderTrust.addTrusted", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13634,7 +13810,7 @@ func (a *PermissionsFolderTrustAPI) IsTrusted(ctx context.Context, params *Folde
 	if params != nil {
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.permissions.folderTrust.isTrusted", req)
+	raw, err := a.client.Request(ctx, "session.permissions.folderTrust.isTrusted", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13668,7 +13844,7 @@ func (a *PermissionsLocationsAPI) AddToolApproval(ctx context.Context, params *P
 		req["approval"] = params.Approval
 		req["locationKey"] = params.LocationKey
 	}
-	raw, err := a.client.Request("session.permissions.locations.addToolApproval", req)
+	raw, err := a.client.Request(ctx, "session.permissions.locations.addToolApproval", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13692,7 +13868,7 @@ func (a *PermissionsLocationsAPI) Apply(ctx context.Context, params *PermissionL
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
 	}
-	raw, err := a.client.Request("session.permissions.locations.apply", req)
+	raw, err := a.client.Request(ctx, "session.permissions.locations.apply", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13715,7 +13891,7 @@ func (a *PermissionsLocationsAPI) Resolve(ctx context.Context, params *Permissio
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
 	}
-	raw, err := a.client.Request("session.permissions.locations.resolve", req)
+	raw, err := a.client.Request(ctx, "session.permissions.locations.resolve", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13747,7 +13923,7 @@ func (a *PermissionsPathsAPI) Add(ctx context.Context, params *PermissionPathsAd
 	if params != nil {
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.permissions.paths.add", req)
+	raw, err := a.client.Request(ctx, "session.permissions.paths.add", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13771,7 +13947,7 @@ func (a *PermissionsPathsAPI) IsPathWithinAllowedDirectories(ctx context.Context
 	if params != nil {
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.permissions.paths.isPathWithinAllowedDirectories", req)
+	raw, err := a.client.Request(ctx, "session.permissions.paths.isPathWithinAllowedDirectories", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13795,7 +13971,7 @@ func (a *PermissionsPathsAPI) IsPathWithinWorkspace(ctx context.Context, params 
 	if params != nil {
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.permissions.paths.isPathWithinWorkspace", req)
+	raw, err := a.client.Request(ctx, "session.permissions.paths.isPathWithinWorkspace", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13813,7 +13989,7 @@ func (a *PermissionsPathsAPI) IsPathWithinWorkspace(ctx context.Context, params 
 // Returns: Snapshot of the session's allow-listed directories and primary working directory.
 func (a *PermissionsPathsAPI) List(ctx context.Context) (*PermissionPathsList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.permissions.paths.list", req)
+	raw, err := a.client.Request(ctx, "session.permissions.paths.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13837,7 +14013,7 @@ func (a *PermissionsPathsAPI) UpdatePrimary(ctx context.Context, params *Permiss
 	if params != nil {
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.permissions.paths.updatePrimary", req)
+	raw, err := a.client.Request(ctx, "session.permissions.paths.updatePrimary", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13869,7 +14045,7 @@ func (a *PermissionsURLsAPI) SetUnrestrictedMode(ctx context.Context, params *Pe
 	if params != nil {
 		req["enabled"] = params.Enabled
 	}
-	raw, err := a.client.Request("session.permissions.urls.setUnrestrictedMode", req)
+	raw, err := a.client.Request(ctx, "session.permissions.urls.setUnrestrictedMode", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13893,7 +14069,7 @@ type PlanAPI sessionAPI
 // RPC method: session.plan.delete.
 func (a *PlanAPI) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.plan.delete", req)
+	raw, err := a.client.Request(ctx, "session.plan.delete", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13911,7 +14087,7 @@ func (a *PlanAPI) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) 
 // Returns: Existence, contents, and resolved path of the session plan file.
 func (a *PlanAPI) Read(ctx context.Context) (*PlanReadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.plan.read", req)
+	raw, err := a.client.Request(ctx, "session.plan.read", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13930,11 +14106,33 @@ func (a *PlanAPI) Read(ctx context.Context) (*PlanReadResult, error) {
 // available.
 func (a *PlanAPI) ReadSqlTodos(ctx context.Context) (*PlanReadSQLTodosResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.plan.readSqlTodos", req)
+	raw, err := a.client.Request(ctx, "session.plan.readSqlTodos", req)
 	if err != nil {
 		return nil, err
 	}
 	var result PlanReadSQLTodosResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ReadSqlTodosWithDependencies reads todo rows AND dependency edges from the session SQL
+// database for structured progress UI. Same defensive behavior as readSqlTodos — returns
+// empty arrays when the database, tables, or columns aren't available. Clients should call
+// this on session start and after every `session.todos_changed` event to refresh
+// structured-UI rendering.
+//
+// RPC method: session.plan.readSqlTodosWithDependencies.
+//
+// Returns: Todo rows + dependency edges read from the session SQL database.
+func (a *PlanAPI) ReadSqlTodosWithDependencies(ctx context.Context) (*PlanReadSQLTodosWithDependenciesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.plan.readSqlTodosWithDependencies", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PlanReadSQLTodosWithDependenciesResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -13951,7 +14149,7 @@ func (a *PlanAPI) Update(ctx context.Context, params *PlanUpdateRequest) (*Sessi
 	if params != nil {
 		req["content"] = params.Content
 	}
-	raw, err := a.client.Request("session.plan.update", req)
+	raw, err := a.client.Request(ctx, "session.plan.update", req)
 	if err != nil {
 		return nil, err
 	}
@@ -13972,7 +14170,7 @@ type PluginsAPI sessionAPI
 // Returns: Plugins installed for the session, with their enabled state and version metadata.
 func (a *PluginsAPI) List(ctx context.Context) (*PluginList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.plugins.list", req)
+	raw, err := a.client.Request(ctx, "session.plugins.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14009,11 +14207,46 @@ func (a *PluginsAPI) Reload(ctx context.Context, params ...*PluginsReloadRequest
 			req["reloadMcp"] = *requestParams.ReloadMCP
 		}
 	}
-	raw, err := a.client.Request("session.plugins.reload", req)
+	raw, err := a.client.Request(ctx, "session.plugins.reload", req)
 	if err != nil {
 		return nil, err
 	}
 	var result SessionPluginsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ProviderAPI contains experimental APIs that may change or be removed.
+type ProviderAPI sessionAPI
+
+// GetEndpoint returns the provider endpoint and credentials the session is currently
+// configured to talk to, so the caller can make inference calls directly against the same
+// backend the session uses.
+//
+// RPC method: session.provider.getEndpoint.
+//
+// Parameters: Optional model identifier to scope the endpoint snapshot to.
+//
+// Returns: A snapshot of the provider endpoint the session is currently configured to talk
+// to.
+func (a *ProviderAPI) GetEndpoint(ctx context.Context, params ...*ProviderGetEndpointRequest) (*ProviderEndpoint, error) {
+	var requestParams *ProviderGetEndpointRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	req := map[string]any{"sessionId": a.sessionID}
+	if requestParams != nil {
+		if requestParams.ModelID != nil {
+			req["modelId"] = *requestParams.ModelID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.provider.getEndpoint", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ProviderEndpoint
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -14028,7 +14261,7 @@ type QueueAPI sessionAPI
 // RPC method: session.queue.clear.
 func (a *QueueAPI) Clear(ctx context.Context) (*SessionQueueClearResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.queue.clear", req)
+	raw, err := a.client.Request(ctx, "session.queue.clear", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14047,7 +14280,7 @@ func (a *QueueAPI) Clear(ctx context.Context) (*SessionQueueClearResult, error) 
 // Returns: Snapshot of the session's pending queued items and immediate-steering messages.
 func (a *QueueAPI) PendingItems(ctx context.Context) (*QueuePendingItemsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.queue.pendingItems", req)
+	raw, err := a.client.Request(ctx, "session.queue.pendingItems", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14065,7 +14298,7 @@ func (a *QueueAPI) PendingItems(ctx context.Context) (*QueuePendingItemsResult, 
 // Returns: Indicates whether a user-facing pending item was removed.
 func (a *QueueAPI) RemoveMostRecent(ctx context.Context) (*QueueRemoveMostRecentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.queue.removeMostRecent", req)
+	raw, err := a.client.Request(ctx, "session.queue.removeMostRecent", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14084,7 +14317,7 @@ type RemoteAPI sessionAPI
 // RPC method: session.remote.disable.
 func (a *RemoteAPI) Disable(ctx context.Context) (*SessionRemoteDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.remote.disable", req)
+	raw, err := a.client.Request(ctx, "session.remote.disable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14111,7 +14344,7 @@ func (a *RemoteAPI) Enable(ctx context.Context, params *RemoteEnableRequest) (*R
 			req["mode"] = *params.Mode
 		}
 	}
-	raw, err := a.client.Request("session.remote.enable", req)
+	raw, err := a.client.Request(ctx, "session.remote.enable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14138,7 +14371,7 @@ func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 	if params != nil {
 		req["remoteSteerable"] = params.RemoteSteerable
 	}
-	raw, err := a.client.Request("session.remote.notifySteerableChanged", req)
+	raw, err := a.client.Request(ctx, "session.remote.notifySteerableChanged", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14159,7 +14392,7 @@ type ScheduleAPI sessionAPI
 // Returns: Snapshot of the currently active recurring prompts for this session.
 func (a *ScheduleAPI) List(ctx context.Context) (*ScheduleList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.schedule.list", req)
+	raw, err := a.client.Request(ctx, "session.schedule.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14183,7 +14416,7 @@ func (a *ScheduleAPI) Stop(ctx context.Context, params *ScheduleStopRequest) (*S
 	if params != nil {
 		req["id"] = params.ID
 	}
-	raw, err := a.client.Request("session.schedule.stop", req)
+	raw, err := a.client.Request(ctx, "session.schedule.stop", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14209,7 +14442,7 @@ func (a *ShellAPI) CancelUserRequested(ctx context.Context, params *ShellCancelU
 	if params != nil {
 		req["requestId"] = params.RequestID
 	}
-	raw, err := a.client.Request("session.shell.cancelUserRequested", req)
+	raw, err := a.client.Request(ctx, "session.shell.cancelUserRequested", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14240,7 +14473,7 @@ func (a *ShellAPI) Exec(ctx context.Context, params *ShellExecRequest) (*ShellEx
 			req["timeout"] = *params.Timeout
 		}
 	}
-	raw, err := a.client.Request("session.shell.exec", req)
+	raw, err := a.client.Request(ctx, "session.shell.exec", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14264,7 +14497,7 @@ func (a *ShellAPI) ExecuteUserRequested(ctx context.Context, params *ShellExecut
 		req["command"] = params.Command
 		req["requestId"] = params.RequestID
 	}
-	raw, err := a.client.Request("session.shell.executeUserRequested", req)
+	raw, err := a.client.Request(ctx, "session.shell.executeUserRequested", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14292,7 +14525,7 @@ func (a *ShellAPI) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKi
 			req["signal"] = *params.Signal
 		}
 	}
-	raw, err := a.client.Request("session.shell.kill", req)
+	raw, err := a.client.Request(ctx, "session.shell.kill", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14316,7 +14549,7 @@ func (a *SkillsAPI) Disable(ctx context.Context, params *SkillsDisableRequest) (
 	if params != nil {
 		req["name"] = params.Name
 	}
-	raw, err := a.client.Request("session.skills.disable", req)
+	raw, err := a.client.Request(ctx, "session.skills.disable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14337,7 +14570,7 @@ func (a *SkillsAPI) Enable(ctx context.Context, params *SkillsEnableRequest) (*S
 	if params != nil {
 		req["name"] = params.Name
 	}
-	raw, err := a.client.Request("session.skills.enable", req)
+	raw, err := a.client.Request(ctx, "session.skills.enable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14353,7 +14586,7 @@ func (a *SkillsAPI) Enable(ctx context.Context, params *SkillsEnableRequest) (*S
 // RPC method: session.skills.ensureLoaded.
 func (a *SkillsAPI) EnsureLoaded(ctx context.Context) (*SessionSkillsEnsureLoadedResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.skills.ensureLoaded", req)
+	raw, err := a.client.Request(ctx, "session.skills.ensureLoaded", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14372,7 +14605,7 @@ func (a *SkillsAPI) EnsureLoaded(ctx context.Context) (*SessionSkillsEnsureLoade
 // last).
 func (a *SkillsAPI) GetInvoked(ctx context.Context) (*SkillsGetInvokedResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.skills.getInvoked", req)
+	raw, err := a.client.Request(ctx, "session.skills.getInvoked", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14390,7 +14623,7 @@ func (a *SkillsAPI) GetInvoked(ctx context.Context) (*SkillsGetInvokedResult, er
 // Returns: Skills available to the session, with their enabled state.
 func (a *SkillsAPI) List(ctx context.Context) (*SkillList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.skills.list", req)
+	raw, err := a.client.Request(ctx, "session.skills.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14409,7 +14642,7 @@ func (a *SkillsAPI) List(ctx context.Context) (*SkillList, error) {
 // separate lists.
 func (a *SkillsAPI) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.skills.reload", req)
+	raw, err := a.client.Request(ctx, "session.skills.reload", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14435,7 +14668,7 @@ func (a *TasksAPI) Cancel(ctx context.Context, params *TasksCancelRequest) (*Tas
 	if params != nil {
 		req["id"] = params.ID
 	}
-	raw, err := a.client.Request("session.tasks.cancel", req)
+	raw, err := a.client.Request(ctx, "session.tasks.cancel", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14454,7 +14687,7 @@ func (a *TasksAPI) Cancel(ctx context.Context, params *TasksCancelRequest) (*Tas
 // Returns: The first sync-waiting task that can currently be promoted to background mode.
 func (a *TasksAPI) GetCurrentPromotable(ctx context.Context) (*TasksGetCurrentPromotableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.tasks.getCurrentPromotable", req)
+	raw, err := a.client.Request(ctx, "session.tasks.getCurrentPromotable", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14477,7 +14710,7 @@ func (a *TasksAPI) GetProgress(ctx context.Context, params *TasksGetProgressRequ
 	if params != nil {
 		req["id"] = params.ID
 	}
-	raw, err := a.client.Request("session.tasks.getProgress", req)
+	raw, err := a.client.Request(ctx, "session.tasks.getProgress", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14495,7 +14728,7 @@ func (a *TasksAPI) GetProgress(ctx context.Context, params *TasksGetProgressRequ
 // Returns: Background tasks currently tracked by the session.
 func (a *TasksAPI) List(ctx context.Context) (*TaskList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.tasks.list", req)
+	raw, err := a.client.Request(ctx, "session.tasks.list", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14515,7 +14748,7 @@ func (a *TasksAPI) List(ctx context.Context) (*TaskList, error) {
 // task was waiting.
 func (a *TasksAPI) PromoteCurrentToBackground(ctx context.Context) (*TasksPromoteCurrentToBackgroundResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.tasks.promoteCurrentToBackground", req)
+	raw, err := a.client.Request(ctx, "session.tasks.promoteCurrentToBackground", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14539,7 +14772,7 @@ func (a *TasksAPI) PromoteToBackground(ctx context.Context, params *TasksPromote
 	if params != nil {
 		req["id"] = params.ID
 	}
-	raw, err := a.client.Request("session.tasks.promoteToBackground", req)
+	raw, err := a.client.Request(ctx, "session.tasks.promoteToBackground", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14558,7 +14791,7 @@ func (a *TasksAPI) PromoteToBackground(ctx context.Context, params *TasksPromote
 // after a long pause to pick up exit/output state for shells running outside the agent loop.
 func (a *TasksAPI) Refresh(ctx context.Context) (*TasksRefreshResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.tasks.refresh", req)
+	raw, err := a.client.Request(ctx, "session.tasks.refresh", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14582,7 +14815,7 @@ func (a *TasksAPI) Remove(ctx context.Context, params *TasksRemoveRequest) (*Tas
 	if params != nil {
 		req["id"] = params.ID
 	}
-	raw, err := a.client.Request("session.tasks.remove", req)
+	raw, err := a.client.Request(ctx, "session.tasks.remove", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14611,7 +14844,7 @@ func (a *TasksAPI) SendMessage(ctx context.Context, params *TasksSendMessageRequ
 		req["id"] = params.ID
 		req["message"] = params.Message
 	}
-	raw, err := a.client.Request("session.tasks.sendMessage", req)
+	raw, err := a.client.Request(ctx, "session.tasks.sendMessage", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14643,7 +14876,7 @@ func (a *TasksAPI) StartAgent(ctx context.Context, params *TasksStartAgentReques
 		req["name"] = params.Name
 		req["prompt"] = params.Prompt
 	}
-	raw, err := a.client.Request("session.tasks.startAgent", req)
+	raw, err := a.client.Request(ctx, "session.tasks.startAgent", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14664,7 +14897,7 @@ func (a *TasksAPI) StartAgent(ctx context.Context, params *TasksStartAgentReques
 // COPILOT_TASK_WAIT_TIMEOUT_SECONDS).
 func (a *TasksAPI) WaitForPending(ctx context.Context) (*TasksWaitForPendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.tasks.waitForPending", req)
+	raw, err := a.client.Request(ctx, "session.tasks.waitForPending", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14686,7 +14919,7 @@ type TelemetryAPI sessionAPI
 // Returns: Telemetry engagement ID for the session, when available.
 func (a *TelemetryAPI) GetEngagementId(ctx context.Context) (*SessionTelemetryEngagement, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.telemetry.getEngagementId", req)
+	raw, err := a.client.Request(ctx, "session.telemetry.getEngagementId", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14709,7 +14942,7 @@ func (a *TelemetryAPI) SetFeatureOverrides(ctx context.Context, params *Telemetr
 	if params != nil {
 		req["features"] = params.Features
 	}
-	raw, err := a.client.Request("session.telemetry.setFeatureOverrides", req)
+	raw, err := a.client.Request(ctx, "session.telemetry.setFeatureOverrides", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14731,7 +14964,7 @@ type ToolsAPI sessionAPI
 // Returns: Current lightweight tool metadata snapshot for the session.
 func (a *ToolsAPI) GetCurrentMetadata(ctx context.Context) (*ToolsGetCurrentMetadataResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.tools.getCurrentMetadata", req)
+	raw, err := a.client.Request(ctx, "session.tools.getCurrentMetadata", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14761,7 +14994,7 @@ func (a *ToolsAPI) HandlePendingToolCall(ctx context.Context, params *HandlePend
 			req["result"] = params.Result
 		}
 	}
-	raw, err := a.client.Request("session.tools.handlePendingToolCall", req)
+	raw, err := a.client.Request(ctx, "session.tools.handlePendingToolCall", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14783,11 +15016,38 @@ func (a *ToolsAPI) HandlePendingToolCall(ctx context.Context, params *HandlePend
 // validation.
 func (a *ToolsAPI) InitializeAndValidate(ctx context.Context) (*ToolsInitializeAndValidateResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.tools.initializeAndValidate", req)
+	raw, err := a.client.Request(ctx, "session.tools.initializeAndValidate", req)
 	if err != nil {
 		return nil, err
 	}
 	var result ToolsInitializeAndValidateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UpdateSubagentSettings updates the current session's live subagent settings after user
+// settings change. The persisted user settings remain the source of truth for future
+// sessions.
+//
+// RPC method: session.tools.updateSubagentSettings.
+//
+// Parameters: Subagent settings to apply to the current session
+//
+// Returns: Empty result after applying subagent settings
+func (a *ToolsAPI) UpdateSubagentSettings(ctx context.Context, params *UpdateSubagentSettingsRequest) (*ToolsUpdateSubagentSettingsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Subagents != nil {
+			req["subagents"] = *params.Subagents
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.tools.updateSubagentSettings", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ToolsUpdateSubagentSettingsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -14811,7 +15071,7 @@ func (a *UIAPI) Elicitation(ctx context.Context, params *UIElicitationRequest) (
 		req["message"] = params.Message
 		req["requestedSchema"] = params.RequestedSchema
 	}
-	raw, err := a.client.Request("session.ui.elicitation", req)
+	raw, err := a.client.Request(ctx, "session.ui.elicitation", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14841,7 +15101,7 @@ func (a *UIAPI) EphemeralQuery(ctx context.Context, params *UIEphemeralQueryRequ
 		}
 		req["question"] = params.Question
 	}
-	raw, err := a.client.Request("session.ui.ephemeralQuery", req)
+	raw, err := a.client.Request(ctx, "session.ui.ephemeralQuery", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14867,7 +15127,7 @@ func (a *UIAPI) HandlePendingAutoModeSwitch(ctx context.Context, params *UIHandl
 		req["requestId"] = params.RequestID
 		req["response"] = params.Response
 	}
-	raw, err := a.client.Request("session.ui.handlePendingAutoModeSwitch", req)
+	raw, err := a.client.Request(ctx, "session.ui.handlePendingAutoModeSwitch", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14893,7 +15153,7 @@ func (a *UIAPI) HandlePendingElicitation(ctx context.Context, params *UIHandlePe
 		req["requestId"] = params.RequestID
 		req["result"] = params.Result
 	}
-	raw, err := a.client.Request("session.ui.handlePendingElicitation", req)
+	raw, err := a.client.Request(ctx, "session.ui.handlePendingElicitation", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14919,7 +15179,7 @@ func (a *UIAPI) HandlePendingExitPlanMode(ctx context.Context, params *UIHandleP
 		req["requestId"] = params.RequestID
 		req["response"] = params.Response
 	}
-	raw, err := a.client.Request("session.ui.handlePendingExitPlanMode", req)
+	raw, err := a.client.Request(ctx, "session.ui.handlePendingExitPlanMode", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14947,7 +15207,7 @@ func (a *UIAPI) HandlePendingSampling(ctx context.Context, params *UIHandlePendi
 			req["response"] = *params.Response
 		}
 	}
-	raw, err := a.client.Request("session.ui.handlePendingSampling", req)
+	raw, err := a.client.Request(ctx, "session.ui.handlePendingSampling", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14972,7 +15232,7 @@ func (a *UIAPI) HandlePendingUserInput(ctx context.Context, params *UIHandlePend
 		req["requestId"] = params.RequestID
 		req["response"] = params.Response
 	}
-	raw, err := a.client.Request("session.ui.handlePendingUserInput", req)
+	raw, err := a.client.Request(ctx, "session.ui.handlePendingUserInput", req)
 	if err != nil {
 		return nil, err
 	}
@@ -14994,7 +15254,7 @@ func (a *UIAPI) HandlePendingUserInput(ctx context.Context, params *UIHandlePend
 // client doesn't race the in-process handler for the same requestId).
 func (a *UIAPI) RegisterDirectAutoModeSwitchHandler(ctx context.Context) (*UIRegisterDirectAutoModeSwitchHandlerResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.ui.registerDirectAutoModeSwitchHandler", req)
+	raw, err := a.client.Request(ctx, "session.ui.registerDirectAutoModeSwitchHandler", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15020,7 +15280,7 @@ func (a *UIAPI) UnregisterDirectAutoModeSwitchHandler(ctx context.Context, param
 	if params != nil {
 		req["handle"] = params.Handle
 	}
-	raw, err := a.client.Request("session.ui.unregisterDirectAutoModeSwitchHandler", req)
+	raw, err := a.client.Request(ctx, "session.ui.unregisterDirectAutoModeSwitchHandler", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15042,7 +15302,7 @@ type UsageAPI sessionAPI
 // model breakdown, and code-change totals.
 func (a *UsageAPI) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.usage.getMetrics", req)
+	raw, err := a.client.Request(ctx, "session.usage.getMetrics", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15067,7 +15327,7 @@ func (a *WorkspacesAPI) CreateFile(ctx context.Context, params *WorkspacesCreate
 		req["content"] = params.Content
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.workspaces.createFile", req)
+	raw, err := a.client.Request(ctx, "session.workspaces.createFile", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15090,7 +15350,7 @@ func (a *WorkspacesAPI) Diff(ctx context.Context, params *WorkspacesDiffRequest)
 	if params != nil {
 		req["mode"] = params.Mode
 	}
-	raw, err := a.client.Request("session.workspaces.diff", req)
+	raw, err := a.client.Request(ctx, "session.workspaces.diff", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15109,7 +15369,7 @@ func (a *WorkspacesAPI) Diff(ctx context.Context, params *WorkspacesDiffRequest)
 // path when available.
 func (a *WorkspacesAPI) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspaceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.workspaces.getWorkspace", req)
+	raw, err := a.client.Request(ctx, "session.workspaces.getWorkspace", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15128,7 +15388,7 @@ func (a *WorkspacesAPI) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspa
 // enabled.
 func (a *WorkspacesAPI) ListCheckpoints(ctx context.Context) (*WorkspacesListCheckpointsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.workspaces.listCheckpoints", req)
+	raw, err := a.client.Request(ctx, "session.workspaces.listCheckpoints", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15146,7 +15406,7 @@ func (a *WorkspacesAPI) ListCheckpoints(ctx context.Context) (*WorkspacesListChe
 // Returns: Relative paths of files stored in the session workspace files directory.
 func (a *WorkspacesAPI) ListFiles(ctx context.Context) (*WorkspacesListFilesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.workspaces.listFiles", req)
+	raw, err := a.client.Request(ctx, "session.workspaces.listFiles", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15170,7 +15430,7 @@ func (a *WorkspacesAPI) ReadCheckpoint(ctx context.Context, params *WorkspacesRe
 	if params != nil {
 		req["number"] = params.Number
 	}
-	raw, err := a.client.Request("session.workspaces.readCheckpoint", req)
+	raw, err := a.client.Request(ctx, "session.workspaces.readCheckpoint", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15193,7 +15453,7 @@ func (a *WorkspacesAPI) ReadFile(ctx context.Context, params *WorkspacesReadFile
 	if params != nil {
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.workspaces.readFile", req)
+	raw, err := a.client.Request(ctx, "session.workspaces.readFile", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15216,7 +15476,7 @@ func (a *WorkspacesAPI) SaveLargePaste(ctx context.Context, params *WorkspacesSa
 	if params != nil {
 		req["content"] = params.Content
 	}
-	raw, err := a.client.Request("session.workspaces.saveLargePaste", req)
+	raw, err := a.client.Request(ctx, "session.workspaces.saveLargePaste", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15251,6 +15511,7 @@ type SessionRPC struct {
 	Permissions  *PermissionsAPI
 	Plan         *PlanAPI
 	Plugins      *PluginsAPI
+	Provider     *ProviderAPI
 	Queue        *QueueAPI
 	Remote       *RemoteAPI
 	Schedule     *ScheduleAPI
@@ -15280,7 +15541,7 @@ func (a *SessionRPC) Abort(ctx context.Context, params *AbortRequest) (*AbortRes
 			req["reason"] = *params.Reason
 		}
 	}
-	raw, err := a.common.client.Request("session.abort", req)
+	raw, err := a.common.client.Request(ctx, "session.abort", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15320,7 +15581,7 @@ func (a *SessionRPC) Log(ctx context.Context, params *LogRequest) (*LogResult, e
 			req["url"] = *params.URL
 		}
 	}
-	raw, err := a.common.client.Request("session.log", req)
+	raw, err := a.common.client.Request(ctx, "session.log", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15380,7 +15641,7 @@ func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult
 			req["wait"] = *params.Wait
 		}
 	}
-	raw, err := a.common.client.Request("session.send", req)
+	raw, err := a.common.client.Request(ctx, "session.send", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15410,7 +15671,7 @@ func (a *SessionRPC) Shutdown(ctx context.Context, params *ShutdownRequest) (*Se
 			req["type"] = *params.Type
 		}
 	}
-	raw, err := a.common.client.Request("session.shutdown", req)
+	raw, err := a.common.client.Request(ctx, "session.shutdown", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15428,7 +15689,7 @@ func (a *SessionRPC) Shutdown(ctx context.Context, params *ShutdownRequest) (*Se
 // versions.
 func (a *SessionRPC) Suspend(ctx context.Context) (*SessionSuspendResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
-	raw, err := a.common.client.Request("session.suspend", req)
+	raw, err := a.common.client.Request(ctx, "session.suspend", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15461,6 +15722,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Permissions = (*PermissionsAPI)(&r.common)
 	r.Plan = (*PlanAPI)(&r.common)
 	r.Plugins = (*PluginsAPI)(&r.common)
+	r.Provider = (*ProviderAPI)(&r.common)
 	r.Queue = (*QueueAPI)(&r.common)
 	r.Remote = (*RemoteAPI)(&r.common)
 	r.Schedule = (*ScheduleAPI)(&r.common)
@@ -15498,7 +15760,7 @@ func (a *InternalMCPAPI) ConfigureGitHub(ctx context.Context, params *MCPConfigu
 	if params != nil {
 		req["authInfo"] = params.AuthInfo
 	}
-	raw, err := a.client.Request("session.mcp.configureGitHub", req)
+	raw, err := a.client.Request(ctx, "session.mcp.configureGitHub", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15529,7 +15791,7 @@ func (a *InternalMCPAPI) RegisterExternalClient(ctx context.Context, params *MCP
 		req["serverName"] = params.ServerName
 		req["transport"] = params.Transport
 	}
-	raw, err := a.client.Request("session.mcp.registerExternalClient", req)
+	raw, err := a.client.Request(ctx, "session.mcp.registerExternalClient", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15555,7 +15817,7 @@ func (a *InternalMCPAPI) ReloadWithConfig(ctx context.Context, params *MCPReload
 	if params != nil {
 		req["config"] = params.Config
 	}
-	raw, err := a.client.Request("session.mcp.reloadWithConfig", req)
+	raw, err := a.client.Request(ctx, "session.mcp.reloadWithConfig", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15579,7 +15841,7 @@ func (a *InternalMCPAPI) RestartServer(ctx context.Context, params *MCPRestartSe
 		req["config"] = params.Config
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.restartServer", req)
+	raw, err := a.client.Request(ctx, "session.mcp.restartServer", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15603,7 +15865,7 @@ func (a *InternalMCPAPI) StartServer(ctx context.Context, params *MCPStartServer
 		req["config"] = params.Config
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.startServer", req)
+	raw, err := a.client.Request(ctx, "session.mcp.startServer", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15631,7 +15893,7 @@ func (a *InternalMCPAPI) UnregisterExternalClient(ctx context.Context, params *M
 	if params != nil {
 		req["serverName"] = params.ServerName
 	}
-	raw, err := a.client.Request("session.mcp.unregisterExternalClient", req)
+	raw, err := a.client.Request(ctx, "session.mcp.unregisterExternalClient", req)
 	if err != nil {
 		return nil, err
 	}
@@ -15666,7 +15928,7 @@ func (a *InternalMCPOauthAPI) Respond(ctx context.Context, params *MCPOauthRespo
 		}
 		req["requestId"] = params.RequestID
 	}
-	raw, err := a.client.Request("session.mcp.oauth.respond", req)
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.respond", req)
 	if err != nil {
 		return nil, err
 	}

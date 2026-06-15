@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 	"github.com/github/copilot-sdk/go/rpc"
 )
@@ -132,6 +134,88 @@ func TestClient_URLParsing(t *testing.T) {
 			t.Error("Expected isExternalServer=true for URIConnection")
 		}
 	})
+}
+
+func TestClient_StopRequestsRuntimeShutdownForOwnedProcess(t *testing.T) {
+	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
+	client := &Client{
+		process:     &exec.Cmd{},
+		client:      rpcClient,
+		RPC:         rpc.NewServerRPC(rpcClient),
+		sessions:    make(map[string]*Session),
+		processDone: make(chan struct{}),
+	}
+	close(client.processDone)
+
+	if err := client.Stop(); err != nil {
+		t.Fatalf("Stop failed: %v", err)
+	}
+
+	select {
+	case <-shutdownCalled:
+	default:
+		t.Fatal("Stop did not request runtime.shutdown")
+	}
+
+	server.Stop()
+}
+
+func TestClient_ForceStopAndExternalStopDoNotRequestRuntimeShutdown(t *testing.T) {
+	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
+	client := &Client{
+		process:  &exec.Cmd{},
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	client.ForceStop()
+	assertRuntimeShutdownNotCalled(t, shutdownCalled)
+	server.Stop()
+
+	externalRpcClient, externalServer, externalShutdownCalled := newRuntimeShutdownRpcPair(t)
+	externalClient := &Client{
+		client:           externalRpcClient,
+		RPC:              rpc.NewServerRPC(externalRpcClient),
+		sessions:         make(map[string]*Session),
+		isExternalServer: true,
+	}
+
+	if err := externalClient.Stop(); err != nil {
+		t.Fatalf("external Stop failed: %v", err)
+	}
+	assertRuntimeShutdownNotCalled(t, externalShutdownCalled)
+	externalServer.Stop()
+}
+
+func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}) {
+	t.Helper()
+
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		clientConn.Close()
+		serverConn.Close()
+	})
+
+	rpcClient := jsonrpc2.NewClient(clientConn, clientConn)
+	server := jsonrpc2.NewClient(serverConn, serverConn)
+	shutdownCalled := make(chan struct{}, 1)
+	server.SetRequestHandler("runtime.shutdown", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		shutdownCalled <- struct{}{}
+		return []byte(`{}`), nil
+	})
+	rpcClient.Start()
+	server.Start()
+	return rpcClient, server, shutdownCalled
+}
+
+func assertRuntimeShutdownNotCalled(t *testing.T, shutdownCalled <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-shutdownCalled:
+		t.Fatal("runtime.shutdown should not have been requested")
+	default:
+	}
 }
 
 func TestClient_SessionFSConfig(t *testing.T) {
@@ -605,6 +689,70 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_Memory(t *testing.T) {
+	t.Run("create includes memory in JSON when enabled", func(t *testing.T) {
+		req := createSessionRequest{Memory: &MemoryConfiguration{Enabled: true}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		expected := map[string]any{"enabled": true}
+		if !reflect.DeepEqual(m["memory"], expected) {
+			t.Errorf("Expected memory %v, got %v", expected, m["memory"])
+		}
+	})
+
+	t.Run("resume includes memory in JSON when disabled", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", Memory: &MemoryConfiguration{Enabled: false}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		expected := map[string]any{"enabled": false}
+		if !reflect.DeepEqual(m["memory"], expected) {
+			t.Errorf("Expected memory %v, got %v", expected, m["memory"])
+		}
+	})
+
+	t.Run("create omits memory when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["memory"]; ok {
+			t.Errorf("Expected memory to be omitted")
+		}
+	})
+
+	t.Run("resume omits memory when nil", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["memory"]; ok {
+			t.Errorf("Expected memory to be omitted")
+		}
+	})
+}
+
 func TestCreateSessionRequest_Agent(t *testing.T) {
 	t.Run("includes agent in JSON when set", func(t *testing.T) {
 		req := createSessionRequest{Agent: "test-agent"}
@@ -819,6 +967,47 @@ func TestOverridesBuiltInTool(t *testing.T) {
 		}
 		if _, ok := m["overridesBuiltInTool"]; ok {
 			t.Errorf("expected overridesBuiltInTool to be omitted, got %v", m)
+		}
+	})
+}
+
+func TestToolDefer(t *testing.T) {
+	t.Run("Defer is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:        "lookup_issue",
+			Description: "Fetch issue details",
+			Defer:       ToolDeferAuto,
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if v, ok := m["defer"]; !ok || v != "auto" {
+			t.Errorf("expected defer=auto, got %v", m)
+		}
+	})
+
+	t.Run("Defer omitted when unset", func(t *testing.T) {
+		tool := Tool{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if _, ok := m["defer"]; ok {
+			t.Errorf("expected defer to be omitted, got %v", m)
 		}
 	})
 }
