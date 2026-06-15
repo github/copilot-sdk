@@ -4,7 +4,7 @@ SDK for programmatic control of GitHub Copilot CLI.
 
 ## Prerequisites
 
-To use the SDK:
+To use the SDK, you'll need:
 
 - Any of the [.NET Standard 2.0-compatible .NET implementations](https://learn.microsoft.com/dotnet/standard/net-standard?tabs=net-standard-2-0#select-net-standard-version)
 

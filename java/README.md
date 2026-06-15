@@ -17,7 +17,7 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 
 ## Prerequisites
 
-To use the SDK:
+To use the SDK, you'll need:
 
 - Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is compiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
 - GitHub Copilot CLI 1.0.55-5 or later installed and in `PATH` (or provide custom `cliPath`)
