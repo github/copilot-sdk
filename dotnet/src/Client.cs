@@ -2384,15 +2384,18 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Description,
         JsonElement Parameters, /* JSON schema */
         bool? OverridesBuiltInTool = null,
-        bool? SkipPermission = null)
+        bool? SkipPermission = null,
+        CopilotToolDefer? Defer = null)
     {
         public static ToolDefinition FromAIFunction(AIFunctionDeclaration function)
         {
             var overrides = function.AdditionalProperties.TryGetValue(CopilotTool.OverridesBuiltInToolKey, out var val) && val is true;
             var skipPerm = function.AdditionalProperties.TryGetValue(CopilotTool.SkipPermissionKey, out var skipVal) && skipVal is true;
+            var defer = function.AdditionalProperties.TryGetValue(CopilotTool.DeferKey, out var deferVal) && deferVal is CopilotToolDefer d ? d : (CopilotToolDefer?)null;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
                 overrides ? true : null,
-                skipPerm ? true : null);
+                skipPerm ? true : null,
+                defer);
         }
     }
 
@@ -2549,6 +2552,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
     [JsonSerializable(typeof(CommandWireDefinition))]
     [JsonSerializable(typeof(ToolDefinition))]
+    [JsonSerializable(typeof(CopilotToolDefer))]
     [JsonSerializable(typeof(ToolResultAIContent))]
     [JsonSerializable(typeof(ToolResultObject))]
     [JsonSerializable(typeof(UserInputRequestResponse))]

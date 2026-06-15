@@ -504,6 +504,26 @@ var safeLookup = CopilotTool.DefineTool(
 
 If you want to use `AIFunctionFactory.Create` directly, you can set `skip_permission` in the tool's `AdditionalProperties`.
 
+#### Deferring Tools
+
+Set `CopilotToolOptions.Defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `CopilotToolDefer.Auto` to allow the tool to be deferred and surfaced through tool search, or `CopilotToolDefer.Never` to force it to always be pre-loaded. Defaults to `CopilotToolDefer.Auto`.
+
+```csharp
+var lookupIssue = CopilotTool.DefineTool(
+    async ([Description("Issue ID")] string id) => {
+        // your logic
+    },
+    toolOptions: new CopilotToolOptions
+    {
+        Defer = CopilotToolDefer.Auto
+    },
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "lookup_issue",
+        Description = "Fetch issue details",
+    });
+```
+
 ## Commands
 
 Register slash commands so that users of the CLI's TUI can invoke custom actions via `/commandName`. Each command has a `Name`, optional `Description`, and a `Handler` called when the user executes it.

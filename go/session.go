@@ -351,7 +351,7 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 		RequestHeaders: options.RequestHeaders,
 	}
 
-	result, err := s.client.Request("session.send", req)
+	result, err := s.client.Request(ctx, "session.send", req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send message: %w", err)
 	}
@@ -446,7 +446,7 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 		return result, nil
 	case err := <-errCh:
 		return nil, err
-	case <-ctx.Done(): // TODO: remove once session.Send honors the context
+	case <-ctx.Done():
 		return nil, fmt.Errorf("waiting for session.idle: %w", ctx.Err())
 	}
 }
@@ -1464,7 +1464,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 //	}
 func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 
-	result, err := s.client.Request("session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
+	result, err := s.client.Request(ctx, "session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get events: %w", err)
 	}
@@ -1499,7 +1499,7 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
-	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
+	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
@@ -1573,7 +1573,7 @@ func (s *Session) Reset(ctx context.Context, config *SessionConfig) (*ResetResul
 //	    log.Printf("Failed to abort: %v", err)
 //	}
 func (s *Session) Abort(ctx context.Context) error {
-	_, err := s.client.Request("session.abort", sessionAbortRequest{SessionID: s.SessionID})
+	_, err := s.client.Request(ctx, "session.abort", sessionAbortRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to abort session: %w", err)
 	}

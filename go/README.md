@@ -372,6 +372,18 @@ safeLookup := copilot.DefineTool("safe_lookup", "A read-only lookup that needs n
 safeLookup.SkipPermission = true
 ```
 
+#### Deferring Tools
+
+Set `Defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `copilot.ToolDeferAuto` to allow the tool to be deferred and surfaced through tool search, or `copilot.ToolDeferNever` to force it to always be pre-loaded. Defaults to `copilot.ToolDeferAuto`.
+
+```go
+lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details",
+    func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
+        // your logic
+    })
+lookupIssue.Defer = copilot.ToolDeferAuto
+```
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:

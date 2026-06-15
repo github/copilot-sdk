@@ -1117,12 +1117,26 @@ type ResetResult struct {
 	Session *Session
 }
 
+// ToolDefer controls whether a tool may be deferred (loaded lazily via tool
+// search) rather than always pre-loaded.
+type ToolDefer string
+
+const (
+	// ToolDeferAuto allows the tool to be deferred and surfaced through tool search.
+	ToolDeferAuto ToolDefer = "auto"
+	// ToolDeferNever forces the tool to always be pre-loaded.
+	ToolDeferNever ToolDefer = "never"
+)
+
 type Tool struct {
 	Name                 string         `json:"name"`
 	Description          string         `json:"description,omitempty"`
 	Parameters           map[string]any `json:"parameters,omitzero"`
 	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
 	SkipPermission       bool           `json:"skipPermission,omitempty"`
+	// Defer controls whether the tool may be deferred (loaded lazily via tool
+	// search) rather than always pre-loaded. When empty, the runtime decides.
+	Defer ToolDefer `json:"defer,omitempty"`
 	// Handler is optional. When nil, the SDK exposes the tool declaration but does
 	// not automatically invoke it.
 	Handler ToolHandler `json:"-"`

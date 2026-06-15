@@ -1,12 +1,20 @@
 package jsonrpc2
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"io"
 	"sync"
 	"testing"
 	"time"
 )
+
+type writeCloser struct {
+	io.Writer
+}
+
+func (w writeCloser) Close() error { return nil }
 
 func TestOnCloseCalledOnUnexpectedExit(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
@@ -137,7 +145,7 @@ func TestSetProcessDone_RequestMissesProcessError(t *testing.T) {
 		stdoutW.Close()
 
 		// Make a request — should get the specific process error.
-		_, err := client.Request("test.method", nil)
+		_, err := client.Request(context.Background(), "test.method", nil)
 		if err != nil && err.Error() == "process exited unexpectedly" {
 			misses++
 		}
@@ -183,5 +191,103 @@ func TestSetProcessDone_ErrorCopiedEventually(t *testing.T) {
 	}
 	if err.Error() != processErr.Error() {
 		t.Errorf("expected %q, got %q", processErr.Error(), err.Error())
+	}
+}
+
+func TestRequestReturnsContextErrorIfCanceledBeforeSend(t *testing.T) {
+	var stdin bytes.Buffer
+	client := NewClient(writeCloser{Writer: &stdin}, io.NopCloser(bytes.NewReader(nil)))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := client.Request(ctx, "test.method", nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if stdin.Len() != 0 {
+		t.Fatalf("expected no request to be written after cancellation, got %d bytes", stdin.Len())
+	}
+	client.mu.Lock()
+	pending := len(client.pendingRequests)
+	client.mu.Unlock()
+	if pending != 0 {
+		t.Fatalf("expected no pending requests after cancellation, got %d", pending)
+	}
+}
+
+func TestRequestReturnsContextErrorWhileAwaitingResponse(t *testing.T) {
+	var stdin bytes.Buffer
+	client := NewClient(writeCloser{Writer: &stdin}, io.NopCloser(bytes.NewReader(nil)))
+	ctx, cancel := context.WithCancel(context.Background())
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := client.Request(ctx, "test.method", map[string]string{"hello": "world"})
+		errCh <- err
+	}()
+
+	waitForPendingRequest(t, client)
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("request did not return after context cancellation")
+	}
+
+	client.mu.Lock()
+	pending := len(client.pendingRequests)
+	client.mu.Unlock()
+	if pending != 0 {
+		t.Fatalf("expected pending request cleanup after cancellation, got %d", pending)
+	}
+}
+
+func TestSendMessageReturnsContextErrorWhileWaitingForWriter(t *testing.T) {
+	var stdin bytes.Buffer
+	client := NewClient(writeCloser{Writer: &stdin}, io.NopCloser(bytes.NewReader(nil)))
+	w := <-client.writer
+	defer func() { client.writer <- w }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- client.sendMessage(ctx, Request{JSONRPC: version, Method: "test.method"})
+	}()
+
+	cancel()
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("sendMessage did not return after context cancellation")
+	}
+}
+
+func waitForPendingRequest(t *testing.T, client *Client) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		client.mu.Lock()
+		pending := len(client.pendingRequests)
+		client.mu.Unlock()
+		if pending > 0 {
+			return
+		}
+
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for pending request")
+		case <-ticker.C:
+		}
 	}
 }

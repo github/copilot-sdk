@@ -1,5 +1,15 @@
 models:
   - claude-sonnet-4.5
+# Two stored conversations cover the two CLI versions of the exit_plan_mode
+# post-approval tool result. The CLI injects this text and feeds it back to the
+# model; the SDK never asserts on its exact wording. The interactive-mode message
+# was reworded in copilot-agent-runtime:
+#   conv0: CLI 1.0.61 and earlier -> "...interactive mode (edits require manual
+#          approval). Proceed with implementing the plan."
+#   conv1: newer runtime builds   -> "...interactive mode. Start implementing the
+#          plan now, in this same response. ..."
+# The replay proxy matches a request as a strict prefix of a stored conversation
+# and returns the next assistant message, so both versions resolve correctly.
 conversations:
   - messages:
       - role: system
@@ -19,5 +29,25 @@ conversations:
           Plan approved! Exited plan mode.
 
           You are now in interactive mode (edits require manual approval). Proceed with implementing the plan.
+      - role: assistant
+        content: Plan approved; I will wait for the next instruction before making changes.
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: exit_plan_mode
+              arguments: '{"summary":"Greeting file implementation plan","actions":["interactive","autopilot","exit_only"],"recommendedAction":"interactive"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          Plan approved! Exited plan mode.
+
+          You are now in interactive mode. Start implementing the plan now, in this same response. Approving the plan is your go-signal, so do not stop to ask whether to proceed or wait for another message.
       - role: assistant
         content: Plan approved; I will wait for the next instruction before making changes.
