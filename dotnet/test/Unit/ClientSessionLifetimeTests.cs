@@ -5,6 +5,7 @@
 #if NET8_0_OR_GREATER
 using System.Net;
 using System.Net.Sockets;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -15,6 +16,57 @@ namespace GitHub.Copilot.Test.Unit;
 
 public sealed class ClientSessionLifetimeTests
 {
+    [Fact]
+    public async Task StopAsync_Requests_Runtime_Shutdown_For_Owned_Process()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        using var process = StartExitedProcess();
+        await ReplaceConnectionCliProcessAsync(client, process);
+
+        await client.StopAsync();
+
+        Assert.Equal(1, server.RuntimeShutdownCount);
+    }
+
+    [Fact]
+    public async Task StopAsync_Does_Not_Throw_When_Runtime_Shutdown_Fails()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.FailRuntimeShutdown();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        using var process = StartExitedProcess();
+        await ReplaceConnectionCliProcessAsync(client, process);
+
+        await client.StopAsync();
+
+        Assert.Equal(1, server.RuntimeShutdownCount);
+    }
+
+    [Fact]
+    public async Task ForceStopAsync_And_External_Stop_Do_Not_Request_Runtime_Shutdown()
+    {
+        await using var forceServer = await FakeCopilotServer.StartAsync();
+        await using var forceClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(forceServer.Url) });
+        await forceClient.StartAsync();
+        using var process = StartExitedProcess();
+        await ReplaceConnectionCliProcessAsync(forceClient, process);
+
+        await forceClient.ForceStopAsync();
+
+        Assert.Equal(0, forceServer.RuntimeShutdownCount);
+
+        await using var externalServer = await FakeCopilotServer.StartAsync();
+        await using var externalClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(externalServer.Url) });
+        await externalClient.StartAsync();
+
+        await externalClient.StopAsync();
+
+        Assert.Equal(0, externalServer.RuntimeShutdownCount);
+    }
+
     [Fact]
     public async Task Dropped_Session_Remains_Rooted_By_Client()
     {
@@ -186,6 +238,37 @@ public sealed class ClientSessionLifetimeTests
         return (int)count.GetValue(dictionary)!;
     }
 
+    private static async Task ReplaceConnectionCliProcessAsync(CopilotClient client, Process process)
+    {
+        var field = typeof(CopilotClient).GetField("_connectionTask", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("_connectionTask field was not found.");
+        var connectionTask = (Task)field.GetValue(client)!;
+        await connectionTask;
+
+        var resultProperty = connectionTask.GetType().GetProperty(nameof(Task<object>.Result))
+            ?? throw new InvalidOperationException("Connection task result property was not found.");
+        var connection = resultProperty.GetValue(connectionTask)!;
+        var connectionType = connection.GetType();
+        var rpc = connectionType.GetProperty("Rpc")!.GetValue(connection);
+        var networkStream = connectionType.GetProperty("NetworkStream")!.GetValue(connection);
+        var constructor = connectionType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public).Single();
+        var updatedConnection = constructor.Invoke([rpc, process, networkStream, null]);
+        var fromResult = typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(connectionType);
+        field.SetValue(client, fromResult.Invoke(null, [updatedConnection]));
+    }
+
+    private static Process StartExitedProcess()
+    {
+        var startInfo = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo(Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe", "/c exit 0")
+            : new ProcessStartInfo("/bin/sh", "-c \"exit 0\"");
+        startInfo.UseShellExecute = false;
+        var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start test process.");
+        process.WaitForExit();
+        return process;
+    }
+
     private sealed class FakeCopilotServer : IAsyncDisposable
     {
         private readonly TcpListener _listener;
@@ -196,6 +279,7 @@ public sealed class ClientSessionLifetimeTests
         private readonly Task _serverTask;
         private string? _lastSessionId;
         private bool _delayDestroy;
+        private bool _failRuntimeShutdown;
 
         private FakeCopilotServer(TcpListener listener)
         {
@@ -221,6 +305,8 @@ public sealed class ClientSessionLifetimeTests
 
         public Task DestroyStarted => _destroyStarted.Task;
 
+        public int RuntimeShutdownCount { get; private set; }
+
         public void DelayDestroy()
         {
             _delayDestroy = true;
@@ -229,6 +315,11 @@ public sealed class ClientSessionLifetimeTests
         public void CompleteDestroy()
         {
             _allowDestroy.TrySetResult();
+        }
+
+        public void FailRuntimeShutdown()
+        {
+            _failRuntimeShutdown = true;
         }
 
         public async ValueTask DisposeAsync()
@@ -275,6 +366,22 @@ public sealed class ClientSessionLifetimeTests
 
             var id = idElement.Clone();
             var method = request.GetProperty("method").GetString();
+            if (method == "runtime.shutdown" && _failRuntimeShutdown)
+            {
+                RuntimeShutdownCount++;
+                await WriteMessageAsync(stream, new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = id,
+                    ["error"] = new Dictionary<string, object?>
+                    {
+                        ["code"] = -32000,
+                        ["message"] = "runtime shutdown failed"
+                    }
+                }, cancellationToken);
+                return;
+            }
+
             object? result = method switch
             {
                 "connect" => new Dictionary<string, object?>
@@ -294,6 +401,7 @@ public sealed class ClientSessionLifetimeTests
                     ["success"] = true
                 },
                 "session.destroy" => await DestroySessionAsync(cancellationToken),
+                "runtime.shutdown" => HandleRuntimeShutdown(),
                 _ => throw new InvalidOperationException($"Unexpected RPC method '{method}'.")
             };
 
@@ -337,6 +445,12 @@ public sealed class ClientSessionLifetimeTests
                 await _allowDestroy.Task.WaitAsync(cancellationToken);
             }
 
+            return [];
+        }
+
+        private Dictionary<string, object?> HandleRuntimeShutdown()
+        {
+            RuntimeShutdownCount++;
             return [];
         }
 

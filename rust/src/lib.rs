@@ -59,7 +59,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 // JSON-RPC wire types are internal transport details (like Go SDK's internal/jsonrpc2/).
@@ -91,6 +91,7 @@ pub use subscription::{EventSubscription, LifecycleSubscription};
 
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 3;
+const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// How the SDK communicates with the CLI server.
 #[derive(Debug, Default)]
@@ -1818,8 +1819,9 @@ impl Client {
     /// Cooperatively shut down the client and the CLI child process.
     ///
     /// Walks every still-registered session and sends `session.destroy`
-    /// for each one, then kills the CLI child. Errors from per-session
-    /// destroys and the final child-kill are collected into
+    /// for each one, asks SDK-owned runtimes to shut down, then kills the
+    /// CLI child. Errors from per-session destroys, runtime shutdown, and
+    /// the final child-kill are collected into
     /// [`StopErrors`] rather than short-circuiting on the first failure
     /// — so callers see the full picture of teardown.
     ///
@@ -1868,13 +1870,67 @@ impl Client {
             self.inner.router.unregister(&session_id);
         }
 
+        let should_shutdown_runtime = self.inner.child.lock().is_some();
+        let mut runtime_shutdown_completed = false;
+        if should_shutdown_runtime {
+            let runtime_shutdown_start = Instant::now();
+            match tokio::time::timeout(RUNTIME_SHUTDOWN_TIMEOUT, self.rpc().runtime().shutdown())
+                .await
+            {
+                Ok(Ok(())) => {
+                    runtime_shutdown_completed = true;
+                    debug!(
+                        elapsed_ms = runtime_shutdown_start.elapsed().as_millis(),
+                        "Client::stop runtime shutdown complete"
+                    );
+                }
+                Ok(Err(e)) => {
+                    warn!(
+                        elapsed_ms = runtime_shutdown_start.elapsed().as_millis(),
+                        error = %e,
+                        "runtime.shutdown failed during Client::stop",
+                    );
+                    errors.push(e);
+                }
+                Err(_) => {
+                    let e = std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "runtime.shutdown timed out during Client::stop",
+                    );
+                    warn!(
+                        elapsed_ms = runtime_shutdown_start.elapsed().as_millis(),
+                        timeout = ?RUNTIME_SHUTDOWN_TIMEOUT,
+                        error = %e,
+                        "runtime.shutdown timed out during Client::stop",
+                    );
+                    errors.push(e.into());
+                }
+            }
+        }
+
         let child = self.inner.child.lock().take();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
-        if let Some(mut child) = child
-            && let Err(e) = child.kill().await
-        {
-            errors.push(e.into());
+        if let Some(mut child) = child {
+            match child.try_wait() {
+                Ok(Some(_status)) => {}
+                Ok(None) => {
+                    if runtime_shutdown_completed {
+                        match tokio::time::timeout(RUNTIME_SHUTDOWN_TIMEOUT, child.wait()).await {
+                            Ok(Ok(_status)) => {}
+                            Ok(Err(e)) => errors.push(e.into()),
+                            Err(_) => {
+                                if let Err(e) = child.kill().await {
+                                    errors.push(e.into());
+                                }
+                            }
+                        }
+                    } else if let Err(e) = child.kill().await {
+                        errors.push(e.into());
+                    }
+                }
+                Err(e) => errors.push(e.into()),
+            }
         }
 
         info!(pid = ?pid, errors = errors.len(), "CLI process stopped");

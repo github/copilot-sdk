@@ -13,7 +13,6 @@ and W3C trace context propagation via ``copilot._telemetry``.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import uuid
@@ -45,22 +44,14 @@ def _is_root_span(entry: dict[str, Any]) -> bool:
     return parent in ("", "0000000000000000")
 
 
-async def _read_telemetry_entries(
-    path: Path, complete: Any, *, timeout: float = 30.0
-) -> list[dict[str, Any]]:
-    deadline = asyncio.get_event_loop().time() + timeout
-    while asyncio.get_event_loop().time() < deadline:
-        if path.exists() and path.stat().st_size > 0:
-            entries: list[dict[str, Any]] = []
-            for line in path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                entries.append(json.loads(line))
-            if entries and complete(entries):
-                return entries
-        await asyncio.sleep(0.1)
-    raise TimeoutError(f"Timed out waiting for telemetry records in '{path}'.")
+def _read_telemetry_entries(path: Path) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        entries.append(json.loads(line))
+    return entries
 
 
 class TestTelemetryExport:
@@ -119,14 +110,7 @@ class TestTelemetryExport:
         finally:
             await client.stop()
 
-        entries = await _read_telemetry_entries(
-            telemetry_path,
-            lambda items: any(
-                item.get("type") == "span"
-                and _string_attribute(item, "gen_ai.operation.name") == "invoke_agent"
-                for item in items
-            ),
-        )
+        entries = _read_telemetry_entries(telemetry_path)
         spans = [item for item in entries if item.get("type") == "span"]
         assert spans
 
