@@ -49,25 +49,39 @@ describe("Session-scoped RPC", async () => {
         await session.disconnect();
     });
 
-    it("should call session rpc model switchto", async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+    // The runtime caches the /models response per (auth, base_url) for 30
+    // minutes (see capi_client.rs LIST_MODELS_CACHE), so within a single
+    // describe — where all tests share one CLI subprocess and proxy URL —
+    // the cache is primed by whichever test creates a session first. That
+    // makes any test which calls switchTo to a model not present in the
+    // first snapshot's models list fail silently (the runtime accepts the
+    // switch synchronously, then tool revalidation refetches the cached
+    // list, doesn't see the model, and reverts _selectedModel). Wrapping
+    // switchTo in its own describe gives it a dedicated subprocess + proxy
+    // → its own cache entry, so its snapshot's models list is authoritative.
+    describe("model switchTo (isolated to avoid models cache contamination)", async () => {
+        const { copilotClient: switchClient } = await createSdkTestContext();
+
+        it("should call session rpc model switchto", async () => {
+            const session = await switchClient.createSession({
+                onPermissionRequest: approveAll,
+                model: "claude-sonnet-4.5",
+            });
+
+            const before = await session.rpc.model.getCurrent();
+            expect(before.modelId).toBeTruthy();
+
+            const result = await session.rpc.model.switchTo({
+                modelId: "gpt-5.4",
+                reasoningEffort: "high",
+            });
+            const after = await session.rpc.model.getCurrent();
+
+            expect(result.modelId).toBe("gpt-5.4");
+            expect(after.modelId).toBe("gpt-5.4");
+
+            await session.disconnect();
         });
-
-        const before = await session.rpc.model.getCurrent();
-        expect(before.modelId).toBeTruthy();
-
-        const result = await session.rpc.model.switchTo({
-            modelId: "gpt-4.1",
-            reasoningEffort: "high",
-        });
-        const after = await session.rpc.model.getCurrent();
-
-        expect(result.modelId).toBe("gpt-4.1");
-        expect(after.modelId).toBe(before.modelId);
-
-        await session.disconnect();
     });
 
     it("should shutdown session with routine type", async () => {
