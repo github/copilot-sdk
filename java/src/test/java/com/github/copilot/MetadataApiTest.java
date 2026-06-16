@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.OptionalDouble;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -188,7 +189,8 @@ public class MetadataApiTest {
 
         // Billing
         assertNotNull(model.getBilling());
-        assertEquals(Double.valueOf(1.5), model.getBilling().getMultiplier());
+        assertEquals(1.5, model.getBilling().getMultiplier());
+        assertEquals(OptionalDouble.of(1.5), model.getBilling().getMultiplierOpt());
 
         // Token prices
         ModelBillingTokenPrices tokenPrices = model.getBilling().getTokenPrices();
@@ -215,6 +217,22 @@ public class MetadataApiTest {
         String json = MAPPER.writeValueAsString(billing);
 
         assertFalse(json.contains("multiplier"));
+    }
+
+    @Test
+    void testModelBillingMultiplierOptPresent() throws Exception {
+        ModelBilling billing = MAPPER.readValue("{\"multiplier\": 1.5}", ModelBilling.class);
+
+        assertEquals(OptionalDouble.of(1.5), billing.getMultiplierOpt());
+        assertEquals(1.5, billing.getMultiplier());
+    }
+
+    @Test
+    void testModelBillingMultiplierOptAbsent() throws Exception {
+        ModelBilling billing = MAPPER.readValue("{}", ModelBilling.class);
+
+        assertEquals(OptionalDouble.empty(), billing.getMultiplierOpt());
+        assertEquals(0.0, billing.getMultiplier());
     }
 
     @Test
