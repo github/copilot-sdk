@@ -3317,64 +3317,6 @@ public sealed class ModelBilling
 }
 
 /// <summary>
-/// Token-level pricing information for a model
-/// </summary>
-public sealed class ModelBillingTokenPrices
-{
-    /// <summary>AI Credits cost per billing batch of input tokens.</summary>
-    [JsonPropertyName("inputPrice")]
-    public double? InputPrice { get; set; }
-
-    /// <summary>AI Credits cost per billing batch of output tokens.</summary>
-    [JsonPropertyName("outputPrice")]
-    public double? OutputPrice { get; set; }
-
-    /// <summary>AI Credits cost per billing batch of cached tokens.</summary>
-    [JsonPropertyName("cachePrice")]
-    public double? CachePrice { get; set; }
-
-    /// <summary>Number of tokens per standard billing batch.</summary>
-    [JsonPropertyName("batchSize")]
-    public int? BatchSize { get; set; }
-
-    /// <summary>
-    /// Prompt token budget (max_prompt_tokens) for the default tier. The total
-    /// context window is this value plus the model's max_output_tokens.
-    /// </summary>
-    [JsonPropertyName("contextMax")]
-    public int? ContextMax { get; set; }
-
-    /// <summary>Long context tier pricing (available for models with extended context windows).</summary>
-    [JsonPropertyName("longContext")]
-    public ModelBillingTokenPricesLongContext? LongContext { get; set; }
-}
-
-/// <summary>
-/// Long context tier pricing (available for models with extended context windows)
-/// </summary>
-public sealed class ModelBillingTokenPricesLongContext
-{
-    /// <summary>AI Credits cost per billing batch of input tokens.</summary>
-    [JsonPropertyName("inputPrice")]
-    public double? InputPrice { get; set; }
-
-    /// <summary>AI Credits cost per billing batch of output tokens.</summary>
-    [JsonPropertyName("outputPrice")]
-    public double? OutputPrice { get; set; }
-
-    /// <summary>AI Credits cost per billing batch of cached tokens.</summary>
-    [JsonPropertyName("cachePrice")]
-    public double? CachePrice { get; set; }
-
-    /// <summary>
-    /// Prompt token budget (max_prompt_tokens) for the long context tier. The total
-    /// context window is this value plus the model's max_output_tokens.
-    /// </summary>
-    [JsonPropertyName("contextMax")]
-    public int? ContextMax { get; set; }
-}
-
-/// <summary>
 /// Information about an available model
 /// </summary>
 public sealed class ModelInfo
@@ -3573,8 +3515,8 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(McpServerConfig))]
 [JsonSerializable(typeof(MessageOptions))]
 [JsonSerializable(typeof(ModelBilling))]
-[JsonSerializable(typeof(ModelBillingTokenPrices))]
-[JsonSerializable(typeof(ModelBillingTokenPricesLongContext))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPrices))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPricesLongContext))]
 [JsonSerializable(typeof(ModelCapabilities))]
 [JsonSerializable(typeof(ModelCapabilitiesOverride))]
 [JsonSerializable(typeof(ModelInfo))]

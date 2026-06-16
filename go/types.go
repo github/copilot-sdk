@@ -1599,40 +1599,8 @@ type ModelPolicy struct {
 
 // ModelBilling contains model billing information
 type ModelBilling struct {
-	Multiplier  *float64                 `json:"multiplier,omitempty"`
-	TokenPrices *ModelBillingTokenPrices `json:"tokenPrices,omitempty"`
-}
-
-// ModelBillingTokenPrices contains token-level pricing information for a model
-type ModelBillingTokenPrices struct {
-	// InputPrice is the AI Credits cost per billing batch of input tokens
-	InputPrice *float64 `json:"inputPrice,omitempty"`
-	// OutputPrice is the AI Credits cost per billing batch of output tokens
-	OutputPrice *float64 `json:"outputPrice,omitempty"`
-	// CachePrice is the AI Credits cost per billing batch of cached tokens
-	CachePrice *float64 `json:"cachePrice,omitempty"`
-	// BatchSize is the number of tokens per standard billing batch
-	BatchSize *int `json:"batchSize,omitempty"`
-	// ContextMax is the prompt token budget (max_prompt_tokens) for the default
-	// tier. The total context window is this value plus the model's max_output_tokens.
-	ContextMax *int `json:"contextMax,omitempty"`
-	// LongContext is the long context tier pricing (available for models with
-	// extended context windows)
-	LongContext *ModelBillingTokenPricesLongContext `json:"longContext,omitempty"`
-}
-
-// ModelBillingTokenPricesLongContext contains long context tier pricing
-// (available for models with extended context windows)
-type ModelBillingTokenPricesLongContext struct {
-	// InputPrice is the AI Credits cost per billing batch of input tokens
-	InputPrice *float64 `json:"inputPrice,omitempty"`
-	// OutputPrice is the AI Credits cost per billing batch of output tokens
-	OutputPrice *float64 `json:"outputPrice,omitempty"`
-	// CachePrice is the AI Credits cost per billing batch of cached tokens
-	CachePrice *float64 `json:"cachePrice,omitempty"`
-	// ContextMax is the prompt token budget (max_prompt_tokens) for the long
-	// context tier. The total context window is this value plus the model's max_output_tokens.
-	ContextMax *int `json:"contextMax,omitempty"`
+	Multiplier  *float64                     `json:"multiplier,omitempty"`
+	TokenPrices *rpc.ModelBillingTokenPrices `json:"tokenPrices,omitempty"`
 }
 
 // ModelInfo contains information about an available model

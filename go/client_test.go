@@ -893,6 +893,10 @@ func TestListModelsWithCustomHandler(t *testing.T) {
 }
 
 func TestModelBillingTokenPricesJSON(t *testing.T) {
+	int64Ptr := func(v int64) *int64 {
+		return &v
+	}
+
 	wire := `{
 		"multiplier": 1.5,
 		"tokenPrices": {
@@ -909,6 +913,19 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 			}
 		}
 	}`
+	expected := rpc.ModelBillingTokenPrices{
+		InputPrice:  Float64(2.0),
+		OutputPrice: Float64(8.0),
+		CachePrice:  Float64(0.5),
+		BatchSize:   int64Ptr(1000000),
+		ContextMax:  int64Ptr(128000),
+		LongContext: &rpc.ModelBillingTokenPricesLongContext{
+			InputPrice:  Float64(4.0),
+			OutputPrice: Float64(16.0),
+			CachePrice:  Float64(1.0),
+			ContextMax:  int64Ptr(1000000),
+		},
+	}
 
 	var billing ModelBilling
 	if err := json.Unmarshal([]byte(wire), &billing); err != nil {
@@ -919,20 +936,8 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 		t.Fatal("expected TokenPrices to be set")
 	}
 	tp := billing.TokenPrices
-	if tp.InputPrice == nil || *tp.InputPrice != 2.0 {
-		t.Errorf("unexpected InputPrice: %v", tp.InputPrice)
-	}
-	if tp.OutputPrice == nil || *tp.OutputPrice != 8.0 {
-		t.Errorf("unexpected OutputPrice: %v", tp.OutputPrice)
-	}
-	if tp.CachePrice == nil || *tp.CachePrice != 0.5 {
-		t.Errorf("unexpected CachePrice: %v", tp.CachePrice)
-	}
-	if tp.BatchSize == nil || *tp.BatchSize != 1000000 {
-		t.Errorf("unexpected BatchSize: %v", tp.BatchSize)
-	}
-	if tp.ContextMax == nil || *tp.ContextMax != 128000 {
-		t.Errorf("unexpected ContextMax: %v", tp.ContextMax)
+	if !reflect.DeepEqual(*tp, expected) {
+		t.Errorf("unexpected TokenPrices: %+v", tp)
 	}
 	if tp.LongContext == nil {
 		t.Fatal("expected LongContext to be set")
@@ -954,9 +959,7 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 	if err := json.Unmarshal(out, &reparsed); err != nil {
 		t.Fatalf("re-unmarshal failed: %v", err)
 	}
-	if reparsed.TokenPrices == nil || reparsed.TokenPrices.LongContext == nil ||
-		reparsed.TokenPrices.LongContext.ContextMax == nil ||
-		*reparsed.TokenPrices.LongContext.ContextMax != 1000000 {
+	if reparsed.TokenPrices == nil || !reflect.DeepEqual(*reparsed.TokenPrices, expected) {
 		t.Errorf("round-trip lost token price data: %s", out)
 	}
 }

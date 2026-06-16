@@ -7,6 +7,8 @@ package com.github.copilot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.ToolExecutionProgressEvent;
+import com.github.copilot.generated.rpc.ModelBillingTokenPrices;
+import com.github.copilot.generated.rpc.ModelBillingTokenPricesLongContext;
 import com.github.copilot.rpc.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -191,19 +193,19 @@ public class MetadataApiTest {
         // Token prices
         ModelBillingTokenPrices tokenPrices = model.getBilling().getTokenPrices();
         assertNotNull(tokenPrices);
-        assertEquals(2.0, tokenPrices.getInputPrice());
-        assertEquals(8.0, tokenPrices.getOutputPrice());
-        assertEquals(0.5, tokenPrices.getCachePrice());
-        assertEquals(1000000, tokenPrices.getBatchSize());
-        assertEquals(128000, tokenPrices.getContextMax());
+        assertEquals(2.0, tokenPrices.inputPrice());
+        assertEquals(8.0, tokenPrices.outputPrice());
+        assertEquals(0.5, tokenPrices.cachePrice());
+        assertEquals(Long.valueOf(1000000), tokenPrices.batchSize());
+        assertEquals(Long.valueOf(128000), tokenPrices.contextMax());
 
         // Long context tier
-        ModelBillingTokenPricesLongContext longContext = tokenPrices.getLongContext();
+        ModelBillingTokenPricesLongContext longContext = tokenPrices.longContext();
         assertNotNull(longContext);
-        assertEquals(4.0, longContext.getInputPrice());
-        assertEquals(16.0, longContext.getOutputPrice());
-        assertEquals(1.0, longContext.getCachePrice());
-        assertEquals(1000000, longContext.getContextMax());
+        assertEquals(4.0, longContext.inputPrice());
+        assertEquals(16.0, longContext.outputPrice());
+        assertEquals(1.0, longContext.cachePrice());
+        assertEquals(Long.valueOf(1000000), longContext.contextMax());
     }
 
     @Test

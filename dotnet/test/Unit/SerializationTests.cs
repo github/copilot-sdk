@@ -57,19 +57,19 @@ public class SerializationTests
         var original = new ModelBilling
         {
             Multiplier = 1.5,
-            TokenPrices = new ModelBillingTokenPrices
+            TokenPrices = new GitHub.Copilot.Rpc.ModelBillingTokenPrices
             {
                 InputPrice = 2.0,
                 OutputPrice = 8.0,
                 CachePrice = 0.5,
-                BatchSize = 1_000_000,
-                ContextMax = 128_000,
-                LongContext = new ModelBillingTokenPricesLongContext
+                BatchSize = 1_000_000L,
+                ContextMax = 128_000L,
+                LongContext = new GitHub.Copilot.Rpc.ModelBillingTokenPricesLongContext
                 {
                     InputPrice = 4.0,
                     OutputPrice = 16.0,
                     CachePrice = 1.0,
-                    ContextMax = 1_000_000
+                    ContextMax = 1_000_000L
                 }
             }
         };
@@ -82,22 +82,22 @@ public class SerializationTests
         Assert.Equal(2.0, tokenPrices.GetProperty("inputPrice").GetDouble());
         Assert.Equal(8.0, tokenPrices.GetProperty("outputPrice").GetDouble());
         Assert.Equal(0.5, tokenPrices.GetProperty("cachePrice").GetDouble());
-        Assert.Equal(1_000_000, tokenPrices.GetProperty("batchSize").GetInt32());
-        Assert.Equal(128_000, tokenPrices.GetProperty("contextMax").GetInt32());
+        Assert.Equal(1_000_000L, tokenPrices.GetProperty("batchSize").GetInt64());
+        Assert.Equal(128_000L, tokenPrices.GetProperty("contextMax").GetInt64());
         var longContext = tokenPrices.GetProperty("longContext");
         Assert.Equal(4.0, longContext.GetProperty("inputPrice").GetDouble());
-        Assert.Equal(1_000_000, longContext.GetProperty("contextMax").GetInt32());
+        Assert.Equal(1_000_000L, longContext.GetProperty("contextMax").GetInt64());
 
         var deserialized = JsonSerializer.Deserialize<ModelBilling>(json, options);
         Assert.NotNull(deserialized);
         Assert.Equal(1.5, deserialized.Multiplier);
         Assert.NotNull(deserialized.TokenPrices);
         Assert.Equal(2.0, deserialized.TokenPrices.InputPrice);
-        Assert.Equal(1_000_000, deserialized.TokenPrices.BatchSize);
-        Assert.Equal(128_000, deserialized.TokenPrices.ContextMax);
+        Assert.Equal(1_000_000L, deserialized.TokenPrices.BatchSize);
+        Assert.Equal(128_000L, deserialized.TokenPrices.ContextMax);
         Assert.NotNull(deserialized.TokenPrices.LongContext);
         Assert.Equal(16.0, deserialized.TokenPrices.LongContext.OutputPrice);
-        Assert.Equal(1_000_000, deserialized.TokenPrices.LongContext.ContextMax);
+        Assert.Equal(1_000_000L, deserialized.TokenPrices.LongContext.ContextMax);
     }
 
     [Fact]

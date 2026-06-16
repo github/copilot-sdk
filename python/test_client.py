@@ -11,6 +11,8 @@ import pytest
 
 from copilot import (
     CopilotClient,
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
     RuntimeConnection,
     StdioRuntimeConnection,
     define_tool,
@@ -19,8 +21,6 @@ from copilot.client import (
     CloudSessionOptions,
     CloudSessionRepository,
     ModelBilling,
-    ModelBillingTokenPrices,
-    ModelBillingTokenPricesLongContext,
     ModelCapabilities,
     ModelInfo,
     ModelLimits,

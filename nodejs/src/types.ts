@@ -14,10 +14,17 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { RemoteSessionMode } from "./generated/rpc.js";
-import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type {
+    ModelBillingTokenPrices,
+    OpenCanvasInstance,
+    RemoteSessionMode,
+} from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type {
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
+} from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -2380,44 +2387,6 @@ export interface ModelBilling {
     multiplier?: number;
     /** Token-level pricing information for this model */
     tokenPrices?: ModelBillingTokenPrices;
-}
-
-/**
- * Token-level pricing information for a model
- */
-export interface ModelBillingTokenPrices {
-    /** AI Credits cost per billing batch of input tokens */
-    inputPrice?: number;
-    /** AI Credits cost per billing batch of output tokens */
-    outputPrice?: number;
-    /** AI Credits cost per billing batch of cached tokens */
-    cachePrice?: number;
-    /** Number of tokens per standard billing batch */
-    batchSize?: number;
-    /**
-     * Prompt token budget (max_prompt_tokens) for the default tier. The total
-     * context window is this value plus the model's max_output_tokens.
-     */
-    contextMax?: number;
-    /** Long context tier pricing (available for models with extended context windows) */
-    longContext?: ModelBillingTokenPricesLongContext;
-}
-
-/**
- * Long context tier pricing (available for models with extended context windows)
- */
-export interface ModelBillingTokenPricesLongContext {
-    /** AI Credits cost per billing batch of input tokens */
-    inputPrice?: number;
-    /** AI Credits cost per billing batch of output tokens */
-    outputPrice?: number;
-    /** AI Credits cost per billing batch of cached tokens */
-    cachePrice?: number;
-    /**
-     * Prompt token budget (max_prompt_tokens) for the long context tier. The
-     * total context window is this value plus the model's max_output_tokens.
-     */
-    contextMax?: number;
 }
 
 /**

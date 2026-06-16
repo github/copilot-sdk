@@ -36,8 +36,6 @@ from .client import (
     GetStatusResponse,
     LogLevel,
     ModelBilling,
-    ModelBillingTokenPrices,
-    ModelBillingTokenPricesLongContext,
     ModelCapabilities,
     ModelCapabilitiesOverride,
     ModelInfo,
@@ -69,6 +67,10 @@ from .client import (
     TcpRuntimeConnection,
     TelemetryConfig,
     UriRuntimeConnection,
+)
+from .generated.rpc import (
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
 )
 from .generated.session_events import (
     PermissionRequest,

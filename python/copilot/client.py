@@ -62,6 +62,8 @@ from .canvas import (
 )
 from .generated.rpc import (
     ClientSessionApiHandlers,
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
     RemoteSessionMode,
     ServerRpc,
@@ -668,105 +670,6 @@ class ModelPolicy:
 
 
 @dataclass
-class ModelBillingTokenPricesLongContext:
-    """Long context tier pricing (available for models with extended context windows)"""
-
-    # AI Credits cost per billing batch of input tokens
-    input_price: float | None = None
-    # AI Credits cost per billing batch of output tokens
-    output_price: float | None = None
-    # AI Credits cost per billing batch of cached tokens
-    cache_price: float | None = None
-    # Prompt token budget (max_prompt_tokens) for the long context tier. The total
-    # context window is this value plus the model's max_output_tokens.
-    context_max: int | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> ModelBillingTokenPricesLongContext:
-        assert isinstance(obj, dict)
-        input_price = obj.get("inputPrice")
-        output_price = obj.get("outputPrice")
-        cache_price = obj.get("cachePrice")
-        context_max = obj.get("contextMax")
-        return ModelBillingTokenPricesLongContext(
-            input_price=float(input_price) if input_price is not None else None,
-            output_price=float(output_price) if output_price is not None else None,
-            cache_price=float(cache_price) if cache_price is not None else None,
-            context_max=int(context_max) if context_max is not None else None,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.input_price is not None:
-            result["inputPrice"] = self.input_price
-        if self.output_price is not None:
-            result["outputPrice"] = self.output_price
-        if self.cache_price is not None:
-            result["cachePrice"] = self.cache_price
-        if self.context_max is not None:
-            result["contextMax"] = self.context_max
-        return result
-
-
-@dataclass
-class ModelBillingTokenPrices:
-    """Token-level pricing information for a model"""
-
-    # AI Credits cost per billing batch of input tokens
-    input_price: float | None = None
-    # AI Credits cost per billing batch of output tokens
-    output_price: float | None = None
-    # AI Credits cost per billing batch of cached tokens
-    cache_price: float | None = None
-    # Number of tokens per standard billing batch
-    batch_size: int | None = None
-    # Prompt token budget (max_prompt_tokens) for the default tier. The total
-    # context window is this value plus the model's max_output_tokens.
-    context_max: int | None = None
-    # Long context tier pricing (available for models with extended context windows)
-    long_context: ModelBillingTokenPricesLongContext | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> ModelBillingTokenPrices:
-        assert isinstance(obj, dict)
-        input_price = obj.get("inputPrice")
-        output_price = obj.get("outputPrice")
-        cache_price = obj.get("cachePrice")
-        batch_size = obj.get("batchSize")
-        context_max = obj.get("contextMax")
-        long_context_dict = obj.get("longContext")
-        long_context = (
-            ModelBillingTokenPricesLongContext.from_dict(long_context_dict)
-            if long_context_dict is not None
-            else None
-        )
-        return ModelBillingTokenPrices(
-            input_price=float(input_price) if input_price is not None else None,
-            output_price=float(output_price) if output_price is not None else None,
-            cache_price=float(cache_price) if cache_price is not None else None,
-            batch_size=int(batch_size) if batch_size is not None else None,
-            context_max=int(context_max) if context_max is not None else None,
-            long_context=long_context,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.input_price is not None:
-            result["inputPrice"] = self.input_price
-        if self.output_price is not None:
-            result["outputPrice"] = self.output_price
-        if self.cache_price is not None:
-            result["cachePrice"] = self.cache_price
-        if self.batch_size is not None:
-            result["batchSize"] = self.batch_size
-        if self.context_max is not None:
-            result["contextMax"] = self.context_max
-        if self.long_context is not None:
-            result["longContext"] = self.long_context.to_dict()
-        return result
-
-
-@dataclass
 class ModelBilling:
     """Model billing information"""
 
@@ -777,12 +680,8 @@ class ModelBilling:
     def from_dict(obj: Any) -> ModelBilling:
         assert isinstance(obj, dict)
         multiplier = obj.get("multiplier")
-        token_prices_dict = obj.get("tokenPrices")
-        token_prices = (
-            ModelBillingTokenPrices.from_dict(token_prices_dict)
-            if token_prices_dict is not None
-            else None
-        )
+        tp = obj.get("tokenPrices")
+        token_prices = ModelBillingTokenPrices.from_dict(tp) if tp is not None else None
         return ModelBilling(
             multiplier=float(multiplier) if multiplier is not None else None,
             token_prices=token_prices,

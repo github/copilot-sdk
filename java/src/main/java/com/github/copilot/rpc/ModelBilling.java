@@ -6,6 +6,7 @@ package com.github.copilot.rpc;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.generated.rpc.ModelBillingTokenPrices;
 
 /**
  * Model billing information.
