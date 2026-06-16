@@ -43,6 +43,11 @@ export type {
 export type {
     LlmInferenceHeaders,
 } from "./generated/rpc.js";
+export type {
+    LlmRequestContext,
+    LlmWebSocketUpstream,
+} from "./llmRequestHandler.js";
+export { LlmRequestHandler, wrapGlobalWebSocket } from "./llmRequestHandler.js";
 export { createLlmInferenceAdapter } from "./llmInferenceProvider.js";
 
 /**
