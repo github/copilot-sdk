@@ -2053,6 +2053,101 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     console.log(`✅ RPC wrapper classes generated`);
 }
 
+// ── Package-info generation ──────────────────────────────────────────────────
+
+async function generateGeneratedPackageInfo(packageDir: string): Promise<void> {
+    const lines: string[] = [];
+    lines.push(COPYRIGHT);
+    lines.push("");
+    lines.push(AUTO_GENERATED_HEADER);
+    lines.push(GENERATED_FROM_SESSION_EVENTS);
+    lines.push("");
+    lines.push(`/**`);
+    lines.push(` * Auto-generated session event types for the GitHub Copilot SDK.`);
+    lines.push(` *`);
+    lines.push(` * <p>`);
+    lines.push(` * This package contains Java classes generated from the Copilot CLI's`);
+    lines.push(` * {@code session-events.schema.json}. Each event type corresponds to a`);
+    lines.push(` * notification emitted during a {@link com.github.copilot.CopilotSession}`);
+    lines.push(` * interaction.`);
+    lines.push(` *`);
+    lines.push(` * <h2>Key Classes</h2>`);
+    lines.push(` * <ul>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.SessionEvent} - Abstract sealed base`);
+    lines.push(` * class for all session events. Deserialized polymorphically via the`);
+    lines.push(` * {@code type} discriminator.</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.UnknownSessionEvent} - Fallback for`);
+    lines.push(` * event types not yet known to this SDK version, preserving forward`);
+    lines.push(` * compatibility.</li>`);
+    lines.push(` * </ul>`);
+    lines.push(` *`);
+    lines.push(` * <h2>Example Usage</h2>`);
+    lines.push(` *`);
+    lines.push(` * <pre>{@code`);
+    lines.push(` * session.on(AssistantMessageEvent.class, msg -> {`);
+    lines.push(` *     System.out.println(msg.getData().content());`);
+    lines.push(` * });`);
+    lines.push(` * }</pre>`);
+    lines.push(` *`);
+    lines.push(` * <h2>Related Packages</h2>`);
+    lines.push(` * <ul>`);
+    lines.push(` * <li>{@link com.github.copilot} - Core SDK classes</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.rpc} - Auto-generated RPC`);
+    lines.push(` * parameter and result types</li>`);
+    lines.push(` * </ul>`);
+    lines.push(` *`);
+    lines.push(` * @see com.github.copilot.CopilotSession`);
+    lines.push(` * @see com.github.copilot.generated.SessionEvent`);
+    lines.push(` */`);
+    lines.push(`package com.github.copilot.generated;`);
+    lines.push("");
+
+    await writeGeneratedFile(`${packageDir}/package-info.java`, lines.join("\n"));
+}
+
+async function generateRpcPackageInfo(packageDir: string): Promise<void> {
+    const lines: string[] = [];
+    lines.push(COPYRIGHT);
+    lines.push("");
+    lines.push(AUTO_GENERATED_HEADER);
+    lines.push(GENERATED_FROM_API);
+    lines.push("");
+    lines.push(`/**`);
+    lines.push(` * Auto-generated RPC parameter and result types for the GitHub Copilot SDK.`);
+    lines.push(` *`);
+    lines.push(` * <p>`);
+    lines.push(` * This package contains Java records and classes generated from the Copilot`);
+    lines.push(` * CLI's {@code api.schema.json}. These types represent the request parameters`);
+    lines.push(` * and response payloads for all JSON-RPC methods exposed by the CLI.`);
+    lines.push(` *`);
+    lines.push(` * <h2>Key Classes</h2>`);
+    lines.push(` * <ul>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.rpc.RpcCaller} - Functional interface`);
+    lines.push(` * for invoking JSON-RPC methods with typed responses.</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.rpc.ServerRpc} - Typed client for`);
+    lines.push(` * server-level RPC methods (session management, model listing, etc.).</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.rpc.SessionRpc} - Typed client for`);
+    lines.push(` * session-scoped RPC methods (send messages, manage tools, etc.). Automatically`);
+    lines.push(` * injects the {@code sessionId} into every call.</li>`);
+    lines.push(` * </ul>`);
+    lines.push(` *`);
+    lines.push(` * <h2>Related Packages</h2>`);
+    lines.push(` * <ul>`);
+    lines.push(` * <li>{@link com.github.copilot} - Core SDK classes</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated} - Auto-generated session event`);
+    lines.push(` * types</li>`);
+    lines.push(` * </ul>`);
+    lines.push(` *`);
+    lines.push(` * @see com.github.copilot.CopilotClient`);
+    lines.push(` * @see com.github.copilot.generated.rpc.ServerRpc`);
+    lines.push(` * @see com.github.copilot.generated.rpc.SessionRpc`);
+    lines.push(` */`);
+    lines.push(`package com.github.copilot.generated.rpc;`);
+    lines.push("");
+
+    await writeGeneratedFile(`${packageDir}/package-info.java`, lines.join("\n"));
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -2073,6 +2168,12 @@ async function main(): Promise<void> {
     await generateSessionEvents(sessionEventsSchemaPath);
     await generateRpcTypes(apiSchemaPath);
     await generateRpcWrappers(apiSchemaPath);
+
+    // Generate package-info.java for each generated package
+    const generatedPkgDir = `src/generated/java/com/github/copilot/generated`;
+    const rpcPkgDir = `src/generated/java/com/github/copilot/generated/rpc`;
+    await generateGeneratedPackageInfo(generatedPkgDir);
+    await generateRpcPackageInfo(rpcPkgDir);
 
     console.log("\n✅ Java code generation complete!");
 }
