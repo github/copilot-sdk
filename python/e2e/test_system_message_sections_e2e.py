@@ -14,17 +14,18 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestSystemMessageSections:
-    async def test_should_use_replaced_identity_section_in_response(
-        self, ctx: E2ETestContext
-    ):
-        """Test that replacing the identity section causes the assistant to adopt the custom identity"""
+    async def test_should_use_replaced_identity_section_in_response(self, ctx: E2ETestContext):
+        """Test that replacing the identity section causes the assistant to adopt a new persona"""
         session = await ctx.client.create_session(
             system_message={
                 "mode": "customize",
                 "sections": {
                     "identity": {
                         "action": "replace",
-                        "content": "You are a helpful gardening assistant called Botanica. You only answer questions about plants and gardening.",
+                        "content": (
+                            "You are a helpful gardening assistant called Botanica."
+                            " You only answer questions about plants and gardening."
+                        ),
                     },
                 },
             },
@@ -35,8 +36,9 @@ class TestSystemMessageSections:
 
         assert response is not None, "Expected a response from the assistant"
         content = response.data.content.lower()
-        assert (
-            "botanica" in content or "garden" in content or "plant" in content
-        ), f"Expected response to reflect the replaced identity section, but got: {response.data.content}"
+        assert "botanica" in content or "garden" in content or "plant" in content, (
+            f"Expected response to reflect the replaced identity section,"
+            f" but got: {response.data.content}"
+        )
 
         await session.disconnect()
