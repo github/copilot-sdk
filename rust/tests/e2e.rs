@@ -119,6 +119,8 @@ mod subagent_hooks;
 mod support;
 #[path = "e2e/suspend.rs"]
 mod suspend;
+#[path = "e2e/system_message_sections.rs"]
+mod system_message_sections;
 #[path = "e2e/system_message_transform.rs"]
 mod system_message_transform;
 #[path = "e2e/telemetry.rs"]
