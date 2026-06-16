@@ -6,6 +6,12 @@ See [github/copilot-sdk](https://github.com/github/copilot-sdk) for the equivale
 
 **Releases:** [github.com/github/copilot-sdk/releases?q=rust%2F](https://github.com/github/copilot-sdk/releases?q=rust%2F) — per-version release notes for the Rust crate.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Rust 1.94.0 or later
+
 ## Quick Start
 
 ```rust,no_run
