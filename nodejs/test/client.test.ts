@@ -1655,6 +1655,22 @@ describe("CopilotClient", () => {
                         supports: { vision: false, reasoningEffort: false },
                         limits: { max_context_window_tokens: 128000 },
                     },
+                    billing: {
+                        multiplier: 1.5,
+                        tokenPrices: {
+                            inputPrice: 2.0,
+                            outputPrice: 8.0,
+                            cachePrice: 0.5,
+                            batchSize: 1000000,
+                            contextMax: 128000,
+                            longContext: {
+                                inputPrice: 4.0,
+                                outputPrice: 16.0,
+                                cachePrice: 1.0,
+                                contextMax: 1000000,
+                            },
+                        },
+                    },
                 },
             ];
 
@@ -1666,6 +1682,7 @@ describe("CopilotClient", () => {
             const models = await client.listModels();
             expect(handler).toHaveBeenCalledTimes(1);
             expect(models).toEqual(customModels);
+            expect(models[0].billing?.tokenPrices?.longContext?.contextMax).toBe(1000000);
         });
 
         it("caches onListModels results on subsequent calls", async () => {

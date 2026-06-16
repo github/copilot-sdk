@@ -3335,6 +3335,12 @@ public sealed class ModelBilling
     /// </summary>
     [JsonPropertyName("multiplier")]
     public double? Multiplier { get; set; }
+
+    /// <summary>
+    /// Token-level pricing information for this model.
+    /// </summary>
+    [JsonPropertyName("tokenPrices")]
+    public ModelBillingTokenPrices? TokenPrices { get; set; }
 }
 
 /// <summary>
@@ -3536,6 +3542,8 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(McpServerConfig))]
 [JsonSerializable(typeof(MessageOptions))]
 [JsonSerializable(typeof(ModelBilling))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPrices))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPricesLongContext))]
 [JsonSerializable(typeof(ModelCapabilities))]
 [JsonSerializable(typeof(ModelCapabilitiesOverride))]
 [JsonSerializable(typeof(ModelInfo))]

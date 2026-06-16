@@ -7,11 +7,14 @@ package com.github.copilot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.ToolExecutionProgressEvent;
+import com.github.copilot.generated.rpc.ModelBillingTokenPrices;
+import com.github.copilot.generated.rpc.ModelBillingTokenPricesLongContext;
 import com.github.copilot.rpc.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.OptionalDouble;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -143,7 +146,20 @@ public class MetadataApiTest {
                         "terms": "https://example.com/terms"
                     },
                     "billing": {
-                        "multiplier": 1.5
+                        "multiplier": 1.5,
+                        "tokenPrices": {
+                            "inputPrice": 2.0,
+                            "outputPrice": 8.0,
+                            "cachePrice": 0.5,
+                            "batchSize": 1000000,
+                            "contextMax": 128000,
+                            "longContext": {
+                                "inputPrice": 4.0,
+                                "outputPrice": 16.0,
+                                "cachePrice": 1.0,
+                                "contextMax": 1000000
+                            }
+                        }
                     }
                 }
                 """;
@@ -174,6 +190,49 @@ public class MetadataApiTest {
         // Billing
         assertNotNull(model.getBilling());
         assertEquals(1.5, model.getBilling().getMultiplier());
+        assertEquals(OptionalDouble.of(1.5), model.getBilling().getMultiplierOpt());
+
+        // Token prices
+        ModelBillingTokenPrices tokenPrices = model.getBilling().getTokenPrices();
+        assertNotNull(tokenPrices);
+        assertEquals(2.0, tokenPrices.inputPrice());
+        assertEquals(8.0, tokenPrices.outputPrice());
+        assertEquals(0.5, tokenPrices.cachePrice());
+        assertEquals(Long.valueOf(1000000), tokenPrices.batchSize());
+        assertEquals(Long.valueOf(128000), tokenPrices.contextMax());
+
+        // Long context tier
+        ModelBillingTokenPricesLongContext longContext = tokenPrices.longContext();
+        assertNotNull(longContext);
+        assertEquals(4.0, longContext.inputPrice());
+        assertEquals(16.0, longContext.outputPrice());
+        assertEquals(1.0, longContext.cachePrice());
+        assertEquals(Long.valueOf(1000000), longContext.contextMax());
+    }
+
+    @Test
+    void testModelBillingSerializationOmitsNullMultiplier() throws Exception {
+        var billing = new ModelBilling();
+
+        String json = MAPPER.writeValueAsString(billing);
+
+        assertFalse(json.contains("multiplier"));
+    }
+
+    @Test
+    void testModelBillingMultiplierOptPresent() throws Exception {
+        ModelBilling billing = MAPPER.readValue("{\"multiplier\": 1.5}", ModelBilling.class);
+
+        assertEquals(OptionalDouble.of(1.5), billing.getMultiplierOpt());
+        assertEquals(1.5, billing.getMultiplier());
+    }
+
+    @Test
+    void testModelBillingMultiplierOptAbsent() throws Exception {
+        ModelBilling billing = MAPPER.readValue("{}", ModelBilling.class);
+
+        assertEquals(OptionalDouble.empty(), billing.getMultiplierOpt());
+        assertEquals(0.0, billing.getMultiplier());
     }
 
     @Test
