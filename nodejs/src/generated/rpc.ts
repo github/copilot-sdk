@@ -610,6 +610,17 @@ export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
  */
 export type McpServerAuthConfig = boolean | McpServerAuthConfigRedirectPort;
 /**
+ * Controls if tools provided by this server can be loaded on demand via tool search (auto) or always included in the initial tool list (never)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigDeferTools".
+ */
+export type McpServerConfigDeferTools =
+  /** Tools may be deferred under certain conditions */
+  | "auto"
+  /** Tools are always included in the initial tool list, even when tool search is enabled. */
+  | "never";
+/**
  * Remote transport type. Defaults to "http" when omitted.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2229,6 +2240,7 @@ export interface CopilotUserResponse {
   quota_snapshots?: CopilotUserResponseQuotaSnapshots;
   restricted_telemetry?: boolean;
   token_based_billing?: boolean;
+  can_upgrade_plan?: boolean;
   quota_reset_date_utc?: string;
   limited_user_quotas?: {
     [k: string]: number | undefined;
@@ -4731,6 +4743,7 @@ export interface McpServerConfigStdio {
   timeout?: number;
   oidc?: McpServerAuthConfig;
   auth?: McpServerAuthConfig;
+  deferTools?: McpServerConfigDeferTools;
   /**
    * Executable command used to start the Stdio MCP server process.
    */
@@ -4786,6 +4799,7 @@ export interface McpServerConfigHttp {
   timeout?: number;
   oidc?: McpServerAuthConfig;
   auth?: McpServerAuthConfig;
+  deferTools?: McpServerConfigDeferTools;
   /**
    * URL of the remote MCP server endpoint.
    */
@@ -12729,6 +12743,10 @@ export interface WorkspacesCreateFileRequest {
 /** @experimental */
 export interface WorkspacesDiffRequest {
   mode: WorkspaceDiffMode;
+  /**
+   * When true, ignore whitespace-only changes (git `--ignore-all-space`). Defaults to false.
+   */
+  ignoreWhitespace?: boolean;
 }
 /**
  * Current workspace metadata for the session, including its absolute filesystem path when available.

@@ -2344,6 +2344,11 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("cacheWriteTokens")]
     public long? CacheWriteTokens { get; set; }
 
+    /// <summary>Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("contentFilterTriggered")]
+    public bool? ContentFilterTriggered { get; set; }
+
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
@@ -2361,6 +2366,11 @@ public sealed partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("duration")]
     public TimeSpan? Duration { get; set; }
+
+    /// <summary>Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter".</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("finishReason")]
+    public string? FinishReason { get; set; }
 
     /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4620,6 +4630,11 @@ public sealed partial class ToolExecutionCompleteResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("detailedContent")]
     public string? DetailedContent { get; set; }
+
+    /// <summary>Structured content (arbitrary JSON) returned verbatim by the MCP tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("structuredContent")]
+    public JsonElement? StructuredContent { get; set; }
 
     /// <summary>MCP Apps UI resource content for rendering in a sandboxed iframe.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

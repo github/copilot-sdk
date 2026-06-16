@@ -1428,6 +1428,9 @@ pub struct AssistantUsageData {
     /// Number of tokens written to prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write_tokens: Option<i64>,
+    /// Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_filter_triggered: Option<bool>,
     /// Per-request cost and usage data from the CAPI copilot_usage response field
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1445,6 +1448,9 @@ pub struct AssistantUsageData {
     /// Duration of the API call in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<i64>,
+    /// Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<String>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
@@ -1878,6 +1884,9 @@ pub struct ToolExecutionCompleteResult {
     /// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_content: Option<String>,
+    /// Structured content (arbitrary JSON) returned verbatim by the MCP tool
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub structured_content: Option<serde_json::Value>,
     /// MCP Apps UI resource content for rendering in a sandboxed iframe
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_resource: Option<ToolExecutionCompleteUIResource>,
