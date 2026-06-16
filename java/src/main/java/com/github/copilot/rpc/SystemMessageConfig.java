@@ -131,7 +131,7 @@ public class SystemMessageConfig {
      * @param sections
      *            a map of section identifier to override operation
      * @return this config for method chaining
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public SystemMessageConfig setSections(Map<String, SectionOverride> sections) {
         this.sections = sections;

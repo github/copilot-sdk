@@ -39,7 +39,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @see SystemMessageConfig
  * @see SectionOverrideAction
  * @see SystemMessageSections
- * @since 1.2.0
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SectionOverride {

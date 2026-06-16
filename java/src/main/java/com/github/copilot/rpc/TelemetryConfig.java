@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * }</pre>
  *
  * @see CopilotClientOptions#setTelemetry(TelemetryConfig)
- * @since 1.2.0
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TelemetryConfig {
