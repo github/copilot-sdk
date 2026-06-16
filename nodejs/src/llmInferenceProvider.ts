@@ -45,6 +45,13 @@ export interface LlmInferenceRequest {
      */
     requestBody: AsyncIterable<Uint8Array>;
     /**
+     * Aborts when the runtime cancels this in-flight request (e.g. the
+     * agent turn was aborted upstream). Pass it straight to `fetch` /
+     * `HttpClient.SendAsync` / your transport so the upstream call is torn
+     * down too. After it fires, writes to {@link responseBody} are ignored.
+     */
+    signal: AbortSignal;
+    /**
      * Sink the consumer writes the upstream response into. Call
      * {@link LlmInferenceResponseSink.start} exactly once before writing
      * body chunks, then one or more {@link LlmInferenceResponseSink.write}
@@ -171,6 +178,8 @@ interface PendingState {
     queue: BodyQueue;
     started: boolean;
     finished: boolean;
+    abort: AbortController;
+    cancelled: boolean;
 }
 
 /**
@@ -279,6 +288,23 @@ export function createLlmInferenceAdapter(
         }
     }
 
+    async function finishCancelled(
+        sink: LlmInferenceResponseSink,
+        state: PendingState,
+    ): Promise<void> {
+        if (state.finished) {
+            return;
+        }
+        try {
+            if (!state.started) {
+                await sink.start({ status: 499, headers: {} });
+            }
+            await sink.error({ message: "Request cancelled by runtime", code: "cancelled" });
+        } catch {
+            // Best-effort — the runtime already dropped the request on cancel.
+        }
+    }
+
     return {
         async httpRequestStart(
             params: LlmInferenceHttpRequestStartRequest,
@@ -287,6 +313,8 @@ export function createLlmInferenceAdapter(
                 queue: makeBodyQueue(),
                 started: false,
                 finished: false,
+                abort: new AbortController(),
+                cancelled: false,
             };
             pending.set(params.requestId, state);
             const sink = makeSink(params.requestId, state);
@@ -297,6 +325,7 @@ export function createLlmInferenceAdapter(
                 url: params.url,
                 headers: params.headers,
                 requestBody: state.queue.iterable,
+                signal: state.abort.signal,
                 responseBody: sink,
             };
             void (async () => {
@@ -310,6 +339,14 @@ export function createLlmInferenceAdapter(
                         );
                     }
                 } catch (err) {
+                    if (state.cancelled || state.abort.signal.aborted) {
+                        // The runtime already cancelled this request; the
+                        // provider's throw is just the abort propagating
+                        // out of its upstream call. Acknowledge with a
+                        // terminal cancelled error if we still can.
+                        await finishCancelled(sink, state);
+                        return;
+                    }
                     const message = err instanceof Error ? err.message : String(err);
                     await failViaSink(sink, state, message);
                 }
@@ -324,6 +361,8 @@ export function createLlmInferenceAdapter(
                 return {};
             }
             if (params.cancel) {
+                state.cancelled = true;
+                state.abort.abort();
                 state.queue.push({ cancel: { reason: params.cancelReason } });
                 return {};
             }
