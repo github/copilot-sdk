@@ -752,6 +752,7 @@ var client = new CopilotClient(new CopilotClientOptions
 **TelemetryConfig properties:**
 
 - `OtlpEndpoint` - OTLP HTTP endpoint URL
+- `OtlpProtocol` - OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
 - `FilePath` - File path for JSON-lines trace output
 - `ExporterType` - `"otlp-http"` or `"file"`
 - `SourceName` - Instrumentation scope name

@@ -110,6 +110,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			opts.SessionIdleTimeoutSeconds = 17
 			opts.Telemetry = &copilot.TelemetryConfig{
 				OTLPEndpoint:   "http://127.0.0.1:4318",
+				OTLPProtocol:   "http/protobuf",
 				FilePath:       telemetryPath,
 				ExporterType:   "file",
 				SourceName:     "go-sdk-e2e",
@@ -147,6 +148,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			"COPILOT_SDK_AUTH_TOKEN":                             "process-option-token",
 			"COPILOT_OTEL_ENABLED":                               "true",
 			"OTEL_EXPORTER_OTLP_ENDPOINT":                        "http://127.0.0.1:4318",
+			"OTEL_EXPORTER_OTLP_PROTOCOL":                        "http/protobuf",
 			"COPILOT_OTEL_FILE_EXPORTER_PATH":                    telemetryPath,
 			"COPILOT_OTEL_EXPORTER_TYPE":                         "file",
 			"COPILOT_OTEL_SOURCE_NAME":                           "go-sdk-e2e",
@@ -195,6 +197,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			t.Errorf("Expected session.create.params.includeSubAgentStreamingEvents=false, got %v", params["includeSubAgentStreamingEvents"])
 		}
 	})
+
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +375,7 @@ function saveCapture() {
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+      OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
       COPILOT_OTEL_FILE_EXPORTER_PATH: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
       COPILOT_OTEL_EXPORTER_TYPE: process.env.COPILOT_OTEL_EXPORTER_TYPE,
       COPILOT_OTEL_SOURCE_NAME: process.env.COPILOT_OTEL_SOURCE_NAME,

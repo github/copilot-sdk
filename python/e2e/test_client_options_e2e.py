@@ -92,6 +92,7 @@ function saveCapture() {
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+      OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
       COPILOT_OTEL_FILE_EXPORTER_PATH: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
       COPILOT_OTEL_EXPORTER_TYPE: process.env.COPILOT_OTEL_EXPORTER_TYPE,
       COPILOT_OTEL_SOURCE_NAME: process.env.COPILOT_OTEL_SOURCE_NAME,
@@ -218,6 +219,7 @@ class TestClientOptions:
                 session_idle_timeout_seconds=17,
                 telemetry={
                     "otlp_endpoint": "http://127.0.0.1:4318",
+                    "otlp_protocol": "http/protobuf",
                     "file_path": telemetry_path,
                     "exporter_type": "file",
                     "source_name": "python-sdk-e2e",
@@ -246,6 +248,7 @@ class TestClientOptions:
             assert env["COPILOT_SDK_AUTH_TOKEN"] == "process-option-token"
             assert env["COPILOT_OTEL_ENABLED"] == "true"
             assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://127.0.0.1:4318"
+            assert env["OTEL_EXPORTER_OTLP_PROTOCOL"] == "http/protobuf"
             assert env["COPILOT_OTEL_FILE_EXPORTER_PATH"] == telemetry_path
             assert env["COPILOT_OTEL_EXPORTER_TYPE"] == "file"
             assert env["COPILOT_OTEL_SOURCE_NAME"] == "python-sdk-e2e"
