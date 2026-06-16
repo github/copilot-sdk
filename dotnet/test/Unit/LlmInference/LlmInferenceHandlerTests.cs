@@ -15,6 +15,9 @@ public class LlmInferenceHandlerTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
+    private static Task Dispatch(LlmRequestHandler handler, LlmInferenceRequest request) =>
+        ((ILlmInferenceProvider)handler).OnLlmRequestAsync(request);
+
     private static async IAsyncEnumerable<ReadOnlyMemory<byte>> AsyncBytes(params string[] chunks)
     {
         foreach (var chunk in chunks)
@@ -78,7 +81,7 @@ public class LlmInferenceHandlerTests
         var sink = new RecordingSink();
         var request = HttpRequest(sink, AsyncBytes("{\"hello\":", "\"world\"}"));
 
-        await handler.OnLlmRequestAsync(request).WaitAsync(Timeout);
+        await Dispatch(handler, request).WaitAsync(Timeout);
 
         Assert.Equal("{\"hello\":\"world\"}", forwardedBody);
 
@@ -111,7 +114,7 @@ public class LlmInferenceHandlerTests
         };
         var request = HttpRequest(sink, AsyncBytes("body"), headers: headers);
 
-        await handler.OnLlmRequestAsync(request).WaitAsync(Timeout);
+        await Dispatch(handler, request).WaitAsync(Timeout);
 
         Assert.False(forwarded.ContainsKey("host"), "the forbidden host header must be stripped");
         Assert.Equal("acme", forwarded["x-tenant"]);
@@ -132,7 +135,7 @@ public class LlmInferenceHandlerTests
         var sink = new RecordingSink();
         var request = HttpRequest(sink, AsyncBytes("body"));
 
-        await handler.OnLlmRequestAsync(request).WaitAsync(Timeout);
+        await Dispatch(handler, request).WaitAsync(Timeout);
 
         Assert.Equal("Bearer swapped-token", observedAuth);
     }
@@ -149,7 +152,7 @@ public class LlmInferenceHandlerTests
         var sink = new RecordingSink();
         var request = HttpRequest(sink, AsyncBytes());
 
-        await handler.OnLlmRequestAsync(request).WaitAsync(Timeout);
+        await Dispatch(handler, request).WaitAsync(Timeout);
 
         var start = Assert.Single(sink.Starts);
         Assert.Equal(429, start.Status);

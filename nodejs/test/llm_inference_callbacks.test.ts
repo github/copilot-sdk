@@ -4,14 +4,16 @@
 
 import { describe, expect, it } from "vitest";
 import {
-    createLlmInferenceAdapter,
     LlmRequestHandler,
-    type LlmInferenceProvider,
     type LlmInferenceRequest,
     type LlmInferenceResponseInit,
     type LlmInferenceResponseSink,
     type LlmWebSocketUpstream,
 } from "../src/index.js";
+import {
+    createLlmInferenceAdapter,
+    type LlmInferenceProvider,
+} from "../src/llmInferenceProvider.js";
 
 /**
  * Minimal fake of the server RPC surface the adapter uses to send response

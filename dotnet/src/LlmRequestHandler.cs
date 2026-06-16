@@ -56,9 +56,8 @@ public readonly struct LlmWebSocketMessage(ReadOnlyMemory<byte> data, bool isBin
 
 /// <summary>
 /// Base class for SDK consumers who want to observe or mutate the LLM inference
-/// requests the runtime issues. Implements <see cref="ILlmInferenceProvider"/>,
-/// so an instance can be returned directly from
-/// <see cref="LlmInferenceConfig.CreateLlmInferenceProvider"/>.
+/// requests the runtime issues. An instance is returned directly from
+/// <see cref="LlmInferenceConfig.Handler"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -80,8 +79,7 @@ public readonly struct LlmWebSocketMessage(ReadOnlyMemory<byte> data, bool isBin
 /// — observe or mutate WebSocket messages in either direction.</item>
 /// </list>
 /// <para>
-/// The same subclass handles both transports —
-/// <see cref="OnLlmRequestAsync"/> dispatches on
+/// The same subclass handles both transports — dispatch keys on
 /// <see cref="LlmInferenceRequest.Transport"/>.
 /// </para>
 /// </remarks>
@@ -106,7 +104,7 @@ public class LlmRequestHandler : ILlmInferenceProvider
     };
 
     /// <inheritdoc />
-    public async Task OnLlmRequestAsync(LlmInferenceRequest request)
+    async Task ILlmInferenceProvider.OnLlmRequestAsync(LlmInferenceRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 

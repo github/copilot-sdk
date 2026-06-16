@@ -656,13 +656,12 @@ export class CopilotClient {
         if (!this.llmInferenceConfig) {
             return;
         }
-        const factory = this.llmInferenceConfig.createLlmInferenceProvider;
-        if (!factory) {
+        const provider = this.llmInferenceConfig.handler;
+        if (!provider) {
             throw new Error(
-                "createLlmInferenceProvider is required on client options.llmInference when llmInference is enabled."
+                "handler is required on client options.llmInference when llmInference is enabled."
             );
         }
-        const provider = factory();
         this.llmInferenceHandlers = {
             llmInference: createLlmInferenceAdapter(provider, () => {
                 if (!this.connection) {

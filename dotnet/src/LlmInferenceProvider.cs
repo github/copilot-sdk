@@ -42,8 +42,7 @@ public enum LlmInferenceTransport
 /// (no provider type, endpoint kind, or wire API); consumers that need that
 /// information derive it from the URL / headers themselves.
 /// </remarks>
-[Experimental(Diagnostics.Experimental)]
-public sealed class LlmInferenceRequest
+internal sealed class LlmInferenceRequest
 {
     /// <summary>Opaque runtime-minted id, stable across the request lifecycle.</summary>
     public required string RequestId { get; init; }
@@ -100,8 +99,7 @@ public sealed class LlmInferenceRequest
 }
 
 /// <summary>Response head passed to <see cref="LlmInferenceResponseSink.StartAsync"/>.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class LlmInferenceResponseInit
+internal sealed class LlmInferenceResponseInit
 {
     /// <summary>HTTP status code (101 acknowledges a WebSocket upgrade).</summary>
     public int Status { get; init; }
@@ -119,8 +117,7 @@ public sealed class LlmInferenceResponseInit
 /// exactly one of <see cref="EndAsync"/> or <see cref="ErrorAsync"/>. Calling
 /// out of order throws.
 /// </summary>
-[Experimental(Diagnostics.Experimental)]
-public abstract class LlmInferenceResponseSink
+internal abstract class LlmInferenceResponseSink
 {
     /// <summary>Sends the response head (status + headers) back to the runtime.</summary>
     public abstract Task StartAsync(LlmInferenceResponseInit init);
@@ -139,24 +136,23 @@ public abstract class LlmInferenceResponseSink
 }
 
 /// <summary>
-/// Implemented by SDK consumers to service the LLM inference requests the
-/// runtime would otherwise issue itself. The same callback handles both
-/// buffered and streaming responses — the consumer just calls
+/// Internal seam implemented by <see cref="LlmRequestHandler"/> and consumed by
+/// <see cref="LlmInferenceAdapter"/>. The single callback handles both buffered
+/// and streaming responses — the implementer calls
 /// <see cref="LlmInferenceResponseSink.WriteAsync(ReadOnlyMemory{byte})"/> zero
 /// or more times before <see cref="LlmInferenceResponseSink.EndAsync"/>.
 /// </summary>
 /// <remarks>
-/// Prefer subclassing <see cref="LlmRequestHandler"/> for a transparent
-/// pass-through starting point; implement this interface directly only when you
-/// need full control over the raw byte streams.
+/// Not part of the public API: consumers subclass <see cref="LlmRequestHandler"/>
+/// rather than implementing this directly. It exists so the adapter can drive any
+/// handler through one uniform entry point.
 /// </remarks>
-[Experimental(Diagnostics.Experimental)]
-public interface ILlmInferenceProvider
+internal interface ILlmInferenceProvider
 {
     /// <summary>
-    /// Invoked by the runtime once per outbound LLM request the consumer has
-    /// opted to handle. The consumer is responsible for eventually calling
-    /// either <see cref="LlmInferenceResponseSink.EndAsync"/> or
+    /// Invoked by the adapter once per outbound LLM request. The implementer is
+    /// responsible for eventually calling either
+    /// <see cref="LlmInferenceResponseSink.EndAsync"/> or
     /// <see cref="LlmInferenceResponseSink.ErrorAsync"/>; failing to do so leaks
     /// runtime state. Throwing surfaces a transport-level failure to the runtime
     /// (equivalent to <c>ResponseBody.ErrorAsync(...)</c> when

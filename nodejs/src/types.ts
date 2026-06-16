@@ -9,7 +9,7 @@
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
-import type { LlmInferenceProvider } from "./llmInferenceProvider.js";
+import type { LlmRequestHandler } from "./llmRequestHandler.js";
 import type {
     ReasoningSummary,
     SessionEvent as GeneratedSessionEvent,
@@ -35,7 +35,6 @@ export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
 export type {
-    LlmInferenceProvider,
     LlmInferenceRequest,
     LlmInferenceResponseInit,
     LlmInferenceResponseSink,
@@ -43,7 +42,6 @@ export type {
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
 export type { LlmRequestContext, LlmWebSocketUpstream } from "./llmRequestHandler.js";
 export { LlmRequestHandler, wrapGlobalWebSocket } from "./llmRequestHandler.js";
-export { createLlmInferenceAdapter } from "./llmInferenceProvider.js";
 
 /**
  * Options for creating a CopilotClient
@@ -2505,15 +2503,18 @@ export interface SessionFsConfig {
  */
 export interface LlmInferenceConfig {
     /**
-     * Factory invoked once during client construction to obtain the
-     * process-wide LLM inference provider. The runtime routes all outbound
-     * model HTTP requests through this provider for the lifetime of the
-     * client, regardless of which session triggered them.
+     * The handler that services LLM inference requests. The runtime routes
+     * all outbound model HTTP and WebSocket requests through this handler
+     * for the lifetime of the client, regardless of which session triggered
+     * them.
+     *
+     * Subclass {@link LlmRequestHandler} and override the hooks you need;
+     * an instance that overrides nothing is a transparent pass-through.
      *
      * Per-request session correlation is available on
      * {@link LlmInferenceRequest.sessionId}.
      */
-    createLlmInferenceProvider?: () => LlmInferenceProvider;
+    handler?: LlmRequestHandler;
 }
 
 /**

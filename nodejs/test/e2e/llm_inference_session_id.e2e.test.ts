@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll, type LlmInferenceRequest } from "../../src/index.js";
+import { approveAll, LlmRequestHandler, type LlmInferenceRequest } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 const SYNTHETIC_TEXT = "OK from the synthetic stream.";
@@ -253,16 +253,16 @@ describe("LLM inference callback threads the runtime session id (CAPI + BYOK)", 
     const { copilotClient: client } = await createSdkTestContext({
         copilotClientOptions: {
             llmInference: {
-                createLlmInferenceProvider: () => ({
-                    async onLlmRequest(req: LlmInferenceRequest): Promise<void> {
+                handler: new (class extends LlmRequestHandler {
+                    override async onLlmRequest(req: LlmInferenceRequest): Promise<void> {
                         records.push({ url: req.url, sessionId: req.sessionId });
                         if (isInferenceUrl(req.url)) {
                             await handleInference(req);
                         } else {
                             await handleNonInferenceModelTraffic(req);
                         }
-                    },
-                }),
+                    }
+                })(),
             },
         },
     });

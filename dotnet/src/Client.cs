@@ -1696,18 +1696,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     private ClientGlobalApiHandlers? BuildClientGlobalApis()
     {
-        var factory = _options.LlmInference?.CreateLlmInferenceProvider;
-        if (factory is null)
+        var handler = _options.LlmInference?.Handler;
+        if (handler is null)
         {
             return null;
         }
 
-        var provider = factory()
-            ?? throw new InvalidOperationException("LlmInferenceConfig.CreateLlmInferenceProvider returned null.");
-
         return new ClientGlobalApiHandlers
         {
-            LlmInference = new LlmInferenceAdapter(provider, () => _serverRpc),
+            LlmInference = new LlmInferenceAdapter(handler, () => _serverRpc),
         };
     }
 

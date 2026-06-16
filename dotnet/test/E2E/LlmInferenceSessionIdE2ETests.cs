@@ -26,7 +26,7 @@ public class LlmInferenceSessionIdE2ETests(E2ETestFixture fixture, ITestOutputHe
             Connection = RuntimeConnection.ForStdio(),
             LlmInference = new LlmInferenceConfig
             {
-                CreateLlmInferenceProvider = () => provider,
+                Handler = provider,
             },
         });
 

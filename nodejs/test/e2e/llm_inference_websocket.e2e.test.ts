@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll, type LlmInferenceRequest } from "../../src/index.js";
+import { approveAll, LlmRequestHandler, type LlmInferenceRequest } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 const WS_TEXT = "OK from the synthetic ws.";
@@ -168,8 +168,8 @@ describe("LLM inference callback — full-duplex WebSocket transport", async () 
     const { copilotClient: client, env } = await createSdkTestContext({
         copilotClientOptions: {
             llmInference: {
-                createLlmInferenceProvider: () => ({
-                    async onLlmRequest(req: LlmInferenceRequest): Promise<void> {
+                handler: new (class extends LlmRequestHandler {
+                    override async onLlmRequest(req: LlmInferenceRequest): Promise<void> {
                         received.push(req);
                         if (req.transport === "websocket") {
                             await handleWebSocket(req, () => {
@@ -188,8 +188,8 @@ describe("LLM inference callback — full-duplex WebSocket transport", async () 
                         } else {
                             await handleNonInferenceModelTraffic(req);
                         }
-                    },
-                }),
+                    }
+                })(),
             },
         },
     });

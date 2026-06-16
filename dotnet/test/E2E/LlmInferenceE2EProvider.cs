@@ -3,6 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -11,19 +13,27 @@ namespace GitHub.Copilot.Test.E2E;
 #pragma warning disable GHCP001 // The LLM inference surface is intentionally experimental.
 
 /// <summary>
-/// An <see cref="ILlmInferenceProvider"/> for e2e tests that records every
-/// intercepted request (url + threaded session id) and fabricates well-formed
-/// responses for every model-layer endpoint, so an agent turn completes
-/// entirely off-network — no upstream server and no CAPI proxy acting as the
-/// inference endpoint.
+/// A <see cref="LlmRequestHandler"/> subclass for e2e tests that records every
+/// intercepted request (url + threaded session id) and fully replaces the
+/// upstream call with a fabricated, well-formed response for every model-layer
+/// endpoint, so an agent turn completes entirely off-network — no upstream
+/// server and no CAPI proxy acting as the inference endpoint.
 /// </summary>
 /// <remarks>
+/// <para>
+/// This exercises the public extension surface end to end: a consumer subclasses
+/// <see cref="LlmRequestHandler"/> and overrides <see cref="ForwardAsync"/> to
+/// short-circuit the upstream HTTP call with any <see cref="HttpResponseMessage"/>
+/// it likes. The base class streams that response back to the runtime.
+/// </para>
+/// <para>
 /// All response bodies are emitted as raw JSON string literals rather than via
 /// <c>JsonSerializer</c>: the test project disables reflection-based STJ on
 /// net8.0 (<c>JsonSerializerIsReflectionEnabledByDefault=false</c>), so
 /// serializing anonymous types would throw at runtime.
+/// </para>
 /// </remarks>
-internal sealed class RecordingInferenceProvider : ILlmInferenceProvider
+internal sealed class RecordingInferenceProvider : LlmRequestHandler
 {
     internal const string SyntheticText = "OK from the synthetic stream.";
 
@@ -36,18 +46,22 @@ internal sealed class RecordingInferenceProvider : ILlmInferenceProvider
     public IReadOnlyList<InterceptedRequest> InferenceRequests =>
         [.. _records.Where(r => IsInferenceUrl(r.Url))];
 
-    public async Task OnLlmRequestAsync(LlmInferenceRequest request)
+    protected override async Task<HttpResponseMessage> ForwardAsync(HttpRequestMessage request, LlmRequestContext ctx)
     {
-        _records.Enqueue(new InterceptedRequest(request.Url, request.SessionId));
+        var url = request.RequestUri!.ToString();
+        _records.Enqueue(new InterceptedRequest(url, ctx.SessionId));
 
-        if (IsInferenceUrl(request.Url))
-        {
-            await HandleInferenceAsync(request).ConfigureAwait(false);
-        }
-        else
-        {
-            await HandleNonInferenceModelTrafficAsync(request).ConfigureAwait(false);
-        }
+        var bodyText = request.Content is null
+            ? string.Empty
+#if NET8_0_OR_GREATER
+            : await request.Content.ReadAsStringAsync(ctx.CancellationToken).ConfigureAwait(false);
+#else
+            : await request.Content.ReadAsStringAsync().ConfigureAwait(false);
+#endif
+
+        return IsInferenceUrl(url)
+            ? BuildInferenceResponse(url, bodyText)
+            : BuildNonInferenceResponse(url);
     }
 
     internal static bool IsInferenceUrl(string url)
@@ -59,34 +73,30 @@ internal sealed class RecordingInferenceProvider : ILlmInferenceProvider
             || u.EndsWith("/messages", StringComparison.Ordinal);
     }
 
-    private static async Task<string> DrainRequestAsync(LlmInferenceRequest req)
+    /// <summary>
+    /// Synthesizes a well-formed inference response so the agent turn completes.
+    /// The runtime selects <c>/responses</c> for both the CAPI and BYOK sessions
+    /// here; <c>/chat/completions</c> is handled too for robustness.
+    /// </summary>
+    private static HttpResponseMessage BuildInferenceResponse(string url, string bodyText)
     {
-        using var buffer = new MemoryStream();
-        await foreach (var chunk in req.RequestBody.ConfigureAwait(false))
+        var wantsStream = WantsStreamRegex.IsMatch(bodyText);
+        var u = url.ToLowerInvariant();
+
+        if (u.Contains("/responses", StringComparison.Ordinal))
         {
-            if (chunk.Length > 0)
-            {
-                buffer.Write(chunk.ToArray(), 0, chunk.Length);
-            }
+            return wantsStream
+                ? Sse(string.Concat(ResponsesStreamEvents))
+                : Json(BufferedResponseJson);
         }
 
-        return Encoding.UTF8.GetString(buffer.ToArray());
-    }
-
-    private static async Task RespondBufferedAsync(LlmInferenceRequest req, int status, string contentType, string body)
-    {
-        await DrainRequestAsync(req).ConfigureAwait(false);
-        await req.ResponseBody.StartAsync(new LlmInferenceResponseInit
+        if (u.Contains("/chat/completions", StringComparison.Ordinal) && wantsStream)
         {
-            Status = status,
-            Headers = Headers(contentType),
-        }).ConfigureAwait(false);
-        if (body.Length > 0)
-        {
-            await req.ResponseBody.WriteAsync(body).ConfigureAwait(false);
+            return Sse(string.Concat(ChatCompletionStreamEvents));
         }
 
-        await req.ResponseBody.EndAsync().ConfigureAwait(false);
+        // /chat/completions non-streaming (and any other inference url) — buffered JSON.
+        return Json(BufferedChatCompletionJson);
     }
 
     /// <summary>
@@ -94,81 +104,36 @@ internal sealed class RecordingInferenceProvider : ILlmInferenceProvider
     /// (catalog, model session, policy). These flow through the same callback
     /// but carry no session id (they happen outside an agent turn).
     /// </summary>
-    private static async Task HandleNonInferenceModelTrafficAsync(LlmInferenceRequest req)
+    private static HttpResponseMessage BuildNonInferenceResponse(string url)
     {
-        var url = req.Url.ToLowerInvariant();
-        if (url.EndsWith("/models", StringComparison.Ordinal))
+        var u = url.ToLowerInvariant();
+        if (u.EndsWith("/models", StringComparison.Ordinal))
         {
-            await RespondBufferedAsync(req, 200, "application/json", ModelCatalogJson).ConfigureAwait(false);
-            return;
+            return Json(ModelCatalogJson);
         }
 
-        if (url.Contains("/models/session", StringComparison.Ordinal))
+        if (u.Contains("/models/session", StringComparison.Ordinal))
         {
-            await RespondBufferedAsync(req, 200, "application/json", "{}").ConfigureAwait(false);
-            return;
+            return Json("{}");
         }
 
-        if (url.Contains("/policy", StringComparison.Ordinal))
+        if (u.Contains("/policy", StringComparison.Ordinal))
         {
-            await RespondBufferedAsync(req, 200, "application/json", "{\"state\":\"enabled\"}").ConfigureAwait(false);
-            return;
+            return Json("{\"state\":\"enabled\"}");
         }
 
-        await RespondBufferedAsync(req, 200, "application/json", "{}").ConfigureAwait(false);
+        return Json("{}");
     }
 
-    /// <summary>
-    /// Synthesizes a well-formed inference response so the agent turn completes.
-    /// The runtime selects <c>/responses</c> for both the CAPI and BYOK sessions
-    /// here; <c>/chat/completions</c> is handled too for robustness.
-    /// </summary>
-    private static async Task HandleInferenceAsync(LlmInferenceRequest req)
+    private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)
     {
-        var bodyText = await DrainRequestAsync(req).ConfigureAwait(false);
-        var wantsStream = WantsStreamRegex.IsMatch(bodyText);
-        var url = req.Url.ToLowerInvariant();
+        Content = new StringContent(body, Encoding.UTF8, "application/json"),
+    };
 
-        if (url.Contains("/responses", StringComparison.Ordinal))
-        {
-            if (!wantsStream)
-            {
-                await req.ResponseBody.StartAsync(new LlmInferenceResponseInit { Status = 200, Headers = Headers("application/json") }).ConfigureAwait(false);
-                await req.ResponseBody.WriteAsync(BufferedResponseJson).ConfigureAwait(false);
-                await req.ResponseBody.EndAsync().ConfigureAwait(false);
-                return;
-            }
-
-            await req.ResponseBody.StartAsync(new LlmInferenceResponseInit { Status = 200, Headers = Headers("text/event-stream") }).ConfigureAwait(false);
-            foreach (var sseEvent in ResponsesStreamEvents)
-            {
-                await req.ResponseBody.WriteAsync(sseEvent).ConfigureAwait(false);
-            }
-
-            await req.ResponseBody.EndAsync().ConfigureAwait(false);
-            return;
-        }
-
-        if (url.Contains("/chat/completions", StringComparison.Ordinal) && wantsStream)
-        {
-            await req.ResponseBody.StartAsync(new LlmInferenceResponseInit { Status = 200, Headers = Headers("text/event-stream") }).ConfigureAwait(false);
-            foreach (var sseEvent in ChatCompletionStreamEvents)
-            {
-                await req.ResponseBody.WriteAsync(sseEvent).ConfigureAwait(false);
-            }
-
-            await req.ResponseBody.EndAsync().ConfigureAwait(false);
-            return;
-        }
-
-        // /chat/completions non-streaming — buffered JSON.
-        await req.ResponseBody.StartAsync(new LlmInferenceResponseInit { Status = 200, Headers = Headers("application/json") }).ConfigureAwait(false);
-        await req.ResponseBody.WriteAsync(BufferedChatCompletionJson).ConfigureAwait(false);
-        await req.ResponseBody.EndAsync().ConfigureAwait(false);
-    }
-
-    private static Dictionary<string, IReadOnlyList<string>> Headers(string contentType) =>
-        new() { ["content-type"] = [contentType] };
+    private static HttpResponseMessage Sse(string body) => new(HttpStatusCode.OK)
+    {
+        Content = new StringContent(body, Encoding.UTF8, "text/event-stream"),
+    };
 
     private static readonly string[] ResponsesStreamEvents =
     [

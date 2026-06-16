@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll, type LlmInferenceRequest } from "../../src/index.js";
+import { approveAll, LlmRequestHandler, type LlmInferenceRequest } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 /**
@@ -74,12 +74,12 @@ describe("LLM inference callback", async () => {
     const { copilotClient: client } = await createSdkTestContext({
         copilotClientOptions: {
             llmInference: {
-                createLlmInferenceProvider: () => ({
-                    async onLlmRequest(req): Promise<void> {
+                handler: new (class extends LlmRequestHandler {
+                    override async onLlmRequest(req): Promise<void> {
                         received.push(req);
                         await handleNonStreaming(req);
-                    },
-                }),
+                    }
+                })(),
             },
         },
     });

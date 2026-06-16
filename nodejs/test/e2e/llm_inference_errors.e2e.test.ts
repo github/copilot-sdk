@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll, type LlmInferenceRequest } from "../../src/index.js";
+import { approveAll, LlmRequestHandler, type LlmInferenceRequest } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 async function drainRequest(req: LlmInferenceRequest): Promise<void> {
@@ -38,8 +38,8 @@ describe("LLM inference callback — error mapping", async () => {
     const { copilotClient: client } = await createSdkTestContext({
         copilotClientOptions: {
             llmInference: {
-                createLlmInferenceProvider: () => ({
-                    async onLlmRequest(req: LlmInferenceRequest): Promise<void> {
+                handler: new (class extends LlmRequestHandler {
+                    override async onLlmRequest(req: LlmInferenceRequest): Promise<void> {
                         totalCalls += 1;
                         const url = req.url.toLowerCase();
 
@@ -108,8 +108,8 @@ describe("LLM inference callback — error mapping", async () => {
                             { status: 200, headers: { "content-type": ["application/json"] } },
                             "{}",
                         );
-                    },
-                }),
+                    }
+                })(),
             },
         },
     });

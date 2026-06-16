@@ -360,7 +360,7 @@ describe("LlmRequestHandler — single subclass handles HTTP + WebSocket", async
     const { copilotClient: client, env } = await createSdkTestContext({
         copilotClientOptions: {
             llmInference: {
-                createLlmInferenceProvider: () => new TestHandler(upstream.url, counters),
+                handler: new TestHandler(upstream.url, counters),
             },
         },
     });

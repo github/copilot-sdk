@@ -73,7 +73,7 @@ export interface LlmWebSocketUpstream {
  * Base class for SDK consumers who want to observe or mutate the LLM
  * inference requests the runtime issues. Implements
  * {@link LlmInferenceProvider}, so an instance can be returned directly
- * from {@link LlmInferenceConfig.createLlmInferenceProvider}.
+ * from {@link LlmInferenceConfig.handler}.
  *
  * Default behaviour is a transparent pass-through: each request is
  * forwarded to its original URL via the WHATWG `fetch` global (HTTP)

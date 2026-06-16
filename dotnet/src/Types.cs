@@ -503,13 +503,12 @@ public sealed class SessionFsConfig
 public sealed class LlmInferenceConfig
 {
     /// <summary>
-    /// Factory invoked once when the client connects, producing the provider that
-    /// will service every intercepted model-layer request for the lifetime of the
-    /// connection. Return a <see cref="LlmRequestHandler"/> subclass for a
-    /// transparent pass-through starting point, or any
-    /// <see cref="ILlmInferenceProvider"/> for full control.
+    /// Handler that services every intercepted model-layer request for the
+    /// lifetime of the client connection. Subclass <see cref="LlmRequestHandler"/>
+    /// and override its hooks to observe, mutate, or fully replace each
+    /// request/response.
     /// </summary>
-    public Func<ILlmInferenceProvider>? CreateLlmInferenceProvider { get; set; }
+    public LlmRequestHandler? Handler { get; set; }
 }
 
 /// <summary>
