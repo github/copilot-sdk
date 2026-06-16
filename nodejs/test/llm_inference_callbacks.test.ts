@@ -4,11 +4,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    CopilotWebSocketHandler,
     LlmRequestHandler,
     type LlmInferenceRequest,
     type LlmInferenceResponseInit,
     type LlmInferenceResponseSink,
-    type LlmWebSocketUpstream,
+    type LlmRequestContext,
+    LlmWebSocketCloseStatus,
 } from "../src/index.js";
 import {
     createLlmInferenceAdapter,
@@ -147,47 +149,26 @@ describe("createLlmInferenceAdapter", () => {
 });
 
 /**
- * Controllable fake of {@link LlmWebSocketUpstream}. Auto-fires `open` once a
- * listener is registered (mirroring an already-connected socket); the test
- * drives messages, close, and error explicitly.
+ * Controllable fake of a callback-owned WebSocket connection. The test drives
+ * messages, close, and error explicitly.
  */
-class FakeUpstream implements LlmWebSocketUpstream {
+class FakeSocketHandler extends CopilotWebSocketHandler {
     sent: (string | Uint8Array)[] = [];
-    closed = false;
-    #open: (() => void) | null = null;
-    #message: ((data: string | Uint8Array) => void) | null = null;
-    #close: ((code: number, reason: string) => void) | null = null;
-    #error: ((error: Error) => void) | null = null;
 
-    send(data: string | Uint8Array): void {
+    override sendRequestMessage(data: string | Uint8Array): void {
         this.sent.push(data);
     }
-    close(): void {
-        if (this.closed) {
-            return;
-        }
-        this.closed = true;
-        this.#close?.(1000, "");
-    }
-    onOpen(handler: () => void): void {
-        this.#open = handler;
-        queueMicrotask(() => this.#open?.());
-    }
-    onMessage(handler: (data: string | Uint8Array) => void): void {
-        this.#message = handler;
-    }
-    onClose(handler: (code: number, reason: string) => void): void {
-        this.#close = handler;
-    }
-    onError(handler: (error: Error) => void): void {
-        this.#error = handler;
+
+    async emitMessage(data: string | Uint8Array): Promise<void> {
+        await this.sendResponseMessage(data);
     }
 
-    emitMessage(data: string | Uint8Array): void {
-        this.#message?.(data);
+    async closeFromUpstream(): Promise<void> {
+        await this.close();
     }
-    emitError(error: Error): void {
-        this.#error?.(error);
+
+    async failFromUpstream(error: Error): Promise<void> {
+        await this.close(new LlmWebSocketCloseStatus(error.message, undefined, error));
     }
 }
 
@@ -237,9 +218,10 @@ function gatedRequestBody(): { body: AsyncIterable<Uint8Array>; release: () => v
 
 describe("LlmRequestHandler WebSocket dispatch", () => {
     it("finalises the response when the upstream closes while the request stream is still open", async () => {
-        const upstream = new FakeUpstream();
+        let upstream!: FakeSocketHandler;
         class Handler extends LlmRequestHandler {
-            protected override forwardWebSocket(): LlmWebSocketUpstream {
+            protected override openWebSocket(ctx: LlmRequestContext): CopilotWebSocketHandler {
+                upstream = new FakeSocketHandler(ctx);
                 return upstream;
             }
         }
@@ -264,8 +246,8 @@ describe("LlmRequestHandler WebSocket dispatch", () => {
         // deliver an upstream message and close the socket — all while the
         // request body is still parked (no runtime → upstream frames yet).
         await new Promise((r) => setTimeout(r, 10));
-        upstream.emitMessage("server-event-1");
-        upstream.close();
+        await upstream.emitMessage("server-event-1");
+        await upstream.closeFromUpstream();
 
         // The turn must resolve (not hang) because the upstream terminated.
         await turn;
@@ -278,9 +260,10 @@ describe("LlmRequestHandler WebSocket dispatch", () => {
     });
 
     it("surfaces an upstream error as a thrown failure", async () => {
-        const upstream = new FakeUpstream();
+        let upstream!: FakeSocketHandler;
         class Handler extends LlmRequestHandler {
-            protected override forwardWebSocket(): LlmWebSocketUpstream {
+            protected override openWebSocket(ctx: LlmRequestContext): CopilotWebSocketHandler {
+                upstream = new FakeSocketHandler(ctx);
                 return upstream;
             }
         }
@@ -301,7 +284,7 @@ describe("LlmRequestHandler WebSocket dispatch", () => {
 
         const turn = handler.onLlmRequest(req);
         await new Promise((r) => setTimeout(r, 10));
-        upstream.emitError(new Error("upstream exploded"));
+        await upstream.failFromUpstream(new Error("upstream exploded"));
 
         await expect(turn).rejects.toThrow("upstream exploded");
         expect(sink.ended).toBe(false);

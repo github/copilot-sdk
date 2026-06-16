@@ -26,12 +26,20 @@ public sealed class LlmRequestContext
     /// <summary>Transport the runtime would otherwise use.</summary>
     public LlmInferenceTransport Transport { get; init; }
 
+    /// <summary>Original request URL.</summary>
+    public required string Url { get; init; }
+
+    /// <summary>Original request headers.</summary>
+    public required IReadOnlyDictionary<string, IReadOnlyList<string>> Headers { get; init; }
+
     /// <summary>
     /// Cancelled when the runtime aborts this in-flight request. Subclasses that
     /// issue their own I/O should pass this through so the upstream call is torn
     /// down too.
     /// </summary>
     public CancellationToken CancellationToken { get; init; }
+
+    internal LlmWebSocketResponseBridge? WebSocketResponse { get; set; }
 }
 
 /// <summary>A single WebSocket message exchanged through a <see cref="LlmRequestHandler"/> hook.</summary>
@@ -55,34 +63,274 @@ public readonly struct LlmWebSocketMessage(ReadOnlyMemory<byte> data, bool isBin
 }
 
 /// <summary>
-/// Base class for SDK consumers who want to observe or mutate the LLM inference
-/// requests the runtime issues. An instance is returned directly from
-/// <see cref="LlmInferenceConfig.Handler"/>.
+/// Terminal status for a callback-owned WebSocket connection.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Default behaviour is a transparent pass-through: each request is forwarded to
-/// its original URL via a shared <see cref="HttpClient"/> (HTTP) or a
-/// <see cref="ClientWebSocket"/> (WebSocket), and the upstream response is
-/// streamed back to the runtime unchanged. Consumers subclass and override one
-/// or more virtual methods to interpose:
-/// </para>
-/// <list type="bullet">
-/// <item><see cref="TransformRequestAsync"/> — mutate the outbound HTTP request.</item>
-/// <item><see cref="ForwardAsync"/> — replace the upstream HTTP call entirely
-/// (e.g. to return a canned <see cref="HttpResponseMessage"/> for a cache hit).</item>
-/// <item><see cref="TransformResponseAsync"/> — mutate the upstream HTTP response
-/// on its way back to the runtime.</item>
-/// <item><see cref="ForwardWebSocketAsync"/> — replace the upstream WebSocket open
-/// (e.g. to set custom upgrade headers).</item>
-/// <item><see cref="TransformRequestMessageAsync"/> / <see cref="TransformResponseMessageAsync"/>
-/// — observe or mutate WebSocket messages in either direction.</item>
-/// </list>
-/// <para>
-/// The same subclass handles both transports — dispatch keys on
-/// <see cref="LlmInferenceRequest.Transport"/>.
-/// </para>
-/// </remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed class LlmWebSocketCloseStatus
+{
+    /// <summary>The close description, if any.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// Optional error code surfaced to the runtime when the close is a failure
+    /// rather than a clean end-of-stream.
+    /// </summary>
+    public string? ErrorCode { get; init; }
+
+    /// <summary>The error that terminated the connection, if any.</summary>
+    public Exception? Error { get; init; }
+
+    /// <summary>Shared normal-closure instance.</summary>
+    public static LlmWebSocketCloseStatus NormalClosure { get; } = new();
+}
+
+/// <summary>
+/// Per-connection WebSocket handler returned by
+/// <see cref="LlmRequestHandler.OpenWebSocketAsync"/>.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public abstract class CopilotWebSocketHandler : IAsyncDisposable
+{
+    private readonly TaskCompletionSource<LlmWebSocketCloseStatus> _completion =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _closed;
+    private bool _suppressCloseOnDispose;
+
+    /// <summary>Request context for this WebSocket connection.</summary>
+    protected LlmRequestContext Context { get; }
+
+    internal Task<LlmWebSocketCloseStatus> Completion => _completion.Task;
+
+    /// <summary>
+    /// Initializes a per-connection handler for the supplied request context.
+    /// </summary>
+    protected CopilotWebSocketHandler(LlmRequestContext context)
+    {
+        Context = context;
+        _ = context.WebSocketResponse ?? throw new InvalidOperationException("WebSocket response bridge is not attached.");
+    }
+
+    /// <summary>
+    /// Send a message from the runtime to the upstream connection.
+    /// </summary>
+    public abstract Task SendRequestMessageAsync(LlmWebSocketMessage message);
+
+    /// <summary>
+    /// Send a message from the upstream connection back to the runtime.
+    /// Override to mutate or duplicate messages; call <c>base</c> to emit.
+    /// </summary>
+    public virtual Task SendResponseMessageAsync(LlmWebSocketMessage message) =>
+        Context.WebSocketResponse!.WriteAsync(message);
+
+    /// <summary>
+    /// Close the connection and finalise the runtime-facing response.
+    /// </summary>
+    public virtual async Task CloseAsync(LlmWebSocketCloseStatus status)
+    {
+        if (Interlocked.Exchange(ref _closed, 1) != 0)
+        {
+            return;
+        }
+
+        if (status.Error is not null)
+        {
+            await Context.WebSocketResponse!
+                .ErrorAsync(status.Description ?? status.Error.Message, status.ErrorCode)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await Context.WebSocketResponse!.EndAsync().ConfigureAwait(false);
+        }
+
+        _completion.TrySetResult(status);
+    }
+
+    internal void SuppressCloseOnDispose() => _suppressCloseOnDispose = true;
+
+    internal virtual Task OpenAsync() => Task.CompletedTask;
+
+    /// <inheritdoc />
+    public virtual async ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        if (!_suppressCloseOnDispose && Volatile.Read(ref _closed) == 0)
+        {
+            await CloseAsync(LlmWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
+        }
+    }
+}
+
+/// <summary>
+/// Default pass-through WebSocket handler. Opens the real upstream socket and
+/// relays messages unchanged unless a subclass overrides the send methods.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public class ForwardingWebSocketHandler : CopilotWebSocketHandler
+{
+    private readonly string _url;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _headers;
+    private WebSocket? _upstream;
+    private CancellationTokenSource? _pumpCts;
+    private Task? _responsePump;
+
+    /// <summary>
+    /// Initializes a forwarding handler that will open the upstream socket on
+    /// demand using the supplied URL/headers (or the values from
+    /// <paramref name="context"/> when omitted).
+    /// </summary>
+    public ForwardingWebSocketHandler(
+        LlmRequestContext context,
+        string? url = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
+        : base(context)
+    {
+        _url = url ?? context.Url;
+        _headers = headers ?? context.Headers;
+    }
+
+    /// <summary>
+    /// Opens the upstream socket and starts the built-in response pump.
+    /// </summary>
+    internal override async Task OpenAsync()
+    {
+        if (_upstream is not null)
+        {
+            return;
+        }
+
+        var socket = new ClientWebSocket();
+        foreach (var (name, values) in _headers)
+        {
+            if (s_forbiddenRequestHeaders.Contains(name))
+            {
+                continue;
+            }
+
+            try
+            {
+                socket.Options.SetRequestHeader(name, string.Join(", ", values));
+            }
+            catch
+            {
+                // Some headers are managed by the handshake; ignore rejections.
+            }
+        }
+
+        await socket.ConnectAsync(LlmWebSocketHelpers.ToWebSocketUri(_url), Context.CancellationToken).ConfigureAwait(false);
+        _upstream = socket;
+        _pumpCts = CancellationTokenSource.CreateLinkedTokenSource(Context.CancellationToken);
+        _responsePump = Task.Run(() => PumpResponsesAsync(_pumpCts.Token), _pumpCts.Token);
+    }
+
+    /// <summary>
+    /// Sends a message from the runtime to the upstream connection. Subclasses may override to mutate messages.
+    /// </summary>
+    /// <param name="message">The message to send.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public override Task SendRequestMessageAsync(LlmWebSocketMessage message)
+    {
+        if (_upstream?.State != WebSocketState.Open)
+        {
+            return Task.CompletedTask;
+        }
+
+        var type = message.IsBinary ? WebSocketMessageType.Binary : WebSocketMessageType.Text;
+        return _upstream.SendAsync(
+            new ArraySegment<byte>(message.Data.ToArray()),
+            type,
+            endOfMessage: true,
+            Context.CancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override async Task CloseAsync(LlmWebSocketCloseStatus status)
+    {
+        _pumpCts?.Cancel();
+        if (_upstream is not null)
+        {
+            await LlmWebSocketHelpers.CloseWebSocketQuietlyAsync(_upstream).ConfigureAwait(false);
+        }
+        await base.CloseAsync(status).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public override async ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        try
+        {
+            await base.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _pumpCts?.Cancel();
+            _pumpCts?.Dispose();
+            _upstream?.Dispose();
+            if (_responsePump is not null)
+            {
+                await LlmWebSocketHelpers.ObserveQuietlyAsync(_responsePump).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task PumpResponsesAsync(CancellationToken cancellationToken)
+    {
+        if (_upstream is null)
+        {
+            return;
+        }
+
+        try
+        {
+            while (_upstream.State == WebSocketState.Open)
+            {
+                var message = await LlmWebSocketHelpers.ReceiveMessageAsync(_upstream, cancellationToken).ConfigureAwait(false);
+                if (message is null)
+                {
+                    break;
+                }
+
+                await SendResponseMessageAsync(message.Value).ConfigureAwait(false);
+            }
+
+            await CloseAsync(LlmWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (Context.CancellationToken.IsCancellationRequested)
+        {
+            // Runtime-side cancellation aborts the request pump; the outer
+            // handler rethrows that cancellation rather than finalising here.
+        }
+        catch (Exception ex)
+        {
+            await CloseAsync(new LlmWebSocketCloseStatus
+            {
+                Description = ex.Message,
+                Error = ex,
+            }).ConfigureAwait(false);
+        }
+    }
+
+    // Computed/managed by the HTTP/WS stack; forwarding them verbatim either
+    // throws or corrupts the request.
+    private static readonly HashSet<string> s_forbiddenRequestHeaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "host",
+        "connection",
+        "content-length",
+        "transfer-encoding",
+        "keep-alive",
+        "upgrade",
+        "proxy-connection",
+        "te",
+        "trailer",
+    };
+}
+
+/// <summary>
+/// Base class for SDK consumers who want to observe or mutate the LLM inference
+/// requests the runtime issues.
+/// </summary>
 [Experimental(Diagnostics.Experimental)]
 public class LlmRequestHandler : ILlmInferenceProvider
 {
@@ -108,13 +356,17 @@ public class LlmRequestHandler : ILlmInferenceProvider
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var wsResponse = new LlmWebSocketResponseBridge(request.ResponseBody);
         var ctx = new LlmRequestContext
         {
             RequestId = request.RequestId,
             SessionId = request.SessionId,
             Transport = request.Transport,
+            Url = request.Url,
+            Headers = request.Headers,
             CancellationToken = request.CancellationToken,
         };
+        ctx.WebSocketResponse = wsResponse;
 
         if (request.Transport == LlmInferenceTransport.WebSocket)
         {
@@ -126,88 +378,27 @@ public class LlmRequestHandler : ILlmInferenceProvider
         }
     }
 
-    // ─── HTTP virtual hooks ────────────────────────────────────────────
-
     /// <summary>
-    /// Mutates the outbound HTTP request before it is issued. Default: pass
-    /// through unchanged.
+    /// Issue the upstream HTTP request. Override to mutate the request before
+    /// calling <c>base</c>, mutate the returned response after, or replace the
+    /// call entirely.
     /// </summary>
-    protected virtual Task<HttpRequestMessage> TransformRequestAsync(HttpRequestMessage request, LlmRequestContext ctx) =>
-        Task.FromResult(request);
-
-    /// <summary>
-    /// Issues the upstream HTTP call. Default: a shared <see cref="HttpClient"/>
-    /// with response-headers-read streaming and the context's cancellation token
-    /// wired through. Override to short-circuit with a canned response or to use
-    /// a different client.
-    /// </summary>
-    protected virtual Task<HttpResponseMessage> ForwardAsync(HttpRequestMessage request, LlmRequestContext ctx) =>
+    protected virtual Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, LlmRequestContext ctx) =>
         s_sharedHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ctx.CancellationToken);
 
     /// <summary>
-    /// Mutates the upstream HTTP response before it streams back to the runtime.
-    /// Default: pass through unchanged.
+    /// Open the upstream WebSocket connection. Override to return a custom
+    /// <see cref="CopilotWebSocketHandler"/> or to construct a
+    /// <see cref="ForwardingWebSocketHandler"/> against a rewritten URL.
     /// </summary>
-    protected virtual Task<HttpResponseMessage> TransformResponseAsync(HttpResponseMessage response, LlmRequestContext ctx) =>
-        Task.FromResult(response);
-
-    // ─── WebSocket virtual hooks ───────────────────────────────────────
-
-    /// <summary>
-    /// Opens the upstream WebSocket. Default: a <see cref="ClientWebSocket"/>
-    /// connected to the original URL. Override to set custom upgrade headers or
-    /// use a different client.
-    /// </summary>
-    protected virtual async Task<WebSocket> ForwardWebSocketAsync(string url, IReadOnlyDictionary<string, IReadOnlyList<string>> headers, LlmRequestContext ctx)
-    {
-        var ws = new ClientWebSocket();
-#if !NETSTANDARD2_0
-        foreach (var (name, values) in headers)
-        {
-            if (s_forbiddenRequestHeaders.Contains(name))
-            {
-                continue;
-            }
-
-            try
-            {
-                ws.Options.SetRequestHeader(name, string.Join(", ", values));
-            }
-            catch
-            {
-                // Some headers are managed by the handshake; ignore rejections.
-            }
-        }
-#endif
-        await ws.ConnectAsync(ToWebSocketUri(url), ctx.CancellationToken).ConfigureAwait(false);
-        return ws;
-    }
-
-    /// <summary>
-    /// Observes or mutates an outbound (request) WebSocket message — one the
-    /// runtime is sending to the upstream. Return <see langword="null"/> to drop
-    /// the message. Default: pass through unchanged.
-    /// </summary>
-    protected virtual ValueTask<LlmWebSocketMessage?> TransformRequestMessageAsync(LlmWebSocketMessage message, LlmRequestContext ctx) =>
-        new(message);
-
-    /// <summary>
-    /// Observes or mutates an inbound (response) WebSocket message — one the
-    /// upstream is sending back to the runtime. Return <see langword="null"/> to
-    /// drop the message. Default: pass through unchanged.
-    /// </summary>
-    protected virtual ValueTask<LlmWebSocketMessage?> TransformResponseMessageAsync(LlmWebSocketMessage message, LlmRequestContext ctx) =>
-        new(message);
-
-    // ─── HTTP dispatch ─────────────────────────────────────────────────
+    protected virtual Task<CopilotWebSocketHandler> OpenWebSocketAsync(LlmRequestContext ctx) =>
+        Task.FromResult<CopilotWebSocketHandler>(new ForwardingWebSocketHandler(ctx));
 
     private async Task HandleHttpAsync(LlmInferenceRequest req, LlmRequestContext ctx)
     {
-        using var initialRequest = await BuildHttpRequestAsync(req).ConfigureAwait(false);
-        using var transformed = await TransformRequestAsync(initialRequest, ctx).ConfigureAwait(false);
-        using var response = await ForwardAsync(transformed, ctx).ConfigureAwait(false);
-        using var finalResponse = await TransformResponseAsync(response, ctx).ConfigureAwait(false);
-        await StreamResponseToSinkAsync(finalResponse, req, ctx).ConfigureAwait(false);
+        using var request = await BuildHttpRequestAsync(req).ConfigureAwait(false);
+        using var response = await SendRequestAsync(request, ctx).ConfigureAwait(false);
+        await StreamResponseToSinkAsync(response, req, ctx).ConfigureAwait(false);
     }
 
     private static async Task<HttpRequestMessage> BuildHttpRequestAsync(LlmInferenceRequest req)
@@ -270,6 +461,48 @@ public class LlmRequestHandler : ILlmInferenceProvider
         await req.ResponseBody.EndAsync().ConfigureAwait(false);
     }
 
+    private async Task HandleWebSocketAsync(LlmInferenceRequest req, LlmRequestContext ctx)
+    {
+        var handler = await OpenWebSocketAsync(ctx).ConfigureAwait(false);
+        try
+        {
+            await handler.OpenAsync().ConfigureAwait(false);
+            await ctx.WebSocketResponse!.StartAsync().ConfigureAwait(false);
+
+            var clientPump = Task.Run(async () =>
+            {
+                await foreach (var chunk in req.RequestBody.WithCancellation(ctx.CancellationToken).ConfigureAwait(false))
+                {
+                    await handler.SendRequestMessageAsync(new LlmWebSocketMessage(chunk, isBinary: false)).ConfigureAwait(false);
+                }
+            }, ctx.CancellationToken);
+
+            var first = await Task.WhenAny(clientPump, handler.Completion).ConfigureAwait(false);
+            if (first == clientPump)
+            {
+                if (clientPump.IsFaulted || clientPump.IsCanceled)
+                {
+                    handler.SuppressCloseOnDispose();
+                    await clientPump.ConfigureAwait(false);
+                }
+
+                await handler.CloseAsync(LlmWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
+                await handler.Completion.ConfigureAwait(false);
+                return;
+            }
+
+            var closeStatus = await handler.Completion.ConfigureAwait(false);
+            if (closeStatus.Error is not null)
+            {
+                throw closeStatus.Error;
+            }
+        }
+        finally
+        {
+            await handler.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
     private static async Task<byte[]> DrainAsync(IAsyncEnumerable<ReadOnlyMemory<byte>> stream)
     {
         using var buffer = new MemoryStream();
@@ -303,87 +536,11 @@ public class LlmRequestHandler : ILlmInferenceProvider
         return result;
     }
 
-    // ─── WebSocket dispatch ────────────────────────────────────────────
+}
 
-    private async Task HandleWebSocketAsync(LlmInferenceRequest req, LlmRequestContext ctx)
-    {
-        using var upstream = await ForwardWebSocketAsync(req.Url, req.Headers, ctx).ConfigureAwait(false);
-
-        // Ack the upgrade to the runtime (mirrors the protocol's 101-equivalent
-        // start frame the runtime is waiting for).
-        await req.ResponseBody.StartAsync(new LlmInferenceResponseInit { Status = 101 }).ConfigureAwait(false);
-
-        using var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(req.CancellationToken);
-        var token = pumpCts.Token;
-
-        // Upstream → runtime: read messages off the socket and write them to the
-        // response sink.
-        var serverPump = Task.Run(async () =>
-        {
-            while (upstream.State == WebSocketState.Open)
-            {
-                var message = await ReceiveMessageAsync(upstream, token).ConfigureAwait(false);
-                if (message is null)
-                {
-                    break;
-                }
-
-                var mutated = await TransformResponseMessageAsync(message.Value, ctx).ConfigureAwait(false);
-                if (mutated is null)
-                {
-                    continue;
-                }
-
-                if (mutated.Value.IsBinary)
-                {
-                    await req.ResponseBody.WriteAsync(mutated.Value.Data).ConfigureAwait(false);
-                }
-                else
-                {
-                    await req.ResponseBody.WriteAsync(mutated.Value.GetText()).ConfigureAwait(false);
-                }
-            }
-        }, token);
-
-        // Runtime → upstream: read request-body chunks and forward each as one
-        // WebSocket message. The runtime sends WS text frames as UTF-8 bytes, so
-        // surface them as text by default.
-        var clientPump = Task.Run(async () =>
-        {
-            await foreach (var chunk in req.RequestBody.WithCancellation(token).ConfigureAwait(false))
-            {
-                var mutated = await TransformRequestMessageAsync(new LlmWebSocketMessage(chunk, isBinary: false), ctx).ConfigureAwait(false);
-                if (mutated is null)
-                {
-                    continue;
-                }
-
-                var type = mutated.Value.IsBinary ? WebSocketMessageType.Binary : WebSocketMessageType.Text;
-                await upstream.SendAsync(new ArraySegment<byte>(mutated.Value.Data.ToArray()), type, endOfMessage: true, token).ConfigureAwait(false);
-            }
-        }, token);
-
-        var first = await Task.WhenAny(clientPump, serverPump).ConfigureAwait(false);
-
-        // Whichever side won, tear the upstream down so the loser unwinds.
-        pumpCts.Cancel();
-        await CloseWebSocketQuietlyAsync(upstream).ConfigureAwait(false);
-
-        if (first == clientPump && clientPump.IsFaulted)
-        {
-            // Runtime cancellation propagating out of the request iterator.
-            await ObserveQuietlyAsync(serverPump).ConfigureAwait(false);
-            await clientPump.ConfigureAwait(false);
-            return;
-        }
-
-        await ObserveQuietlyAsync(clientPump).ConfigureAwait(false);
-        await ObserveQuietlyAsync(serverPump).ConfigureAwait(false);
-
-        await req.ResponseBody.EndAsync().ConfigureAwait(false);
-    }
-
-    private static async Task<LlmWebSocketMessage?> ReceiveMessageAsync(WebSocket socket, CancellationToken cancellationToken)
+internal static class LlmWebSocketHelpers
+{
+    internal static async Task<LlmWebSocketMessage?> ReceiveMessageAsync(WebSocket socket, CancellationToken cancellationToken)
     {
         var buffer = new byte[16 * 1024];
         using var assembled = new MemoryStream();
@@ -415,7 +572,7 @@ public class LlmRequestHandler : ILlmInferenceProvider
         return new LlmWebSocketMessage(assembled.ToArray(), result.MessageType == WebSocketMessageType.Binary);
     }
 
-    private static async Task CloseWebSocketQuietlyAsync(WebSocket socket)
+    internal static async Task CloseWebSocketQuietlyAsync(WebSocket socket)
     {
         try
         {
@@ -431,7 +588,7 @@ public class LlmRequestHandler : ILlmInferenceProvider
     }
 
     [SuppressMessage("Usage", "CA1031:Do not catch general exception types", Justification = "Best-effort teardown of the losing pump.")]
-    private static async Task ObserveQuietlyAsync(Task task)
+    internal static async Task ObserveQuietlyAsync(Task task)
     {
         try
         {
@@ -439,11 +596,11 @@ public class LlmRequestHandler : ILlmInferenceProvider
         }
         catch
         {
-            // The losing pump's teardown exception is expected; swallow it.
+            // Best-effort teardown only.
         }
     }
 
-    private static Uri ToWebSocketUri(string url)
+    internal static Uri ToWebSocketUri(string url)
     {
         var builder = new UriBuilder(url);
         if (builder.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
@@ -456,5 +613,135 @@ public class LlmRequestHandler : ILlmInferenceProvider
         }
 
         return builder.Uri;
+    }
+}
+
+internal sealed class LlmWebSocketResponseBridge
+{
+    private readonly LlmInferenceResponseSink _sink;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly Queue<PendingAction> _pending = new();
+    private bool _started;
+    private bool _completed;
+
+    internal LlmWebSocketResponseBridge(LlmInferenceResponseSink sink)
+    {
+        _sink = sink;
+    }
+
+    internal async Task StartAsync()
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_started)
+            {
+                return;
+            }
+
+            _started = true;
+            await _sink.StartAsync(new LlmInferenceResponseInit { Status = 101 }).ConfigureAwait(false);
+            while (_pending.Count > 0)
+            {
+                await ApplyAsync(_pending.Dequeue()).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    internal Task WriteAsync(LlmWebSocketMessage message) => EnqueueOrApplyAsync(PendingAction.Write(message));
+
+    internal Task EndAsync() => EnqueueOrApplyAsync(PendingAction.End());
+
+    internal Task ErrorAsync(string message, string? code) => EnqueueOrApplyAsync(PendingAction.Error(message, code));
+
+    private async Task EnqueueOrApplyAsync(PendingAction action)
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_completed && action.Kind == PendingActionKind.Write)
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _pending.Enqueue(action);
+                if (action.Kind is PendingActionKind.End or PendingActionKind.Error)
+                {
+                    _completed = true;
+                }
+
+                return;
+            }
+
+            await ApplyAsync(action).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task ApplyAsync(PendingAction action)
+    {
+        if (_completed && action.Kind == PendingActionKind.Write)
+        {
+            return;
+        }
+
+        switch (action.Kind)
+        {
+            case PendingActionKind.Write:
+                if (action.Message!.Value.IsBinary)
+                {
+                    await _sink.WriteAsync(action.Message.Value.Data).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _sink.WriteAsync(action.Message.Value.GetText()).ConfigureAwait(false);
+                }
+                break;
+            case PendingActionKind.End:
+                if (_completed)
+                {
+                    return;
+                }
+
+                _completed = true;
+                await _sink.EndAsync().ConfigureAwait(false);
+                break;
+            case PendingActionKind.Error:
+                if (_completed)
+                {
+                    return;
+                }
+
+                _completed = true;
+                await _sink.ErrorAsync(action.ErrorMessage!, action.ErrorCode).ConfigureAwait(false);
+                break;
+        }
+    }
+
+    private readonly record struct PendingAction(
+        PendingActionKind Kind,
+        LlmWebSocketMessage? Message = null,
+        string? ErrorMessage = null,
+        string? ErrorCode = null)
+    {
+        internal static PendingAction Write(LlmWebSocketMessage message) => new(PendingActionKind.Write, message);
+        internal static PendingAction End() => new(PendingActionKind.End);
+        internal static PendingAction Error(string message, string? code) => new(PendingActionKind.Error, null, message, code);
+    }
+
+    private enum PendingActionKind
+    {
+        Write,
+        End,
+        Error,
     }
 }

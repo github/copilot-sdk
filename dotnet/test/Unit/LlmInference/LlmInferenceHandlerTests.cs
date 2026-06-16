@@ -46,23 +46,20 @@ public class LlmInferenceHandlerTests
         };
 
     /// <summary>A handler whose upstream call is a canned delegate (no network).</summary>
-    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> forward) : LlmRequestHandler
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> send) : LlmRequestHandler
     {
-        protected override Task<HttpResponseMessage> ForwardAsync(HttpRequestMessage request, LlmRequestContext ctx) =>
-            Task.FromResult(forward(request));
+        protected override Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, LlmRequestContext ctx) =>
+            Task.FromResult(send(request));
     }
 
-    /// <summary>A handler that adds a header in <c>TransformRequestAsync</c>.</summary>
-    private sealed class HeaderMutatingHandler(Func<HttpRequestMessage, HttpResponseMessage> forward) : LlmRequestHandler
+    /// <summary>A handler that adds a header before calling <c>base.SendRequestAsync</c>.</summary>
+    private sealed class HeaderMutatingHandler(Func<HttpRequestMessage, HttpResponseMessage> send) : LlmRequestHandler
     {
-        protected override Task<HttpRequestMessage> TransformRequestAsync(HttpRequestMessage request, LlmRequestContext ctx)
+        protected override Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, LlmRequestContext ctx)
         {
             request.Headers.TryAddWithoutValidation("authorization", "Bearer swapped-token");
-            return Task.FromResult(request);
+            return Task.FromResult(send(request));
         }
-
-        protected override Task<HttpResponseMessage> ForwardAsync(HttpRequestMessage request, LlmRequestContext ctx) =>
-            Task.FromResult(forward(request));
     }
 
     [Fact]

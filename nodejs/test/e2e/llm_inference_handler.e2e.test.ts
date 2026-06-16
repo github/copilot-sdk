@@ -8,10 +8,10 @@ import { afterAll, describe, expect, it } from "vitest";
 import { WebSocket as WsClient, WebSocketServer } from "ws";
 import {
     approveAll,
+    CopilotWebSocketHandler,
     LlmRequestHandler,
-    type LlmInferenceHeaders,
+    LlmWebSocketCloseStatus,
     type LlmRequestContext,
-    type LlmWebSocketUpstream,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -186,52 +186,6 @@ function buildResponsesEvents(text: string, id: string): Array<Record<string, un
 }
 
 /**
- * Adapt the `ws` package's `WebSocket` client into the
- * `LlmWebSocketUpstream` shape the handler consumes. We use `ws` rather
- * than the global `WebSocket` so subclasses that need custom upgrade
- * headers (the real CAPI case) have a working reference; this test's
- * server doesn't require headers but the integration is identical.
- */
-function wrapWsClient(client: WsClient): LlmWebSocketUpstream {
-    return {
-        send(data) {
-            if (client.readyState !== WsClient.OPEN) {
-                return;
-            }
-            client.send(data);
-        },
-        close(code, reason) {
-            try {
-                client.close(code, reason);
-            } catch {
-                /* best-effort */
-            }
-        },
-        onOpen(handler) {
-            if (client.readyState === WsClient.OPEN) {
-                handler();
-            } else {
-                client.once("open", handler);
-            }
-        },
-        onMessage(handler) {
-            client.on("message", (data, isBinary) => {
-                if (isBinary) {
-                    handler(data as Buffer);
-                } else {
-                    handler(data.toString("utf-8"));
-                }
-            });
-        },
-        onClose(handler) {
-            client.once("close", (code, reasonBuf) => handler(code, reasonBuf.toString("utf-8")));
-        },
-        onError(handler) {
-            client.once("error", (err) => handler(err as Error));
-        },
-    };
-}
-
 interface Counters {
     httpRequests: number;
     httpResponses: number;
@@ -249,8 +203,8 @@ interface Counters {
  *   echoes the request header into a counter so we can assert it
  *   actually arrived upstream.
  * - WebSocket: rewrites the WS URL similarly, opens with the `ws`
- *   package (so the pattern is the one consumers needing upgrade
- *   headers will use), and observes message counts in both directions.
+ *   package inside a custom per-connection handler, and observes
+ *   message counts in both directions.
  */
 class TestHandler extends LlmRequestHandler {
     constructor(
@@ -277,74 +231,93 @@ class TestHandler extends LlmRequestHandler {
         return parsed.toString();
     }
 
-    protected override async transformRequest(
-        request: Request,
-        _ctx: LlmRequestContext
-    ): Promise<Request> {
+    protected override async sendRequest(request: Request, _ctx: LlmRequestContext): Promise<Response> {
         this.counters.httpRequests++;
         const rewritten = this.rewriteUrl(request.url);
-        const headers = new Headers(request.headers);
-        headers.set("x-test-mutated", "1");
-        return new Request(rewritten, {
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.set("x-test-mutated", "1");
+        const rewrittenRequest = new Request(rewritten, {
             method: request.method,
-            headers,
+            headers: requestHeaders,
             body: request.body,
             // @ts-expect-error duplex is required by undici when streaming a body
             duplex: "half",
         });
-    }
-
-    protected override async transformResponse(
-        response: Response,
-        _ctx: LlmRequestContext
-    ): Promise<Response> {
+        const response = await fetch(rewrittenRequest, { signal: _ctx.signal });
         this.counters.httpResponses++;
-        // Add a marker header on the way back so we can observe that the
-        // response transform actually runs (Response headers are
-        // immutable, so we clone-and-rewrap).
-        const headers = new Headers(response.headers);
-        headers.set("x-test-response-mutated", "1");
+        const responseHeaders = new Headers(response.headers);
+        responseHeaders.set("x-test-response-mutated", "1");
         return new Response(response.body, {
             status: response.status,
             statusText: response.statusText,
-            headers,
+            headers: responseHeaders,
         });
     }
 
-    protected override async forwardWebSocket(
+    protected override async openWebSocket(ctx: LlmRequestContext): Promise<CopilotWebSocketHandler> {
+        return TestSocketHandler.connect(this.rewriteWsUrl(ctx.url), ctx, this.counters);
+    }
+}
+
+class TestSocketHandler extends CopilotWebSocketHandler {
+    static async connect(
         url: string,
-        _headers: LlmInferenceHeaders,
-        ctx: LlmRequestContext
-    ): Promise<LlmWebSocketUpstream> {
-        const rewritten = this.rewriteWsUrl(url);
-        const client = new WsClient(rewritten);
-        // Surface cancellation as a socket close.
+        ctx: LlmRequestContext,
+        counters: Counters
+    ): Promise<TestSocketHandler> {
+        const client = new WsClient(url);
+        await new Promise<void>((resolve, reject) => {
+            client.once("open", () => resolve());
+            client.once("error", (err) => reject(err));
+        });
+        return new TestSocketHandler(client, ctx, counters);
+    }
+
+    private constructor(
+        private readonly client: WsClient,
+        ctx: LlmRequestContext,
+        private readonly counters: Counters
+    ) {
+        super(ctx);
+        this.client.on("message", (data, isBinary) => {
+            this.counters.wsResponseMessages++;
+            void this.sendResponseMessage(isBinary ? (data as Buffer) : data.toString("utf-8"));
+        });
+        this.client.once("close", () => {
+            void this.close();
+        });
+        this.client.once("error", (err) => {
+            void this.close(new LlmWebSocketCloseStatus(err.message, undefined, err as Error));
+        });
         const onAbort = (): void => {
             try {
-                client.close();
+                this.client.close();
             } catch {
                 /* best-effort */
             }
         };
         ctx.signal.addEventListener("abort", onAbort, { once: true });
-        client.once("close", () => ctx.signal.removeEventListener("abort", onAbort));
-        return wrapWsClient(client);
+        this.client.once("close", () => ctx.signal.removeEventListener("abort", onAbort));
     }
 
-    protected override async transformRequestMessage(
-        data: string | Uint8Array,
-        _ctx: LlmRequestContext
-    ): Promise<string | Uint8Array> {
+    override sendRequestMessage(data: string | Uint8Array): void {
         this.counters.wsRequestMessages++;
-        return data;
+        if (this.client.readyState !== WsClient.OPEN) {
+            return;
+        }
+        this.client.send(data);
     }
 
-    protected override async transformResponseMessage(
-        data: string | Uint8Array,
-        _ctx: LlmRequestContext
-    ): Promise<string | Uint8Array> {
-        this.counters.wsResponseMessages++;
-        return data;
+    override async [Symbol.asyncDispose](): Promise<void> {
+        try {
+            await super[Symbol.asyncDispose]();
+        } finally {
+            try {
+                this.client.close();
+            } catch {
+                /* best-effort */
+            }
+        }
     }
 }
 
@@ -387,8 +360,8 @@ describe("LlmRequestHandler — single subclass handles HTTP + WebSocket", async
 
         // The HTTP hooks fired — the runtime issued model-layer GETs
         // (catalog, policy) and possibly a single-shot inference.
-        expect(counters.httpRequests, "expected HTTP transformRequest to fire").toBeGreaterThan(0);
-        expect(counters.httpResponses, "expected HTTP transformResponse to fire").toBeGreaterThan(
+        expect(counters.httpRequests, "expected sendRequest to fire").toBeGreaterThan(0);
+        expect(counters.httpResponses, "expected sendRequest response mutation to fire").toBeGreaterThan(
             0
         );
 
@@ -396,11 +369,11 @@ describe("LlmRequestHandler — single subclass handles HTTP + WebSocket", async
         // the WS path and we observed messages in both directions.
         expect(
             counters.wsRequestMessages,
-            "expected transformRequestMessage (runtime → upstream) to fire"
+            "expected sendRequestMessage (runtime → upstream) to fire"
         ).toBeGreaterThan(0);
         expect(
             counters.wsResponseMessages,
-            "expected transformResponseMessage (upstream → runtime) to fire"
+            "expected sendResponseMessage (upstream → runtime) to fire"
         ).toBeGreaterThan(0);
         expect(
             upstream.wsRequestCount(),

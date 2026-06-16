@@ -40,8 +40,13 @@ export type {
     LlmInferenceResponseSink,
 } from "./llmInferenceProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
-export type { LlmRequestContext, LlmWebSocketUpstream } from "./llmRequestHandler.js";
-export { LlmRequestHandler, wrapGlobalWebSocket } from "./llmRequestHandler.js";
+export type { LlmRequestContext } from "./llmRequestHandler.js";
+export {
+    CopilotWebSocketHandler,
+    ForwardingWebSocketHandler,
+    LlmRequestHandler,
+    LlmWebSocketCloseStatus,
+} from "./llmRequestHandler.js";
 
 /**
  * Options for creating a CopilotClient

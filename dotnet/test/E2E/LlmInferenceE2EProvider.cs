@@ -22,7 +22,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// <remarks>
 /// <para>
 /// This exercises the public extension surface end to end: a consumer subclasses
-/// <see cref="LlmRequestHandler"/> and overrides <see cref="ForwardAsync"/> to
+/// <see cref="LlmRequestHandler"/> and overrides <see cref="SendRequestAsync"/> to
 /// short-circuit the upstream HTTP call with any <see cref="HttpResponseMessage"/>
 /// it likes. The base class streams that response back to the runtime.
 /// </para>
@@ -46,7 +46,7 @@ internal sealed class RecordingInferenceProvider : LlmRequestHandler
     public IReadOnlyList<InterceptedRequest> InferenceRequests =>
         [.. _records.Where(r => IsInferenceUrl(r.Url))];
 
-    protected override async Task<HttpResponseMessage> ForwardAsync(HttpRequestMessage request, LlmRequestContext ctx)
+    protected override async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, LlmRequestContext ctx)
     {
         var url = request.RequestUri!.ToString();
         _records.Enqueue(new InterceptedRequest(url, ctx.SessionId));
