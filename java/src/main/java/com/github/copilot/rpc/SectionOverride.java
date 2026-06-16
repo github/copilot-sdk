@@ -12,34 +12,34 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Override operation for a single system prompt section in
+ * Override operation for a single system message section in
  * {@link SystemMessageMode#CUSTOMIZE} mode.
  * <p>
  * Each {@code SectionOverride} describes how one named section of the default
- * system prompt should be modified. The section name keys come from
- * {@link SystemPromptSections}.
+ * system message should be modified. The section name keys come from
+ * {@link SystemMessageSections}.
  *
  * <h2>Static override example</h2>
  *
  * <pre>{@code
  * var config = new SystemMessageConfig().setMode(SystemMessageMode.CUSTOMIZE).setSections(Map.of(
- * 		SystemPromptSections.TONE,
+ * 		SystemMessageSections.TONE,
  * 		new SectionOverride().setAction(SectionOverrideAction.REPLACE).setContent("Be concise and formal."),
- * 		SystemPromptSections.CODE_CHANGE_RULES, new SectionOverride().setAction(SectionOverrideAction.REMOVE)));
+ * 		SystemMessageSections.CODE_CHANGE_RULES, new SectionOverride().setAction(SectionOverrideAction.REMOVE)));
  * }</pre>
  *
  * <h2>Transform callback example</h2>
  *
  * <pre>{@code
  * var config = new SystemMessageConfig().setMode(SystemMessageMode.CUSTOMIZE)
- * 		.setSections(Map.of(SystemPromptSections.IDENTITY, new SectionOverride().setTransform(
+ * 		.setSections(Map.of(SystemMessageSections.IDENTITY, new SectionOverride().setTransform(
  * 				content -> CompletableFuture.completedFuture(content + "\nAlways end replies with DONE."))));
  * }</pre>
  *
  * @see SystemMessageConfig
  * @see SectionOverrideAction
- * @see SystemPromptSections
- * @since 1.2.0
+ * @see SystemMessageSections
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SectionOverride {

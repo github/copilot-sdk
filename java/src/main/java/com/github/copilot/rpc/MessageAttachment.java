@@ -16,7 +16,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  * @see Attachment
  * @see BlobAttachment
  * @see MessageOptions#setAttachments(java.util.List)
- * @since 1.2.0
+ * @since 1.0.0
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({@JsonSubTypes.Type(value = Attachment.class, name = "file"),

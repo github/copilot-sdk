@@ -35,10 +35,10 @@ import com.github.copilot.SystemMessageMode;
  * <pre>{@code
  * var config = new SystemMessageConfig().setMode(SystemMessageMode.CUSTOMIZE)
  * 		.setSections(
- * 				Map.of(SystemPromptSections.TONE,
+ * 				Map.of(SystemMessageSections.TONE,
  * 						new SectionOverride().setAction(SectionOverrideAction.REPLACE)
  * 								.setContent("Be concise and formal."),
- * 						SystemPromptSections.CODE_CHANGE_RULES,
+ * 						SystemMessageSections.CODE_CHANGE_RULES,
  * 						new SectionOverride().setAction(SectionOverrideAction.REMOVE)))
  * 		.setContent("Additional instructions appended after all sections.");
  * }</pre>
@@ -46,7 +46,7 @@ import com.github.copilot.SystemMessageMode;
  * @see SessionConfig#setSystemMessage(SystemMessageConfig)
  * @see SystemMessageMode
  * @see SectionOverride
- * @see SystemPromptSections
+ * @see SystemMessageSections
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -122,7 +122,7 @@ public class SystemMessageConfig {
     /**
      * Sets section-level overrides for {@link SystemMessageMode#CUSTOMIZE} mode.
      * <p>
-     * Keys are section identifiers from {@link SystemPromptSections}. Each value
+     * Keys are section identifiers from {@link SystemMessageSections}. Each value
      * describes how that section should be modified. Sections with a
      * {@link SectionOverride#getTransform() transform} callback are handled locally
      * by the SDK via a {@code systemMessage.transform} RPC call; the rest are sent
@@ -131,7 +131,7 @@ public class SystemMessageConfig {
      * @param sections
      *            a map of section identifier to override operation
      * @return this config for method chaining
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public SystemMessageConfig setSections(Map<String, SectionOverride> sections) {
         this.sections = sections;

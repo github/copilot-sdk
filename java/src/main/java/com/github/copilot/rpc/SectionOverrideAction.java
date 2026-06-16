@@ -12,7 +12,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  *
  * @see SectionOverride
  * @see SystemMessageConfig
- * @since 1.2.0
+ * @since 1.0.0
  */
 public enum SectionOverrideAction {
 

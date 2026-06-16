@@ -512,7 +512,7 @@ public class CopilotClientOptions {
      * Gets the OpenTelemetry configuration for the CLI server.
      *
      * @return the telemetry config, or {@code null}
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public TelemetryConfig getTelemetry() {
         return telemetry;
@@ -527,7 +527,7 @@ public class CopilotClientOptions {
      * @param telemetry
      *            the telemetry configuration
      * @return this options instance for method chaining
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public CopilotClientOptions setTelemetry(TelemetryConfig telemetry) {
         this.telemetry = Objects.requireNonNull(telemetry, "telemetry must not be null");

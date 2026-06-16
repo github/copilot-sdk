@@ -131,7 +131,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @param handler
      *            the handler function to execute when invoked
      * @return a new tool definition with permission skipping enabled
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public static ToolDefinition createSkipPermission(String name, String description, Map<String, Object> schema,
             ToolHandler handler) {
@@ -157,7 +157,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @param defer
      *            the deferral mode for the tool
      * @return a new tool definition with the deferral mode set
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public static ToolDefinition createWithDefer(String name, String description, Map<String, Object> schema,
             ToolHandler handler, ToolDefer defer) {

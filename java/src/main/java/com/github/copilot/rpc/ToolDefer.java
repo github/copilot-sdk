@@ -17,7 +17,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * decide when unset.
  *
  * @see ToolDefinition
- * @since 1.2.0
+ * @since 1.0.0
  */
 public enum ToolDefer {
 
