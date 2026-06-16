@@ -28,6 +28,7 @@ import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SectionOverride;
+import com.github.copilot.rpc.SectionOverrideAction;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SystemMessageConfig;
 import com.github.copilot.rpc.SystemMessageSections;
@@ -149,6 +150,43 @@ class SystemMessageSectionsIT {
             Field childField = SystemPromptSections.class.getField(constantName);
             assertEquals(parentField.get(null), childField.get(null),
                     "Constant " + constantName + " should have same value in both classes");
+        }
+    }
+
+    /**
+     * Verifies that replacing the {@link SystemMessageSections#IDENTITY} section
+     * via {@link SectionOverrideAction#REPLACE} causes the assistant to adopt the
+     * custom identity in its response.
+     *
+     * @see Snapshot:
+     *      system_message_sections/should_use_replaced_identity_section_in_response
+     */
+    @Test
+    void shouldUseReplacedIdentitySectionInResponse() throws Exception {
+        ctx.configureForTest("system_message_sections", "should_use_replaced_identity_section_in_response");
+
+        var systemMessage = new SystemMessageConfig().setMode(SystemMessageMode.CUSTOMIZE)
+                .setSections(Map.of(SystemMessageSections.IDENTITY,
+                        new SectionOverride().setAction(SectionOverrideAction.REPLACE)
+                                .setContent("You are a helpful gardening assistant called Botanica. "
+                                        + "You only answer questions about plants and gardening.")));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setSystemMessage(systemMessage)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
+
+            try {
+                AssistantMessageEvent response = session
+                        .sendAndWait(new MessageOptions().setPrompt("Who are you?"), 60_000).get(90, TimeUnit.SECONDS);
+
+                assertNotNull(response, "Expected a response from the assistant");
+                String content = response.getData().content().toLowerCase();
+                assertTrue(content.contains("botanica") || content.contains("garden") || content.contains("plant"),
+                        "Expected response to reflect the replaced identity section, but got: "
+                                + response.getData().content());
+            } finally {
+                session.close();
+            }
         }
     }
 }
