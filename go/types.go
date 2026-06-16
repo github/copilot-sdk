@@ -159,6 +159,10 @@ type TelemetryConfig struct {
 	// Sets OTEL_EXPORTER_OTLP_ENDPOINT.
 	OTLPEndpoint string
 
+	// OTLPProtocol is the OTLP HTTP protocol for all signals.
+	// Sets OTEL_EXPORTER_OTLP_PROTOCOL.
+	OTLPProtocol string
+
 	// FilePath is the file path for JSON-lines trace output.
 	// Sets COPILOT_OTEL_FILE_EXPORTER_PATH.
 	FilePath string
@@ -1626,7 +1630,8 @@ type ModelPolicy struct {
 
 // ModelBilling contains model billing information
 type ModelBilling struct {
-	Multiplier *float64 `json:"multiplier,omitempty"`
+	Multiplier  *float64                     `json:"multiplier,omitempty"`
+	TokenPrices *rpc.ModelBillingTokenPrices `json:"tokenPrices,omitempty"`
 }
 
 // ModelInfo contains information about an available model

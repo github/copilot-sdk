@@ -29,6 +29,8 @@ public record ToolExecutionCompleteResult(
     /** Structured content blocks (text, images, audio, resources) returned by the tool in their native format */
     @JsonProperty("contents") List<Object> contents,
     /** MCP Apps UI resource content for rendering in a sandboxed iframe */
-    @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource
+    @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource,
+    /** Structured content (arbitrary JSON) returned verbatim by the MCP tool */
+    @JsonProperty("structuredContent") Object structuredContent
 ) {
 }

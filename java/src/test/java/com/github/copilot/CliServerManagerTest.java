@@ -231,8 +231,9 @@ class CliServerManagerTest {
     void startCliServerWithTelemetryAllOptions() throws Exception {
         // The telemetry env vars are applied before ProcessBuilder.start()
         // so even with a nonexistent CLI path, the telemetry code path is exercised
-        var telemetry = new TelemetryConfig().setOtlpEndpoint("http://localhost:4318").setFilePath("/tmp/telemetry.log")
-                .setExporterType("otlp-http").setSourceName("test-app").setCaptureContent(true);
+        var telemetry = new TelemetryConfig().setOtlpEndpoint("http://localhost:4318").setOtlpProtocol("http/protobuf")
+                .setFilePath("/tmp/telemetry.log").setExporterType("otlp-http").setSourceName("test-app")
+                .setCaptureContent(true);
         var options = new CopilotClientOptions().setCliPath(NONEXISTENT_CLI).setTelemetry(telemetry).setUseStdio(true);
         var manager = new CliServerManager(options);
 

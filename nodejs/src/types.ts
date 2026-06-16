@@ -14,10 +14,17 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { RemoteSessionMode } from "./generated/rpc.js";
-import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type {
+    ModelBillingTokenPrices,
+    OpenCanvasInstance,
+    RemoteSessionMode,
+} from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type {
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
+} from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -55,6 +62,8 @@ export type TraceContextProvider = () => TraceContext | Promise<TraceContext>;
 export interface TelemetryConfig {
     /** OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT. */
     otlpEndpoint?: string;
+    /** OTLP HTTP protocol for all signals. Sets OTEL_EXPORTER_OTLP_PROTOCOL. */
+    otlpProtocol?: "http/json" | "http/protobuf";
     /** File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH. */
     filePath?: string;
     /** Exporter backend type: "otlp-http" or "file". Sets COPILOT_OTEL_EXPORTER_TYPE. */
@@ -2400,7 +2409,10 @@ export interface ModelPolicy {
  * Model billing information
  */
 export interface ModelBilling {
+    /** Billing cost multiplier relative to the base rate */
     multiplier?: number;
+    /** Token-level pricing information for this model */
+    tokenPrices?: ModelBillingTokenPrices;
 }
 
 /**

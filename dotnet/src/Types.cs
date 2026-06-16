@@ -414,6 +414,14 @@ public sealed class TelemetryConfig
     public string? OtlpEndpoint { get; set; }
 
     /// <summary>
+    /// OTLP HTTP protocol for all signals (<c>"http/json"</c> or <c>"http/protobuf"</c>).
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>OTEL_EXPORTER_OTLP_PROTOCOL</c> environment variable.
+    /// </remarks>
+    public string? OtlpProtocol { get; set; }
+
+    /// <summary>
     /// File path for the file exporter.
     /// </summary>
     /// <remarks>
@@ -3327,6 +3335,12 @@ public sealed class ModelBilling
     /// </summary>
     [JsonPropertyName("multiplier")]
     public double? Multiplier { get; set; }
+
+    /// <summary>
+    /// Token-level pricing information for this model.
+    /// </summary>
+    [JsonPropertyName("tokenPrices")]
+    public ModelBillingTokenPrices? TokenPrices { get; set; }
 }
 
 /// <summary>
@@ -3528,6 +3542,8 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(McpServerConfig))]
 [JsonSerializable(typeof(MessageOptions))]
 [JsonSerializable(typeof(ModelBilling))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPrices))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPricesLongContext))]
 [JsonSerializable(typeof(ModelCapabilities))]
 [JsonSerializable(typeof(ModelCapabilitiesOverride))]
 [JsonSerializable(typeof(ModelInfo))]

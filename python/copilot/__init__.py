@@ -64,6 +64,10 @@ from .client import (
     TelemetryConfig,
     UriRuntimeConnection,
 )
+from .generated.rpc import (
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
+)
 from .generated.session_events import (
     PermissionRequest,
     SessionEvent,
@@ -202,6 +206,8 @@ __all__ = [
     "MCPServerConfig",
     "MCPStdioServerConfig",
     "ModelBilling",
+    "ModelBillingTokenPrices",
+    "ModelBillingTokenPricesLongContext",
     "ModelCapabilities",
     "ModelCapabilitiesOverride",
     "ModelInfo",

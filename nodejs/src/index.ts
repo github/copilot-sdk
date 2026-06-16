@@ -82,6 +82,8 @@ export type {
     DefaultAgentConfig,
     MessageOptions,
     ModelBilling,
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
     ModelCapabilities,
     ModelCapabilitiesOverride,
     ModelInfo,

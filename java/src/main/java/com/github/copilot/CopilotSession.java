@@ -1818,7 +1818,7 @@ public final class CopilotSession implements AutoCloseable {
      * @return a future that completes when the model switch is acknowledged
      * @throws IllegalStateException
      *             if this session has been terminated
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
@@ -1958,7 +1958,7 @@ public final class CopilotSession implements AutoCloseable {
      * @return a future that completes when the message is logged
      * @throws IllegalStateException
      *             if this session has been terminated
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public CompletableFuture<Void> log(String message, String level, Boolean ephemeral, String url) {
         ensureNotTerminated();

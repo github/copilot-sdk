@@ -63,6 +63,8 @@ from .canvas import (
 )
 from .generated.rpc import (
     ClientSessionApiHandlers,
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
     RemoteSessionMode,
     ServerRpc,
@@ -191,6 +193,11 @@ class TelemetryConfig(TypedDict, total=False):
 
     otlp_endpoint: str
     """OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT."""
+    otlp_protocol: Literal["http/json", "http/protobuf"]
+    """OTLP HTTP protocol for all signals.
+
+    Allowed values are "http/json" and "http/protobuf". Sets OTEL_EXPORTER_OTLP_PROTOCOL.
+    """
     file_path: str
     """File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH."""
     exporter_type: str
@@ -621,19 +628,25 @@ class ModelBilling:
     """Model billing information"""
 
     multiplier: float | None = None
+    token_prices: ModelBillingTokenPrices | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> ModelBilling:
         assert isinstance(obj, dict)
         multiplier = obj.get("multiplier")
-        if multiplier is None:
-            return ModelBilling()
-        return ModelBilling(multiplier=float(multiplier))
+        tp = obj.get("tokenPrices")
+        token_prices = ModelBillingTokenPrices.from_dict(tp) if tp is not None else None
+        return ModelBilling(
+            multiplier=float(multiplier) if multiplier is not None else None,
+            token_prices=token_prices,
+        )
 
     def to_dict(self) -> dict:
         result: dict = {}
         if self.multiplier is not None:
             result["multiplier"] = self.multiplier
+        if self.token_prices is not None:
+            result["tokenPrices"] = self.token_prices.to_dict()
         return result
 
 
@@ -3279,6 +3292,8 @@ class CopilotClient:
             env["COPILOT_OTEL_ENABLED"] = "true"
             if "otlp_endpoint" in telemetry:
                 env["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry["otlp_endpoint"]
+            if "otlp_protocol" in telemetry:
+                env["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry["otlp_protocol"]
             if "file_path" in telemetry:
                 env["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry["file_path"]
             if "exporter_type" in telemetry:

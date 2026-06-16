@@ -51,8 +51,9 @@ def from_timedelta(x: Any) -> timedelta:
 def to_timedelta_int(x: timedelta) -> int:
     assert isinstance(x, timedelta)
     milliseconds = x.total_seconds() * 1000.0
-    assert milliseconds.is_integer()
-    return int(milliseconds)
+    # Durations can carry sub-millisecond precision; round to the nearest whole ms
+    # using Python's default banker's rounding (round-half-to-even).
+    return round(milliseconds)
 
 
 def to_timedelta(x: timedelta) -> float:
@@ -734,11 +735,13 @@ class AssistantUsageData:
     api_endpoint: AssistantUsageApiEndpoint | None = None
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
+    content_filter_triggered: bool | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _copilot_usage: _AssistantUsageCopilotUsage | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     cost: float | None = None
     duration: timedelta | None = None
+    finish_reason: str | None = None
     initiator: str | None = None
     input_tokens: int | None = None
     inter_token_latency: timedelta | None = None
@@ -761,9 +764,11 @@ class AssistantUsageData:
         api_endpoint = from_union([from_none, lambda x: parse_enum(AssistantUsageApiEndpoint, x)], obj.get("apiEndpoint"))
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
+        content_filter_triggered = from_union([from_none, from_bool], obj.get("contentFilterTriggered"))
         _copilot_usage = from_union([from_none, _AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
         cost = from_union([from_none, from_float], obj.get("cost"))
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
+        finish_reason = from_union([from_none, from_str], obj.get("finishReason"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
         input_tokens = from_union([from_none, from_int], obj.get("inputTokens"))
         inter_token_latency = from_union([from_none, from_timedelta], obj.get("interTokenLatencyMs"))
@@ -781,9 +786,11 @@ class AssistantUsageData:
             api_endpoint=api_endpoint,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
+            content_filter_triggered=content_filter_triggered,
             _copilot_usage=_copilot_usage,
             cost=cost,
             duration=duration,
+            finish_reason=finish_reason,
             initiator=initiator,
             input_tokens=input_tokens,
             inter_token_latency=inter_token_latency,
@@ -808,12 +815,16 @@ class AssistantUsageData:
             result["cacheReadTokens"] = from_union([from_none, to_int], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
             result["cacheWriteTokens"] = from_union([from_none, to_int], self.cache_write_tokens)
+        if self.content_filter_triggered is not None:
+            result["contentFilterTriggered"] = from_union([from_none, from_bool], self.content_filter_triggered)
         if self._copilot_usage is not None:
             result["copilotUsage"] = from_union([from_none, lambda x: to_class(_AssistantUsageCopilotUsage, x)], self._copilot_usage)
         if self.cost is not None:
             result["cost"] = from_union([from_none, to_float], self.cost)
         if self.duration is not None:
             result["duration"] = from_union([from_none, to_timedelta_int], self.duration)
+        if self.finish_reason is not None:
+            result["finishReason"] = from_union([from_none, from_str], self.finish_reason)
         if self.initiator is not None:
             result["initiator"] = from_union([from_none, from_str], self.initiator)
         if self.input_tokens is not None:
@@ -5946,6 +5957,7 @@ class ToolExecutionCompleteResult:
     content: str
     contents: list[ToolExecutionCompleteContent] | None = None
     detailed_content: str | None = None
+    structured_content: Any = None
     ui_resource: ToolExecutionCompleteUIResource | None = None
 
     @staticmethod
@@ -5954,11 +5966,13 @@ class ToolExecutionCompleteResult:
         content = from_str(obj.get("content"))
         contents = from_union([from_none, lambda x: from_list(_load_ToolExecutionCompleteContent, x)], obj.get("contents"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
+        structured_content = obj.get("structuredContent")
         ui_resource = from_union([from_none, ToolExecutionCompleteUIResource.from_dict], obj.get("uiResource"))
         return ToolExecutionCompleteResult(
             content=content,
             contents=contents,
             detailed_content=detailed_content,
+            structured_content=structured_content,
             ui_resource=ui_resource,
         )
 
@@ -5969,6 +5983,8 @@ class ToolExecutionCompleteResult:
             result["contents"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.contents)
         if self.detailed_content is not None:
             result["detailedContent"] = from_union([from_none, from_str], self.detailed_content)
+        if self.structured_content is not None:
+            result["structuredContent"] = self.structured_content
         if self.ui_resource is not None:
             result["uiResource"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResource, x)], self.ui_resource)
         return result
