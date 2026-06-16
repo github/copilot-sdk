@@ -278,6 +278,7 @@ public sealed class CopilotClientOptions
         UseLoggedInUser = other.UseLoggedInUser;
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
+        LlmInference = other.LlmInference;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
         Mode = other.Mode;
@@ -363,6 +364,17 @@ public sealed class CopilotClientOptions
     /// <see cref="SessionConfigBase.CreateSessionFsProvider"/>.
     /// </summary>
     public SessionFsConfig? SessionFs { get; set; }
+
+    /// <summary>
+    /// Configures interception of the LLM inference requests the runtime would
+    /// otherwise issue itself (for both CAPI and BYOK providers). When set, the
+    /// client registers a client-global LLM inference provider on connect, so
+    /// every model-layer HTTP / WebSocket request is routed to the consumer's
+    /// <see cref="ILlmInferenceProvider"/> (or <see cref="LlmRequestHandler"/>
+    /// subclass) instead of the runtime's own outbound call.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public LlmInferenceConfig? LlmInference { get; set; }
 
     /// <summary>
     /// OpenTelemetry configuration for the runtime.
@@ -482,6 +494,22 @@ public sealed class SessionFsConfig
     /// the runtime routes SQLite queries through the provider instead of using a local database file.
     /// </summary>
     public SessionFsSetProviderCapabilities? Capabilities { get; init; }
+}
+
+/// <summary>
+/// Configuration for intercepting the LLM inference requests the runtime issues.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class LlmInferenceConfig
+{
+    /// <summary>
+    /// Factory invoked once when the client connects, producing the provider that
+    /// will service every intercepted model-layer request for the lifetime of the
+    /// connection. Return a <see cref="LlmRequestHandler"/> subclass for a
+    /// transparent pass-through starting point, or any
+    /// <see cref="ILlmInferenceProvider"/> for full control.
+    /// </summary>
+    public Func<ILlmInferenceProvider>? CreateLlmInferenceProvider { get; set; }
 }
 
 /// <summary>

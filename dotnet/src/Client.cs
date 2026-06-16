@@ -85,6 +85,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private List<ModelInfo>? _modelsCache;
     private ServerRpc? _serverRpc;
 
+    /// <summary>
+    /// Client-global RPC handlers (e.g. the LLM inference provider adapter),
+    /// built once at construction when the corresponding option is configured and
+    /// registered on every connection. Null when no client-global API is enabled.
+    /// </summary>
+    private readonly ClientGlobalApiHandlers? _clientGlobalApis;
+
     private sealed record LifecycleSubscription(Type EventType, Action<SessionLifecycleEvent> Handler);
 
     /// <summary>
@@ -164,6 +171,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
+
+        _clientGlobalApis = BuildClientGlobalApis();
 
         // Empty mode: validate at construction time that the app supplied a
         // per-session persistence location. The runtime is mode-agnostic, so
@@ -275,6 +284,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         "CopilotClient.StartAsync session filesystem setup complete. Elapsed={Elapsed}",
                         sessionFsTimestamp);
                 }
+
+                await ConfigureLlmInferenceAsync(ct);
 
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StartAsync complete. Elapsed={Elapsed}",
@@ -1678,6 +1689,42 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             cancellationToken: cancellationToken);
     }
 
+    /// <summary>
+    /// Builds the client-global RPC handler bag at construction time. Currently
+    /// only the LLM inference provider adapter is registered; returns null when no
+    /// client-global API is configured so the registration is skipped entirely.
+    /// </summary>
+    private ClientGlobalApiHandlers? BuildClientGlobalApis()
+    {
+        var factory = _options.LlmInference?.CreateLlmInferenceProvider;
+        if (factory is null)
+        {
+            return null;
+        }
+
+        var provider = factory()
+            ?? throw new InvalidOperationException("LlmInferenceConfig.CreateLlmInferenceProvider returned null.");
+
+        return new ClientGlobalApiHandlers
+        {
+            LlmInference = new LlmInferenceAdapter(provider, () => _serverRpc),
+        };
+    }
+
+    /// <summary>
+    /// Tells the runtime to route its outbound model-layer requests through this
+    /// client's LLM inference provider. No-op when interception is not configured.
+    /// </summary>
+    private async Task ConfigureLlmInferenceAsync(CancellationToken cancellationToken)
+    {
+        if (_clientGlobalApis?.LlmInference is null)
+        {
+            return;
+        }
+
+        await Rpc.LlmInference.SetProviderAsync(cancellationToken);
+    }
+
     private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, SessionFsProvider>? createSessionFsHandler)
     {
         if (_options.SessionFs is null)
@@ -2072,6 +2119,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
                 return session.ClientSessionApis;
             });
+            if (_clientGlobalApis is not null)
+            {
+                ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, _clientGlobalApis);
+            }
             rpc.StartListening();
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
