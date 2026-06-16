@@ -49,6 +49,7 @@ class ToolInvocation:
     tool_call_id: str = ""
     tool_name: str = ""
     arguments: Any = None
+    context: Any = None
 
 
 ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]

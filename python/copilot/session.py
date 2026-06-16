@@ -280,6 +280,10 @@ class PermissionNoResult:
 PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
+ToolContextProvider = Callable[[ToolInvocation], Any]
+"""Per-call tool context provider: receives the invocation, returns ``context``."""
+
+
 _PermissionHandlerFn = Callable[
     [PermissionRequest, dict[str, str]],
     PermissionRequestResult | Awaitable[PermissionRequestResult],
@@ -1119,6 +1123,8 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
+        self._tool_context_provider: ToolContextProvider | None = None
+        self._tool_context_provider_lock = threading.Lock()
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
@@ -1592,6 +1598,13 @@ class CopilotSession:
                 arguments=arguments,
             )
 
+            provider = self._get_tool_context_provider()
+            if provider is not None:
+                tool_context = provider(invocation)
+                if inspect.isawaitable(tool_context):
+                    tool_context = await tool_context
+                invocation.context = tool_context
+
             with trace_context(traceparent, tracestate):
                 handler_start = time.perf_counter()
                 result = handler(invocation)
@@ -1988,6 +2001,25 @@ class CopilotSession:
         """
         with self._tool_handlers_lock:
             return self._tool_handlers.get(name)
+
+    def _register_tool_context_provider(self, provider: ToolContextProvider | None) -> None:
+        """
+        Register the provider that supplies per-call tool context.
+
+        Note:
+            This method is internal. The provider is typically registered when
+            creating a session via :meth:`CopilotClient.create_session`.
+
+        Args:
+            provider: The tool context provider, or None to remove it.
+        """
+        with self._tool_context_provider_lock:
+            self._tool_context_provider = provider
+
+    def _get_tool_context_provider(self) -> ToolContextProvider | None:
+        """Retrieve the registered tool context provider, if any."""
+        with self._tool_context_provider_lock:
+            return self._tool_context_provider
 
     def _register_permission_handler(self, handler: _PermissionHandlerFn | None) -> None:
         """

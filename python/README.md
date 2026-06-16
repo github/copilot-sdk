@@ -329,6 +329,27 @@ async def lookup_issue(params: LookupParams) -> str:
     # your logic
 ```
 
+#### Providing Per-Call Tool Context
+
+Pass `on_provide_tool_context` to `create_session` (or `resume_session`) to inject application context into your tool handlers without exposing it to the model. The provider is invoked once per tool call with the `ToolInvocation` (sync or async); its return value is assigned to `invocation.context` before the handler runs. Use it to hand per-request services or state to handlers that would otherwise need a global lookup. `invocation.context` defaults to `None` when no provider is registered, and is never sent over the wire.
+
+```python
+from copilot.tools import ToolInvocation
+
+@define_tool(description="List the current user's open issues")
+async def my_issues(invocation: ToolInvocation) -> str:
+    ctx = invocation.context  # whatever the provider returned
+    return await ctx.db.open_issues_for(ctx.user_id)
+
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    tools=[my_issues],
+    on_provide_tool_context=lambda invocation: build_request_context(),
+) as session:
+    ...
+```
+
 ## Image Support
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:

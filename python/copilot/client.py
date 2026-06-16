@@ -94,6 +94,7 @@ from .session import (
     SessionFsConfig,
     SessionHooks,
     SystemMessageConfig,
+    ToolContextProvider,
     UserInputHandler,
     _PermissionHandlerFn,
 )
@@ -1565,6 +1566,7 @@ class CopilotClient:
         reasoning_summary: ReasoningSummary | None = None,
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
+        on_provide_tool_context: ToolContextProvider | None = None,
         system_message: SystemMessageConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
@@ -1639,6 +1641,10 @@ class CopilotClient:
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
+            on_provide_tool_context: Optional provider invoked once per tool call
+                with the ``ToolInvocation``; its return value (awaited when a
+                coroutine) is assigned to ``ToolInvocation.context`` before the
+                handler runs.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
                 these tools will be available. Applies to the full merged tool
@@ -2008,6 +2014,7 @@ class CopilotClient:
                         )
                 s._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
             s._register_tools(tools)
+            s._register_tool_context_provider(on_provide_tool_context)
             s._register_commands(commands)
             s._register_permission_handler(on_permission_request)
             if on_user_input_request:
@@ -2136,6 +2143,7 @@ class CopilotClient:
         reasoning_summary: ReasoningSummary | None = None,
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
+        on_provide_tool_context: ToolContextProvider | None = None,
         system_message: SystemMessageConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
@@ -2211,6 +2219,10 @@ class CopilotClient:
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
+            on_provide_tool_context: Optional provider invoked once per tool call
+                with the ``ToolInvocation``; its return value (awaited when a
+                coroutine) is assigned to ``ToolInvocation.context`` before the
+                handler runs.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
                 these tools will be available. Applies to the full merged tool
@@ -2533,6 +2545,7 @@ class CopilotClient:
                     )
             session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
         session._register_tools(tools)
+        session._register_tool_context_provider(on_provide_tool_context)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:

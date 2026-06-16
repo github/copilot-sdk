@@ -249,6 +249,49 @@ class TestDefineTool:
             )
 
 
+class TestToolInvocation:
+    def test_context_defaults_to_none(self):
+        inv = ToolInvocation(
+            session_id="s1",
+            tool_call_id="c1",
+            tool_name="t",
+            arguments={},
+        )
+        assert inv.context is None
+
+    def test_context_can_be_set(self):
+        sentinel = object()
+        inv = ToolInvocation(
+            session_id="s1",
+            tool_call_id="c1",
+            tool_name="t",
+            arguments={},
+            context=sentinel,
+        )
+        assert inv.context is sentinel
+
+    async def test_handler_can_read_context(self):
+        seen = None
+
+        @define_tool("t", description="Reads context")
+        def tool(invocation: ToolInvocation) -> str:
+            nonlocal seen
+            seen = invocation.context
+            return "ok"
+
+        await tool.handler(
+            ToolInvocation(
+                session_id="s1",
+                tool_call_id="c1",
+                tool_name="t",
+                arguments={},
+                context={"user": "alice"},
+            )
+        )
+
+        assert seen == {"user": "alice"}
+
+
 class TestNormalizeResult:
     def test_none_returns_empty_success(self):
         result = _normalize_result(None)
