@@ -2,6 +2,13 @@
 
 A Go SDK for programmatic access to the GitHub Copilot CLI.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Go 1.24 or later
+- GitHub Copilot CLI installed and in `PATH` (or set `COPILOT_CLI_PATH`)
+
 ## Installation
 
 ```bash
@@ -599,6 +606,7 @@ client, err := copilot.NewClient(copilot.ClientOptions{
 **TelemetryConfig fields:**
 
 - `OTLPEndpoint` (string): OTLP HTTP endpoint URL
+- `OTLPProtocol` (string): OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
 - `FilePath` (string): File path for JSON-lines trace output
 - `ExporterType` (string): `"otlp-http"` or `"file"`
 - `SourceName` (string): Instrumentation scope name

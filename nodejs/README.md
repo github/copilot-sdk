@@ -2,6 +2,12 @@
 
 TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Node.js ^20.19.0 or >=22.12.0
+
 ## Installation
 
 ```bash
@@ -808,6 +814,7 @@ With just this configuration, the CLI emits spans for every session, message, an
 **TelemetryConfig options:**
 
 - `otlpEndpoint?: string` - OTLP HTTP endpoint URL
+- `otlpProtocol?: "http/json" | "http/protobuf"` - OTLP HTTP protocol for all signals
 - `filePath?: string` - File path for JSON-lines trace output
 - `exporterType?: string` - `"otlp-http"` or `"file"`
 - `sourceName?: string` - Instrumentation scope name
@@ -1069,11 +1076,6 @@ try {
     console.error("Error:", error.message);
 }
 ```
-
-## Requirements
-
-- Node.js ^20.19.0 or >=22.12.0
-- GitHub Copilot CLI installed and in PATH (or provide a custom `connection`)
 
 ## License
 

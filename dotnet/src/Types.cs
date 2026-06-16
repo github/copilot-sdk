@@ -414,6 +414,14 @@ public sealed class TelemetryConfig
     public string? OtlpEndpoint { get; set; }
 
     /// <summary>
+    /// OTLP HTTP protocol for all signals (<c>"http/json"</c> or <c>"http/protobuf"</c>).
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>OTEL_EXPORTER_OTLP_PROTOCOL</c> environment variable.
+    /// </remarks>
+    public string? OtlpProtocol { get; set; }
+
+    /// <summary>
     /// File path for the file exporter.
     /// </summary>
     /// <remarks>

@@ -2,6 +2,12 @@
 
 SDK for programmatic control of GitHub Copilot CLI.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Any of the [.NET Standard 2.0-compatible .NET implementations](https://learn.microsoft.com/dotnet/standard/net-standard?tabs=net-standard-2-0#select-net-standard-version)
+
 ## Installation
 
 ```bash
@@ -752,6 +758,7 @@ var client = new CopilotClient(new CopilotClientOptions
 **TelemetryConfig properties:**
 
 - `OtlpEndpoint` - OTLP HTTP endpoint URL
+- `OtlpProtocol` - OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
 - `FilePath` - File path for JSON-lines trace output
 - `ExporterType` - `"otlp-http"` or `"file"`
 - `SourceName` - Instrumentation scope name
@@ -1015,11 +1022,6 @@ catch (Exception ex)
     Console.Error.WriteLine($"Error: {ex.Message}");
 }
 ```
-
-## Requirements
-
-- .NET 8.0 or later
-- GitHub Copilot CLI installed and in PATH (or provide custom `Connection = RuntimeConnection.ForStdio(path: ...)`)
 
 ## License
 

@@ -2,6 +2,12 @@
 
 Python SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Python 3.11+
+
 ## Installation
 
 ```bash
@@ -572,6 +578,7 @@ client = CopilotClient(
 **TelemetryConfig options:**
 
 - `otlp_endpoint` (str): OTLP HTTP endpoint URL
+- `otlp_protocol` (str): OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
 - `file_path` (str): File path for JSON-lines trace output
 - `exporter_type` (str): `"otlp-http"` or `"file"`
 - `source_name` (str): Instrumentation scope name
@@ -922,8 +929,3 @@ When `on_elicitation_request` is provided, the SDK automatically:
 - Reports the `elicitation` capability on the session
 - Dispatches `elicitation.requested` events to your handler
 - Auto-cancels if your handler throws an error (so the server doesn't hang)
-
-## Requirements
-
-- Python 3.11+
-- GitHub Copilot CLI installed and accessible
