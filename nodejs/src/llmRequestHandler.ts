@@ -44,8 +44,9 @@ export interface LlmRequestContext {
  *   and before {@link onMessage} fires.
  * - {@link onMessage} may fire zero or more times. `data` is a
  *   `string` for text frames and `Uint8Array` for binary frames.
- * - Exactly one of {@link onClose} or {@link onError} fires terminally
- *   (after which {@link send} is a no-op).
+ * - Exactly one of {@link onClose} or {@link onError} fires terminally,
+ *   including when the terminal close is initiated locally via
+ *   {@link close}. After it fires {@link send} is a no-op.
  *
  * @experimental
  */
@@ -53,8 +54,9 @@ export interface LlmWebSocketUpstream {
     /** Send an outbound frame. Text → `string`, binary → `Uint8Array`. */
     send(data: string | Uint8Array): void;
     /**
-     * Close the channel. The corresponding `onClose` is *not* fired by
-     * calling this method — the handler unsubscribes before closing.
+     * Close the channel. This still drives the terminal {@link onClose}
+     * (or {@link onError}) callback — the wrapper does not suppress it —
+     * so callers awaiting that signal observe the local close too.
      */
     close(code?: number, reason?: string): void;
     /** Registers the open-handshake-complete listener. Called once. */
@@ -214,11 +216,14 @@ export class LlmRequestHandler implements LlmInferenceProvider {
         // 101-equivalent start frame the runtime is waiting for).
         await req.responseBody.start({ status: 101, headers: {} });
 
-        // Pump upstream → runtime in the background. We only finalise the
-        // response sink (end/error) from this side; the outbound pump
-        // exits once the runtime's requestBody iterator completes, which
-        // it does on cancellation or normal close.
-        let serverPumpDone = false;
+        // Pump both directions concurrently. The HTTP case is the degenerate
+        // form where the request body completes before the response begins,
+        // but for WebSocket either side can terminate first: the upstream may
+        // close while we're still parked awaiting the next runtime message, or
+        // the runtime may cancel while the upstream is mid-stream. Racing the
+        // two pumps means whichever terminates first tears the other down,
+        // rather than the request pump blocking forever on an iterator that
+        // will never yield again.
         let serverPumpError: Error | undefined;
         const serverDone = new Promise<void>((resolve) => {
             upstream.onMessage(async (data) => {
@@ -229,28 +234,23 @@ export class LlmRequestHandler implements LlmInferenceProvider {
                     }
                     await req.responseBody.write(mutated);
                 } catch (err) {
-                    serverPumpError = err instanceof Error ? err : new Error(String(err));
+                    serverPumpError ??= err instanceof Error ? err : new Error(String(err));
                     upstream.close();
                 }
             });
             upstream.onClose(() => {
-                serverPumpDone = true;
                 resolve();
             });
             upstream.onError((err) => {
                 serverPumpError ??= err;
-                serverPumpDone = true;
                 resolve();
             });
         });
 
-        // Pump runtime → upstream. The async iterator throws when the
-        // runtime cancels; we treat that as a clean teardown signal.
-        try {
+        // Runtime → upstream. The async iterator throws when the runtime
+        // cancels; we surface that so the adapter finalises cancellation.
+        const clientDone = (async () => {
             for await (const chunk of req.requestBody) {
-                if (serverPumpDone) {
-                    break;
-                }
                 const text = decodeFrame(chunk);
                 const mutated = await this.transformRequestMessage(text, ctx);
                 if (mutated === null) {
@@ -258,20 +258,53 @@ export class LlmRequestHandler implements LlmInferenceProvider {
                 }
                 upstream.send(mutated);
             }
-        } catch (err) {
-            // Cancellation: the adapter rethrows the abort so it can
-            // finalise the response sink with the right cancelled status.
-            // Tear down the upstream first so we don't leak the socket.
-            upstream.close();
-            throw err;
+        })();
+
+        let cancelled: unknown;
+        const clientSettled = clientDone.then(
+            () => "client-complete" as const,
+            (err) => {
+                cancelled = err;
+                return "client-error" as const;
+            }
+        );
+        const serverSettled = serverDone.then(() => "server-done" as const);
+
+        const first = await Promise.race([clientSettled, serverSettled]);
+
+        // Whichever side won, tear the upstream down so the loser unwinds:
+        // closing makes `send` a no-op and drives the upstream's terminal
+        // close callback.
+        upstream.close();
+
+        if (first === "client-error") {
+            // Runtime cancellation propagating out of the request iterator.
+            // Detach the server pump so its (resolved) settle isn't leaked,
+            // and rethrow so the adapter finalises the cancellation.
+            void serverSettled;
+            throw cancelled instanceof Error ? cancelled : new Error(String(cancelled));
         }
 
-        // Either the runtime closed or we observed an upstream close.
-        upstream.close();
-        await serverDone;
+        if (first === "client-complete") {
+            // The runtime closed the request side cleanly while the upstream
+            // was still open; wait for the upstream to reach its terminal
+            // state (the `upstream.close()` above drives it there).
+            await serverSettled;
+        }
+
+        // The upstream has terminated. If it errored, surface that — detach
+        // the request pump (it self-terminates once we stop responding).
         if (serverPumpError) {
+            void clientSettled;
             throw serverPumpError;
         }
+
+        // Finalise the response. This tells the runtime to stop the request
+        // stream; the request pump then settles (its iterator throws a
+        // teardown cancel which `clientSettled` already absorbs), so we must
+        // not await it here or we'd deadlock waiting on a stream that only
+        // ends *because* we finalised.
+        void clientSettled;
         await req.responseBody.end();
     }
 }
@@ -394,12 +427,15 @@ function headersToMultiMap(headers: Headers): LlmInferenceHeaders {
     return out;
 }
 
+const sharedTextDecoder = new TextDecoder("utf-8", { fatal: false });
+const sharedTextEncoder = new TextEncoder();
+
 function decodeFrame(chunk: Uint8Array): string {
     // The runtime sends WS text frames as UTF-8 bytes over the chunk
     // channel; the consumer side has no `binary` flag plumbed yet, so we
     // surface everything as `string`. Override the message transform
     // hooks to convert back to bytes if needed.
-    return new TextDecoder("utf-8", { fatal: false }).decode(chunk);
+    return sharedTextDecoder.decode(chunk);
 }
 
 /**
@@ -416,24 +452,33 @@ export function wrapGlobalWebSocket(ws: WebSocket): LlmWebSocketUpstream {
     let messageHandler: ((data: string | Uint8Array) => void) | null = null;
     let closeHandler: ((code: number, reason: string) => void) | null = null;
     let errorHandler: ((error: Error) => void) | null = null;
+    // Messages can arrive between the socket opening and the consumer
+    // registering `onMessage`; buffer them so the first frames of a fast
+    // upstream are never dropped.
+    let inboundBuffer: (string | Uint8Array)[] | null = [];
+
+    const deliver = (data: string | Uint8Array): void => {
+        if (messageHandler) {
+            messageHandler(data);
+        } else {
+            inboundBuffer?.push(data);
+        }
+    };
 
     ws.addEventListener("open", () => {
         openHandler?.();
     });
     ws.addEventListener("message", (event) => {
-        if (!messageHandler) {
-            return;
-        }
         const data = event.data;
         if (typeof data === "string") {
-            messageHandler(data);
+            deliver(data);
         } else if (data instanceof ArrayBuffer) {
-            messageHandler(new Uint8Array(data));
+            deliver(new Uint8Array(data));
         } else if (data instanceof Uint8Array) {
-            messageHandler(data);
+            deliver(data);
         } else {
             // Blob isn't expected (binaryType: "arraybuffer") but be safe.
-            messageHandler(new TextEncoder().encode(String(data)));
+            deliver(sharedTextEncoder.encode(String(data)));
         }
     });
     ws.addEventListener("close", (event) => {
@@ -448,11 +493,7 @@ export function wrapGlobalWebSocket(ws: WebSocket): LlmWebSocketUpstream {
             if (ws.readyState !== WebSocket.OPEN) {
                 return;
             }
-            if (typeof data === "string") {
-                ws.send(data);
-            } else {
-                ws.send(data);
-            }
+            ws.send(data);
         },
         close(code, reason) {
             try {
@@ -469,6 +510,13 @@ export function wrapGlobalWebSocket(ws: WebSocket): LlmWebSocketUpstream {
         },
         onMessage(handler) {
             messageHandler = handler;
+            const buffered = inboundBuffer;
+            inboundBuffer = null;
+            if (buffered) {
+                for (const data of buffered) {
+                    handler(data);
+                }
+            }
         },
         onClose(handler) {
             closeHandler = handler;

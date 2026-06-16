@@ -177,11 +177,13 @@ function makeBodyQueue(): BodyQueue {
     };
 }
 
+const sharedTextEncoder = new TextEncoder();
+
 function decodeChunkData(data: string, binary: boolean): Uint8Array {
     if (binary) {
         return new Uint8Array(Buffer.from(data, "base64"));
     }
-    return new TextEncoder().encode(data);
+    return sharedTextEncoder.encode(data);
 }
 
 interface PendingState {
@@ -209,9 +211,30 @@ interface PendingState {
  */
 export function createLlmInferenceAdapter(
     provider: LlmInferenceProvider,
-    getServerRpc: () => ServerRpc | undefined,
+    getServerRpc: () => ServerRpc | undefined
 ): LlmInferenceHandler {
     const pending = new Map<string, PendingState>();
+    // Defense-in-depth backstop: chunks that arrive before their `start`
+    // frame (a reordering the runtime's single ordered dispatch should make
+    // impossible) are staged here keyed by requestId and drained the moment
+    // `httpRequestStart` registers the matching state, so a body byte is
+    // never silently dropped.
+    const staged = new Map<string, LlmInferenceHttpRequestChunkRequest[]>();
+
+    function routeChunk(state: PendingState, params: LlmInferenceHttpRequestChunkRequest): void {
+        if (params.cancel) {
+            state.cancelled = true;
+            state.abort.abort();
+            state.queue.push({ cancel: { reason: params.cancelReason } });
+            return;
+        }
+        if (params.data && params.data.length > 0) {
+            state.queue.push({ chunk: decodeChunkData(params.data, !!params.binary) });
+        }
+        if (params.end) {
+            state.queue.push({ end: true });
+        }
+    }
 
     function makeSink(requestId: string, state: PendingState): LlmInferenceResponseSink {
         const rpc = (): ServerRpc => {
@@ -220,6 +243,21 @@ export function createLlmInferenceAdapter(
                 throw new Error("LLM inference response sink used after RPC connection closed.");
             }
             return r;
+        };
+        // The runtime acknowledges every response frame with `accepted`.
+        // `accepted: false` means it has dropped the request (e.g. it
+        // cancelled), so we abort the provider's upstream work and stop
+        // emitting — there is no consumer for further frames.
+        const rejectedByRuntime = (): never => {
+            if (!state.cancelled) {
+                state.cancelled = true;
+                state.abort.abort();
+            }
+            state.finished = true;
+            pending.delete(requestId);
+            throw new Error(
+                "LLM inference response was rejected by the runtime (request no longer active)."
+            );
         };
         return {
             async start(init: LlmInferenceResponseInit): Promise<void> {
@@ -230,27 +268,38 @@ export function createLlmInferenceAdapter(
                     throw new Error("LLM inference response sink already finished.");
                 }
                 state.started = true;
-                await rpc().llmInference.httpResponseStart({
+                const result = await rpc().llmInference.httpResponseStart({
                     requestId,
                     status: init.status,
                     statusText: init.statusText,
                     headers: init.headers ?? {},
                 });
+                if (!result.accepted) {
+                    rejectedByRuntime();
+                }
             },
             async write(data: string | Uint8Array): Promise<void> {
+                if (state.cancelled) {
+                    throw new Error("LLM inference request was cancelled by the runtime.");
+                }
                 if (!state.started) {
                     throw new Error("LLM inference response sink.write() called before start().");
                 }
                 if (state.finished) {
-                    throw new Error("LLM inference response sink.write() called after end()/error().");
+                    throw new Error(
+                        "LLM inference response sink.write() called after end()/error()."
+                    );
                 }
                 const isString = typeof data === "string";
-                await rpc().llmInference.httpResponseChunk({
+                const result = await rpc().llmInference.httpResponseChunk({
                     requestId,
                     data: isString ? data : Buffer.from(data).toString("base64"),
                     binary: !isString,
                     end: false,
                 });
+                if (!result.accepted) {
+                    rejectedByRuntime();
+                }
             },
             async end(): Promise<void> {
                 if (state.finished) {
@@ -283,7 +332,7 @@ export function createLlmInferenceAdapter(
     async function failViaSink(
         sink: LlmInferenceResponseSink,
         state: PendingState,
-        message: string,
+        message: string
     ): Promise<void> {
         if (state.finished) {
             return;
@@ -300,7 +349,7 @@ export function createLlmInferenceAdapter(
 
     async function finishCancelled(
         sink: LlmInferenceResponseSink,
-        state: PendingState,
+        state: PendingState
     ): Promise<void> {
         if (state.finished) {
             return;
@@ -317,7 +366,7 @@ export function createLlmInferenceAdapter(
 
     return {
         async httpRequestStart(
-            params: LlmInferenceHttpRequestStartRequest,
+            params: LlmInferenceHttpRequestStartRequest
         ): Promise<LlmInferenceHttpRequestStartResult> {
             const state: PendingState = {
                 queue: makeBodyQueue(),
@@ -327,6 +376,13 @@ export function createLlmInferenceAdapter(
                 cancelled: false,
             };
             pending.set(params.requestId, state);
+            const stagedChunks = staged.get(params.requestId);
+            if (stagedChunks) {
+                staged.delete(params.requestId);
+                for (const chunk of stagedChunks) {
+                    routeChunk(state, chunk);
+                }
+            }
             const sink = makeSink(params.requestId, state);
             const request: LlmInferenceRequest = {
                 requestId: params.requestId,
@@ -346,7 +402,7 @@ export function createLlmInferenceAdapter(
                         await failViaSink(
                             sink,
                             state,
-                            "LLM inference provider returned without finalising the response (call responseBody.end() or .error()).",
+                            "LLM inference provider returned without finalising the response (call responseBody.end() or .error())."
                         );
                     }
                 } catch (err) {
@@ -365,24 +421,16 @@ export function createLlmInferenceAdapter(
             return {};
         },
         async httpRequestChunk(
-            params: LlmInferenceHttpRequestChunkRequest,
+            params: LlmInferenceHttpRequestChunkRequest
         ): Promise<LlmInferenceHttpRequestChunkResult> {
             const state = pending.get(params.requestId);
             if (!state) {
+                const buffered = staged.get(params.requestId) ?? [];
+                buffered.push(params);
+                staged.set(params.requestId, buffered);
                 return {};
             }
-            if (params.cancel) {
-                state.cancelled = true;
-                state.abort.abort();
-                state.queue.push({ cancel: { reason: params.cancelReason } });
-                return {};
-            }
-            if (params.data && params.data.length > 0) {
-                state.queue.push({ chunk: decodeChunkData(params.data, !!params.binary) });
-            }
-            if (params.end) {
-                state.queue.push({ end: true });
-            }
+            routeChunk(state, params);
             return {};
         },
     };

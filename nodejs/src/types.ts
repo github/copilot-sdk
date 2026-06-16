@@ -40,13 +40,8 @@ export type {
     LlmInferenceResponseInit,
     LlmInferenceResponseSink,
 } from "./llmInferenceProvider.js";
-export type {
-    LlmInferenceHeaders,
-} from "./generated/rpc.js";
-export type {
-    LlmRequestContext,
-    LlmWebSocketUpstream,
-} from "./llmRequestHandler.js";
+export type { LlmInferenceHeaders } from "./generated/rpc.js";
+export type { LlmRequestContext, LlmWebSocketUpstream } from "./llmRequestHandler.js";
 export { LlmRequestHandler, wrapGlobalWebSocket } from "./llmRequestHandler.js";
 export { createLlmInferenceAdapter } from "./llmInferenceProvider.js";
 
@@ -325,15 +320,16 @@ export interface CopilotClientOptions {
      * Custom LLM inference callback provider (experimental).
      *
      * When provided, the client registers as the runtime's LLM inference
-     * provider on connection: every outbound, non-streaming model-layer HTTP
-     * request the runtime would otherwise have issued itself is dispatched
-     * back to the callback over JSON-RPC. The callback returns the response
-     * verbatim, exactly as if the runtime had issued the request itself.
+     * provider on connection: every outbound model-layer request the runtime
+     * would otherwise have issued itself — plain HTTP, streaming SSE, and
+     * WebSocket — is dispatched back to the callback over JSON-RPC. The
+     * callback returns the response verbatim, exactly as if the runtime had
+     * issued the request itself.
      *
-     * v1 limitations:
-     * - Only non-streaming HTTP requests are intercepted. Streaming SSE
-     *   (e.g. `/responses` with `stream: true`) and WebSocket transports
-     *   currently bypass the callback and go upstream directly.
+     * v1 notes:
+     * - HTTP (buffered and streaming SSE) and WebSocket transports are all
+     *   intercepted. The callback receives a `transport` discriminator and a
+     *   symmetric request-body stream / response-body sink for both.
      * - The callback is set process-globally on the runtime; the same
      *   provider is invoked for every session created on this client.
      *
