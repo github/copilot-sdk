@@ -2812,6 +2812,10 @@ public sealed class CopilotUserResponse
     [JsonPropertyName("can_signup_for_limited")]
     public bool? CanSignupForLimited { get; set; }
 
+    /// <summary>Gets or sets the <c>can_upgrade_plan</c> value.</summary>
+    [JsonPropertyName("can_upgrade_plan")]
+    public bool? CanUpgradePlan { get; set; }
+
     /// <summary>Gets or sets the <c>chat_enabled</c> value.</summary>
     [JsonPropertyName("chat_enabled")]
     public bool? ChatEnabled { get; set; }
@@ -3960,6 +3964,10 @@ public sealed class WorkspaceDiffResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesDiffRequest
 {
+    /// <summary>When true, ignore whitespace-only changes (git `--ignore-all-space`). Defaults to false.</summary>
+    [JsonPropertyName("ignoreWhitespace")]
+    public bool? IgnoreWhitespace { get; set; }
+
     /// <summary>Diff mode requested by the client.</summary>
     [JsonPropertyName("mode")]
     public WorkspaceDiffMode Mode { get; set; }
@@ -17270,13 +17278,14 @@ public sealed class WorkspacesApi
 
     /// <summary>Computes a diff for the session workspace.</summary>
     /// <param name="mode">Diff mode requested by the client.</param>
+    /// <param name="ignoreWhitespace">When true, ignore whitespace-only changes (git `--ignore-all-space`). Defaults to false.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Workspace diff result for the requested mode.</returns>
-    public async Task<WorkspaceDiffResult> DiffAsync(WorkspaceDiffMode mode, CancellationToken cancellationToken = default)
+    public async Task<WorkspaceDiffResult> DiffAsync(WorkspaceDiffMode mode, bool? ignoreWhitespace = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new WorkspacesDiffRequest { SessionId = _session.SessionId, Mode = mode };
+        var request = new WorkspacesDiffRequest { SessionId = _session.SessionId, Mode = mode, IgnoreWhitespace = ignoreWhitespace };
         return await CopilotClient.InvokeRpcAsync<WorkspaceDiffResult>(_session.Rpc, "session.workspaces.diff", [request], cancellationToken);
     }
 }

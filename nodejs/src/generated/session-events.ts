@@ -2990,6 +2990,10 @@ export interface AssistantUsageData {
    */
   cacheWriteTokens?: number;
   /**
+   * Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason.
+   */
+  contentFilterTriggered?: boolean;
+  /**
    * Per-request cost and usage data from the CAPI copilot_usage response field
    *
    * @internal
@@ -3005,6 +3009,10 @@ export interface AssistantUsageData {
    * Duration of the API call in milliseconds
    */
   duration?: number;
+  /**
+   * Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter".
+   */
+  finishReason?: string;
   /**
    * What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
    */
@@ -3601,6 +3609,12 @@ export interface ToolExecutionCompleteResult {
    * Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
    */
   detailedContent?: string;
+  /**
+   * Structured content (arbitrary JSON) returned verbatim by the MCP tool
+   */
+  structuredContent?: {
+    [k: string]: unknown | undefined;
+  };
   uiResource?: ToolExecutionCompleteUIResource;
 }
 /**

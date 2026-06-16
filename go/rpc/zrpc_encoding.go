@@ -918,6 +918,7 @@ func unmarshalMCPServerAuthConfig(data []byte) (MCPServerAuthConfig, error) {
 func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	type rawMCPServerConfigHTTP struct {
 		Auth              json.RawMessage                    `json:"auth,omitempty"`
+		DeferTools        *MCPServerConfigDeferTools         `json:"deferTools,omitempty"`
 		FilterMapping     json.RawMessage                    `json:"filterMapping,omitempty"`
 		Headers           map[string]string                  `json:"headers,omitzero"`
 		IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
@@ -941,6 +942,7 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 		}
 		r.Auth = value
 	}
+	r.DeferTools = raw.DeferTools
 	if raw.FilterMapping != nil {
 		value, err := unmarshalFilterMapping(raw.FilterMapping)
 		if err != nil {
@@ -969,16 +971,17 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 
 func (r *MCPServerConfigStdio) UnmarshalJSON(data []byte) error {
 	type rawMCPServerConfigStdio struct {
-		Args            []string          `json:"args,omitzero"`
-		Auth            json.RawMessage   `json:"auth,omitempty"`
-		Command         string            `json:"command"`
-		Cwd             *string           `json:"cwd,omitempty"`
-		Env             map[string]string `json:"env,omitzero"`
-		FilterMapping   json.RawMessage   `json:"filterMapping,omitempty"`
-		IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
-		Oidc            json.RawMessage   `json:"oidc,omitempty"`
-		Timeout         *int64            `json:"timeout,omitempty"`
-		Tools           []string          `json:"tools,omitzero"`
+		Args            []string                   `json:"args,omitzero"`
+		Auth            json.RawMessage            `json:"auth,omitempty"`
+		Command         string                     `json:"command"`
+		Cwd             *string                    `json:"cwd,omitempty"`
+		DeferTools      *MCPServerConfigDeferTools `json:"deferTools,omitempty"`
+		Env             map[string]string          `json:"env,omitzero"`
+		FilterMapping   json.RawMessage            `json:"filterMapping,omitempty"`
+		IsDefaultServer *bool                      `json:"isDefaultServer,omitempty"`
+		Oidc            json.RawMessage            `json:"oidc,omitempty"`
+		Timeout         *int64                     `json:"timeout,omitempty"`
+		Tools           []string                   `json:"tools,omitzero"`
 	}
 	var raw rawMCPServerConfigStdio
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -994,6 +997,7 @@ func (r *MCPServerConfigStdio) UnmarshalJSON(data []byte) error {
 	}
 	r.Command = raw.Command
 	r.Cwd = raw.Cwd
+	r.DeferTools = raw.DeferTools
 	r.Env = raw.Env
 	if raw.FilterMapping != nil {
 		value, err := unmarshalFilterMapping(raw.FilterMapping)

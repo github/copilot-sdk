@@ -1164,6 +1164,8 @@ pub struct CopilotUserResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub can_signup_for_limited: Option<bool>,
+    #[serde(rename = "can_upgrade_plan", skip_serializing_if = "Option::is_none")]
+    pub can_upgrade_plan: Option<bool>,
     #[serde(rename = "chat_enabled", skip_serializing_if = "Option::is_none")]
     pub chat_enabled: Option<bool>,
     #[serde(
@@ -4292,6 +4294,9 @@ pub struct McpServerConfigHttp {
     /// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth: Option<serde_json::Value>,
+    /// Controls if tools provided by this server can be loaded on demand via tool search (auto) or always included in the initial tool list (never)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defer_tools: Option<McpServerConfigDeferTools>,
     /// Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter_mapping: Option<serde_json::Value>,
@@ -4341,6 +4346,9 @@ pub struct McpServerConfigStdio {
     /// Working directory for the Stdio MCP server process.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
+    /// Controls if tools provided by this server can be loaded on demand via tool search (auto) or always included in the initial tool list (never)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defer_tools: Option<McpServerConfigDeferTools>,
     /// Environment variables to pass to the Stdio MCP server process.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<HashMap<String, String>>,
@@ -12259,6 +12267,9 @@ pub struct WorkspacesCreateFileRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacesDiffRequest {
+    /// When true, ignore whitespace-only changes (git `--ignore-all-space`). Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_whitespace: Option<bool>,
     /// Diff mode requested by the client.
     pub mode: WorkspaceDiffMode,
 }
@@ -17245,6 +17256,21 @@ pub enum McpSamplingExecutionAction {
     /// The sampling inference was cancelled before completion.
     #[serde(rename = "cancelled")]
     Cancelled,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Controls if tools provided by this server can be loaded on demand via tool search (auto) or always included in the initial tool list (never)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerConfigDeferTools {
+    /// Tools may be deferred under certain conditions
+    #[serde(rename = "auto")]
+    Auto,
+    /// Tools are always included in the initial tool list, even when tool search is enabled.
+    #[serde(rename = "never")]
+    Never,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

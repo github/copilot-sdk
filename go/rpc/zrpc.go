@@ -1004,6 +1004,7 @@ type CopilotUserResponse struct {
 	AnalyticsTrackingID        *string `json:"analytics_tracking_id,omitempty"`
 	AssignedDate               *string `json:"assigned_date,omitempty"`
 	CanSignupForLimited        *bool   `json:"can_signup_for_limited,omitempty"`
+	CanUpgradePlan             *bool   `json:"can_upgrade_plan,omitempty"`
 	ChatEnabled                *bool   `json:"chat_enabled,omitempty"`
 	CLIRemoteControlEnabled    *bool   `json:"cli_remote_control_enabled,omitempty"`
 	CloudSessionStorageEnabled *bool   `json:"cloud_session_storage_enabled,omitempty"`
@@ -2566,6 +2567,9 @@ func (RawMCPServerConfigData) mcpServerConfig() {}
 type MCPServerConfigHTTP struct {
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
 	Auth MCPServerAuthConfig `json:"auth,omitempty"`
+	// Controls if tools provided by this server can be loaded on demand via tool search (auto)
+	// or always included in the initial tool list (never)
+	DeferTools *MCPServerConfigDeferTools `json:"deferTools,omitempty"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
 	// mode.
 	FilterMapping FilterMapping `json:"filterMapping,omitempty"`
@@ -2604,6 +2608,9 @@ type MCPServerConfigStdio struct {
 	Command string `json:"command"`
 	// Working directory for the Stdio MCP server process.
 	Cwd *string `json:"cwd,omitempty"`
+	// Controls if tools provided by this server can be loaded on demand via tool search (auto)
+	// or always included in the initial tool list (never)
+	DeferTools *MCPServerConfigDeferTools `json:"deferTools,omitempty"`
 	// Environment variables to pass to the Stdio MCP server process.
 	Env map[string]string `json:"env,omitzero"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
@@ -8435,6 +8442,8 @@ type WorkspacesCreateFileRequest struct {
 // Experimental: WorkspacesDiffRequest is part of an experimental API and may change or be
 // removed.
 type WorkspacesDiffRequest struct {
+	// When true, ignore whitespace-only changes (git `--ignore-all-space`). Defaults to false.
+	IgnoreWhitespace *bool `json:"ignoreWhitespace,omitempty"`
 	// Diff mode requested by the client.
 	Mode WorkspaceDiffMode `json:"mode"`
 }
@@ -9145,6 +9154,17 @@ const (
 	MCPSamplingExecutionActionFailure MCPSamplingExecutionAction = "failure"
 	// The sampling inference completed and produced a result.
 	MCPSamplingExecutionActionSuccess MCPSamplingExecutionAction = "success"
+)
+
+// Controls if tools provided by this server can be loaded on demand via tool search (auto)
+// or always included in the initial tool list (never)
+type MCPServerConfigDeferTools string
+
+const (
+	// Tools may be deferred under certain conditions
+	MCPServerConfigDeferToolsAuto MCPServerConfigDeferTools = "auto"
+	// Tools are always included in the initial tool list, even when tool search is enabled.
+	MCPServerConfigDeferToolsNever MCPServerConfigDeferTools = "never"
 )
 
 // OAuth grant type to use when authenticating to the remote MCP server.
@@ -15348,6 +15368,9 @@ func (a *WorkspacesAPI) CreateFile(ctx context.Context, params *WorkspacesCreate
 func (a *WorkspacesAPI) Diff(ctx context.Context, params *WorkspacesDiffRequest) (*WorkspaceDiffResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.IgnoreWhitespace != nil {
+			req["ignoreWhitespace"] = *params.IgnoreWhitespace
+		}
 		req["mode"] = params.Mode
 	}
 	raw, err := a.client.Request(ctx, "session.workspaces.diff", req)

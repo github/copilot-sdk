@@ -56,7 +56,7 @@
     "author": "GitHub",
     "license": "MIT",
     "dependencies": {
-        "@github/copilot": "^1.0.62",
+        "@github/copilot": "^1.0.63",
         "vscode-jsonrpc": "^8.2.1",
         "zod": "^4.3.6"
     },
@@ -65,7 +65,7 @@
         "@types/node": "^25.2.0",
         "@typescript-eslint/eslint-plugin": "^8.54.0",
         "@typescript-eslint/parser": "^8.54.0",
-        "esbuild": "^0.27.2",
+        "esbuild": "^0.28.1",
         "eslint": "^9.0.0",
         "glob": "^13.0.1",
         "json-schema": "^0.4.0",
