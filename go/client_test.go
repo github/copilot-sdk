@@ -1081,6 +1081,78 @@ func TestListModelsWithCustomHandler(t *testing.T) {
 	}
 }
 
+func TestModelBillingTokenPricesJSON(t *testing.T) {
+	int64Ptr := func(v int64) *int64 {
+		return &v
+	}
+
+	wire := `{
+		"multiplier": 1.5,
+		"tokenPrices": {
+			"inputPrice": 2.0,
+			"outputPrice": 8.0,
+			"cachePrice": 0.5,
+			"batchSize": 1000000,
+			"contextMax": 128000,
+			"longContext": {
+				"inputPrice": 4.0,
+				"outputPrice": 16.0,
+				"cachePrice": 1.0,
+				"contextMax": 1000000
+			}
+		}
+	}`
+	expected := rpc.ModelBillingTokenPrices{
+		InputPrice:  Float64(2.0),
+		OutputPrice: Float64(8.0),
+		CachePrice:  Float64(0.5),
+		BatchSize:   int64Ptr(1000000),
+		ContextMax:  int64Ptr(128000),
+		LongContext: &rpc.ModelBillingTokenPricesLongContext{
+			InputPrice:  Float64(4.0),
+			OutputPrice: Float64(16.0),
+			CachePrice:  Float64(1.0),
+			ContextMax:  int64Ptr(1000000),
+		},
+	}
+
+	var billing ModelBilling
+	if err := json.Unmarshal([]byte(wire), &billing); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if billing.TokenPrices == nil {
+		t.Fatal("expected TokenPrices to be set")
+	}
+	tp := billing.TokenPrices
+	if !reflect.DeepEqual(*tp, expected) {
+		t.Errorf("unexpected TokenPrices: %+v", tp)
+	}
+	if tp.LongContext == nil {
+		t.Fatal("expected LongContext to be set")
+	}
+	lc := tp.LongContext
+	if lc.InputPrice == nil || *lc.InputPrice != 4.0 {
+		t.Errorf("unexpected LongContext.InputPrice: %v", lc.InputPrice)
+	}
+	if lc.ContextMax == nil || *lc.ContextMax != 1000000 {
+		t.Errorf("unexpected LongContext.ContextMax: %v", lc.ContextMax)
+	}
+
+	// Round-trip back to JSON and ensure the nested structure survives.
+	out, err := json.Marshal(billing)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var reparsed ModelBilling
+	if err := json.Unmarshal(out, &reparsed); err != nil {
+		t.Fatalf("re-unmarshal failed: %v", err)
+	}
+	if reparsed.TokenPrices == nil || !reflect.DeepEqual(*reparsed.TokenPrices, expected) {
+		t.Errorf("round-trip lost token price data: %s", out)
+	}
+}
+
 func TestListModelsHandlerCachesResults(t *testing.T) {
 	customModels := []ModelInfo{
 		{

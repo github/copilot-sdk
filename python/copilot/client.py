@@ -63,6 +63,8 @@ from .canvas import (
 )
 from .generated.rpc import (
     ClientSessionApiHandlers,
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
     RemoteSessionMode,
     ServerRpc,
@@ -626,19 +628,25 @@ class ModelBilling:
     """Model billing information"""
 
     multiplier: float | None = None
+    token_prices: ModelBillingTokenPrices | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> ModelBilling:
         assert isinstance(obj, dict)
         multiplier = obj.get("multiplier")
-        if multiplier is None:
-            return ModelBilling()
-        return ModelBilling(multiplier=float(multiplier))
+        tp = obj.get("tokenPrices")
+        token_prices = ModelBillingTokenPrices.from_dict(tp) if tp is not None else None
+        return ModelBilling(
+            multiplier=float(multiplier) if multiplier is not None else None,
+            token_prices=token_prices,
+        )
 
     def to_dict(self) -> dict:
         result: dict = {}
         if self.multiplier is not None:
             result["multiplier"] = self.multiplier
+        if self.token_prices is not None:
+            result["tokenPrices"] = self.token_prices.to_dict()
         return result
 
 

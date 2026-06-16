@@ -1630,7 +1630,8 @@ type ModelPolicy struct {
 
 // ModelBilling contains model billing information
 type ModelBilling struct {
-	Multiplier *float64 `json:"multiplier,omitempty"`
+	Multiplier  *float64                     `json:"multiplier,omitempty"`
+	TokenPrices *rpc.ModelBillingTokenPrices `json:"tokenPrices,omitempty"`
 }
 
 // ModelInfo contains information about an available model

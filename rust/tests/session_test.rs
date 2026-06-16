@@ -1202,7 +1202,27 @@ async fn list_models_returns_typed_model_info() {
         "id": id,
         "result": {
             "models": [
-                { "id": "gpt-4", "name": "GPT-4", "capabilities": {} },
+                {
+                    "id": "gpt-4",
+                    "name": "GPT-4",
+                    "capabilities": {},
+                    "billing": {
+                        "multiplier": 1.5,
+                        "tokenPrices": {
+                            "inputPrice": 2.0,
+                            "outputPrice": 8.0,
+                            "cachePrice": 0.5,
+                            "batchSize": 1000000,
+                            "contextMax": 128000,
+                            "longContext": {
+                                "inputPrice": 4.0,
+                                "outputPrice": 16.0,
+                                "cachePrice": 1.0,
+                                "contextMax": 1000000
+                            }
+                        }
+                    }
+                },
                 { "id": "claude-sonnet-4", "name": "Claude Sonnet", "capabilities": {} },
             ]
         },
@@ -1213,6 +1233,22 @@ async fn list_models_returns_typed_model_info() {
     assert_eq!(models.len(), 2);
     assert_eq!(models[0].id, "gpt-4");
     assert_eq!(models[1].name, "Claude Sonnet");
+
+    // Token prices are surfaced through the re-exported public types.
+    let token_prices: &github_copilot_sdk::types::ModelBillingTokenPrices = models[0]
+        .billing
+        .as_ref()
+        .expect("billing")
+        .token_prices
+        .as_ref()
+        .expect("token prices");
+    assert_eq!(token_prices.input_price, Some(2.0));
+    assert_eq!(token_prices.batch_size, Some(1000000));
+    assert_eq!(token_prices.context_max, Some(128000));
+    let long_context: &github_copilot_sdk::types::ModelBillingTokenPricesLongContext =
+        token_prices.long_context.as_ref().expect("long context");
+    assert_eq!(long_context.output_price, Some(16.0));
+    assert_eq!(long_context.context_max, Some(1000000));
 }
 
 #[tokio::test]

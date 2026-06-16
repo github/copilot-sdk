@@ -14,10 +14,17 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { RemoteSessionMode } from "./generated/rpc.js";
-import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type {
+    ModelBillingTokenPrices,
+    OpenCanvasInstance,
+    RemoteSessionMode,
+} from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type {
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
+} from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -2402,7 +2409,10 @@ export interface ModelPolicy {
  * Model billing information
  */
 export interface ModelBilling {
+    /** Billing cost multiplier relative to the base rate */
     multiplier?: number;
+    /** Token-level pricing information for this model */
+    tokenPrices?: ModelBillingTokenPrices;
 }
 
 /**
