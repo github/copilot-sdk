@@ -40,6 +40,16 @@ export interface LlmInferenceRequest {
     /** HTTP request headers, multi-valued. */
     headers: LlmInferenceHeaders;
     /**
+     * Transport the runtime would otherwise use for this request.
+     * `"http"` (the default) covers plain HTTP and SSE responses;
+     * `"websocket"` indicates a full-duplex message channel where each
+     * {@link requestBody} chunk is one inbound WebSocket message and each
+     * {@link responseBody} write is one outbound message. Consumers branch
+     * on this to decide whether to service the request with an HTTP client
+     * or a WebSocket client.
+     */
+    transport: "http" | "websocket";
+    /**
      * Request body bytes, yielded as they arrive from the runtime.
      * Always iterable; an empty body yields zero chunks before completing.
      */
@@ -324,6 +334,7 @@ export function createLlmInferenceAdapter(
                 method: params.method,
                 url: params.url,
                 headers: params.headers,
+                transport: params.transport ?? "http",
                 requestBody: state.queue.iterable,
                 signal: state.abort.signal,
                 responseBody: sink,
