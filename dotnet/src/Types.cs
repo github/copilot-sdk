@@ -752,6 +752,7 @@ public sealed class ToolInvocation
     /// declared directly on the tool handler delegate — the SDK binds the same token to it
     /// automatically via <c>Microsoft.Extensions.AI.AIFunctionFactory</c>.
     /// </remarks>
+    [JsonIgnore]
     public CancellationToken CancellationToken { get; set; }
 }
 
