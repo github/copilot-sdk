@@ -117,6 +117,15 @@ pub enum SessionEventType {
     HookEnd,
     #[serde(rename = "hook.progress")]
     HookProgress,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.binary_asset")]
+    SessionBinaryAsset,
     #[serde(rename = "system.message")]
     SystemMessage,
     #[serde(rename = "system.notification")]
@@ -309,6 +318,8 @@ pub enum SessionEventData {
     HookEnd(HookEndData),
     #[serde(rename = "hook.progress")]
     HookProgress(HookProgressData),
+    #[serde(rename = "session.binary_asset")]
+    SessionBinaryAsset(SessionBinaryAssetData),
     #[serde(rename = "system.message")]
     SystemMessage(SystemMessageData),
     #[serde(rename = "system.notification")]
@@ -1031,7 +1042,10 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CompactionCompleteCompactionTokensUsedCopilotUsage {
     /// Itemized token usage breakdown
-    pub token_details: Vec<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail>,
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) token_details:
+        Option<Vec<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail>>,
     /// Total cost in nano-AI units for this request
     pub total_nano_aiu: f64,
 }
@@ -1374,9 +1388,11 @@ pub struct AssistantUsageCopilotUsageTokenDetail {
 /// Per-request cost and usage data from the CAPI copilot_usage response field
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct AssistantUsageCopilotUsage {
+pub struct AssistantUsageCopilotUsage {
     /// Itemized token usage breakdown
-    pub token_details: Vec<AssistantUsageCopilotUsageTokenDetail>,
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) token_details: Option<Vec<AssistantUsageCopilotUsageTokenDetail>>,
     /// Total cost in nano-AI units for this request
     pub total_nano_aiu: f64,
 }
@@ -1432,9 +1448,8 @@ pub struct AssistantUsageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_filter_triggered: Option<bool>,
     /// Per-request cost and usage data from the CAPI copilot_usage response field
-    #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) copilot_usage: Option<AssistantUsageCopilotUsage>,
+    pub copilot_usage: Option<AssistantUsageCopilotUsage>,
     /// Model multiplier cost for billing purposes
     ///
     /// <div class="warning">
@@ -1876,6 +1891,16 @@ pub struct ToolExecutionCompleteUIResource {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteResult {
+    /// Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_results_for_llm: Option<Vec<serde_json::Value>>,
     /// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
     pub content: String,
     /// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
@@ -2137,6 +2162,28 @@ pub struct HookProgressData {
     /// When true, this status message replaces the previous temporary one instead of accumulating
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temporary: Option<bool>,
+}
+
+/// Session event "session.binary_asset". Canonical bytes for a content-addressed binary asset shared by reference across events
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionBinaryAssetData {
+    /// Content-addressed id for this binary asset (e.g. "sha256:...").
+    pub asset_id: String,
+    /// Decoded byte length of the binary asset
+    pub byte_length: i64,
+    /// Base64-encoded binary data
+    pub data: String,
+    /// Human-readable description of the binary data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Optional metadata from the producing tool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    /// MIME type of the binary asset
+    pub mime_type: String,
+    /// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+    pub r#type: BinaryAssetType,
 }
 
 /// Metadata about the prompt template and its construction
@@ -3822,6 +3869,21 @@ pub enum SkillInvokedTrigger {
     /// Skill content loaded as part of another context, such as a configured custom agent or subagent.
     #[serde(rename = "context-load")]
     ContextLoad,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BinaryAssetType {
+    /// Binary image data.
+    #[serde(rename = "image")]
+    Image,
+    /// Other binary resource data.
+    #[serde(rename = "resource")]
+    Resource,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

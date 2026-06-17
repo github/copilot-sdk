@@ -176,6 +176,8 @@ class SessionEventType(Enum):
     HOOK_START = "hook.start"
     HOOK_END = "hook.end"
     HOOK_PROGRESS = "hook.progress"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_BINARY_ASSET = "session.binary_asset"
     SYSTEM_MESSAGE = "system.message"
     SYSTEM_NOTIFICATION = "system.notification"
     PERMISSION_REQUESTED = "permission.requested"
@@ -324,6 +326,90 @@ class AssistantMessageServerTools:
             result["items"] = from_union([from_none, lambda x: from_list(lambda x: x, x)], self.items)
         if self.raw_content_blocks is not None:
             result["rawContentBlocks"] = from_union([from_none, lambda x: from_list(lambda x: x, x)], self.raw_content_blocks)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class BinaryAssetReference:
+    "A reference to binary data persisted once on a session.binary_asset event and shared by id"
+    asset_id: str
+    byte_length: int
+    mime_type: str
+    type: BinaryAssetReferenceType
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "BinaryAssetReference":
+        assert isinstance(obj, dict)
+        asset_id = from_str(obj.get("assetId"))
+        byte_length = from_int(obj.get("byteLength"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = parse_enum(BinaryAssetReferenceType, obj.get("type"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        metadata = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("metadata"))
+        return BinaryAssetReference(
+            asset_id=asset_id,
+            byte_length=byte_length,
+            mime_type=mime_type,
+            type=type,
+            description=description,
+            metadata=metadata,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["assetId"] = from_str(self.asset_id)
+        result["byteLength"] = to_int(self.byte_length)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(BinaryAssetReferenceType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.metadata is not None:
+            result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class OmittedBinaryResult:
+    "A binary result whose data was omitted from persistence due to the inline size limit"
+    byte_length: int
+    mime_type: str
+    omitted_reason: OmittedBinaryOmittedReason
+    type: OmittedBinaryType
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "OmittedBinaryResult":
+        assert isinstance(obj, dict)
+        byte_length = from_int(obj.get("byteLength"))
+        mime_type = from_str(obj.get("mimeType"))
+        omitted_reason = parse_enum(OmittedBinaryOmittedReason, obj.get("omittedReason"))
+        type = parse_enum(OmittedBinaryType, obj.get("type"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        metadata = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("metadata"))
+        return OmittedBinaryResult(
+            byte_length=byte_length,
+            mime_type=mime_type,
+            omitted_reason=omitted_reason,
+            type=type,
+            description=description,
+            metadata=metadata,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["byteLength"] = to_int(self.byte_length)
+        result["mimeType"] = from_str(self.mime_type)
+        result["omittedReason"] = to_enum(OmittedBinaryOmittedReason, self.omitted_reason)
+        result["type"] = to_enum(OmittedBinaryType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.metadata is not None:
+            result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
         return result
 
 
@@ -674,25 +760,27 @@ class AssistantTurnStartData:
 
 
 @dataclass
-class _AssistantUsageCopilotUsage:
+class AssistantUsageCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
-    token_details: list[AssistantUsageCopilotUsageTokenDetail]
     total_nano_aiu: float
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _token_details: list[AssistantUsageCopilotUsageTokenDetail] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "_AssistantUsageCopilotUsage":
+    def from_dict(obj: Any) -> "AssistantUsageCopilotUsage":
         assert isinstance(obj, dict)
-        token_details = from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
-        return _AssistantUsageCopilotUsage(
-            token_details=token_details,
+        _token_details = from_union([from_none, lambda x: from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, x)], obj.get("tokenDetails"))
+        return AssistantUsageCopilotUsage(
             total_nano_aiu=total_nano_aiu,
+            _token_details=_token_details,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["tokenDetails"] = from_list(lambda x: to_class(AssistantUsageCopilotUsageTokenDetail, x), self.token_details)
         result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        if self._token_details is not None:
+            result["tokenDetails"] = from_union([from_none, lambda x: from_list(lambda x: to_class(AssistantUsageCopilotUsageTokenDetail, x), x)], self._token_details)
         return result
 
 
@@ -736,8 +824,7 @@ class AssistantUsageData:
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
     content_filter_triggered: bool | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _copilot_usage: _AssistantUsageCopilotUsage | None = None
+    copilot_usage: AssistantUsageCopilotUsage | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     cost: float | None = None
     duration: timedelta | None = None
@@ -765,7 +852,7 @@ class AssistantUsageData:
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
         content_filter_triggered = from_union([from_none, from_bool], obj.get("contentFilterTriggered"))
-        _copilot_usage = from_union([from_none, _AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
+        copilot_usage = from_union([from_none, AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
         cost = from_union([from_none, from_float], obj.get("cost"))
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
         finish_reason = from_union([from_none, from_str], obj.get("finishReason"))
@@ -787,7 +874,7 @@ class AssistantUsageData:
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
             content_filter_triggered=content_filter_triggered,
-            _copilot_usage=_copilot_usage,
+            copilot_usage=copilot_usage,
             cost=cost,
             duration=duration,
             finish_reason=finish_reason,
@@ -817,8 +904,8 @@ class AssistantUsageData:
             result["cacheWriteTokens"] = from_union([from_none, to_int], self.cache_write_tokens)
         if self.content_filter_triggered is not None:
             result["contentFilterTriggered"] = from_union([from_none, from_bool], self.content_filter_triggered)
-        if self._copilot_usage is not None:
-            result["copilotUsage"] = from_union([from_none, lambda x: to_class(_AssistantUsageCopilotUsage, x)], self._copilot_usage)
+        if self.copilot_usage is not None:
+            result["copilotUsage"] = from_union([from_none, lambda x: to_class(AssistantUsageCopilotUsage, x)], self.copilot_usage)
         if self.cost is not None:
             result["cost"] = from_union([from_none, to_float], self.cost)
         if self.duration is not None:
@@ -1544,23 +1631,25 @@ class CompactionCompleteCompactionTokensUsed:
 @dataclass
 class _CompactionCompleteCompactionTokensUsedCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
-    token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail]
     total_nano_aiu: float
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail] | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "_CompactionCompleteCompactionTokensUsedCopilotUsage":
         assert isinstance(obj, dict)
-        token_details = from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        _token_details = from_union([from_none, lambda x: from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, x)], obj.get("tokenDetails"))
         return _CompactionCompleteCompactionTokensUsedCopilotUsage(
-            token_details=token_details,
             total_nano_aiu=total_nano_aiu,
+            _token_details=_token_details,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["tokenDetails"] = from_list(lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail, x), self.token_details)
         result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        if self._token_details is not None:
+            result["tokenDetails"] = from_union([from_none, lambda x: from_list(lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail, x), x)], self._token_details)
         return result
 
 
@@ -3550,6 +3639,43 @@ class PermissionRule:
 
 
 @dataclass
+class PersistedBinaryImage:
+    "Binary result returned by a tool for the model"
+    data: str
+    mime_type: str
+    type: PersistedBinaryImageType
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PersistedBinaryImage":
+        assert isinstance(obj, dict)
+        data = from_str(obj.get("data"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = parse_enum(PersistedBinaryImageType, obj.get("type"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        metadata = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("metadata"))
+        return PersistedBinaryImage(
+            data=data,
+            mime_type=mime_type,
+            type=type,
+            description=description,
+            metadata=metadata,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["data"] = from_str(self.data)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(PersistedBinaryImageType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.metadata is not None:
+            result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
+        return result
+
+
+@dataclass
 class SamplingCompletedData:
     "Sampling request completion notification signaling UI dismissal"
     request_id: str
@@ -3634,6 +3760,51 @@ class SessionBackgroundTasksChangedData:
 
     def to_dict(self) -> dict:
         return {}
+
+
+@dataclass
+class SessionBinaryAssetData:
+    "Canonical bytes for a content-addressed binary asset shared by reference across events"
+    asset_id: str
+    byte_length: int
+    data: str
+    mime_type: str
+    type: BinaryAssetType
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionBinaryAssetData":
+        assert isinstance(obj, dict)
+        asset_id = from_str(obj.get("assetId"))
+        byte_length = from_int(obj.get("byteLength"))
+        data = from_str(obj.get("data"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = parse_enum(BinaryAssetType, obj.get("type"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        metadata = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("metadata"))
+        return SessionBinaryAssetData(
+            asset_id=asset_id,
+            byte_length=byte_length,
+            data=data,
+            mime_type=mime_type,
+            type=type,
+            description=description,
+            metadata=metadata,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["assetId"] = from_str(self.asset_id)
+        result["byteLength"] = to_int(self.byte_length)
+        result["data"] = from_str(self.data)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(BinaryAssetType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.metadata is not None:
+            result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
+        return result
 
 
 @dataclass
@@ -5955,6 +6126,8 @@ class ToolExecutionCompleteError:
 class ToolExecutionCompleteResult:
     "Tool execution result on success"
     content: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    binary_results_for_llm: list[PersistedBinaryResult] | None = None
     contents: list[ToolExecutionCompleteContent] | None = None
     detailed_content: str | None = None
     structured_content: Any = None
@@ -5964,12 +6137,14 @@ class ToolExecutionCompleteResult:
     def from_dict(obj: Any) -> "ToolExecutionCompleteResult":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
+        binary_results_for_llm = from_union([from_none, lambda x: from_list(lambda x: from_union([PersistedBinaryImage.from_dict, OmittedBinaryResult.from_dict, BinaryAssetReference.from_dict], x), x)], obj.get("binaryResultsForLlm"))
         contents = from_union([from_none, lambda x: from_list(_load_ToolExecutionCompleteContent, x)], obj.get("contents"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
         structured_content = obj.get("structuredContent")
         ui_resource = from_union([from_none, ToolExecutionCompleteUIResource.from_dict], obj.get("uiResource"))
         return ToolExecutionCompleteResult(
             content=content,
+            binary_results_for_llm=binary_results_for_llm,
             contents=contents,
             detailed_content=detailed_content,
             structured_content=structured_content,
@@ -5979,6 +6154,8 @@ class ToolExecutionCompleteResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
+        if self.binary_results_for_llm is not None:
+            result["binaryResultsForLlm"] = from_union([from_none, lambda x: from_list(lambda x: from_union([lambda x: to_class(PersistedBinaryImage, x), lambda x: to_class(OmittedBinaryResult, x), lambda x: to_class(BinaryAssetReference, x)], x), x)], self.binary_results_for_llm)
         if self.contents is not None:
             result["contents"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.contents)
         if self.detailed_content is not None:
@@ -6942,6 +7119,10 @@ def _load_UserToolSessionApproval(obj: Any) -> "UserToolSessionApproval":
 ToolExecutionCompleteContent = ToolExecutionCompleteContentText | ToolExecutionCompleteContentTerminal | ToolExecutionCompleteContentImage | ToolExecutionCompleteContentAudio | ToolExecutionCompleteContentResourceLink | ToolExecutionCompleteContentResource
 
 
+# A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference
+PersistedBinaryResult = PersistedBinaryImage | OmittedBinaryResult | BinaryAssetReference
+
+
 # A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload
 Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentBlob | AttachmentExtensionContext
 
@@ -7040,6 +7221,22 @@ class AutopilotObjectiveChangedStatus(Enum):
     CAP_REACHED = "cap_reached"
     # Objective was completed by the agent.
     COMPLETED = "completed"
+
+
+class BinaryAssetReferenceType(Enum):
+    "Binary result type discriminator. Use \"image\" for images and \"resource\" for other binary data."
+    # Binary image data.
+    IMAGE = "image"
+    # Other binary resource data.
+    RESOURCE = "resource"
+
+
+class BinaryAssetType(Enum):
+    "Binary asset type discriminator. Use \"image\" for images and \"resource\" otherwise."
+    # Binary image data.
+    IMAGE = "image"
+    # Other binary resource data.
+    RESOURCE = "resource"
 
 
 class CanvasOpenedAvailability(Enum):
@@ -7170,6 +7367,22 @@ class ModelCallFailureSource(Enum):
     MCP_SAMPLING = "mcp_sampling"
 
 
+class OmittedBinaryOmittedReason(Enum):
+    "Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable"
+    # Bytes exceeded the session's inline size limit.
+    TOO_LARGE = "too_large"
+    # The referenced binary asset could not be found (e.g. a truncated log).
+    ASSET_UNAVAILABLE = "asset_unavailable"
+
+
+class OmittedBinaryType(Enum):
+    "Binary result type discriminator. Use \"image\" for images and \"resource\" for other binary data."
+    # Binary image data.
+    IMAGE = "image"
+    # Other binary resource data.
+    RESOURCE = "resource"
+
+
 class PermissionPromptRequestPathAccessKind(Enum):
     "Underlying permission kind that needs path approval"
     # Read access to a filesystem path.
@@ -7194,6 +7407,14 @@ class PermissionRequestMemoryDirection(Enum):
     UPVOTE = "upvote"
     # Vote that the memory is incorrect or outdated.
     DOWNVOTE = "downvote"
+
+
+class PersistedBinaryImageType(Enum):
+    "Binary result type discriminator. Use \"image\" for images and \"resource\" for other binary data."
+    # Binary image data.
+    IMAGE = "image"
+    # Other binary resource data.
+    RESOURCE = "resource"
 
 
 class PlanChangedOperation(Enum):
@@ -7330,7 +7551,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -7410,6 +7631,7 @@ class SessionEvent:
             case SessionEventType.HOOK_START: data = HookStartData.from_dict(data_obj)
             case SessionEventType.HOOK_END: data = HookEndData.from_dict(data_obj)
             case SessionEventType.HOOK_PROGRESS: data = HookProgressData.from_dict(data_obj)
+            case SessionEventType.SESSION_BINARY_ASSET: data = SessionBinaryAssetData.from_dict(data_obj)
             case SessionEventType.SYSTEM_MESSAGE: data = SystemMessageData.from_dict(data_obj)
             case SessionEventType.SYSTEM_NOTIFICATION: data = SystemNotificationData.from_dict(data_obj)
             case SessionEventType.PERMISSION_REQUESTED: data = PermissionRequestedData.from_dict(data_obj)
@@ -7495,6 +7717,7 @@ __all__ = [
     "AssistantTurnEndData",
     "AssistantTurnStartData",
     "AssistantUsageApiEndpoint",
+    "AssistantUsageCopilotUsage",
     "AssistantUsageCopilotUsageTokenDetail",
     "AssistantUsageData",
     "Attachment",
@@ -7514,6 +7737,9 @@ __all__ = [
     "AutoModeSwitchResponse",
     "AutopilotObjectiveChangedOperation",
     "AutopilotObjectiveChangedStatus",
+    "BinaryAssetReference",
+    "BinaryAssetReferenceType",
+    "BinaryAssetType",
     "CanvasOpenedAvailability",
     "CanvasRegistryChangedCanvas",
     "CanvasRegistryChangedCanvasAction",
@@ -7563,6 +7789,9 @@ __all__ = [
     "McpServersLoadedServer",
     "ModelCallFailureData",
     "ModelCallFailureSource",
+    "OmittedBinaryOmittedReason",
+    "OmittedBinaryResult",
+    "OmittedBinaryType",
     "PendingMessagesModifiedData",
     "PermissionApproved",
     "PermissionApprovedForLocation",
@@ -7605,6 +7834,9 @@ __all__ = [
     "PermissionRequestedData",
     "PermissionResult",
     "PermissionRule",
+    "PersistedBinaryImage",
+    "PersistedBinaryImageType",
+    "PersistedBinaryResult",
     "PlanChangedOperation",
     "RawSessionEventData",
     "ReasoningSummary",
@@ -7612,6 +7844,7 @@ __all__ = [
     "SamplingRequestedData",
     "SessionAutopilotObjectiveChangedData",
     "SessionBackgroundTasksChangedData",
+    "SessionBinaryAssetData",
     "SessionCanvasClosedData",
     "SessionCanvasOpenedData",
     "SessionCanvasRegistryChangedData",

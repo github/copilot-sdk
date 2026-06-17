@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionModelListResult(
-    /** Available models, ordered with the most preferred default first. */
+    /** Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`). */
     @JsonProperty("list") List<Object> list,
     /** Per-quota snapshots returned alongside the model list, keyed by quota type. */
     @JsonProperty("quotaSnapshots") Map<String, Object> quotaSnapshots

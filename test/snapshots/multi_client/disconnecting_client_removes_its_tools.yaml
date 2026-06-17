@@ -42,7 +42,35 @@ conversations:
               arguments: '{"input":"test1"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task, stable_tool, ephemeral_tool.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: STABLE_test1
+      - role: assistant
+        content: "The stable_tool returned: **STABLE_test1**"
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the stable_tool with input 'test1' and tell me the result.
+      - role: assistant
+        content: I'll call the stable_tool with input 'test1' for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing stable_tool"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: stable_tool
+              arguments: '{"input":"test1"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist.
       - role: tool
         tool_call_id: toolcall_1
         content: STABLE_test1
@@ -55,13 +83,6 @@ conversations:
       - role: assistant
         tool_calls:
           - id: toolcall_2
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Testing ephemeral_tool"}'
-      - role: assistant
-        tool_calls:
-          - id: toolcall_3
             type: function
             function:
               name: ephemeral_tool
@@ -86,7 +107,7 @@ conversations:
               arguments: '{"input":"test1"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist.
       - role: tool
         tool_call_id: toolcall_1
         content: STABLE_test1
@@ -100,18 +121,10 @@ conversations:
           - id: toolcall_2
             type: function
             function:
-              name: report_intent
-              arguments: '{"intent":"Testing ephemeral_tool"}'
-          - id: toolcall_3
-            type: function
-            function:
               name: ephemeral_tool
               arguments: '{"input":"test2"}'
       - role: tool
         tool_call_id: toolcall_2
-        content: Intent logged
-      - role: tool
-        tool_call_id: toolcall_3
         content: EPHEMERAL_test2
       - role: assistant
         content: "The ephemeral_tool returned: **EPHEMERAL_test2**"
@@ -130,18 +143,11 @@ conversations:
 
           Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.
       - role: assistant
-        content: I'll call the stable_tool with input 'still_here'. The ephemeral_tool is no longer available, so I can only use
-          the stable_tool.
+        content: I'll call the stable_tool with input 'still_here'. The ephemeral_tool is no longer available according to the
+          system notification.
       - role: assistant
         tool_calls:
-          - id: toolcall_4
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Testing tool availability"}'
-      - role: assistant
-        tool_calls:
-          - id: toolcall_5
+          - id: toolcall_3
             type: function
             function:
               name: stable_tool
@@ -166,7 +172,7 @@ conversations:
               arguments: '{"input":"test1"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist.
       - role: tool
         tool_call_id: toolcall_1
         content: STABLE_test1
@@ -180,18 +186,10 @@ conversations:
           - id: toolcall_2
             type: function
             function:
-              name: report_intent
-              arguments: '{"intent":"Testing ephemeral_tool"}'
-          - id: toolcall_3
-            type: function
-            function:
               name: ephemeral_tool
               arguments: '{"input":"test2"}'
       - role: tool
         tool_call_id: toolcall_2
-        content: Intent logged
-      - role: tool
-        tool_call_id: toolcall_3
         content: EPHEMERAL_test2
       - role: assistant
         content: "The ephemeral_tool returned: **EPHEMERAL_test2**"
@@ -210,29 +208,19 @@ conversations:
 
           Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.
       - role: assistant
-        content: I'll call the stable_tool with input 'still_here'. The ephemeral_tool is no longer available, so I can only use
-          the stable_tool.
+        content: I'll call the stable_tool with input 'still_here'. The ephemeral_tool is no longer available according to the
+          system notification.
         tool_calls:
-          - id: toolcall_4
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Testing tool availability"}'
-          - id: toolcall_5
+          - id: toolcall_3
             type: function
             function:
               name: stable_tool
               arguments: '{"input":"still_here"}'
       - role: tool
-        tool_call_id: toolcall_4
-        content: Intent logged
-      - role: tool
-        tool_call_id: toolcall_5
+        tool_call_id: toolcall_3
         content: STABLE_still_here
       - role: assistant
-        content: >-
+        content: |-
           The stable_tool returned: **STABLE_still_here**
 
-
-          The ephemeral_tool is not available anymore (it was removed as indicated in the tools_changed_notice), so I
-          could only call the stable_tool.
+          The ephemeral_tool is not available - it was removed and I cannot call it.

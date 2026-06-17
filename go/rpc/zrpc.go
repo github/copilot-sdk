@@ -60,6 +60,29 @@ type AccountQuotaSnapshot struct {
 	UsedRequests int64 `json:"usedRequests"`
 }
 
+// Schema for the `AgentDiscoveryPath` type.
+// Experimental: AgentDiscoveryPath is part of an experimental API and may change or be
+// removed.
+type AgentDiscoveryPath struct {
+	// Absolute path of the search/create directory (may not exist on disk yet)
+	Path string `json:"path"`
+	// Whether this is the canonical directory to create a new agent in its tier. At most one
+	// entry per tier is preferred.
+	PreferredForCreation bool `json:"preferredForCreation"`
+	// The input project path this directory was derived from (only for project scope)
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Which tier this directory belongs to
+	Scope AgentDiscoveryPathScope `json:"scope"`
+}
+
+// Canonical locations where custom agents can be created so the runtime will recognize them.
+// Experimental: AgentDiscoveryPathList is part of an experimental API and may change or be
+// removed.
+type AgentDiscoveryPathList struct {
+	// Canonical agent create/discovery directories, in priority order
+	Paths []AgentDiscoveryPath `json:"paths"`
+}
+
 // The currently selected custom agent, or null when using the default agent.
 // Experimental: AgentGetCurrentResult is part of an experimental API and may change or be
 // removed.
@@ -298,8 +321,8 @@ type AgentReloadResult struct {
 // Experimental: AgentsDiscoverRequest is part of an experimental API and may change or be
 // removed.
 type AgentsDiscoverRequest struct {
-	// When true, omit the host's agents (the `<COPILOT_HOME>/agents` directory and all plugin
-	// agents), leaving only project and remote agents. For multitenant deployments.
+	// When true, omit the host's agents (the user-level agent directory and all plugin agents),
+	// leaving only project and remote agents. For multitenant deployments.
 	ExcludeHostAgents *bool `json:"excludeHostAgents,omitempty"`
 	// Optional list of project directory paths to scan for project-scoped agents. When omitted
 	// or empty, only user/plugin/remote-independent agents are returned (no project scan).
@@ -320,6 +343,18 @@ type AgentSelectRequest struct {
 type AgentSelectResult struct {
 	// The newly selected custom agent
 	Agent AgentInfo `json:"agent"`
+}
+
+// Optional project paths to include when enumerating agent discovery directories.
+// Experimental: AgentsGetDiscoveryPathsRequest is part of an experimental API and may
+// change or be removed.
+type AgentsGetDiscoveryPathsRequest struct {
+	// When true, omit the host's user-level agent directory, leaving only project directories.
+	// For multitenant deployments (mirrors `discover`'s `excludeHostAgents`).
+	ExcludeHostAgents *bool `json:"excludeHostAgents,omitempty"`
+	// Optional list of project directory paths. When omitted or empty, only the user-level
+	// directory is returned.
+	ProjectPaths []string `json:"projectPaths,omitzero"`
 }
 
 // Indicates whether the operation succeeded and reports the post-mutation state.
@@ -1014,6 +1049,7 @@ type CopilotUserResponse struct {
 	// Schema for the `CopilotUserResponseEndpoints` type.
 	Endpoints             *CopilotUserResponseEndpoints             `json:"endpoints,omitempty"`
 	IsMCPEnabled          *bool                                     `json:"is_mcp_enabled,omitempty"`
+	IsStaff               *bool                                     `json:"is_staff,omitempty"`
 	LimitedUserQuotas     map[string]float64                        `json:"limited_user_quotas,omitzero"`
 	LimitedUserResetDate  *string                                   `json:"limited_user_reset_date,omitempty"`
 	Login                 *string                                   `json:"login,omitempty"`
@@ -1172,6 +1208,10 @@ type DiscoveredMCPServer struct {
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source MCPServerSource `json:"source"`
+	// Plugin name that provided this server, when source is plugin.
+	SourcePlugin *string `json:"sourcePlugin,omitempty"`
+	// Plugin version that provided this server, when source is plugin.
+	SourcePluginVersion *string `json:"sourcePluginVersion,omitempty"`
 	// Server transport type: stdio, http, sse (deprecated), or memory
 	Type *DiscoveredMCPServerType `json:"type,omitempty"`
 }
@@ -1787,6 +1827,32 @@ type InstalledPluginSourceURL struct {
 	URL    string                         `json:"url"`
 }
 
+// Schema for the `InstructionDiscoveryPath` type.
+// Experimental: InstructionDiscoveryPath is part of an experimental API and may change or
+// be removed.
+type InstructionDiscoveryPath struct {
+	// Whether the target is a single file or a directory of instruction files
+	Kind InstructionDiscoveryPathKind `json:"kind"`
+	// Which tier this target belongs to
+	Location InstructionDiscoveryPathLocation `json:"location"`
+	// Absolute path of the file or directory (may not exist on disk yet)
+	Path string `json:"path"`
+	// Whether this is the canonical target to create new instructions in its tier. At most one
+	// entry per tier is preferred.
+	PreferredForCreation bool `json:"preferredForCreation"`
+	// The input project path this target was derived from (only for repository targets)
+	ProjectPath *string `json:"projectPath,omitempty"`
+}
+
+// Canonical files and directories where custom instructions can be created so the runtime
+// will recognize them.
+// Experimental: InstructionDiscoveryPathList is part of an experimental API and may change
+// or be removed.
+type InstructionDiscoveryPathList struct {
+	// Canonical instruction create/discovery files and directories, in priority order
+	Paths []InstructionDiscoveryPath `json:"paths"`
+}
+
 // Optional project paths to include in instruction discovery.
 // Experimental: InstructionsDiscoverRequest is part of an experimental API and may change
 // or be removed.
@@ -1797,6 +1863,18 @@ type InstructionsDiscoverRequest struct {
 	// Optional list of project directory paths to scan for repository/working-directory
 	// instruction sources. When omitted or empty, only user-level and plugin instruction
 	// sources are returned (no project scan).
+	ProjectPaths []string `json:"projectPaths,omitzero"`
+}
+
+// Optional project paths to include when enumerating instruction discovery targets.
+// Experimental: InstructionsGetDiscoveryPathsRequest is part of an experimental API and may
+// change or be removed.
+type InstructionsGetDiscoveryPathsRequest struct {
+	// When true, omit the host's user-level instruction targets, leaving only repository
+	// targets. For multitenant deployments (mirrors `discover`'s `excludeHostInstructions`).
+	ExcludeHostInstructions *bool `json:"excludeHostInstructions,omitempty"`
+	// Optional list of project directory paths. When omitted or empty, only the user-level
+	// targets are returned.
 	ProjectPaths []string `json:"projectPaths,omitzero"`
 }
 
@@ -2531,6 +2609,10 @@ type MCPServer struct {
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *MCPServerSource `json:"source,omitempty"`
+	// Plugin name that provided this server, when source is plugin.
+	SourcePlugin *string `json:"sourcePlugin,omitempty"`
+	// Plugin version that provided this server, when source is plugin.
+	SourcePluginVersion *string `json:"sourcePluginVersion,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 	Status MCPServerStatus `json:"status"`
 }
@@ -2948,7 +3030,7 @@ type ModelCapabilitiesLimitsVision struct {
 	SupportedMediaTypes []string `json:"supported_media_types"`
 }
 
-// Initial model capability overrides.
+// Optional capability overrides (vision, tool_calls, reasoning, etc.).
 // Experimental: ModelCapabilitiesOverride is part of an experimental API and may change or
 // be removed.
 type ModelCapabilitiesOverride struct {
@@ -3060,7 +3142,9 @@ type ModelSwitchToRequest struct {
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Override individual model capabilities resolved by the runtime
 	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
-	// Model identifier to switch to
+	// Model selection id to switch to, as returned by `list`. A bare id (e.g.
+	// `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id
+	// (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
 	ModelID string `json:"modelId"`
 	// Reasoning effort level to use for the model. "none" disables reasoning.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
@@ -3081,6 +3165,29 @@ type ModelSwitchToResult struct {
 type ModeSetRequest struct {
 	// The session mode the agent is operating in
 	Mode SessionMode `json:"mode"`
+}
+
+// A named BYOK provider connection (transport + credentials).
+// Experimental: NamedProviderConfig is part of an experimental API and may change or be
+// removed.
+type NamedProviderConfig struct {
+	// API key. Optional for local providers like Ollama.
+	APIKey *string `json:"apiKey,omitempty"`
+	// Azure-specific provider options.
+	Azure *ProviderConfigAzure `json:"azure,omitempty"`
+	// API endpoint URL.
+	BaseURL string `json:"baseUrl"`
+	// Bearer token for authentication. Sets the Authorization header directly. Takes precedence
+	// over apiKey when both are set.
+	BearerToken *string `json:"bearerToken,omitempty"`
+	// Custom HTTP headers to include in all outbound requests to the provider.
+	Headers map[string]string `json:"headers,omitzero"`
+	// Stable identifier referenced by BYOK model definitions. Must not contain '/'.
+	Name string `json:"name"`
+	// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+	Type *ProviderConfigType `json:"type,omitempty"`
+	// Wire API format (openai/azure only). Defaults to "completions".
+	WireAPI *ProviderConfigWireAPI `json:"wireApi,omitempty"`
 }
 
 // The session's friendly name, or null when not yet set.
@@ -4623,6 +4730,32 @@ type ProviderGetEndpointRequest struct {
 	ModelID *string `json:"modelId,omitempty"`
 }
 
+// A BYOK model definition referencing a named provider.
+// Experimental: ProviderModelConfig is part of an experimental API and may change or be
+// removed.
+type ProviderModelConfig struct {
+	// Optional capability overrides (vision, tool_calls, reasoning, etc.).
+	Capabilities *ModelCapabilitiesOverride `json:"capabilities,omitempty"`
+	// Provider-local model id, unique within its provider. The session-wide selection id (shown
+	// in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+	ID string `json:"id"`
+	// Maximum context window tokens for the model.
+	MaxContextWindowTokens *float64 `json:"maxContextWindowTokens,omitempty"`
+	// Maximum output tokens for the model.
+	MaxOutputTokens *float64 `json:"maxOutputTokens,omitempty"`
+	// Maximum prompt/input tokens for the model.
+	MaxPromptTokens *float64 `json:"maxPromptTokens,omitempty"`
+	// Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+	ModelID *string `json:"modelId,omitempty"`
+	// Display name for model pickers. Defaults to the provider-qualified selection id
+	// (`provider/id`).
+	Name *string `json:"name,omitempty"`
+	// Name of the NamedProviderConfig that serves this model.
+	Provider string `json:"provider"`
+	// The model name sent to the provider API for inference. Defaults to `id`.
+	WireModel *string `json:"wireModel,omitempty"`
+}
+
 // Short-lived, rotating credential the caller must send on every request, in addition to
 // `apiKey` if one is present. Omitted when the endpoint does not require one.
 // Experimental: ProviderSessionToken is part of an experimental API and may change or be
@@ -6030,7 +6163,9 @@ type SessionMetadataSnapshot struct {
 // Experimental: SessionModelList is part of an experimental API and may change or be
 // removed.
 type SessionModelList struct {
-	// Available models, ordered with the most preferred default first.
+	// Available models, ordered with the most preferred default first. Includes both Copilot
+	// (CAPI) models and any registry BYOK models; a BYOK model appears under its
+	// provider-qualified selection id (`provider/id`).
 	List []any `json:"list"`
 	// Per-quota snapshots returned alongside the model list, keyed by quota type.
 	QuotaSnapshots map[string]any `json:"quotaSnapshots,omitzero"`
@@ -6115,16 +6250,27 @@ type SessionOpenOptions struct {
 	LogInteractiveShells *bool `json:"logInteractiveShells,omitempty"`
 	// Identifier sent to LSP-style integrations.
 	LspClientName *string `json:"lspClientName,omitempty"`
+	// Maximum decoded byte size of a single inline model-facing binary tool result persisted in
+	// session events (default 10 MB).
+	MaxInlineBinaryBytes *int64 `json:"maxInlineBinaryBytes,omitempty"`
 	// Memory configuration for this session.
 	Memory *MemoryConfiguration `json:"memory,omitempty"`
 	// Initial model identifier.
 	Model *string `json:"model,omitempty"`
 	// Initial model capability overrides.
 	ModelCapabilitiesOverrides *ModelCapabilitiesOverride `json:"modelCapabilitiesOverrides,omitempty"`
+	// BYOK model definitions added to the selectable model list, each referencing a provider
+	// name.
+	// Experimental: Models is part of an experimental API and may change or be removed.
+	Models []ProviderModelConfig `json:"models,omitzero"`
 	// Optional human-friendly session name.
 	Name *string `json:"name,omitempty"`
 	// Custom model-provider configuration (BYOK).
 	Provider *ProviderConfig `json:"provider,omitempty"`
+	// Named BYOK provider connections, additive to CAPI auth. Combining with `provider` is
+	// rejected.
+	// Experimental: Providers is part of an experimental API and may change or be removed.
+	Providers []NamedProviderConfig `json:"providers,omitzero"`
 	// Initial reasoning effort level.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Initial reasoning summary mode for supported model clients.
@@ -6925,6 +7071,11 @@ type SessionUpdateOptionsParams struct {
 	// per-session schedule registry; this flag only controls tool exposure (typically gated to
 	// staff users).
 	ManageScheduleEnabled *bool `json:"manageScheduleEnabled,omitempty"`
+	// Maximum decoded byte size of a single model-facing binary tool result (e.g. an image)
+	// persisted inline in session events and re-presented to the model on later turns / resume.
+	// Larger results are persisted as a metadata-only marker and shown to the model as a short
+	// text note. Defaults to 10 MB.
+	MaxInlineBinaryBytes *int64 `json:"maxInlineBinaryBytes,omitempty"`
 	// The model ID to use for assistant turns.
 	Model *string `json:"model,omitempty"`
 	// Per-property model capability overrides for the selected model.
@@ -7090,6 +7241,30 @@ type Skill struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
+// Schema for the `SkillDiscoveryPath` type.
+// Experimental: SkillDiscoveryPath is part of an experimental API and may change or be
+// removed.
+type SkillDiscoveryPath struct {
+	// Absolute path of the create/discovery target (may not exist on disk yet)
+	Path string `json:"path"`
+	// Whether this is the canonical directory to create a new skill in its tier. At most one
+	// entry per tier is preferred; the `personal-agents` and `custom` scopes are never
+	// preferred.
+	PreferredForCreation bool `json:"preferredForCreation"`
+	// The input project path this directory was derived from (only for project scope)
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Which tier this directory belongs to
+	Scope SkillDiscoveryScope `json:"scope"`
+}
+
+// Canonical locations where skills can be created so the runtime will recognize them.
+// Experimental: SkillDiscoveryPathList is part of an experimental API and may change or be
+// removed.
+type SkillDiscoveryPathList struct {
+	// Canonical skill create/discovery directories, in priority order
+	Paths []SkillDiscoveryPath `json:"paths"`
+}
+
 // Skills available to the session, with their enabled state.
 // Experimental: SkillList is part of an experimental API and may change or be removed.
 type SkillList struct {
@@ -7116,6 +7291,9 @@ type SkillsDisableRequest struct {
 
 // Optional project paths and additional skill directories to include in discovery.
 type SkillsDiscoverRequest struct {
+	// When true, omit skills from the host's global sources (personal, custom, plugin, and
+	// built-in), returning only project-scoped skills. For multitenant deployments.
+	ExcludeHostSkills *bool `json:"excludeHostSkills,omitempty"`
 	// Optional list of project directory paths to scan for project-scoped skills
 	ProjectPaths []string `json:"projectPaths,omitzero"`
 	// Optional list of additional skill directory paths to include
@@ -7128,6 +7306,18 @@ type SkillsDiscoverRequest struct {
 type SkillsEnableRequest struct {
 	// Name of the skill to enable
 	Name string `json:"name"`
+}
+
+// Optional project paths to enumerate.
+// Experimental: SkillsGetDiscoveryPathsRequest is part of an experimental API and may
+// change or be removed.
+type SkillsGetDiscoveryPathsRequest struct {
+	// When true, omit the host's personal and custom skill directories, leaving only project
+	// directories. For multitenant deployments.
+	ExcludeHostSkills *bool `json:"excludeHostSkills,omitempty"`
+	// Optional list of project directory paths. When omitted or empty, only personal and custom
+	// directories are returned.
+	ProjectPaths []string `json:"projectPaths,omitzero"`
 }
 
 // Skills invoked during this session, ordered by invocation time (most recent last).
@@ -8594,6 +8784,18 @@ const (
 	AbortReasonUserInitiated AbortReason = "user_initiated"
 )
 
+// Which tier this directory belongs to
+// Experimental: AgentDiscoveryPathScope is part of an experimental API and may change or be
+// removed.
+type AgentDiscoveryPathScope string
+
+const (
+	// A project's repository agent directory.
+	AgentDiscoveryPathScopeProject AgentDiscoveryPathScope = "project"
+	// The user's personal agent configuration directory.
+	AgentDiscoveryPathScopeUser AgentDiscoveryPathScope = "user"
+)
+
 // Where the agent definition was loaded from
 // Experimental: AgentInfoSource is part of an experimental API and may change or be removed.
 type AgentInfoSource string
@@ -8992,6 +9194,34 @@ type InstalledPluginSourceURLSource string
 
 const (
 	InstalledPluginSourceURLSourceURL InstalledPluginSourceURLSource = "url"
+)
+
+// Whether the target is a single file or a directory of instruction files
+// Experimental: InstructionDiscoveryPathKind is part of an experimental API and may change
+// or be removed.
+type InstructionDiscoveryPathKind string
+
+const (
+	// The target is a directory that holds instruction files.
+	InstructionDiscoveryPathKindDirectory InstructionDiscoveryPathKind = "directory"
+	// The target is a single instruction file.
+	InstructionDiscoveryPathKindFile InstructionDiscoveryPathKind = "file"
+)
+
+// Which tier this target belongs to
+// Experimental: InstructionDiscoveryPathLocation is part of an experimental API and may
+// change or be removed.
+type InstructionDiscoveryPathLocation string
+
+const (
+	// Instructions live in plugin-provided configuration.
+	InstructionDiscoveryPathLocationPlugin InstructionDiscoveryPathLocation = "plugin"
+	// Instructions live in repository-level configuration.
+	InstructionDiscoveryPathLocationRepository InstructionDiscoveryPathLocation = "repository"
+	// Instructions live in user-level configuration.
+	InstructionDiscoveryPathLocationUser InstructionDiscoveryPathLocation = "user"
+	// Instructions live under the current working directory.
+	InstructionDiscoveryPathLocationWorkingDirectory InstructionDiscoveryPathLocation = "working-directory"
 )
 
 // Where this source lives — used for UI grouping
@@ -9979,6 +10209,22 @@ const (
 	ShutdownTypeRoutine ShutdownType = "routine"
 )
 
+// Which tier this directory belongs to
+// Experimental: SkillDiscoveryScope is part of an experimental API and may change or be
+// removed.
+type SkillDiscoveryScope string
+
+const (
+	// A configured custom skill directory.
+	SkillDiscoveryScopeCustom SkillDiscoveryScope = "custom"
+	// The user's personal agents skill directory.
+	SkillDiscoveryScopePersonalAgents SkillDiscoveryScope = "personal-agents"
+	// The user's personal Copilot skill directory.
+	SkillDiscoveryScopePersonalCopilot SkillDiscoveryScope = "personal-copilot"
+	// A project's repository skill directory.
+	SkillDiscoveryScopeProject SkillDiscoveryScope = "project"
+)
+
 // Source location type (e.g., project, personal-copilot, plugin, builtin)
 type SkillSource string
 
@@ -10345,6 +10591,29 @@ func (a *ServerAgentsAPI) Discover(ctx context.Context, params *AgentsDiscoverRe
 	return &result, nil
 }
 
+// GetDiscoveryPaths returns the canonical directories where a client may create custom
+// agents that the runtime will recognize, including ones that do not exist yet. Project
+// directories become active once created.
+//
+// RPC method: agents.getDiscoveryPaths.
+//
+// Parameters: Optional project paths to include when enumerating agent discovery
+// directories.
+//
+// Returns: Canonical locations where custom agents can be created so the runtime will
+// recognize them.
+func (a *ServerAgentsAPI) GetDiscoveryPaths(ctx context.Context, params *AgentsGetDiscoveryPathsRequest) (*AgentDiscoveryPathList, error) {
+	raw, err := a.client.Request(ctx, "agents.getDiscoveryPaths", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AgentDiscoveryPathList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerInstructionsAPI contains experimental APIs that may change or be
 // removed.
 type ServerInstructionsAPI serverAPI
@@ -10362,6 +10631,29 @@ func (a *ServerInstructionsAPI) Discover(ctx context.Context, params *Instructio
 		return nil, err
 	}
 	var result ServerInstructionSourceList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetDiscoveryPaths returns the canonical files and directories where a client may create
+// custom instructions that the runtime will recognize, including ones that do not exist
+// yet. Repository targets become active once created.
+//
+// RPC method: instructions.getDiscoveryPaths.
+//
+// Parameters: Optional project paths to include when enumerating instruction discovery
+// targets.
+//
+// Returns: Canonical files and directories where custom instructions can be created so the
+// runtime will recognize them.
+func (a *ServerInstructionsAPI) GetDiscoveryPaths(ctx context.Context, params *InstructionsGetDiscoveryPathsRequest) (*InstructionDiscoveryPathList, error) {
+	raw, err := a.client.Request(ctx, "instructions.getDiscoveryPaths", params)
+	if err != nil {
+		return nil, err
+	}
+	var result InstructionDiscoveryPathList
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -11324,6 +11616,30 @@ func (a *ServerSkillsAPI) Discover(ctx context.Context, params *SkillsDiscoverRe
 		return nil, err
 	}
 	var result ServerSkillList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetDiscoveryPaths returns the canonical directories where a client may create skills that
+// the runtime will recognize, including ones that do not exist yet. Project directories
+// become active once created.
+//
+// RPC method: skills.getDiscoveryPaths.
+//
+// Parameters: Optional project paths to enumerate.
+//
+// Returns: Canonical locations where skills can be created so the runtime will recognize
+// them.
+// Experimental: GetDiscoveryPaths is an experimental API and may change or be removed in
+// future versions.
+func (a *ServerSkillsAPI) GetDiscoveryPaths(ctx context.Context, params *SkillsGetDiscoveryPathsRequest) (*SkillDiscoveryPathList, error) {
+	raw, err := a.client.Request(ctx, "skills.getDiscoveryPaths", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SkillDiscoveryPathList
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -13455,6 +13771,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.ManageScheduleEnabled != nil {
 			req["manageScheduleEnabled"] = *params.ManageScheduleEnabled
+		}
+		if params.MaxInlineBinaryBytes != nil {
+			req["maxInlineBinaryBytes"] = *params.MaxInlineBinaryBytes
 		}
 		if params.Model != nil {
 			req["model"] = *params.Model

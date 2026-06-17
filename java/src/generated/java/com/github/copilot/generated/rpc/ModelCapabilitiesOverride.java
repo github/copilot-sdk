@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Initial model capability overrides.
+ * Optional capability overrides (vision, tool_calls, reasoning, etc.).
  *
  * @since 1.0.0
  */

@@ -14,6 +14,5 @@ conversations:
           #1234 - Add E2E attachment coverage [issue] [open] (https://github.com/github/copilot-sdk/issues/1234)
           </github_references>
       - role: assistant
-        content: >-
-          The referenced GitHub issue is #1234, "Add E2E attachment coverage", in the github/copilot-sdk repository. It
-          is currently open and can be found at https://github.com/github/copilot-sdk/issues/1234.
+        content: 'The referenced GitHub issue is #1234, "Add E2E attachment coverage", in the github/copilot-sdk repository. It
+          is currently open and can be found at https://github.com/github/copilot-sdk/issues/1234.'

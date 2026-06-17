@@ -37,4 +37,15 @@ public final class ServerAgentsApi {
         return caller.invoke("agents.discover", params, AgentsDiscoverResult.class);
     }
 
+    /**
+     * Optional project paths to include when enumerating agent discovery directories.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<AgentsGetDiscoveryPathsResult> getDiscoveryPaths(AgentsGetDiscoveryPathsParams params) {
+        return caller.invoke("agents.getDiscoveryPaths", params, AgentsGetDiscoveryPathsResult.class);
+    }
+
 }

@@ -872,6 +872,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // skillDirectories
                 null, // disabledSkills
                 null, // enableOnDemandInstructionDiscovery
+                null, // maxInlineBinaryBytes
                 patchPlugins, // installedPlugins
                 patchAgents, // customAgentsLocalOnly
                 null, // suppressCustomAgentPrompt

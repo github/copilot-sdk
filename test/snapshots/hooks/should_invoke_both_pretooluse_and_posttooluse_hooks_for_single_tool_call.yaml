@@ -39,9 +39,15 @@ conversations:
               arguments: '{"path":"${workdir}/both.txt"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
       - role: tool
         tool_call_id: toolcall_1
         content: 1. Testing both hooks!
       - role: assistant
-        content: 'The file `both.txt` contains: "Testing both hooks!"'
+        content: |-
+          The file **both.txt** contains:
+          ```
+          Testing both hooks!
+          ```

@@ -380,6 +380,14 @@ public sealed class DiscoveredMcpServer
     [JsonPropertyName("source")]
     public McpServerSource Source { get; set; }
 
+    /// <summary>Plugin name that provided this server, when source is plugin.</summary>
+    [JsonPropertyName("sourcePlugin")]
+    public string? SourcePlugin { get; set; }
+
+    /// <summary>Plugin version that provided this server, when source is plugin.</summary>
+    [JsonPropertyName("sourcePluginVersion")]
+    public string? SourcePluginVersion { get; set; }
+
     /// <summary>Server transport type: stdio, http, sse (deprecated), or memory.</summary>
     [JsonPropertyName("type")]
     public DiscoveredMcpServerType? Type { get; set; }
@@ -804,6 +812,10 @@ public sealed class ServerSkillList
 /// <summary>Optional project paths and additional skill directories to include in discovery.</summary>
 internal sealed class SkillsDiscoverRequest
 {
+    /// <summary>When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.</summary>
+    [JsonPropertyName("excludeHostSkills")]
+    public bool? ExcludeHostSkills { get; set; }
+
     /// <summary>Optional list of project directory paths to scan for project-scoped skills.</summary>
     [JsonPropertyName("projectPaths")]
     public IList<string>? ProjectPaths { get; set; }
@@ -811,6 +823,49 @@ internal sealed class SkillsDiscoverRequest
     /// <summary>Optional list of additional skill directory paths to include.</summary>
     [JsonPropertyName("skillDirectories")]
     public IList<string>? SkillDirectories { get; set; }
+}
+
+/// <summary>Schema for the `SkillDiscoveryPath` type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SkillDiscoveryPath
+{
+    /// <summary>Absolute path of the create/discovery target (may not exist on disk yet).</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Whether this is the canonical directory to create a new skill in its tier. At most one entry per tier is preferred; the `personal-agents` and `custom` scopes are never preferred.</summary>
+    [JsonPropertyName("preferredForCreation")]
+    public bool PreferredForCreation { get; set; }
+
+    /// <summary>The input project path this directory was derived from (only for project scope).</summary>
+    [JsonPropertyName("projectPath")]
+    public string? ProjectPath { get; set; }
+
+    /// <summary>Which tier this directory belongs to.</summary>
+    [JsonPropertyName("scope")]
+    public SkillDiscoveryScope Scope { get; set; }
+}
+
+/// <summary>Canonical locations where skills can be created so the runtime will recognize them.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SkillDiscoveryPathList
+{
+    /// <summary>Canonical skill create/discovery directories, in priority order.</summary>
+    [JsonPropertyName("paths")]
+    public IList<SkillDiscoveryPath> Paths { get => field ??= []; set; }
+}
+
+/// <summary>Optional project paths to enumerate.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SkillsGetDiscoveryPathsRequest
+{
+    /// <summary>When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.</summary>
+    [JsonPropertyName("excludeHostSkills")]
+    public bool? ExcludeHostSkills { get; set; }
+
+    /// <summary>Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
 }
 
 /// <summary>Skill names to mark as disabled in global configuration, replacing any previous list.</summary>
@@ -884,11 +939,54 @@ public sealed class ServerAgentList
 [Experimental(Diagnostics.Experimental)]
 internal sealed class AgentsDiscoverRequest
 {
-    /// <summary>When true, omit the host's agents (the `&lt;COPILOT_HOME&gt;/agents` directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.</summary>
+    /// <summary>When true, omit the host's agents (the user-level agent directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.</summary>
     [JsonPropertyName("excludeHostAgents")]
     public bool? ExcludeHostAgents { get; set; }
 
     /// <summary>Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
+}
+
+/// <summary>Schema for the `AgentDiscoveryPath` type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AgentDiscoveryPath
+{
+    /// <summary>Absolute path of the search/create directory (may not exist on disk yet).</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Whether this is the canonical directory to create a new agent in its tier. At most one entry per tier is preferred.</summary>
+    [JsonPropertyName("preferredForCreation")]
+    public bool PreferredForCreation { get; set; }
+
+    /// <summary>The input project path this directory was derived from (only for project scope).</summary>
+    [JsonPropertyName("projectPath")]
+    public string? ProjectPath { get; set; }
+
+    /// <summary>Which tier this directory belongs to.</summary>
+    [JsonPropertyName("scope")]
+    public AgentDiscoveryPathScope Scope { get; set; }
+}
+
+/// <summary>Canonical locations where custom agents can be created so the runtime will recognize them.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AgentDiscoveryPathList
+{
+    /// <summary>Canonical agent create/discovery directories, in priority order.</summary>
+    [JsonPropertyName("paths")]
+    public IList<AgentDiscoveryPath> Paths { get => field ??= []; set; }
+}
+
+/// <summary>Optional project paths to include when enumerating agent discovery directories.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class AgentsGetDiscoveryPathsRequest
+{
+    /// <summary>When true, omit the host's user-level agent directory, leaving only project directories. For multitenant deployments (mirrors `discover`'s `excludeHostAgents`).</summary>
+    [JsonPropertyName("excludeHostAgents")]
+    public bool? ExcludeHostAgents { get; set; }
+
+    /// <summary>Optional list of project directory paths. When omitted or empty, only the user-level directory is returned.</summary>
     [JsonPropertyName("projectPaths")]
     public IList<string>? ProjectPaths { get; set; }
 }
@@ -956,6 +1054,53 @@ internal sealed class InstructionsDiscoverRequest
     public bool? ExcludeHostInstructions { get; set; }
 
     /// <summary>Optional list of project directory paths to scan for repository/working-directory instruction sources. When omitted or empty, only user-level and plugin instruction sources are returned (no project scan).</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
+}
+
+/// <summary>Schema for the `InstructionDiscoveryPath` type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class InstructionDiscoveryPath
+{
+    /// <summary>Whether the target is a single file or a directory of instruction files.</summary>
+    [JsonPropertyName("kind")]
+    public InstructionDiscoveryPathKind Kind { get; set; }
+
+    /// <summary>Which tier this target belongs to.</summary>
+    [JsonPropertyName("location")]
+    public InstructionDiscoveryPathLocation Location { get; set; }
+
+    /// <summary>Absolute path of the file or directory (may not exist on disk yet).</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Whether this is the canonical target to create new instructions in its tier. At most one entry per tier is preferred.</summary>
+    [JsonPropertyName("preferredForCreation")]
+    public bool PreferredForCreation { get; set; }
+
+    /// <summary>The input project path this target was derived from (only for repository targets).</summary>
+    [JsonPropertyName("projectPath")]
+    public string? ProjectPath { get; set; }
+}
+
+/// <summary>Canonical files and directories where custom instructions can be created so the runtime will recognize them.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class InstructionDiscoveryPathList
+{
+    /// <summary>Canonical instruction create/discovery files and directories, in priority order.</summary>
+    [JsonPropertyName("paths")]
+    public IList<InstructionDiscoveryPath> Paths { get => field ??= []; set; }
+}
+
+/// <summary>Optional project paths to include when enumerating instruction discovery targets.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class InstructionsGetDiscoveryPathsRequest
+{
+    /// <summary>When true, omit the host's user-level instruction targets, leaving only repository targets. For multitenant deployments (mirrors `discover`'s `excludeHostInstructions`).</summary>
+    [JsonPropertyName("excludeHostInstructions")]
+    public bool? ExcludeHostInstructions { get; set; }
+
+    /// <summary>Optional list of project directory paths. When omitted or empty, only the user-level targets are returned.</summary>
     [JsonPropertyName("projectPaths")]
     public IList<string>? ProjectPaths { get; set; }
 }
@@ -2848,6 +2993,10 @@ public sealed class CopilotUserResponse
     [JsonPropertyName("is_mcp_enabled")]
     public bool? IsMcpEnabled { get; set; }
 
+    /// <summary>Gets or sets the <c>is_staff</c> value.</summary>
+    [JsonPropertyName("is_staff")]
+    public bool? IsStaff { get; set; }
+
     /// <summary>Gets or sets the <c>limited_user_quotas</c> value.</summary>
     [JsonPropertyName("limited_user_quotas")]
     public IDictionary<string, double>? LimitedUserQuotas { get; set; }
@@ -3363,7 +3512,7 @@ public sealed class ModelCapabilitiesOverrideSupports
     public bool? Vision { get; set; }
 }
 
-/// <summary>Initial model capability overrides.</summary>
+/// <summary>Optional capability overrides (vision, tool_calls, reasoning, etc.).</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverride
 {
@@ -3388,7 +3537,7 @@ internal sealed class ModelSwitchToRequest
     [JsonPropertyName("modelCapabilities")]
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 
-    /// <summary>Model identifier to switch to.</summary>
+    /// <summary>Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.</summary>
     [JsonPropertyName("modelId")]
     public string ModelId { get; set; } = string.Empty;
 
@@ -3431,7 +3580,7 @@ internal sealed class ModelSetReasoningEffortRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionModelList
 {
-    /// <summary>Available models, ordered with the most preferred default first.</summary>
+    /// <summary>Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).</summary>
     [JsonPropertyName("list")]
     public IList<JsonElement> List { get => field ??= []; set; }
 
@@ -4803,6 +4952,14 @@ public sealed class McpServer
     [JsonPropertyName("source")]
     public McpServerSource? Source { get; set; }
 
+    /// <summary>Plugin name that provided this server, when source is plugin.</summary>
+    [JsonPropertyName("sourcePlugin")]
+    public string? SourcePlugin { get; set; }
+
+    /// <summary>Plugin version that provided this server, when source is plugin.</summary>
+    [JsonPropertyName("sourcePluginVersion")]
+    public string? SourcePluginVersion { get; set; }
+
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public McpServerStatus Status { get; set; }
@@ -6101,6 +6258,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).</summary>
     [JsonPropertyName("manageScheduleEnabled")]
     public bool? ManageScheduleEnabled { get; set; }
+
+    /// <summary>Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB.</summary>
+    [JsonPropertyName("maxInlineBinaryBytes")]
+    public long? MaxInlineBinaryBytes { get; set; }
 
     /// <summary>The model ID to use for assistant turns.</summary>
     [JsonPropertyName("model")]
@@ -10489,6 +10650,75 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
 }
 
 
+/// <summary>Which tier this directory belongs to.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillDiscoveryScope : IEquatable<SkillDiscoveryScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillDiscoveryScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillDiscoveryScope"/>.</param>
+    [JsonConstructor]
+    public SkillDiscoveryScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillDiscoveryScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A project's repository skill directory.</summary>
+    public static SkillDiscoveryScope Project { get; } = new("project");
+
+    /// <summary>The user's personal Copilot skill directory.</summary>
+    public static SkillDiscoveryScope PersonalCopilot { get; } = new("personal-copilot");
+
+    /// <summary>The user's personal agents skill directory.</summary>
+    public static SkillDiscoveryScope PersonalAgents { get; } = new("personal-agents");
+
+    /// <summary>A configured custom skill directory.</summary>
+    public static SkillDiscoveryScope Custom { get; } = new("custom");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillDiscoveryScope"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillDiscoveryScope left, SkillDiscoveryScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillDiscoveryScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillDiscoveryScope left, SkillDiscoveryScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillDiscoveryScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillDiscoveryScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillDiscoveryScope}"/> for serializing <see cref="SkillDiscoveryScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillDiscoveryScope>
+    {
+        /// <inheritdoc />
+        public override SkillDiscoveryScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillDiscoveryScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillDiscoveryScope));
+        }
+    }
+}
+
+
 /// <summary>Where the agent definition was loaded from.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -10559,6 +10789,69 @@ public readonly struct AgentInfoSource : IEquatable<AgentInfoSource>
         public override void Write(Utf8JsonWriter writer, AgentInfoSource value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentInfoSource));
+        }
+    }
+}
+
+
+/// <summary>Which tier this directory belongs to.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentDiscoveryPathScope : IEquatable<AgentDiscoveryPathScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentDiscoveryPathScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentDiscoveryPathScope"/>.</param>
+    [JsonConstructor]
+    public AgentDiscoveryPathScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentDiscoveryPathScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The user's personal agent configuration directory.</summary>
+    public static AgentDiscoveryPathScope User { get; } = new("user");
+
+    /// <summary>A project's repository agent directory.</summary>
+    public static AgentDiscoveryPathScope Project { get; } = new("project");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentDiscoveryPathScope"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentDiscoveryPathScope left, AgentDiscoveryPathScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentDiscoveryPathScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentDiscoveryPathScope left, AgentDiscoveryPathScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentDiscoveryPathScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentDiscoveryPathScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentDiscoveryPathScope}"/> for serializing <see cref="AgentDiscoveryPathScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentDiscoveryPathScope>
+    {
+        /// <inheritdoc />
+        public override AgentDiscoveryPathScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentDiscoveryPathScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentDiscoveryPathScope));
         }
     }
 }
@@ -10706,6 +10999,138 @@ public readonly struct InstructionSourceType : IEquatable<InstructionSourceType>
         public override void Write(Utf8JsonWriter writer, InstructionSourceType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionSourceType));
+        }
+    }
+}
+
+
+/// <summary>Whether the target is a single file or a directory of instruction files.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct InstructionDiscoveryPathKind : IEquatable<InstructionDiscoveryPathKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="InstructionDiscoveryPathKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="InstructionDiscoveryPathKind"/>.</param>
+    [JsonConstructor]
+    public InstructionDiscoveryPathKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="InstructionDiscoveryPathKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The target is a single instruction file.</summary>
+    public static InstructionDiscoveryPathKind File { get; } = new("file");
+
+    /// <summary>The target is a directory that holds instruction files.</summary>
+    public static InstructionDiscoveryPathKind Directory { get; } = new("directory");
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionDiscoveryPathKind"/> instances are equivalent.</summary>
+    public static bool operator ==(InstructionDiscoveryPathKind left, InstructionDiscoveryPathKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionDiscoveryPathKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(InstructionDiscoveryPathKind left, InstructionDiscoveryPathKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is InstructionDiscoveryPathKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(InstructionDiscoveryPathKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{InstructionDiscoveryPathKind}"/> for serializing <see cref="InstructionDiscoveryPathKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<InstructionDiscoveryPathKind>
+    {
+        /// <inheritdoc />
+        public override InstructionDiscoveryPathKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, InstructionDiscoveryPathKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionDiscoveryPathKind));
+        }
+    }
+}
+
+
+/// <summary>Which tier this target belongs to.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct InstructionDiscoveryPathLocation : IEquatable<InstructionDiscoveryPathLocation>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="InstructionDiscoveryPathLocation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="InstructionDiscoveryPathLocation"/>.</param>
+    [JsonConstructor]
+    public InstructionDiscoveryPathLocation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="InstructionDiscoveryPathLocation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Instructions live in user-level configuration.</summary>
+    public static InstructionDiscoveryPathLocation User { get; } = new("user");
+
+    /// <summary>Instructions live in repository-level configuration.</summary>
+    public static InstructionDiscoveryPathLocation Repository { get; } = new("repository");
+
+    /// <summary>Instructions live under the current working directory.</summary>
+    public static InstructionDiscoveryPathLocation WorkingDirectory { get; } = new("working-directory");
+
+    /// <summary>Instructions live in plugin-provided configuration.</summary>
+    public static InstructionDiscoveryPathLocation Plugin { get; } = new("plugin");
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionDiscoveryPathLocation"/> instances are equivalent.</summary>
+    public static bool operator ==(InstructionDiscoveryPathLocation left, InstructionDiscoveryPathLocation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionDiscoveryPathLocation"/> instances are not equivalent.</summary>
+    public static bool operator !=(InstructionDiscoveryPathLocation left, InstructionDiscoveryPathLocation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is InstructionDiscoveryPathLocation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(InstructionDiscoveryPathLocation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{InstructionDiscoveryPathLocation}"/> for serializing <see cref="InstructionDiscoveryPathLocation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<InstructionDiscoveryPathLocation>
+    {
+        /// <inheritdoc />
+        public override InstructionDiscoveryPathLocation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, InstructionDiscoveryPathLocation value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionDiscoveryPathLocation));
         }
     }
 }
@@ -16007,12 +16432,25 @@ public sealed class ServerSkillsApi
     /// <summary>Discovers skills across global and project sources.</summary>
     /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped skills.</param>
     /// <param name="skillDirectories">Optional list of additional skill directory paths to include.</param>
+    /// <param name="excludeHostSkills">When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Skills discovered across global and project sources.</returns>
-    public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, CancellationToken cancellationToken = default)
+    public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
     {
-        var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories };
+        var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories, ExcludeHostSkills = excludeHostSkills };
         return await CopilotClient.InvokeRpcAsync<ServerSkillList>(_rpc, "skills.discover", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.</summary>
+    /// <param name="projectPaths">Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.</param>
+    /// <param name="excludeHostSkills">When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canonical locations where skills can be created so the runtime will recognize them.</returns>
+    [Experimental(Diagnostics.Experimental)]
+    public async Task<SkillDiscoveryPathList> GetDiscoveryPathsAsync(IList<string>? projectPaths = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SkillsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, ExcludeHostSkills = excludeHostSkills };
+        return await CopilotClient.InvokeRpcAsync<SkillDiscoveryPathList>(_rpc, "skills.getDiscoveryPaths", [request], cancellationToken);
     }
 
     /// <summary>Config APIs.</summary>
@@ -16057,13 +16495,24 @@ public sealed class ServerAgentsApi
 
     /// <summary>Discovers custom agents across user, project, plugin, and remote sources.</summary>
     /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).</param>
-    /// <param name="excludeHostAgents">When true, omit the host's agents (the `&lt;COPILOT_HOME&gt;/agents` directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.</param>
+    /// <param name="excludeHostAgents">When true, omit the host's agents (the user-level agent directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Agents discovered across user, project, plugin, and remote sources.</returns>
     public async Task<ServerAgentList> DiscoverAsync(IList<string>? projectPaths = null, bool? excludeHostAgents = null, CancellationToken cancellationToken = default)
     {
         var request = new AgentsDiscoverRequest { ProjectPaths = projectPaths, ExcludeHostAgents = excludeHostAgents };
         return await CopilotClient.InvokeRpcAsync<ServerAgentList>(_rpc, "agents.discover", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the canonical directories where a client may create custom agents that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.</summary>
+    /// <param name="projectPaths">Optional list of project directory paths. When omitted or empty, only the user-level directory is returned.</param>
+    /// <param name="excludeHostAgents">When true, omit the host's user-level agent directory, leaving only project directories. For multitenant deployments (mirrors `discover`'s `excludeHostAgents`).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canonical locations where custom agents can be created so the runtime will recognize them.</returns>
+    public async Task<AgentDiscoveryPathList> GetDiscoveryPathsAsync(IList<string>? projectPaths = null, bool? excludeHostAgents = null, CancellationToken cancellationToken = default)
+    {
+        var request = new AgentsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, ExcludeHostAgents = excludeHostAgents };
+        return await CopilotClient.InvokeRpcAsync<AgentDiscoveryPathList>(_rpc, "agents.getDiscoveryPaths", [request], cancellationToken);
     }
 }
 
@@ -16087,6 +16536,17 @@ public sealed class ServerInstructionsApi
     {
         var request = new InstructionsDiscoverRequest { ProjectPaths = projectPaths, ExcludeHostInstructions = excludeHostInstructions };
         return await CopilotClient.InvokeRpcAsync<ServerInstructionSourceList>(_rpc, "instructions.discover", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the canonical files and directories where a client may create custom instructions that the runtime will recognize, including ones that do not exist yet. Repository targets become active once created.</summary>
+    /// <param name="projectPaths">Optional list of project directory paths. When omitted or empty, only the user-level targets are returned.</param>
+    /// <param name="excludeHostInstructions">When true, omit the host's user-level instruction targets, leaving only repository targets. For multitenant deployments (mirrors `discover`'s `excludeHostInstructions`).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canonical files and directories where custom instructions can be created so the runtime will recognize them.</returns>
+    public async Task<InstructionDiscoveryPathList> GetDiscoveryPathsAsync(IList<string>? projectPaths = null, bool? excludeHostInstructions = null, CancellationToken cancellationToken = default)
+    {
+        var request = new InstructionsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, ExcludeHostInstructions = excludeHostInstructions };
+        return await CopilotClient.InvokeRpcAsync<InstructionDiscoveryPathList>(_rpc, "instructions.getDiscoveryPaths", [request], cancellationToken);
     }
 }
 
@@ -16989,7 +17449,7 @@ public sealed class ModelApi
     }
 
     /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
-    /// <param name="modelId">Model identifier to switch to.</param>
+    /// <param name="modelId">Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.</param>
     /// <param name="reasoningEffort">Reasoning effort level to use for the model. "none" disables reasoning.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
@@ -18115,6 +18575,7 @@ public sealed class OptionsApi
     /// <param name="skillDirectories">Additional directories to search for skills.</param>
     /// <param name="disabledSkills">Skill IDs that should be excluded from this session.</param>
     /// <param name="enableOnDemandInstructionDiscovery">Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag.</param>
+    /// <param name="maxInlineBinaryBytes">Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB.</param>
     /// <param name="installedPlugins">Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes.</param>
     /// <param name="customAgentsLocalOnly">Whether to default custom agents to local-only execution.</param>
     /// <param name="suppressCustomAgentPrompt">When true, the selected custom agent's prompt is not injected into the user message (skill context is still injected). Used by automation triggers where the agent prompt is already in the problem statement.</param>
@@ -18142,11 +18603,11 @@ public sealed class OptionsApi
     /// <param name="contextTier">Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -19616,6 +20077,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantTurnStartData), TypeInfoPropertyName = "SessionEventsAssistantTurnStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantTurnStartEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnStartEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageApiEndpoint), TypeInfoPropertyName = "SessionEventsAssistantUsageApiEndpoint")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageCopilotUsage), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsage")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsageTokenDetail")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageData), TypeInfoPropertyName = "SessionEventsAssistantUsageData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageEvent), TypeInfoPropertyName = "SessionEventsAssistantUsageEvent")]
@@ -19638,6 +20100,9 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
 [JsonSerializable(typeof(GitHub.Copilot.AutopilotObjectiveChangedOperation), TypeInfoPropertyName = "SessionEventsAutopilotObjectiveChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.AutopilotObjectiveChangedStatus), TypeInfoPropertyName = "SessionEventsAutopilotObjectiveChangedStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.BinaryAssetReference), TypeInfoPropertyName = "SessionEventsBinaryAssetReference")]
+[JsonSerializable(typeof(GitHub.Copilot.BinaryAssetReferenceType), TypeInfoPropertyName = "SessionEventsBinaryAssetReferenceType")]
+[JsonSerializable(typeof(GitHub.Copilot.BinaryAssetType), TypeInfoPropertyName = "SessionEventsBinaryAssetType")]
 [JsonSerializable(typeof(GitHub.Copilot.CanvasOpenedAvailability), TypeInfoPropertyName = "SessionEventsCanvasOpenedAvailability")]
 [JsonSerializable(typeof(GitHub.Copilot.CanvasRegistryChangedCanvas), TypeInfoPropertyName = "SessionEventsCanvasRegistryChangedCanvas")]
 [JsonSerializable(typeof(GitHub.Copilot.CanvasRegistryChangedCanvasAction), TypeInfoPropertyName = "SessionEventsCanvasRegistryChangedCanvasAction")]
@@ -19704,6 +20169,9 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
+[JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryOmittedReason), TypeInfoPropertyName = "SessionEventsOmittedBinaryOmittedReason")]
+[JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryResult), TypeInfoPropertyName = "SessionEventsOmittedBinaryResult")]
+[JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryType), TypeInfoPropertyName = "SessionEventsOmittedBinaryType")]
 [JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedData), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedData")]
 [JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedEvent), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedData), TypeInfoPropertyName = "SessionEventsPermissionCompletedData")]
@@ -19740,6 +20208,9 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestedEvent), TypeInfoPropertyName = "SessionEventsPermissionRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionResult), TypeInfoPropertyName = "SessionEventsPermissionResult")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRule), TypeInfoPropertyName = "SessionEventsPermissionRule")]
+[JsonSerializable(typeof(GitHub.Copilot.PersistedBinaryImage), TypeInfoPropertyName = "SessionEventsPersistedBinaryImage")]
+[JsonSerializable(typeof(GitHub.Copilot.PersistedBinaryImageType), TypeInfoPropertyName = "SessionEventsPersistedBinaryImageType")]
+[JsonSerializable(typeof(GitHub.Copilot.PersistedBinaryResult), TypeInfoPropertyName = "SessionEventsPersistedBinaryResult")]
 [JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
@@ -19846,6 +20317,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AccountGetQuotaRequest))]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]
+[JsonSerializable(typeof(AgentDiscoveryPath))]
+[JsonSerializable(typeof(AgentDiscoveryPathList))]
 [JsonSerializable(typeof(AgentGetCurrentResult))]
 [JsonSerializable(typeof(AgentInfo))]
 [JsonSerializable(typeof(AgentList))]
@@ -19857,6 +20330,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AgentSelectRequest))]
 [JsonSerializable(typeof(AgentSelectResult))]
 [JsonSerializable(typeof(AgentsDiscoverRequest))]
+[JsonSerializable(typeof(AgentsGetDiscoveryPathsRequest))]
 [JsonSerializable(typeof(AllowAllPermissionSetResult))]
 [JsonSerializable(typeof(AllowAllPermissionState))]
 [JsonSerializable(typeof(AuthInfo))]
@@ -19930,8 +20404,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(HistoryTruncateResult))]
 [JsonSerializable(typeof(InstalledPlugin))]
 [JsonSerializable(typeof(InstalledPluginInfo))]
+[JsonSerializable(typeof(InstructionDiscoveryPath))]
+[JsonSerializable(typeof(InstructionDiscoveryPathList))]
 [JsonSerializable(typeof(InstructionSource))]
 [JsonSerializable(typeof(InstructionsDiscoverRequest))]
+[JsonSerializable(typeof(InstructionsGetDiscoveryPathsRequest))]
 [JsonSerializable(typeof(InstructionsGetSourcesResult))]
 [JsonSerializable(typeof(LocalSessionMetadataValue))]
 [JsonSerializable(typeof(LogRequest))]
@@ -20317,11 +20794,14 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ShellKillResult))]
 [JsonSerializable(typeof(ShutdownRequest))]
 [JsonSerializable(typeof(Skill))]
+[JsonSerializable(typeof(SkillDiscoveryPath))]
+[JsonSerializable(typeof(SkillDiscoveryPathList))]
 [JsonSerializable(typeof(SkillList))]
 [JsonSerializable(typeof(SkillsConfigSetDisabledSkillsRequest))]
 [JsonSerializable(typeof(SkillsDisableRequest))]
 [JsonSerializable(typeof(SkillsDiscoverRequest))]
 [JsonSerializable(typeof(SkillsEnableRequest))]
+[JsonSerializable(typeof(SkillsGetDiscoveryPathsRequest))]
 [JsonSerializable(typeof(SkillsGetInvokedResult))]
 [JsonSerializable(typeof(SkillsInvokedSkill))]
 [JsonSerializable(typeof(SkillsLoadDiagnostics))]

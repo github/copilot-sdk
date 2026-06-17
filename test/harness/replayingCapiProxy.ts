@@ -56,6 +56,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
     { toolName: "${shell}", normalizer: normalizeShellExitMarkers },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
+    { toolName: "*", normalizer: normalizeAvailableToolNames },
     { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
   ];
 
@@ -1155,6 +1156,44 @@ function normalizeReadAgentTimings(result: string): string {
   return result
     .replace(/\belapsed: \d+(?:\.\d+)?s\b/g, "elapsed: 0s")
     .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
+}
+
+// Maps the platform-specific shell tool family names to stable placeholders.
+// On Windows the runtime exposes powershell/read_powershell/stop_powershell/...,
+// on Linux/macOS it exposes bash/read_bash/stop_bash/.... Ordered so that the
+// prefixed names are handled explicitly; \b boundaries keep bare names from
+// matching inside the prefixed ones.
+const shellToolFamilyReplacements: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\bread_powershell\b/g, "${read_shell}"],
+  [/\bstop_powershell\b/g, "${stop_shell}"],
+  [/\blist_powershell\b/g, "${list_shell}"],
+  [/\bwrite_powershell\b/g, "${write_shell}"],
+  [/\bpowershell\b/g, "${shell}"],
+  [/\bread_bash\b/g, "${read_shell}"],
+  [/\bstop_bash\b/g, "${stop_shell}"],
+  [/\blist_bash\b/g, "${list_shell}"],
+  [/\bwrite_bash\b/g, "${write_shell}"],
+  [/\bbash\b/g, "${shell}"],
+];
+
+function normalizeShellToolFamilyNames(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of shellToolFamilyReplacements) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
+// When a model calls a tool that doesn't exist (e.g., the removed report_intent
+// tool), the runtime replies with "Available tools that can be called are <list>."
+// The shell tool family names in that list are platform-specific, so normalize
+// them to placeholders to keep snapshots matching across Windows/Linux/macOS.
+function normalizeAvailableToolNames(result: string): string {
+  return result.replace(
+    /(Available tools that can be called are )([^.]*)/g,
+    (_full, prefix: string, list: string) =>
+      prefix + normalizeShellToolFamilyNames(list),
+  );
 }
 
 // Transforms a single OpenAI-style inbound response message into normalized form

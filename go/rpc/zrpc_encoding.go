@@ -2705,11 +2705,14 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
+		MaxInlineBinaryBytes                   *int64                                               `json:"maxInlineBinaryBytes,omitempty"`
 		Memory                                 *MemoryConfiguration                                 `json:"memory,omitempty"`
 		Model                                  *string                                              `json:"model,omitempty"`
 		ModelCapabilitiesOverrides             *ModelCapabilitiesOverride                           `json:"modelCapabilitiesOverrides,omitempty"`
+		Models                                 []ProviderModelConfig                                `json:"models,omitzero"`
 		Name                                   *string                                              `json:"name,omitempty"`
 		Provider                               *ProviderConfig                                      `json:"provider,omitempty"`
+		Providers                              []NamedProviderConfig                                `json:"providers,omitzero"`
 		ReasoningEffort                        *string                                              `json:"reasoningEffort,omitempty"`
 		ReasoningSummary                       *SessionOpenOptionsReasoningSummary                  `json:"reasoningSummary,omitempty"`
 		RemoteDefaultedOn                      *bool                                                `json:"remoteDefaultedOn,omitempty"`
@@ -2766,11 +2769,14 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.IsExperimentalMode = raw.IsExperimentalMode
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
+	r.MaxInlineBinaryBytes = raw.MaxInlineBinaryBytes
 	r.Memory = raw.Memory
 	r.Model = raw.Model
 	r.ModelCapabilitiesOverrides = raw.ModelCapabilitiesOverrides
+	r.Models = raw.Models
 	r.Name = raw.Name
 	r.Provider = raw.Provider
+	r.Providers = raw.Providers
 	r.ReasoningEffort = raw.ReasoningEffort
 	r.ReasoningSummary = raw.ReasoningSummary
 	r.RemoteDefaultedOn = raw.RemoteDefaultedOn
