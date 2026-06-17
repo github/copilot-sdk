@@ -280,7 +280,11 @@ unsubscribe();
 
 ##### `abort(): Promise<void>`
 
-Abort the currently processing message in this session.
+Abort the currently processing message in this session. This also aborts the `AbortSignal` passed to any in-flight tool handlers (see [Cancelling Tool Handlers](#cancelling-tool-handlers)).
+
+##### `cancelToolCall(toolCallId: string): boolean`
+
+Cooperatively cancel a single in-flight tool handler by aborting the `AbortSignal` on its `ToolInvocation`, without aborting the broader agentic loop. Returns `true` if a matching in-flight tool call was found and signaled, `false` otherwise.
 
 ##### `getEvents(): Promise<SessionEvent[]>`
 
@@ -502,6 +506,35 @@ defineTool("lookup_issue", {
     },
 });
 ```
+
+#### Cancelling Tool Handlers
+
+Long-running tool handlers can opt in to cooperative cancellation. Each handler's `ToolInvocation` carries a standard [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) that aborts when `session.abort()` (which cancels the whole agentic loop) or `session.cancelToolCall(toolCallId)` (which cancels a single in-flight handler) is invoked. Forward it to abortable APIs or check `signal.aborted`:
+
+```ts
+defineTool("fetch_data", {
+    description: "Fetch a large payload",
+    parameters: z.object({ url: z.string() }),
+    handler: async ({ url }, { signal }) => {
+        // The fetch is aborted automatically when the session/tool is cancelled
+        const res = await fetch(url, { signal });
+        return await res.text();
+    },
+});
+```
+
+Cancel a specific in-flight handler without aborting the rest of the turn:
+
+```ts
+session.on("tool.execution_start", (event) => {
+    setTimeout(() => {
+        // Returns true if a matching in-flight handler was signaled
+        session.cancelToolCall(event.data.toolCallId);
+    }, 5000);
+});
+```
+
+Handlers that ignore the signal continue to run to completion, so existing handlers keep working unchanged.
 
 ### Commands
 

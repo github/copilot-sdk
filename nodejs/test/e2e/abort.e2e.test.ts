@@ -99,6 +99,11 @@ describe("Abort", async () => {
             releaseToolResolve = resolve;
         });
 
+        let signalAbortedResolve!: (value: void) => void;
+        const signalAborted = new Promise<void>((resolve) => {
+            signalAbortedResolve = resolve;
+        });
+
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
@@ -107,8 +112,9 @@ describe("Abort", async () => {
                     parameters: z.object({
                         value: z.string().describe("Value to analyze"),
                     }),
-                    handler: async ({ value }) => {
+                    handler: async ({ value }, { signal }) => {
                         toolStartedResolve(value);
+                        signal.addEventListener("abort", () => signalAbortedResolve());
                         return await releaseTool;
                     },
                 }),
@@ -126,6 +132,9 @@ describe("Abort", async () => {
 
         // Abort while the tool is running
         await session.abort();
+
+        // The handler's AbortSignal should fire as a result of session.abort()
+        await withTimeout(signalAborted, 10_000, "tool handler AbortSignal");
 
         // Release the tool so its task doesn't leak
         releaseToolResolve("RELEASED_AFTER_ABORT");

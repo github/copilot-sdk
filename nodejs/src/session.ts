@@ -121,6 +121,7 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private inFlightToolCalls: Map<string, AbortController> = new Map();
     private canvases: Map<string, Canvas> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
@@ -563,12 +564,15 @@ export class CopilotSession {
         traceparent?: string,
         tracestate?: string
     ): Promise<void> {
+        const abortController = new AbortController();
+        this.inFlightToolCalls.set(toolCallId, abortController);
         try {
             const rawResult = await handler(args, {
                 sessionId: this.sessionId,
                 toolCallId,
                 toolName,
                 arguments: args,
+                signal: abortController.signal,
                 traceparent,
                 tracestate,
             });
@@ -592,6 +596,12 @@ export class CopilotSession {
                     throw rpcError;
                 }
                 // Connection lost or RPC error — nothing we can do
+            }
+        } finally {
+            // Only clear if this is still the controller for this toolCallId;
+            // guards against a recycled toolCallId from a later invocation.
+            if (this.inFlightToolCalls.get(toolCallId) === abortController) {
+                this.inFlightToolCalls.delete(toolCallId);
             }
         }
     }
@@ -1170,6 +1180,9 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
+        // Abort any in-flight tool handlers so they can release resources.
+        this._abortInFlightToolCalls();
+        this.inFlightToolCalls.clear();
         await this.connection.sendRequest("session.destroy", {
             sessionId: this.sessionId,
         });
@@ -1209,9 +1222,65 @@ export class CopilotSession {
      * ```
      */
     async abort(): Promise<void> {
+        // Cooperatively cancel any in-flight tool handlers that opted in to the
+        // AbortSignal exposed on their ToolInvocation. Handlers that ignore the
+        // signal continue to run to completion.
+        this._abortInFlightToolCalls();
         await this.connection.sendRequest("session.abort", {
             sessionId: this.sessionId,
         });
+    }
+
+    /**
+     * Cooperatively cancels a single in-flight tool handler by aborting the
+     * `AbortSignal` on its `ToolInvocation`, without aborting the broader
+     * agentic loop.
+     *
+     * This only affects handlers that opted in to the signal (e.g. by passing
+     * it to `fetch`, `child_process.spawn`, or checking `signal.aborted`).
+     * Handlers that ignore the signal continue to run to completion.
+     *
+     * @param toolCallId - The `toolCallId` of the in-flight tool invocation to cancel
+     * @returns `true` if a matching in-flight tool call was found and signaled, `false` otherwise
+     *
+     * @example
+     * ```typescript
+     * const session = await client.createSession({
+     *   tools: [
+     *     defineTool("fetch_data", {
+     *       handler: async (args, { signal }) => {
+     *         const res = await fetch(args.url, { signal });
+     *         return await res.text();
+     *       },
+     *     }),
+     *   ],
+     * });
+     *
+     * session.on((event) => {
+     *   if (event.type === "tool.execution_start") {
+     *     // Cancel a specific tool call after a deadline
+     *     setTimeout(() => session.cancelToolCall(event.data.toolCallId), 5000);
+     *   }
+     * });
+     * ```
+     */
+    cancelToolCall(toolCallId: string): boolean {
+        const controller = this.inFlightToolCalls.get(toolCallId);
+        if (!controller) {
+            return false;
+        }
+        controller.abort();
+        return true;
+    }
+
+    /**
+     * Aborts the AbortSignal for every in-flight tool handler.
+     * @internal
+     */
+    private _abortInFlightToolCalls(): void {
+        for (const controller of this.inFlightToolCalls.values()) {
+            controller.abort();
+        }
     }
 
     /**

@@ -475,6 +475,15 @@ export interface ToolInvocation {
     toolCallId: string;
     toolName: string;
     arguments: unknown;
+    /**
+     * An `AbortSignal` that aborts when `session.abort()` or
+     * `session.cancelToolCall(toolCallId)` is invoked while this handler is
+     * in flight. Handlers may opt in to cooperative cancellation by forwarding
+     * it to abortable APIs (`fetch(url, { signal })`, `child_process.spawn`,
+     * etc.) or by checking `signal.aborted`. Handlers that ignore it continue
+     * to run to completion, preserving existing behavior.
+     */
+    signal: AbortSignal;
     /** W3C Trace Context traceparent from the CLI's execute_tool span. */
     traceparent?: string;
     /** W3C Trace Context tracestate from the CLI's execute_tool span. */
