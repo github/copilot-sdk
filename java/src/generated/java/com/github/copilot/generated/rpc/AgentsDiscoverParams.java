@@ -27,7 +27,7 @@ import javax.annotation.processing.Generated;
 public record AgentsDiscoverParams(
     /** Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan). */
     @JsonProperty("projectPaths") List<String> projectPaths,
-    /** When true, omit the host's agents (the `<COPILOT_HOME>/agents` directory and all plugin agents), leaving only project and remote agents. For multitenant deployments. */
+    /** When true, omit the host's agents (the user-level agent directory and all plugin agents), leaving only project and remote agents. For multitenant deployments. */
     @JsonProperty("excludeHostAgents") Boolean excludeHostAgents
 ) {
 }

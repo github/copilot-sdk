@@ -19,11 +19,11 @@ conversations:
               name: pending_lookup_b
               arguments: '{"value":"beta"}'
       - role: tool
-        tool_call_id: toolcall_1
-        content: PARALLEL_B_BETA
-      - role: tool
         tool_call_id: toolcall_0
         content: PARALLEL_A_ALPHA
+      - role: tool
+        tool_call_id: toolcall_1
+        content: PARALLEL_B_BETA
       - role: assistant
         content: |-
           Both lookups completed successfully:

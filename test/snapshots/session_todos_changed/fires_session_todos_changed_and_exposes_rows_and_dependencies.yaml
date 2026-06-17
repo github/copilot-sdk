@@ -5,77 +5,65 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: |-
-          Use the sql tool to execute exactly these statements, in order, with no extra rows:
+        content: >-
+          Use the sql tool exactly once to execute all three of the following statements together, in this exact order,
+          in a single sql tool call (a single query string containing all three statements):
+
           1. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');
+
           2. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');
+
           3. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');
+
           Then stop. Do not insert any other rows or create any other tables.
       - role: assistant
-        content: I'll execute those three SQL statements in order.
+        content: "I'll execute all three SQL statements together in a single call:"
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: sql
-              arguments: "{\"description\":\"Insert alpha todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES ('alpha',
-                'First todo', 'pending');\"}"
-      - role: assistant
-        tool_calls:
-          - id: toolcall_1
-            type: function
-            function:
-              name: sql
-              arguments: "{\"description\":\"Insert beta todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES ('beta',
-                'Second todo', 'done');\"}"
-      - role: assistant
-        tool_calls:
-          - id: toolcall_2
-            type: function
-            function:
-              name: sql
-              arguments: "{\"description\":\"Insert dependency\",\"query\":\"INSERT INTO todo_deps (todo_id, depends_on) VALUES
-                ('beta', 'alpha');\"}"
+              arguments: "{\"description\":\"Insert todos and dependency\",\"query\":\"INSERT INTO todos (id, title, status) VALUES
+                ('alpha', 'First todo', 'pending');\\nINSERT INTO todos (id, title, status) VALUES ('beta', 'Second
+                todo', 'done');\\nINSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');\"}"
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: |-
-          Use the sql tool to execute exactly these statements, in order, with no extra rows:
+        content: >-
+          Use the sql tool exactly once to execute all three of the following statements together, in this exact order,
+          in a single sql tool call (a single query string containing all three statements):
+
           1. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');
+
           2. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');
+
           3. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');
+
           Then stop. Do not insert any other rows or create any other tables.
       - role: assistant
-        content: I'll execute those three SQL statements in order.
+        content: "I'll execute all three SQL statements together in a single call:"
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: sql
-              arguments: "{\"description\":\"Insert alpha todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES ('alpha',
-                'First todo', 'pending');\"}"
-          - id: toolcall_1
-            type: function
-            function:
-              name: sql
-              arguments: "{\"description\":\"Insert beta todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES ('beta',
-                'Second todo', 'done');\"}"
-          - id: toolcall_2
-            type: function
-            function:
-              name: sql
-              arguments: "{\"description\":\"Insert dependency\",\"query\":\"INSERT INTO todo_deps (todo_id, depends_on) VALUES
-                ('beta', 'alpha');\"}"
+              arguments: "{\"description\":\"Insert todos and dependency\",\"query\":\"INSERT INTO todos (id, title, status) VALUES
+                ('alpha', 'First todo', 'pending');\\nINSERT INTO todos (id, title, status) VALUES ('beta', 'Second
+                todo', 'done');\\nINSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');\"}"
       - role: tool
         tool_call_id: toolcall_0
-        content: "1 row(s) inserted. Last inserted row ID: 1."
-      - role: tool
-        tool_call_id: toolcall_1
-        content: "1 row(s) inserted. Last inserted row ID: 2."
-      - role: tool
-        tool_call_id: toolcall_2
-        content: "1 row(s) inserted. Last inserted row ID: 1."
+        content: |-
+          Executed 3 statement(s):
+
+          1. INSERT
+             1 row(s) inserted. Last inserted row ID: 1.
+
+          2. INSERT
+             1 row(s) inserted. Last inserted row ID: 2.
+
+          3. INSERT
+             1 row(s) inserted. Last inserted row ID: 1.
       - role: assistant
-        content: Done. All three statements executed successfully.
+        content: Done. All three statements executed successfully in a single SQL call.

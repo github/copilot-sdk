@@ -22,6 +22,7 @@ type (
 	AssistantTurnEndData                                           = rpc.AssistantTurnEndData
 	AssistantTurnStartData                                         = rpc.AssistantTurnStartData
 	AssistantUsageAPIEndpoint                                      = rpc.AssistantUsageAPIEndpoint
+	AssistantUsageCopilotUsage                                     = rpc.AssistantUsageCopilotUsage
 	AssistantUsageCopilotUsageTokenDetail                          = rpc.AssistantUsageCopilotUsageTokenDetail
 	AssistantUsageData                                             = rpc.AssistantUsageData
 	Attachment                                                     = rpc.Attachment
@@ -42,6 +43,9 @@ type (
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
 	AutopilotObjectiveChangedOperation                             = rpc.AutopilotObjectiveChangedOperation
 	AutopilotObjectiveChangedStatus                                = rpc.AutopilotObjectiveChangedStatus
+	BinaryAssetReference                                           = rpc.BinaryAssetReference
+	BinaryAssetReferenceType                                       = rpc.BinaryAssetReferenceType
+	BinaryAssetType                                                = rpc.BinaryAssetType
 	CanvasOpenedAvailability                                       = rpc.CanvasOpenedAvailability
 	CanvasRegistryChangedCanvas                                    = rpc.CanvasRegistryChangedCanvas
 	CanvasRegistryChangedCanvasAction                              = rpc.CanvasRegistryChangedCanvasAction
@@ -98,6 +102,9 @@ type (
 	MCPServerTransport                                             = rpc.MCPServerTransport
 	ModelCallFailureData                                           = rpc.ModelCallFailureData
 	ModelCallFailureSource                                         = rpc.ModelCallFailureSource
+	OmittedBinaryOmittedReason                                     = rpc.OmittedBinaryOmittedReason
+	OmittedBinaryResult                                            = rpc.OmittedBinaryResult
+	OmittedBinaryType                                              = rpc.OmittedBinaryType
 	PendingMessagesModifiedData                                    = rpc.PendingMessagesModifiedData
 	PermissionApproved                                             = rpc.PermissionApproved
 	PermissionApprovedForLocation                                  = rpc.PermissionApprovedForLocation
@@ -144,11 +151,16 @@ type (
 	PermissionResult                                               = rpc.PermissionResult
 	PermissionResultKind                                           = rpc.PermissionResultKind
 	PermissionRule                                                 = rpc.PermissionRule
+	PersistedBinaryImage                                           = rpc.PersistedBinaryImage
+	PersistedBinaryImageType                                       = rpc.PersistedBinaryImageType
+	PersistedBinaryResult                                          = rpc.PersistedBinaryResult
+	PersistedBinaryResultType                                      = rpc.PersistedBinaryResultType
 	PlanChangedOperation                                           = rpc.PlanChangedOperation
 	PossibleURL                                                    = rpc.PossibleURL
 	RawPermissionPromptRequest                                     = rpc.RawPermissionPromptRequest
 	RawPermissionRequest                                           = rpc.RawPermissionRequest
 	RawPermissionResult                                            = rpc.RawPermissionResult
+	RawPersistedBinaryResult                                       = rpc.RawPersistedBinaryResult
 	RawSessionEventData                                            = rpc.RawSessionEventData
 	RawSystemNotification                                          = rpc.RawSystemNotification
 	RawToolExecutionCompleteContent                                = rpc.RawToolExecutionCompleteContent
@@ -157,6 +169,7 @@ type (
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
 	SessionBackgroundTasksChangedData                              = rpc.SessionBackgroundTasksChangedData
+	SessionBinaryAssetData                                         = rpc.SessionBinaryAssetData
 	SessionCanvasClosedData                                        = rpc.SessionCanvasClosedData
 	SessionCanvasOpenedData                                        = rpc.SessionCanvasOpenedData
 	SessionCanvasRegistryChangedData                               = rpc.SessionCanvasRegistryChangedData
@@ -310,6 +323,10 @@ const (
 	AutopilotObjectiveChangedStatusCapReached                          = rpc.AutopilotObjectiveChangedStatusCapReached
 	AutopilotObjectiveChangedStatusCompleted                           = rpc.AutopilotObjectiveChangedStatusCompleted
 	AutopilotObjectiveChangedStatusPaused                              = rpc.AutopilotObjectiveChangedStatusPaused
+	BinaryAssetReferenceTypeImage                                      = rpc.BinaryAssetReferenceTypeImage
+	BinaryAssetReferenceTypeResource                                   = rpc.BinaryAssetReferenceTypeResource
+	BinaryAssetTypeImage                                               = rpc.BinaryAssetTypeImage
+	BinaryAssetTypeResource                                            = rpc.BinaryAssetTypeResource
 	CanvasOpenedAvailabilityReady                                      = rpc.CanvasOpenedAvailabilityReady
 	CanvasOpenedAvailabilityStale                                      = rpc.CanvasOpenedAvailabilityStale
 	ContextTierDefault                                                 = rpc.ContextTierDefault
@@ -352,6 +369,10 @@ const (
 	ModelCallFailureSourceMCPSampling                                  = rpc.ModelCallFailureSourceMCPSampling
 	ModelCallFailureSourceSubagent                                     = rpc.ModelCallFailureSourceSubagent
 	ModelCallFailureSourceTopLevel                                     = rpc.ModelCallFailureSourceTopLevel
+	OmittedBinaryOmittedReasonAssetUnavailable                         = rpc.OmittedBinaryOmittedReasonAssetUnavailable
+	OmittedBinaryOmittedReasonTooLarge                                 = rpc.OmittedBinaryOmittedReasonTooLarge
+	OmittedBinaryTypeImage                                             = rpc.OmittedBinaryTypeImage
+	OmittedBinaryTypeResource                                          = rpc.OmittedBinaryTypeResource
 	PermissionPromptRequestKindCommands                                = rpc.PermissionPromptRequestKindCommands
 	PermissionPromptRequestKindCustomTool                              = rpc.PermissionPromptRequestKindCustomTool
 	PermissionPromptRequestKindExtensionManagement                     = rpc.PermissionPromptRequestKindExtensionManagement
@@ -389,6 +410,10 @@ const (
 	PermissionResultKindDeniedByRules                                  = rpc.PermissionResultKindDeniedByRules
 	PermissionResultKindDeniedInteractivelyByUser                      = rpc.PermissionResultKindDeniedInteractivelyByUser
 	PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser = rpc.PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
+	PersistedBinaryImageTypeImage                                      = rpc.PersistedBinaryImageTypeImage
+	PersistedBinaryImageTypeResource                                   = rpc.PersistedBinaryImageTypeResource
+	PersistedBinaryResultTypeImage                                     = rpc.PersistedBinaryResultTypeImage
+	PersistedBinaryResultTypeResource                                  = rpc.PersistedBinaryResultTypeResource
 	PlanChangedOperationCreate                                         = rpc.PlanChangedOperationCreate
 	PlanChangedOperationDelete                                         = rpc.PlanChangedOperationDelete
 	PlanChangedOperationUpdate                                         = rpc.PlanChangedOperationUpdate
@@ -433,6 +458,7 @@ const (
 	SessionEventTypeSamplingRequested                                  = rpc.SessionEventTypeSamplingRequested
 	SessionEventTypeSessionAutopilotObjectiveChanged                   = rpc.SessionEventTypeSessionAutopilotObjectiveChanged
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
+	SessionEventTypeSessionBinaryAsset                                 = rpc.SessionEventTypeSessionBinaryAsset
 	SessionEventTypeSessionCanvasClosed                                = rpc.SessionEventTypeSessionCanvasClosed
 	SessionEventTypeSessionCanvasOpened                                = rpc.SessionEventTypeSessionCanvasOpened
 	SessionEventTypeSessionCanvasRegistryChanged                       = rpc.SessionEventTypeSessionCanvasRegistryChanged

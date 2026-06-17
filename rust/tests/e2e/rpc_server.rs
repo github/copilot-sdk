@@ -165,6 +165,7 @@ async fn should_discover_server_mcp_and_skills() {
                     .rpc()
                     .skills()
                     .discover(SkillsDiscoverRequest {
+                        exclude_host_skills: None,
                         project_paths: None,
                         skill_directories: Some(vec![
                             skill_directory.to_string_lossy().to_string(),
@@ -191,6 +192,7 @@ async fn should_discover_server_mcp_and_skills() {
                     .rpc()
                     .skills()
                     .discover(SkillsDiscoverRequest {
+                        exclude_host_skills: None,
                         project_paths: None,
                         skill_directories: Some(vec![
                             skill_directory.to_string_lossy().to_string(),

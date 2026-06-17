@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionModelSwitchToParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Model identifier to switch to */
+    /** Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model. */
     @JsonProperty("modelId") String modelId,
     /** Reasoning effort level to use for the model. "none" disables reasoning. */
     @JsonProperty("reasoningEffort") String reasoningEffort,

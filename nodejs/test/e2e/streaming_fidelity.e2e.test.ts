@@ -83,7 +83,7 @@ describe("Streaming Fidelity", async () => {
         // Resume using a new client
         const newClient = new CopilotClient({
             env,
-            gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+            gitHubToken: isCI ? "fake-token-for-e2e-tests" : process.env.GITHUB_TOKEN,
         });
         onTestFinished(() => newClient.forceStop());
         const session2 = await newClient.resumeSession(session.sessionId, {
@@ -122,7 +122,7 @@ describe("Streaming Fidelity", async () => {
         // Resume using a new client with streaming DISABLED
         const newClient = new CopilotClient({
             env,
-            gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+            gitHubToken: isCI ? "fake-token-for-e2e-tests" : process.env.GITHUB_TOKEN,
         });
         onTestFinished(() => newClient.forceStop());
         const session2 = await newClient.resumeSession(session.sessionId, {
