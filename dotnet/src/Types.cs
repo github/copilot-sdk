@@ -2059,6 +2059,26 @@ public sealed class ProviderConfig
 }
 
 /// <summary>
+/// Provider-scoped options for the CAPI (Copilot API) provider.
+/// </summary>
+public sealed class CapiSessionOptions
+{
+    /// <summary>
+    /// When <see langword="true"/>, opts out of the WebSocket transport for the CAPI Responses API
+    /// and uses the HTTP Responses transport instead.
+    /// </summary>
+    /// <remarks>
+    /// WebSocket transport is the default for CAPI Responses API requests when the model advertises
+    /// the <c>ws:/responses</c> endpoint. Set this option for users behind proxies where WebSockets
+    /// fail. This is equivalent to setting the <c>COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES</c>
+    /// environment variable. The option is scoped under the <c>capi</c> namespace because a single
+    /// session can host multiple providers, such as CAPI and BYOK, so transport choice is provider-level.
+    /// </remarks>
+    [JsonPropertyName("disableWebSocketResponses")]
+    public bool? DisableWebSocketResponses { get; set; }
+}
+
+/// <summary>
 /// Azure OpenAI-specific provider options.
 /// </summary>
 public sealed class AzureOptions
@@ -2494,6 +2514,7 @@ public abstract class SessionConfigBase
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
+        Capi = other.Capi;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
         SkipCustomInstructions = other.SkipCustomInstructions;
         CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
@@ -2648,6 +2669,11 @@ public abstract class SessionConfigBase
 
     /// <summary>Custom model provider configuration for the session.</summary>
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// CAPI (Copilot API) provider-scoped configuration for the session.
+    /// </summary>
+    public CapiSessionOptions? Capi { get; set; }
 
     /// <summary>
     /// Enables or disables internal session telemetry for this session.
@@ -3554,6 +3580,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]
+[JsonSerializable(typeof(CapiSessionOptions))]
 [JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionLifecycleEvent))]
 [JsonSerializable(typeof(SessionLifecycleEventMetadata))]

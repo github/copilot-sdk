@@ -1585,6 +1585,31 @@ export interface ExtensionInfo {
 }
 
 /**
+ * Provider-scoped options for the Copilot API (CAPI).
+ *
+ * These settings apply to the built-in Copilot API provider only. They live
+ * under their own namespace because a single session can host multiple
+ * providers (CAPI alongside BYOK via {@link ProviderConfig}), so transport and
+ * provider-level choices are conceptually per-provider rather than global.
+ */
+export interface CapiSessionOptions {
+    /**
+     * Opt out of the WebSocket transport for the CAPI Responses API.
+     *
+     * WebSocket transport is enabled by default whenever the selected model
+     * advertises the `ws:/responses` endpoint. Set this to `true` to fall back
+     * to the HTTP Responses transport instead — useful for users behind proxies
+     * where WebSocket connections fail.
+     *
+     * Equivalent to setting the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`
+     * environment variable.
+     *
+     * @default false
+     */
+    disableWebSocketResponses?: boolean;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -1744,6 +1769,13 @@ export interface SessionConfigBase {
      * When specified, uses the provided API endpoint instead of the Copilot API.
      */
     provider?: ProviderConfig;
+
+    /**
+     * Provider-scoped options for the built-in Copilot API (CAPI), such as
+     * opting out of the WebSocket Responses transport. See
+     * {@link CapiSessionOptions}.
+     */
+    capi?: CapiSessionOptions;
 
     /**
      * Enables or disables internal session telemetry for this session.

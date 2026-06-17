@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from copilot import (
+    CapiSessionOptions,
     CopilotClient,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -237,6 +238,46 @@ class TestCreateSessionConfig:
 
             assert captured["session.create"]["contextTier"] == "long_context"
             assert captured["session.resume"]["contextTier"] == "default"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_capi_options(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            create_capi: CapiSessionOptions = {"disable_web_socket_responses": True}
+            resume_capi: CapiSessionOptions = {"disable_web_socket_responses": False}
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                capi=create_capi,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                capi=resume_capi,
+            )
+
+            assert captured["session.create"]["capi"] == {
+                "disableWebSocketResponses": True,
+            }
+            assert captured["session.resume"]["capi"] == {
+                "disableWebSocketResponses": False,
+            }
         finally:
             await client.force_stop()
 

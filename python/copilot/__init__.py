@@ -28,6 +28,7 @@ from .canvas import (
     OpenCanvasInstance,
 )
 from .client import (
+    CapiSessionOptions,
     ChildProcessRuntimeConnection,
     CloudSessionOptions,
     CloudSessionRepository,
@@ -176,6 +177,7 @@ __all__ = [
     "CanvasHostContext",
     "CanvasHostContextCapabilities",
     "CanvasJsonSchema",
+    "CapiSessionOptions",
     "ChildProcessRuntimeConnection",
     "CloudSessionOptions",
     "CloudSessionRepository",

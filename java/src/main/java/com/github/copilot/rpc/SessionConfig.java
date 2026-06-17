@@ -49,6 +49,7 @@ public class SessionConfig {
     private List<String> availableTools;
     private List<String> excludedTools;
     private ProviderConfig provider;
+    private CapiSessionOptions capi;
     private Boolean enableSessionTelemetry;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
@@ -352,6 +353,32 @@ public class SessionConfig {
      */
     public SessionConfig setProvider(ProviderConfig provider) {
         this.provider = provider;
+        return this;
+    }
+
+    /**
+     * Gets the CAPI provider-scoped session options.
+     *
+     * @return the CAPI session options
+     */
+    public CapiSessionOptions getCapi() {
+        return capi;
+    }
+
+    /**
+     * Sets CAPI provider-scoped session options.
+     * <p>
+     * Use {@link CapiSessionOptions#setDisableWebSocketResponses(Boolean)} to opt
+     * out of the default CAPI Responses API WebSocket transport and use HTTP
+     * Responses transport instead.
+     *
+     * @param capi
+     *            the CAPI session options
+     * @return this config instance for method chaining
+     * @see CapiSessionOptions
+     */
+    public SessionConfig setCapi(CapiSessionOptions capi) {
+        this.capi = capi;
         return this;
     }
 
@@ -1671,6 +1698,7 @@ public class SessionConfig {
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
+        copy.capi = this.capi;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;

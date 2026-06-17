@@ -133,6 +133,13 @@ class CloudSessionOptions:
     repository: CloudSessionRepository | None = None
 
 
+class CapiSessionOptions(TypedDict, total=False):
+    """CAPI provider-scoped session options."""
+
+    disable_web_socket_responses: bool
+    """Opt out of WebSocket Responses transport and use HTTP Responses instead."""
+
+
 def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, Any]:
     result: dict[str, Any] = {}
     if options.repository is not None:
@@ -144,6 +151,13 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
             repository["branch"] = options.repository.branch
         result["repository"] = repository
     return result
+
+
+def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]:
+    wire: dict[str, Any] = {}
+    if "disable_web_socket_responses" in options:
+        wire["disableWebSocketResponses"] = options["disable_web_socket_responses"]
+    return wire
 
 
 def _validate_session_fs_config(config: SessionFsConfig) -> None:
@@ -1627,6 +1641,7 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        capi: CapiSessionOptions | None = None,
         enable_session_telemetry: bool | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
@@ -1709,6 +1724,16 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            capi: CAPI provider-scoped options. WebSocket transport is the
+                default for the CAPI Responses API whenever the model advertises
+                the ``ws:/responses`` endpoint. Set
+                ``disable_web_socket_responses=True`` to opt out to the HTTP
+                Responses transport, which is useful behind proxies where
+                WebSockets fail. This is equivalent to setting the
+                ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+                variable. The option is under the ``capi`` namespace because a
+                single session can host multiple providers (CAPI + BYOK), so
+                transport choice is provider-level.
             enable_session_telemetry: Enables or disables internal session telemetry
                 for this session. When False, disables session telemetry. When omitted
                 or True, telemetry is enabled for GitHub-authenticated sessions. When
@@ -1915,6 +1940,9 @@ class CopilotClient:
         # Add provider configuration if provided
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+
+        if capi is not None:
+            payload["capi"] = _capi_session_options_to_wire(capi)
 
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
@@ -2204,6 +2232,7 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        capi: CapiSessionOptions | None = None,
         enable_session_telemetry: bool | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
@@ -2287,6 +2316,16 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            capi: CAPI provider-scoped options. WebSocket transport is the
+                default for the CAPI Responses API whenever the model advertises
+                the ``ws:/responses`` endpoint. Set
+                ``disable_web_socket_responses=True`` to opt out to the HTTP
+                Responses transport, which is useful behind proxies where
+                WebSockets fail. This is equivalent to setting the
+                ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+                variable. The option is under the ``capi`` namespace because a
+                single session can host multiple providers (CAPI + BYOK), so
+                transport choice is provider-level.
             enable_session_telemetry: Enables or disables internal session telemetry
                 for this session. When False, disables session telemetry. When omitted
                 or True, telemetry is enabled for GitHub-authenticated sessions. When
@@ -2437,6 +2476,8 @@ class CopilotClient:
         payload["toolFilterPrecedence"] = "excluded"
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+        if capi is not None:
+            payload["capi"] = _capi_session_options_to_wire(capi)
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if model_capabilities:

@@ -84,6 +84,7 @@ export type {
     ModelBilling,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    CapiSessionOptions,
     ModelCapabilities,
     ModelCapabilitiesOverride,
     ModelInfo,

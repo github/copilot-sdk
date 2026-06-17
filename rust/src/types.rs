@@ -1147,6 +1147,44 @@ impl ProviderConfig {
     }
 }
 
+/// Provider-scoped CAPI (Copilot API) session options.
+///
+/// WebSocket transport is the default for the CAPI Responses API whenever
+/// the model advertises the `ws:/responses` endpoint. Set
+/// [`disable_web_socket_responses`](Self::disable_web_socket_responses) to
+/// `true` to opt out to the HTTP Responses transport instead, which is useful
+/// for users behind proxies where WebSockets fail.
+///
+/// This is equivalent to setting the
+/// `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable. The option
+/// is scoped under the `capi` namespace because a single session can host
+/// multiple providers, so transport choice is provider-level.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CapiSessionOptions {
+    /// Opt out of WebSocket transport for CAPI Responses API calls.
+    ///
+    /// When `Some(true)`, the runtime uses HTTP Responses transport even if
+    /// the selected model advertises `ws:/responses`. When unset, the runtime
+    /// default applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disable_web_socket_responses: Option<bool>,
+}
+
+impl CapiSessionOptions {
+    /// Construct CAPI session options with all fields unset.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Opt out of WebSocket transport for CAPI Responses API calls.
+    pub fn with_disable_web_socket_responses(mut self, disable: bool) -> Self {
+        self.disable_web_socket_responses = Some(disable);
+        self
+    }
+}
+
 /// Azure-specific provider options.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1341,6 +1379,12 @@ pub struct SessionConfig {
     /// requests through this provider instead of the default Copilot
     /// routing.
     pub provider: Option<ProviderConfig>,
+    /// Provider-scoped CAPI session options.
+    ///
+    /// Use this to opt out of the default WebSocket transport for CAPI
+    /// Responses API calls, equivalent to setting
+    /// `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`.
+    pub capi: Option<CapiSessionOptions>,
     /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
@@ -1494,6 +1538,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("agent", &self.agent)
             .field("infinite_sessions", &self.infinite_sessions)
             .field("provider", &self.provider)
+            .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
@@ -1594,6 +1639,7 @@ impl Default for SessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            capi: None,
             enable_session_telemetry: None,
             model_capabilities: None,
             memory: None,
@@ -1737,6 +1783,7 @@ impl SessionConfig {
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
             provider: self.provider,
+            capi: self.capi,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
@@ -2154,6 +2201,12 @@ impl SessionConfig {
         self
     }
 
+    /// Configure provider-scoped CAPI session options.
+    pub fn with_capi(mut self, capi: CapiSessionOptions) -> Self {
+        self.capi = Some(capi);
+        self
+    }
+
     /// Enable or disable internal session telemetry.
     ///
     /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
@@ -2349,6 +2402,12 @@ pub struct ResumeSessionConfig {
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     /// Re-supply BYOK provider configuration on resume.
     pub provider: Option<ProviderConfig>,
+    /// Re-supply provider-scoped CAPI session options on resume.
+    ///
+    /// Use this to opt out of the default WebSocket transport for CAPI
+    /// Responses API calls, equivalent to setting
+    /// `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`.
+    pub capi: Option<CapiSessionOptions>,
     /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
@@ -2482,6 +2541,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("agent", &self.agent)
             .field("infinite_sessions", &self.infinite_sessions)
             .field("provider", &self.provider)
+            .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
@@ -2626,6 +2686,7 @@ impl ResumeSessionConfig {
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
             provider: self.provider,
+            capi: self.capi,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
@@ -2703,6 +2764,7 @@ impl ResumeSessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            capi: None,
             enable_session_telemetry: None,
             model_capabilities: None,
             memory: None,
@@ -3090,6 +3152,12 @@ impl ResumeSessionConfig {
     /// Re-supply BYOK provider configuration on resume.
     pub fn with_provider(mut self, provider: ProviderConfig) -> Self {
         self.provider = Some(provider);
+        self
+    }
+
+    /// Re-supply provider-scoped CAPI session options on resume.
+    pub fn with_capi(mut self, capi: CapiSessionOptions) -> Self {
+        self.capi = Some(capi);
         self
     }
 
@@ -4356,11 +4424,12 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
-        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration,
-        ProviderConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        AttachmentSelectionRange, CapiSessionOptions, ConnectionState, CustomAgentConfig,
+        DeliveryMode, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
+        LargeToolOutputConfig, MemoryConfiguration, ProviderConfig, ReasoningSummary,
+        ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
+        ToolBinaryResult, ToolResult, ToolResultExpanded, ToolResultResponse,
+        ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -4781,6 +4850,7 @@ mod tests {
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
+            .with_capi(CapiSessionOptions::new().with_disable_web_socket_responses(true))
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(false)
             .with_extension_info(ExtensionInfo::new("github-app", "counter"));
@@ -4817,6 +4887,10 @@ mod tests {
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(
+            cfg.capi,
+            Some(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+        );
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
         assert_eq!(
@@ -4847,6 +4921,7 @@ mod tests {
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
+            .with_capi(CapiSessionOptions::new().with_disable_web_socket_responses(true))
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
             .with_suppress_resume_event(true)
@@ -4883,6 +4958,10 @@ mod tests {
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(
+            cfg.capi,
+            Some(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+        );
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
         assert_eq!(cfg.suppress_resume_event, Some(true));
@@ -5059,6 +5138,61 @@ mod tests {
         assert!(wire_unset.get("wireModel").is_none());
         assert!(wire_unset.get("maxPromptTokens").is_none());
         assert!(wire_unset.get("maxOutputTokens").is_none());
+    }
+
+    #[test]
+    fn capi_session_options_builder_composes_and_serializes() {
+        let cfg = CapiSessionOptions::new().with_disable_web_socket_responses(true);
+
+        assert_eq!(cfg.disable_web_socket_responses, Some(true));
+
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(
+            wire,
+            serde_json::json!({ "disableWebSocketResponses": true })
+        );
+
+        let unset = CapiSessionOptions::new();
+        let wire_unset = serde_json::to_value(&unset).unwrap();
+        assert!(wire_unset.get("disableWebSocketResponses").is_none());
+    }
+
+    #[test]
+    fn session_config_with_capi_serializes() {
+        let (wire, _) = SessionConfig::default()
+            .with_capi(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+            .into_wire(Some(SessionId::from("capi-create")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["capi"],
+            serde_json::json!({ "disableWebSocketResponses": true })
+        );
+
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("capi-create-unset")))
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("capi").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_with_capi_serializes() {
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("capi-resume"))
+            .with_capi(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["capi"],
+            serde_json::json!({ "disableWebSocketResponses": true })
+        );
+
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("capi-resume-unset"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("capi").is_none());
     }
 
     #[test]

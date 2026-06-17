@@ -60,6 +60,9 @@ public final class CreateSessionRequest {
     @JsonProperty("provider")
     private ProviderConfig provider;
 
+    @JsonProperty("capi")
+    private CapiSessionOptions capi;
+
     @JsonProperty("enableSessionTelemetry")
     private Boolean enableSessionTelemetry;
 
@@ -311,6 +314,16 @@ public final class CreateSessionRequest {
     /** Sets the provider config. @param provider the provider */
     public void setProvider(ProviderConfig provider) {
         this.provider = provider;
+    }
+
+    /** Gets the CAPI session options. @return the CAPI session options */
+    public CapiSessionOptions getCapi() {
+        return capi;
+    }
+
+    /** Sets the CAPI session options. @param capi the CAPI session options */
+    public void setCapi(CapiSessionOptions capi) {
+        this.capi = capi;
     }
 
     /** Gets enable session telemetry flag. @return the flag */

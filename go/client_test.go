@@ -209,6 +209,76 @@ func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client
 	return rpcClient, server, shutdownCalled
 }
 
+func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		Capi: &CapiSessionOptions{DisableWebSocketResponses: Bool(true)},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertCapiDisableWebSocketResponses(t, <-createParams)
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed-capi","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-capi", &ResumeSessionConfig{
+		Capi: &CapiSessionOptions{DisableWebSocketResponses: Bool(true)},
+	})
+	if err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertCapiDisableWebSocketResponses(t, <-resumeParams)
+}
+
+func assertCapiDisableWebSocketResponses(t *testing.T, params json.RawMessage) {
+	t.Helper()
+
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	capi, ok := decoded["capi"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected capi object in request params, got %T", decoded["capi"])
+	}
+	if capi["disableWebSocketResponses"] != true {
+		t.Fatalf("expected capi.disableWebSocketResponses=true, got %v", capi["disableWebSocketResponses"])
+	}
+}
+
+func sessionIDFromParams(t *testing.T, params json.RawMessage) string {
+	t.Helper()
+
+	var decoded struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if decoded.SessionID == "" {
+		t.Fatal("expected generated sessionId in request params")
+	}
+	return decoded.SessionID
+}
+
 func assertRuntimeShutdownNotCalled(t *testing.T, shutdownCalled <-chan struct{}) {
 	t.Helper()
 	select {
@@ -1335,6 +1405,61 @@ func TestCreateSessionRequest_Cloud(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["cloud"]; ok {
 			t.Error("Expected cloud to be omitted when unset")
+		}
+	})
+}
+
+func TestSessionRequests_Capi(t *testing.T) {
+	t.Run("forwards capi options in session.create RPC", func(t *testing.T) {
+		req := createSessionRequest{
+			Capi: &CapiSessionOptions{DisableWebSocketResponses: Bool(true)},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		capi, ok := m["capi"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected capi to be an object, got %T", m["capi"])
+		}
+		if capi["disableWebSocketResponses"] != true {
+			t.Errorf("Expected disableWebSocketResponses=true, got %v", capi["disableWebSocketResponses"])
+		}
+	})
+
+	t.Run("forwards capi options in session.resume RPC", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID: "s1",
+			Capi:      &CapiSessionOptions{DisableWebSocketResponses: Bool(true)},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		capi, ok := m["capi"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected capi to be an object, got %T", m["capi"])
+		}
+		if capi["disableWebSocketResponses"] != true {
+			t.Errorf("Expected disableWebSocketResponses=true, got %v", capi["disableWebSocketResponses"])
+		}
+	})
+
+	t.Run("omits capi from JSON when unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["capi"]; ok {
+			t.Error("Expected capi to be omitted when unset")
 		}
 	})
 }

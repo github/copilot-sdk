@@ -983,6 +983,8 @@ type SessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
+	// Capi configures provider-scoped CAPI (Copilot API) session options.
+	Capi *CapiSessionOptions
 	// EnableSessionTelemetry enables or disables internal session telemetry for this session.
 	// When false, disables session telemetry. When nil (the default) or true,
 	// telemetry is enabled for GitHub-authenticated sessions. When a custom
@@ -1316,6 +1318,8 @@ type ResumeSessionConfig struct {
 	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
+	// Capi configures provider-scoped CAPI (Copilot API) session options.
+	Capi *CapiSessionOptions
 	// EnableSessionTelemetry enables or disables internal session telemetry for this session.
 	// When false, disables session telemetry. When nil (the default) or true,
 	// telemetry is enabled for GitHub-authenticated sessions. When a custom
@@ -1540,6 +1544,21 @@ type ProviderConfig struct {
 	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
 }
 
+// CapiSessionOptions configures provider-scoped CAPI (Copilot API) session behavior.
+//
+// WebSocket transport is the default for the CAPI Responses API whenever the
+// model advertises the ws:/responses endpoint. Set DisableWebSocketResponses to
+// Bool(true) to opt out to the HTTP Responses transport, which is useful behind
+// proxies where WebSockets fail. This is equivalent to setting the
+// COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES environment variable. These options
+// are provider-scoped under the capi namespace because a single session can host
+// multiple providers, such as CAPI and BYOK, so transport choice is provider-level.
+type CapiSessionOptions struct {
+	// DisableWebSocketResponses opts out of the default WebSocket Responses
+	// transport and uses HTTP Responses transport when set to Bool(true).
+	DisableWebSocketResponses *bool `json:"disableWebSocketResponses,omitempty"`
+}
+
 // AzureProviderOptions contains Azure-specific provider configuration
 type AzureProviderOptions struct {
 	// APIVersion is the Azure API version. Defaults to "2024-10-21".
@@ -1721,6 +1740,7 @@ type createSessionRequest struct {
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
+	Capi                               *CapiSessionOptions                    `json:"capi,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
@@ -1800,6 +1820,7 @@ type resumeSessionRequest struct {
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
+	Capi                               *CapiSessionOptions                    `json:"capi,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
