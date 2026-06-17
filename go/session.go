@@ -1586,12 +1586,41 @@ func (s *Session) Abort(ctx context.Context) error {
 	}
 
 	s.toolCallCancelsMu.Lock()
-	for _, cancel := range s.toolCallCancels {
+	for id, cancel := range s.toolCallCancels {
 		cancel()
+		delete(s.toolCallCancels, id)
 	}
 	s.toolCallCancelsMu.Unlock()
 
 	return nil
+}
+
+// CancelToolCall cancels a single in-flight tool handler identified by toolCallID
+// without aborting the agentic loop or any other concurrent tool handlers.
+//
+// It looks up the cancel func registered when the handler was dispatched, calls it
+// (cancelling the context passed to that handler via ToolInvocation.Context), removes
+// the entry from the in-flight map, and returns true. If no handler with the given
+// toolCallID is currently executing, CancelToolCall is a no-op and returns false.
+//
+// Example:
+//
+//	// Start a session with a long-running tool registered.
+//	// Later, cancel only a specific tool call without aborting the session:
+//	if cancelled := session.CancelToolCall("tool-call-id-123"); !cancelled {
+//	    log.Println("tool call was not in flight")
+//	}
+func (s *Session) CancelToolCall(toolCallID string) bool {
+	s.toolCallCancelsMu.Lock()
+	defer s.toolCallCancelsMu.Unlock()
+
+	cancel, ok := s.toolCallCancels[toolCallID]
+	if !ok {
+		return false
+	}
+	cancel()
+	delete(s.toolCallCancels, toolCallID)
+	return true
 }
 
 // SetModelOptions configures optional parameters for SetModel.

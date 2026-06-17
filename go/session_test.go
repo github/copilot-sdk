@@ -1035,54 +1035,8 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 // TestToolInvocation_ContextCancelledOnAbort verifies that the context passed to a
 // tool handler is cancelled when the in-flight cancel func (as used by Abort) fires.
 func TestToolInvocation_ContextCancelledOnAbort(t *testing.T) {
-	stdinR, stdinW := io.Pipe()
-	stdoutR, stdoutW := io.Pipe()
-	defer stdinR.Close()
-	defer stdinW.Close()
-	defer stdoutR.Close()
-	defer stdoutW.Close()
-
-	client := jsonrpc2.NewClient(stdinW, stdoutR)
-	client.Start()
-	defer client.Stop()
-
-	session := &Session{
-		SessionID: "session-abort-test",
-		client:    client,
-		RPC:       rpc.NewSessionRPC(client, "session-abort-test"),
-	}
-
-	// Drain the RPC responses from the mock server side.
-	go func() {
-		scanner := bufio.NewScanner(stdinR)
-		for scanner.Scan() {
-			// read Content-Length header
-			line := scanner.Text()
-			if !strings.HasPrefix(line, "Content-Length:") {
-				continue
-			}
-			var contentLen int
-			fmt.Sscanf(line, "Content-Length: %d", &contentLen)
-			// skip blank separator
-			scanner.Scan()
-			body := make([]byte, contentLen)
-			io.ReadFull(stdinR, body)
-
-			var req struct {
-				ID     json.RawMessage `json:"id"`
-				Method string          `json:"method"`
-			}
-			if err := json.Unmarshal(body, &req); err != nil || req.ID == nil {
-				continue
-			}
-			resp, _ := json.Marshal(map[string]any{
-				"jsonrpc": "2.0",
-				"id":      json.RawMessage(req.ID),
-				"result":  map[string]any{},
-			})
-			fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(resp), resp)
-		}
-	}()
+	session, cleanup := newRPCDrainSession(t, "session-abort-test")
+	defer cleanup()
 
 	// Channel to receive the invocation context from the handler.
 	ctxCh := make(chan context.Context, 1)
@@ -1144,52 +1098,8 @@ func TestToolInvocation_ContextCancelledOnAbort(t *testing.T) {
 // TestToolInvocation_ContextPopulated verifies that executeToolAndRespond sets
 // both Context and TraceContext on the ToolInvocation passed to the handler.
 func TestToolInvocation_ContextPopulated(t *testing.T) {
-	stdinR, stdinW := io.Pipe()
-	stdoutR, stdoutW := io.Pipe()
-	defer stdinR.Close()
-	defer stdinW.Close()
-	defer stdoutR.Close()
-	defer stdoutW.Close()
-
-	client := jsonrpc2.NewClient(stdinW, stdoutR)
-	client.Start()
-	defer client.Stop()
-
-	session := &Session{
-		SessionID: "session-ctx-test",
-		client:    client,
-		RPC:       rpc.NewSessionRPC(client, "session-ctx-test"),
-	}
-
-	// Drain RPC responses.
-	go func() {
-		scanner := bufio.NewScanner(stdinR)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if !strings.HasPrefix(line, "Content-Length:") {
-				continue
-			}
-			var contentLen int
-			fmt.Sscanf(line, "Content-Length: %d", &contentLen)
-			scanner.Scan()
-			body := make([]byte, contentLen)
-			io.ReadFull(stdinR, body)
-
-			var req struct {
-				ID     json.RawMessage `json:"id"`
-				Method string          `json:"method"`
-			}
-			if err := json.Unmarshal(body, &req); err != nil || req.ID == nil {
-				continue
-			}
-			resp, _ := json.Marshal(map[string]any{
-				"jsonrpc": "2.0",
-				"id":      json.RawMessage(req.ID),
-				"result":  map[string]any{},
-			})
-			fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(resp), resp)
-		}
-	}()
+	session, cleanup := newRPCDrainSession(t, "session-ctx-test")
+	defer cleanup()
 
 	invCh := make(chan ToolInvocation, 1)
 	handler := ToolHandler(func(inv ToolInvocation) (ToolResult, error) {
@@ -1230,5 +1140,151 @@ func TestToolInvocation_ContextPopulated(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for executeToolAndRespond to complete")
+	}
+}
+
+// newRPCDrainSession creates a Session backed by a pipe-based JSON-RPC client
+// whose server side drains requests and returns empty success responses.
+// The caller must close stdinW and stdoutW when done.
+func newRPCDrainSession(t *testing.T, sessionID string) (*Session, func()) {
+	t.Helper()
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+
+	session := &Session{
+		SessionID: sessionID,
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, sessionID),
+	}
+
+	// Drain goroutine: read every RPC request and send an empty success response.
+	go func() {
+		scanner := bufio.NewScanner(stdinR)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "Content-Length:") {
+				continue
+			}
+			var contentLen int
+			fmt.Sscanf(line, "Content-Length: %d", &contentLen)
+			scanner.Scan() // blank separator
+			body := make([]byte, contentLen)
+			io.ReadFull(stdinR, body) //nolint:errcheck
+
+			var req struct {
+				ID json.RawMessage `json:"id"`
+			}
+			if err := json.Unmarshal(body, &req); err != nil || req.ID == nil {
+				continue
+			}
+			resp, _ := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      json.RawMessage(req.ID),
+				"result":  map[string]any{},
+			})
+			fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(resp), resp) //nolint:errcheck
+		}
+	}()
+
+	cleanup := func() {
+		client.Stop()
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+		stdoutW.Close()
+	}
+	return session, cleanup
+}
+
+// TestCancelToolCall_cancelsTargetedHandlerOnly verifies that CancelToolCall
+// cancels only the specified handler's context while leaving concurrent
+// handlers unaffected, and returns false for an unknown tool call ID.
+func TestCancelToolCall_cancelsTargetedHandlerOnly(t *testing.T) {
+	session, cleanup := newRPCDrainSession(t, "session-cancel-test")
+	defer cleanup()
+
+	type handlerState struct {
+		ctx  context.Context
+		done chan struct{}
+	}
+
+	makeBlockingHandler := func(id string) (ToolHandler, *handlerState) {
+		state := &handlerState{done: make(chan struct{})}
+		h := ToolHandler(func(inv ToolInvocation) (ToolResult, error) {
+			state.ctx = inv.Context
+			<-inv.Context.Done() // block until cancelled
+			return ToolResult{TextResultForLLM: "cancelled"}, nil
+		})
+		return h, state
+	}
+
+	h1, s1 := makeBlockingHandler("tc-a")
+	h2, s2 := makeBlockingHandler("tc-b")
+
+	// Start both handlers concurrently.
+	go func() {
+		defer close(s1.done)
+		session.executeToolAndRespond("req-a", "tool_a", "tc-a", nil, h1, "", "")
+	}()
+	go func() {
+		defer close(s2.done)
+		session.executeToolAndRespond("req-b", "tool_b", "tc-b", nil, h2, "", "")
+	}()
+
+	// Wait for both handlers to start (ctx will be set once they block).
+	deadline := time.After(2 * time.Second)
+	for s1.ctx == nil || s2.ctx == nil {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for handlers to start")
+		default:
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+
+	// Unknown ID returns false and leaves both handlers running.
+	if got := session.CancelToolCall("nonexistent"); got {
+		t.Fatal("expected CancelToolCall(unknown) to return false")
+	}
+	if s1.ctx.Err() != nil {
+		t.Fatal("handler 1 should still be running after unknown CancelToolCall")
+	}
+	if s2.ctx.Err() != nil {
+		t.Fatal("handler 2 should still be running after unknown CancelToolCall")
+	}
+
+	// Cancel only handler 1.
+	if got := session.CancelToolCall("tc-a"); !got {
+		t.Fatal("expected CancelToolCall(tc-a) to return true")
+	}
+
+	// Handler 1 should finish; handler 2 should remain live.
+	select {
+	case <-s1.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler 1 to finish after CancelToolCall")
+	}
+
+	if s1.ctx.Err() == nil {
+		t.Fatal("expected handler 1 context to be cancelled")
+	}
+	if s2.ctx.Err() != nil {
+		t.Fatal("handler 2 context should still be live")
+	}
+
+	// CancelToolCall on the same ID again returns false (already removed).
+	if got := session.CancelToolCall("tc-a"); got {
+		t.Fatal("expected second CancelToolCall(tc-a) to return false")
+	}
+
+	// Cancel handler 2 to let it finish and avoid goroutine leak.
+	session.CancelToolCall("tc-b")
+	select {
+	case <-s2.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler 2 to finish")
 	}
 }

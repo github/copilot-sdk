@@ -380,6 +380,40 @@ lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details from our 
 
 Handlers that don't use `inv.Context` are unaffected; they run to completion as before.
 
+#### Cancelling a single tool call
+
+Use `session.CancelToolCall(toolCallID)` to cancel one specific in-flight handler without aborting the session or any other concurrent handlers. It returns `true` if the tool call was found and cancelled, `false` if it was not in flight.
+
+```go
+// Cancel a specific tool call by its ID.
+if cancelled := session.CancelToolCall(toolCallID); !cancelled {
+    log.Println("tool call was not in flight")
+}
+```
+
+`toolCallID` is available inside the handler as `inv.ToolCallID`. You can capture it to enable external cancellation of a specific operation:
+
+```go
+var mu sync.Mutex
+activeCalls := map[string]string{} // label → toolCallID
+
+slowTool := copilot.DefineTool("slow_op", "A long-running operation",
+    func(params SlowOpParams, inv copilot.ToolInvocation) (any, error) {
+        mu.Lock()
+        activeCalls[params.Label] = inv.ToolCallID
+        mu.Unlock()
+
+        // ... do work, checking inv.Context.Done() ...
+        return result, nil
+    })
+
+// Elsewhere, cancel by label:
+mu.Lock()
+id := activeCalls["my-label"]
+mu.Unlock()
+session.CancelToolCall(id)
+```
+
 #### Overriding Built-in Tools
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `OverridesBuiltInTool = true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
