@@ -28,31 +28,47 @@ describe("CopilotClient", () => {
         // Regression for #915: a non-numeric timeout used to reach setTimeout(),
         // which coerced it to a 0ms delay and rejected with a malformed
         // "Timeout after [object Object]ms" message instead of a clear error.
-        it("rejects with a TypeError mentioning the received timeout type", async () => {
+        async function captureRejection(promise: Promise<unknown>): Promise<Error> {
+            return promise.then(
+                () => {
+                    throw new Error("expected sendAndWait to reject");
+                },
+                (error) => error
+            );
+        }
+
+        it("rejects an object timeout with a clear TypeError", async () => {
             const session = new CopilotSession("session-1", {} as any);
-            await expect(session.sendAndWait("hello", { ms: 30000 } as any)).rejects.toThrow(
-                TypeError
+            const error = await captureRejection(
+                session.sendAndWait("hello", { ms: 30000 } as any)
             );
-            await expect(session.sendAndWait("hello", { ms: 30000 } as any)).rejects.toThrowError(
-                /sendAndWait timeout must be a non-negative number of milliseconds/
+            expect(error).toBeInstanceOf(TypeError);
+            expect(error.message).toBe(
+                "sendAndWait timeout must be a non-negative number of milliseconds (got object)"
             );
+            expect(error.message).not.toContain("[object Object]");
         });
 
-        it("does not produce an [object Object] message for an object timeout", async () => {
+        it("reports a null timeout as null rather than object", async () => {
             const session = new CopilotSession("session-1", {} as any);
-            await expect(session.sendAndWait("hello", { ms: 30000 } as any)).rejects.toThrowError(
-                /timeout must be a non-negative number of milliseconds \(got object\)/
+            const error = await captureRejection(session.sendAndWait("hello", null as any));
+            expect(error.message).toBe(
+                "sendAndWait timeout must be a non-negative number of milliseconds (got null)"
             );
         });
 
         it("rejects when timeout is NaN", async () => {
             const session = new CopilotSession("session-1", {} as any);
-            await expect(session.sendAndWait("hello", NaN)).rejects.toThrowError(/got NaN/);
+            await expect(session.sendAndWait("hello", NaN)).rejects.toThrowError(
+                "sendAndWait timeout must be a non-negative number of milliseconds (got NaN)"
+            );
         });
 
         it("rejects when timeout is negative", async () => {
             const session = new CopilotSession("session-1", {} as any);
-            await expect(session.sendAndWait("hello", -1)).rejects.toThrowError(/got -1/);
+            await expect(session.sendAndWait("hello", -1)).rejects.toThrowError(
+                "sendAndWait timeout must be a non-negative number of milliseconds (got -1)"
+            );
         });
     });
 

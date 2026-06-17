@@ -286,7 +286,12 @@ export class CopilotSession {
             timeout !== undefined &&
             (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout < 0)
         ) {
-            const received = typeof timeout === "number" ? `${timeout}` : typeof timeout;
+            const received =
+                timeout === null
+                    ? "null"
+                    : typeof timeout === "number"
+                      ? `${timeout}`
+                      : typeof timeout;
             throw new TypeError(
                 `sendAndWait timeout must be a non-negative number of milliseconds (got ${received})`
             );
