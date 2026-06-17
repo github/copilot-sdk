@@ -3942,10 +3942,6 @@ pub struct ToolInvocation {
     /// [`is_cancelled()`](CancellationToken::is_cancelled) or `select!` on
     /// [`cancelled()`](CancellationToken::cancelled) to cooperatively stop
     /// work early. Handlers that don't need cancellation can ignore this field.
-    ///
-    /// The token is already cancelled for handlers that are dispatched after
-    /// an `abort()` call, so they can check the flag at entry and return
-    /// immediately if desired.
     #[serde(skip)]
     pub cancellation_token: CancellationToken,
     /// W3C Trace Context `traceparent` header propagated from the CLI's

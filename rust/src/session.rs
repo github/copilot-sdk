@@ -2482,4 +2482,39 @@ mod tests {
         assert!(token_a.is_cancelled());
         assert!(token_b.is_cancelled());
     }
+
+    /// Verify the end-to-end contract: a handler that selects on its
+    /// `cancellation_token.cancelled()` unblocks when the map entry is
+    /// cancelled (as `abort()` would do). This exercises the same path the
+    /// real dispatch code uses — insert token into map, pass child to handler,
+    /// cancel map entry — without requiring a live CLI connection.
+    #[tokio::test]
+    async fn abort_unblocks_handler_awaiting_cancellation() {
+        let map = make_map();
+        let shutdown = CancellationToken::new();
+
+        // Simulate dispatch: create a child token, register it, hand it to
+        // the "handler" task.
+        let token = shutdown.child_token();
+        map.lock().insert("tc_x".to_string(), token.clone());
+
+        let handler = tokio::spawn(async move {
+            // Handler blocks until its token fires.
+            token.cancelled().await;
+        });
+
+        // Simulate abort(): cancel every token in the map.
+        {
+            let guard = map.lock();
+            for t in guard.values() {
+                t.cancel();
+            }
+        }
+
+        // The handler task must complete promptly once cancelled.
+        tokio::time::timeout(std::time::Duration::from_secs(1), handler)
+            .await
+            .expect("handler should complete within timeout after abort")
+            .expect("handler task should not panic");
+    }
 }
