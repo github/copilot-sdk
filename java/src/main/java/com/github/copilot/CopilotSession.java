@@ -884,7 +884,8 @@ public final class CopilotSession implements AutoCloseable {
     private void executeToolAndRespondAsync(String requestId, String toolName, String toolCallId, Object arguments,
             ToolDefinition tool) {
         var signal = new com.github.copilot.rpc.AbortSignal();
-        activeToolSignals.put(requestId, signal);
+        String signalKey = toolCallId != null ? toolCallId : requestId;
+        activeToolSignals.put(signalKey, signal);
         Runnable task = () -> {
             try {
                 JsonNode argumentsNode = arguments instanceof JsonNode jn
@@ -895,7 +896,7 @@ public final class CopilotSession implements AutoCloseable {
                         .setAbortSignal(signal);
 
                 tool.handler().invoke(invocation).thenAccept(result -> {
-                    activeToolSignals.remove(requestId);
+                    activeToolSignals.remove(signalKey);
                     try {
                         ToolResultObject toolResult;
                         if (result instanceof ToolResultObject tr) {
@@ -910,7 +911,7 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.WARNING, "Error sending tool result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
-                    activeToolSignals.remove(requestId);
+                    activeToolSignals.remove(signalKey);
                     try {
                         getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
                                 requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
@@ -920,7 +921,7 @@ public final class CopilotSession implements AutoCloseable {
                     return null;
                 });
             } catch (Exception e) {
-                activeToolSignals.remove(requestId);
+                activeToolSignals.remove(signalKey);
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
                 try {
                     getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
@@ -1807,6 +1808,46 @@ public final class CopilotSession implements AutoCloseable {
             signal.abort();
         }
         return rpc.invoke("session.abort", Map.of("sessionId", sessionId), Void.class);
+    }
+
+    /**
+     * Cancels a single in-flight tool handler by its tool call ID.
+     * <p>
+     * Unlike {@link #abort()}, this method fires the
+     * {@link com.github.copilot.rpc.AbortSignal} for only the specified tool
+     * invocation and does not abort the agentic loop or affect any other in-flight
+     * handlers.
+     * <p>
+     * The signal is fired and the entry is removed from the tracking map
+     * immediately. The handler is responsible for observing
+     * {@link com.github.copilot.rpc.AbortSignal#isAborted()} or registering an
+     * {@link com.github.copilot.rpc.AbortSignal#onAborted(Runnable)} callback.
+     *
+     * <pre>{@code
+     * // Cancel a specific tool invocation
+     * boolean cancelled = session.cancelToolCall(toolCallId);
+     * if (!cancelled) {
+     * 	// tool call was already complete or id was not found
+     * }
+     * }</pre>
+     *
+     * @param toolCallId
+     *            the tool call ID to cancel, as provided by
+     *            {@link com.github.copilot.rpc.ToolInvocation#getToolCallId()}
+     * @return {@code true} if an in-flight handler was found and its signal was
+     *         fired; {@code false} if no in-flight handler matched the given ID
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.6.0
+     */
+    public boolean cancelToolCall(String toolCallId) {
+        ensureNotTerminated();
+        com.github.copilot.rpc.AbortSignal signal = activeToolSignals.remove(toolCallId);
+        if (signal != null) {
+            signal.abort();
+            return true;
+        }
+        return false;
     }
 
     /**

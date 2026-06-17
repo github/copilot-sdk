@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@link ToolInvocation#getAbortSignal()} and is triggered when
  * {@link com.github.copilot.CopilotSession#abort()} is called while the tool is
  * executing. Tool handlers can use this to implement cooperative cancellation,
- * allowing them to stop long-running work gracefully when the session is aborted.
+ * allowing them to stop long-running work gracefully when the session is
+ * aborted.
  *
  * <h2>Example Usage</h2>
  *
@@ -91,10 +92,9 @@ public final class AbortSignal {
     /**
      * Triggers this abort signal, notifying all registered listeners.
      * <p>
-     * <strong>Note:</strong> This method is intended for internal SDK use only.
-     * It is called by the SDK when
-     * {@link com.github.copilot.CopilotSession#abort()} is invoked while this tool
-     * invocation is in progress.
+     * <strong>Note:</strong> This method is intended for internal SDK use only. It
+     * is called by the SDK when {@link com.github.copilot.CopilotSession#abort()}
+     * is invoked while this tool invocation is in progress.
      * <p>
      * Calling this method more than once has no effect — the signal fires exactly
      * once.

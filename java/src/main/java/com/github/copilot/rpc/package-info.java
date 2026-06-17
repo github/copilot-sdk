@@ -40,9 +40,9 @@
  * <li>{@link com.github.copilot.rpc.ToolInvocation} - Represents a tool
  * invocation request from the assistant.</li>
  * <li>{@link com.github.copilot.rpc.AbortSignal} - Cancellation signal passed
- * to tool handlers via {@link com.github.copilot.rpc.ToolInvocation#getAbortSignal()},
- * triggered when {@link com.github.copilot.CopilotSession#abort()} is
- * called.</li>
+ * to tool handlers via
+ * {@link com.github.copilot.rpc.ToolInvocation#getAbortSignal()}, triggered
+ * when {@link com.github.copilot.CopilotSession#abort()} is called.</li>
  * <li>{@link com.github.copilot.rpc.Attachment} - File attachment for
  * messages.</li>
  * </ul>

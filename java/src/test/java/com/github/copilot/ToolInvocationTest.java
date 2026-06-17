@@ -135,8 +135,7 @@ public class ToolInvocationTest {
      */
     @Test
     void testGetAbortSignalReturnedByDefault() {
-        ToolInvocation invocation = new ToolInvocation().setSessionId("s1").setToolCallId("c1")
-                .setToolName("my_tool");
+        ToolInvocation invocation = new ToolInvocation().setSessionId("s1").setToolCallId("c1").setToolName("my_tool");
         assertNotNull(invocation.getAbortSignal(), "getAbortSignal should not return null");
         assertFalse(invocation.getAbortSignal().isAborted(), "signal should not be aborted by default");
     }

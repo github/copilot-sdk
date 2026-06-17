@@ -242,6 +242,49 @@ public class Consumer {
 
 The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types. When a type-level annotation is present, all member accesses through that type are considered experimental. `@AllowCopilotExperimental` mirrors the same declaration-level boundary: annotating a class opts in that class and its enclosed declarations, while annotating a method or constructor opts in just that executable signature.
 
+## Tool Handler Cancellation
+
+Tool handlers can observe when the session is aborted and stop in-flight work cooperatively using the `AbortSignal` available on every `ToolInvocation`.
+
+### Cancelling all in-flight handlers: `session.abort()`
+
+`session.abort()` stops the agentic loop **and** immediately fires the `AbortSignal` for every tool handler currently running in the session.
+
+```java
+// Handler using isAborted() polling
+var tool = ToolDefinition.create("long_task", "A long-running task",
+    Map.of("type", "object", "properties", Map.of()),
+    invocation -> CompletableFuture.supplyAsync(() -> {
+        AbortSignal signal = invocation.getAbortSignal();
+        while (!signal.isAborted()) {
+            // perform incremental work
+        }
+        return "cancelled";
+    })
+);
+
+// Handler using onAborted() callback
+var tool2 = ToolDefinition.create("http_task", "Task with cleanup",
+    Map.of("type", "object", "properties", Map.of()),
+    invocation -> {
+        var future = new CompletableFuture<Object>();
+        invocation.getAbortSignal().onAborted(() -> future.complete("aborted"));
+        // start async work that completes future normally ...
+        return future;
+    }
+);
+```
+
+### Cancelling a single handler: `session.cancelToolCall(toolCallId)`
+
+`cancelToolCall(toolCallId)` fires the `AbortSignal` for **only** the named in-flight invocation, without aborting the agentic loop or affecting other running handlers. Returns `true` if the call was found and cancelled, `false` if not found (already completed or unknown id).
+
+```java
+// Cancel a specific in-flight tool call by its ID
+String toolCallId = invocation.getToolCallId(); // captured from ToolInvocation
+boolean wasCancelled = session.cancelToolCall(toolCallId);
+```
+
 ## Projects Using This SDK
 
 | Project                                                                       | Description                                |
