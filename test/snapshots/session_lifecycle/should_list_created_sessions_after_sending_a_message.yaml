@@ -13,6 +13,6 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Say world
+        content: Say hi
       - role: assistant
-        content: world
+        content: Hi! I'm GitHub Copilot CLI, ready to help with your software engineering tasks. What would you like to work on?
