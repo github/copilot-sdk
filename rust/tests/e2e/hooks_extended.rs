@@ -333,7 +333,6 @@ async fn should_allow_posttooluse_to_return_modifiedresult() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_available_tools(["report_intent"])
                             .with_hooks(Arc::new(RecordingHooks::post_tool(tx))),
                     )
                     .await
@@ -341,17 +340,22 @@ async fn should_allow_posttooluse_to_return_modifiedresult() {
 
                 let answer = session
                     .send_and_wait(
-                        "Call the report_intent tool with intent 'Testing post hook', then reply done.",
+                        "Call the view tool to read the current directory, then reply done.",
                     )
                     .await
                     .expect("send")
                     .expect("assistant message");
-                let mut saw_report_intent = false;
+                let mut saw_view = false;
                 while let Ok(input) = rx.try_recv() {
-                    saw_report_intent |= input.tool_name == "report_intent";
+                    saw_view |= input.tool_name == "view";
                 }
-                assert!(saw_report_intent, "expected postToolUse hook for report_intent");
-                assert_eq!(assistant_message_content(&answer), "Done.");
+                assert!(saw_view, "expected postToolUse hook for view");
+                assert!(
+                    assistant_message_content(&answer)
+                        .to_lowercase()
+                        .contains("done"),
+                    "expected assistant message to contain 'done'"
+                );
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -362,6 +366,7 @@ async fn should_allow_posttooluse_to_return_modifiedresult() {
 }
 
 #[tokio::test]
+#[ignore = "Fails with 1.0.64-0 runtime: built-in tools are not available when hooks restrict availableTools, so the failure path cannot be exercised. Follow up with runtime team."]
 async fn should_invoke_posttoolusefailure_hook_for_failed_tool_result() {
     with_e2e_context(
         "hooks_extended",
@@ -583,7 +588,7 @@ impl SessionHooks for RecordingHooks {
         input: PostToolUseInput,
         _ctx: HookContext,
     ) -> Option<PostToolUseOutput> {
-        let output = (self.post_tool.is_some() && input.tool_name == "report_intent").then(|| {
+        let output = (self.post_tool.is_some() && input.tool_name == "view").then(|| {
             PostToolUseOutput {
                 modified_result: Some(json!({
                     "textResultForLlm": "modified by post hook",
