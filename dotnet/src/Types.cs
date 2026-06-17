@@ -739,6 +739,20 @@ public sealed class ToolInvocation
     /// Arguments passed to the tool by the language model.
     /// </summary>
     public JsonElement? Arguments { get; set; }
+    /// <summary>
+    /// A <see cref="System.Threading.CancellationToken"/> that is cancelled when
+    /// <see cref="CopilotSession.AbortAsync"/> or <see cref="CopilotSession.CancelToolCall"/>
+    /// is called while this handler is in flight. Handlers may opt in to cooperative
+    /// cancellation by passing it to cancellable APIs or by checking
+    /// <see cref="System.Threading.CancellationToken.IsCancellationRequested"/>.
+    /// Handlers that ignore it continue to run to completion, preserving existing behavior.
+    /// </summary>
+    /// <remarks>
+    /// Note that a <see cref="System.Threading.CancellationToken"/> parameter can also be
+    /// declared directly on the tool handler delegate — the SDK binds the same token to it
+    /// automatically via <c>Microsoft.Extensions.AI.AIFunctionFactory</c>.
+    /// </remarks>
+    public CancellationToken CancellationToken { get; set; }
 }
 
 /// <summary>

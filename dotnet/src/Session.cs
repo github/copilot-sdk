@@ -68,6 +68,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? _autoModeSwitchHandler;
     private ImmutableArray<EventSubscription> _eventHandlers = ImmutableArray<EventSubscription>.Empty;
 
+    // Guards _inFlightToolCalls — accessed from the event-processing loop and from
+    // AbortAsync / CancelToolCall which may be called from any thread.
+    private readonly object _inFlightToolCallsLock = new();
+    private readonly Dictionary<string, CancellationTokenSource> _inFlightToolCalls = [];
+
     private sealed record EventSubscription(Type EventType, Action<SessionEvent> Handler);
 
     private SessionHooks? _hooks;
@@ -710,6 +715,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, JsonElement? arguments, AIFunction tool)
     {
+        using var cts = new CancellationTokenSource();
+        lock (_inFlightToolCallsLock)
+        {
+            _inFlightToolCalls[toolCallId] = cts;
+        }
         try
         {
             var invocation = new ToolInvocation
@@ -717,7 +727,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId = SessionId,
                 ToolCallId = toolCallId,
                 ToolName = toolName,
-                Arguments = arguments
+                Arguments = arguments,
+                CancellationToken = cts.Token
             };
 
             var aiFunctionArgs = new AIFunctionArguments
@@ -737,7 +748,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
 
             var toolTimestamp = Stopwatch.GetTimestamp();
-            var result = await tool.InvokeAsync(aiFunctionArgs);
+            var result = await tool.InvokeAsync(aiFunctionArgs, cts.Token);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync tool dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
                 toolTimestamp,
@@ -771,6 +782,18 @@ public sealed partial class CopilotSession : IAsyncDisposable
             catch (ObjectDisposedException)
             {
                 // Connection already disposed — nothing we can do
+            }
+        }
+        finally
+        {
+            // Only remove if this is still the active CTS for this toolCallId
+            // (guards against a recycled toolCallId from a later invocation).
+            lock (_inFlightToolCallsLock)
+            {
+                if (_inFlightToolCalls.TryGetValue(toolCallId, out var current) && current == cts)
+                {
+                    _inFlightToolCalls.Remove(toolCallId);
+                }
             }
         }
     }
@@ -1580,7 +1603,73 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         ThrowIfDisposed();
 
+        // Cooperatively cancel any in-flight tool handlers that opted in to the
+        // CancellationToken exposed on their ToolInvocation (or as a direct parameter).
+        // Handlers that ignore the token continue to run to completion.
+        AbortInFlightToolCalls();
+
         await InvokeRpcAsync<object>("session.abort", [new SessionAbortRequest { SessionId = SessionId }], cancellationToken);
+    }
+
+    /// <summary>
+    /// Cooperatively cancels a single in-flight tool handler by signalling its
+    /// <see cref="CancellationToken"/>, without aborting the broader agentic loop.
+    /// </summary>
+    /// <param name="toolCallId">The <c>toolCallId</c> of the in-flight tool invocation to cancel.</param>
+    /// <returns>
+    /// <see langword="true"/> if a matching in-flight tool call was found and its cancellation
+    /// token was signalled; <see langword="false"/> if no matching in-flight tool call exists.
+    /// </returns>
+    /// <remarks>
+    /// This only affects handlers that opted in to the cancellation token (e.g. by passing it to
+    /// a cancellable API or by checking <see cref="CancellationToken.IsCancellationRequested"/>).
+    /// Handlers that ignore the token continue to run to completion, preserving existing behavior.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// session.On&lt;ToolExecutionStartEvent&gt;(e =>
+    /// {
+    ///     // Cancel this specific tool call after 5 seconds
+    ///     _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(_ =>
+    ///         session.CancelToolCall(e.Data.ToolCallId));
+    /// });
+    /// </code>
+    /// </example>
+    public bool CancelToolCall(string toolCallId)
+    {
+        ArgumentNullException.ThrowIfNull(toolCallId);
+        lock (_inFlightToolCallsLock)
+        {
+            if (_inFlightToolCalls.TryGetValue(toolCallId, out var cts))
+            {
+                cts.Cancel();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Cancels the <see cref="CancellationToken"/> for every currently in-flight tool handler.
+    /// </summary>
+    private void AbortInFlightToolCalls()
+    {
+        List<CancellationTokenSource>? snapshot = null;
+        lock (_inFlightToolCallsLock)
+        {
+            if (_inFlightToolCalls.Count > 0)
+            {
+                snapshot = [.. _inFlightToolCalls.Values];
+            }
+        }
+
+        if (snapshot is not null)
+        {
+            foreach (var cts in snapshot)
+            {
+                cts.Cancel();
+            }
+        }
     }
 
     /// <summary>
@@ -1708,6 +1797,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
 
         _eventChannel.Writer.TryComplete();
+
+        // Abort any in-flight tool handlers so they can release resources before the
+        // session connection is torn down.
+        AbortInFlightToolCalls();
+        lock (_inFlightToolCallsLock) { _inFlightToolCalls.Clear(); }
 
         try
         {

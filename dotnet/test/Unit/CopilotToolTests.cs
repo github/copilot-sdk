@@ -136,6 +136,60 @@ public class CopilotToolTests
         Assert.True((bool)skipPermission!);
     }
 
+    [Fact]
+    public async Task DefineTool_Binds_CancellationToken_Parameter()
+    {
+        CancellationToken receivedToken = default;
+        var function = CopilotTool.DefineTool(
+            async (string value, CancellationToken cancellationToken) =>
+            {
+                receivedToken = cancellationToken;
+                await Task.CompletedTask;
+                return value;
+            },
+            factoryOptions: new() { Name = "echo", Description = "Echo a value" });
+
+        var schema = function.JsonSchema.GetRawText();
+        Assert.Contains("\"value\"", schema);
+        Assert.DoesNotContain("\"cancellationToken\"", schema);
+
+        using var cts = new CancellationTokenSource();
+        using var document = JsonDocument.Parse("\"hello\"");
+        await function.InvokeAsync(new AIFunctionArguments
+        {
+            ["value"] = document.RootElement.Clone(),
+        }, cts.Token);
+
+        Assert.Equal(cts.Token, receivedToken);
+    }
+
+    [Fact]
+    public async Task DefineTool_Exposes_CancellationToken_On_ToolInvocation()
+    {
+        CancellationToken receivedToken = default;
+        var function = CopilotTool.DefineTool(
+            async (string value, ToolInvocation invocation) =>
+            {
+                receivedToken = invocation.CancellationToken;
+                await Task.CompletedTask;
+                return value;
+            },
+            factoryOptions: new() { Name = "echo", Description = "Echo a value" });
+
+        using var cts = new CancellationTokenSource();
+        using var document = JsonDocument.Parse("\"hello\"");
+        await function.InvokeAsync(new AIFunctionArguments
+        {
+            ["value"] = document.RootElement.Clone(),
+            Context = new Dictionary<object, object?>
+            {
+                [typeof(ToolInvocation)] = new ToolInvocation { ToolName = "echo", CancellationToken = cts.Token }
+            }
+        });
+
+        Assert.Equal(cts.Token, receivedToken);
+    }
+
     [DisplayName("test_tool")]
     [Description("Test tool")]
     private static string ReturnsOk() => "ok";

@@ -228,7 +228,11 @@ subscription.Dispose();
 
 ##### `AbortAsync(): Task`
 
-Abort the currently processing message in this session.
+Abort the currently processing message in this session. This also cancels the `CancellationToken` passed to any in-flight tool handlers (see [Cancelling Tool Handlers](#cancelling-tool-handlers)).
+
+##### `CancelToolCall(toolCallId: string): bool`
+
+Cooperatively cancel a single in-flight tool handler by cancelling its `CancellationToken`, without aborting the broader agentic loop. Returns `true` if a matching in-flight tool call was found and signalled, `false` otherwise.
 
 ##### `GetEventsAsync(): Task<IReadOnlyList<SessionEvent>>`
 
@@ -543,6 +547,68 @@ var lookupIssue = CopilotTool.DefineTool(
         Description = "Fetch issue details",
     });
 ```
+
+#### Cancelling Tool Handlers
+
+Long-running tool handlers can opt in to cooperative cancellation. The SDK passes a `CancellationToken` that is cancelled when `session.AbortAsync()` (which cancels the whole agentic loop) or `session.CancelToolCall(toolCallId)` (which cancels a single in-flight handler) is invoked.
+
+You can receive the token in two ways:
+
+**Option 1 — direct `CancellationToken` parameter** (standard .NET pattern, automatically bound by `AIFunctionFactory`):
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Tools = [
+        CopilotTool.DefineTool(
+            async ([Description("URL to fetch")] string url, CancellationToken cancellationToken) =>
+            {
+                // The request is cancelled automatically when the session/tool is cancelled
+                using var http = new HttpClient();
+                return await http.GetStringAsync(url, cancellationToken);
+            },
+            factoryOptions: new AIFunctionFactoryOptions
+            {
+                Name = "fetch_data",
+                Description = "Fetch a remote URL",
+            }),
+    ]
+});
+```
+
+**Option 2 — via `ToolInvocation`** (useful when you already use `ToolInvocation` for the session ID or tool call ID):
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Tools = [
+        CopilotTool.DefineTool(
+            async ([Description("URL to fetch")] string url, ToolInvocation invocation) =>
+            {
+                using var http = new HttpClient();
+                return await http.GetStringAsync(url, invocation.CancellationToken);
+            },
+            factoryOptions: new AIFunctionFactoryOptions
+            {
+                Name = "fetch_data",
+                Description = "Fetch a remote URL",
+            }),
+    ]
+});
+```
+
+Cancel a specific in-flight handler without aborting the rest of the turn:
+
+```csharp
+session.On<ToolExecutionStartEvent>(e =>
+{
+    // Cancel this specific tool call after a deadline
+    _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(_ =>
+        session.CancelToolCall(e.Data.ToolCallId));
+});
+```
+
+Handlers that ignore the token continue to run to completion, so existing handlers keep working unchanged.
 
 ## Commands
 
