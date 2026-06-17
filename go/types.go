@@ -1167,9 +1167,12 @@ type ToolInvocation struct {
 	// execute_tool span. Pass this to OpenTelemetry-aware code so that
 	// child spans created inside the handler are parented to the CLI span.
 	// When no trace context is available this will be context.Background().
+	// Unlike Context, TraceContext is never cancelled — it remains valid for
+	// the lifetime of the RPC call regardless of session.Abort.
 	//
 	// Deprecated: Use Context, which carries the same trace information and
-	// is additionally cancelled when session.Abort is called.
+	// is additionally cancelled when session.Abort or session.CancelToolCall
+	// is called.
 	TraceContext context.Context
 }
 

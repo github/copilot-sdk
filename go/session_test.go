@@ -1126,8 +1126,10 @@ func TestToolInvocation_ContextPopulated(t *testing.T) {
 	if inv.TraceContext == nil {
 		t.Fatal("expected ToolInvocation.TraceContext to be set")
 	}
-	if inv.Context != inv.TraceContext {
-		t.Error("expected Context and TraceContext to be the same value")
+	// Context is a cancellable child of TraceContext; they are different instances.
+	// Both must be non-nil and Context must be cancellable independently.
+	if inv.Context == inv.TraceContext {
+		t.Error("expected Context and TraceContext to be different instances (Context is a cancellable child)")
 	}
 	if inv.SessionID != "session-ctx-test" {
 		t.Errorf("expected SessionID session-ctx-test, got %q", inv.SessionID)
@@ -1161,18 +1163,34 @@ func newRPCDrainSession(t *testing.T, sessionID string) (*Session, func()) {
 	}
 
 	// Drain goroutine: read every RPC request and send an empty success response.
+	// Uses a single bufio.Reader so that header parsing and body reads share the
+	// same read buffer — mixing bufio.Scanner with io.ReadFull on the same reader
+	// causes data corruption because Scanner may buffer-ahead bytes that
+	// io.ReadFull then misses.
 	go func() {
-		scanner := bufio.NewScanner(stdinR)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if !strings.HasPrefix(line, "Content-Length:") {
+		br := bufio.NewReader(stdinR)
+		for {
+			// Read headers until blank line.
+			var contentLen int
+			for {
+				line, err := br.ReadString('\n')
+				if err != nil {
+					return
+				}
+				line = strings.TrimRight(line, "\r\n")
+				if line == "" {
+					break // end of headers
+				}
+				fmt.Sscanf(line, "Content-Length: %d", &contentLen)
+			}
+			if contentLen == 0 {
 				continue
 			}
-			var contentLen int
-			fmt.Sscanf(line, "Content-Length: %d", &contentLen)
-			scanner.Scan() // blank separator
+
 			body := make([]byte, contentLen)
-			io.ReadFull(stdinR, body) //nolint:errcheck
+			if _, err := io.ReadFull(br, body); err != nil {
+				return
+			}
 
 			var req struct {
 				ID json.RawMessage `json:"id"`

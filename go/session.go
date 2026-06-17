@@ -1383,7 +1383,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		ToolName:     toolName,
 		Arguments:    arguments,
 		Context:      ctx,
-		TraceContext: ctx,
+		TraceContext: traceCtx,
 	}
 
 	result, err := handler(invocation)
