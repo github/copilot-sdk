@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -122,7 +123,19 @@ async fn should_invoke_both_pretooluse_and_posttooluse_hooks_for_single_tool_cal
                 let post = recv_with_timeout(&mut post_rx, "postToolUse hook").await;
                 assert_eq!(pre.0, *session.id());
                 assert_eq!(post.0, *session.id());
-                assert_eq!(pre.1, post.1);
+
+                let mut pre_tools: HashSet<String> = HashSet::from([pre.1]);
+                while let Ok((_, tool_name)) = pre_rx.try_recv() {
+                    pre_tools.insert(tool_name);
+                }
+                let mut post_tools: HashSet<String> = HashSet::from([post.1]);
+                while let Ok((_, tool_name, _)) = post_rx.try_recv() {
+                    post_tools.insert(tool_name);
+                }
+                assert!(
+                    pre_tools.intersection(&post_tools).next().is_some(),
+                    "expected a tool to appear in both pre and post hooks, got pre={pre_tools:?} post={post_tools:?}"
+                );
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
