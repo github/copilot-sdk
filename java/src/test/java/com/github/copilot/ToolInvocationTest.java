@@ -6,10 +6,13 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.copilot.rpc.AbortSignal;
 import com.github.copilot.rpc.ToolInvocation;
 
 /**
@@ -125,6 +128,76 @@ public class ToolInvocationTest {
 
         assertTrue(exception.getMessage().contains("Failed to deserialize arguments"));
         assertTrue(exception.getMessage().contains("StrictType"));
+    }
+
+    /**
+     * Test that getAbortSignal returns a non-null signal by default.
+     */
+    @Test
+    void testGetAbortSignalReturnedByDefault() {
+        ToolInvocation invocation = new ToolInvocation().setSessionId("s1").setToolCallId("c1")
+                .setToolName("my_tool");
+        assertNotNull(invocation.getAbortSignal(), "getAbortSignal should not return null");
+        assertFalse(invocation.getAbortSignal().isAborted(), "signal should not be aborted by default");
+    }
+
+    /**
+     * Test that isAborted returns true after the signal is aborted.
+     */
+    @Test
+    void testAbortSignalIsAbortedAfterAbort() {
+        AbortSignal signal = new AbortSignal();
+        assertFalse(signal.isAborted());
+        signal.abort();
+        assertTrue(signal.isAborted());
+    }
+
+    /**
+     * Test that onAborted callback is invoked when signal is aborted.
+     */
+    @Test
+    void testAbortSignalOnAbortedCallbackInvoked() {
+        AbortSignal signal = new AbortSignal();
+        var called = new AtomicBoolean(false);
+        signal.onAborted(() -> called.set(true));
+        assertFalse(called.get());
+        signal.abort();
+        assertTrue(called.get());
+    }
+
+    /**
+     * Test that onAborted callback is invoked immediately if signal is already
+     * aborted.
+     */
+    @Test
+    void testAbortSignalOnAbortedCallbackInvokedImmediatelyIfAlreadyAborted() {
+        AbortSignal signal = new AbortSignal();
+        signal.abort();
+        var called = new AtomicBoolean(false);
+        signal.onAborted(() -> called.set(true));
+        assertTrue(called.get(), "callback should be invoked immediately when signal is already aborted");
+    }
+
+    /**
+     * Test that abort() is idempotent — callbacks fire only once.
+     */
+    @Test
+    void testAbortSignalAbortIsIdempotent() {
+        AbortSignal signal = new AbortSignal();
+        var count = new java.util.concurrent.atomic.AtomicInteger(0);
+        signal.onAborted(count::incrementAndGet);
+        signal.abort();
+        signal.abort();
+        assertEquals(1, count.get(), "callback should be invoked exactly once even if abort() called twice");
+    }
+
+    /**
+     * Test that onAborted throws NullPointerException for null listener.
+     */
+    @Test
+    void testAbortSignalOnAbortedRejectsNullListener() {
+        AbortSignal signal = new AbortSignal();
+        assertThrows(NullPointerException.class, () -> signal.onAborted(null));
     }
 
     /**

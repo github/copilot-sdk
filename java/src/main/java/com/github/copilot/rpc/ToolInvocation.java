@@ -6,6 +6,7 @@ package com.github.copilot.rpc;
 
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -16,11 +17,28 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * Represents a tool invocation request from the AI assistant.
  * <p>
  * When the assistant invokes a tool, this object contains the context including
- * the session ID, tool call ID, tool name, and arguments parsed from the
- * assistant's request.
+ * the session ID, tool call ID, tool name, arguments parsed from the
+ * assistant's request, and an {@link AbortSignal} that is triggered when
+ * {@link com.github.copilot.CopilotSession#abort()} is called while the tool is
+ * executing.
+ *
+ * <h2>Cooperative Cancellation</h2>
+ *
+ * <pre>{@code
+ * ToolHandler handler = invocation -> {
+ * 	AbortSignal signal = invocation.getAbortSignal();
+ * 	return CompletableFuture.supplyAsync(() -> {
+ * 		while (!signal.isAborted()) {
+ * 			// do incremental work here
+ * 		}
+ * 		throw new CancellationException("Tool aborted");
+ * 	});
+ * };
+ * }</pre>
  *
  * @see ToolHandler
  * @see ToolDefinition
+ * @see AbortSignal
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -34,6 +52,7 @@ public final class ToolInvocation {
     private String toolCallId;
     private String toolName;
     private JsonNode argumentsNode;
+    private AbortSignal abortSignal = new AbortSignal();
 
     /**
      * Gets the session ID where the tool was invoked.
@@ -166,6 +185,50 @@ public final class ToolInvocation {
     @JsonSetter("arguments")
     public ToolInvocation setArguments(JsonNode arguments) {
         this.argumentsNode = arguments;
+        return this;
+    }
+
+    /**
+     * Returns the abort signal for this tool invocation.
+     * <p>
+     * The signal is triggered when
+     * {@link com.github.copilot.CopilotSession#abort()} is called while this tool
+     * is executing. Use it to implement cooperative cancellation in your tool
+     * handler.
+     *
+     * <pre>{@code
+     * ToolHandler handler = invocation -> {
+     * 	AbortSignal signal = invocation.getAbortSignal();
+     * 	return CompletableFuture.supplyAsync(() -> {
+     * 		while (!signal.isAborted()) {
+     * 			// do incremental work here
+     * 		}
+     * 		throw new CancellationException("Tool aborted");
+     * 	});
+     * };
+     * }</pre>
+     *
+     * @return the abort signal; never {@code null}
+     * @see AbortSignal
+     * @since 1.6.0
+     */
+    @JsonIgnore
+    public AbortSignal getAbortSignal() {
+        return abortSignal;
+    }
+
+    /**
+     * Sets the abort signal for this tool invocation.
+     * <p>
+     * <strong>Note:</strong> This method is intended for internal SDK use only.
+     * Users do not need to call this method directly.
+     *
+     * @param abortSignal
+     *            the abort signal to associate with this invocation
+     * @return this invocation for method chaining
+     */
+    public ToolInvocation setAbortSignal(AbortSignal abortSignal) {
+        this.abortSignal = abortSignal;
         return this;
     }
 }

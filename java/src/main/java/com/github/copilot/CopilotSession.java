@@ -169,6 +169,7 @@ public final class CopilotSession implements AutoCloseable {
     private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
+    private final Map<String, com.github.copilot.rpc.AbortSignal> activeToolSignals = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
@@ -882,15 +883,19 @@ public final class CopilotSession implements AutoCloseable {
      */
     private void executeToolAndRespondAsync(String requestId, String toolName, String toolCallId, Object arguments,
             ToolDefinition tool) {
+        var signal = new com.github.copilot.rpc.AbortSignal();
+        activeToolSignals.put(requestId, signal);
         Runnable task = () -> {
             try {
                 JsonNode argumentsNode = arguments instanceof JsonNode jn
                         ? jn
                         : (arguments != null ? MAPPER.valueToTree(arguments) : null);
                 var invocation = new com.github.copilot.rpc.ToolInvocation().setSessionId(sessionId)
-                        .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode);
+                        .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode)
+                        .setAbortSignal(signal);
 
                 tool.handler().invoke(invocation).thenAccept(result -> {
+                    activeToolSignals.remove(requestId);
                     try {
                         ToolResultObject toolResult;
                         if (result instanceof ToolResultObject tr) {
@@ -905,6 +910,7 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.WARNING, "Error sending tool result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
+                    activeToolSignals.remove(requestId);
                     try {
                         getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
                                 requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
@@ -914,6 +920,7 @@ public final class CopilotSession implements AutoCloseable {
                     return null;
                 });
             } catch (Exception e) {
+                activeToolSignals.remove(requestId);
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
                 try {
                     getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
@@ -1796,6 +1803,9 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> abort() {
         ensureNotTerminated();
+        for (com.github.copilot.rpc.AbortSignal signal : activeToolSignals.values()) {
+            signal.abort();
+        }
         return rpc.invoke("session.abort", Map.of("sessionId", sessionId), Void.class);
     }
 
@@ -2136,6 +2146,7 @@ public final class CopilotSession implements AutoCloseable {
         eventHandlers.clear();
         toolHandlers.clear();
         commandHandlers.clear();
+        activeToolSignals.clear();
         permissionHandler.set(null);
         userInputHandler.set(null);
         elicitationHandler.set(null);
