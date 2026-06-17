@@ -406,6 +406,34 @@ The closure receives the full [`ToolInvocation`](crate::types::ToolInvocation) a
 
 Reach for the `ToolHandler` trait directly when you need shared state across multiple methods or want a named type that shows up by name in stack traces.
 
+### Tool Handler Cancellation
+
+Every `ToolInvocation` carries a `cancellation_token: CancellationToken` that fires when the in-flight handler should stop early. Two sources can cancel it:
+
+- **`session.abort().await?`** — cancels all currently in-flight handlers and also sends the `session.abort` RPC to stop the agentic loop.
+- **`session.cancel_tool_call(tool_call_id)`** — cancels only the named handler without affecting others or the agentic loop. Returns `true` if an in-flight handler with that ID was found; `false` otherwise.
+
+Handlers that don't need cancellation can ignore the token — the field defaults to a never-cancelled token.  Handlers that do long-running work can cooperate:
+
+```rust,ignore
+use github_copilot_sdk::tool::ToolHandler;
+use github_copilot_sdk::types::ToolInvocation;
+use github_copilot_sdk::{Error, ErrorKind, ToolResult};
+
+struct LongRunningTool;
+
+impl ToolHandler for LongRunningTool {
+    async fn call(&self, inv: ToolInvocation) -> Result<ToolResult, Error> {
+        tokio::select! {
+            _ = inv.cancellation_token.cancelled() => {
+                Err(Error::with_message(ErrorKind::Cancelled, "tool call cancelled"))
+            }
+            result = do_expensive_work() => result,
+        }
+    }
+}
+```
+
 ### Permission Policies
 
 Set a permission policy directly on `SessionConfig` with the chainable builders. They install a synthesized `PermissionHandler` so only permission requests are intercepted; every other event flows through unchanged.
