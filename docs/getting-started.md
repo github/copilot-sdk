@@ -1915,7 +1915,7 @@ Available section IDs: `preamble`, `identity`, `tone`, `tool_efficiency`, `envir
 
 `identity` and `tool_instructions` are section *groups*: they target a collection of related sub-sections as a unit. Use `preamble` to target just the identity preamble without affecting its sibling sub-sections.
 
-Each override supports five actions: `replace`, `remove`, `append`, `prepend`, and `preserve`. The `preserve` action is a no-op that opts an individually-addressable section out of a group-level `remove` (for example, keep `tone` when removing the `identity` group). Unknown section IDs are handled gracefully—content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
+Each override supports five actions: `replace`, `remove`, `append`, `prepend`, and `preserve`. The `preserve` action is a no-op that opts an individually-addressable section out of a group-level `remove` (for example, keep `tone` when removing the `identity` group). Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
 See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), [Rust](../rust/README.md), [Java](../java/README.md), and [C#](../dotnet/README.md).
 
