@@ -108,7 +108,18 @@ class ToolInvocation:
     tool_name: str = ""
     arguments: Any = None
     signal: AbortSignal = field(default_factory=AbortSignal)
-    """AbortSignal that is triggered when :meth:`~copilot.CopilotSession.abort` is called."""
+    """AbortSignal for cooperative cancellation.
+
+    When a ``ToolInvocation`` is constructed by :class:`~copilot.CopilotSession`
+    during tool dispatch, this field is set to the signal managed by the
+    session — it is triggered when :meth:`~copilot.CopilotSession.abort` or
+    :meth:`~copilot.CopilotSession.cancel_tool_call` is called.
+
+    When a ``ToolInvocation`` is constructed manually (e.g. in tests), each
+    instance receives its own independent :class:`AbortSignal` that is never
+    triggered by the session.  You can inject a specific signal by passing one
+    explicitly: ``ToolInvocation(..., signal=my_controller.signal)``.
+    """
 
 
 ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]
