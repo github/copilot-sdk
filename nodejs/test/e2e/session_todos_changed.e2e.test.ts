@@ -33,7 +33,9 @@ describe("Todos changed event + readSqlTodosWithDependencies", async () => {
 
             await session.sendAndWait({
                 prompt:
-                    "Use the sql tool to execute exactly these statements, in order, with no extra rows:\n" +
+                    "Use the sql tool exactly once to execute all three of the following statements " +
+                    "together, in this exact order, in a single sql tool call (a single query string " +
+                    "containing all three statements):\n" +
                     "1. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');\n" +
                     "2. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');\n" +
                     "3. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');\n" +

@@ -61,6 +61,7 @@ export type SessionEvent =
   | HookStartEvent
   | HookEndEvent
   | HookProgressEvent
+  | BinaryAssetEvent
   | SystemMessageEvent
   | SystemNotificationEvent
   | PermissionRequestedEvent
@@ -270,6 +271,43 @@ export type ToolExecutionStartToolDescriptionMetaUIVisibility =
   /** Tool is callable by the MCP App view (iframe) via session.mcp.apps.callTool */
   | "app";
 /**
+ * A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference
+ */
+/** @experimental */
+export type PersistedBinaryResult = PersistedBinaryImage | OmittedBinaryResult | BinaryAssetReference;
+/**
+ * Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+ */
+export type PersistedBinaryImageType =
+  /** Binary image data. */
+  | "image"
+  /** Other binary resource data. */
+  | "resource";
+/**
+ * Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+ */
+export type OmittedBinaryOmittedReason =
+  /** Bytes exceeded the session's inline size limit. */
+  | "too_large"
+  /** The referenced binary asset could not be found (e.g. a truncated log). */
+  | "asset_unavailable";
+/**
+ * Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+ */
+export type OmittedBinaryType =
+  /** Binary image data. */
+  | "image"
+  /** Other binary resource data. */
+  | "resource";
+/**
+ * Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+ */
+export type BinaryAssetReferenceType =
+  /** Binary image data. */
+  | "image"
+  /** Other binary resource data. */
+  | "resource";
+/**
  * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
  */
 export type ToolExecutionCompleteContent =
@@ -309,6 +347,14 @@ export type SkillInvokedTrigger =
   | "agent-invoked"
   /** Skill content loaded as part of another context, such as a configured custom agent or subagent. */
   | "context-load";
+/**
+ * Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+ */
+export type BinaryAssetType =
+  /** Binary image data. */
+  | "image"
+  /** Other binary resource data. */
+  | "resource";
 /**
  * Message role: "system" for system prompts, "developer" for developer-injected instructions
  */
@@ -2097,8 +2143,10 @@ export interface CompactionCompleteCompactionTokensUsed {
 export interface CompactionCompleteCompactionTokensUsedCopilotUsage {
   /**
    * Itemized token usage breakdown
+   *
+   * @internal
    */
-  tokenDetails: CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[];
+  tokenDetails?: CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[];
   /**
    * Total cost in nano-AI units for this request
    */
@@ -2993,11 +3041,6 @@ export interface AssistantUsageData {
    * Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason.
    */
   contentFilterTriggered?: boolean;
-  /**
-   * Per-request cost and usage data from the CAPI copilot_usage response field
-   *
-   * @internal
-   */
   copilotUsage?: AssistantUsageCopilotUsage;
   /**
    * Model multiplier cost for billing purposes
@@ -3070,12 +3113,13 @@ export interface AssistantUsageData {
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
  */
-/** @internal */
 export interface AssistantUsageCopilotUsage {
   /**
    * Itemized token usage breakdown
+   *
+   * @internal
    */
-  tokenDetails: AssistantUsageCopilotUsageTokenDetail[];
+  tokenDetails?: AssistantUsageCopilotUsageTokenDetail[];
   /**
    * Total cost in nano-AI units for this request
    */
@@ -3598,6 +3642,12 @@ export interface ToolExecutionCompleteError {
  */
 export interface ToolExecutionCompleteResult {
   /**
+   * Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call
+   *
+   * @experimental
+   */
+  binaryResultsForLlm?: PersistedBinaryResult[];
+  /**
    * Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
    */
   content: string;
@@ -3616,6 +3666,85 @@ export interface ToolExecutionCompleteResult {
     [k: string]: unknown | undefined;
   };
   uiResource?: ToolExecutionCompleteUIResource;
+}
+/**
+ * Binary result returned by a tool for the model
+ */
+export interface PersistedBinaryImage {
+  /**
+   * Base64-encoded binary data
+   */
+  data: string;
+  /**
+   * Human-readable description of the binary data
+   */
+  description?: string;
+  /**
+   * Optional metadata from the producing tool.
+   */
+  metadata?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * MIME type of the binary data
+   */
+  mimeType: string;
+  type: PersistedBinaryImageType;
+}
+/**
+ * A binary result whose data was omitted from persistence due to the inline size limit
+ */
+/** @experimental */
+export interface OmittedBinaryResult {
+  /**
+   * Decoded byte length of the omitted binary data
+   */
+  byteLength: number;
+  /**
+   * Human-readable description of the binary data
+   */
+  description?: string;
+  /**
+   * Optional metadata from the producing tool.
+   */
+  metadata?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * MIME type of the omitted binary data
+   */
+  mimeType: string;
+  omittedReason: OmittedBinaryOmittedReason;
+  type: OmittedBinaryType;
+}
+/**
+ * A reference to binary data persisted once on a session.binary_asset event and shared by id
+ */
+/** @experimental */
+export interface BinaryAssetReference {
+  /**
+   * Content-addressed id of the session.binary_asset event that holds this binary's bytes (e.g. "sha256:...").
+   */
+  assetId: string;
+  /**
+   * Decoded byte length of the referenced binary data
+   */
+  byteLength: number;
+  /**
+   * Human-readable description of the binary data
+   */
+  description?: string;
+  /**
+   * Optional metadata from the producing tool.
+   */
+  metadata?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * MIME type of the referenced binary data
+   */
+  mimeType: string;
+  type: BinaryAssetReferenceType;
 }
 /**
  * Plain text content block
@@ -4392,6 +4521,69 @@ export interface HookProgressData {
    * When true, this status message replaces the previous temporary one instead of accumulating
    */
   temporary?: boolean;
+}
+/**
+ * Session event "session.binary_asset". Canonical bytes for a content-addressed binary asset shared by reference across events
+ */
+/** @experimental */
+export interface BinaryAssetEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: BinaryAssetData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.binary_asset".
+   */
+  type: "session.binary_asset";
+}
+/**
+ * Canonical bytes for a content-addressed binary asset shared by reference across events
+ */
+export interface BinaryAssetData {
+  /**
+   * Content-addressed id for this binary asset (e.g. "sha256:...").
+   */
+  assetId: string;
+  /**
+   * Decoded byte length of the binary asset
+   */
+  byteLength: number;
+  /**
+   * Base64-encoded binary data
+   */
+  data: string;
+  /**
+   * Human-readable description of the binary data
+   */
+  description?: string;
+  /**
+   * Optional metadata from the producing tool.
+   */
+  metadata?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * MIME type of the binary asset
+   */
+  mimeType: string;
+  type: BinaryAssetType;
 }
 /**
  * Session event "system.message". System/developer instruction content with role and optional template metadata

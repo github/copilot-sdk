@@ -73,10 +73,16 @@ pub mod rpc_methods {
     pub const SKILLS_CONFIG_SETDISABLEDSKILLS: &str = "skills.config.setDisabledSkills";
     /// `skills.discover`
     pub const SKILLS_DISCOVER: &str = "skills.discover";
+    /// `skills.getDiscoveryPaths`
+    pub const SKILLS_GETDISCOVERYPATHS: &str = "skills.getDiscoveryPaths";
     /// `agents.discover`
     pub const AGENTS_DISCOVER: &str = "agents.discover";
+    /// `agents.getDiscoveryPaths`
+    pub const AGENTS_GETDISCOVERYPATHS: &str = "agents.getDiscoveryPaths";
     /// `instructions.discover`
     pub const INSTRUCTIONS_DISCOVER: &str = "instructions.discover";
+    /// `instructions.getDiscoveryPaths`
+    pub const INSTRUCTIONS_GETDISCOVERYPATHS: &str = "instructions.getDiscoveryPaths";
     /// `user.settings.reload`
     pub const USER_SETTINGS_RELOAD: &str = "user.settings.reload";
     /// `runtime.shutdown`
@@ -596,6 +602,43 @@ pub struct AccountGetQuotaResult {
     pub quota_snapshots: HashMap<String, AccountQuotaSnapshot>,
 }
 
+/// Schema for the `AgentDiscoveryPath` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDiscoveryPath {
+    /// Absolute path of the search/create directory (may not exist on disk yet)
+    pub path: String,
+    /// Whether this is the canonical directory to create a new agent in its tier. At most one entry per tier is preferred.
+    pub preferred_for_creation: bool,
+    /// The input project path this directory was derived from (only for project scope)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
+    /// Which tier this directory belongs to
+    pub scope: AgentDiscoveryPathScope,
+}
+
+/// Canonical locations where custom agents can be created so the runtime will recognize them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDiscoveryPathList {
+    /// Canonical agent create/discovery directories, in priority order
+    pub paths: Vec<AgentDiscoveryPath>,
+}
+
 /// Schema for the `AgentInfo` type.
 ///
 /// <div class="warning">
@@ -903,7 +946,7 @@ pub struct AgentReloadResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentsDiscoverRequest {
-    /// When true, omit the host's agents (the `<COPILOT_HOME>/agents` directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.
+    /// When true, omit the host's agents (the user-level agent directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_host_agents: Option<bool>,
     /// Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).
@@ -939,6 +982,25 @@ pub struct AgentSelectRequest {
 pub struct AgentSelectResult {
     /// The newly selected custom agent
     pub agent: AgentInfo,
+}
+
+/// Optional project paths to include when enumerating agent discovery directories.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentsGetDiscoveryPathsRequest {
+    /// When true, omit the host's user-level agent directory, leaving only project directories. For multitenant deployments (mirrors `discover`'s `excludeHostAgents`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_host_agents: Option<bool>,
+    /// Optional list of project directory paths. When omitted or empty, only the user-level directory is returned.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_paths: Option<Vec<String>>,
 }
 
 /// Indicates whether the operation succeeded and reports the post-mutation state.
@@ -1195,6 +1257,8 @@ pub struct CopilotUserResponse {
     pub endpoints: Option<CopilotUserResponseEndpoints>,
     #[serde(rename = "is_mcp_enabled", skip_serializing_if = "Option::is_none")]
     pub is_mcp_enabled: Option<serde_json::Value>,
+    #[serde(rename = "is_staff", skip_serializing_if = "Option::is_none")]
+    pub is_staff: Option<bool>,
     #[serde(
         rename = "limited_user_quotas",
         skip_serializing_if = "Option::is_none"
@@ -2212,6 +2276,12 @@ pub struct DiscoveredMcpServer {
     pub name: String,
     /// Configuration source: user, workspace, plugin, or builtin
     pub source: McpServerSource,
+    /// Plugin name that provided this server, when source is plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin: Option<String>,
+    /// Plugin version that provided this server, when source is plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin_version: Option<String>,
     /// Server transport type: stdio, http, sse (deprecated), or memory
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<DiscoveredMcpServerType>,
@@ -3096,6 +3166,45 @@ pub struct InstalledPluginSourceUrl {
     pub url: String,
 }
 
+/// Schema for the `InstructionDiscoveryPath` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionDiscoveryPath {
+    /// Whether the target is a single file or a directory of instruction files
+    pub kind: InstructionDiscoveryPathKind,
+    /// Which tier this target belongs to
+    pub location: InstructionDiscoveryPathLocation,
+    /// Absolute path of the file or directory (may not exist on disk yet)
+    pub path: String,
+    /// Whether this is the canonical target to create new instructions in its tier. At most one entry per tier is preferred.
+    pub preferred_for_creation: bool,
+    /// The input project path this target was derived from (only for repository targets)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
+}
+
+/// Canonical files and directories where custom instructions can be created so the runtime will recognize them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionDiscoveryPathList {
+    /// Canonical instruction create/discovery files and directories, in priority order
+    pub paths: Vec<InstructionDiscoveryPath>,
+}
+
 /// Optional project paths to include in instruction discovery.
 ///
 /// <div class="warning">
@@ -3111,6 +3220,25 @@ pub struct InstructionsDiscoverRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_host_instructions: Option<bool>,
     /// Optional list of project directory paths to scan for repository/working-directory instruction sources. When omitted or empty, only user-level and plugin instruction sources are returned (no project scan).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_paths: Option<Vec<String>>,
+}
+
+/// Optional project paths to include when enumerating instruction discovery targets.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionsGetDiscoveryPathsRequest {
+    /// When true, omit the host's user-level instruction targets, leaving only repository targets. For multitenant deployments (mirrors `discover`'s `excludeHostInstructions`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_host_instructions: Option<bool>,
+    /// Optional list of project directory paths. When omitted or empty, only the user-level targets are returned.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_paths: Option<Vec<String>>,
 }
@@ -4274,6 +4402,12 @@ pub struct McpServer {
     /// Configuration source: user, workspace, plugin, or builtin
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<McpServerSource>,
+    /// Plugin name that provided this server, when source is plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin: Option<String>,
+    /// Plugin version that provided this server, when source is plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin_version: Option<String>,
     /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
     pub status: McpServerStatus,
 }
@@ -4974,7 +5108,7 @@ pub struct ModelCapabilitiesOverrideSupports {
     pub vision: Option<bool>,
 }
 
-/// Initial model capability overrides.
+/// Optional capability overrides (vision, tool_calls, reasoning, etc.).
 ///
 /// <div class="warning">
 ///
@@ -5073,7 +5207,7 @@ pub struct ModelSwitchToRequest {
     /// Override individual model capabilities resolved by the runtime
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
-    /// Model identifier to switch to
+    /// Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
     pub model_id: String,
     /// Reasoning effort level to use for the model. "none" disables reasoning.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -5112,6 +5246,57 @@ pub struct ModelSwitchToResult {
 pub struct ModeSetRequest {
     /// The session mode the agent is operating in
     pub mode: SessionMode,
+}
+
+/// Azure-specific provider options.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderConfigAzure {
+    /// API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_version: Option<String>,
+}
+
+/// A named BYOK provider connection (transport + credentials).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NamedProviderConfig {
+    /// API key. Optional for local providers like Ollama.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// Azure-specific provider options.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub azure: Option<ProviderConfigAzure>,
+    /// API endpoint URL.
+    pub base_url: String,
+    /// Bearer token for authentication. Sets the Authorization header directly. Takes precedence over apiKey when both are set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bearer_token: Option<String>,
+    /// Custom HTTP headers to include in all outbound requests to the provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
+    /// Stable identifier referenced by BYOK model definitions. Must not contain '/'.
+    pub name: String,
+    /// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<ProviderConfigType>,
+    /// Wire API format (openai/azure only). Defaults to "completions".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<ProviderConfigWireApi>,
 }
 
 /// The session's friendly name, or null when not yet set.
@@ -7138,22 +7323,6 @@ pub struct PollSpawnedSessionsResult {
     pub events: Vec<SessionsPollSpawnedSessionsEvent>,
 }
 
-/// Azure-specific provider options.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProviderConfigAzure {
-    /// API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub api_version: Option<String>,
-}
-
 /// Custom model-provider configuration (BYOK).
 ///
 /// <div class="warning">
@@ -7267,6 +7436,44 @@ pub struct ProviderGetEndpointRequest {
     /// Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
+}
+
+/// A BYOK model definition referencing a named provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelConfig {
+    /// Optional capability overrides (vision, tool_calls, reasoning, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ModelCapabilitiesOverride>,
+    /// Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+    pub id: String,
+    /// Maximum context window tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_context_window_tokens: Option<f64>,
+    /// Maximum output tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<f64>,
+    /// Maximum prompt/input tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<f64>,
+    /// Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    /// Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Name of the NamedProviderConfig that serves this model.
+    pub provider: String,
+    /// The model name sent to the provider API for inference. Defaults to `id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_model: Option<String>,
 }
 
 /// Blob attachment with inline base64-encoded data
@@ -9101,7 +9308,7 @@ pub struct SessionMetadataSnapshot {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelList {
-    /// Available models, ordered with the most preferred default first.
+    /// Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).
     pub list: Vec<serde_json::Value>,
     /// Per-quota snapshots returned alongside the model list, keyed by quota type.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -9268,6 +9475,9 @@ pub struct SessionOpenOptions {
     /// Identifier sent to LSP-style integrations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lsp_client_name: Option<String>,
+    /// Maximum decoded byte size of a single inline model-facing binary tool result persisted in session events (default 10 MB).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_inline_binary_bytes: Option<i64>,
     /// Memory configuration for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory: Option<MemoryConfiguration>,
@@ -9277,12 +9487,32 @@ pub struct SessionOpenOptions {
     /// Initial model capability overrides.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities_overrides: Option<ModelCapabilitiesOverride>,
+    /// BYOK model definitions added to the selectable model list, each referencing a provider name.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<ProviderModelConfig>>,
     /// Optional human-friendly session name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Custom model-provider configuration (BYOK).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
+    /// Named BYOK provider connections, additive to CAPI auth. Combining with `provider` is rejected.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub providers: Option<Vec<NamedProviderConfig>>,
     /// Initial reasoning effort level.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -10325,6 +10555,9 @@ pub struct SessionUpdateOptionsParams {
     /// Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manage_schedule_enabled: Option<bool>,
+    /// Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_inline_binary_bytes: Option<i64>,
     /// The model ID to use for assistant turns.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -10545,6 +10778,43 @@ pub struct Skill {
     pub user_invocable: bool,
 }
 
+/// Schema for the `SkillDiscoveryPath` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillDiscoveryPath {
+    /// Absolute path of the create/discovery target (may not exist on disk yet)
+    pub path: String,
+    /// Whether this is the canonical directory to create a new skill in its tier. At most one entry per tier is preferred; the `personal-agents` and `custom` scopes are never preferred.
+    pub preferred_for_creation: bool,
+    /// The input project path this directory was derived from (only for project scope)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
+    /// Which tier this directory belongs to
+    pub scope: SkillDiscoveryScope,
+}
+
+/// Canonical locations where skills can be created so the runtime will recognize them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillDiscoveryPathList {
+    /// Canonical skill create/discovery directories, in priority order
+    pub paths: Vec<SkillDiscoveryPath>,
+}
+
 /// Skills available to the session, with their enabled state.
 ///
 /// <div class="warning">
@@ -10587,6 +10857,9 @@ pub struct SkillsDisableRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsDiscoverRequest {
+    /// When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_host_skills: Option<bool>,
     /// Optional list of project directory paths to scan for project-scoped skills
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_paths: Option<Vec<String>>,
@@ -10608,6 +10881,25 @@ pub struct SkillsDiscoverRequest {
 pub struct SkillsEnableRequest {
     /// Name of the skill to enable
     pub name: String,
+}
+
+/// Optional project paths to enumerate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsGetDiscoveryPathsRequest {
+    /// When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_host_skills: Option<bool>,
+    /// Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_paths: Option<Vec<String>>,
 }
 
 /// Schema for the `SkillsInvokedSkill` type.
@@ -12691,6 +12983,21 @@ pub struct SkillsDiscoverResult {
     pub skills: Vec<ServerSkill>,
 }
 
+/// Canonical locations where skills can be created so the runtime will recognize them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsGetDiscoveryPathsResult {
+    /// Canonical skill create/discovery directories, in priority order
+    pub paths: Vec<SkillDiscoveryPath>,
+}
+
 /// Agents discovered across user, project, plugin, and remote sources.
 ///
 /// <div class="warning">
@@ -12706,6 +13013,21 @@ pub struct AgentsDiscoverResult {
     pub agents: Vec<AgentInfo>,
 }
 
+/// Canonical locations where custom agents can be created so the runtime will recognize them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentsGetDiscoveryPathsResult {
+    /// Canonical agent create/discovery directories, in priority order
+    pub paths: Vec<AgentDiscoveryPath>,
+}
+
 /// Instruction sources discovered across user, repository, and plugin sources.
 ///
 /// <div class="warning">
@@ -12719,6 +13041,21 @@ pub struct AgentsDiscoverResult {
 pub struct InstructionsDiscoverResult {
     /// All discovered instruction sources
     pub sources: Vec<InstructionSource>,
+}
+
+/// Canonical files and directories where custom instructions can be created so the runtime will recognize them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionsGetDiscoveryPathsResult {
+    /// Canonical instruction create/discovery files and directories, in priority order
+    pub paths: Vec<InstructionDiscoveryPath>,
 }
 
 /// Result of opening a session.
@@ -13301,7 +13638,7 @@ pub struct SessionModelSetReasoningEffortResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelListResult {
-    /// Available models, ordered with the most preferred default first.
+    /// Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).
     pub list: Vec<serde_json::Value>,
     /// Per-quota snapshots returned alongside the model list, keyed by quota type.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -16124,6 +16461,28 @@ pub type UIElicitationResponseContent = HashMap<String, serde_json::Value>;
 /// </div>
 pub type SessionMcpAppsCallToolResult = HashMap<String, serde_json::Value>;
 
+/// Which tier this directory belongs to
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentDiscoveryPathScope {
+    /// The user's personal agent configuration directory.
+    #[serde(rename = "user")]
+    User,
+    /// A project's repository agent directory.
+    #[serde(rename = "project")]
+    Project,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Where the agent definition was loaded from
 ///
 /// <div class="warning">
@@ -16931,6 +17290,56 @@ pub enum InstalledPluginSourceUrlSource {
     Url,
 }
 
+/// Whether the target is a single file or a directory of instruction files
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InstructionDiscoveryPathKind {
+    /// The target is a single instruction file.
+    #[serde(rename = "file")]
+    File,
+    /// The target is a directory that holds instruction files.
+    #[serde(rename = "directory")]
+    Directory,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Which tier this target belongs to
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InstructionDiscoveryPathLocation {
+    /// Instructions live in user-level configuration.
+    #[serde(rename = "user")]
+    User,
+    /// Instructions live in repository-level configuration.
+    #[serde(rename = "repository")]
+    Repository,
+    /// Instructions live under the current working directory.
+    #[serde(rename = "working-directory")]
+    WorkingDirectory,
+    /// Instructions live in plugin-provided configuration.
+    #[serde(rename = "plugin")]
+    Plugin,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Where this source lives — used for UI grouping
 ///
 /// <div class="warning">
@@ -17449,6 +17858,53 @@ pub enum ModelPolicyState {
     /// No explicit policy is configured for the model.
     #[serde(rename = "unconfigured")]
     Unconfigured,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderConfigType {
+    /// Generic OpenAI-compatible API.
+    #[serde(rename = "openai")]
+    Openai,
+    /// Azure OpenAI Service endpoint.
+    #[serde(rename = "azure")]
+    Azure,
+    /// Anthropic API endpoint.
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Wire API format (openai/azure only). Defaults to "completions".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderConfigWireApi {
+    /// OpenAI Chat Completions wire format.
+    #[serde(rename = "completions")]
+    Completions,
+    /// OpenAI Responses API wire format.
+    #[serde(rename = "responses")]
+    Responses,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -18118,53 +18574,6 @@ pub enum PermissionsSetApproveAllSource {
     /// Allow-all was enabled through an RPC caller.
     #[serde(rename = "rpc")]
     Rpc,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProviderConfigType {
-    /// Generic OpenAI-compatible API.
-    #[serde(rename = "openai")]
-    Openai,
-    /// Azure OpenAI Service endpoint.
-    #[serde(rename = "azure")]
-    Azure,
-    /// Anthropic API endpoint.
-    #[serde(rename = "anthropic")]
-    Anthropic,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Wire API format (openai/azure only). Defaults to "completions".
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProviderConfigWireApi {
-    /// OpenAI Chat Completions wire format.
-    #[serde(rename = "completions")]
-    Completions,
-    /// OpenAI Responses API wire format.
-    #[serde(rename = "responses")]
-    Responses,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -18898,6 +19307,34 @@ pub enum ShellKillSignal {
     SIGKILL,
     /// Send an interrupt signal to the process.
     SIGINT,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Which tier this directory belongs to
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillDiscoveryScope {
+    /// A project's repository skill directory.
+    #[serde(rename = "project")]
+    Project,
+    /// The user's personal Copilot skill directory.
+    #[serde(rename = "personal-copilot")]
+    PersonalCopilot,
+    /// The user's personal agents skill directory.
+    #[serde(rename = "personal-agents")]
+    PersonalAgents,
+    /// A configured custom skill directory.
+    #[serde(rename = "custom")]
+    Custom,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

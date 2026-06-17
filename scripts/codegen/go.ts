@@ -3174,7 +3174,11 @@ export function generateGoSessionEventsCode(
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
             const isReq = required.has(propName);
-            const goName = toGoFieldName(propName);
+            let goName = toGoFieldName(propName);
+            // Avoid conflict with the Type() SessionEventType interface method
+            if (goName === "Type") {
+                goName = "Discriminator";
+            }
             const goType = resolveGoPropertyType(prop, variant.dataClassName, propName, isReq, ctx);
 
             if (prop.description) {
