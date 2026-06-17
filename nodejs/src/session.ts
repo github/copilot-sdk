@@ -255,6 +255,7 @@ export class CopilotSession {
      * @param timeout - Timeout in milliseconds (default: 60000). Controls how long to wait; does not abort in-flight agent work.
      * @returns A promise that resolves with the final assistant message when the session becomes idle,
      *          or undefined if no assistant message was received
+     * @throws TypeError if `timeout` is provided but is not a non-negative finite number of milliseconds
      * @throws Error if the timeout is reached before the session becomes idle
      * @throws Error if the session has been disconnected or the connection fails
      *
@@ -276,6 +277,21 @@ export class CopilotSession {
     ): Promise<AssistantMessageEvent | undefined> {
         const options: MessageOptions =
             typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
+
+        // Guard against a non-numeric timeout reaching setTimeout(). Without this,
+        // an object or NaN is coerced to a 0ms delay, producing a spurious
+        // immediate timeout with a malformed "Timeout after [object Object]ms"
+        // message instead of a clear, actionable error.
+        if (
+            timeout !== undefined &&
+            (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout < 0)
+        ) {
+            const received = typeof timeout === "number" ? `${timeout}` : typeof timeout;
+            throw new TypeError(
+                `sendAndWait timeout must be a non-negative number of milliseconds (got ${received})`
+            );
+        }
+
         const effectiveTimeout = timeout ?? 60_000;
 
         let resolveIdle: () => void;
