@@ -4,7 +4,6 @@
 
 package com.github.copilot.rpc;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,7 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class AbortSignal {
 
     private final AtomicBoolean aborted = new AtomicBoolean(false);
-    private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Runnable> listeners = new CopyOnWriteArrayList<>();
 
     /**
      * Returns whether this signal has been aborted.
@@ -70,7 +69,9 @@ public final class AbortSignal {
      * If the signal is already aborted at the time of registration, the callback is
      * invoked immediately on the calling thread.
      * <p>
-     * Exceptions thrown by the callback are silently ignored.
+     * The callback is guaranteed to be invoked at most once, regardless of
+     * concurrent calls to {@link #abort()} and {@code onAborted}. Any
+     * {@link Throwable} thrown by the callback is silently ignored.
      *
      * @param listener
      *            the callback to invoke on abort
@@ -79,13 +80,22 @@ public final class AbortSignal {
      */
     public void onAborted(Runnable listener) {
         Objects.requireNonNull(listener, "listener must not be null");
-        listeners.add(listener);
-        if (aborted.get()) {
-            try {
-                listener.run();
-            } catch (Exception ignored) {
-                // Exceptions from listeners are silently ignored
+        // Wrap in an AtomicBoolean-guarded runnable so the callback fires at most once
+        // even if abort() races with this method between listeners.add() and the
+        // aborted.get() check below.
+        AtomicBoolean fired = new AtomicBoolean(false);
+        Runnable once = () -> {
+            if (fired.compareAndSet(false, true)) {
+                try {
+                    listener.run();
+                } catch (Throwable ignored) {
+                    // Throwables from listeners are silently ignored
+                }
             }
+        };
+        listeners.add(once);
+        if (aborted.get()) {
+            once.run();
         }
     }
 
@@ -97,15 +107,15 @@ public final class AbortSignal {
      * is invoked while this tool invocation is in progress.
      * <p>
      * Calling this method more than once has no effect — the signal fires exactly
-     * once.
+     * once. Any {@link Throwable} thrown by a listener is silently ignored.
      */
     public void abort() {
         if (aborted.compareAndSet(false, true)) {
             for (Runnable listener : listeners) {
                 try {
                     listener.run();
-                } catch (Exception ignored) {
-                    // Exceptions from listeners are silently ignored
+                } catch (Throwable ignored) {
+                    // Throwables from listeners are silently ignored
                 }
             }
         }

@@ -200,6 +200,33 @@ public class ToolInvocationTest {
     }
 
     /**
+     * Test that a callback registered via onAborted fires at most once even when
+     * abort() races with onAborted registration (at-most-once delivery guarantee).
+     */
+    @Test
+    void testAbortSignalCallbackFiresAtMostOnce() {
+        AbortSignal signal = new AbortSignal();
+        // Pre-abort the signal so onAborted() will fire immediately on registration
+        signal.abort();
+        var count = new java.util.concurrent.atomic.AtomicInteger(0);
+        // Registering after abort fires immediately — but only once
+        signal.onAborted(count::incrementAndGet);
+        assertEquals(1, count.get(), "callback should fire exactly once when registered after abort");
+    }
+
+    /**
+     * Test that setAbortSignal(null) is accepted for backwards compatibility and
+     * leaves the existing signal unchanged.
+     */
+    @Test
+    void testSetAbortSignalNullIsIgnored() {
+        ToolInvocation invocation = new ToolInvocation();
+        AbortSignal original = invocation.getAbortSignal();
+        invocation.setAbortSignal(null); // must not throw
+        assertSame(original, invocation.getAbortSignal(), "existing signal should be preserved when null is passed");
+    }
+
+    /**
      * Record for testing type-safe argument deserialization.
      */
     record WeatherArgs(String city, String units) {

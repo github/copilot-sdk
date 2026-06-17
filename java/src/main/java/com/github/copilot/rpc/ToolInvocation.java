@@ -221,14 +221,20 @@ public final class ToolInvocation {
      * Sets the abort signal for this tool invocation.
      * <p>
      * <strong>Note:</strong> This method is intended for internal SDK use only.
-     * Users do not need to call this method directly.
+     * Users do not need to call this method directly. Passing {@code null} is
+     * accepted for backwards compatibility and leaves the existing signal
+     * unchanged.
      *
      * @param abortSignal
-     *            the abort signal to associate with this invocation
+     *            the abort signal to associate with this invocation, or
+     *            {@code null} to leave the existing signal unchanged
      * @return this invocation for method chaining
      */
+    @JsonIgnore
     public ToolInvocation setAbortSignal(AbortSignal abortSignal) {
-        this.abortSignal = abortSignal;
+        if (abortSignal != null) {
+            this.abortSignal = abortSignal;
+        }
         return this;
     }
 }
