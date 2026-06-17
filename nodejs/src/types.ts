@@ -835,6 +835,7 @@ export interface ToolCallResponsePayload {
  * Each section corresponds to a distinct part of the system prompt.
  */
 export type SystemMessageSection =
+    | "preamble"
     | "identity"
     | "tone"
     | "tool_efficiency"
@@ -849,7 +850,11 @@ export type SystemMessageSection =
 
 /** Section metadata for documentation and tooling. */
 export const SYSTEM_MESSAGE_SECTIONS: Record<SystemMessageSection, { description: string }> = {
-    identity: { description: "Agent identity preamble and mode statement" },
+    preamble: { description: "Agent identity preamble and mode statement" },
+    identity: {
+        description:
+            "Section group covering the identity preamble and its sibling sub-sections (tone, tool efficiency, etc.)",
+    },
     tone: { description: "Response style, conciseness rules, output formatting preferences" },
     tool_efficiency: { description: "Tool usage patterns, parallel calling, batching guidelines" },
     environment_context: { description: "CWD, OS, git root, directory listing, available tools" },
@@ -880,6 +885,8 @@ export type SectionTransformFn = (currentContent: string) => string | Promise<st
  * - `"remove"`: Remove the section
  * - `"append"`: Append to existing section content
  * - `"prepend"`: Prepend to existing section content
+ * - `"preserve"`: No-op marker that opts an individually-addressable section out of a
+ *   group-level `"remove"` (e.g. keep `tone` when removing the `identity` group)
  * - `function`: Transform callback — receives current section content, returns new content
  */
 export type SectionOverrideAction =
@@ -887,6 +894,7 @@ export type SectionOverrideAction =
     | "remove"
     | "append"
     | "prepend"
+    | "preserve"
     | SectionTransformFn;
 
 /**

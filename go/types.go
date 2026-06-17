@@ -215,7 +215,10 @@ func Int(v int) *int {
 
 // Known system message section identifiers for the "customize" mode.
 const (
-	// SectionIdentity is the agent identity preamble and mode statement.
+	// SectionPreamble is the agent identity preamble and mode statement.
+	SectionPreamble = "preamble"
+	// SectionIdentity is the section group covering the identity preamble and its
+	// sibling sub-sections (tone, tool efficiency, etc.).
 	SectionIdentity = "identity"
 	// SectionTone covers response style, conciseness rules, and output formatting preferences.
 	SectionTone = "tone"
@@ -254,6 +257,10 @@ const (
 	SectionActionAppend SectionOverrideAction = "append"
 	// SectionActionPrepend prepends to existing section content.
 	SectionActionPrepend SectionOverrideAction = "prepend"
+	// SectionActionPreserve is a no-op marker that opts an individually-addressable
+	// section out of a group-level "remove" (e.g. keep "tone" when removing the
+	// "identity" group).
+	SectionActionPreserve SectionOverrideAction = "preserve"
 )
 
 // SectionTransformFn is a callback that receives the current content of a system message section

@@ -3596,11 +3596,12 @@ impl SystemMessageConfig {
 ///
 /// Used within [`SystemMessageConfig::sections`] when `mode` is `"customize"`.
 /// The `action` field determines the operation: `"replace"`, `"remove"`,
-/// `"append"`, `"prepend"`, or `"transform"`.
+/// `"append"`, `"prepend"`, `"preserve"`, or `"transform"`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SectionOverride {
-    /// Override action: `"replace"`, `"remove"`, `"append"`, `"prepend"`, or `"transform"`.
+    /// Override action: `"replace"`, `"remove"`, `"append"`, `"prepend"`,
+    /// `"preserve"`, or `"transform"`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<String>,
     /// Content for the override operation.
