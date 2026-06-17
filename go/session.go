@@ -82,6 +82,11 @@ type Session struct {
 	capabilities          SessionCapabilities
 	capabilitiesMu        sync.RWMutex
 
+	// toolCallCancels tracks cancel functions for in-flight tool calls so that
+	// Abort can propagate cancellation into handler contexts.
+	toolCallCancels   map[string]context.CancelFunc
+	toolCallCancelsMu sync.Mutex
+
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
 	eventCh   chan SessionEvent
@@ -1337,11 +1342,35 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.
 func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler, traceparent, tracestate string) {
-	ctx := contextWithTraceParent(context.Background(), traceparent, tracestate)
+	// traceCtx carries OTel trace propagation but is not subject to abort cancellation.
+	// It is used for administrative RPC calls that must complete regardless of abort.
+	traceCtx := contextWithTraceParent(context.Background(), traceparent, tracestate)
+	// ctx is passed to the tool handler and is cancelled when session.Abort is called,
+	// giving handlers a cooperative cancellation signal.
+	ctx, cancel := context.WithCancel(traceCtx)
+
+	s.toolCallCancelsMu.Lock()
+	if s.toolCallCancels == nil {
+		s.toolCallCancels = make(map[string]context.CancelFunc)
+	}
+	s.toolCallCancels[toolCallID] = cancel
+	s.toolCallCancelsMu.Unlock()
+
+	// Cleanup runs last (registered first). Removes the cancel from the in-flight map
+	// and releases context resources.
+	defer func() {
+		s.toolCallCancelsMu.Lock()
+		delete(s.toolCallCancels, toolCallID)
+		s.toolCallCancelsMu.Unlock()
+		cancel()
+	}()
+
+	// Panic recovery runs first (registered second, LIFO). Uses traceCtx to ensure
+	// the error response is sent even if ctx was already cancelled by Abort.
 	defer func() {
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("tool panic: %v", r)
-			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+			s.RPC.Tools.HandlePendingToolCall(traceCtx, &rpc.HandlePendingToolCallRequest{
 				RequestID: requestID,
 				Error:     &errMsg,
 			})
@@ -1353,13 +1382,14 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		ToolCallID:   toolCallID,
 		ToolName:     toolName,
 		Arguments:    arguments,
+		Context:      ctx,
 		TraceContext: ctx,
 	}
 
 	result, err := handler(invocation)
 	if err != nil {
 		errMsg := err.Error()
-		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+		s.RPC.Tools.HandlePendingToolCall(traceCtx, &rpc.HandlePendingToolCallRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
 		})
@@ -1389,7 +1419,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	if result.Error != "" {
 		rpcResult.Error = &result.Error
 	}
-	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+	s.RPC.Tools.HandlePendingToolCall(traceCtx, &rpc.HandlePendingToolCallRequest{
 		RequestID: requestID,
 		Result:    rpcResult,
 	})
@@ -1554,6 +1584,12 @@ func (s *Session) Abort(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to abort session: %w", err)
 	}
+
+	s.toolCallCancelsMu.Lock()
+	for _, cancel := range s.toolCallCancels {
+		cancel()
+	}
+	s.toolCallCancelsMu.Unlock()
 
 	return nil
 }

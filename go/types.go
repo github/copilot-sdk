@@ -1154,10 +1154,22 @@ type ToolInvocation struct {
 	ToolName   string
 	Arguments  any
 
+	// Context is the primary context for this tool invocation. It carries
+	// W3C Trace Context propagation (for OpenTelemetry) and is cancelled
+	// when session.Abort is called, allowing handlers to cooperatively stop
+	// in-flight work (e.g. pass to http.NewRequestWithContext, sql.QueryContext).
+	//
+	// Handlers that do not inspect the context continue to work unchanged.
+	Context context.Context
+
+	// TraceContext is deprecated: use Context instead.
 	// TraceContext carries the W3C Trace Context propagated from the CLI's
-	// execute_tool span.  Pass this to OpenTelemetry-aware code so that
+	// execute_tool span. Pass this to OpenTelemetry-aware code so that
 	// child spans created inside the handler are parented to the CLI span.
 	// When no trace context is available this will be context.Background().
+	//
+	// Deprecated: Use Context, which carries the same trace information and
+	// is additionally cancelled when session.Abort is called.
 	TraceContext context.Context
 }
 

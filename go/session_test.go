@@ -1031,3 +1031,204 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 		}
 	})
 }
+
+// TestToolInvocation_ContextCancelledOnAbort verifies that the context passed to a
+// tool handler is cancelled when the in-flight cancel func (as used by Abort) fires.
+func TestToolInvocation_ContextCancelledOnAbort(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	session := &Session{
+		SessionID: "session-abort-test",
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, "session-abort-test"),
+	}
+
+	// Drain the RPC responses from the mock server side.
+	go func() {
+		scanner := bufio.NewScanner(stdinR)
+		for scanner.Scan() {
+			// read Content-Length header
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "Content-Length:") {
+				continue
+			}
+			var contentLen int
+			fmt.Sscanf(line, "Content-Length: %d", &contentLen)
+			// skip blank separator
+			scanner.Scan()
+			body := make([]byte, contentLen)
+			io.ReadFull(stdinR, body)
+
+			var req struct {
+				ID     json.RawMessage `json:"id"`
+				Method string          `json:"method"`
+			}
+			if err := json.Unmarshal(body, &req); err != nil || req.ID == nil {
+				continue
+			}
+			resp, _ := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      json.RawMessage(req.ID),
+				"result":  map[string]any{},
+			})
+			fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(resp), resp)
+		}
+	}()
+
+	// Channel to receive the invocation context from the handler.
+	ctxCh := make(chan context.Context, 1)
+
+	// The handler blocks until its context is cancelled, then reports.
+	handler := ToolHandler(func(inv ToolInvocation) (ToolResult, error) {
+		ctxCh <- inv.Context
+		<-inv.Context.Done()
+		return ToolResult{TextResultForLLM: "cancelled"}, nil
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		session.executeToolAndRespond("req-1", "my_tool", "tc-1", nil, handler, "", "")
+	}()
+
+	// Wait for the handler to start and capture its context.
+	var handlerCtx context.Context
+	select {
+	case handlerCtx = <-ctxCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler to start")
+	}
+
+	// Verify the context is not yet cancelled.
+	if handlerCtx.Err() != nil {
+		t.Fatalf("expected context to be active, got %v", handlerCtx.Err())
+	}
+
+	// Simulate what Abort() does: cancel all in-flight tool call contexts.
+	session.toolCallCancelsMu.Lock()
+	for _, cancel := range session.toolCallCancels {
+		cancel()
+	}
+	session.toolCallCancelsMu.Unlock()
+
+	// Wait for the handler to finish.
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler to finish after cancellation")
+	}
+
+	// The handler context must be cancelled.
+	if handlerCtx.Err() == nil {
+		t.Fatal("expected handler context to be cancelled after abort")
+	}
+
+	// The cancel func must have been removed from the map.
+	session.toolCallCancelsMu.Lock()
+	remaining := len(session.toolCallCancels)
+	session.toolCallCancelsMu.Unlock()
+	if remaining != 0 {
+		t.Fatalf("expected toolCallCancels to be empty after execution, got %d entries", remaining)
+	}
+}
+
+// TestToolInvocation_ContextPopulated verifies that executeToolAndRespond sets
+// both Context and TraceContext on the ToolInvocation passed to the handler.
+func TestToolInvocation_ContextPopulated(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	session := &Session{
+		SessionID: "session-ctx-test",
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, "session-ctx-test"),
+	}
+
+	// Drain RPC responses.
+	go func() {
+		scanner := bufio.NewScanner(stdinR)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "Content-Length:") {
+				continue
+			}
+			var contentLen int
+			fmt.Sscanf(line, "Content-Length: %d", &contentLen)
+			scanner.Scan()
+			body := make([]byte, contentLen)
+			io.ReadFull(stdinR, body)
+
+			var req struct {
+				ID     json.RawMessage `json:"id"`
+				Method string          `json:"method"`
+			}
+			if err := json.Unmarshal(body, &req); err != nil || req.ID == nil {
+				continue
+			}
+			resp, _ := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      json.RawMessage(req.ID),
+				"result":  map[string]any{},
+			})
+			fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(resp), resp)
+		}
+	}()
+
+	invCh := make(chan ToolInvocation, 1)
+	handler := ToolHandler(func(inv ToolInvocation) (ToolResult, error) {
+		invCh <- inv
+		return ToolResult{TextResultForLLM: "ok"}, nil
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		session.executeToolAndRespond("req-2", "check_tool", "tc-2", map[string]any{"x": 1}, handler, "", "")
+	}()
+
+	var inv ToolInvocation
+	select {
+	case inv = <-invCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler invocation")
+	}
+
+	if inv.Context == nil {
+		t.Fatal("expected ToolInvocation.Context to be set")
+	}
+	if inv.TraceContext == nil {
+		t.Fatal("expected ToolInvocation.TraceContext to be set")
+	}
+	if inv.Context != inv.TraceContext {
+		t.Error("expected Context and TraceContext to be the same value")
+	}
+	if inv.SessionID != "session-ctx-test" {
+		t.Errorf("expected SessionID session-ctx-test, got %q", inv.SessionID)
+	}
+	if inv.ToolCallID != "tc-2" {
+		t.Errorf("expected ToolCallID tc-2, got %q", inv.ToolCallID)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for executeToolAndRespond to complete")
+	}
+}

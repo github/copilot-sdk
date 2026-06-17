@@ -355,6 +355,31 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 When the model selects a tool, the SDK automatically runs your handler (in parallel with other calls) and responds to the CLI's `tool.call` with the handler's result.
 
+#### Cooperative Cancellation via session.Abort
+
+`ToolInvocation.Context` is a `context.Context` that is cancelled when `session.Abort` is called. Pass it to any cancellable operation (HTTP requests, DB queries, sleeps) so the handler stops promptly when the session is aborted:
+
+```go
+lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details from our tracker",
+    func(params LookupIssueParams, inv copilot.ToolInvocation) (any, error) {
+        // Pass inv.Context so the HTTP request is cancelled on session.Abort.
+        req, err := http.NewRequestWithContext(inv.Context, "GET",
+            "https://api.example.com/issues/"+params.ID, nil)
+        if err != nil {
+            return nil, err
+        }
+        resp, err := http.DefaultClient.Do(req)
+        if err != nil {
+            return nil, err // returns context.Canceled when aborted
+        }
+        defer resp.Body.Close()
+        // ...
+        return summary, nil
+    })
+```
+
+Handlers that don't use `inv.Context` are unaffected; they run to completion as before.
+
 #### Overriding Built-in Tools
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `OverridesBuiltInTool = true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
