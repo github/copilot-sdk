@@ -71,7 +71,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     // Guards _inFlightToolCalls — accessed from the event-processing loop and from
     // AbortAsync / CancelToolCall which may be called from any thread.
     private readonly object _inFlightToolCallsLock = new();
-    private readonly Dictionary<string, CancellationTokenSource> _inFlightToolCalls = [];
+    // Keyed by requestId (unique per RPC request) to avoid collisions on toolCallId reuse.
+    // The tuple stores the toolCallId for lookup by CancelToolCall and the CTS to cancel.
+    private readonly Dictionary<string, (string ToolCallId, CancellationTokenSource Cts)> _inFlightToolCalls = [];
 
     private sealed record EventSubscription(Type EventType, Action<SessionEvent> Handler);
 
@@ -718,7 +720,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         using var cts = new CancellationTokenSource();
         lock (_inFlightToolCallsLock)
         {
-            _inFlightToolCalls[toolCallId] = cts;
+            _inFlightToolCalls[requestId] = (toolCallId, cts);
         }
         try
         {
@@ -786,13 +788,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         finally
         {
-            // Only remove if this is still the active CTS for this toolCallId
-            // (guards against a recycled toolCallId from a later invocation).
+            // Only remove if this is still the active CTS for this requestId.
             lock (_inFlightToolCallsLock)
             {
-                if (_inFlightToolCalls.TryGetValue(toolCallId, out var current) && current == cts)
+                if (_inFlightToolCalls.TryGetValue(requestId, out var entry) && entry.Cts == cts)
                 {
-                    _inFlightToolCalls.Remove(toolCallId);
+                    _inFlightToolCalls.Remove(requestId);
                 }
             }
         }
@@ -1638,13 +1639,25 @@ public sealed partial class CopilotSession : IAsyncDisposable
     public bool CancelToolCall(string toolCallId)
     {
         ArgumentNullException.ThrowIfNull(toolCallId);
+        CancellationTokenSource? found = null;
         lock (_inFlightToolCallsLock)
         {
-            if (_inFlightToolCalls.TryGetValue(toolCallId, out var cts))
+            foreach (var (_, (tid, cts)) in _inFlightToolCalls)
             {
-                cts.Cancel();
-                return true;
+                if (tid == toolCallId)
+                {
+                    found = cts;
+                    break;
+                }
             }
+        }
+        // Cancel outside the lock to avoid running CancellationToken callbacks
+        // while holding _inFlightToolCallsLock, which could cause deadlocks if
+        // a callback (directly or indirectly) touches session state.
+        if (found is not null)
+        {
+            found.Cancel();
+            return true;
         }
         return false;
     }
@@ -1659,7 +1672,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             if (_inFlightToolCalls.Count > 0)
             {
-                snapshot = [.. _inFlightToolCalls.Values];
+                snapshot = [.. _inFlightToolCalls.Values.Select(e => e.Cts)];
             }
         }
 
