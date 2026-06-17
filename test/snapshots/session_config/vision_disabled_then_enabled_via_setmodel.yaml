@@ -54,7 +54,7 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"Test-Path \"test.png\"","description":"Check if file exists"}'
+              arguments: '{"command":"echo True","description":"Check if file exists"}'
   - messages:
       - role: system
         content: ${system}
@@ -88,7 +88,7 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"Test-Path \"test.png\"","description":"Check if file exists"}'
+              arguments: '{"command":"echo True","description":"Check if file exists"}'
       - role: tool
         tool_call_id: toolcall_2
         content: |-
@@ -138,7 +138,7 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"Test-Path \"test.png\"","description":"Check if file exists"}'
+              arguments: '{"command":"echo True","description":"Check if file exists"}'
       - role: tool
         tool_call_id: toolcall_2
         content: |-
