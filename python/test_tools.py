@@ -497,3 +497,41 @@ class TestAbortSignal:
 
         controller.abort()
         assert received_signal.is_aborted is True
+
+
+class TestCancelToolCall:
+    def test_returns_false_for_unknown_id(self):
+        from copilot.session import CopilotSession
+
+        session = CopilotSession("sess-1", client=None)
+        assert session.cancel_tool_call("nonexistent") is False
+
+    def test_returns_true_and_aborts_signal_for_known_id(self):
+        from copilot.session import CopilotSession
+        from copilot.tools import AbortController
+
+        session = CopilotSession("sess-1", client=None)
+        controller = AbortController()
+        session._in_flight_tool_calls["call-1"] = controller
+
+        result = session.cancel_tool_call("call-1")
+
+        assert result is True
+        assert controller.signal.is_aborted is True
+
+    def test_cancels_only_targeted_handler(self):
+        """cancel_tool_call aborts only the targeted handler; others are unaffected."""
+        from copilot.session import CopilotSession
+        from copilot.tools import AbortController
+
+        session = CopilotSession("sess-1", client=None)
+        controller_a = AbortController()
+        controller_b = AbortController()
+        session._in_flight_tool_calls["call-a"] = controller_a
+        session._in_flight_tool_calls["call-b"] = controller_b
+
+        result = session.cancel_tool_call("call-a")
+
+        assert result is True
+        assert controller_a.signal.is_aborted is True
+        assert controller_b.signal.is_aborted is False
