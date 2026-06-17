@@ -39,7 +39,34 @@ conversations:
               arguments: '{"path":"${workdir}/secret.txt"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
+          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep,
+          glob, task.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: 1. The magic number is 42.
+      - role: assistant
+        content: The magic number is **42**.
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the file 'secret.txt' and tell me what the magic number is.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading secret file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/secret.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist.
       - role: tool
         tool_call_id: toolcall_1
         content: 1. The magic number is 42.
@@ -48,4 +75,4 @@ conversations:
       - role: user
         content: What is that magic number multiplied by 2?
       - role: assistant
-        content: 42 × 2 = **84**
+        content: The magic number (42) multiplied by 2 is **84**.

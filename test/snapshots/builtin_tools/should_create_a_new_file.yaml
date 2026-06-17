@@ -39,7 +39,9 @@ conversations:
               arguments: '{"path":"${workdir}/new_file.txt","file_text":"Created by test"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
+          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep,
+          glob, task.
       - role: tool
         tool_call_id: toolcall_1
         content: Created file ${workdir}/new_file.txt with 15 characters
@@ -54,4 +56,4 @@ conversations:
         tool_call_id: toolcall_2
         content: 1. Created by test
       - role: assistant
-        content: File created and confirmed! The file 'new_file.txt' contains "Created by test" as expected.
+        content: ✓ Done! Created `new_file.txt` with content "Created by test" and confirmed the content matches.

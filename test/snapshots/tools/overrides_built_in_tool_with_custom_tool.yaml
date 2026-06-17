@@ -42,10 +42,12 @@ conversations:
               arguments: '{"query":"hello"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
+          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, glob,
+          task, grep.
       - role: tool
         tool_call_id: toolcall_1
         content: "CUSTOM_GREP_RESULT: hello"
       - role: assistant
-        content: 'The grep search found a result for "hello" in the current directory. The output shows `CUSTOM_GREP_RESULT:
-          hello`, indicating the custom grep implementation found a match.'
+        content: "Found: The search returned `CUSTOM_GREP_RESULT: hello`, indicating the grep tool found the word 'hello' in the
+          codebase."

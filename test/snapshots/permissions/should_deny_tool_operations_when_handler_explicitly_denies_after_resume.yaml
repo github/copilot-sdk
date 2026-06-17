@@ -47,10 +47,12 @@ conversations:
               arguments: '{"command":"node --version","description":"Check Node.js version"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
+          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep,
+          glob, task.
       - role: tool
         tool_call_id: toolcall_1
         content: Permission denied and could not request permission from user
       - role: assistant
-        content: The command was denied due to insufficient permissions. You'll need to grant permission to run commands in this
-          session.
+        content: I don't have permission to run commands in this environment. Please try running `node --version` directly in
+          your terminal.

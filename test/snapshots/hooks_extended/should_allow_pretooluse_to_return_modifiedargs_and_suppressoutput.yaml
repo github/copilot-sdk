@@ -42,9 +42,17 @@ conversations:
               arguments: '{"value":"modified by hook"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
+          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep,
+          glob, task, echo_value.
       - role: tool
         tool_call_id: toolcall_1
         content: modified by hook
       - role: assistant
-        content: 'The echo_value returned: **"modified by hook"**'
+        content: >-
+          The echo_value function returned: **"modified by hook"**
+
+
+          Interestingly, even though I called it with the value 'original', the result shows 'modified by hook',
+          suggesting there may be some interceptor or hook modifying the parameter before it reaches the actual
+          function.

@@ -168,12 +168,16 @@ conversations:
               arguments: '{"content":"copilot-sdk-fleet-rpc"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
+          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep,
+          glob, task, record_fleet_completion.
       - role: tool
         tool_call_id: toolcall_1
         content: copilot-sdk-fleet-rpc
       - role: assistant
-        content: |-
+        content: >-
           ✅ **Fleet task complete!** 
 
-          I've successfully recorded the fleet completion with content 'copilot-sdk-fleet-rpc'. The validation is done.
+
+          I've successfully recorded the fleet completion with content 'copilot-sdk-fleet-rpc'. The validation task has
+          been completed as requested.

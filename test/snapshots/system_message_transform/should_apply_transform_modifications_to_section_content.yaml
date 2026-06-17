@@ -21,13 +21,15 @@ conversations:
               arguments: '{"path":"${workdir}/hello.txt"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
+          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep,
+          glob, task.
       - role: tool
         tool_call_id: toolcall_1
         content: 1. Hello!
       - role: assistant
         content: |-
-          The file hello.txt contains:
+          The file **hello.txt** contains:
           ```
           Hello!
           ```

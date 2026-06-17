@@ -39,37 +39,9 @@ conversations:
               arguments: '{"pattern":"^ap","path":"${workdir}/data.txt","output_mode":"content","-n":true}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
-      - role: tool
-        tool_call_id: toolcall_1
-        content: |-
-          ./data.txt:1:apple
-          ./data.txt:3:apricot
-      - role: assistant
-        content: |-
-          The search found **2 lines** starting with 'ap':
-          - Line 1: `apple`
-          - Line 3: `apricot`
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: Search for lines starting with 'ap' in the file 'data.txt'. Tell me which lines matched.
-      - role: assistant
-        tool_calls:
-          - id: toolcall_0
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Searching file for pattern"}'
-          - id: toolcall_1
-            type: function
-            function:
-              name: grep
-              arguments: '{"pattern":"^ap","path":"${workdir}/data.txt","output_mode":"content","-n":true}'
-      - role: tool
-        tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
+          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep,
+          glob, task.
       - role: tool
         tool_call_id: toolcall_1
         content: |-
@@ -77,6 +49,6 @@ conversations:
           ${workdir}/data.txt:3:apricot
       - role: assistant
         content: |-
-          The search found **2 lines** starting with 'ap':
-          - Line 1: `apple`
-          - Line 3: `apricot`
+          Two lines start with 'ap':
+          - **Line 1:** apple
+          - **Line 3:** apricot
