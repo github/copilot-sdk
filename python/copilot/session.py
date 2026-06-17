@@ -77,7 +77,7 @@ from .generated.session_events import (
 from .generated.session_events import (
     ReasoningSummary as _RpcReasoningSummary,
 )
-from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+from .tools import AbortController, Tool, ToolHandler, ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -1190,6 +1190,7 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
+        self._tool_abort_controller: AbortController = AbortController()
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
@@ -1661,6 +1662,7 @@ class CopilotSession:
                 tool_call_id=tool_call_id,
                 tool_name=tool_name,
                 arguments=arguments,
+                signal=self._tool_abort_controller.signal,
             )
 
             with trace_context(traceparent, tracestate):
@@ -2460,6 +2462,12 @@ class CopilotSession:
         """
         Abort the currently processing message in this session.
 
+        This cancels the agentic loop and propagates cancellation to all
+        in-flight tool handlers via their :class:`~copilot.AbortSignal`
+        (passed in :attr:`~copilot.ToolInvocation.signal`). Tool handlers can
+        check the signal with ``invocation.signal.is_aborted`` or await
+        ``invocation.signal.wait()``.
+
         Use this to cancel a long-running request. The session remains valid
         and can continue to be used for new messages.
 
@@ -2476,6 +2484,10 @@ class CopilotSession:
             >>> await asyncio.sleep(5)
             >>> await session.abort()
         """
+        # Abort all in-flight tool handlers
+        self._tool_abort_controller.abort()
+        # Create a new controller for future tool calls
+        self._tool_abort_controller = AbortController()
         await self._client.request("session.abort", {"sessionId": self.session_id})
 
     async def set_model(

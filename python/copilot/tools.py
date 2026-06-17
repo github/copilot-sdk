@@ -7,6 +7,7 @@ generation from Pydantic models.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 from collections.abc import Awaitable, Callable
@@ -16,6 +17,63 @@ from typing import Any, Literal, TypeVar, get_type_hints, overload
 from pydantic import BaseModel
 
 ToolResultType = Literal["success", "failure", "rejected", "denied", "timeout"]
+
+
+class AbortSignal:
+    """
+    A signal object that allows monitoring whether an abort has been requested.
+
+    Passed to tool handlers via :attr:`ToolInvocation.signal` so they can
+    cooperatively cancel in-flight work when :meth:`~copilot.CopilotSession.abort`
+    is called.
+
+    Example::
+
+        @define_tool(description="Fetch remote data")
+        async def fetch_data(params: Params, inv: ToolInvocation) -> str:
+            if inv.signal.is_aborted:
+                return "cancelled"
+            data = await fetch_with_signal(params.url, inv.signal)
+            return data
+
+    """
+
+    def __init__(self) -> None:
+        self._event: asyncio.Event = asyncio.Event()
+
+    @property
+    def is_aborted(self) -> bool:
+        """``True`` if :meth:`~AbortController.abort` has been called."""
+        return self._event.is_set()
+
+    async def wait(self) -> None:
+        """Coroutine that completes when the signal is aborted."""
+        await self._event.wait()
+
+    def _abort(self) -> None:
+        """Internal: trigger the signal. Called by :class:`AbortController`."""
+        self._event.set()
+
+
+class AbortController:
+    """
+    A controller that creates and manages an :class:`AbortSignal`.
+
+    Call :meth:`abort` to cancel all in-flight tool handlers that hold the
+    associated :attr:`signal`.
+    """
+
+    def __init__(self) -> None:
+        self._signal: AbortSignal = AbortSignal()
+
+    @property
+    def signal(self) -> AbortSignal:
+        """The :class:`AbortSignal` managed by this controller."""
+        return self._signal
+
+    def abort(self) -> None:
+        """Trigger the signal, notifying all handlers that abort has been requested."""
+        self._signal._abort()
 
 
 @dataclass
@@ -49,6 +107,8 @@ class ToolInvocation:
     tool_call_id: str = ""
     tool_name: str = ""
     arguments: Any = None
+    signal: AbortSignal = field(default_factory=AbortSignal)
+    """AbortSignal that is triggered when :meth:`~copilot.CopilotSession.abort` is called."""
 
 
 ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]
