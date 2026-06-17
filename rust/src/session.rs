@@ -158,6 +158,13 @@ pub struct Session {
     /// via [`Session::cancellation_token`] to bind their own work to
     /// the session lifetime.
     shutdown: CancellationToken,
+    /// Cancellation token broadcast to all in-flight tool handlers.
+    ///
+    /// [`Session::abort`] cancels the current token (signalling all running
+    /// handlers) and then replaces it with a fresh child of `shutdown` so
+    /// subsequent tool calls are not pre-cancelled. Shared between the
+    /// `Session` handle and the event loop via `Arc<ParkingLotMutex<…>>`.
+    tool_abort: Arc<ParkingLotMutex<CancellationToken>>,
     /// Only populated while a `send_and_wait` call is in flight.
     ///
     /// Sync `parking_lot::Mutex` because the lock is never held across an
@@ -500,12 +507,25 @@ impl Session {
 
     /// Abort the current agent turn.
     ///
+    /// Cancels the agentic loop and propagates cancellation to all in-flight
+    /// tool handlers via the [`CancellationToken`] on each
+    /// [`ToolInvocation`](crate::types::ToolInvocation). Handlers can check
+    /// [`is_cancelled()`](CancellationToken::is_cancelled) or `select!` on
+    /// [`cancelled()`](CancellationToken::cancelled) to stop early.
+    ///
     /// # Cancel safety
     ///
     /// **Cancel-safe.** Single `session.abort` RPC; the underlying
     /// [`Client::call`](crate::Client::call) is cancel-safe via the
     /// writer-actor.
     pub async fn abort(&self) -> Result<(), Error> {
+        // Signal all in-flight tool handlers before sending the RPC so that
+        // handlers can begin cleanup while the network round-trip is in flight.
+        {
+            let mut guard = self.tool_abort.lock();
+            guard.cancel();
+            *guard = self.shutdown.child_token();
+        }
         self.client
             .call(
                 "session.abort",
@@ -916,6 +936,7 @@ impl Client {
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let shutdown = CancellationToken::new();
+        let tool_abort = Arc::new(ParkingLotMutex::new(shutdown.child_token()));
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
 
         // For cloud sessions (use_server_generated_id), defer session
@@ -1017,6 +1038,7 @@ impl Client {
             open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
+            tool_abort.clone(),
         );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
@@ -1041,6 +1063,7 @@ impl Client {
             client: self.clone(),
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
+            tool_abort,
             idle_waiter,
             capabilities,
             open_canvases,
@@ -1173,6 +1196,7 @@ impl Client {
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let shutdown = CancellationToken::new();
+        let tool_abort = Arc::new(ParkingLotMutex::new(shutdown.child_token()));
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             session_id.clone(),
@@ -1189,6 +1213,7 @@ impl Client {
             open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
+            tool_abort.clone(),
         );
         let mut registration =
             PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
@@ -1284,6 +1309,7 @@ impl Client {
             client: self.clone(),
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
+            tool_abort,
             idle_waiter,
             capabilities,
             open_canvases,
@@ -1397,6 +1423,7 @@ fn spawn_event_loop(
     open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
     shutdown: CancellationToken,
+    tool_abort: Arc<ParkingLotMutex<CancellationToken>>,
 ) -> JoinHandle<()> {
     let crate::router::SessionChannels {
         mut notifications,
@@ -1421,7 +1448,7 @@ fn spawn_event_loop(
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
-                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx,
+                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx, &tool_abort,
                         ).await;
                     }
                     Some(request) = requests.recv() => {
@@ -1494,6 +1521,7 @@ async fn handle_notification(
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
     open_canvases: &Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
+    tool_abort: &Arc<ParkingLotMutex<CancellationToken>>,
 ) {
     let dispatch_start = Instant::now();
     let event = notification.event.clone();
@@ -1741,6 +1769,7 @@ async fn handle_notification(
                 session_id = %sid,
                 request_id = %request_id
             );
+            let tool_abort = tool_abort.clone();
             tokio::spawn(
                 async move {
                     // `tool_name.is_empty()` would have produced a `None`
@@ -1770,6 +1799,7 @@ async fn handle_notification(
                     }
                     let tool_call_id = data.tool_call_id.clone();
                     let tool_name = data.tool_name.clone();
+                    let cancellation_token = tool_abort.lock().child_token();
                     let invocation = ToolInvocation {
                         session_id: sid.clone(),
                         tool_call_id: data.tool_call_id,
@@ -1777,6 +1807,7 @@ async fn handle_notification(
                         arguments: data
                             .arguments
                             .unwrap_or(Value::Object(serde_json::Map::new())),
+                        cancellation_token,
                         traceparent: data.traceparent,
                         tracestate: data.tracestate,
                     };

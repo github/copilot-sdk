@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio_util::sync::CancellationToken;
 
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
 use crate::generated::api_types::OpenCanvasInstance;
@@ -3934,6 +3935,19 @@ pub struct ToolInvocation {
     pub tool_name: String,
     /// Tool arguments as JSON.
     pub arguments: Value,
+    /// Cancellation signal for this tool invocation.
+    ///
+    /// Fires when [`Session::abort`](crate::Session::abort) is called while
+    /// this handler is in flight. Handlers can check
+    /// [`is_cancelled()`](CancellationToken::is_cancelled) or `select!` on
+    /// [`cancelled()`](CancellationToken::cancelled) to cooperatively stop
+    /// work early. Handlers that don't need cancellation can ignore this field.
+    ///
+    /// The token is already cancelled for handlers that are dispatched after
+    /// an `abort()` call, so they can check the flag at entry and return
+    /// immediately if desired.
+    #[serde(skip)]
+    pub cancellation_token: CancellationToken,
     /// W3C Trace Context `traceparent` header propagated from the CLI's
     /// `execute_tool` span. Pass through to OpenTelemetry-aware code so
     /// child spans created inside the handler are parented to the CLI
