@@ -460,12 +460,21 @@ class TestAbortSignal:
         await asyncio.gather(signal.wait(), aborter())
         assert signal.is_aborted is True
 
-    def test_tool_invocation_has_abort_signal(self):
-        from copilot.tools import AbortSignal
-
+    def test_tool_invocation_signal_defaults_to_none(self):
         inv = ToolInvocation(session_id="s1", tool_call_id="c1", tool_name="t1")
+        assert inv.signal is None
+
+    def test_tool_invocation_accepts_injected_signal(self):
+        from copilot.tools import AbortController, AbortSignal
+
+        controller = AbortController()
+        inv = ToolInvocation(
+            session_id="s1", tool_call_id="c1", tool_name="t1", signal=controller.signal
+        )
         assert isinstance(inv.signal, AbortSignal)
         assert inv.signal.is_aborted is False
+        controller.abort()
+        assert inv.signal.is_aborted is True
 
     async def test_handler_receives_signal_via_invocation(self):
         from copilot.tools import AbortController
