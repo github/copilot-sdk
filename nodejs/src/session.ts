@@ -1269,6 +1269,9 @@ export class CopilotSession {
         if (!controller) {
             return false;
         }
+        // Remove the entry up front so a subsequent cancelToolCall (or the
+        // handler's own cleanup) for the same id is a no-op and returns false.
+        this.inFlightToolCalls.delete(toolCallId);
         controller.abort();
         return true;
     }
