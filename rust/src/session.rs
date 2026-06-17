@@ -1837,7 +1837,7 @@ async fn handle_notification(
                         arguments: data
                             .arguments
                             .unwrap_or(Value::Object(serde_json::Map::new())),
-                        cancellation_token,
+                        cancellation_token: Some(cancellation_token),
                         traceparent: data.traceparent,
                         tracestate: data.tracestate,
                     };

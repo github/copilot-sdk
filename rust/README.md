@@ -408,12 +408,12 @@ Reach for the `ToolHandler` trait directly when you need shared state across mul
 
 ### Tool Handler Cancellation
 
-Every `ToolInvocation` carries a `cancellation_token: CancellationToken` that fires when the in-flight handler should stop early. Two sources can cancel it:
+Every `ToolInvocation` carries an optional `cancellation_token: Option<CancellationToken>` that fires when the in-flight handler should stop early. The SDK populates it on dispatch; it's `None` only for invocations you construct yourself (e.g. in tests). Two sources can cancel it:
 
 - **`session.abort().await?`** — cancels all currently in-flight handlers and also sends the `session.abort` RPC to stop the agentic loop.
 - **`session.cancel_tool_call(tool_call_id)`** — cancels only the named handler without affecting others or the agentic loop. Returns `true` if an in-flight handler with that ID was found; `false` otherwise.
 
-Handlers that don't need cancellation can ignore the token — the field defaults to a never-cancelled token.  Handlers that do long-running work can cooperate:
+Handlers that don't need cancellation can ignore the token. Handlers that do long-running work can cooperate:
 
 ```rust,ignore
 use github_copilot_sdk::tool::ToolHandler;
@@ -424,8 +424,11 @@ struct LongRunningTool;
 
 impl ToolHandler for LongRunningTool {
     async fn call(&self, inv: ToolInvocation) -> Result<ToolResult, Error> {
+        let Some(token) = inv.cancellation_token.clone() else {
+            return do_expensive_work().await;
+        };
         tokio::select! {
-            _ = inv.cancellation_token.cancelled() => {
+            _ = token.cancelled() => {
                 Err(Error::with_message(ErrorKind::Cancelled, "tool call cancelled"))
             }
             result = do_expensive_work() => result,

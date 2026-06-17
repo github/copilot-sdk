@@ -743,13 +743,14 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "echo".to_string(),
             arguments: serde_json::json!({}),
-            cancellation_token: token.clone(),
+            cancellation_token: Some(token.clone()),
             ..Default::default()
         };
 
-        assert!(!inv.cancellation_token.is_cancelled());
+        let inv_token = inv.cancellation_token.expect("token was set");
+        assert!(!inv_token.is_cancelled());
         token.cancel();
-        assert!(inv.cancellation_token.is_cancelled());
+        assert!(inv_token.is_cancelled());
     }
 
     #[tokio::test]
@@ -762,12 +763,26 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "echo".to_string(),
             arguments: serde_json::json!({}),
-            cancellation_token: child,
+            cancellation_token: Some(child),
             ..Default::default()
         };
 
-        assert!(!inv.cancellation_token.is_cancelled());
+        let inv_token = inv.cancellation_token.expect("token was set");
+        assert!(!inv_token.is_cancelled());
         parent.cancel();
-        assert!(inv.cancellation_token.is_cancelled());
+        assert!(inv_token.is_cancelled());
+    }
+
+    #[test]
+    fn tool_invocation_cancellation_token_defaults_to_none() {
+        let inv = ToolInvocation {
+            session_id: SessionId::from("s1"),
+            tool_call_id: "tc1".to_string(),
+            tool_name: "echo".to_string(),
+            arguments: serde_json::json!({}),
+            ..Default::default()
+        };
+
+        assert!(inv.cancellation_token.is_none());
     }
 }

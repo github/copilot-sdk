@@ -3937,13 +3937,19 @@ pub struct ToolInvocation {
     pub arguments: Value,
     /// Cancellation signal for this tool invocation.
     ///
-    /// Fires when [`Session::abort`](crate::Session::abort) is called while
-    /// this handler is in flight. Handlers can check
+    /// Populated by the SDK when dispatching a handler. Fires when
+    /// [`Session::abort`](crate::Session::abort) or
+    /// [`Session::cancel_tool_call`](crate::Session::cancel_tool_call) is
+    /// called while this handler is in flight. Handlers can check
     /// [`is_cancelled()`](CancellationToken::is_cancelled) or `select!` on
     /// [`cancelled()`](CancellationToken::cancelled) to cooperatively stop
     /// work early. Handlers that don't need cancellation can ignore this field.
+    ///
+    /// `None` for invocations constructed outside SDK dispatch (e.g. in
+    /// tests), so handlers should treat a missing token as "no cancellation
+    /// signal available."
     #[serde(skip)]
-    pub cancellation_token: CancellationToken,
+    pub cancellation_token: Option<CancellationToken>,
     /// W3C Trace Context `traceparent` header propagated from the CLI's
     /// `execute_tool` span. Pass through to OpenTelemetry-aware code so
     /// child spans created inside the handler are parented to the CLI
