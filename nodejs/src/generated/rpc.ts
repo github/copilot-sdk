@@ -8,6 +8,18 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
 
 /**
+ * Which tier this directory belongs to
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AgentDiscoveryPathScope".
+ */
+/** @experimental */
+export type AgentDiscoveryPathScope =
+  /** The user's personal agent configuration directory. */
+  | "user"
+  /** A project's repository agent directory. */
+  | "project";
+/**
  * Where the agent definition was loaded from
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -424,6 +436,34 @@ export type InstalledPluginSource =
   | InstalledPluginSourceUrl
   | InstalledPluginSourceLocal;
 /**
+ * Which tier this target belongs to
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstructionDiscoveryPathLocation".
+ */
+/** @experimental */
+export type InstructionDiscoveryPathLocation =
+  /** Instructions live in user-level configuration. */
+  | "user"
+  /** Instructions live in repository-level configuration. */
+  | "repository"
+  /** Instructions live under the current working directory. */
+  | "working-directory"
+  /** Instructions live in plugin-provided configuration. */
+  | "plugin";
+/**
+ * Whether the target is a single file or a directory of instruction files
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstructionDiscoveryPathKind".
+ */
+/** @experimental */
+export type InstructionDiscoveryPathKind =
+  /** The target is a single instruction file. */
+  | "file"
+  /** The target is a directory that holds instruction files. */
+  | "directory";
+/**
  * Category of instruction source — used for merge logic
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -797,6 +837,32 @@ export type ModelPickerPriceCategory =
   /** Highest relative token cost tier. */
   | "very_high";
 /**
+ * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigType".
+ */
+/** @experimental */
+export type ProviderConfigType =
+  /** Generic OpenAI-compatible API. */
+  | "openai"
+  /** Azure OpenAI Service endpoint. */
+  | "azure"
+  /** Anthropic API endpoint. */
+  | "anthropic";
+/**
+ * Wire API format (openai/azure only). Defaults to "completions".
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigWireApi".
+ */
+/** @experimental */
+export type ProviderConfigWireApi =
+  /** OpenAI Chat Completions wire format. */
+  | "completions"
+  /** OpenAI Responses API wire format. */
+  | "responses";
+/**
  * Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1000,32 +1066,6 @@ export type PermissionsSetApproveAllSource =
   | "autopilot_confirmation"
   /** Allow-all was enabled through an RPC caller. */
   | "rpc";
-/**
- * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigType".
- */
-/** @experimental */
-export type ProviderConfigType =
-  /** Generic OpenAI-compatible API. */
-  | "openai"
-  /** Azure OpenAI Service endpoint. */
-  | "azure"
-  /** Anthropic API endpoint. */
-  | "anthropic";
-/**
- * Wire API format (openai/azure only). Defaults to "completions".
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigWireApi".
- */
-/** @experimental */
-export type ProviderConfigWireApi =
-  /** OpenAI Chat Completions wire format. */
-  | "completions"
-  /** OpenAI Responses API wire format. */
-  | "responses";
 /**
  * Provider family. Matches the `type` field of a BYOK provider config.
  *
@@ -1459,6 +1499,22 @@ export type ShellKillSignal =
   /** Send an interrupt signal to the process. */
   | "SIGINT";
 /**
+ * Which tier this directory belongs to
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillDiscoveryScope".
+ */
+/** @experimental */
+export type SkillDiscoveryScope =
+  /** A project's repository skill directory. */
+  | "project"
+  /** The user's personal Copilot skill directory. */
+  | "personal-copilot"
+  /** The user's personal agents skill directory. */
+  | "personal-agents"
+  /** A configured custom skill directory. */
+  | "custom";
+/**
  * Result of invoking the slash command (text output, prompt to send to the agent, or completion).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1789,6 +1845,41 @@ export interface AccountQuotaSnapshot {
   resetDate?: string;
 }
 /**
+ * Schema for the `AgentDiscoveryPath` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AgentDiscoveryPath".
+ */
+/** @experimental */
+export interface AgentDiscoveryPath {
+  /**
+   * Absolute path of the search/create directory (may not exist on disk yet)
+   */
+  path: string;
+  scope: AgentDiscoveryPathScope;
+  /**
+   * Whether this is the canonical directory to create a new agent in its tier. At most one entry per tier is preferred.
+   */
+  preferredForCreation: boolean;
+  /**
+   * The input project path this directory was derived from (only for project scope)
+   */
+  projectPath?: string;
+}
+/**
+ * Canonical locations where custom agents can be created so the runtime will recognize them.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AgentDiscoveryPathList".
+ */
+/** @experimental */
+export interface AgentDiscoveryPathList {
+  /**
+   * Canonical agent create/discovery directories, in priority order
+   */
+  paths: AgentDiscoveryPath[];
+}
+/**
  * The currently selected custom agent, or null when using the default agent.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2098,7 +2189,7 @@ export interface AgentsDiscoverRequest {
    */
   projectPaths?: string[];
   /**
-   * When true, omit the host's agents (the `<COPILOT_HOME>/agents` directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.
+   * When true, omit the host's agents (the user-level agent directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.
    */
   excludeHostAgents?: boolean;
 }
@@ -2124,6 +2215,23 @@ export interface AgentSelectRequest {
 /** @experimental */
 export interface AgentSelectResult {
   agent: AgentInfo;
+}
+/**
+ * Optional project paths to include when enumerating agent discovery directories.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AgentsGetDiscoveryPathsRequest".
+ */
+/** @experimental */
+export interface AgentsGetDiscoveryPathsRequest {
+  /**
+   * Optional list of project directory paths. When omitted or empty, only the user-level directory is returned.
+   */
+  projectPaths?: string[];
+  /**
+   * When true, omit the host's user-level agent directory, leaving only project directories. For multitenant deployments (mirrors `discover`'s `excludeHostAgents`).
+   */
+  excludeHostAgents?: boolean;
 }
 /**
  * Indicates whether the operation succeeded and reports the post-mutation state.
@@ -2239,6 +2347,7 @@ export interface CopilotUserResponse {
   quota_reset_date?: string;
   quota_snapshots?: CopilotUserResponseQuotaSnapshots;
   restricted_telemetry?: boolean;
+  is_staff?: boolean;
   token_based_billing?: boolean;
   can_upgrade_plan?: boolean;
   quota_reset_date_utc?: string;
@@ -3277,6 +3386,14 @@ export interface DiscoveredMcpServer {
   type?: DiscoveredMcpServerType;
   source: McpServerSource;
   /**
+   * Plugin name that provided this server, when source is plugin.
+   */
+  sourcePlugin?: string;
+  /**
+   * Plugin version that provided this server, when source is plugin.
+   */
+  sourcePluginVersion?: string;
+  /**
    * Whether the server is enabled (not in the disabled list)
    */
   enabled: boolean;
@@ -4061,6 +4178,42 @@ export interface InstalledPluginInfo {
   enabled: boolean;
 }
 /**
+ * Schema for the `InstructionDiscoveryPath` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstructionDiscoveryPath".
+ */
+/** @experimental */
+export interface InstructionDiscoveryPath {
+  /**
+   * Absolute path of the file or directory (may not exist on disk yet)
+   */
+  path: string;
+  location: InstructionDiscoveryPathLocation;
+  kind: InstructionDiscoveryPathKind;
+  /**
+   * Whether this is the canonical target to create new instructions in its tier. At most one entry per tier is preferred.
+   */
+  preferredForCreation: boolean;
+  /**
+   * The input project path this target was derived from (only for repository targets)
+   */
+  projectPath?: string;
+}
+/**
+ * Canonical files and directories where custom instructions can be created so the runtime will recognize them.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstructionDiscoveryPathList".
+ */
+/** @experimental */
+export interface InstructionDiscoveryPathList {
+  /**
+   * Canonical instruction create/discovery files and directories, in priority order
+   */
+  paths: InstructionDiscoveryPath[];
+}
+/**
  * Optional project paths to include in instruction discovery.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4074,6 +4227,23 @@ export interface InstructionsDiscoverRequest {
   projectPaths?: string[];
   /**
    * When true, omit the host's instruction sources (user/home-level files and plugin rules), leaving only repository and working-directory sources. For multitenant deployments.
+   */
+  excludeHostInstructions?: boolean;
+}
+/**
+ * Optional project paths to include when enumerating instruction discovery targets.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstructionsGetDiscoveryPathsRequest".
+ */
+/** @experimental */
+export interface InstructionsGetDiscoveryPathsRequest {
+  /**
+   * Optional list of project directory paths. When omitted or empty, only the user-level targets are returned.
+   */
+  projectPaths?: string[];
+  /**
+   * When true, omit the host's user-level instruction targets, leaving only repository targets. For multitenant deployments (mirrors `discover`'s `excludeHostInstructions`).
    */
   excludeHostInstructions?: boolean;
 }
@@ -5360,6 +5530,14 @@ export interface McpServer {
   status: McpServerStatus;
   source?: McpServerSource;
   /**
+   * Plugin name that provided this server, when source is plugin.
+   */
+  sourcePlugin?: string;
+  /**
+   * Plugin version that provided this server, when source is plugin.
+   */
+  sourcePluginVersion?: string;
+  /**
    * Error message if the server failed to connect
    */
   error?: string;
@@ -5856,7 +6034,7 @@ export interface ModelBillingTokenPricesLongContext {
   contextMax?: number;
 }
 /**
- * Initial model capability overrides.
+ * Optional capability overrides (vision, tool_calls, reasoning, etc.).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelCapabilitiesOverride".
@@ -5993,7 +6171,7 @@ export interface ModelsListRequest {
 /** @experimental */
 export interface ModelSwitchToRequest {
   /**
-   * Model identifier to switch to
+   * Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
    */
   modelId: string;
   /**
@@ -6026,6 +6204,53 @@ export interface ModelSwitchToResult {
 /** @experimental */
 export interface ModeSetRequest {
   mode: SessionMode;
+}
+/**
+ * A named BYOK provider connection (transport + credentials).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NamedProviderConfig".
+ */
+/** @experimental */
+export interface NamedProviderConfig {
+  /**
+   * Stable identifier referenced by BYOK model definitions. Must not contain '/'.
+   */
+  name: string;
+  type?: ProviderConfigType;
+  wireApi?: ProviderConfigWireApi;
+  /**
+   * API endpoint URL.
+   */
+  baseUrl: string;
+  /**
+   * API key. Optional for local providers like Ollama.
+   */
+  apiKey?: string;
+  /**
+   * Bearer token for authentication. Sets the Authorization header directly. Takes precedence over apiKey when both are set.
+   */
+  bearerToken?: string;
+  azure?: ProviderConfigAzure;
+  /**
+   * Custom HTTP headers to include in all outbound requests to the provider.
+   */
+  headers?: {
+    [k: string]: string | undefined;
+  };
+}
+/**
+ * Azure-specific provider options.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigAzure".
+ */
+/** @experimental */
+export interface ProviderConfigAzure {
+  /**
+   * API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
+   */
+  apiVersion?: string;
 }
 /**
  * The session's friendly name, or null when not yet set.
@@ -7925,19 +8150,6 @@ export interface ProviderConfig {
   };
 }
 /**
- * Azure-specific provider options.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigAzure".
- */
-/** @experimental */
-export interface ProviderConfigAzure {
-  /**
-   * API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
-   */
-  apiVersion?: string;
-}
-/**
  * A snapshot of the provider endpoint the session is currently configured to talk to.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -8000,6 +8212,48 @@ export interface ProviderGetEndpointRequest {
    * Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
    */
   modelId?: string;
+}
+/**
+ * A BYOK model definition referencing a named provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderModelConfig".
+ */
+/** @experimental */
+export interface ProviderModelConfig {
+  /**
+   * Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+   */
+  id: string;
+  /**
+   * Name of the NamedProviderConfig that serves this model.
+   */
+  provider: string;
+  /**
+   * The model name sent to the provider API for inference. Defaults to `id`.
+   */
+  wireModel?: string;
+  /**
+   * Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+   */
+  modelId?: string;
+  /**
+   * Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
+   */
+  name?: string;
+  /**
+   * Maximum prompt/input tokens for the model.
+   */
+  maxPromptTokens?: number;
+  /**
+   * Maximum context window tokens for the model.
+   */
+  maxContextWindowTokens?: number;
+  /**
+   * Maximum output tokens for the model.
+   */
+  maxOutputTokens?: number;
+  capabilities?: ModelCapabilitiesOverride;
 }
 /**
  * File attachment
@@ -9739,7 +9993,7 @@ export interface SessionMetadataSnapshot {
 /** @experimental */
 export interface SessionModelList {
   /**
-   * Available models, ordered with the most preferred default first.
+   * Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).
    */
   list: unknown[];
   /**
@@ -9810,6 +10064,18 @@ export interface SessionOpenOptions {
   isExperimentalMode?: boolean;
   authInfo?: AuthInfo;
   provider?: ProviderConfig;
+  /**
+   * Named BYOK provider connections, additive to CAPI auth. Combining with `provider` is rejected.
+   *
+   * @experimental
+   */
+  providers?: NamedProviderConfig[];
+  /**
+   * BYOK model definitions added to the selectable model list, each referencing a provider name.
+   *
+   * @experimental
+   */
+  models?: ProviderModelConfig[];
   /**
    * Working directory to anchor the session.
    */
@@ -9917,6 +10183,10 @@ export interface SessionOpenOptions {
    * Whether on-demand custom instruction discovery is enabled.
    */
   enableOnDemandInstructionDiscovery?: boolean;
+  /**
+   * Maximum decoded byte size of a single inline model-facing binary tool result persisted in session events (default 10 MB).
+   */
+  maxInlineBinaryBytes?: number;
   modelCapabilitiesOverrides?: ModelCapabilitiesOverride;
   /**
    * Runtime context discriminator for agent filtering.
@@ -10828,6 +11098,10 @@ export interface SessionUpdateOptionsParams {
    */
   enableOnDemandInstructionDiscovery?: boolean;
   /**
+   * Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB.
+   */
+  maxInlineBinaryBytes?: number;
+  /**
    * Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes.
    */
   installedPlugins?: SessionInstalledPlugin[];
@@ -11080,6 +11354,41 @@ export interface Skill {
   pluginName?: string;
 }
 /**
+ * Schema for the `SkillDiscoveryPath` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillDiscoveryPath".
+ */
+/** @experimental */
+export interface SkillDiscoveryPath {
+  /**
+   * Absolute path of the create/discovery target (may not exist on disk yet)
+   */
+  path: string;
+  scope: SkillDiscoveryScope;
+  /**
+   * Whether this is the canonical directory to create a new skill in its tier. At most one entry per tier is preferred; the `personal-agents` and `custom` scopes are never preferred.
+   */
+  preferredForCreation: boolean;
+  /**
+   * The input project path this directory was derived from (only for project scope)
+   */
+  projectPath?: string;
+}
+/**
+ * Canonical locations where skills can be created so the runtime will recognize them.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillDiscoveryPathList".
+ */
+/** @experimental */
+export interface SkillDiscoveryPathList {
+  /**
+   * Canonical skill create/discovery directories, in priority order
+   */
+  paths: SkillDiscoveryPath[];
+}
+/**
  * Skills available to the session, with their enabled state.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -11132,6 +11441,10 @@ export interface SkillsDiscoverRequest {
    * Optional list of additional skill directory paths to include
    */
   skillDirectories?: string[];
+  /**
+   * When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.
+   */
+  excludeHostSkills?: boolean;
 }
 /**
  * Name of the skill to enable for the session.
@@ -11145,6 +11458,23 @@ export interface SkillsEnableRequest {
    * Name of the skill to enable
    */
   name: string;
+}
+/**
+ * Optional project paths to enumerate.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillsGetDiscoveryPathsRequest".
+ */
+/** @experimental */
+export interface SkillsGetDiscoveryPathsRequest {
+  /**
+   * Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.
+   */
+  projectPaths?: string[];
+  /**
+   * When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.
+   */
+  excludeHostSkills?: boolean;
 }
 /**
  * Skills invoked during this session, ordered by invocation time (most recent last).
@@ -13161,6 +13491,17 @@ export function createServerRpc(connection: MessageConnection) {
              */
             discover: async (params: SkillsDiscoverRequest): Promise<ServerSkillList> =>
                 connection.sendRequest("skills.discover", params),
+            /**
+             * Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
+             *
+             * @param params Optional project paths to enumerate.
+             *
+             * @returns Canonical locations where skills can be created so the runtime will recognize them.
+             *
+             * @experimental
+             */
+            getDiscoveryPaths: async (params: SkillsGetDiscoveryPathsRequest): Promise<SkillDiscoveryPathList> =>
+                connection.sendRequest("skills.getDiscoveryPaths", params),
         },
         /** @experimental */
         agents: {
@@ -13173,6 +13514,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             discover: async (params: AgentsDiscoverRequest): Promise<ServerAgentList> =>
                 connection.sendRequest("agents.discover", params),
+            /**
+             * Returns the canonical directories where a client may create custom agents that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
+             *
+             * @param params Optional project paths to include when enumerating agent discovery directories.
+             *
+             * @returns Canonical locations where custom agents can be created so the runtime will recognize them.
+             */
+            getDiscoveryPaths: async (params: AgentsGetDiscoveryPathsRequest): Promise<AgentDiscoveryPathList> =>
+                connection.sendRequest("agents.getDiscoveryPaths", params),
         },
         /** @experimental */
         instructions: {
@@ -13185,6 +13535,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             discover: async (params: InstructionsDiscoverRequest): Promise<ServerInstructionSourceList> =>
                 connection.sendRequest("instructions.discover", params),
+            /**
+             * Returns the canonical files and directories where a client may create custom instructions that the runtime will recognize, including ones that do not exist yet. Repository targets become active once created.
+             *
+             * @param params Optional project paths to include when enumerating instruction discovery targets.
+             *
+             * @returns Canonical files and directories where custom instructions can be created so the runtime will recognize them.
+             */
+            getDiscoveryPaths: async (params: InstructionsGetDiscoveryPathsRequest): Promise<InstructionDiscoveryPathList> =>
+                connection.sendRequest("instructions.getDiscoveryPaths", params),
         },
         user: {
             settings: {

@@ -53,44 +53,47 @@ func (r RawSessionEventData) Type() SessionEventType {
 type SessionEventType string
 
 const (
-	SessionEventTypeAbort                              SessionEventType = "abort"
-	SessionEventTypeAssistantIntent                    SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantMessage                   SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta              SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantMessageStart              SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantReasoning                 SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta            SessionEventType = "assistant.reasoning_delta"
-	SessionEventTypeAssistantStreamingDelta            SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantTurnEnd                   SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantTurnStart                 SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantUsage                     SessionEventType = "assistant.usage"
-	SessionEventTypeAutoModeSwitchCompleted            SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeAutoModeSwitchRequested            SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeCapabilitiesChanged                SessionEventType = "capabilities.changed"
-	SessionEventTypeCommandCompleted                   SessionEventType = "command.completed"
-	SessionEventTypeCommandExecute                     SessionEventType = "command.execute"
-	SessionEventTypeCommandQueued                      SessionEventType = "command.queued"
-	SessionEventTypeCommandsChanged                    SessionEventType = "commands.changed"
-	SessionEventTypeElicitationCompleted               SessionEventType = "elicitation.completed"
-	SessionEventTypeElicitationRequested               SessionEventType = "elicitation.requested"
-	SessionEventTypeExitPlanModeCompleted              SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeExitPlanModeRequested              SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExternalToolCompleted              SessionEventType = "external_tool.completed"
-	SessionEventTypeExternalToolRequested              SessionEventType = "external_tool.requested"
-	SessionEventTypeHookEnd                            SessionEventType = "hook.end"
-	SessionEventTypeHookProgress                       SessionEventType = "hook.progress"
-	SessionEventTypeHookStart                          SessionEventType = "hook.start"
-	SessionEventTypeMCPAppToolCallComplete             SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMCPOauthCompleted                  SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMCPOauthRequired                   SessionEventType = "mcp.oauth_required"
-	SessionEventTypeModelCallFailure                   SessionEventType = "model.call_failure"
-	SessionEventTypePendingMessagesModified            SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted                SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested                SessionEventType = "permission.requested"
-	SessionEventTypeSamplingCompleted                  SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested                  SessionEventType = "sampling.requested"
-	SessionEventTypeSessionAutopilotObjectiveChanged   SessionEventType = "session.autopilot_objective_changed"
-	SessionEventTypeSessionBackgroundTasksChanged      SessionEventType = "session.background_tasks_changed"
+	SessionEventTypeAbort                            SessionEventType = "abort"
+	SessionEventTypeAssistantIntent                  SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage                 SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta            SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart            SessionEventType = "assistant.message_start"
+	SessionEventTypeAssistantReasoning               SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta          SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantStreamingDelta          SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantTurnEnd                 SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnStart               SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage                   SessionEventType = "assistant.usage"
+	SessionEventTypeAutoModeSwitchCompleted          SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeAutoModeSwitchRequested          SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeCapabilitiesChanged              SessionEventType = "capabilities.changed"
+	SessionEventTypeCommandCompleted                 SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute                   SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued                    SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged                  SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted             SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested             SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted            SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested            SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted            SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested            SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                          SessionEventType = "hook.end"
+	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                        SessionEventType = "hook.start"
+	SessionEventTypeMCPAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMCPOauthCompleted                SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMCPOauthRequired                 SessionEventType = "mcp.oauth_required"
+	SessionEventTypeModelCallFailure                 SessionEventType = "model.call_failure"
+	SessionEventTypePendingMessagesModified          SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted              SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested              SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted                SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested                SessionEventType = "sampling.requested"
+	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
+	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
+	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionBinaryAsset                 SessionEventType = "session.binary_asset"
 	SessionEventTypeSessionCanvasClosed                SessionEventType = "session.canvas.closed"
 	SessionEventTypeSessionCanvasOpened                SessionEventType = "session.canvas.opened"
 	SessionEventTypeSessionCanvasRegistryChanged       SessionEventType = "session.canvas.registry_changed"
@@ -258,6 +261,27 @@ func (*SessionAutopilotObjectiveChangedData) sessionEventData() {}
 func (*SessionAutopilotObjectiveChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionAutopilotObjectiveChanged
 }
+
+// Canonical bytes for a content-addressed binary asset shared by reference across events
+type SessionBinaryAssetData struct {
+	// Content-addressed id for this binary asset (e.g. "sha256:...").
+	AssetID string `json:"assetId"`
+	// Decoded byte length of the binary asset
+	ByteLength int64 `json:"byteLength"`
+	// Base64-encoded binary data
+	Data string `json:"data"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitzero"`
+	// MIME type of the binary asset
+	MIMEType string `json:"mimeType"`
+	// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+	Type BinaryAssetType `json:"type"`
+}
+
+func (*SessionBinaryAssetData) sessionEventData()      {}
+func (*SessionBinaryAssetData) Type() SessionEventType { return SessionEventTypeSessionBinaryAsset }
 
 // Context window breakdown at the start of LLM-powered conversation compaction
 type SessionCompactionStartData struct {
@@ -579,7 +603,6 @@ type AssistantUsageData struct {
 	// Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason.
 	ContentFilterTriggered *bool `json:"contentFilterTriggered,omitempty"`
 	// Per-request cost and usage data from the CAPI copilot_usage response field
-	// Internal: CopilotUsage is part of the SDK's internal API surface and is not intended for external use.
 	CopilotUsage *AssistantUsageCopilotUsage `json:"copilotUsage,omitempty"`
 	// Model multiplier cost for billing purposes
 	// Experimental: Cost is part of an experimental API and may change or be removed.
@@ -1668,10 +1691,10 @@ type AssistantMessageToolRequest struct {
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
-// Internal: AssistantUsageCopilotUsage is an internal SDK API and is not part of the public surface.
 type AssistantUsageCopilotUsage struct {
 	// Itemized token usage breakdown
-	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
+	// Internal: TokenDetails is part of the SDK's internal API surface and is not intended for external use.
+	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails,omitzero"`
 	// Total cost in nano-AI units for this request
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
@@ -1786,7 +1809,8 @@ type CompactionCompleteCompactionTokensUsed struct {
 // Internal: CompactionCompleteCompactionTokensUsedCopilotUsage is an internal SDK API and is not part of the public surface.
 type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
 	// Itemized token usage breakdown
-	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
+	// Internal: TokenDetails is part of the SDK's internal API surface and is not intended for external use.
+	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails,omitzero"`
 	// Total cost in nano-AI units for this request
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
@@ -2487,6 +2511,90 @@ func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() Permissio
 	return PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
+// A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference
+// Experimental: PersistedBinaryResult is part of an experimental API and may change or be removed.
+type PersistedBinaryResult interface {
+	persistedBinaryResult()
+	Type() PersistedBinaryResultType
+}
+
+type RawPersistedBinaryResult struct {
+	Discriminator PersistedBinaryResultType
+	Raw           json.RawMessage
+}
+
+func (RawPersistedBinaryResult) persistedBinaryResult() {}
+func (r RawPersistedBinaryResult) Type() PersistedBinaryResultType {
+	return r.Discriminator
+}
+
+// A reference to binary data persisted once on a session.binary_asset event and shared by id
+type BinaryAssetReference struct {
+	// Content-addressed id of the session.binary_asset event that holds this binary's bytes (e.g. "sha256:...").
+	AssetID string `json:"assetId"`
+	// Decoded byte length of the referenced binary data
+	ByteLength int64 `json:"byteLength"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitzero"`
+	// MIME type of the referenced binary data
+	MIMEType      string                   `json:"mimeType"`
+	Discriminator BinaryAssetReferenceType `json:"type,omitempty"`
+}
+
+func (BinaryAssetReference) persistedBinaryResult() {}
+func (r BinaryAssetReference) Type() PersistedBinaryResultType {
+	if r.Discriminator == "" {
+		return PersistedBinaryResultTypeImage
+	}
+	return PersistedBinaryResultType(r.Discriminator)
+}
+
+// A binary result whose data was omitted from persistence due to the inline size limit
+type OmittedBinaryResult struct {
+	// Decoded byte length of the omitted binary data
+	ByteLength int64 `json:"byteLength"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitzero"`
+	// MIME type of the omitted binary data
+	MIMEType string `json:"mimeType"`
+	// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+	OmittedReason OmittedBinaryOmittedReason `json:"omittedReason"`
+	Discriminator OmittedBinaryType          `json:"type,omitempty"`
+}
+
+func (OmittedBinaryResult) persistedBinaryResult() {}
+func (r OmittedBinaryResult) Type() PersistedBinaryResultType {
+	if r.Discriminator == "" {
+		return PersistedBinaryResultTypeImage
+	}
+	return PersistedBinaryResultType(r.Discriminator)
+}
+
+// Binary result returned by a tool for the model
+type PersistedBinaryImage struct {
+	// Base64-encoded binary data
+	Data string `json:"data"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitzero"`
+	// MIME type of the binary data
+	MIMEType      string                   `json:"mimeType"`
+	Discriminator PersistedBinaryImageType `json:"type,omitempty"`
+}
+
+func (PersistedBinaryImage) persistedBinaryResult() {}
+func (r PersistedBinaryImage) Type() PersistedBinaryResultType {
+	if r.Discriminator == "" {
+		return PersistedBinaryResultTypeImage
+	}
+	return PersistedBinaryResultType(r.Discriminator)
+}
+
 // Aggregate code change metrics for the session
 type ShutdownCodeChanges struct {
 	// List of file paths that were modified during the session
@@ -2812,6 +2920,9 @@ type ToolExecutionCompleteError struct {
 
 // Tool execution result on success
 type ToolExecutionCompleteResult struct {
+	// Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call
+	// Experimental: BinaryResultsForLlm is part of an experimental API and may change or be removed.
+	BinaryResultsForLlm []PersistedBinaryResult `json:"binaryResultsForLlm,omitzero"`
 	// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
 	Content string `json:"content"`
 	// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
@@ -3020,6 +3131,26 @@ const (
 	AutopilotObjectiveChangedStatusPaused AutopilotObjectiveChangedStatus = "paused"
 )
 
+// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+type BinaryAssetReferenceType string
+
+const (
+	// Binary image data.
+	BinaryAssetReferenceTypeImage BinaryAssetReferenceType = "image"
+	// Other binary resource data.
+	BinaryAssetReferenceTypeResource BinaryAssetReferenceType = "resource"
+)
+
+// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+type BinaryAssetType string
+
+const (
+	// Binary image data.
+	BinaryAssetTypeImage BinaryAssetType = "image"
+	// Other binary resource data.
+	BinaryAssetTypeResource BinaryAssetType = "resource"
+)
+
 // Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
 type CanvasOpenedAvailability string
 
@@ -3144,6 +3275,26 @@ const (
 	ModelCallFailureSourceTopLevel ModelCallFailureSource = "top_level"
 )
 
+// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+type OmittedBinaryOmittedReason string
+
+const (
+	// The referenced binary asset could not be found (e.g. a truncated log).
+	OmittedBinaryOmittedReasonAssetUnavailable OmittedBinaryOmittedReason = "asset_unavailable"
+	// Bytes exceeded the session's inline size limit.
+	OmittedBinaryOmittedReasonTooLarge OmittedBinaryOmittedReason = "too_large"
+)
+
+// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+type OmittedBinaryType string
+
+const (
+	// Binary image data.
+	OmittedBinaryTypeImage OmittedBinaryType = "image"
+	// Other binary resource data.
+	OmittedBinaryTypeResource OmittedBinaryType = "resource"
+)
+
 // Kind discriminator for PermissionPromptRequest.
 type PermissionPromptRequestKind string
 
@@ -3222,6 +3373,25 @@ const (
 	PermissionResultKindDeniedByRules                                  PermissionResultKind = "denied-by-rules"
 	PermissionResultKindDeniedInteractivelyByUser                      PermissionResultKind = "denied-interactively-by-user"
 	PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+)
+
+// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+type PersistedBinaryImageType string
+
+const (
+	// Binary image data.
+	PersistedBinaryImageTypeImage PersistedBinaryImageType = "image"
+	// Other binary resource data.
+	PersistedBinaryImageTypeResource PersistedBinaryImageType = "resource"
+)
+
+// Type discriminator for PersistedBinaryResult.
+// Experimental: PersistedBinaryResultType is part of an experimental API and may change or be removed.
+type PersistedBinaryResultType string
+
+const (
+	PersistedBinaryResultTypeImage    PersistedBinaryResultType = "image"
+	PersistedBinaryResultTypeResource PersistedBinaryResultType = "resource"
 )
 
 // The type of operation performed on the plan file

@@ -74,6 +74,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("disabledSkills") List<String> disabledSkills,
     /** Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag. */
     @JsonProperty("enableOnDemandInstructionDiscovery") Boolean enableOnDemandInstructionDiscovery,
+    /** Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB. */
+    @JsonProperty("maxInlineBinaryBytes") Long maxInlineBinaryBytes,
     /** Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes. */
     @JsonProperty("installedPlugins") List<SessionInstalledPlugin> installedPlugins,
     /** Whether to default custom agents to local-only execution. */

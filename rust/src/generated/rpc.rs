@@ -280,6 +280,37 @@ impl<'a> ClientRpcAgents<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Returns the canonical directories where a client may create custom agents that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
+    ///
+    /// Wire method: `agents.getDiscoveryPaths`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths to include when enumerating agent discovery directories.
+    ///
+    /// # Returns
+    ///
+    /// Canonical locations where custom agents can be created so the runtime will recognize them.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_discovery_paths(
+        &self,
+        params: AgentsGetDiscoveryPathsRequest,
+    ) -> Result<AgentDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTS_GETDISCOVERYPATHS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `instructions.*` RPCs.
@@ -316,6 +347,40 @@ impl<'a> ClientRpcInstructions<'a> {
         let _value = self
             .client
             .call(rpc_methods::INSTRUCTIONS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the canonical files and directories where a client may create custom instructions that the runtime will recognize, including ones that do not exist yet. Repository targets become active once created.
+    ///
+    /// Wire method: `instructions.getDiscoveryPaths`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths to include when enumerating instruction discovery targets.
+    ///
+    /// # Returns
+    ///
+    /// Canonical files and directories where custom instructions can be created so the runtime will recognize them.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_discovery_paths(
+        &self,
+        params: InstructionsGetDiscoveryPathsRequest,
+    ) -> Result<InstructionDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::INSTRUCTIONS_GETDISCOVERYPATHS,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -1971,6 +2036,37 @@ impl<'a> ClientRpcSkills<'a> {
         let _value = self
             .client
             .call(rpc_methods::SKILLS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
+    ///
+    /// Wire method: `skills.getDiscoveryPaths`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths to enumerate.
+    ///
+    /// # Returns
+    ///
+    /// Canonical locations where skills can be created so the runtime will recognize them.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_discovery_paths(
+        &self,
+        params: SkillsGetDiscoveryPathsRequest,
+    ) -> Result<SkillDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_GETDISCOVERYPATHS, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

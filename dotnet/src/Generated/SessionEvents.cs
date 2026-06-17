@@ -62,6 +62,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
 [JsonDerivedType(typeof(SessionAutopilotObjectiveChangedEvent), "session.autopilot_objective_changed")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
+[JsonDerivedType(typeof(SessionBinaryAssetEvent), "session.binary_asset")]
 [JsonDerivedType(typeof(SessionCanvasClosedEvent), "session.canvas.closed")]
 [JsonDerivedType(typeof(SessionCanvasOpenedEvent), "session.canvas.opened")]
 [JsonDerivedType(typeof(SessionCanvasRegistryChangedEvent), "session.canvas.registry_changed")]
@@ -856,6 +857,20 @@ public sealed partial class HookProgressEvent : SessionEvent
     /// <summary>The <c>hook.progress</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required HookProgressData Data { get; set; }
+}
+
+/// <summary>Canonical bytes for a content-addressed binary asset shared by reference across events.</summary>
+/// <remarks>Represents the <c>session.binary_asset</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionBinaryAssetEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.binary_asset";
+
+    /// <summary>The <c>session.binary_asset</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionBinaryAssetData Data { get; set; }
 }
 
 /// <summary>System/developer instruction content with role and optional template metadata.</summary>
@@ -2351,9 +2366,8 @@ public sealed partial class AssistantUsageData
 
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
     [JsonPropertyName("copilotUsage")]
-    internal AssistantUsageCopilotUsage? CopilotUsage { get; set; }
+    public AssistantUsageCopilotUsage? CopilotUsage { get; set; }
 
     /// <summary>Model multiplier cost for billing purposes.</summary>
     [Experimental(Diagnostics.Experimental)]
@@ -2877,6 +2891,41 @@ public sealed partial class HookProgressData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("temporary")]
     public bool? Temporary { get; set; }
+}
+
+/// <summary>Canonical bytes for a content-addressed binary asset shared by reference across events.</summary>
+public sealed partial class SessionBinaryAssetData
+{
+    /// <summary>Content-addressed id for this binary asset (e.g. "sha256:...").</summary>
+    [JsonPropertyName("assetId")]
+    public required string AssetId { get; set; }
+
+    /// <summary>Decoded byte length of the binary asset.</summary>
+    [JsonPropertyName("byteLength")]
+    public required long ByteLength { get; set; }
+
+    /// <summary>Base64-encoded binary data.</summary>
+    [Base64String]
+    [JsonPropertyName("data")]
+    public required string Data { get; set; }
+
+    /// <summary>Human-readable description of the binary data.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Optional metadata from the producing tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("metadata")]
+    public IDictionary<string, JsonElement>? Metadata { get; set; }
+
+    /// <summary>MIME type of the binary asset.</summary>
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+
+    /// <summary>Binary asset type discriminator. Use "image" for images and "resource" otherwise.</summary>
+    [JsonPropertyName("type")]
+    public required BinaryAssetType Type { get; set; }
 }
 
 /// <summary>System/developer instruction content with role and optional template metadata.</summary>
@@ -3705,8 +3754,10 @@ public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsageTo
 internal sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsage
 {
     /// <summary>Itemized token usage breakdown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
     [JsonPropertyName("tokenDetails")]
-    public required CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[] TokenDetails { get; set; }
+    internal CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[]? TokenDetails { get; set; }
 
     /// <summary>Total cost in nano-AI units for this request.</summary>
     [JsonPropertyName("totalNanoAiu")]
@@ -4076,11 +4127,13 @@ public sealed partial class AssistantUsageCopilotUsageTokenDetail
 
 /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
 /// <remarks>Nested data type for <c>AssistantUsageCopilotUsage</c>.</remarks>
-internal sealed partial class AssistantUsageCopilotUsage
+public sealed partial class AssistantUsageCopilotUsage
 {
     /// <summary>Itemized token usage breakdown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
     [JsonPropertyName("tokenDetails")]
-    public required AssistantUsageCopilotUsageTokenDetail[] TokenDetails { get; set; }
+    internal AssistantUsageCopilotUsageTokenDetail[]? TokenDetails { get; set; }
 
     /// <summary>Total cost in nano-AI units for this request.</summary>
     [JsonPropertyName("totalNanoAiu")]
@@ -4189,6 +4242,199 @@ public sealed partial class ToolExecutionCompleteError
     /// <summary>Human-readable error message.</summary>
     [JsonPropertyName("message")]
     public required string Message { get; set; }
+}
+
+/// <summary>Binary result returned by a tool for the model.</summary>
+/// <remarks>Nested data type for <c>PersistedBinaryImage</c>.</remarks>
+public sealed partial class PersistedBinaryImage
+{
+    /// <summary>Base64-encoded binary data.</summary>
+    [Base64String]
+    [JsonPropertyName("data")]
+    public required string Data { get; set; }
+
+    /// <summary>Human-readable description of the binary data.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Optional metadata from the producing tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("metadata")]
+    public IDictionary<string, JsonElement>? Metadata { get; set; }
+
+    /// <summary>MIME type of the binary data.</summary>
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+
+    /// <summary>Binary result type discriminator. Use "image" for images and "resource" for other binary data.</summary>
+    [JsonPropertyName("type")]
+    public required PersistedBinaryImageType Type { get; set; }
+}
+
+/// <summary>A binary result whose data was omitted from persistence due to the inline size limit.</summary>
+/// <remarks>Nested data type for <c>OmittedBinaryResult</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class OmittedBinaryResult
+{
+    /// <summary>Decoded byte length of the omitted binary data.</summary>
+    [JsonPropertyName("byteLength")]
+    public required long ByteLength { get; set; }
+
+    /// <summary>Human-readable description of the binary data.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Optional metadata from the producing tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("metadata")]
+    public IDictionary<string, JsonElement>? Metadata { get; set; }
+
+    /// <summary>MIME type of the omitted binary data.</summary>
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+
+    /// <summary>Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable.</summary>
+    [JsonPropertyName("omittedReason")]
+    public required OmittedBinaryOmittedReason OmittedReason { get; set; }
+
+    /// <summary>Binary result type discriminator. Use "image" for images and "resource" for other binary data.</summary>
+    [JsonPropertyName("type")]
+    public required OmittedBinaryType Type { get; set; }
+}
+
+/// <summary>A reference to binary data persisted once on a session.binary_asset event and shared by id.</summary>
+/// <remarks>Nested data type for <c>BinaryAssetReference</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class BinaryAssetReference
+{
+    /// <summary>Content-addressed id of the session.binary_asset event that holds this binary's bytes (e.g. "sha256:...").</summary>
+    [JsonPropertyName("assetId")]
+    public required string AssetId { get; set; }
+
+    /// <summary>Decoded byte length of the referenced binary data.</summary>
+    [JsonPropertyName("byteLength")]
+    public required long ByteLength { get; set; }
+
+    /// <summary>Human-readable description of the binary data.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Optional metadata from the producing tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("metadata")]
+    public IDictionary<string, JsonElement>? Metadata { get; set; }
+
+    /// <summary>MIME type of the referenced binary data.</summary>
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+
+    /// <summary>Binary result type discriminator. Use "image" for images and "resource" for other binary data.</summary>
+    [JsonPropertyName("type")]
+    public required BinaryAssetReferenceType Type { get; set; }
+}
+
+/// <summary>A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference.</summary>
+/// <remarks>JSON union data type for <c>PersistedBinaryResult</c>.</remarks>
+[JsonConverter(typeof(Converter))]
+public sealed partial class PersistedBinaryResult
+{
+    /// <summary>Gets the value when this instance contains <see cref="PersistedBinaryImage"/>.</summary>
+    public PersistedBinaryImage? PersistedBinaryImage { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="OmittedBinaryResult"/>.</summary>
+    public OmittedBinaryResult? OmittedBinaryResult { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="BinaryAssetReference"/>.</summary>
+    public BinaryAssetReference? BinaryAssetReference { get; }
+
+    /// <summary>Initializes a new instance of the <see cref="PersistedBinaryResult"/> class from <see cref="PersistedBinaryImage"/>.</summary>
+    public PersistedBinaryResult(PersistedBinaryImage value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        PersistedBinaryImage = value;
+    }
+
+    /// <summary>Converts <see cref="PersistedBinaryImage"/> to <see cref="PersistedBinaryResult"/>.</summary>
+    public static implicit operator PersistedBinaryResult(PersistedBinaryImage value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="PersistedBinaryResult"/> class from <see cref="OmittedBinaryResult"/>.</summary>
+    public PersistedBinaryResult(OmittedBinaryResult value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        OmittedBinaryResult = value;
+    }
+
+    /// <summary>Converts <see cref="OmittedBinaryResult"/> to <see cref="PersistedBinaryResult"/>.</summary>
+    public static implicit operator PersistedBinaryResult(OmittedBinaryResult value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="PersistedBinaryResult"/> class from <see cref="BinaryAssetReference"/>.</summary>
+    public PersistedBinaryResult(BinaryAssetReference value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        BinaryAssetReference = value;
+    }
+
+    /// <summary>Converts <see cref="BinaryAssetReference"/> to <see cref="PersistedBinaryResult"/>.</summary>
+    public static implicit operator PersistedBinaryResult(BinaryAssetReference value) => new(value);
+
+    /// <summary>Provides a <see cref="JsonConverter{PersistedBinaryResult}"/> for serializing <see cref="PersistedBinaryResult"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PersistedBinaryResult>
+    {
+        /// <inheritdoc />
+        public override PersistedBinaryResult Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                throw new JsonException("Expected JSON object for PersistedBinaryResult.");
+            }
+
+            using var document = JsonDocument.ParseValue(ref reader);
+            var element = document.RootElement;
+            if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("data", out _) && !element.TryGetProperty("assetId", out _) && !element.TryGetProperty("byteLength", out _) && !element.TryGetProperty("omittedReason", out _))
+            {
+                var persistedBinaryImage = JsonSerializer.Deserialize(element, SessionEventsJsonContext.Default.PersistedBinaryImage);
+                return persistedBinaryImage is null ? throw new JsonException("Expected PersistedBinaryImage value.") : new PersistedBinaryResult(persistedBinaryImage);
+            }
+            if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("omittedReason", out _) && !element.TryGetProperty("assetId", out _) && !element.TryGetProperty("data", out _))
+            {
+                var omittedBinaryResult = JsonSerializer.Deserialize(element, SessionEventsJsonContext.Default.OmittedBinaryResult);
+                return omittedBinaryResult is null ? throw new JsonException("Expected OmittedBinaryResult value.") : new PersistedBinaryResult(omittedBinaryResult);
+            }
+            if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("assetId", out _) && !element.TryGetProperty("data", out _) && !element.TryGetProperty("omittedReason", out _))
+            {
+                var binaryAssetReference = JsonSerializer.Deserialize(element, SessionEventsJsonContext.Default.BinaryAssetReference);
+                return binaryAssetReference is null ? throw new JsonException("Expected BinaryAssetReference value.") : new PersistedBinaryResult(binaryAssetReference);
+            }
+
+            throw new JsonException("JSON value did not match any PersistedBinaryResult variant.");
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PersistedBinaryResult value, JsonSerializerOptions options)
+        {
+            if (value.PersistedBinaryImage is { } persistedBinaryImage)
+            {
+                JsonSerializer.Serialize(writer, persistedBinaryImage, SessionEventsJsonContext.Default.PersistedBinaryImage);
+                return;
+            }
+            if (value.OmittedBinaryResult is { } omittedBinaryResult)
+            {
+                JsonSerializer.Serialize(writer, omittedBinaryResult, SessionEventsJsonContext.Default.OmittedBinaryResult);
+                return;
+            }
+            if (value.BinaryAssetReference is { } binaryAssetReference)
+            {
+                JsonSerializer.Serialize(writer, binaryAssetReference, SessionEventsJsonContext.Default.BinaryAssetReference);
+                return;
+            }
+
+            throw new JsonException("No PersistedBinaryResult variant value is set.");
+        }
+    }
 }
 
 /// <summary>Plain text content block.</summary>
@@ -4617,6 +4863,12 @@ public sealed partial class ToolExecutionCompleteUIResource
 /// <remarks>Nested data type for <c>ToolExecutionCompleteResult</c>.</remarks>
 public sealed partial class ToolExecutionCompleteResult
 {
+    /// <summary>Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("binaryResultsForLlm")]
+    public PersistedBinaryResult[]? BinaryResultsForLlm { get; set; }
+
     /// <summary>Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
@@ -7215,6 +7467,250 @@ public readonly struct ToolExecutionStartToolDescriptionMetaUIVisibility : IEqua
     }
 }
 
+/// <summary>Binary result type discriminator. Use "image" for images and "resource" for other binary data.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PersistedBinaryImageType : IEquatable<PersistedBinaryImageType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PersistedBinaryImageType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PersistedBinaryImageType"/>.</param>
+    [JsonConstructor]
+    public PersistedBinaryImageType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PersistedBinaryImageType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Binary image data.</summary>
+    public static PersistedBinaryImageType Image { get; } = new("image");
+
+    /// <summary>Other binary resource data.</summary>
+    public static PersistedBinaryImageType Resource { get; } = new("resource");
+
+    /// <summary>Returns a value indicating whether two <see cref="PersistedBinaryImageType"/> instances are equivalent.</summary>
+    public static bool operator ==(PersistedBinaryImageType left, PersistedBinaryImageType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PersistedBinaryImageType"/> instances are not equivalent.</summary>
+    public static bool operator !=(PersistedBinaryImageType left, PersistedBinaryImageType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PersistedBinaryImageType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PersistedBinaryImageType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PersistedBinaryImageType}"/> for serializing <see cref="PersistedBinaryImageType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PersistedBinaryImageType>
+    {
+        /// <inheritdoc />
+        public override PersistedBinaryImageType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PersistedBinaryImageType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PersistedBinaryImageType));
+        }
+    }
+}
+
+/// <summary>Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct OmittedBinaryOmittedReason : IEquatable<OmittedBinaryOmittedReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="OmittedBinaryOmittedReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="OmittedBinaryOmittedReason"/>.</param>
+    [JsonConstructor]
+    public OmittedBinaryOmittedReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="OmittedBinaryOmittedReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Bytes exceeded the session's inline size limit.</summary>
+    public static OmittedBinaryOmittedReason TooLarge { get; } = new("too_large");
+
+    /// <summary>The referenced binary asset could not be found (e.g. a truncated log).</summary>
+    public static OmittedBinaryOmittedReason AssetUnavailable { get; } = new("asset_unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryOmittedReason"/> instances are equivalent.</summary>
+    public static bool operator ==(OmittedBinaryOmittedReason left, OmittedBinaryOmittedReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryOmittedReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(OmittedBinaryOmittedReason left, OmittedBinaryOmittedReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is OmittedBinaryOmittedReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(OmittedBinaryOmittedReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{OmittedBinaryOmittedReason}"/> for serializing <see cref="OmittedBinaryOmittedReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<OmittedBinaryOmittedReason>
+    {
+        /// <inheritdoc />
+        public override OmittedBinaryOmittedReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, OmittedBinaryOmittedReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OmittedBinaryOmittedReason));
+        }
+    }
+}
+
+/// <summary>Binary result type discriminator. Use "image" for images and "resource" for other binary data.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct OmittedBinaryType : IEquatable<OmittedBinaryType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="OmittedBinaryType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="OmittedBinaryType"/>.</param>
+    [JsonConstructor]
+    public OmittedBinaryType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="OmittedBinaryType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Binary image data.</summary>
+    public static OmittedBinaryType Image { get; } = new("image");
+
+    /// <summary>Other binary resource data.</summary>
+    public static OmittedBinaryType Resource { get; } = new("resource");
+
+    /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryType"/> instances are equivalent.</summary>
+    public static bool operator ==(OmittedBinaryType left, OmittedBinaryType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryType"/> instances are not equivalent.</summary>
+    public static bool operator !=(OmittedBinaryType left, OmittedBinaryType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is OmittedBinaryType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(OmittedBinaryType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{OmittedBinaryType}"/> for serializing <see cref="OmittedBinaryType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<OmittedBinaryType>
+    {
+        /// <inheritdoc />
+        public override OmittedBinaryType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, OmittedBinaryType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OmittedBinaryType));
+        }
+    }
+}
+
+/// <summary>Binary result type discriminator. Use "image" for images and "resource" for other binary data.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct BinaryAssetReferenceType : IEquatable<BinaryAssetReferenceType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="BinaryAssetReferenceType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="BinaryAssetReferenceType"/>.</param>
+    [JsonConstructor]
+    public BinaryAssetReferenceType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="BinaryAssetReferenceType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Binary image data.</summary>
+    public static BinaryAssetReferenceType Image { get; } = new("image");
+
+    /// <summary>Other binary resource data.</summary>
+    public static BinaryAssetReferenceType Resource { get; } = new("resource");
+
+    /// <summary>Returns a value indicating whether two <see cref="BinaryAssetReferenceType"/> instances are equivalent.</summary>
+    public static bool operator ==(BinaryAssetReferenceType left, BinaryAssetReferenceType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="BinaryAssetReferenceType"/> instances are not equivalent.</summary>
+    public static bool operator !=(BinaryAssetReferenceType left, BinaryAssetReferenceType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is BinaryAssetReferenceType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(BinaryAssetReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{BinaryAssetReferenceType}"/> for serializing <see cref="BinaryAssetReferenceType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<BinaryAssetReferenceType>
+    {
+        /// <inheritdoc />
+        public override BinaryAssetReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, BinaryAssetReferenceType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(BinaryAssetReferenceType));
+        }
+    }
+}
+
 /// <summary>Theme variant this icon is intended for.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -7397,6 +7893,67 @@ public readonly struct SkillInvokedTrigger : IEquatable<SkillInvokedTrigger>
         public override void Write(Utf8JsonWriter writer, SkillInvokedTrigger value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInvokedTrigger));
+        }
+    }
+}
+
+/// <summary>Binary asset type discriminator. Use "image" for images and "resource" otherwise.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct BinaryAssetType : IEquatable<BinaryAssetType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="BinaryAssetType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="BinaryAssetType"/>.</param>
+    [JsonConstructor]
+    public BinaryAssetType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="BinaryAssetType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Binary image data.</summary>
+    public static BinaryAssetType Image { get; } = new("image");
+
+    /// <summary>Other binary resource data.</summary>
+    public static BinaryAssetType Resource { get; } = new("resource");
+
+    /// <summary>Returns a value indicating whether two <see cref="BinaryAssetType"/> instances are equivalent.</summary>
+    public static bool operator ==(BinaryAssetType left, BinaryAssetType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="BinaryAssetType"/> instances are not equivalent.</summary>
+    public static bool operator !=(BinaryAssetType left, BinaryAssetType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is BinaryAssetType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(BinaryAssetType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{BinaryAssetType}"/> for serializing <see cref="BinaryAssetType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<BinaryAssetType>
+    {
+        /// <inheritdoc />
+        public override BinaryAssetType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, BinaryAssetType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(BinaryAssetType));
         }
     }
 }
@@ -8490,6 +9047,7 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedData))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedEvent))]
+[JsonSerializable(typeof(BinaryAssetReference))]
 [JsonSerializable(typeof(CanvasRegistryChangedCanvas))]
 [JsonSerializable(typeof(CanvasRegistryChangedCanvasAction))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
@@ -8545,6 +9103,7 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(McpServersLoadedServer))]
 [JsonSerializable(typeof(ModelCallFailureData))]
 [JsonSerializable(typeof(ModelCallFailureEvent))]
+[JsonSerializable(typeof(OmittedBinaryResult))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]
@@ -8587,6 +9146,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(PermissionResultDeniedInteractivelyByUser))]
 [JsonSerializable(typeof(PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromUser))]
 [JsonSerializable(typeof(PermissionRule))]
+[JsonSerializable(typeof(PersistedBinaryImage))]
+[JsonSerializable(typeof(PersistedBinaryResult))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
@@ -8595,6 +9156,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedEvent))]
+[JsonSerializable(typeof(SessionBinaryAssetData))]
+[JsonSerializable(typeof(SessionBinaryAssetEvent))]
 [JsonSerializable(typeof(SessionCanvasClosedData))]
 [JsonSerializable(typeof(SessionCanvasClosedEvent))]
 [JsonSerializable(typeof(SessionCanvasOpenedData))]
