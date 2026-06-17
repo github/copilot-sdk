@@ -277,7 +277,7 @@ type SessionBinaryAssetData struct {
 	// MIME type of the binary asset
 	MIMEType string `json:"mimeType"`
 	// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
-	Type BinaryAssetType `json:"type"`
+	Discriminator BinaryAssetType `json:"type"`
 }
 
 func (*SessionBinaryAssetData) sessionEventData()      {}
