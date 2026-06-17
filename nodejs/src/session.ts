@@ -282,10 +282,10 @@ export class CopilotSession {
         // an object or NaN is coerced to a 0ms delay, producing a spurious
         // immediate timeout with a malformed "Timeout after [object Object]ms"
         // message instead of a clear, actionable error.
-        if (
-            timeout !== undefined &&
-            (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout < 0)
-        ) {
+        const isValidTimeout =
+            timeout === undefined ||
+            (typeof timeout === "number" && Number.isFinite(timeout) && timeout >= 0);
+        if (!isValidTimeout) {
             const received =
                 timeout === null
                     ? "null"
