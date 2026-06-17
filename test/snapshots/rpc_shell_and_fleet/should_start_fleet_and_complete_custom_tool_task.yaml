@@ -168,9 +168,9 @@ conversations:
               arguments: '{"content":"copilot-sdk-fleet-rpc"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Tool 'report_intent' does not exist. Available tools that can be called are powershell, read_powershell,
-          stop_powershell, list_powershell, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep,
-          glob, task, record_fleet_completion.
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task, record_fleet_completion.
       - role: tool
         tool_call_id: toolcall_1
         content: copilot-sdk-fleet-rpc
