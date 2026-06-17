@@ -342,8 +342,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
         Assert.Contains("done", (response?.Data.Content ?? string.Empty).ToLowerInvariant());
     }
 
-    [Fact(Skip = "Fails with 1.0.64-0 runtime: built-in tools are not available when hooks " +
-        "restrict availableTools, so the failure path cannot be exercised. Follow up with runtime team.")]
+    [Fact(Skip = "Fails with 1.0.64-0 runtime: built-in tools are not available when hooks restrict availableTools, so the failure path cannot be exercised. Follow up with runtime team.")]
     public async Task Should_Invoke_PostToolUseFailure_Hook_For_Failed_Tool_Result()
     {
         var failureInputs = new List<PostToolUseFailureHookInput>();

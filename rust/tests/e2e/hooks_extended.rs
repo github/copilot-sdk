@@ -588,8 +588,8 @@ impl SessionHooks for RecordingHooks {
         input: PostToolUseInput,
         _ctx: HookContext,
     ) -> Option<PostToolUseOutput> {
-        let output = (self.post_tool.is_some() && input.tool_name == "view").then(|| {
-            PostToolUseOutput {
+        let output =
+            (self.post_tool.is_some() && input.tool_name == "view").then(|| PostToolUseOutput {
                 modified_result: Some(json!({
                     "textResultForLlm": "modified by post hook",
                     "resultType": "success",
@@ -597,8 +597,7 @@ impl SessionHooks for RecordingHooks {
                 })),
                 suppress_output: Some(false),
                 ..PostToolUseOutput::default()
-            }
-        });
+            });
         if let Some(tx) = &self.post_tool {
             let _ = tx.send(input);
         }
