@@ -5,7 +5,7 @@ import os
 import pytest
 from pydantic import BaseModel, Field
 
-from copilot import define_tool
+from copilot import ToolSet, define_tool
 from copilot.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionReject,
@@ -47,6 +47,49 @@ class TestTools:
         await session.send("Use encrypt_string to encrypt this string: Hello")
         assistant_message = await get_final_assistant_message(session)
         assert "HELLO" in assistant_message.data.content
+
+    async def test_low_level_tool_definition(self, ctx: E2ETestContext):
+        class PhaseArgs(BaseModel):
+            phase: str = Field(
+                description="Current phase",
+                pattern="^(searching|analyzing|done)$",
+            )
+
+        class SearchArgs(BaseModel):
+            keyword: str
+
+        current_phase = ""
+
+        @define_tool("set_current_phase", description="Sets the current phase of the agent")
+        def set_current_phase(params: PhaseArgs, invocation: ToolInvocation) -> str:
+            nonlocal current_phase
+            current_phase = params.phase
+            return f"Phase set to {params.phase}"
+
+        @define_tool("search_items", description="Search for items by keyword")
+        def search_items(params: SearchArgs, invocation: ToolInvocation) -> str:
+            args = invocation.arguments or {}
+            keyword = str(args.get("keyword", ""))
+            assert keyword == "copilot"
+            return "Found: item_alpha, item_beta"
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            available_tools=ToolSet().add_custom("*").add_builtin("web_fetch"),
+            tools=[set_current_phase, search_items],
+        )
+
+        prompt = (
+            "First, set the current phase to 'analyzing'. Then search for items with "
+            "keyword 'copilot'. Report the phase and search results."
+        )
+        await session.send(prompt)
+        assistant_message = await get_final_assistant_message(session)
+        content = assistant_message.data.content or ""
+        assert content != ""
+        assert "analyzing" in content.lower()
+        assert "item_alpha" in content.lower() or "item_beta" in content.lower()
+        assert current_phase == "analyzing"
 
     async def test_handles_tool_calling_errors(self, ctx: E2ETestContext):
         @define_tool("get_user_location", description="Gets the user's location")
