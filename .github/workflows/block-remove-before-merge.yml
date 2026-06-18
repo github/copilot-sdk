@@ -1,0 +1,27 @@
+name: "Block remove-before-merge paths"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  check-paths:
+    name: "No remove-before-merge directories"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for remove-before-merge paths in PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          FILES=$(gh api repos/$REPO/pulls/$PR_NUMBER/files --paginate --jq '.[].filename')
+          BLOCKED=$(echo "$FILES" | grep -E '(^|/)[-a-zA-Z0-9_]+-remove-before-merge(/|$)' || true)
+          if [ -n "$BLOCKED" ]; then
+            echo "::error::This PR contains files under a 'remove-before-merge' directory. Remove them before merging."
+            echo ""
+            echo "Offending paths:"
+            echo "$BLOCKED"
+            exit 1
+          fi
+          echo "No remove-before-merge paths found. ✅"
