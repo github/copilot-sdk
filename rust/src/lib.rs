@@ -41,6 +41,9 @@ mod wire;
 /// Session event payload types — auto-generated from the protocol schema.
 pub mod session_events;
 
+/// Recovery for JSON-RPC payloads carrying malformed `\u` escapes.
+mod surrogate_safe;
+
 /// JSON-RPC request/response types and typed namespace builders for
 /// [`Client::rpc`] and [`session::Session::rpc`](crate::session::Session::rpc).
 pub mod rpc;
