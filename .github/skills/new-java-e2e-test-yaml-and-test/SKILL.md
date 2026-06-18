@@ -20,12 +20,12 @@ record snapshots by running Java tests — you must handcraft the YAML.
 
 ## Step-by-Step Workflow
 
-### Step 1: Choose a snapshot category and test name
+### Step 1: Choose a snapshot category and snapshot base name
 
 - Category = a directory under `test/snapshots/` (e.g., `system_message_sections`)
-- Test name = the Java method name, converted to snake_case (e.g.,
-  `shouldUseReplacedIdentitySectionInResponse` → `should_use_replaced_identity_section_in_response`)
-- Resulting file: `test/snapshots/<category>/<snake_case_test_name>.yaml`
+- Snapshot base name = the exact filename stem to use (already lowercase/underscore-separated),
+  e.g., `should_use_replaced_identity_section_in_response`
+- Resulting file: `test/snapshots/<category>/<snapshot_base_name>.yaml`
 
 ### Step 2: Create the YAML snapshot file
 
@@ -155,7 +155,7 @@ mvn clean verify
    - System message matches if YAML has `${system}` (wildcard)
    - User messages are compared by content (exact text match)
    - Tool results are compared after normalizing `${workdir}` paths
-3. If a match is found, the **last assistant message** in that conversation is returned
+3. If a match is found, the proxy returns the **next assistant message after the matched request prefix**
 4. If no match, in CI mode (`GITHUB_ACTIONS=true`) it errors with "No cached response found"
 
 ## YAML Format for Tool Calls
@@ -215,7 +215,8 @@ Files.writeString(ctx.getWorkDir().resolve("test.txt"), "Hello world!\n");
    unless testing a specific system message matching scenario.
 3. **Tool execution** — If the snapshot has the model calling `view` or other
    built-in tools, the CLI will actually execute those tools. Files must exist.
-4. **Snake_case conversion** — `configureForTest("category", "myMethodName")`
-   converts `myMethodName` to `my_method_name` for the filename lookup.
+4. **Snapshot name parameter** — pass the explicit snapshot base name to
+   `configureForTest`, e.g., `configureForTest("category", "my_method_name")`.
+   Do not rely on camelCase-to-snake_case conversion.
 5. **Cannot record via Java** — `CapiProxy.java` forces `GITHUB_ACTIONS=true`.
    Always handcraft snapshots or use the Node.js proxy directly for recording.

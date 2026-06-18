@@ -69,7 +69,9 @@ class LowLevelToolDefinitionIT {
         ToolDefinition searchTool = ToolDefinition.create("search_items", "Search for items by keyword", searchSchema,
                 invocation -> {
                     Map<String, Object> args = invocation.getArguments();
-                    args.get("keyword");
+                    String keyword = (String) args.get("keyword");
+                    assertTrue("copilot".equals(keyword),
+                            "Expected tool keyword to be 'copilot' but was: " + keyword);
                     return CompletableFuture.completedFuture("Found: item_alpha, item_beta");
                 });
 
