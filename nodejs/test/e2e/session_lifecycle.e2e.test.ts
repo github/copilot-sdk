@@ -32,7 +32,7 @@ describe("Session Lifecycle", async () => {
 
         // Sessions must have activity to be persisted to disk
         await session1.sendAndWait({ prompt: "Say hello" });
-        await session2.sendAndWait({ prompt: "Say world" });
+        await session2.sendAndWait({ prompt: "Say hi" });
 
         // Poll until both sessions are visible on disk instead of a hard 500ms wait.
         await waitFor(async () => {
