@@ -41,6 +41,8 @@ mod mode_handlers;
 mod multi_client;
 #[path = "e2e/multi_client_commands_elicitation.rs"]
 mod multi_client_commands_elicitation;
+#[path = "e2e/multi_provider_registry.rs"]
+mod multi_provider_registry;
 #[path = "e2e/multi_turn.rs"]
 mod multi_turn;
 #[path = "e2e/pending_work_resume.rs"]

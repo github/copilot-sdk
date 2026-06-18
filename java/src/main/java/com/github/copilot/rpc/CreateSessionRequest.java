@@ -11,6 +11,8 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * Internal request object for creating a new session.
  * <p>
@@ -59,6 +61,12 @@ public final class CreateSessionRequest {
 
     @JsonProperty("provider")
     private ProviderConfig provider;
+
+    @JsonProperty("providers")
+    private List<NamedProviderConfig> providers;
+
+    @JsonProperty("models")
+    private List<ProviderModelConfig> models;
 
     @JsonProperty("enableSessionTelemetry")
     private Boolean enableSessionTelemetry;
@@ -311,6 +319,30 @@ public final class CreateSessionRequest {
     /** Sets the provider config. @param provider the provider */
     public void setProvider(ProviderConfig provider) {
         this.provider = provider;
+    }
+
+    /** Gets the named provider connections. @return the named providers */
+    @CopilotExperimental
+    public List<NamedProviderConfig> getProviders() {
+        return providers;
+    }
+
+    /** Sets the named provider connections. @param providers the named providers */
+    @CopilotExperimental
+    public void setProviders(List<NamedProviderConfig> providers) {
+        this.providers = providers;
+    }
+
+    /** Gets the BYOK model definitions. @return the models */
+    @CopilotExperimental
+    public List<ProviderModelConfig> getModels() {
+        return models;
+    }
+
+    /** Sets the BYOK model definitions. @param models the models */
+    @CopilotExperimental
+    public void setModels(List<ProviderModelConfig> models) {
+        this.models = models;
     }
 
     /** Gets enable session telemetry flag. @return the flag */
