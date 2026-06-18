@@ -24,6 +24,9 @@ public class AgentInfo {
     @JsonProperty("description")
     private String description;
 
+    @JsonProperty("model")
+    private String model;
+
     /**
      * Gets the unique identifier of the agent.
      *
@@ -84,6 +87,28 @@ public class AgentInfo {
      */
     public AgentInfo setDescription(String description) {
         this.description = description;
+        return this;
+    }
+
+    /**
+     * Gets the preferred model id for this agent. When omitted, the agent inherits
+     * the outer agent's model.
+     *
+     * @return the preferred model id, or {@code null} if unset
+     */
+    public String getModel() {
+        return model;
+    }
+
+    /**
+     * Sets the preferred model id for this agent.
+     *
+     * @param model
+     *            the preferred model id
+     * @return this instance for chaining
+     */
+    public AgentInfo setModel(String model) {
+        this.model = model;
         return this;
     }
 }

@@ -1009,6 +1009,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestExtensions: config.RequestExtensions,
                 ExtensionSdkPath: config.ExtensionSdkPath,
                 ExtensionInfo: config.ExtensionInfo,
+                Providers: config.Providers,
+                Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -1207,6 +1209,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExtensionSdkPath: config.ExtensionSdkPath,
                 ExtensionInfo: config.ExtensionInfo,
                 OpenCanvases: config.OpenCanvases,
+                Providers: config.Providers,
+                Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -2402,6 +2406,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestExtensions = null,
         string? ExtensionSdkPath = null,
         ExtensionInfo? ExtensionInfo = null,
+        IList<NamedProviderConfig>? Providers = null,
+        IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null);
 #pragma warning restore GHCP001
 
@@ -2494,6 +2500,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? ExtensionSdkPath = null,
         ExtensionInfo? ExtensionInfo = null,
         IList<OpenCanvasInstance>? OpenCanvases = null,
+        IList<NamedProviderConfig>? Providers = null,
+        IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null);
 #pragma warning restore GHCP001
 
@@ -2569,6 +2577,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(EmbeddingCacheStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
     [JsonSerializable(typeof(ProviderConfig))]
+    [JsonSerializable(typeof(NamedProviderConfig))]
+    [JsonSerializable(typeof(ProviderModelConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
     [JsonSerializable(typeof(SessionCapabilities))]

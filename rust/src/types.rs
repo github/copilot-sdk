@@ -1156,6 +1156,197 @@ pub struct AzureProviderOptions {
     pub api_version: Option<String>,
 }
 
+/// A named BYOK provider connection in the multi-provider registry.
+///
+/// **Experimental.** Multi-provider BYOK configuration is part of an
+/// experimental surface and may change or be removed in a future release.
+///
+/// Unlike [`ProviderConfig`], which routes the whole session through a
+/// single provider, named providers are additive: the session keeps its
+/// default Copilot routing and exposes these providers' models alongside
+/// it. Models are attached via [`ProviderModelConfig`], which references a
+/// provider by [`name`](Self::name).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct NamedProviderConfig {
+    /// Unique name used by [`ProviderModelConfig::provider`] to reference
+    /// this connection.
+    pub name: String,
+    /// Provider type: `"openai"`, `"azure"`, or `"anthropic"`. Defaults to
+    /// `"openai"` on the CLI.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
+    pub provider_type: Option<String>,
+    /// API format (openai/azure only): `"completions"` or `"responses"`.
+    /// Defaults to `"completions"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<String>,
+    /// API endpoint URL.
+    pub base_url: String,
+    /// API key. Optional for local providers like Ollama.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// Bearer token for authentication. Sets the `Authorization` header
+    /// directly. Takes precedence over `api_key` when both are set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bearer_token: Option<String>,
+    /// Azure-specific options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azure: Option<AzureProviderOptions>,
+    /// Custom HTTP headers included in outbound provider requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
+}
+
+impl NamedProviderConfig {
+    /// Construct a [`NamedProviderConfig`] with the required `name` and
+    /// `base_url` set; all other fields default to unset.
+    pub fn new(name: impl Into<String>, base_url: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            base_url: base_url.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the provider type (`"openai"`, `"azure"`, or `"anthropic"`).
+    pub fn with_provider_type(mut self, provider_type: impl Into<String>) -> Self {
+        self.provider_type = Some(provider_type.into());
+        self
+    }
+
+    /// Set the API format (`"completions"` or `"responses"`; openai/azure only).
+    pub fn with_wire_api(mut self, wire_api: impl Into<String>) -> Self {
+        self.wire_api = Some(wire_api.into());
+        self
+    }
+
+    /// Set the API key. Optional for local providers like Ollama.
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.api_key = Some(api_key.into());
+        self
+    }
+
+    /// Set the bearer token used to populate the `Authorization` header.
+    /// Takes precedence over `api_key` when both are set.
+    pub fn with_bearer_token(mut self, bearer_token: impl Into<String>) -> Self {
+        self.bearer_token = Some(bearer_token.into());
+        self
+    }
+
+    /// Set Azure-specific options.
+    pub fn with_azure(mut self, azure: AzureProviderOptions) -> Self {
+        self.azure = Some(azure);
+        self
+    }
+
+    /// Set the custom HTTP headers attached to outbound provider requests.
+    pub fn with_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.headers = Some(headers);
+        self
+    }
+}
+
+/// A BYOK model definition in the multi-provider registry.
+///
+/// **Experimental.** Multi-provider BYOK configuration is part of an
+/// experimental surface and may change or be removed in a future release.
+///
+/// References a [`NamedProviderConfig`] by [`provider`](Self::provider) and
+/// becomes selectable under the provider-qualified id `provider/id`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ProviderModelConfig {
+    /// Model identifier, unique within its provider. Combined with
+    /// [`provider`](Self::provider) to form the selection id `provider/id`.
+    pub id: String,
+    /// Name of the [`NamedProviderConfig`] this model is served by.
+    pub provider: String,
+    /// Model name sent to the provider API for inference. Use when the
+    /// provider's model name differs from [`id`](Self::id).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_model: Option<String>,
+    /// Well-known model ID used to look up agent config and default token
+    /// limits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    /// Human-readable display name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Overrides the resolved model's default max prompt tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
+    /// Overrides the resolved model's default max context window tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_context_window_tokens: Option<i64>,
+    /// Overrides the resolved model's default max output tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i64>,
+    /// Per-property overrides for model capabilities, deep-merged over
+    /// runtime defaults.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+}
+
+impl ProviderModelConfig {
+    /// Construct a [`ProviderModelConfig`] with the required `id` and
+    /// `provider` set; all other fields default to unset.
+    pub fn new(id: impl Into<String>, provider: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            provider: provider.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the model name sent to the provider API for inference.
+    pub fn with_wire_model(mut self, wire_model: impl Into<String>) -> Self {
+        self.wire_model = Some(wire_model.into());
+        self
+    }
+
+    /// Set the well-known model ID used to look up agent config and default
+    /// token limits.
+    pub fn with_model_id(mut self, model_id: impl Into<String>) -> Self {
+        self.model_id = Some(model_id.into());
+        self
+    }
+
+    /// Set the human-readable display name.
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Override the resolved model's default max prompt tokens.
+    pub fn with_max_prompt_tokens(mut self, max: i64) -> Self {
+        self.max_prompt_tokens = Some(max);
+        self
+    }
+
+    /// Override the resolved model's default max context window tokens.
+    pub fn with_max_context_window_tokens(mut self, max: i64) -> Self {
+        self.max_context_window_tokens = Some(max);
+        self
+    }
+
+    /// Override the resolved model's default max output tokens.
+    pub fn with_max_output_tokens(mut self, max: i64) -> Self {
+        self.max_output_tokens = Some(max);
+        self
+    }
+
+    /// Set per-property model capability overrides.
+    pub fn with_capabilities(
+        mut self,
+        capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
+    ) -> Self {
+        self.capabilities = Some(capabilities);
+        self
+    }
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1341,6 +1532,19 @@ pub struct SessionConfig {
     /// requests through this provider instead of the default Copilot
     /// routing.
     pub provider: Option<ProviderConfig>,
+    /// **Experimental.** This field is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Named BYOK provider connections. Additive to the default Copilot
+    /// routing — unlike [`provider`](Self::provider), these do not switch
+    /// the whole session to BYOK. Referenced by [`models`](Self::models).
+    pub providers: Option<Vec<NamedProviderConfig>>,
+    /// **Experimental.** This field is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// BYOK model definitions, each referencing a [`providers`](Self::providers)
+    /// entry by name. Selectable under the id `provider/id`.
+    pub models: Option<Vec<ProviderModelConfig>>,
     /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
@@ -1594,6 +1798,8 @@ impl Default for SessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            providers: None,
+            models: None,
             enable_session_telemetry: None,
             model_capabilities: None,
             memory: None,
@@ -1737,6 +1943,8 @@ impl SessionConfig {
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
             provider: self.provider,
+            providers: self.providers,
+            models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
@@ -2154,6 +2362,26 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** This method is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Set the named BYOK provider connections (additive multi-provider
+    /// registry). Attach models referencing these with [`Self::with_models`].
+    pub fn with_providers(mut self, providers: Vec<NamedProviderConfig>) -> Self {
+        self.providers = Some(providers);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Set the BYOK model definitions, each referencing a named provider
+    /// supplied via [`Self::with_providers`].
+    pub fn with_models(mut self, models: Vec<ProviderModelConfig>) -> Self {
+        self.models = Some(models);
+        self
+    }
+
     /// Enable or disable internal session telemetry.
     ///
     /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
@@ -2349,6 +2577,18 @@ pub struct ResumeSessionConfig {
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     /// Re-supply BYOK provider configuration on resume.
     pub provider: Option<ProviderConfig>,
+    /// **Experimental.** This field is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Re-supply named BYOK provider connections on resume. Additive to
+    /// the default Copilot routing. Referenced by [`models`](Self::models).
+    pub providers: Option<Vec<NamedProviderConfig>>,
+    /// **Experimental.** This field is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Re-supply BYOK model definitions on resume, each referencing a
+    /// [`providers`](Self::providers) entry by name.
+    pub models: Option<Vec<ProviderModelConfig>>,
     /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
@@ -2626,6 +2866,8 @@ impl ResumeSessionConfig {
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
             provider: self.provider,
+            providers: self.providers,
+            models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
@@ -2703,6 +2945,8 @@ impl ResumeSessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            providers: None,
+            models: None,
             enable_session_telemetry: None,
             model_capabilities: None,
             memory: None,
@@ -3090,6 +3334,26 @@ impl ResumeSessionConfig {
     /// Re-supply BYOK provider configuration on resume.
     pub fn with_provider(mut self, provider: ProviderConfig) -> Self {
         self.provider = Some(provider);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Re-supply the named BYOK provider connections on resume. Attach
+    /// models referencing these with [`Self::with_models`].
+    pub fn with_providers(mut self, providers: Vec<NamedProviderConfig>) -> Self {
+        self.providers = Some(providers);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Re-supply the BYOK model definitions on resume, each referencing a
+    /// named provider supplied via [`Self::with_providers`].
+    pub fn with_models(mut self, models: Vec<ProviderModelConfig>) -> Self {
+        self.models = Some(models);
         self
     }
 
@@ -4356,9 +4620,10 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
-        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration,
-        ProviderConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+        AttachmentSelectionRange, AzureProviderOptions, ConnectionState, CustomAgentConfig,
+        DeliveryMode, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
+        LargeToolOutputConfig, MemoryConfiguration, NamedProviderConfig, ProviderConfig,
+        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
         SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
@@ -4654,6 +4919,80 @@ mod tests {
                 .is_none()
         );
         assert!(empty_json.get("cloud").is_none());
+    }
+
+    #[test]
+    fn session_config_into_wire_serializes_named_providers_and_models() {
+        let cfg = SessionConfig::default()
+            .with_providers(vec![
+                NamedProviderConfig::new("my-openai", "https://api.example.com/v1")
+                    .with_provider_type("openai")
+                    .with_wire_api("responses")
+                    .with_api_key("sk-test"),
+            ])
+            .with_models(vec![
+                ProviderModelConfig::new("gpt-x", "my-openai")
+                    .with_wire_model("gpt-x-2025")
+                    .with_max_output_tokens(2048),
+            ]);
+
+        let (wire, _) = cfg
+            .into_wire(Some(SessionId::from("sess-providers")))
+            .expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["providers"][0]["name"], "my-openai");
+        assert_eq!(
+            wire_json["providers"][0]["baseUrl"],
+            "https://api.example.com/v1"
+        );
+        assert_eq!(wire_json["providers"][0]["type"], "openai");
+        assert_eq!(wire_json["providers"][0]["wireApi"], "responses");
+        assert_eq!(wire_json["providers"][0]["apiKey"], "sk-test");
+        assert_eq!(wire_json["models"][0]["id"], "gpt-x");
+        assert_eq!(wire_json["models"][0]["provider"], "my-openai");
+        assert_eq!(wire_json["models"][0]["wireModel"], "gpt-x-2025");
+        assert_eq!(wire_json["models"][0]["maxOutputTokens"], 2048);
+
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("empty")))
+            .expect("default has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("providers").is_none());
+        assert!(empty_json.get("models").is_none());
+    }
+
+    #[test]
+    fn resume_config_into_wire_serializes_named_providers_and_models() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("sess-resume"))
+            .with_providers(vec![
+                NamedProviderConfig::new("my-azure", "https://example.openai.azure.com")
+                    .with_provider_type("azure")
+                    .with_azure(AzureProviderOptions {
+                        api_version: Some("2024-10-21".to_string()),
+                    }),
+            ])
+            .with_models(vec![
+                ProviderModelConfig::new("deploy-1", "my-azure").with_model_id("gpt-4o"),
+            ]);
+
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["providers"][0]["name"], "my-azure");
+        assert_eq!(wire_json["providers"][0]["type"], "azure");
+        assert_eq!(
+            wire_json["providers"][0]["azure"]["apiVersion"],
+            "2024-10-21"
+        );
+        assert_eq!(wire_json["models"][0]["id"], "deploy-1");
+        assert_eq!(wire_json["models"][0]["provider"], "my-azure");
+        assert_eq!(wire_json["models"][0]["modelId"], "gpt-4o");
+
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("empty"))
+            .into_wire()
+            .expect("default has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("providers").is_none());
+        assert!(empty_json.get("models").is_none());
     }
 
     #[test]

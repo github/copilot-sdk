@@ -1221,6 +1221,8 @@ export class CopilotClient {
                 excludedTools: toolFilterOptions.excludedTools,
                 toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
                 provider: config.provider,
+                providers: config.providers,
+                models: config.models,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
@@ -1405,6 +1407,8 @@ export class CopilotClient {
                     description: cmd.description,
                 })),
                 provider: config.provider,
+                providers: config.providers,
+                models: config.models,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission:

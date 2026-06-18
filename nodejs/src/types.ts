@@ -1746,6 +1746,32 @@ export interface SessionConfigBase {
     provider?: ProviderConfig;
 
     /**
+     * Named BYOK provider connections (transport + credentials), referenced by
+     * {@link models} entries via {@link NamedProviderConfig.name}.
+     *
+     * Unlike the singular {@link provider} — which makes the entire session BYOK
+     * and bypasses Copilot API authentication — named providers are **additive**:
+     * they coexist with Copilot API auth so models from CAPI and one or more BYOK
+     * providers can be mixed within a single session and across sub-agents.
+     * Combining `providers`/`models` with {@link provider} is rejected.
+     *
+     * @experimental This is part of an experimental multi-provider BYOK surface
+     * and may change or be removed in future SDK or CLI releases.
+     */
+    providers?: NamedProviderConfig[];
+
+    /**
+     * BYOK model definitions added to the session's selectable model list, each
+     * referencing a `providers[].name`. Each model surfaces under the
+     * provider-qualified selection id `providerName/id`, so BYOK ids never collide
+     * with — and cannot shadow — bare CAPI ids; duplicate selection ids are rejected.
+     *
+     * @experimental This is part of an experimental multi-provider BYOK surface
+     * and may change or be removed in future SDK or CLI releases.
+     */
+    models?: ProviderModelConfig[];
+
+    /**
      * Enables or disables internal session telemetry for this session.
      * When `false`, disables session telemetry. When omitted (the default) or `true`,
      * telemetry is enabled for GitHub-authenticated sessions.
@@ -2179,8 +2205,133 @@ export interface ProviderConfig {
 }
 
 /**
- * Options for sending a message to a session
+ * A named BYOK provider connection (transport + credentials only), referenced by
+ * {@link ProviderModelConfig} entries via {@link NamedProviderConfig.name}.
+ *
+ * Unlike the singular, whole-session {@link ProviderConfig} — which bypasses
+ * Copilot API authentication — named providers are **additive** and coexist with
+ * Copilot API auth, so CAPI and BYOK models can be mixed within one session and
+ * across sub-agents. See {@link SessionConfigBase.providers}.
+ *
+ * @experimental This type is part of an experimental multi-provider BYOK surface
+ * and may change or be removed in future SDK or CLI releases.
  */
+export interface NamedProviderConfig {
+    /**
+     * Stable identifier referenced by {@link ProviderModelConfig.provider}.
+     * Must not contain `/`.
+     */
+    name: string;
+
+    /**
+     * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+     */
+    type?: "openai" | "azure" | "anthropic";
+
+    /**
+     * Wire API format (openai/azure only). Defaults to "completions".
+     */
+    wireApi?: "completions" | "responses";
+
+    /**
+     * API endpoint URL.
+     */
+    baseUrl: string;
+
+    /**
+     * API key. Optional for local providers like Ollama.
+     */
+    apiKey?: string;
+
+    /**
+     * Bearer token for authentication. Sets the Authorization header directly.
+     * Takes precedence over {@link apiKey} when both are set.
+     */
+    bearerToken?: string;
+
+    /**
+     * Azure-specific options.
+     */
+    azure?: {
+        /**
+         * API version. When set, uses the versioned deployment route. When
+         * omitted, uses the GA versionless v1 route.
+         */
+        apiVersion?: string;
+    };
+
+    /**
+     * Custom HTTP headers to include in all outbound requests to the provider.
+     */
+    headers?: Record<string, string>;
+}
+
+/**
+ * A BYOK model definition that references a {@link NamedProviderConfig} by name
+ * and is added to the session's selectable model list.
+ *
+ * Each model has three identities:
+ *  - {@link id}: the provider-local model id, unique within its provider. The
+ *    session-wide selection id (shown in the model list and passed to model
+ *    switching) is the provider-qualified `provider/id`.
+ *  - {@link modelId}: the well-known behavior base model used for
+ *    capability/config lookup. Defaults to {@link id}.
+ *  - {@link wireModel}: the model name actually sent to the provider API for
+ *    inference. Defaults to {@link id}.
+ *
+ * @experimental This type is part of an experimental multi-provider BYOK surface
+ * and may change or be removed in future SDK or CLI releases.
+ */
+export interface ProviderModelConfig {
+    /**
+     * Provider-local model id, unique within its provider. The session-wide
+     * selection id is the provider-qualified `provider/id`.
+     */
+    id: string;
+
+    /**
+     * Name of the {@link NamedProviderConfig} that serves this model.
+     */
+    provider: string;
+
+    /**
+     * The model name sent to the provider API for inference. Defaults to {@link id}.
+     */
+    wireModel?: string;
+
+    /**
+     * Well-known base model id used for behavior/capability/config lookup.
+     * Defaults to {@link id}.
+     */
+    modelId?: string;
+
+    /**
+     * Display name for model pickers. Defaults to the provider-qualified
+     * selection id (`provider/id`).
+     */
+    name?: string;
+
+    /**
+     * Maximum prompt/input tokens for the model.
+     */
+    maxPromptTokens?: number;
+
+    /**
+     * Maximum context window tokens for the model.
+     */
+    maxContextWindowTokens?: number;
+
+    /**
+     * Maximum output tokens for the model.
+     */
+    maxOutputTokens?: number;
+
+    /**
+     * Optional capability overrides (vision, tool_calls, reasoning, etc.) for
+     * the synthesized model.
+     */
+    capabilities?: ModelCapabilitiesOverride;
+}
 export interface MessageOptions {
     /**
      * The prompt/message to send

@@ -92,7 +92,9 @@ from .session import (
     MCPServerConfig,
     MemoryConfiguration,
     ModelCapabilitiesOverride,
+    NamedProviderConfig,
     ProviderConfig,
+    ProviderModelConfig,
     ReasoningEffort,
     ReasoningSummary,
     SectionTransformFn,
@@ -1627,6 +1629,8 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        providers: list[NamedProviderConfig] | None = None,
+        models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
@@ -1709,6 +1713,11 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            providers: Named BYOK provider connections. Additive to Copilot API
+                auth (unlike `provider`); combine with `models`. Cannot be
+                combined with `provider`.
+            models: BYOK model definitions added to the selectable model list,
+                each referencing a `providers` entry by name.
             enable_session_telemetry: Enables or disables internal session telemetry
                 for this session. When False, disables session telemetry. When omitted
                 or True, telemetry is enabled for GitHub-authenticated sessions. When
@@ -1915,6 +1924,14 @@ class CopilotClient:
         # Add provider configuration if provided
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+
+        # Add additive BYOK provider/model registry if provided
+        if providers:
+            payload["providers"] = [
+                self._convert_named_provider_to_wire_format(p) for p in providers
+            ]
+        if models:
+            payload["models"] = [self._convert_model_to_wire_format(m) for m in models]
 
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
@@ -2204,6 +2221,8 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        providers: list[NamedProviderConfig] | None = None,
+        models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
@@ -2287,6 +2306,11 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            providers: Named BYOK provider connections. Additive to Copilot API
+                auth (unlike `provider`); combine with `models`. Cannot be
+                combined with `provider`.
+            models: BYOK model definitions added to the selectable model list,
+                each referencing a `providers` entry by name.
             enable_session_telemetry: Enables or disables internal session telemetry
                 for this session. When False, disables session telemetry. When omitted
                 or True, telemetry is enabled for GitHub-authenticated sessions. When
@@ -2437,6 +2461,12 @@ class CopilotClient:
         payload["toolFilterPrecedence"] = "excluded"
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+        if providers:
+            payload["providers"] = [
+                self._convert_named_provider_to_wire_format(p) for p in providers
+            ]
+        if models:
+            payload["models"] = [self._convert_model_to_wire_format(m) for m in models]
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if model_capabilities:
@@ -3158,6 +3188,59 @@ class CopilotClient:
             if wire_azure:
                 wire_provider["azure"] = wire_azure
         return wire_provider
+
+    def _convert_named_provider_to_wire_format(
+        self, provider: NamedProviderConfig | dict[str, Any]
+    ) -> dict[str, Any]:
+        """Convert a named BYOK provider from snake_case to camelCase wire format."""
+        wire: dict[str, Any] = {}
+        if "name" in provider:
+            wire["name"] = provider["name"]
+        if "type" in provider:
+            wire["type"] = provider["type"]
+        if "wire_api" in provider:
+            wire["wireApi"] = provider["wire_api"]
+        if "base_url" in provider:
+            wire["baseUrl"] = provider["base_url"]
+        if "api_key" in provider:
+            wire["apiKey"] = provider["api_key"]
+        if "bearer_token" in provider:
+            wire["bearerToken"] = provider["bearer_token"]
+        if "headers" in provider:
+            wire["headers"] = provider["headers"]
+        if "azure" in provider:
+            azure = provider["azure"]
+            wire_azure: dict[str, Any] = {}
+            if "api_version" in azure:
+                wire_azure["apiVersion"] = azure["api_version"]
+            if wire_azure:
+                wire["azure"] = wire_azure
+        return wire
+
+    def _convert_model_to_wire_format(
+        self, model: ProviderModelConfig | dict[str, Any]
+    ) -> dict[str, Any]:
+        """Convert a BYOK model definition from snake_case to camelCase wire format."""
+        wire: dict[str, Any] = {}
+        if "id" in model:
+            wire["id"] = model["id"]
+        if "provider" in model:
+            wire["provider"] = model["provider"]
+        if "wire_model" in model:
+            wire["wireModel"] = model["wire_model"]
+        if "model_id" in model:
+            wire["modelId"] = model["model_id"]
+        if "name" in model:
+            wire["name"] = model["name"]
+        if "max_prompt_tokens" in model:
+            wire["maxPromptTokens"] = model["max_prompt_tokens"]
+        if "max_context_window_tokens" in model:
+            wire["maxContextWindowTokens"] = model["max_context_window_tokens"]
+        if "max_output_tokens" in model:
+            wire["maxOutputTokens"] = model["max_output_tokens"]
+        if "capabilities" in model:
+            wire["capabilities"] = _capabilities_to_dict(model["capabilities"])
+        return wire
 
     def _convert_custom_agent_to_wire_format(
         self, agent: CustomAgentConfig | dict[str, Any]
