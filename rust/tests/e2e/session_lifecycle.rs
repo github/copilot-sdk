@@ -24,7 +24,7 @@ async fn should_list_created_sessions_after_sending_a_message() {
                     .expect("create second session");
 
                 session1.send_and_wait("Say hello").await.expect("send one");
-                session2.send_and_wait("Say world").await.expect("send two");
+                session2.send_and_wait("Say hi").await.expect("send two");
 
                 wait_for_condition("both sessions to appear in list", || {
                     let client = client.clone();
