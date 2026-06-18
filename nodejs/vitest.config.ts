@@ -15,6 +15,7 @@ export default defineConfig({
             "**/dist/**",
             "**/*.d.ts",
             "**/basic-test.ts", // Old manual test
+            "**/eslint-plugin/**", // Standalone package with its own node:test runner
         ],
     },
 });
