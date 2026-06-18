@@ -44,7 +44,7 @@ class TestSystemMessageSections:
         await session.disconnect()
 
     async def test_should_use_replaced_preamble_section_in_response(self, ctx: E2ETestContext):
-        """Test that replacing only the preamble section causes the assistant to adopt a new persona"""
+        """Test that replacing only the preamble section changes the assistant persona"""
         session = await ctx.client.create_session(
             system_message={
                 "mode": "customize",
