@@ -3,7 +3,7 @@ name: "Block remove-before-merge paths"
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-
+  merge_group:
 jobs:
   check-paths:
     name: "No remove-before-merge directories"
