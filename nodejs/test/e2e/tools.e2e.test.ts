@@ -69,7 +69,9 @@ describe("Custom tools", async () => {
                     handler: (_args, invocation) => {
                         const args = invocation.arguments as Record<string, unknown>;
                         if (args.keyword !== "copilot") {
-                            throw new Error(`Expected keyword to be 'copilot', got: ${String(args.keyword)}`);
+                            throw new Error(
+                                `Expected keyword to be 'copilot', got: ${String(args.keyword)}`
+                            );
                         }
                         return "Found: item_alpha, item_beta";
                     },
