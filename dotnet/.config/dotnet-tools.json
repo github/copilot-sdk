@@ -3,7 +3,7 @@
   "isRoot": true,
   "tools": {
     "roslyn-language-server": {
-      "version": "5.5.0-2.26078.4",
+      "version": "5.5.0-2.26103.6",
       "commands": [
         "roslyn-language-server"
       ],
@@ -11,4 +11,3 @@
     }
   }
 }
-
