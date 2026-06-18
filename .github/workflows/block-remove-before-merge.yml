@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
+
+permissions:
+  pull-requests: read
+
 jobs:
   check-paths:
     name: "No remove-before-merge directories"
