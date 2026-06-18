@@ -1992,6 +1992,15 @@ public sealed class ProviderConfig
     public string? WireApi { get; set; }
 
     /// <summary>
+    /// Transport for OpenAI Responses requests ("http" or "websockets"). Defaults to "http".
+    /// Set to "websockets" to deliver Responses API requests over a persistent WebSocket
+    /// connection instead of HTTP. Applies to OpenAI-compatible providers using
+    /// <c>wireApi: "responses"</c>.
+    /// </summary>
+    [JsonPropertyName("transport")]
+    public string? Transport { get; set; }
+
+    /// <summary>
     /// Base URL of the provider's API endpoint.
     /// </summary>
     [JsonPropertyName("baseUrl")]

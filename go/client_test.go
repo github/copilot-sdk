@@ -1464,6 +1464,33 @@ func TestSessionRequests_Capi(t *testing.T) {
 	})
 }
 
+func TestProviderConfig_Transport(t *testing.T) {
+	t.Run("serializes transport with camelCase key", func(t *testing.T) {
+		cfg := ProviderConfig{BaseURL: "https://example.com", Transport: "websockets"}
+		data, err := json.Marshal(cfg)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["transport"] != "websockets" {
+			t.Errorf("Expected transport=websockets, got %v", m["transport"])
+		}
+	})
+
+	t.Run("omits transport from JSON when unset", func(t *testing.T) {
+		cfg := ProviderConfig{BaseURL: "https://example.com"}
+		data, _ := json.Marshal(cfg)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["transport"]; ok {
+			t.Error("Expected transport to be omitted when unset")
+		}
+	})
+}
+
 func TestResumeSessionRequest_Commands(t *testing.T) {
 	t.Run("forwards commands in session.resume RPC", func(t *testing.T) {
 		req := resumeSessionRequest{

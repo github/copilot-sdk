@@ -2148,6 +2148,17 @@ export interface ProviderConfig {
     wireApi?: "completions" | "responses";
 
     /**
+     * Transport for OpenAI Responses requests. Defaults to "http".
+     *
+     * Set to "websockets" to deliver Responses API requests over a persistent
+     * WebSocket connection instead of HTTP. Useful for long-running,
+     * tool-call-heavy sessions that benefit from incremental
+     * `previous_response_id` continuations. Applies to OpenAI-compatible
+     * providers using `wireApi: "responses"`.
+     */
+    transport?: "http" | "websockets";
+
+    /**
      * API endpoint URL
      */
     baseUrl: string;

@@ -1125,6 +1125,7 @@ class TestSessionConfigForwarding:
                     "wire_model": "my-finetune-v3",
                     "max_prompt_tokens": 100_000,
                     "max_output_tokens": 4096,
+                    "transport": "websockets",
                 },
             )
 
@@ -1135,6 +1136,7 @@ class TestSessionConfigForwarding:
             assert provider["wireModel"] == "my-finetune-v3"
             assert provider["maxPromptTokens"] == 100_000
             assert provider["maxOutputTokens"] == 4096
+            assert provider["transport"] == "websockets"
         finally:
             await client.force_stop()
 

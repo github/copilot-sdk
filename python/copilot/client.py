@@ -3179,6 +3179,8 @@ class CopilotClient:
             wire_provider["apiKey"] = provider["api_key"]
         if "wire_api" in provider:
             wire_provider["wireApi"] = provider["wire_api"]
+        if "transport" in provider:
+            wire_provider["transport"] = provider["transport"]
         if "bearer_token" in provider:
             wire_provider["bearerToken"] = provider["bearer_token"]
         if "headers" in provider:

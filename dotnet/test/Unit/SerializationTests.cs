@@ -27,7 +27,8 @@ public class SerializationTests
             ModelId = "gpt-4o",
             WireModel = "my-finetune-v3",
             MaxPromptTokens = 100_000,
-            MaxOutputTokens = 4096
+            MaxOutputTokens = 4096,
+            Transport = "websockets"
         };
 
         var json = JsonSerializer.Serialize(original, options);
@@ -39,6 +40,7 @@ public class SerializationTests
         Assert.Equal("my-finetune-v3", root.GetProperty("wireModel").GetString());
         Assert.Equal(100_000, root.GetProperty("maxPromptTokens").GetInt32());
         Assert.Equal(4096, root.GetProperty("maxOutputTokens").GetInt32());
+        Assert.Equal("websockets", root.GetProperty("transport").GetString());
 
         var deserialized = JsonSerializer.Deserialize<ProviderConfig>(json, options);
         Assert.NotNull(deserialized);
@@ -48,6 +50,7 @@ public class SerializationTests
         Assert.Equal("my-finetune-v3", deserialized.WireModel);
         Assert.Equal(100_000, deserialized.MaxPromptTokens);
         Assert.Equal(4096, deserialized.MaxOutputTokens);
+        Assert.Equal("websockets", deserialized.Transport);
     }
 
     [Fact]

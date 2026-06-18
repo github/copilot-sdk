@@ -989,6 +989,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             },
         });
 
@@ -1001,6 +1002,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             })
         );
         spy.mockRestore();
@@ -1028,6 +1030,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             },
         });
 
@@ -1040,6 +1043,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             })
         );
         spy.mockRestore();

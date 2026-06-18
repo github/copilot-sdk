@@ -1027,6 +1027,12 @@ pub struct ProviderConfig {
     /// Defaults to `"completions"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wire_api: Option<String>,
+    /// Transport for OpenAI Responses requests: `"http"` or `"websockets"`.
+    /// Defaults to `"http"`. Set `"websockets"` to deliver Responses API
+    /// requests over a persistent WebSocket connection instead of HTTP.
+    /// Applies to OpenAI-compatible providers using `wire_api` `"responses"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<String>,
     /// API endpoint URL.
     pub base_url: String,
     /// API key. Optional for local providers like Ollama.
@@ -1087,6 +1093,13 @@ impl ProviderConfig {
     /// Set the API format (`"completions"` or `"responses"`; openai/azure only).
     pub fn with_wire_api(mut self, wire_api: impl Into<String>) -> Self {
         self.wire_api = Some(wire_api.into());
+        self
+    }
+
+    /// Set the transport (`"http"` or `"websockets"`) for OpenAI Responses
+    /// requests. Defaults to `"http"`.
+    pub fn with_transport(mut self, transport: impl Into<String>) -> Self {
+        self.transport = Some(transport.into());
         self
     }
 
@@ -5100,6 +5113,7 @@ mod tests {
         let cfg = ProviderConfig::new("https://api.example.com")
             .with_provider_type("openai")
             .with_wire_api("completions")
+            .with_transport("websockets")
             .with_api_key("sk-test")
             .with_bearer_token("bearer-test")
             .with_headers(headers)
@@ -5111,6 +5125,7 @@ mod tests {
         assert_eq!(cfg.base_url, "https://api.example.com");
         assert_eq!(cfg.provider_type.as_deref(), Some("openai"));
         assert_eq!(cfg.wire_api.as_deref(), Some("completions"));
+        assert_eq!(cfg.transport.as_deref(), Some("websockets"));
         assert_eq!(cfg.api_key.as_deref(), Some("sk-test"));
         assert_eq!(cfg.bearer_token.as_deref(), Some("bearer-test"));
         assert_eq!(
