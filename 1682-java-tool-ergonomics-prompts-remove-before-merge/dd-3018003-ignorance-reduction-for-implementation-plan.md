@@ -40,6 +40,8 @@ Current SDK structure is a single module (`copilot-sdk-java`). Two options:
 
 **Action:** Decide; update `module-info.java` exports if new package is added.
 
+**Resolution:** Select Option B.
+
 ### 3.2 — `@CopilotTool` annotation design
 
 **Question:** What attributes does `@CopilotTool` need?
@@ -74,6 +76,8 @@ public @interface CopilotTool {
 
 **Recommendation:** Start with `RUNTIME` retention so the reflection fallback works. Defer `ToolDefer` support to a follow-up.
 
+**Resolution:** Select `RUNTIME` and `ToolDefer` support.
+
 ### 3.3 — `@Param` annotation design
 
 **Question:** What attributes does `@Param` need?
@@ -91,10 +95,20 @@ public @interface Param {
 
     /** Whether this parameter is required. Default true. */
     boolean required() default true;
+
+    /** Optional default value when the argument is omitted. */
+    String defaultValue() default "";
 }
 ```
 
-**Open question:** LangChain4J's `@P` also has `defaultValue()`. Do we need that? Probably not for v1 — the model doesn't use default values; it's for documentation.
+**Resolution:** Support `defaultValue()` in v1 (langchain4j parity) and make it behaviorally effective, not docs-only.
+
+Implementation rules:
+- Emit JSON Schema defaults at `properties.<param>.default` for model guidance.
+- Apply defaults at invocation time when an argument key is missing, then do normal coercion/casting and method invocation.
+- Forbid `required=true` together with a non-empty `defaultValue()` (compile-time error in processor, matching runtime reflection fallback validation).
+- Parse and validate `defaultValue()` against the Java parameter type (fail fast on mismatch).
+- Ensure compile-time generated path and runtime reflection fallback use identical defaulting semantics.
 
 ### 3.4 — Type-to-JSON-Schema mapping
 
