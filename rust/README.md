@@ -180,6 +180,29 @@ New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
 
+#### Experimental APIs
+
+Some generated RPC methods are part of an **experimental**, unstable
+wire-protocol surface that may change or be removed in any release. These
+methods are gated behind the `experimental` Cargo feature, the Rust analog of
+C# `[Experimental]` and Java `@CopilotExperimental`: depending on one is a
+deliberate, explicit opt-in rather than something you can reach by accident.
+
+Without the feature the methods are not part of the public API, so calling one
+is a hard compile error (`method ... is private` / `method not found`). Opt in
+per-dependency:
+
+```toml
+[dependencies]
+github-copilot-sdk = { version = "...", features = ["experimental"] }
+```
+
+Several of the typed-RPC examples above (`agent().list()`, `tasks().list()`,
+`sessions().fork()`, ...) are experimental and require this feature. Each
+experimental method also carries an `**Experimental.**` admonition in its
+rustdoc. Stable helpers (e.g. `Session`/`Client` convenience methods) are never
+gated, even when they call an experimental RPC internally.
+
 ### Handler Traits
 
 The SDK exposes five focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has a single `async fn handle(...)` method:
@@ -902,6 +925,7 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 | -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bundled-cli`  | ✓       | Build-time CLI embedding. Pulls in `tar`+`flate2` (Linux/macOS) or `zip` (Windows). Disable via `default-features = false` to opt out (e.g. when shipping a smaller binary or when always supplying the CLI via `CliProgram::Path` / `COPILOT_CLI_PATH`). |
 | `derive`       | —       | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration).             |
+| `experimental` | —       | Exposes [experimental, unstable RPC methods](#experimental-apis). Off by default so depending on an experimental API is a deliberate opt-in; without it, calling one is a compile error. APIs behind this feature may change or be removed in any release. |
 
 ```toml
 # These examples use registry syntax for illustration; until the crate is
@@ -915,4 +939,7 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
 github-copilot-sdk = { version = "0.1", features = ["derive"] }
+
+# Opt in to experimental, unstable RPC APIs.
+github-copilot-sdk = { version = "0.1", features = ["experimental"] }
 ```

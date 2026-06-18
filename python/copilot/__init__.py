@@ -64,6 +64,13 @@ from .client import (
     TelemetryConfig,
     UriRuntimeConnection,
 )
+from .experimental import (
+    ExperimentalWarning,
+    allow_experimental,
+    experimental,
+    is_experimental,
+    set_experimental_policy,
+)
 from .generated.rpc import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -195,6 +202,7 @@ __all__ = [
     "ExitPlanModeHandler",
     "ExitPlanModeRequest",
     "ExitPlanModeResult",
+    "ExperimentalWarning",
     "ExtensionInfo",
     "GetAuthStatusResponse",
     "GetStatusResponse",
@@ -292,7 +300,11 @@ __all__ = [
     "UserPromptSubmittedHandler",
     "UserPromptSubmittedHookInput",
     "UserPromptSubmittedHookOutput",
+    "allow_experimental",
     "convert_mcp_call_tool_result",
     "create_session_fs_adapter",
     "define_tool",
+    "experimental",
+    "is_experimental",
+    "set_experimental_policy",
 ]

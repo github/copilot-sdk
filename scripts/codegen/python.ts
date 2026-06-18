@@ -3131,6 +3131,8 @@ from uuid import UUID
 
 import dateutil.parser
 
+from ..experimental import experimental
+
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
 
@@ -3507,6 +3509,15 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
             : `    async def ${methodName}(self, params: ${paramsType}, *, timeout: float | None = None) -> ${resultType}:`
         : `    async def ${methodName}(self, *, timeout: float | None = None) -> ${resultType}:`;
 
+    // Emit the runtime `@experimental` decorator so that calling an experimental
+    // method raises an `ExperimentalWarning` the consumer must explicitly silence
+    // (the Python analog of C# `[Experimental]` / Java `@CopilotExperimental`).
+    // Internal methods already carry no stability guarantee via the `_` prefix, so
+    // they are left undecorated to avoid noise from internal SDK call sites.
+    const isExperimentalMethod = (method.stability === "experimental" || groupExperimental) && !isInternal;
+    if (isExperimentalMethod) {
+        lines.push(`    @experimental`);
+    }
     lines.push(sig);
 
     pushPyRpcMethodDocstring(lines, "        ", method, {

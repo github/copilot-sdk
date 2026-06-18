@@ -1904,28 +1904,58 @@ function emitNamespaceMethod(
 			? "pub(crate)"
 			: "pub";
 
+	// Gate experimental methods behind the `experimental` Cargo feature so that
+	// external callers must opt in explicitly to reach an experimental API — the
+	// Rust analog of C# `[Experimental]` / Java `@CopilotExperimental`. Rather than
+	// removing the method (which would also break the SDK's own internal callers),
+	// we make it *conditionally visible*: `pub` only when the feature is enabled,
+	// and `pub(crate)` otherwise. Internal SDK code can therefore always call it,
+	// while consumers get a hard "method not found" compile error unless they
+	// enable `features = ["experimental"]`. Only public methods need this; methods
+	// that are already `pub(crate)` are invisible to consumers regardless.
+	const gateExperimental = method.stability === "experimental" && fnVis === "pub";
+
+	const emitFnForm = (signature: string, docsIncludeParams: boolean, bodyHasParams: boolean): void => {
+		if (gateExperimental) {
+			out.push(...buildDocs(docsIncludeParams));
+			out.push(`    #[cfg(feature = "experimental")]`);
+			out.push(`    pub ${signature}`);
+			pushNamespaceMethodBody(out, constName, isSession, bodyHasParams, resultIsVoid);
+			out.push("");
+			// Crate-internal fallback so the SDK itself keeps compiling with the
+			// feature off; hidden from docs because it is not a public entry point.
+			out.push(`    #[cfg(not(feature = "experimental"))]`);
+			out.push(`    #[doc(hidden)]`);
+			out.push(`    pub(crate) ${signature}`);
+			pushNamespaceMethodBody(out, constName, isSession, bodyHasParams, resultIsVoid);
+			out.push("");
+			return;
+		}
+		out.push(...buildDocs(docsIncludeParams));
+		out.push(`    ${fnVis} ${signature}`);
+		pushNamespaceMethodBody(out, constName, isSession, bodyHasParams, resultIsVoid);
+		out.push("");
+	};
+
 	if (hasParams && paramsInfo.optional) {
-		out.push(...buildDocs(false));
-		out.push(
-			`    ${fnVis} async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
+		emitFnForm(
+			`async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
+			false,
+			false,
 		);
-		pushNamespaceMethodBody(out, constName, isSession, false, resultIsVoid);
-		out.push("");
-		out.push(...buildDocs(true));
-		out.push(
-			`    ${fnVis} async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
+		emitFnForm(
+			`async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
+			true,
+			true,
 		);
-		pushNamespaceMethodBody(out, constName, isSession, true, resultIsVoid);
-		out.push("");
 		return;
 	}
 
-	out.push(...buildDocs(hasParams));
-	out.push(
-		`    ${fnVis} async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
+	emitFnForm(
+		`async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
+		hasParams,
+		hasParams,
 	);
-	pushNamespaceMethodBody(out, constName, isSession, hasParams, resultIsVoid);
-	out.push("");
 }
 
 function generateRpcCode(apiSchema: ApiSchema): string {

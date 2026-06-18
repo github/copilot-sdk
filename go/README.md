@@ -15,6 +15,17 @@ To use the SDK, you'll need:
 go get github.com/github/copilot-sdk/go
 ```
 
+## Detecting experimental API usage
+
+The Go SDK ships a companion analyzer, `copilotexperimental`, that reports
+references to experimental Copilot SDK APIs in consumer code. Install the tool
+and point `go vet` at it:
+
+```bash
+go install github.com/github/copilot-sdk/go/copilotexperimental/cmd/copilotexperimental@latest
+go vet -vettool=$(which copilotexperimental) ./...
+```
+
 ## Run the Sample
 
 Try the interactive chat sample (from the repo root):
