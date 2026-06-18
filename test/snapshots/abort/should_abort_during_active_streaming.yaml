@@ -28,3 +28,10 @@ conversations:
         content: Say 'abort_recovery_ok'.
       - role: assistant
         content: abort_recovery_ok
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say 'abort_recovery_ok'.
+      - role: assistant
+        content: abort_recovery_ok
