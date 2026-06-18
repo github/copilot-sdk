@@ -25,7 +25,7 @@ public class SessionLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper 
 
         // Sessions must have activity to be persisted to disk
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello" });
-        await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Say hi" });
+        await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Say world" });
 
         IList<SessionMetadata>? sessions = null;
         await TestHelper.WaitForConditionAsync(
