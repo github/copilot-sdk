@@ -94,19 +94,23 @@ func TestToolsE2E(t *testing.T) {
 			Keyword string `json:"keyword" jsonschema:"Search keyword"`
 		}
 
+		var mu sync.Mutex
 		currentPhase := ""
+		searchKeyword := ""
 
 		setCurrentPhaseTool := copilot.DefineTool("set_current_phase", "Sets the current phase of the agent",
 			func(params PhaseArgs, inv copilot.ToolInvocation) (string, error) {
+				mu.Lock()
 				currentPhase = params.Phase
+				mu.Unlock()
 				return "Phase set to " + params.Phase, nil
 			})
 
 		searchItemsTool := copilot.DefineTool("search_items", "Search for items by keyword",
 			func(params SearchArgs, inv copilot.ToolInvocation) (string, error) {
-				if params.Keyword != "copilot" {
-					t.Fatalf("Expected keyword to be 'copilot', got %q", params.Keyword)
-				}
+				mu.Lock()
+				searchKeyword = params.Keyword
+				mu.Unlock()
 				return "Found: item_alpha, item_beta", nil
 			})
 
@@ -153,8 +157,15 @@ func TestToolsE2E(t *testing.T) {
 		if !strings.Contains(lower, "item_alpha") && !strings.Contains(lower, "item_beta") {
 			t.Errorf("Expected response to contain 'item_alpha' or 'item_beta', got %q", content)
 		}
-		if currentPhase != "analyzing" {
-			t.Errorf("Expected currentPhase to be 'analyzing', got %q", currentPhase)
+		mu.Lock()
+		gotPhase := currentPhase
+		gotKeyword := searchKeyword
+		mu.Unlock()
+		if gotKeyword != "copilot" {
+			t.Errorf("Expected search keyword to be 'copilot', got %q", gotKeyword)
+		}
+		if gotPhase != "analyzing" {
+			t.Errorf("Expected currentPhase to be 'analyzing', got %q", gotPhase)
 		}
 	})
 
