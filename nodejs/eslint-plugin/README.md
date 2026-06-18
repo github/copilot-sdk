@@ -8,6 +8,16 @@ Type-aware ESLint rules for the GitHub Copilot SDK.
 with `/** @experimental */`. Consumers must explicitly suppress the diagnostic to
 opt in at a call site.
 
+## Rules
+
+### `no-experimental-api`
+
+Reports references to SDK symbols whose JSDoc is tagged `@experimental`. The rule is
+type-aware: it resolves each referenced symbol back to its declaration and inspects the
+declaration's JSDoc, so aliased imports and re-exports are flagged too. Suppress an
+individual call site with an `eslint-disable-next-line` comment (see
+[Suppressing a single use](#suppressing-a-single-use)).
+
 ## Install
 
 ```bash
