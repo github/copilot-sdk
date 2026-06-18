@@ -63,10 +63,34 @@ REGISTRY_MODELS = [
     {"id": "haiku", "provider": "beta", "wire_model": "byok-claude-3-haiku"},
 ]
 REGISTRY_AGENTS = [
-    {"name": "orchestrator", "display_name": "Orchestrator", "description": "Top-level planner.", "prompt": "Plan and delegate.", "model": "alpha/sonnet"},
-    {"name": "researcher", "display_name": "Researcher", "description": "Deep research subagent.", "prompt": "Research thoroughly.", "model": "beta/opus"},
-    {"name": "fast-helper", "display_name": "Fast Helper", "description": "Quick subagent.", "prompt": "Answer quickly.", "model": "alpha/haiku"},
-    {"name": "summarizer", "display_name": "Summarizer", "description": "Summarizing subagent.", "prompt": "Summarize.", "model": "beta/haiku"},
+    {
+        "name": "orchestrator",
+        "display_name": "Orchestrator",
+        "description": "Top-level planner.",
+        "prompt": "Plan and delegate.",
+        "model": "alpha/sonnet",
+    },
+    {
+        "name": "researcher",
+        "display_name": "Researcher",
+        "description": "Deep research subagent.",
+        "prompt": "Research thoroughly.",
+        "model": "beta/opus",
+    },
+    {
+        "name": "fast-helper",
+        "display_name": "Fast Helper",
+        "description": "Quick subagent.",
+        "prompt": "Answer quickly.",
+        "model": "alpha/haiku",
+    },
+    {
+        "name": "summarizer",
+        "display_name": "Summarizer",
+        "description": "Summarizing subagent.",
+        "prompt": "Summarize.",
+        "model": "beta/haiku",
+    },
 ]
 
 

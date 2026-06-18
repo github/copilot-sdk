@@ -73,10 +73,34 @@ describe("Multi-provider BYOK registry", async () => {
         { id: "haiku", provider: "beta", wireModel: "byok-claude-3-haiku" },
     ];
     const registryAgents: CustomAgentConfig[] = [
-        { name: "orchestrator", displayName: "Orchestrator", description: "Top-level planner.", prompt: "Plan and delegate.", model: "alpha/sonnet" },
-        { name: "researcher", displayName: "Researcher", description: "Deep research subagent.", prompt: "Research thoroughly.", model: "beta/opus" },
-        { name: "fast-helper", displayName: "Fast Helper", description: "Quick subagent.", prompt: "Answer quickly.", model: "alpha/haiku" },
-        { name: "summarizer", displayName: "Summarizer", description: "Summarizing subagent.", prompt: "Summarize.", model: "beta/haiku" },
+        {
+            name: "orchestrator",
+            displayName: "Orchestrator",
+            description: "Top-level planner.",
+            prompt: "Plan and delegate.",
+            model: "alpha/sonnet",
+        },
+        {
+            name: "researcher",
+            displayName: "Researcher",
+            description: "Deep research subagent.",
+            prompt: "Research thoroughly.",
+            model: "beta/opus",
+        },
+        {
+            name: "fast-helper",
+            displayName: "Fast Helper",
+            description: "Quick subagent.",
+            prompt: "Answer quickly.",
+            model: "alpha/haiku",
+        },
+        {
+            name: "summarizer",
+            displayName: "Summarizer",
+            description: "Summarizing subagent.",
+            prompt: "Summarize.",
+            model: "beta/haiku",
+        },
     ];
 
     it("should register multiple providers with custom agents bound to their models", async () => {
