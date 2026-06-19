@@ -24971,6 +24971,44 @@ def register_client_session_api_handlers(
         return result.value if hasattr(result, 'value') else result
     client.set_request_handler("canvas.action.invoke", handle_canvas_action_invoke)
 
+# Experimental: this API group is experimental and may change or be removed.
+class LlmInferenceHandler(Protocol):
+    async def http_request_start(self, params: LlmInferenceHTTPRequestStartRequest) -> LlmInferenceHTTPRequestStartResult:
+        "Announces an outbound model-layer HTTP request the runtime wants the SDK client to service. Carries the request head only; the body always follows as one or more httpRequestChunk frames keyed by the same requestId, even when the body is empty (a single chunk with end=true).\n\nArgs:\n    params: The head of an outbound model-layer HTTP request.\n\nReturns:\n    Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed."
+        pass
+    async def http_request_chunk(self, params: LlmInferenceHTTPRequestChunkRequest) -> LlmInferenceHTTPRequestChunkResult:
+        "Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.\n\nArgs:\n    params: A request body chunk or cancellation signal.\n\nReturns:\n    Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget."
+        pass
+
+@dataclass
+class ClientGlobalApiHandlers:
+    llm_inference: LlmInferenceHandler | None = None
+
+def register_client_global_api_handlers(
+    client: "JsonRpcClient",
+    handlers: ClientGlobalApiHandlers,
+) -> None:
+    """Register client-global request handlers on a JSON-RPC connection.
+
+    Unlike client-session handlers these methods carry no implicit
+    session_id dispatch key; a single set of handlers serves the entire
+    connection.
+    """
+    async def handle_llm_inference_http_request_start(params: dict) -> dict | None:
+        request = LlmInferenceHTTPRequestStartRequest.from_dict(params)
+        handler = handlers.llm_inference
+        if handler is None: raise RuntimeError("No llm_inference client-global handler registered")
+        result = await handler.http_request_start(request)
+        return result.to_dict()
+    client.set_request_handler("llmInference.httpRequestStart", handle_llm_inference_http_request_start)
+    async def handle_llm_inference_http_request_chunk(params: dict) -> dict | None:
+        request = LlmInferenceHTTPRequestChunkRequest.from_dict(params)
+        handler = handlers.llm_inference
+        if handler is None: raise RuntimeError("No llm_inference client-global handler registered")
+        result = await handler.http_request_chunk(request)
+        return result.to_dict()
+    client.set_request_handler("llmInference.httpRequestChunk", handle_llm_inference_http_request_chunk)
+
 __all__ = [
     "APIKeyAuthInfo",
     "APIKeyAuthInfoType",
@@ -25040,6 +25078,7 @@ __all__ = [
     "CanvasProviderOpenRequest",
     "CanvasProviderOpenResult",
     "CanvasSessionContext",
+    "ClientGlobalApiHandlers",
     "ClientSessionApiHandlers",
     "CommandList",
     "CommandsApi",
@@ -25164,6 +25203,7 @@ __all__ = [
     "LlmInferenceHTTPResponseChunkResult",
     "LlmInferenceHTTPResponseStartRequest",
     "LlmInferenceHTTPResponseStartResult",
+    "LlmInferenceHandler",
     "LlmInferenceHeaders",
     "LlmInferenceSetProviderResult",
     "LocalSessionMetadataValue",
