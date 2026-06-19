@@ -17109,3 +17109,94 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 		return raw, nil
 	})
 }
+
+// Experimental: LlmInferenceHandler contains experimental APIs that may change or be
+// removed.
+type LlmInferenceHandler interface {
+	// HttpRequestChunk delivers a body byte range (or a cancellation signal) for a request
+	// previously announced via httpRequestStart, correlated by requestId. The runtime fires at
+	// least one chunk per request — when there is no body, a single chunk with empty data and
+	// end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request;
+	// the SDK then stops issuing httpResponseChunk frames and may emit a terminal
+	// httpResponseChunk with error set.
+	//
+	// RPC method: llmInference.httpRequestChunk.
+	//
+	// Parameters: A request body chunk or cancellation signal.
+	//
+	// Returns: Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as
+	// fire-and-forget.
+	HttpRequestChunk(request *LlmInferenceHTTPRequestChunkRequest) (*LlmInferenceHTTPRequestChunkResult, error)
+	// HttpRequestStart announces an outbound model-layer HTTP request the runtime wants the SDK
+	// client to service. Carries the request head only; the body always follows as one or more
+	// httpRequestChunk frames keyed by the same requestId, even when the body is empty (a
+	// single chunk with end=true).
+	//
+	// RPC method: llmInference.httpRequestStart.
+	//
+	// Parameters: The head of an outbound model-layer HTTP request.
+	//
+	// Returns: Acknowledgement. Returning successfully simply means the SDK accepted the start
+	// frame; it does not imply the request will succeed.
+	HttpRequestStart(request *LlmInferenceHTTPRequestStartRequest) (*LlmInferenceHTTPRequestStartResult, error)
+}
+
+// ClientGlobalAPIHandlers provides all client-global API handler groups.
+//
+// Unlike client-session handlers these carry no implicit session id dispatch
+// key; a single set of handlers serves the entire connection.
+type ClientGlobalAPIHandlers struct {
+	LlmInference LlmInferenceHandler
+}
+
+func clientGlobalHandlerError(err error) *jsonrpc2.Error {
+	if err == nil {
+		return nil
+	}
+	var rpcErr *jsonrpc2.Error
+	if errors.As(err, &rpcErr) {
+		return rpcErr
+	}
+	return &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+}
+
+// RegisterClientGlobalAPIHandlers registers handlers for server-to-client client-global API
+// calls.
+func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGlobalAPIHandlers) {
+	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request LlmInferenceHTTPRequestChunkRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.LlmInference == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No llmInference client-global handler registered"}
+		}
+		result, err := handlers.LlmInference.HttpRequestChunk(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("llmInference.httpRequestStart", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request LlmInferenceHTTPRequestStartRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.LlmInference == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No llmInference client-global handler registered"}
+		}
+		result, err := handlers.LlmInference.HttpRequestStart(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+}

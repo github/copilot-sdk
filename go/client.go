@@ -371,6 +371,15 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 	}
 
+	// If an LLM inference callback was configured, register as the provider.
+	if c.options.LlmInference != nil && c.options.LlmInference.Handler != nil {
+		if _, err := c.RPC.LlmInference.SetProvider(ctx); err != nil {
+			killErr := c.killProcess()
+			c.state = stateError
+			return errors.Join(err, killErr)
+		}
+	}
+
 	c.state = stateConnected
 	return nil
 }
@@ -2003,6 +2012,15 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
+	if c.options.LlmInference != nil && c.options.LlmInference.Handler != nil {
+		adapter := newLlmInferenceAdapter(c.options.LlmInference.Handler, func() *rpc.ServerLlmInferenceAPI {
+			if c.RPC == nil {
+				return nil
+			}
+			return c.RPC.LlmInference
+		})
+		rpc.RegisterClientGlobalAPIHandlers(c.client, &rpc.ClientGlobalAPIHandlers{LlmInference: adapter})
+	}
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

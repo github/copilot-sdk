@@ -116,6 +116,12 @@ type ClientOptions struct {
 	// on connection, routing session-scoped file I/O through per-session
 	// handlers.
 	SessionFS *SessionFSConfig
+	// LlmInference configures a connection-level LLM inference callback. When
+	// provided, the client registers as the inference provider on connection,
+	// and the runtime routes its model-layer HTTP and WebSocket traffic through
+	// the handler instead of issuing the calls itself. Works for both CAPI and
+	// BYOK sessions.
+	LlmInference *LlmInferenceConfig
 	// Telemetry configures OpenTelemetry integration for the runtime.
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
 	// fields are mapped to the corresponding environment variables.
