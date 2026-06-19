@@ -20,6 +20,7 @@ on:
         type: string
 
 permissions:
+  copilot-requests: write
   contents: read
   actions: read
 
