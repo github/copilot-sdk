@@ -1,0 +1,50 @@
+{
+    "name": "@github/eslint-plugin-copilot-sdk",
+    "version": "0.0.0",
+    "description": "ESLint plugin for detecting experimental GitHub Copilot SDK APIs.",
+    "main": "index.js",
+    "exports": {
+        ".": "./index.js"
+    },
+    "scripts": {
+        "test": "node --test test/no-experimental-api.test.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/github/copilot-sdk.git",
+        "directory": "nodejs/eslint-plugin"
+    },
+    "keywords": [
+        "github",
+        "copilot",
+        "eslint",
+        "eslintplugin",
+        "typescript"
+    ],
+    "author": "GitHub",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/github/copilot-sdk/issues"
+    },
+    "homepage": "https://github.com/github/copilot-sdk/tree/main/nodejs/eslint-plugin",
+    "engines": {
+        "node": "^20.19.0 || >=22.12.0"
+    },
+    "files": [
+        "index.js",
+        "rules/",
+        "README.md"
+    ],
+    "peerDependencies": {
+        "eslint": ">=9",
+        "typescript": ">=5"
+    },
+    "dependencies": {
+        "@typescript-eslint/utils": "^8.54.0"
+    },
+    "devDependencies": {
+        "@typescript-eslint/parser": "^8.54.0",
+        "eslint": "^9.0.0",
+        "typescript": "^5.0.0"
+    }
+}

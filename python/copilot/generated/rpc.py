@@ -20,6 +20,8 @@ from uuid import UUID
 
 import dateutil.parser
 
+from ..experimental import experimental
+
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
 
@@ -22722,25 +22724,30 @@ class ServerPluginsMarketplacesApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> MarketplaceListResult:
         "Lists all registered marketplaces (defaults + user-added).\n\nReturns:\n    All registered marketplaces, including built-in defaults."
         return MarketplaceListResult.from_dict(await self._client.request("plugins.marketplaces.list", {}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def add(self, params: PluginsMarketplacesAddRequest, *, timeout: float | None = None) -> MarketplaceAddResult:
         "Registers a new marketplace from a source (owner/repo, URL, or local path).\n\nArgs:\n    params: Marketplace source to register.\n\nReturns:\n    Result of registering a new marketplace."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MarketplaceAddResult.from_dict(await self._client.request("plugins.marketplaces.add", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def remove(self, params: PluginsMarketplacesRemoveRequest, *, timeout: float | None = None) -> MarketplaceRemoveResult:
         "Removes a previously-registered marketplace. When the marketplace has dependent plugins and `force` is not set, the marketplace is left intact and the result lists the dependents so the caller can decide whether to retry with `force=true`.\n\nArgs:\n    params: Name of the marketplace to remove and an optional force flag.\n\nReturns:\n    Outcome of the remove attempt, including dependent-plugin info when applicable."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MarketplaceRemoveResult.from_dict(await self._client.request("plugins.marketplaces.remove", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def browse(self, params: PluginsMarketplacesBrowseRequest, *, timeout: float | None = None) -> MarketplaceBrowseResult:
         "Lists plugins advertised by a registered marketplace.\n\nArgs:\n    params: Name of the marketplace whose plugin catalog to fetch.\n\nReturns:\n    Plugins advertised by the marketplace."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MarketplaceBrowseResult.from_dict(await self._client.request("plugins.marketplaces.browse", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def refresh(self, params: PluginsMarketplacesRefreshRequest, *, timeout: float | None = None) -> MarketplaceRefreshResult:
         "Re-fetches one or all registered marketplace catalogs.\n\nArgs:\n    params: Optional marketplace name; omit to refresh all.\n\nReturns:\n    Result of refreshing one or more marketplace catalogs."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -22753,34 +22760,41 @@ class ServerPluginsApi:
         self._client = client
         self.marketplaces = ServerPluginsMarketplacesApi(client)
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> PluginListResult:
         "Lists plugins installed in user/global state.\n\nReturns:\n    Plugins installed in user/global state."
         return PluginListResult.from_dict(await self._client.request("plugins.list", {}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def install(self, params: PluginsInstallRequest, *, timeout: float | None = None) -> PluginInstallResult:
         "Installs a plugin from a marketplace, GitHub repo, URL, or local path.\n\nArgs:\n    params: Plugin source and optional working directory for relative-path resolution.\n\nReturns:\n    Result of installing a plugin."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return PluginInstallResult.from_dict(await self._client.request("plugins.install", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def uninstall(self, params: PluginsUninstallRequest, *, timeout: float | None = None) -> None:
         "Uninstalls an installed plugin.\n\nArgs:\n    params: Name (or spec) of the plugin to uninstall."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("plugins.uninstall", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def update(self, params: PluginsUpdateRequest, *, timeout: float | None = None) -> PluginUpdateResult:
         "Updates an installed plugin to its latest published version.\n\nArgs:\n    params: Name (or spec) of the plugin to update.\n\nReturns:\n    Result of updating a single plugin."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return PluginUpdateResult.from_dict(await self._client.request("plugins.update", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def update_all(self, *, timeout: float | None = None) -> PluginUpdateAllResult:
         "Updates every installed plugin to its latest published version.\n\nReturns:\n    Result of updating all installed plugins."
         return PluginUpdateAllResult.from_dict(await self._client.request("plugins.updateAll", {}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def enable(self, params: PluginsEnableRequest, *, timeout: float | None = None) -> None:
         "Enables installed plugins for new sessions.\n\nArgs:\n    params: Plugin names (or specs) to enable."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("plugins.enable", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def disable(self, params: PluginsDisableRequest, *, timeout: float | None = None) -> None:
         "Disables installed plugins for new sessions.\n\nArgs:\n    params: Plugin names (or specs) to disable."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -22807,6 +22821,7 @@ class ServerSkillsApi:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ServerSkillList.from_dict(await self._client.request("skills.discover", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_discovery_paths(self, params: SkillsGetDiscoveryPathsRequest, *, timeout: float | None = None) -> SkillDiscoveryPathList:
         "Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.\n\nArgs:\n    params: Optional project paths to enumerate.\n\nReturns:\n    Canonical locations where skills can be created so the runtime will recognize them.\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -22818,11 +22833,13 @@ class ServerAgentsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
+    @experimental
     async def discover(self, params: AgentsDiscoverRequest, *, timeout: float | None = None) -> ServerAgentList:
         "Discovers custom agents across user, project, plugin, and remote sources.\n\nArgs:\n    params: Optional project paths to include in agent discovery.\n\nReturns:\n    Agents discovered across user, project, plugin, and remote sources."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ServerAgentList.from_dict(await self._client.request("agents.discover", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_discovery_paths(self, params: AgentsGetDiscoveryPathsRequest, *, timeout: float | None = None) -> AgentDiscoveryPathList:
         "Returns the canonical directories where a client may create custom agents that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.\n\nArgs:\n    params: Optional project paths to include when enumerating agent discovery directories.\n\nReturns:\n    Canonical locations where custom agents can be created so the runtime will recognize them."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -22834,11 +22851,13 @@ class ServerInstructionsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
+    @experimental
     async def discover(self, params: InstructionsDiscoverRequest, *, timeout: float | None = None) -> ServerInstructionSourceList:
         "Discovers instruction sources across user, repository, and plugin sources.\n\nArgs:\n    params: Optional project paths to include in instruction discovery.\n\nReturns:\n    Instruction sources discovered across user, repository, and plugin sources."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ServerInstructionSourceList.from_dict(await self._client.request("instructions.discover", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_discovery_paths(self, params: InstructionsGetDiscoveryPathsRequest, *, timeout: float | None = None) -> InstructionDiscoveryPathList:
         "Returns the canonical files and directories where a client may create custom instructions that the runtime will recognize, including ones that do not exist yet. Repository targets become active once created.\n\nArgs:\n    params: Optional project paths to include when enumerating instruction discovery targets.\n\nReturns:\n    Canonical files and directories where custom instructions can be created so the runtime will recognize them."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -22884,115 +22903,138 @@ class ServerSessionsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
+    @experimental
     async def open(self, params: SessionOpenParams, *, timeout: float | None = None) -> SessionOpenResult:
         "Creates or resumes a local session and returns the opened session ID.\n\nArgs:\n    params: Open a session by creating, resuming, attaching, connecting to a remote, or handing off.\n\nReturns:\n    Result of opening a session."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionOpenResult.from_dict(await self._client.request("sessions.open", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def fork(self, params: SessionsForkRequest, *, timeout: float | None = None) -> SessionsForkResult:
         "Creates a new session by forking persisted history from an existing session.\n\nArgs:\n    params: Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.\n\nReturns:\n    Identifier and optional friendly name assigned to the newly forked session."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsForkResult.from_dict(await self._client.request("sessions.fork", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def connect(self, params: ConnectRemoteSessionParams, *, timeout: float | None = None) -> RemoteSessionConnectionResult:
         "Connects to an existing remote session and exposes it as an SDK session.\n\nArgs:\n    params: Remote session connection parameters.\n\nReturns:\n    Remote session connection result."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return RemoteSessionConnectionResult.from_dict(await self._client.request("sessions.connect", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def list(self, params: SessionsListRequest, *, timeout: float | None = None) -> SessionList:
         "Lists sessions, optionally filtered by source and working-directory context. Returned entries are discriminated by `isRemote`: local entries carry only the lightweight `LocalSessionMetadataValue` shape; remote entries carry the full `RemoteSessionMetadataValue` shape (repository, PR number, taskType, etc.).\n\nArgs:\n    params: Optional source filter, metadata-load limit, and context filter applied to the returned sessions.\n\nReturns:\n    Sessions matching the filter, ordered most-recently-modified first."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionList.from_dict(await self._client.request("sessions.list", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def find_by_task_id(self, params: SessionsFindByTaskIDRequest, *, timeout: float | None = None) -> SessionsFindByTaskIDResult:
         "Finds the local session bound to a GitHub task ID, if any.\n\nArgs:\n    params: GitHub task ID to look up.\n\nReturns:\n    ID of the local session bound to the given GitHub task, or omitted when none."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsFindByTaskIDResult.from_dict(await self._client.request("sessions.findByTaskId", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def find_by_prefix(self, params: SessionsFindByPrefixRequest, *, timeout: float | None = None) -> SessionsFindByPrefixResult:
         "Resolves a UUID prefix to a unique session ID, if exactly one session matches.\n\nArgs:\n    params: UUID prefix to resolve to a unique session ID.\n\nReturns:\n    Session ID matching the prefix, omitted when no unique match exists."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsFindByPrefixResult.from_dict(await self._client.request("sessions.findByPrefix", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_last_for_context(self, params: SessionsGetLastForContextRequest, *, timeout: float | None = None) -> SessionsGetLastForContextResult:
         "Returns the most-relevant prior session for a given working-directory context.\n\nArgs:\n    params: Optional working-directory context used to score session relevance.\n\nReturns:\n    Most-relevant session ID for the supplied context, or omitted when no sessions exist."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsGetLastForContextResult.from_dict(await self._client.request("sessions.getLastForContext", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_sizes(self, *, timeout: float | None = None) -> SessionSizes:
         "Returns the on-disk byte size of each session's workspace directory.\n\nReturns:\n    Map of sessionId -> on-disk size in bytes for each session's workspace directory."
         return SessionSizes.from_dict(await self._client.request("sessions.getSizes", {}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def check_in_use(self, params: SessionsCheckInUseRequest, *, timeout: float | None = None) -> SessionsCheckInUseResult:
         "Returns the subset of the supplied session IDs that are currently held by another running process.\n\nArgs:\n    params: Session IDs to test for live in-use locks.\n\nReturns:\n    Session IDs from the input set that are currently in use by another process."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsCheckInUseResult.from_dict(await self._client.request("sessions.checkInUse", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def close(self, params: SessionsCloseRequest, *, timeout: float | None = None) -> SessionsCloseResult:
         "Closes a session: emits shutdown, flushes pending events, releases the in-use lock, and disposes the active session.\n\nArgs:\n    params: Session ID to close.\n\nReturns:\n    Closes a session: emits shutdown, flushes pending events to disk, releases the in-use lock, disposes the active session. Idempotent: succeeds even if the session is not currently active."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsCloseResult.from_dict(await self._client.request("sessions.close", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def bulk_delete(self, params: SessionsBulkDeleteRequest, *, timeout: float | None = None) -> SessionBulkDeleteResult:
         "Closes, deactivates, and deletes a set of sessions, returning the bytes freed per session.\n\nArgs:\n    params: Session IDs to close, deactivate, and delete from disk.\n\nReturns:\n    Map of sessionId -> bytes freed by removing the session's workspace directory."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionBulkDeleteResult.from_dict(await self._client.request("sessions.bulkDelete", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def prune_old(self, params: SessionsPruneOldRequest, *, timeout: float | None = None) -> SessionPruneResult:
         "Deletes sessions older than the given threshold, with optional dry-run and exclusion list.\n\nArgs:\n    params: Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).\n\nReturns:\n    Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs, total bytes freed, and the dry-run flag."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionPruneResult.from_dict(await self._client.request("sessions.pruneOld", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def save(self, params: SessionsSaveRequest, *, timeout: float | None = None) -> SessionsSaveResult:
         "Flushes a session's pending events to disk.\n\nArgs:\n    params: Session ID whose pending events should be flushed to disk.\n\nReturns:\n    Flush a session's pending events to disk. No-op when no writer exists for the session (e.g., already closed)."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsSaveResult.from_dict(await self._client.request("sessions.save", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def release_lock(self, params: SessionsReleaseLockRequest, *, timeout: float | None = None) -> SessionsReleaseLockResult:
         "Releases the in-use lock held by this process for a session.\n\nArgs:\n    params: Session ID whose in-use lock should be released.\n\nReturns:\n    Release the in-use lock held by this process for the given session. No-op when this process does not currently hold a lock for the session."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsReleaseLockResult.from_dict(await self._client.request("sessions.releaseLock", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def enrich_metadata(self, params: SessionsEnrichMetadataRequest, *, timeout: float | None = None) -> SessionEnrichMetadataResult:
         "Backfills missing summary and context fields on the supplied session metadata records.\n\nArgs:\n    params: Session metadata records to enrich with summary and context information.\n\nReturns:\n    The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionEnrichMetadataResult.from_dict(await self._client.request("sessions.enrichMetadata", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def reload_plugin_hooks(self, params: SessionsReloadPluginHooksRequest, *, timeout: float | None = None) -> SessionsReloadPluginHooksResult:
         "Reloads user, plugin, and (optionally) repo hooks on the active session.\n\nArgs:\n    params: Active session ID and an optional flag for deferring repo-level hooks until folder trust.\n\nReturns:\n    Reload all hooks (user, plugin, optionally repo) and apply them to the active session. Call after installing or removing plugins so their hooks take effect immediately. No-op when no active session matches the given sessionId."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsReloadPluginHooksResult.from_dict(await self._client.request("sessions.reloadPluginHooks", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def load_deferred_repo_hooks(self, params: SessionsLoadDeferredRepoHooksRequest, *, timeout: float | None = None) -> SessionLoadDeferredRepoHooksResult:
         "Loads previously-deferred repo-level hooks on the active session, returning queued startup prompts.\n\nArgs:\n    params: Active session ID whose deferred repo-level hooks should be loaded.\n\nReturns:\n    Queued repo-level startup prompts and the total hook command count after loading."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionLoadDeferredRepoHooksResult.from_dict(await self._client.request("sessions.loadDeferredRepoHooks", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_additional_plugins(self, params: SessionsSetAdditionalPluginsRequest, *, timeout: float | None = None) -> SessionsSetAdditionalPluginsResult:
         "Replaces the manager-wide additional plugins registered with the session manager.\n\nArgs:\n    params: Manager-wide additional plugins to register; replaces any previously-configured set.\n\nReturns:\n    Replace the manager-wide additional plugins. New session creations and subsequent hook reloads see the new set; already-running sessions keep their existing hook installation until the next reload."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsSetAdditionalPluginsResult.from_dict(await self._client.request("sessions.setAdditionalPlugins", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def start_remote_control(self, params: SessionsStartRemoteControlRequest, *, timeout: float | None = None) -> RemoteControlStatusResult:
         "Attaches the runtime-managed remote-control singleton to a session, awaiting initial setup. If remote control is already attached to a different session, the singleton is transferred (preserving the underlying Mission Control connection). Returns the final status.\n\nArgs:\n    params: Parameters for attaching the remote-control singleton to a session.\n\nReturns:\n    Wrapper for the singleton's current status."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return RemoteControlStatusResult.from_dict(await self._client.request("sessions.startRemoteControl", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def transfer_remote_control(self, params: SessionsTransferRemoteControlRequest, *, timeout: float | None = None) -> RemoteControlTransferResult:
         "Atomically rebinds the remote-control singleton to a different session, preserving the underlying Mission Control connection. When `expectedFromSessionId` is provided and does not match the singleton's current `attachedSessionId`, the transfer is rejected with `transferred: false` and the current status is returned unchanged.\n\nArgs:\n    params: Parameters for atomically rebinding the remote-control singleton.\n\nReturns:\n    Outcome of a transferRemoteControl call."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return RemoteControlTransferResult.from_dict(await self._client.request("sessions.transferRemoteControl", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_remote_control_steering(self, params: SessionsSetRemoteControlSteeringRequest, *, timeout: float | None = None) -> RemoteControlStatusResult:
         "Patches the steering state of the active remote-control singleton. When remote control is off, this is a no-op and the off status is returned. Today only `enabled: true` is actionable on the underlying exporter; passing `false` is reserved for future use.\n\nArgs:\n    params: Patch for the singleton's steering state.\n\nReturns:\n    Wrapper for the singleton's current status."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return RemoteControlStatusResult.from_dict(await self._client.request("sessions.setRemoteControlSteering", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def stop_remote_control(self, params: SessionsStopRemoteControlRequest, *, timeout: float | None = None) -> RemoteControlStopResult:
         "Stops the remote-control singleton. When `expectedSessionId` is provided and does not match the singleton's current `attachedSessionId`, the stop is rejected with `stopped: false` and the current status is returned unchanged (unless `force` is set, in which case the singleton is unconditionally torn down).\n\nArgs:\n    params: Parameters for stopping the remote-control singleton.\n\nReturns:\n    Outcome of a stopRemoteControl call."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return RemoteControlStopResult.from_dict(await self._client.request("sessions.stopRemoteControl", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_remote_control_status(self, *, timeout: float | None = None) -> RemoteControlStatusResult:
         "Returns the current state of the remote-control singleton, including the attached session id and frontend URL when active.\n\nReturns:\n    Wrapper for the singleton's current status."
         return RemoteControlStatusResult.from_dict(await self._client.request("sessions.getRemoteControlStatus", {}, **_timeout_kwargs(timeout)))
@@ -23003,6 +23045,7 @@ class ServerAgentRegistryApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
+    @experimental
     async def spawn(self, params: AgentRegistrySpawnRequest, *, timeout: float | None = None) -> AgentRegistrySpawnResult:
         "Spawns a managed-server child with the supplied configuration and returns a discriminated-union result. The caller (typically the CLI controller) is responsible for attaching to the spawned child and sending any follow-up prompt. When the controller-local spawn gate is closed the server returns JSON-RPC MethodNotFound.\n\nArgs:\n    params: Inputs to spawn a managed-server child via the controller's spawn delegate.\n\nReturns:\n    Outcome of an agentRegistry.spawn call."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23088,10 +23131,12 @@ class AuthApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get_status(self, *, timeout: float | None = None) -> SessionAuthStatus:
         "Gets authentication status and account metadata for the session.\n\nReturns:\n    Authentication status and account metadata for the session."
         return SessionAuthStatus.from_dict(await self._client.request("session.auth.getStatus", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_credentials(self, params: SessionSetCredentialsParams, *, timeout: float | None = None) -> SessionSetCredentialsResult:
         "Updates the session's auth credentials used for outbound model and API requests.\n\nArgs:\n    params: New auth credentials to install on the session. Omit to leave credentials unchanged.\n\nReturns:\n    Indicates whether the credential update succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23105,6 +23150,7 @@ class CanvasActionApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def invoke(self, params: CanvasActionInvokeRequest, *, timeout: float | None = None) -> Any:
         "Invokes an action on an open canvas instance.\n\nArgs:\n    params: Canvas action invocation parameters.\n\nReturns:\n    Canvas action invocation result."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23119,20 +23165,24 @@ class CanvasApi:
         self._session_id = session_id
         self.action = CanvasActionApi(client, session_id)
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> CanvasList:
         "Lists canvases declared for the session.\n\nReturns:\n    Declared canvases available in this session."
         return CanvasList.from_dict(await self._client.request("session.canvas.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def list_open(self, *, timeout: float | None = None) -> CanvasListOpenResult:
         "Lists currently open canvas instances for the live session.\n\nReturns:\n    Live open-canvas snapshot."
         return CanvasListOpenResult.from_dict(await self._client.request("session.canvas.listOpen", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def open(self, params: CanvasOpenRequest, *, timeout: float | None = None) -> OpenCanvasInstance:
         "Opens or focuses a canvas instance.\n\nArgs:\n    params: Canvas open parameters.\n\nReturns:\n    Open canvas instance snapshot."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return OpenCanvasInstance.from_dict(await self._client.request("session.canvas.open", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def close(self, params: CanvasCloseRequest, *, timeout: float | None = None) -> None:
         "Closes an open canvas instance.\n\nArgs:\n    params: Canvas close parameters."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23146,22 +23196,26 @@ class ModelApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get_current(self, *, timeout: float | None = None) -> CurrentModel:
         "Gets the currently selected model for the session.\n\nReturns:\n    The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume."
         return CurrentModel.from_dict(await self._client.request("session.model.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def switch_to(self, params: ModelSwitchToRequest, *, timeout: float | None = None) -> ModelSwitchToResult:
         "Switches the session to a model and optional reasoning configuration.\n\nArgs:\n    params: Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.\n\nReturns:\n    The model identifier active on the session after the switch."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ModelSwitchToResult.from_dict(await self._client.request("session.model.switchTo", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_reasoning_effort(self, params: ModelSetReasoningEffortRequest, *, timeout: float | None = None) -> ModelSetReasoningEffortResult:
         "Updates the session's reasoning effort without changing the selected model.\n\nArgs:\n    params: Reasoning effort level to apply to the currently selected model.\n\nReturns:\n    Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ModelSetReasoningEffortResult.from_dict(await self._client.request("session.model.setReasoningEffort", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def list(self, params: ModelListRequest | None = None, *, timeout: float | None = None) -> SessionModelList:
         "Lists models available to this session using its own auth and integration context. Connected hosts (CLI TUI, GitHub App) should call this through the session client so remote sessions return the remote CLI's available models rather than the caller's.\n\nArgs:\n    params: Optional listing options.\n\nReturns:\n    The list of models available to this session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
@@ -23175,10 +23229,12 @@ class ModeApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get(self, *, timeout: float | None = None) -> SessionMode:
         "Gets the current agent interaction mode.\n\nReturns:\n    The session mode the agent is operating in"
         return SessionMode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set(self, params: ModeSetRequest, *, timeout: float | None = None) -> None:
         "Sets the current agent interaction mode.\n\nArgs:\n    params: Agent interaction mode to apply to the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23192,16 +23248,19 @@ class NameApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get(self, *, timeout: float | None = None) -> NameGetResult:
         "Gets the session's friendly name.\n\nReturns:\n    The session's friendly name, or null when not yet set."
         return NameGetResult.from_dict(await self._client.request("session.name.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set(self, params: NameSetRequest, *, timeout: float | None = None) -> None:
         "Sets the session's friendly name.\n\nArgs:\n    params: New friendly name to apply to the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.name.set", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def set_auto(self, params: NameSetAutoRequest, *, timeout: float | None = None) -> NameSetAutoResult:
         "Persists an auto-generated session summary as the session's name when no user-set name exists.\n\nArgs:\n    params: Auto-generated session summary to apply as the session's name when no user-set name exists.\n\nReturns:\n    Indicates whether the auto-generated summary was applied as the session's name."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23215,24 +23274,29 @@ class PlanApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def read(self, *, timeout: float | None = None) -> PlanReadResult:
         "Reads the session plan file from the workspace.\n\nReturns:\n    Existence, contents, and resolved path of the session plan file."
         return PlanReadResult.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def update(self, params: PlanUpdateRequest, *, timeout: float | None = None) -> None:
         "Writes new content to the session plan file.\n\nArgs:\n    params: Replacement contents to write to the session plan file."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.plan.update", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def delete(self, *, timeout: float | None = None) -> None:
         "Deletes the session plan file from the workspace."
         await self._client.request("session.plan.delete", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
+    @experimental
     async def read_sql_todos(self, *, timeout: float | None = None) -> PlanReadSQLTodosResult:
         "Reads todo rows from the session SQL database for plan rendering.\n\nReturns:\n    Todo rows read from the session SQL database. Empty when no session database is available."
         return PlanReadSQLTodosResult.from_dict(await self._client.request("session.plan.readSqlTodos", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def read_sql_todos_with_dependencies(self, *, timeout: float | None = None) -> PlanReadSQLTodosWithDependenciesResult:
         "Reads todo rows AND dependency edges from the session SQL database for structured progress UI. Same defensive behavior as readSqlTodos — returns empty arrays when the database, tables, or columns aren't available. Clients should call this on session start and after every `session.todos_changed` event to refresh structured-UI rendering.\n\nReturns:\n    Todo rows + dependency edges read from the session SQL database."
         return PlanReadSQLTodosWithDependenciesResult.from_dict(await self._client.request("session.plan.readSqlTodosWithDependencies", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
@@ -23244,42 +23308,50 @@ class WorkspacesApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get_workspace(self, *, timeout: float | None = None) -> WorkspacesGetWorkspaceResult:
         "Gets current workspace metadata for the session.\n\nReturns:\n    Current workspace metadata for the session, including its absolute filesystem path when available."
         return WorkspacesGetWorkspaceResult.from_dict(await self._client.request("session.workspaces.getWorkspace", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def list_files(self, *, timeout: float | None = None) -> WorkspacesListFilesResult:
         "Lists files stored in the session workspace files directory.\n\nReturns:\n    Relative paths of files stored in the session workspace files directory."
         return WorkspacesListFilesResult.from_dict(await self._client.request("session.workspaces.listFiles", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def read_file(self, params: WorkspacesReadFileRequest, *, timeout: float | None = None) -> WorkspacesReadFileResult:
         "Reads a file from the session workspace files directory.\n\nArgs:\n    params: Relative path of the workspace file to read.\n\nReturns:\n    Contents of the requested workspace file as a UTF-8 string."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return WorkspacesReadFileResult.from_dict(await self._client.request("session.workspaces.readFile", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def create_file(self, params: WorkspacesCreateFileRequest, *, timeout: float | None = None) -> None:
         "Creates or overwrites a file in the session workspace files directory.\n\nArgs:\n    params: Relative path and UTF-8 content for the workspace file to create or overwrite."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.workspaces.createFile", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def list_checkpoints(self, *, timeout: float | None = None) -> WorkspacesListCheckpointsResult:
         "Lists workspace checkpoints in chronological order.\n\nReturns:\n    Workspace checkpoints in chronological order; empty when the workspace is not enabled."
         return WorkspacesListCheckpointsResult.from_dict(await self._client.request("session.workspaces.listCheckpoints", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def read_checkpoint(self, params: WorkspacesReadCheckpointRequest, *, timeout: float | None = None) -> WorkspacesReadCheckpointResult:
         "Reads the content of a workspace checkpoint by number.\n\nArgs:\n    params: Checkpoint number to read.\n\nReturns:\n    Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return WorkspacesReadCheckpointResult.from_dict(await self._client.request("session.workspaces.readCheckpoint", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def save_large_paste(self, params: WorkspacesSaveLargePasteRequest, *, timeout: float | None = None) -> WorkspacesSaveLargePasteResult:
         "Saves pasted content as a UTF-8 file in the session workspace.\n\nArgs:\n    params: Pasted content to save as a UTF-8 file in the session workspace.\n\nReturns:\n    Descriptor for the saved paste file, or null when the workspace is unavailable."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return WorkspacesSaveLargePasteResult.from_dict(await self._client.request("session.workspaces.saveLargePaste", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def diff(self, params: WorkspacesDiffRequest, *, timeout: float | None = None) -> WorkspaceDiffResult:
         "Computes a diff for the session workspace.\n\nArgs:\n    params: Parameters for computing a workspace diff.\n\nReturns:\n    Workspace diff result for the requested mode."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23293,6 +23365,7 @@ class InstructionsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get_sources(self, *, timeout: float | None = None) -> InstructionsGetSourcesResult:
         "Gets instruction sources loaded for the session.\n\nReturns:\n    Instruction sources loaded for the session, in merge order."
         return InstructionsGetSourcesResult.from_dict(await self._client.request("session.instructions.getSources", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
@@ -23304,6 +23377,7 @@ class FleetApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def start(self, params: FleetStartRequest, *, timeout: float | None = None) -> FleetStartResult:
         "Starts fleet mode by submitting the fleet orchestration prompt to the session.\n\nArgs:\n    params: Optional user prompt to combine with the fleet orchestration instructions.\n\nReturns:\n    Indicates whether fleet mode was successfully activated."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23317,24 +23391,29 @@ class AgentApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> AgentList:
         "Lists custom agents available to the session.\n\nReturns:\n    Custom agents available to the session."
         return AgentList.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_current(self, *, timeout: float | None = None) -> AgentGetCurrentResult:
         "Gets the currently selected custom agent for the session.\n\nReturns:\n    The currently selected custom agent, or null when using the default agent."
         return AgentGetCurrentResult.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def select(self, params: AgentSelectRequest, *, timeout: float | None = None) -> AgentSelectResult:
         "Selects a custom agent for subsequent turns in the session.\n\nArgs:\n    params: Name of the custom agent to select for subsequent turns.\n\nReturns:\n    The newly selected custom agent."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return AgentSelectResult.from_dict(await self._client.request("session.agent.select", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def deselect(self, *, timeout: float | None = None) -> None:
         "Clears the selected custom agent and returns the session to the default agent."
         await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
+    @experimental
     async def reload(self, *, timeout: float | None = None) -> AgentReloadResult:
         "Reloads custom agent definitions and returns the refreshed list.\n\nReturns:\n    Custom agents available to the session after reloading definitions from disk."
         return AgentReloadResult.from_dict(await self._client.request("session.agent.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
@@ -23346,56 +23425,67 @@ class TasksApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def start_agent(self, params: TasksStartAgentRequest, *, timeout: float | None = None) -> TasksStartAgentResult:
         "Starts a background agent task in the session.\n\nArgs:\n    params: Agent type, prompt, name, and optional description and model override for the new task.\n\nReturns:\n    Identifier assigned to the newly started background agent task."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksStartAgentResult.from_dict(await self._client.request("session.tasks.startAgent", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> TaskList:
         "Lists background tasks tracked by the session.\n\nReturns:\n    Background tasks currently tracked by the session."
         return TaskList.from_dict(await self._client.request("session.tasks.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def refresh(self, *, timeout: float | None = None) -> TasksRefreshResult:
         "Refreshes metadata for any detached background shells the runtime knows about.\n\nReturns:\n    Refresh metadata for any detached background shells the runtime knows about. Use after a long pause to pick up exit/output state for shells running outside the agent loop."
         return TasksRefreshResult.from_dict(await self._client.request("session.tasks.refresh", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def wait_for_pending(self, *, timeout: float | None = None) -> TasksWaitForPendingResult:
         "Waits for all in-flight background tasks and any follow-up turns to settle.\n\nReturns:\n    Wait until all in-flight background tasks (agents + shells) and any follow-up turns scheduled by their completions have settled. Returns when the runtime is fully drained or after an internal timeout (default 10 minutes; configurable via COPILOT_TASK_WAIT_TIMEOUT_SECONDS)."
         return TasksWaitForPendingResult.from_dict(await self._client.request("session.tasks.waitForPending", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_progress(self, params: TasksGetProgressRequest, *, timeout: float | None = None) -> TasksGetProgressResult:
         "Returns progress information for a background task by ID.\n\nArgs:\n    params: Identifier of the background task to fetch progress for.\n\nReturns:\n    Progress information for the task, or null when no task with that ID is tracked."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksGetProgressResult.from_dict(await self._client.request("session.tasks.getProgress", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_current_promotable(self, *, timeout: float | None = None) -> TasksGetCurrentPromotableResult:
         "Returns the first sync-waiting task that can currently be promoted to background mode.\n\nReturns:\n    The first sync-waiting task that can currently be promoted to background mode."
         return TasksGetCurrentPromotableResult.from_dict(await self._client.request("session.tasks.getCurrentPromotable", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def promote_to_background(self, params: TasksPromoteToBackgroundRequest, *, timeout: float | None = None) -> TasksPromoteToBackgroundResult:
         "Promotes an eligible synchronously-waited task so it continues running in the background.\n\nArgs:\n    params: Identifier of the task to promote to background mode.\n\nReturns:\n    Indicates whether the task was successfully promoted to background mode."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksPromoteToBackgroundResult.from_dict(await self._client.request("session.tasks.promoteToBackground", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def promote_current_to_background(self, *, timeout: float | None = None) -> TasksPromoteCurrentToBackgroundResult:
         "Atomically promotes the first promotable sync-waiting task to background mode and returns it.\n\nReturns:\n    The promoted task as it now exists in background mode, omitted if no promotable task was waiting."
         return TasksPromoteCurrentToBackgroundResult.from_dict(await self._client.request("session.tasks.promoteCurrentToBackground", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def cancel(self, params: TasksCancelRequest, *, timeout: float | None = None) -> TasksCancelResult:
         "Cancels a background task.\n\nArgs:\n    params: Identifier of the background task to cancel.\n\nReturns:\n    Indicates whether the background task was successfully cancelled."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksCancelResult.from_dict(await self._client.request("session.tasks.cancel", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def remove(self, params: TasksRemoveRequest, *, timeout: float | None = None) -> TasksRemoveResult:
         "Removes a completed or cancelled background task from tracking.\n\nArgs:\n    params: Identifier of the completed or cancelled task to remove from tracking.\n\nReturns:\n    Indicates whether the task was removed. False when the task does not exist or is still running/idle."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksRemoveResult.from_dict(await self._client.request("session.tasks.remove", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def send_message(self, params: TasksSendMessageRequest, *, timeout: float | None = None) -> TasksSendMessageResult:
         "Sends a message to a background agent task.\n\nArgs:\n    params: Identifier of the target agent task, message content, and optional sender agent ID.\n\nReturns:\n    Indicates whether the message was delivered, with an error message when delivery failed."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23409,30 +23499,36 @@ class SkillsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> SkillList:
         "Lists skills available to the session.\n\nReturns:\n    Skills available to the session, with their enabled state."
         return SkillList.from_dict(await self._client.request("session.skills.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_invoked(self, *, timeout: float | None = None) -> SkillsGetInvokedResult:
         "Returns the skills that have been invoked during this session.\n\nReturns:\n    Skills invoked during this session, ordered by invocation time (most recent last)."
         return SkillsGetInvokedResult.from_dict(await self._client.request("session.skills.getInvoked", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def enable(self, params: SkillsEnableRequest, *, timeout: float | None = None) -> None:
         "Enables a skill for the session.\n\nArgs:\n    params: Name of the skill to enable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.enable", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def disable(self, params: SkillsDisableRequest, *, timeout: float | None = None) -> None:
         "Disables a skill for the session.\n\nArgs:\n    params: Name of the skill to disable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.disable", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def reload(self, *, timeout: float | None = None) -> SkillsLoadDiagnostics:
         "Reloads skill definitions for the session.\n\nReturns:\n    Diagnostics from reloading skill definitions, with warnings and errors as separate lists."
         return SkillsLoadDiagnostics.from_dict(await self._client.request("session.skills.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def ensure_loaded(self, *, timeout: float | None = None) -> None:
         "Ensures the session's skill definitions have been loaded from disk."
         await self._client.request("session.skills.ensureLoaded", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
@@ -23444,6 +23540,7 @@ class McpOauthApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def login(self, params: MCPOauthLoginRequest, *, timeout: float | None = None) -> MCPOauthLoginResult:
         "Starts OAuth authentication for a remote MCP server.\n\nArgs:\n    params: Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.\n\nReturns:\n    OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23457,34 +23554,40 @@ class McpAppsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def read_resource(self, params: MCPAppsReadResourceRequest, *, timeout: float | None = None) -> MCPAppsReadResourceResult:
         "Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.\n\nArgs:\n    params: MCP server and resource URI to fetch.\n\nReturns:\n    Resource contents returned by the MCP server."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPAppsReadResourceResult.from_dict(await self._client.request("session.mcp.apps.readResource", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def list_tools(self, params: MCPAppsListToolsRequest, *, timeout: float | None = None) -> MCPAppsListToolsResult:
         "List tools that an MCP App view is allowed to call (SEP-1865 visibility filter). Returns tools whose `_meta.ui.visibility` is unset (default `[\"model\",\"app\"]`) or includes `\"app\"`.\n\nArgs:\n    params: MCP server to list app-callable tools for.\n\nReturns:\n    App-callable tools from the named MCP server."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPAppsListToolsResult.from_dict(await self._client.request("session.mcp.apps.listTools", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def call_tool(self, params: MCPAppsCallToolRequest, *, timeout: float | None = None) -> dict:
         "Call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check that prevents an app iframe from invoking model-only tools. Returns the standard MCP `CallToolResult`.\n\nArgs:\n    params: MCP server, tool name, and arguments to invoke from an MCP App view.\n\nReturns:\n    Standard MCP CallToolResult"
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return dict(await self._client.request("session.mcp.apps.callTool", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_host_context(self, params: MCPAppsSetHostContextRequest, *, timeout: float | None = None) -> None:
         "Replace the host context returned to MCP App guests on `ui/initialize`. Hosts use this to advertise theme, locale, or other metadata to the guest UI.\n\nArgs:\n    params: Host context to advertise to MCP App guests."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.apps.setHostContext", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def get_host_context(self, *, timeout: float | None = None) -> MCPAppsHostContext:
         "Read the current host context advertised to MCP App guests.\n\nReturns:\n    Current host context advertised to MCP App guests."
         return MCPAppsHostContext.from_dict(await self._client.request("session.mcp.apps.getHostContext", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def diagnose(self, params: MCPAppsDiagnoseRequest, *, timeout: float | None = None) -> MCPAppsDiagnoseResult:
         "Diagnose MCP Apps wiring for a specific MCP server. Reports the session capability, feature-flag state, advertised extension, and how many tools have `_meta.ui` populated.\n\nArgs:\n    params: MCP server to diagnose MCP Apps wiring for.\n\nReturns:\n    Diagnostic snapshot of MCP Apps wiring for the named server."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23500,60 +23603,71 @@ class McpApi:
         self.oauth = McpOauthApi(client, session_id)
         self.apps = McpAppsApi(client, session_id)
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> MCPServerList:
         "Lists MCP servers configured for the session, their connection status, and host-level state. The host-level state (disabled/filtered servers, failed/needs-auth/pending connections, mcp3p policy, full config) is empty/zero when no MCP host has been initialized for the session.\n\nReturns:\n    MCP servers configured for the session, with their connection status and host-level state."
         return MCPServerList.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def list_tools(self, params: MCPListToolsRequest, *, timeout: float | None = None) -> MCPListToolsResult:
         "Lists the tools exposed by a connected MCP server on this session's host.\n\nArgs:\n    params: Server name whose tool list should be returned.\n\nReturns:\n    Tools exposed by the connected MCP server. Throws when the server is not connected."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPListToolsResult.from_dict(await self._client.request("session.mcp.listTools", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def enable(self, params: MCPEnableRequest, *, timeout: float | None = None) -> None:
         "Enables an MCP server for the session.\n\nArgs:\n    params: Name of the MCP server to enable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.enable", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def disable(self, params: MCPDisableRequest, *, timeout: float | None = None) -> None:
         "Disables an MCP server for the session.\n\nArgs:\n    params: Name of the MCP server to disable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.disable", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def reload(self, *, timeout: float | None = None) -> None:
         "Reloads MCP server connections for the session."
         await self._client.request("session.mcp.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
+    @experimental
     async def execute_sampling(self, params: MCPExecuteSamplingParams, *, timeout: float | None = None) -> MCPSamplingExecutionResult:
         "Runs an MCP sampling inference on behalf of an MCP server.\n\nArgs:\n    params: Identifiers and raw MCP CreateMessageRequest params used to run a sampling inference.\n\nReturns:\n    Outcome of an MCP sampling execution: success result, failure error, or cancellation."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPSamplingExecutionResult.from_dict(await self._client.request("session.mcp.executeSampling", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def cancel_sampling_execution(self, params: MCPCancelSamplingExecutionParams, *, timeout: float | None = None) -> MCPCancelSamplingExecutionResult:
         "Cancels an in-flight MCP sampling execution by request ID.\n\nArgs:\n    params: The requestId previously passed to executeSampling that should be cancelled.\n\nReturns:\n    Indicates whether an in-flight sampling execution with the given requestId was found and cancelled."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPCancelSamplingExecutionResult.from_dict(await self._client.request("session.mcp.cancelSamplingExecution", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_env_value_mode(self, params: MCPSetEnvValueModeParams, *, timeout: float | None = None) -> MCPSetEnvValueModeResult:
         "Sets how environment-variable values supplied to MCP servers are resolved (direct or indirect).\n\nArgs:\n    params: Mode controlling how MCP server env values are resolved (`direct` or `indirect`).\n\nReturns:\n    Env-value mode recorded on the session after the update."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPSetEnvValueModeResult.from_dict(await self._client.request("session.mcp.setEnvValueMode", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def remove_git_hub(self, *, timeout: float | None = None) -> MCPRemoveGitHubResult:
         "Removes the auto-managed `github` MCP server when present.\n\nReturns:\n    Indicates whether the auto-managed `github` MCP server was removed (false when nothing to remove)."
         return MCPRemoveGitHubResult.from_dict(await self._client.request("session.mcp.removeGitHub", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def stop_server(self, params: MCPStopServerRequest, *, timeout: float | None = None) -> None:
         "Stops an individual MCP server on the session's host.\n\nArgs:\n    params: Server name for an individual MCP server stop."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.stopServer", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def is_server_running(self, params: MCPIsServerRunningRequest, *, timeout: float | None = None) -> MCPIsServerRunningResult:
         "Checks whether a named MCP server is currently running on the session's host.\n\nArgs:\n    params: Server name to check running status for.\n\nReturns:\n    Whether the named MCP server is running."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23567,10 +23681,12 @@ class PluginsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> PluginList:
         "Lists plugins installed for the session.\n\nReturns:\n    Plugins installed for the session, with their enabled state and version metadata."
         return PluginList.from_dict(await self._client.request("session.plugins.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def reload(self, params: PluginsReloadRequest | None = None, *, timeout: float | None = None) -> None:
         "Reloads the session's plugin set, refreshing MCP servers, custom agents, hooks, and skills cache so SDK-driven changes via `server.plugins.*` take effect immediately.\n\nArgs:\n    params: Optional flags controlling which side effects the reload performs."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
@@ -23584,6 +23700,7 @@ class ProviderApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get_endpoint(self, params: ProviderGetEndpointRequest | None = None, *, timeout: float | None = None) -> ProviderEndpoint:
         "Returns the provider endpoint and credentials the session is currently configured to talk to, so the caller can make inference calls directly against the same backend the session uses.\n\nArgs:\n    params: Optional model identifier to scope the endpoint snapshot to.\n\nReturns:\n    A snapshot of the provider endpoint the session is currently configured to talk to."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
@@ -23597,6 +23714,7 @@ class OptionsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def update(self, params: SessionUpdateOptionsParams, *, timeout: float | None = None) -> SessionUpdateOptionsResult:
         "Patches the genuinely-mutable subset of session options.\n\nArgs:\n    params: Patch of mutable session options to apply to the running session.\n\nReturns:\n    Indicates whether the session options patch was applied successfully."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23610,6 +23728,7 @@ class LspApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def initialize(self, params: LspInitializeRequest, *, timeout: float | None = None) -> None:
         "Loads the merged LSP configuration set for the session's working directory.\n\nArgs:\n    params: Parameters for (re)loading the merged LSP configuration set."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23623,26 +23742,31 @@ class ExtensionsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> ExtensionList:
         "Lists extensions discovered for the session and their current status.\n\nReturns:\n    Extensions discovered for the session, with their current status."
         return ExtensionList.from_dict(await self._client.request("session.extensions.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def enable(self, params: ExtensionsEnableRequest, *, timeout: float | None = None) -> None:
         "Enables an extension for the session.\n\nArgs:\n    params: Source-qualified extension identifier to enable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.extensions.enable", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def disable(self, params: ExtensionsDisableRequest, *, timeout: float | None = None) -> None:
         "Disables an extension for the session.\n\nArgs:\n    params: Source-qualified extension identifier to disable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.extensions.disable", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def reload(self, *, timeout: float | None = None) -> None:
         "Reloads extension definitions and processes for the session."
         await self._client.request("session.extensions.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
+    @experimental
     async def send_attachments_to_message(self, params: SendAttachmentsToMessageParams, *, timeout: float | None = None) -> None:
         "Push attachments into the next user-message turn from an extension. The host should surface them as composer pills and forward them via the next session.send call. Callable only by extension-owned connections.\n\nArgs:\n    params: Parameters for session.extensions.sendAttachmentsToMessage."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23656,20 +23780,24 @@ class ToolsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def handle_pending_tool_call(self, params: HandlePendingToolCallRequest, *, timeout: float | None = None) -> HandlePendingToolCallResult:
         "Provides the result for a pending external tool call.\n\nArgs:\n    params: Pending external tool call request ID, with the tool result or an error describing why it failed.\n\nReturns:\n    Indicates whether the external tool call result was handled successfully."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return HandlePendingToolCallResult.from_dict(await self._client.request("session.tools.handlePendingToolCall", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def initialize_and_validate(self, *, timeout: float | None = None) -> ToolsInitializeAndValidateResult:
         "Resolves, builds, and validates the runtime tool list for the session.\n\nReturns:\n    Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation."
         return ToolsInitializeAndValidateResult.from_dict(await self._client.request("session.tools.initializeAndValidate", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_current_metadata(self, *, timeout: float | None = None) -> ToolsGetCurrentMetadataResult:
         "Returns lightweight metadata for the session's currently initialized tools.\n\nReturns:\n    Current lightweight tool metadata snapshot for the session."
         return ToolsGetCurrentMetadataResult.from_dict(await self._client.request("session.tools.getCurrentMetadata", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def update_subagent_settings(self, params: UpdateSubagentSettingsRequest, *, timeout: float | None = None) -> ToolsUpdateSubagentSettingsResult:
         "Updates the current session's live subagent settings after user settings change. The persisted user settings remain the source of truth for future sessions.\n\nArgs:\n    params: Subagent settings to apply to the current session\n\nReturns:\n    Empty result after applying subagent settings"
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23683,36 +23811,42 @@ class CommandsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def list(self, params: CommandsListRequest | None = None, *, timeout: float | None = None) -> CommandList:
         "Lists slash commands available in the session.\n\nArgs:\n    params: Optional filters controlling which command sources to include in the listing.\n\nReturns:\n    Slash commands available in the session, after applying any include/exclude filters."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         params_dict["sessionId"] = self._session_id
         return CommandList.from_dict(await self._client.request("session.commands.list", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def invoke(self, params: CommandsInvokeRequest, *, timeout: float | None = None) -> SlashCommandInvocationResult:
         "Invokes a slash command in the session.\n\nArgs:\n    params: Slash command name and optional raw input string to invoke.\n\nReturns:\n    Result of invoking the slash command (text output, prompt to send to the agent, or completion)."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return _load_SlashCommandInvocationResult(await self._client.request("session.commands.invoke", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def handle_pending_command(self, params: CommandsHandlePendingCommandRequest, *, timeout: float | None = None) -> CommandsHandlePendingCommandResult:
         "Reports completion of a pending client-handled slash command.\n\nArgs:\n    params: Pending command request ID and an optional error if the client handler failed.\n\nReturns:\n    Indicates whether the pending client-handled command was completed successfully."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return CommandsHandlePendingCommandResult.from_dict(await self._client.request("session.commands.handlePendingCommand", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def execute(self, params: ExecuteCommandParams, *, timeout: float | None = None) -> ExecuteCommandResult:
         "Executes a slash command synchronously and returns any error.\n\nArgs:\n    params: Slash command name and argument string to execute synchronously.\n\nReturns:\n    Error message produced while executing the command, if any."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ExecuteCommandResult.from_dict(await self._client.request("session.commands.execute", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def enqueue(self, params: EnqueueCommandParams, *, timeout: float | None = None) -> EnqueueCommandResult:
         "Enqueues a slash command for FIFO processing on the local session.\n\nArgs:\n    params: Slash-prefixed command string to enqueue for FIFO processing.\n\nReturns:\n    Indicates whether the command was accepted into the local execution queue."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return EnqueueCommandResult.from_dict(await self._client.request("session.commands.enqueue", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def respond_to_queued_command(self, params: CommandsRespondToQueuedCommandRequest, *, timeout: float | None = None) -> CommandsRespondToQueuedCommandResult:
         "Reports whether the host actually executed a queued command and whether to continue processing.\n\nArgs:\n    params: Queued-command request ID and the result indicating whether the host executed it (and whether to stop processing further queued commands).\n\nReturns:\n    Indicates whether the queued-command response was matched to a pending request."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23726,10 +23860,12 @@ class TelemetryApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get_engagement_id(self, *, timeout: float | None = None) -> SessionTelemetryEngagement:
         "Gets the telemetry engagement ID currently associated with the session, when available.\n\nReturns:\n    Telemetry engagement ID for the session, when available."
         return SessionTelemetryEngagement.from_dict(await self._client.request("session.telemetry.getEngagementId", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_feature_overrides(self, params: TelemetrySetFeatureOverridesRequest, *, timeout: float | None = None) -> None:
         "Sets feature override key/value pairs to attach to subsequent telemetry events for the session.\n\nArgs:\n    params: Feature override key/value pairs to attach to subsequent telemetry events from this session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23743,52 +23879,61 @@ class UiApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def ephemeral_query(self, params: UIEphemeralQueryRequest, *, timeout: float | None = None) -> UIEphemeralQueryResult:
         "Runs a transient no-tools model query against the current conversation context.\n\nArgs:\n    params: Transient question to answer without adding it to conversation history.\n\nReturns:\n    Transient answer generated from current conversation context."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIEphemeralQueryResult.from_dict(await self._client.request("session.ui.ephemeralQuery", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def elicitation(self, params: UIElicitationRequest, *, timeout: float | None = None) -> UIElicitationResponse:
         "Requests structured input from a UI-capable client.\n\nArgs:\n    params: Prompt message and JSON schema describing the form fields to elicit from the user.\n\nReturns:\n    The elicitation response (accept with form values, decline, or cancel)"
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIElicitationResponse.from_dict(await self._client.request("session.ui.elicitation", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def handle_pending_elicitation(self, params: UIHandlePendingElicitationRequest, *, timeout: float | None = None) -> UIElicitationResult:
         "Provides the user response for a pending elicitation request.\n\nArgs:\n    params: Pending elicitation request ID and the user's response (accept/decline/cancel + form values).\n\nReturns:\n    Indicates whether the elicitation response was accepted; false if it was already resolved by another client."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIElicitationResult.from_dict(await self._client.request("session.ui.handlePendingElicitation", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def handle_pending_user_input(self, params: UIHandlePendingUserInputRequest, *, timeout: float | None = None) -> UIHandlePendingResult:
         "Resolves a pending `user_input.requested` event with the user's response.\n\nArgs:\n    params: Request ID of a pending `user_input.requested` event and the user's response.\n\nReturns:\n    Indicates whether the pending UI request was resolved by this call."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIHandlePendingResult.from_dict(await self._client.request("session.ui.handlePendingUserInput", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def handle_pending_sampling(self, params: UIHandlePendingSamplingRequest, *, timeout: float | None = None) -> UIHandlePendingResult:
         "Resolves a pending `sampling.requested` event with a sampling result, or rejects it.\n\nArgs:\n    params: Request ID of a pending `sampling.requested` event and an optional sampling result payload (omit to reject).\n\nReturns:\n    Indicates whether the pending UI request was resolved by this call."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIHandlePendingResult.from_dict(await self._client.request("session.ui.handlePendingSampling", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def handle_pending_auto_mode_switch(self, params: UIHandlePendingAutoModeSwitchRequest, *, timeout: float | None = None) -> UIHandlePendingResult:
         "Resolves a pending `auto_mode_switch.requested` event with the user's accept/decline decision.\n\nArgs:\n    params: Request ID of a pending `auto_mode_switch.requested` event and the user's response.\n\nReturns:\n    Indicates whether the pending UI request was resolved by this call."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIHandlePendingResult.from_dict(await self._client.request("session.ui.handlePendingAutoModeSwitch", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def handle_pending_exit_plan_mode(self, params: UIHandlePendingExitPlanModeRequest, *, timeout: float | None = None) -> UIHandlePendingResult:
         "Resolves a pending `exit_plan_mode.requested` event with the user's response.\n\nArgs:\n    params: Request ID of a pending `exit_plan_mode.requested` event and the user's response.\n\nReturns:\n    Indicates whether the pending UI request was resolved by this call."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIHandlePendingResult.from_dict(await self._client.request("session.ui.handlePendingExitPlanMode", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def register_direct_auto_mode_switch_handler(self, *, timeout: float | None = None) -> UIRegisterDirectAutoModeSwitchHandlerResult:
         "Registers an in-process handler for auto-mode-switch requests so the server bridge skips dispatch.\n\nReturns:\n    Register an in-process handler for `auto_mode_switch.requested` events. The caller still attaches the actual listener via the standard event-subscription mechanism; this registration solely tells the server bridge to skip its own dispatch (so a remote client doesn't race the in-process handler for the same requestId)."
         return UIRegisterDirectAutoModeSwitchHandlerResult.from_dict(await self._client.request("session.ui.registerDirectAutoModeSwitchHandler", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def unregister_direct_auto_mode_switch_handler(self, params: UIUnregisterDirectAutoModeSwitchHandlerRequest, *, timeout: float | None = None) -> UIUnregisterDirectAutoModeSwitchHandlerResult:
         "Unregisters a previously-registered in-process auto-mode-switch handler by its opaque handle.\n\nArgs:\n    params: Opaque handle previously returned by `registerDirectAutoModeSwitchHandler` to release.\n\nReturns:\n    Indicates whether the handle was active and the registration count was decremented."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23802,28 +23947,33 @@ class PermissionsPathsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> PermissionPathsList:
         "Returns the session's allowed directories and primary working directory.\n\nReturns:\n    Snapshot of the session's allow-listed directories and primary working directory."
         return PermissionPathsList.from_dict(await self._client.request("session.permissions.paths.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def add(self, params: PermissionPathsAddParams, *, timeout: float | None = None) -> PermissionsPathsAddResult:
         "Adds a directory to the session's allow-list.\n\nArgs:\n    params: Directory path to add to the session's allowed directories.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionsPathsAddResult.from_dict(await self._client.request("session.permissions.paths.add", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def update_primary(self, params: PermissionPathsUpdatePrimaryParams, *, timeout: float | None = None) -> PermissionsPathsUpdatePrimaryResult:
         "Updates the session's primary working directory used by the permission policy.\n\nArgs:\n    params: Directory path to set as the session's new primary working directory.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionsPathsUpdatePrimaryResult.from_dict(await self._client.request("session.permissions.paths.updatePrimary", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def is_path_within_allowed_directories(self, params: PermissionPathsAllowedCheckParams, *, timeout: float | None = None) -> PermissionPathsAllowedCheckResult:
         "Reports whether a path falls within any of the session's allowed directories.\n\nArgs:\n    params: Path to evaluate against the session's allowed directories.\n\nReturns:\n    Indicates whether the supplied path is within the session's allowed directories."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionPathsAllowedCheckResult.from_dict(await self._client.request("session.permissions.paths.isPathWithinAllowedDirectories", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def is_path_within_workspace(self, params: PermissionPathsWorkspaceCheckParams, *, timeout: float | None = None) -> PermissionPathsWorkspaceCheckResult:
         "Reports whether a path falls within the session's workspace (primary) directory.\n\nArgs:\n    params: Path to evaluate against the session's workspace (primary) directory.\n\nReturns:\n    Indicates whether the supplied path is within the session's workspace directory."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23837,18 +23987,21 @@ class PermissionsLocationsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def resolve(self, params: PermissionLocationResolveParams, *, timeout: float | None = None) -> PermissionLocationResolveResult:
         "Resolves the permission location key and type for a working directory.\n\nArgs:\n    params: Working directory to resolve into a location-permissions key.\n\nReturns:\n    Resolved location-permissions key and type."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionLocationResolveResult.from_dict(await self._client.request("session.permissions.locations.resolve", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def apply(self, params: PermissionLocationApplyParams, *, timeout: float | None = None) -> PermissionLocationApplyResult:
         "Applies persisted location-scoped tool approvals and allowed directories for a working directory to this session's permission service.\n\nArgs:\n    params: Working directory to load persisted location permissions for.\n\nReturns:\n    Summary of persisted location permissions applied to the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionLocationApplyResult.from_dict(await self._client.request("session.permissions.locations.apply", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def add_tool_approval(self, params: PermissionLocationAddToolApprovalParams, *, timeout: float | None = None) -> PermissionsLocationsAddToolApprovalResult:
         "Persists a tool approval for a permission location and applies its rules to this session's live permission service.\n\nArgs:\n    params: Location-scoped tool approval to persist.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23862,12 +24015,14 @@ class PermissionsFolderTrustApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def is_trusted(self, params: FolderTrustCheckParams, *, timeout: float | None = None) -> FolderTrustCheckResult:
         "Reports whether a folder is trusted according to the user's folder trust state.\n\nArgs:\n    params: Folder path to check for trust.\n\nReturns:\n    Folder trust check result."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return FolderTrustCheckResult.from_dict(await self._client.request("session.permissions.folderTrust.isTrusted", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def add_trusted(self, params: FolderTrustAddParams, *, timeout: float | None = None) -> PermissionsFolderTrustAddTrustedResult:
         "Adds a folder to the user's trusted folders list.\n\nArgs:\n    params: Folder path to add to trusted folders.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23881,6 +24036,7 @@ class PermissionsUrlsApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def set_unrestricted_mode(self, params: PermissionUrlsSetUnrestrictedModeParams, *, timeout: float | None = None) -> PermissionsUrlsSetUnrestrictedModeResult:
         "Toggles the runtime's URL-permission policy between unrestricted and restricted modes.\n\nArgs:\n    params: Whether the URL-permission policy should run in unrestricted mode.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23898,54 +24054,64 @@ class PermissionsApi:
         self.folder_trust = PermissionsFolderTrustApi(client, session_id)
         self.urls = PermissionsUrlsApi(client, session_id)
 
+    @experimental
     async def configure(self, params: PermissionsConfigureParams, *, timeout: float | None = None) -> PermissionsConfigureResult:
         "Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.\n\nArgs:\n    params: Patch of permission policy fields to apply (omit a field to leave it unchanged).\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionsConfigureResult.from_dict(await self._client.request("session.permissions.configure", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def handle_pending_permission_request(self, params: PermissionDecisionRequest, *, timeout: float | None = None) -> PermissionRequestResult:
         "Provides a decision for a pending tool permission request.\n\nArgs:\n    params: Pending permission request ID and the decision to apply (approve/reject and scope).\n\nReturns:\n    Indicates whether the permission decision was applied; false when the request was already resolved."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionRequestResult.from_dict(await self._client.request("session.permissions.handlePendingPermissionRequest", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def pending_requests(self, *, timeout: float | None = None) -> PendingPermissionRequestList:
         "Reconstructs the set of pending tool permission requests from the session's event history.\n\nReturns:\n    List of pending permission requests reconstructed from event history."
         return PendingPermissionRequestList.from_dict(await self._client.request("session.permissions.pendingRequests", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_approve_all(self, params: PermissionsSetApproveAllRequest, *, timeout: float | None = None) -> PermissionsSetApproveAllResult:
         "Enables or disables automatic approval of tool permission requests for the session.\n\nArgs:\n    params: Allow-all toggle for tool permission requests, with an optional telemetry source.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionsSetApproveAllResult.from_dict(await self._client.request("session.permissions.setApproveAll", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_allow_all(self, params: PermissionsSetAllowAllRequest, *, timeout: float | None = None) -> AllowAllPermissionSetResult:
         "Enables or disables full allow-all permissions (tools, paths, and URLs) for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. Unlike `setApproveAll`, this swaps in the unrestricted path and URL managers and emits `session.permissions_changed` on transition. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.\n\nArgs:\n    params: Whether to enable full allow-all permissions for the session.\n\nReturns:\n    Indicates whether the operation succeeded and reports the post-mutation state."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return AllowAllPermissionSetResult.from_dict(await self._client.request("session.permissions.setAllowAll", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def get_allow_all(self, *, timeout: float | None = None) -> AllowAllPermissionState:
         "Returns whether full allow-all permissions are currently active for the session.\n\nReturns:\n    Current full allow-all permission state."
         return AllowAllPermissionState.from_dict(await self._client.request("session.permissions.getAllowAll", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def modify_rules(self, params: PermissionsModifyRulesParams, *, timeout: float | None = None) -> PermissionsModifyRulesResult:
         "Adds or removes session-scoped or location-scoped permission rules.\n\nArgs:\n    params: Scope and add/remove instructions for modifying session- or location-scoped permission rules.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionsModifyRulesResult.from_dict(await self._client.request("session.permissions.modifyRules", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_required(self, params: PermissionsSetRequiredRequest, *, timeout: float | None = None) -> PermissionsSetRequiredResult:
         "Sets whether the client wants permission prompts bridged into session events.\n\nArgs:\n    params: Toggles whether permission prompts should be bridged into session events for this client.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionsSetRequiredResult.from_dict(await self._client.request("session.permissions.setRequired", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def reset_session_approvals(self, *, timeout: float | None = None) -> PermissionsResetSessionApprovalsResult:
         "Clears session-scoped tool permission approvals.\n\nReturns:\n    Indicates whether the operation succeeded."
         return PermissionsResetSessionApprovalsResult.from_dict(await self._client.request("session.permissions.resetSessionApprovals", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def notify_prompt_shown(self, params: PermissionPromptShownNotification, *, timeout: float | None = None) -> PermissionsNotifyPromptShownResult:
         "Notifies the runtime that a permission prompt UI has been shown to the user.\n\nArgs:\n    params: Notification payload describing the permission prompt that the client just rendered.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -23959,36 +24125,43 @@ class MetadataApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def snapshot(self, *, timeout: float | None = None) -> SessionMetadataSnapshot:
         "Returns a snapshot of the session's identifying metadata, mode, agent, and remote info.\n\nReturns:\n    Point-in-time snapshot of slow-changing session identifier and state fields"
         return SessionMetadataSnapshot.from_dict(await self._client.request("session.metadata.snapshot", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def is_processing(self, *, timeout: float | None = None) -> MetadataIsProcessingResult:
         "Reports whether the local session is currently processing user/agent messages.\n\nReturns:\n    Indicates whether the local session is currently processing a turn or background continuation."
         return MetadataIsProcessingResult.from_dict(await self._client.request("session.metadata.isProcessing", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def activity(self, *, timeout: float | None = None) -> SessionActivity:
         "Returns a snapshot of activity flags for the session.\n\nReturns:\n    Current activity flags for the session."
         return SessionActivity.from_dict(await self._client.request("session.metadata.activity", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def context_info(self, params: MetadataContextInfoRequest, *, timeout: float | None = None) -> MetadataContextInfoResult:
         "Returns the token breakdown for the session's current context window for a given model.\n\nArgs:\n    params: Model identifier and token limits used to compute the context-info breakdown.\n\nReturns:\n    Token breakdown for the session's current context window, or null if uninitialized."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MetadataContextInfoResult.from_dict(await self._client.request("session.metadata.contextInfo", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def record_context_change(self, params: MetadataRecordContextChangeRequest, *, timeout: float | None = None) -> MetadataRecordContextChangeResult:
         "Records a working-directory/git context change and emits a `session.context_changed` event.\n\nArgs:\n    params: Updated working-directory/git context to record on the session.\n\nReturns:\n    Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode)."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MetadataRecordContextChangeResult.from_dict(await self._client.request("session.metadata.recordContextChange", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def set_working_directory(self, params: MetadataSetWorkingDirectoryRequest, *, timeout: float | None = None) -> MetadataSetWorkingDirectoryResult:
         "Updates the session's recorded working directory.\n\nArgs:\n    params: Absolute path to set as the session's new working directory.\n\nReturns:\n    Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any related side-effects (file index, etc.); this method only updates the session's own recorded path."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MetadataSetWorkingDirectoryResult.from_dict(await self._client.request("session.metadata.setWorkingDirectory", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def recompute_context_tokens(self, params: MetadataRecomputeContextTokensRequest, *, timeout: float | None = None) -> MetadataRecomputeContextTokensResult:
         "Re-tokenizes the session's existing messages against a model and returns aggregate token totals.\n\nArgs:\n    params: Model identifier to use when re-tokenizing the session's existing messages.\n\nReturns:\n    Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.context_info_changed` events. Returns zeros for an empty session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -24002,24 +24175,28 @@ class ShellApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def exec(self, params: ShellExecRequest, *, timeout: float | None = None) -> ShellExecResult:
         "Starts a shell command and streams output through session notifications.\n\nArgs:\n    params: Shell command to run, with optional working directory and timeout in milliseconds.\n\nReturns:\n    Identifier of the spawned process, used to correlate streamed output and exit notifications."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ShellExecResult.from_dict(await self._client.request("session.shell.exec", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def kill(self, params: ShellKillRequest, *, timeout: float | None = None) -> ShellKillResult:
         "Sends a signal to a shell process previously started via \"shell.exec\".\n\nArgs:\n    params: Identifier of a process previously returned by \"shell.exec\" and the signal to send.\n\nReturns:\n    Indicates whether the signal was delivered; false if the process was unknown or already exited."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ShellKillResult.from_dict(await self._client.request("session.shell.kill", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def execute_user_requested(self, params: ShellExecuteUserRequestedRequest, *, timeout: float | None = None) -> UserRequestedShellCommandResult:
         "Executes a user-requested shell command through the session runtime.\n\nArgs:\n    params: User-requested shell command and cancellation handle.\n\nReturns:\n    Result of a user-requested shell command."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UserRequestedShellCommandResult.from_dict(await self._client.request("session.shell.executeUserRequested", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def cancel_user_requested(self, params: ShellCancelUserRequestedRequest, *, timeout: float | None = None) -> CancelUserRequestedShellCommandResult:
         "Cancels a user-requested shell command by request ID.\n\nArgs:\n    params: User-requested shell execution cancellation handle.\n\nReturns:\n    Cancellation result for a user-requested shell command."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -24033,26 +24210,31 @@ class HistoryApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def compact(self, params: HistoryCompactRequest | None = None, *, timeout: float | None = None) -> HistoryCompactResult:
         "Compacts the session history to reduce context usage.\n\nArgs:\n    params: Optional compaction parameters.\n\nReturns:\n    Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         params_dict["sessionId"] = self._session_id
         return HistoryCompactResult.from_dict(await self._client.request("session.history.compact", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def truncate(self, params: HistoryTruncateRequest, *, timeout: float | None = None) -> HistoryTruncateResult:
         "Truncates persisted session history to a specific event.\n\nArgs:\n    params: Identifier of the event to truncate to; this event and all later events are removed.\n\nReturns:\n    Number of events that were removed by the truncation."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return HistoryTruncateResult.from_dict(await self._client.request("session.history.truncate", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def cancel_background_compaction(self, *, timeout: float | None = None) -> HistoryCancelBackgroundCompactionResult:
         "Cancels any in-progress background compaction on a local session.\n\nReturns:\n    Indicates whether an in-progress background compaction was cancelled."
         return HistoryCancelBackgroundCompactionResult.from_dict(await self._client.request("session.history.cancelBackgroundCompaction", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def abort_manual_compaction(self, *, timeout: float | None = None) -> HistoryAbortManualCompactionResult:
         "Aborts any in-progress manual compaction on a local session.\n\nReturns:\n    Indicates whether an in-progress manual compaction was aborted."
         return HistoryAbortManualCompactionResult.from_dict(await self._client.request("session.history.abortManualCompaction", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def summarize_for_handoff(self, *, timeout: float | None = None) -> HistorySummarizeForHandoffResult:
         "Produces a markdown summary of the session's conversation context for hand-off scenarios.\n\nReturns:\n    Markdown summary of the conversation context (empty when not available)."
         return HistorySummarizeForHandoffResult.from_dict(await self._client.request("session.history.summarizeForHandoff", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
@@ -24064,14 +24246,17 @@ class QueueApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def pending_items(self, *, timeout: float | None = None) -> QueuePendingItemsResult:
         "Returns the local session's pending user-facing queued items and steering messages.\n\nReturns:\n    Snapshot of the session's pending queued items and immediate-steering messages."
         return QueuePendingItemsResult.from_dict(await self._client.request("session.queue.pendingItems", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def remove_most_recent(self, *, timeout: float | None = None) -> QueueRemoveMostRecentResult:
         "Removes the most recently queued user-facing item (LIFO).\n\nReturns:\n    Indicates whether a user-facing pending item was removed."
         return QueueRemoveMostRecentResult.from_dict(await self._client.request("session.queue.removeMostRecent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def clear(self, *, timeout: float | None = None) -> None:
         "Clears all pending queued items on the local session."
         await self._client.request("session.queue.clear", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
@@ -24083,22 +24268,26 @@ class EventLogApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def read(self, params: EventLogReadRequest, *, timeout: float | None = None) -> EventsReadResult:
         "Reads a batch of session events from a cursor, optionally waiting for new events.\n\nArgs:\n    params: Cursor, batch size, and optional long-poll/filter parameters for reading session events.\n\nReturns:\n    Batch of session events returned by a read, with cursor and continuation metadata."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return EventsReadResult.from_dict(await self._client.request("session.eventLog.read", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def tail(self, *, timeout: float | None = None) -> EventLogTailResult:
         "Returns a snapshot of the current tail cursor without consuming events.\n\nReturns:\n    Snapshot of the current tail cursor without returning any events. Use this when a consumer wants to subscribe to live events going forward without first paginating through the entire persisted history (which would happen if `read` were called without a cursor on a long-lived session)."
         return EventLogTailResult.from_dict(await self._client.request("session.eventLog.tail", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def register_interest(self, params: RegisterEventInterestParams, *, timeout: float | None = None) -> RegisterEventInterestResult:
         "Registers consumer interest in an event type for runtime gating purposes.\n\nArgs:\n    params: Event type to register consumer interest for, used by runtime gating logic.\n\nReturns:\n    Opaque handle representing an event-type interest registration."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return RegisterEventInterestResult.from_dict(await self._client.request("session.eventLog.registerInterest", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def release_interest(self, params: ReleaseEventInterestParams, *, timeout: float | None = None) -> EventLogReleaseInterestResult:
         "Releases a consumer's previously-registered interest in an event type.\n\nArgs:\n    params: Opaque handle previously returned by `registerInterest` to release.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -24112,6 +24301,7 @@ class UsageApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def get_metrics(self, *, timeout: float | None = None) -> UsageGetMetricsResult:
         "Gets accumulated usage metrics for the session.\n\nReturns:\n    Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals."
         return UsageGetMetricsResult.from_dict(await self._client.request("session.usage.getMetrics", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
@@ -24123,16 +24313,19 @@ class RemoteApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def enable(self, params: RemoteEnableRequest, *, timeout: float | None = None) -> RemoteEnableResult:
         "Enables remote session export or steering.\n\nArgs:\n    params: Optional remote session mode (\"off\", \"export\", or \"on\"); defaults to enabling both export and remote steering.\n\nReturns:\n    GitHub URL for the session and a flag indicating whether remote steering is enabled."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return RemoteEnableResult.from_dict(await self._client.request("session.remote.enable", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def disable(self, *, timeout: float | None = None) -> None:
         "Disables remote session export and steering."
         await self._client.request("session.remote.disable", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
+    @experimental
     async def notify_steerable_changed(self, params: RemoteNotifySteerableChangedRequest, *, timeout: float | None = None) -> RemoteNotifySteerableChangedResult:
         "Persists a remote-steerability change emitted by the host as a session event.\n\nArgs:\n    params: New remote-steerability state to persist as a `session.remote_steerable_changed` event.\n\nReturns:\n    Persist a steerability change as a `session.remote_steerable_changed` event. Used by the host (CLI / SDK consumer) when it has just finished enabling or disabling steering on a remote exporter that the runtime does not directly own."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -24146,10 +24339,12 @@ class ScheduleApi:
         self._client = client
         self._session_id = session_id
 
+    @experimental
     async def list(self, *, timeout: float | None = None) -> ScheduleList:
         "Lists the session's currently active scheduled prompts.\n\nReturns:\n    Snapshot of the currently active recurring prompts for this session."
         return ScheduleList.from_dict(await self._client.request("session.schedule.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def stop(self, params: ScheduleStopRequest, *, timeout: float | None = None) -> ScheduleStopResult:
         "Removes a scheduled prompt by id.\n\nArgs:\n    params: Identifier of the scheduled prompt to remove.\n\nReturns:\n    Remove a scheduled prompt by id. The result entry is omitted if the id was unknown."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -24194,28 +24389,33 @@ class SessionRpc:
         self.remote = RemoteApi(client, session_id)
         self.schedule = ScheduleApi(client, session_id)
 
+    @experimental
     async def suspend(self, *, timeout: float | None = None) -> None:
         "Suspends the session while preserving persisted state for later resume.\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         await self._client.request("session.suspend", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
+    @experimental
     async def send(self, params: SendRequest, *, timeout: float | None = None) -> SendResult:
         "Sends a user message to the session and returns its message ID.\n\nArgs:\n    params: Parameters for sending a user message to the session\n\nReturns:\n    Result of sending a user message\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return SendResult.from_dict(await self._client.request("session.send", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def abort(self, params: AbortRequest, *, timeout: float | None = None) -> AbortResult:
         "Aborts the current agent turn.\n\nArgs:\n    params: Parameters for aborting the current turn\n\nReturns:\n    Result of aborting the current turn\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return AbortResult.from_dict(await self._client.request("session.abort", params_dict, **_timeout_kwargs(timeout)))
 
+    @experimental
     async def shutdown(self, params: ShutdownRequest, *, timeout: float | None = None) -> None:
         "Shuts down the session and persists its final state. Awaits any deferred sessionEnd hooks before resolving so user-supplied hook scripts complete before the runtime tears down.\n\nArgs:\n    params: Parameters for shutting down the session\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.shutdown", params_dict, **_timeout_kwargs(timeout))
 
+    @experimental
     async def log(self, params: LogRequest, *, timeout: float | None = None) -> LogResult:
         "Emits a user-visible session log event.\n\nArgs:\n    params: Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.\n\nReturns:\n    Identifier of the session event that was emitted for the log message.\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}

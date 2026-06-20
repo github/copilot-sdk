@@ -30,6 +30,10 @@ default = ["bundled-cli"]
 bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
 derive = ["dep:schemars"]
 test-support = []
+# Opt in to experimental, unstable APIs. Experimental methods are gated behind
+# this feature so depending on them is a deliberate, explicit choice; they may
+# change or be removed in any release without notice.
+experimental = []
 
 # Build docs.rs documentation with all features so feature-gated APIs
 # (e.g. `define_tool`, `schema_for`) appear and intra-doc links resolve.
@@ -66,6 +70,13 @@ schemars = "1"
 serial_test = "3"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
+
+# Examples that demonstrate experimental APIs require the `experimental`
+# feature so they compile against the gated, opt-in surface. Build them with:
+# `cargo run --example manual_tool_resume --features experimental`.
+[[example]]
+name = "manual_tool_resume"
+required-features = ["experimental"]
 
 # Integration tests that call test-support-only Client methods (e.g.
 # `from_streams_with_connection_token`, `from_streams_with_trace_provider`)

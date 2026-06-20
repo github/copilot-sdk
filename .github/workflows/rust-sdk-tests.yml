@@ -98,7 +98,10 @@ jobs:
         if: runner.os == 'Linux'
         env:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+        # The `experimental` feature is enabled so examples and lints cover the
+        # gated experimental API surface (experimental methods are `pub` only
+        # under this feature — see the `experimental` feature in Cargo.toml).
+        run: cargo clippy --all-targets --features test-support,experimental -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
 
       - name: cargo doc
         if: runner.os == 'Linux'
@@ -127,7 +130,11 @@ jobs:
         # embed it. Tests exec against the setup-copilot CLI via
         # COPILOT_CLI_PATH (the env override wins over the dev cache).
         # The dedicated `bundle` job below exercises the embed pipeline.
-        run: cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
+        # `experimental` is enabled because the SDK's own integration tests
+        # exercise experimental RPC methods directly; the feature gate that
+        # hides them from external consumers is the Rust analog of C#
+        # `[Experimental]` / Java `@CopilotExperimental`.
+        run: cargo test --no-default-features --features test-support,experimental -- --test-threads=4 --nocapture
 
   # Validates the bundled-CLI build path on all three supported
   # platforms. While the regular `cargo test` job above also exercises

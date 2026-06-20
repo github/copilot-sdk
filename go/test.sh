@@ -46,4 +46,13 @@ echo
 go test -v ./... -race -timeout=20m
 
 echo
+echo "=== Running copilotexperimental analyzer tests (nested module) ==="
+echo
+
+# The analyzer lives in a nested Go module, so the repo-root `go test ./...`
+# above does not descend into it. Run its tests explicitly so analyzer
+# regressions are caught in CI.
+(cd copilotexperimental && go test ./...)
+
+echo
 echo "✅ All tests passed!"

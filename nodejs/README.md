@@ -1066,6 +1066,25 @@ const session = await client.createSession({
 - `onSessionEnd` - Cleanup or logging when session ends.
 - `onErrorOccurred` - Handle errors with retry/skip/abort strategies.
 
+## Experimental APIs
+
+Some SDK members are **experimental**: they're documented with an
+`@experimental` JSDoc tag and may change or be removed in any release. Because
+JSDoc tags don't produce compiler diagnostics on their own, this package ships a
+companion ESLint plugin,
+[`@github/eslint-plugin-copilot-sdk`](./eslint-plugin/README.md), whose
+type-aware `no-experimental-api` rule flags any reference to an experimental
+member — the TypeScript analog of C# `[Experimental]` / Java
+`@CopilotExperimental`. Opting in is then an explicit, auditable
+`eslint-disable` at the call site:
+
+```ts
+// eslint-disable-next-line @github/copilot-sdk/no-experimental-api
+session.someExperimentalApi();
+```
+
+See the [plugin README](./eslint-plugin/README.md) for flat-config setup.
+
 ## Error Handling
 
 ```typescript

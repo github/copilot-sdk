@@ -233,7 +233,22 @@ impl<'a> ClientRpcAgentRegistry<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn spawn(
+        &self,
+        params: AgentRegistrySpawnRequest,
+    ) -> Result<AgentRegistrySpawnResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTREGISTRY_SPAWN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn spawn(
         &self,
         params: AgentRegistrySpawnRequest,
     ) -> Result<AgentRegistrySpawnResult, Error> {
@@ -272,7 +287,22 @@ impl<'a> ClientRpcAgents<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn discover(&self, params: AgentsDiscoverRequest) -> Result<ServerAgentList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn discover(
+        &self,
+        params: AgentsDiscoverRequest,
+    ) -> Result<ServerAgentList, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
@@ -300,7 +330,22 @@ impl<'a> ClientRpcAgents<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_discovery_paths(
+        &self,
+        params: AgentsGetDiscoveryPathsRequest,
+    ) -> Result<AgentDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTS_GETDISCOVERYPATHS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_discovery_paths(
         &self,
         params: AgentsGetDiscoveryPathsRequest,
     ) -> Result<AgentDiscoveryPathList, Error> {
@@ -339,7 +384,22 @@ impl<'a> ClientRpcInstructions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn discover(
+        &self,
+        params: InstructionsDiscoverRequest,
+    ) -> Result<ServerInstructionSourceList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::INSTRUCTIONS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn discover(
         &self,
         params: InstructionsDiscoverRequest,
     ) -> Result<ServerInstructionSourceList, Error> {
@@ -370,7 +430,25 @@ impl<'a> ClientRpcInstructions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_discovery_paths(
+        &self,
+        params: InstructionsGetDiscoveryPathsRequest,
+    ) -> Result<InstructionDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::INSTRUCTIONS_GETDISCOVERYPATHS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_discovery_paths(
         &self,
         params: InstructionsGetDiscoveryPathsRequest,
     ) -> Result<InstructionDiscoveryPathList, Error> {
@@ -610,7 +688,19 @@ impl<'a> ClientRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<PluginListResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<PluginListResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -638,7 +728,22 @@ impl<'a> ClientRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn install(
+        &self,
+        params: PluginsInstallRequest,
+    ) -> Result<PluginInstallResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_INSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn install(
         &self,
         params: PluginsInstallRequest,
     ) -> Result<PluginInstallResult, Error> {
@@ -665,7 +770,19 @@ impl<'a> ClientRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn uninstall(&self, params: PluginsUninstallRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_UNINSTALL, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn uninstall(&self, params: PluginsUninstallRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
@@ -693,7 +810,22 @@ impl<'a> ClientRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn update(&self, params: PluginsUpdateRequest) -> Result<PluginUpdateResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_UPDATE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn update(
+        &self,
+        params: PluginsUpdateRequest,
+    ) -> Result<PluginUpdateResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
@@ -717,7 +849,19 @@ impl<'a> ClientRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn update_all(&self) -> Result<PluginUpdateAllResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_UPDATEALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn update_all(&self) -> Result<PluginUpdateAllResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -741,7 +885,19 @@ impl<'a> ClientRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn enable(&self, params: PluginsEnableRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_ENABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn enable(&self, params: PluginsEnableRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
@@ -765,7 +921,19 @@ impl<'a> ClientRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn disable(&self, params: PluginsDisableRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn disable(&self, params: PluginsDisableRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
@@ -797,7 +965,19 @@ impl<'a> ClientRpcPluginsMarketplaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<MarketplaceListResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_MARKETPLACES_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<MarketplaceListResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -825,7 +1005,22 @@ impl<'a> ClientRpcPluginsMarketplaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn add(
+        &self,
+        params: PluginsMarketplacesAddRequest,
+    ) -> Result<MarketplaceAddResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_MARKETPLACES_ADD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn add(
         &self,
         params: PluginsMarketplacesAddRequest,
     ) -> Result<MarketplaceAddResult, Error> {
@@ -856,7 +1051,22 @@ impl<'a> ClientRpcPluginsMarketplaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn remove(
+        &self,
+        params: PluginsMarketplacesRemoveRequest,
+    ) -> Result<MarketplaceRemoveResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_MARKETPLACES_REMOVE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn remove(
         &self,
         params: PluginsMarketplacesRemoveRequest,
     ) -> Result<MarketplaceRemoveResult, Error> {
@@ -887,7 +1097,22 @@ impl<'a> ClientRpcPluginsMarketplaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn browse(
+        &self,
+        params: PluginsMarketplacesBrowseRequest,
+    ) -> Result<MarketplaceBrowseResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_MARKETPLACES_BROWSE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn browse(
         &self,
         params: PluginsMarketplacesBrowseRequest,
     ) -> Result<MarketplaceBrowseResult, Error> {
@@ -914,7 +1139,19 @@ impl<'a> ClientRpcPluginsMarketplaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn refresh(&self) -> Result<MarketplaceRefreshResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_MARKETPLACES_REFRESH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn refresh(&self) -> Result<MarketplaceRefreshResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -942,7 +1179,22 @@ impl<'a> ClientRpcPluginsMarketplaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn refresh_with_params(
+        &self,
+        params: PluginsMarketplacesRefreshRequest,
+    ) -> Result<MarketplaceRefreshResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_MARKETPLACES_REFRESH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn refresh_with_params(
         &self,
         params: PluginsMarketplacesRefreshRequest,
     ) -> Result<MarketplaceRefreshResult, Error> {
@@ -1059,7 +1311,19 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn open(&self) -> Result<SessionOpenResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_OPEN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn open(&self) -> Result<SessionOpenResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -1087,7 +1351,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn fork(&self, params: SessionsForkRequest) -> Result<SessionsForkResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_FORK, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn fork(
+        &self,
+        params: SessionsForkRequest,
+    ) -> Result<SessionsForkResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
@@ -1115,7 +1394,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn connect(
+        &self,
+        params: ConnectRemoteSessionParams,
+    ) -> Result<RemoteSessionConnectionResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_CONNECT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn connect(
         &self,
         params: ConnectRemoteSessionParams,
     ) -> Result<RemoteSessionConnectionResult, Error> {
@@ -1142,7 +1436,19 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<SessionList, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<SessionList, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -1170,7 +1476,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list_with_params(
+        &self,
+        params: SessionsListRequest,
+    ) -> Result<SessionList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list_with_params(
         &self,
         params: SessionsListRequest,
     ) -> Result<SessionList, Error> {
@@ -1201,7 +1522,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn find_by_task_id(
+        &self,
+        params: SessionsFindByTaskIDRequest,
+    ) -> Result<SessionsFindByTaskIDResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_FINDBYTASKID, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn find_by_task_id(
         &self,
         params: SessionsFindByTaskIDRequest,
     ) -> Result<SessionsFindByTaskIDResult, Error> {
@@ -1232,7 +1568,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn find_by_prefix(
+        &self,
+        params: SessionsFindByPrefixRequest,
+    ) -> Result<SessionsFindByPrefixResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_FINDBYPREFIX, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn find_by_prefix(
         &self,
         params: SessionsFindByPrefixRequest,
     ) -> Result<SessionsFindByPrefixResult, Error> {
@@ -1263,7 +1614,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_last_for_context(
+        &self,
+        params: SessionsGetLastForContextRequest,
+    ) -> Result<SessionsGetLastForContextResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_GETLASTFORCONTEXT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_last_for_context(
         &self,
         params: SessionsGetLastForContextRequest,
     ) -> Result<SessionsGetLastForContextResult, Error> {
@@ -1321,7 +1687,19 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_sizes(&self) -> Result<SessionSizes, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_GETSIZES, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_sizes(&self) -> Result<SessionSizes, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -1349,7 +1727,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn check_in_use(
+        &self,
+        params: SessionsCheckInUseRequest,
+    ) -> Result<SessionsCheckInUseResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_CHECKINUSE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn check_in_use(
         &self,
         params: SessionsCheckInUseRequest,
     ) -> Result<SessionsCheckInUseResult, Error> {
@@ -1414,7 +1807,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn close(&self, params: SessionsCloseRequest) -> Result<SessionsCloseResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_CLOSE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn close(
+        &self,
+        params: SessionsCloseRequest,
+    ) -> Result<SessionsCloseResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
@@ -1442,7 +1850,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn bulk_delete(
+        &self,
+        params: SessionsBulkDeleteRequest,
+    ) -> Result<SessionBulkDeleteResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_BULKDELETE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn bulk_delete(
         &self,
         params: SessionsBulkDeleteRequest,
     ) -> Result<SessionBulkDeleteResult, Error> {
@@ -1473,7 +1896,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn prune_old(
+        &self,
+        params: SessionsPruneOldRequest,
+    ) -> Result<SessionPruneResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_PRUNEOLD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn prune_old(
         &self,
         params: SessionsPruneOldRequest,
     ) -> Result<SessionPruneResult, Error> {
@@ -1504,7 +1942,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn save(&self, params: SessionsSaveRequest) -> Result<SessionsSaveResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_SAVE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn save(
+        &self,
+        params: SessionsSaveRequest,
+    ) -> Result<SessionsSaveResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
@@ -1532,7 +1985,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn release_lock(
+        &self,
+        params: SessionsReleaseLockRequest,
+    ) -> Result<SessionsReleaseLockResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_RELEASELOCK, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn release_lock(
         &self,
         params: SessionsReleaseLockRequest,
     ) -> Result<SessionsReleaseLockResult, Error> {
@@ -1563,7 +2031,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn enrich_metadata(
+        &self,
+        params: SessionsEnrichMetadataRequest,
+    ) -> Result<SessionEnrichMetadataResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_ENRICHMETADATA, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn enrich_metadata(
         &self,
         params: SessionsEnrichMetadataRequest,
     ) -> Result<SessionEnrichMetadataResult, Error> {
@@ -1594,7 +2077,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn reload_plugin_hooks(
+        &self,
+        params: SessionsReloadPluginHooksRequest,
+    ) -> Result<SessionsReloadPluginHooksResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_RELOADPLUGINHOOKS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn reload_plugin_hooks(
         &self,
         params: SessionsReloadPluginHooksRequest,
     ) -> Result<SessionsReloadPluginHooksResult, Error> {
@@ -1625,7 +2123,25 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn load_deferred_repo_hooks(
+        &self,
+        params: SessionsLoadDeferredRepoHooksRequest,
+    ) -> Result<SessionLoadDeferredRepoHooksResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SESSIONS_LOADDEFERREDREPOHOOKS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn load_deferred_repo_hooks(
         &self,
         params: SessionsLoadDeferredRepoHooksRequest,
     ) -> Result<SessionLoadDeferredRepoHooksResult, Error> {
@@ -1659,7 +2175,25 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_additional_plugins(
+        &self,
+        params: SessionsSetAdditionalPluginsRequest,
+    ) -> Result<SessionsSetAdditionalPluginsResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SESSIONS_SETADDITIONALPLUGINS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_additional_plugins(
         &self,
         params: SessionsSetAdditionalPluginsRequest,
     ) -> Result<SessionsSetAdditionalPluginsResult, Error> {
@@ -1724,7 +2258,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn start_remote_control(
+        &self,
+        params: SessionsStartRemoteControlRequest,
+    ) -> Result<RemoteControlStatusResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_STARTREMOTECONTROL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn start_remote_control(
         &self,
         params: SessionsStartRemoteControlRequest,
     ) -> Result<RemoteControlStatusResult, Error> {
@@ -1755,7 +2304,25 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn transfer_remote_control(
+        &self,
+        params: SessionsTransferRemoteControlRequest,
+    ) -> Result<RemoteControlTransferResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SESSIONS_TRANSFERREMOTECONTROL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn transfer_remote_control(
         &self,
         params: SessionsTransferRemoteControlRequest,
     ) -> Result<RemoteControlTransferResult, Error> {
@@ -1789,7 +2356,25 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_remote_control_steering(
+        &self,
+        params: SessionsSetRemoteControlSteeringRequest,
+    ) -> Result<RemoteControlStatusResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SESSIONS_SETREMOTECONTROLSTEERING,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_remote_control_steering(
         &self,
         params: SessionsSetRemoteControlSteeringRequest,
     ) -> Result<RemoteControlStatusResult, Error> {
@@ -1819,7 +2404,19 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn stop_remote_control(&self) -> Result<RemoteControlStopResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_STOPREMOTECONTROL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn stop_remote_control(&self) -> Result<RemoteControlStopResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -1847,7 +2444,22 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn stop_remote_control_with_params(
+        &self,
+        params: SessionsStopRemoteControlRequest,
+    ) -> Result<RemoteControlStopResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_STOPREMOTECONTROL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn stop_remote_control_with_params(
         &self,
         params: SessionsStopRemoteControlRequest,
     ) -> Result<RemoteControlStopResult, Error> {
@@ -1874,7 +2486,24 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_remote_control_status(&self) -> Result<RemoteControlStatusResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SESSIONS_GETREMOTECONTROLSTATUS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_remote_control_status(
+        &self,
+    ) -> Result<RemoteControlStatusResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
             .client
@@ -2059,7 +2688,22 @@ impl<'a> ClientRpcSkills<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_discovery_paths(
+        &self,
+        params: SkillsGetDiscoveryPathsRequest,
+    ) -> Result<SkillDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_GETDISCOVERYPATHS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_discovery_paths(
         &self,
         params: SkillsGetDiscoveryPathsRequest,
     ) -> Result<SkillDiscoveryPathList, Error> {
@@ -2400,7 +3044,20 @@ impl<'a> SessionRpc<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn suspend(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SUSPEND, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn suspend(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2429,7 +3086,21 @@ impl<'a> SessionRpc<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn send(&self, params: SendRequest) -> Result<SendResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SEND, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn send(&self, params: SendRequest) -> Result<SendResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -2459,7 +3130,21 @@ impl<'a> SessionRpc<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn abort(&self, params: AbortRequest) -> Result<AbortResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_ABORT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn abort(&self, params: AbortRequest) -> Result<AbortResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -2485,7 +3170,21 @@ impl<'a> SessionRpc<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn shutdown(&self, params: ShutdownRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SHUTDOWN, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn shutdown(&self, params: ShutdownRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -2515,7 +3214,21 @@ impl<'a> SessionRpc<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn log(&self, params: LogRequest) -> Result<LogResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_LOG, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn log(&self, params: LogRequest) -> Result<LogResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -2549,7 +3262,20 @@ impl<'a> SessionRpcAgent<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<AgentList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_AGENT_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<AgentList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2574,7 +3300,20 @@ impl<'a> SessionRpcAgent<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_current(&self) -> Result<AgentGetCurrentResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_AGENT_GETCURRENT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_current(&self) -> Result<AgentGetCurrentResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2603,7 +3342,24 @@ impl<'a> SessionRpcAgent<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn select(&self, params: AgentSelectRequest) -> Result<AgentSelectResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_AGENT_SELECT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn select(
+        &self,
+        params: AgentSelectRequest,
+    ) -> Result<AgentSelectResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -2625,7 +3381,20 @@ impl<'a> SessionRpcAgent<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn deselect(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_AGENT_DESELECT, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn deselect(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2650,7 +3419,20 @@ impl<'a> SessionRpcAgent<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn reload(&self) -> Result<AgentReloadResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_AGENT_RELOAD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn reload(&self) -> Result<AgentReloadResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2683,7 +3465,20 @@ impl<'a> SessionRpcAuth<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_status(&self) -> Result<SessionAuthStatus, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_AUTH_GETSTATUS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_status(&self) -> Result<SessionAuthStatus, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2712,7 +3507,24 @@ impl<'a> SessionRpcAuth<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_credentials(
+        &self,
+        params: SessionSetCredentialsParams,
+    ) -> Result<SessionSetCredentialsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_AUTH_SETCREDENTIALS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_credentials(
         &self,
         params: SessionSetCredentialsParams,
     ) -> Result<SessionSetCredentialsResult, Error> {
@@ -2756,7 +3568,20 @@ impl<'a> SessionRpcCanvas<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<CanvasList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<CanvasList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2781,7 +3606,20 @@ impl<'a> SessionRpcCanvas<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list_open(&self) -> Result<CanvasListOpenResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_LISTOPEN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list_open(&self) -> Result<CanvasListOpenResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2810,7 +3648,24 @@ impl<'a> SessionRpcCanvas<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn open(&self, params: CanvasOpenRequest) -> Result<OpenCanvasInstance, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_OPEN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn open(
+        &self,
+        params: CanvasOpenRequest,
+    ) -> Result<OpenCanvasInstance, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -2836,7 +3691,21 @@ impl<'a> SessionRpcCanvas<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn close(&self, params: CanvasCloseRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_CLOSE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn close(&self, params: CanvasCloseRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -2874,7 +3743,24 @@ impl<'a> SessionRpcCanvasAction<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn invoke(
+        &self,
+        params: CanvasActionInvokeRequest,
+    ) -> Result<CanvasActionInvokeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_ACTION_INVOKE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn invoke(
         &self,
         params: CanvasActionInvokeRequest,
     ) -> Result<CanvasActionInvokeResult, Error> {
@@ -2911,7 +3797,20 @@ impl<'a> SessionRpcCommands<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<CommandList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMMANDS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<CommandList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -2940,7 +3839,24 @@ impl<'a> SessionRpcCommands<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list_with_params(
+        &self,
+        params: CommandsListRequest,
+    ) -> Result<CommandList, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMMANDS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list_with_params(
         &self,
         params: CommandsListRequest,
     ) -> Result<CommandList, Error> {
@@ -2973,7 +3889,24 @@ impl<'a> SessionRpcCommands<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn invoke(
+        &self,
+        params: CommandsInvokeRequest,
+    ) -> Result<SlashCommandInvocationResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMMANDS_INVOKE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn invoke(
         &self,
         params: CommandsInvokeRequest,
     ) -> Result<SlashCommandInvocationResult, Error> {
@@ -3006,7 +3939,27 @@ impl<'a> SessionRpcCommands<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn handle_pending_command(
+        &self,
+        params: CommandsHandlePendingCommandRequest,
+    ) -> Result<CommandsHandlePendingCommandResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_COMMANDS_HANDLEPENDINGCOMMAND,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn handle_pending_command(
         &self,
         params: CommandsHandlePendingCommandRequest,
     ) -> Result<CommandsHandlePendingCommandResult, Error> {
@@ -3042,7 +3995,24 @@ impl<'a> SessionRpcCommands<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn execute(
+        &self,
+        params: ExecuteCommandParams,
+    ) -> Result<ExecuteCommandResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMMANDS_EXECUTE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn execute(
         &self,
         params: ExecuteCommandParams,
     ) -> Result<ExecuteCommandResult, Error> {
@@ -3075,7 +4045,24 @@ impl<'a> SessionRpcCommands<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn enqueue(
+        &self,
+        params: EnqueueCommandParams,
+    ) -> Result<EnqueueCommandResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMMANDS_ENQUEUE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn enqueue(
         &self,
         params: EnqueueCommandParams,
     ) -> Result<EnqueueCommandResult, Error> {
@@ -3108,7 +4095,27 @@ impl<'a> SessionRpcCommands<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn respond_to_queued_command(
+        &self,
+        params: CommandsRespondToQueuedCommandRequest,
+    ) -> Result<CommandsRespondToQueuedCommandResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_COMMANDS_RESPONDTOQUEUEDCOMMAND,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn respond_to_queued_command(
         &self,
         params: CommandsRespondToQueuedCommandRequest,
     ) -> Result<CommandsRespondToQueuedCommandResult, Error> {
@@ -3152,7 +4159,24 @@ impl<'a> SessionRpcEventLog<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn read(&self, params: EventLogReadRequest) -> Result<EventsReadResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_EVENTLOG_READ, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn read(
+        &self,
+        params: EventLogReadRequest,
+    ) -> Result<EventsReadResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -3178,7 +4202,20 @@ impl<'a> SessionRpcEventLog<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn tail(&self) -> Result<EventLogTailResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_EVENTLOG_TAIL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn tail(&self) -> Result<EventLogTailResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -3207,7 +4244,27 @@ impl<'a> SessionRpcEventLog<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn register_interest(
+        &self,
+        params: RegisterEventInterestParams,
+    ) -> Result<RegisterEventInterestResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_EVENTLOG_REGISTERINTEREST,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn register_interest(
         &self,
         params: RegisterEventInterestParams,
     ) -> Result<RegisterEventInterestResult, Error> {
@@ -3243,7 +4300,27 @@ impl<'a> SessionRpcEventLog<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn release_interest(
+        &self,
+        params: ReleaseEventInterestParams,
+    ) -> Result<EventLogReleaseInterestResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_EVENTLOG_RELEASEINTEREST,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn release_interest(
         &self,
         params: ReleaseEventInterestParams,
     ) -> Result<EventLogReleaseInterestResult, Error> {
@@ -3283,7 +4360,20 @@ impl<'a> SessionRpcExtensions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<ExtensionList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_EXTENSIONS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<ExtensionList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -3308,7 +4398,21 @@ impl<'a> SessionRpcExtensions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn enable(&self, params: ExtensionsEnableRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_EXTENSIONS_ENABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn enable(&self, params: ExtensionsEnableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -3334,7 +4438,21 @@ impl<'a> SessionRpcExtensions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn disable(&self, params: ExtensionsDisableRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_EXTENSIONS_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn disable(&self, params: ExtensionsDisableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -3356,7 +4474,20 @@ impl<'a> SessionRpcExtensions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn reload(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_EXTENSIONS_RELOAD, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn reload(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -3381,7 +4512,27 @@ impl<'a> SessionRpcExtensions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn send_attachments_to_message(
+        &self,
+        params: SendAttachmentsToMessageParams,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_EXTENSIONS_SENDATTACHMENTSTOMESSAGE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn send_attachments_to_message(
         &self,
         params: SendAttachmentsToMessageParams,
     ) -> Result<(), Error> {
@@ -3425,7 +4576,21 @@ impl<'a> SessionRpcFleet<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn start(&self, params: FleetStartRequest) -> Result<FleetStartResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FLEET_START, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn start(&self, params: FleetStartRequest) -> Result<FleetStartResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -3459,7 +4624,20 @@ impl<'a> SessionRpcHistory<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn compact(&self) -> Result<HistoryCompactResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_HISTORY_COMPACT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn compact(&self) -> Result<HistoryCompactResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -3488,7 +4666,24 @@ impl<'a> SessionRpcHistory<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn compact_with_params(
+        &self,
+        params: HistoryCompactRequest,
+    ) -> Result<HistoryCompactResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_HISTORY_COMPACT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn compact_with_params(
         &self,
         params: HistoryCompactRequest,
     ) -> Result<HistoryCompactResult, Error> {
@@ -3521,7 +4716,24 @@ impl<'a> SessionRpcHistory<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn truncate(
+        &self,
+        params: HistoryTruncateRequest,
+    ) -> Result<HistoryTruncateResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_HISTORY_TRUNCATE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn truncate(
         &self,
         params: HistoryTruncateRequest,
     ) -> Result<HistoryTruncateResult, Error> {
@@ -3550,7 +4762,25 @@ impl<'a> SessionRpcHistory<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn cancel_background_compaction(
+        &self,
+    ) -> Result<HistoryCancelBackgroundCompactionResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_HISTORY_CANCELBACKGROUNDCOMPACTION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn cancel_background_compaction(
         &self,
     ) -> Result<HistoryCancelBackgroundCompactionResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
@@ -3580,7 +4810,25 @@ impl<'a> SessionRpcHistory<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn abort_manual_compaction(
+        &self,
+    ) -> Result<HistoryAbortManualCompactionResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_HISTORY_ABORTMANUALCOMPACTION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn abort_manual_compaction(
         &self,
     ) -> Result<HistoryAbortManualCompactionResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
@@ -3610,7 +4858,25 @@ impl<'a> SessionRpcHistory<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn summarize_for_handoff(&self) -> Result<HistorySummarizeForHandoffResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_HISTORY_SUMMARIZEFORHANDOFF,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn summarize_for_handoff(
+        &self,
+    ) -> Result<HistorySummarizeForHandoffResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -3646,7 +4912,23 @@ impl<'a> SessionRpcInstructions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_sources(&self) -> Result<InstructionsGetSourcesResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_INSTRUCTIONS_GETSOURCES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_sources(&self) -> Result<InstructionsGetSourcesResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -3682,7 +4964,21 @@ impl<'a> SessionRpcLsp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn initialize(&self, params: LspInitializeRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_LSP_INITIALIZE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn initialize(&self, params: LspInitializeRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -3730,7 +5026,20 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<McpServerList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<McpServerList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -3759,7 +5068,24 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list_tools(
+        &self,
+        params: McpListToolsRequest,
+    ) -> Result<McpListToolsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_LISTTOOLS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list_tools(
         &self,
         params: McpListToolsRequest,
     ) -> Result<McpListToolsResult, Error> {
@@ -3788,7 +5114,21 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn enable(&self, params: McpEnableRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_ENABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn enable(&self, params: McpEnableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -3814,7 +5154,21 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn disable(&self, params: McpDisableRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn disable(&self, params: McpDisableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -3836,7 +5190,20 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn reload(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_RELOAD, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn reload(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -3898,7 +5265,24 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn execute_sampling(
+        &self,
+        params: McpExecuteSamplingParams,
+    ) -> Result<McpSamplingExecutionResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_EXECUTESAMPLING, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn execute_sampling(
         &self,
         params: McpExecuteSamplingParams,
     ) -> Result<McpSamplingExecutionResult, Error> {
@@ -3931,7 +5315,27 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn cancel_sampling_execution(
+        &self,
+        params: McpCancelSamplingExecutionParams,
+    ) -> Result<McpCancelSamplingExecutionResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_CANCELSAMPLINGEXECUTION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn cancel_sampling_execution(
         &self,
         params: McpCancelSamplingExecutionParams,
     ) -> Result<McpCancelSamplingExecutionResult, Error> {
@@ -3967,7 +5371,24 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_env_value_mode(
+        &self,
+        params: McpSetEnvValueModeParams,
+    ) -> Result<McpSetEnvValueModeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_SETENVVALUEMODE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_env_value_mode(
         &self,
         params: McpSetEnvValueModeParams,
     ) -> Result<McpSetEnvValueModeResult, Error> {
@@ -3996,7 +5417,20 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn remove_git_hub(&self) -> Result<McpRemoveGitHubResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_REMOVEGITHUB, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn remove_git_hub(&self) -> Result<McpRemoveGitHubResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4109,7 +5543,21 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn stop_server(&self, params: McpStopServerRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_STOPSERVER, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn stop_server(&self, params: McpStopServerRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -4203,7 +5651,24 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn is_server_running(
+        &self,
+        params: McpIsServerRunningRequest,
+    ) -> Result<McpIsServerRunningResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_ISSERVERRUNNING, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn is_server_running(
         &self,
         params: McpIsServerRunningRequest,
     ) -> Result<McpIsServerRunningResult, Error> {
@@ -4244,7 +5709,27 @@ impl<'a> SessionRpcMcpApps<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn read_resource(
+        &self,
+        params: McpAppsReadResourceRequest,
+    ) -> Result<McpAppsReadResourceResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_APPS_READRESOURCE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn read_resource(
         &self,
         params: McpAppsReadResourceRequest,
     ) -> Result<McpAppsReadResourceResult, Error> {
@@ -4280,7 +5765,24 @@ impl<'a> SessionRpcMcpApps<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list_tools(
+        &self,
+        params: McpAppsListToolsRequest,
+    ) -> Result<McpAppsListToolsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_APPS_LISTTOOLS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list_tools(
         &self,
         params: McpAppsListToolsRequest,
     ) -> Result<McpAppsListToolsResult, Error> {
@@ -4313,7 +5815,24 @@ impl<'a> SessionRpcMcpApps<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn call_tool(
+        &self,
+        params: McpAppsCallToolRequest,
+    ) -> Result<SessionMcpAppsCallToolResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_APPS_CALLTOOL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn call_tool(
         &self,
         params: McpAppsCallToolRequest,
     ) -> Result<SessionMcpAppsCallToolResult, Error> {
@@ -4342,7 +5861,27 @@ impl<'a> SessionRpcMcpApps<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_host_context(
+        &self,
+        params: McpAppsSetHostContextRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_APPS_SETHOSTCONTEXT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_host_context(
         &self,
         params: McpAppsSetHostContextRequest,
     ) -> Result<(), Error> {
@@ -4374,7 +5913,23 @@ impl<'a> SessionRpcMcpApps<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_host_context(&self) -> Result<McpAppsHostContext, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_APPS_GETHOSTCONTEXT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_host_context(&self) -> Result<McpAppsHostContext, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4406,7 +5961,24 @@ impl<'a> SessionRpcMcpApps<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn diagnose(
+        &self,
+        params: McpAppsDiagnoseRequest,
+    ) -> Result<McpAppsDiagnoseResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_APPS_DIAGNOSE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn diagnose(
         &self,
         params: McpAppsDiagnoseRequest,
     ) -> Result<McpAppsDiagnoseResult, Error> {
@@ -4480,7 +6052,24 @@ impl<'a> SessionRpcMcpOauth<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn login(&self, params: McpOauthLoginRequest) -> Result<McpOauthLoginResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_OAUTH_LOGIN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn login(
+        &self,
+        params: McpOauthLoginRequest,
+    ) -> Result<McpOauthLoginResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -4514,7 +6103,20 @@ impl<'a> SessionRpcMetadata<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn snapshot(&self) -> Result<SessionMetadataSnapshot, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_METADATA_SNAPSHOT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn snapshot(&self) -> Result<SessionMetadataSnapshot, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4539,7 +6141,23 @@ impl<'a> SessionRpcMetadata<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn is_processing(&self) -> Result<MetadataIsProcessingResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_METADATA_ISPROCESSING,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn is_processing(&self) -> Result<MetadataIsProcessingResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4567,7 +6185,20 @@ impl<'a> SessionRpcMetadata<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn activity(&self) -> Result<SessionActivity, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_METADATA_ACTIVITY, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn activity(&self) -> Result<SessionActivity, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4596,7 +6227,24 @@ impl<'a> SessionRpcMetadata<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn context_info(
+        &self,
+        params: MetadataContextInfoRequest,
+    ) -> Result<MetadataContextInfoResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_METADATA_CONTEXTINFO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn context_info(
         &self,
         params: MetadataContextInfoRequest,
     ) -> Result<MetadataContextInfoResult, Error> {
@@ -4629,7 +6277,27 @@ impl<'a> SessionRpcMetadata<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn record_context_change(
+        &self,
+        params: MetadataRecordContextChangeRequest,
+    ) -> Result<MetadataRecordContextChangeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_METADATA_RECORDCONTEXTCHANGE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn record_context_change(
         &self,
         params: MetadataRecordContextChangeRequest,
     ) -> Result<MetadataRecordContextChangeResult, Error> {
@@ -4665,7 +6333,27 @@ impl<'a> SessionRpcMetadata<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_working_directory(
+        &self,
+        params: MetadataSetWorkingDirectoryRequest,
+    ) -> Result<MetadataSetWorkingDirectoryResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_METADATA_SETWORKINGDIRECTORY,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_working_directory(
         &self,
         params: MetadataSetWorkingDirectoryRequest,
     ) -> Result<MetadataSetWorkingDirectoryResult, Error> {
@@ -4701,7 +6389,27 @@ impl<'a> SessionRpcMetadata<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn recompute_context_tokens(
+        &self,
+        params: MetadataRecomputeContextTokensRequest,
+    ) -> Result<MetadataRecomputeContextTokensResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_METADATA_RECOMPUTECONTEXTTOKENS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn recompute_context_tokens(
         &self,
         params: MetadataRecomputeContextTokensRequest,
     ) -> Result<MetadataRecomputeContextTokensResult, Error> {
@@ -4741,7 +6449,20 @@ impl<'a> SessionRpcMode<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get(&self) -> Result<SessionMode, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODE_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get(&self) -> Result<SessionMode, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4766,7 +6487,21 @@ impl<'a> SessionRpcMode<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set(&self, params: ModeSetRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODE_SET, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set(&self, params: ModeSetRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -4800,7 +6535,20 @@ impl<'a> SessionRpcModel<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_current(&self) -> Result<CurrentModel, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODEL_GETCURRENT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_current(&self) -> Result<CurrentModel, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4829,7 +6577,24 @@ impl<'a> SessionRpcModel<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn switch_to(
+        &self,
+        params: ModelSwitchToRequest,
+    ) -> Result<ModelSwitchToResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODEL_SWITCHTO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn switch_to(
         &self,
         params: ModelSwitchToRequest,
     ) -> Result<ModelSwitchToResult, Error> {
@@ -4862,7 +6627,27 @@ impl<'a> SessionRpcModel<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_reasoning_effort(
+        &self,
+        params: ModelSetReasoningEffortRequest,
+    ) -> Result<ModelSetReasoningEffortResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MODEL_SETREASONINGEFFORT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_reasoning_effort(
         &self,
         params: ModelSetReasoningEffortRequest,
     ) -> Result<ModelSetReasoningEffortResult, Error> {
@@ -4894,7 +6679,20 @@ impl<'a> SessionRpcModel<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<SessionModelList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODEL_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<SessionModelList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4923,7 +6721,24 @@ impl<'a> SessionRpcModel<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list_with_params(
+        &self,
+        params: ModelListRequest,
+    ) -> Result<SessionModelList, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODEL_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list_with_params(
         &self,
         params: ModelListRequest,
     ) -> Result<SessionModelList, Error> {
@@ -4960,7 +6775,20 @@ impl<'a> SessionRpcName<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get(&self) -> Result<NameGetResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_NAME_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get(&self) -> Result<NameGetResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -4985,7 +6813,21 @@ impl<'a> SessionRpcName<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set(&self, params: NameSetRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_NAME_SET, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set(&self, params: NameSetRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -5015,7 +6857,24 @@ impl<'a> SessionRpcName<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_auto(&self, params: NameSetAutoRequest) -> Result<NameSetAutoResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_NAME_SETAUTO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_auto(
+        &self,
+        params: NameSetAutoRequest,
+    ) -> Result<NameSetAutoResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -5053,7 +6912,24 @@ impl<'a> SessionRpcOptions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn update(
+        &self,
+        params: SessionUpdateOptionsParams,
+    ) -> Result<SessionUpdateOptionsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_OPTIONS_UPDATE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn update(
         &self,
         params: SessionUpdateOptionsParams,
     ) -> Result<SessionUpdateOptionsResult, Error> {
@@ -5122,7 +6998,27 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn configure(
+        &self,
+        params: PermissionsConfigureParams,
+    ) -> Result<PermissionsConfigureResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_CONFIGURE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn configure(
         &self,
         params: PermissionsConfigureParams,
     ) -> Result<PermissionsConfigureResult, Error> {
@@ -5158,7 +7054,27 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn handle_pending_permission_request(
+        &self,
+        params: PermissionDecisionRequest,
+    ) -> Result<PermissionRequestResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn handle_pending_permission_request(
         &self,
         params: PermissionDecisionRequest,
     ) -> Result<PermissionRequestResult, Error> {
@@ -5190,7 +7106,23 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn pending_requests(&self) -> Result<PendingPermissionRequestList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_PENDINGREQUESTS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn pending_requests(&self) -> Result<PendingPermissionRequestList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -5222,7 +7154,27 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_approve_all(
+        &self,
+        params: PermissionsSetApproveAllRequest,
+    ) -> Result<PermissionsSetApproveAllResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_SETAPPROVEALL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_approve_all(
         &self,
         params: PermissionsSetApproveAllRequest,
     ) -> Result<PermissionsSetApproveAllResult, Error> {
@@ -5258,7 +7210,27 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_allow_all(
+        &self,
+        params: PermissionsSetAllowAllRequest,
+    ) -> Result<AllowAllPermissionSetResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_SETALLOWALL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_allow_all(
         &self,
         params: PermissionsSetAllowAllRequest,
     ) -> Result<AllowAllPermissionSetResult, Error> {
@@ -5290,7 +7262,23 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_allow_all(&self) -> Result<AllowAllPermissionState, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_GETALLOWALL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_allow_all(&self) -> Result<AllowAllPermissionState, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -5322,7 +7310,27 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn modify_rules(
+        &self,
+        params: PermissionsModifyRulesParams,
+    ) -> Result<PermissionsModifyRulesResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_MODIFYRULES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn modify_rules(
         &self,
         params: PermissionsModifyRulesParams,
     ) -> Result<PermissionsModifyRulesResult, Error> {
@@ -5358,7 +7366,27 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_required(
+        &self,
+        params: PermissionsSetRequiredRequest,
+    ) -> Result<PermissionsSetRequiredResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_SETREQUIRED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_required(
         &self,
         params: PermissionsSetRequiredRequest,
     ) -> Result<PermissionsSetRequiredResult, Error> {
@@ -5390,7 +7418,25 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn reset_session_approvals(
+        &self,
+    ) -> Result<PermissionsResetSessionApprovalsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_RESETSESSIONAPPROVALS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn reset_session_approvals(
         &self,
     ) -> Result<PermissionsResetSessionApprovalsResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
@@ -5424,7 +7470,27 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn notify_prompt_shown(
+        &self,
+        params: PermissionPromptShownNotification,
+    ) -> Result<PermissionsNotifyPromptShownResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_NOTIFYPROMPTSHOWN,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn notify_prompt_shown(
         &self,
         params: PermissionPromptShownNotification,
     ) -> Result<PermissionsNotifyPromptShownResult, Error> {
@@ -5468,7 +7534,27 @@ impl<'a> SessionRpcPermissionsFolderTrust<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn is_trusted(
+        &self,
+        params: FolderTrustCheckParams,
+    ) -> Result<FolderTrustCheckResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_FOLDERTRUST_ISTRUSTED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn is_trusted(
         &self,
         params: FolderTrustCheckParams,
     ) -> Result<FolderTrustCheckResult, Error> {
@@ -5504,7 +7590,27 @@ impl<'a> SessionRpcPermissionsFolderTrust<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn add_trusted(
+        &self,
+        params: FolderTrustAddParams,
+    ) -> Result<PermissionsFolderTrustAddTrustedResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_FOLDERTRUST_ADDTRUSTED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn add_trusted(
         &self,
         params: FolderTrustAddParams,
     ) -> Result<PermissionsFolderTrustAddTrustedResult, Error> {
@@ -5548,7 +7654,27 @@ impl<'a> SessionRpcPermissionsLocations<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn resolve(
+        &self,
+        params: PermissionLocationResolveParams,
+    ) -> Result<PermissionLocationResolveResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_LOCATIONS_RESOLVE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn resolve(
         &self,
         params: PermissionLocationResolveParams,
     ) -> Result<PermissionLocationResolveResult, Error> {
@@ -5584,7 +7710,27 @@ impl<'a> SessionRpcPermissionsLocations<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn apply(
+        &self,
+        params: PermissionLocationApplyParams,
+    ) -> Result<PermissionLocationApplyResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_LOCATIONS_APPLY,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn apply(
         &self,
         params: PermissionLocationApplyParams,
     ) -> Result<PermissionLocationApplyResult, Error> {
@@ -5620,7 +7766,27 @@ impl<'a> SessionRpcPermissionsLocations<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn add_tool_approval(
+        &self,
+        params: PermissionLocationAddToolApprovalParams,
+    ) -> Result<PermissionsLocationsAddToolApprovalResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_LOCATIONS_ADDTOOLAPPROVAL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn add_tool_approval(
         &self,
         params: PermissionLocationAddToolApprovalParams,
     ) -> Result<PermissionsLocationsAddToolApprovalResult, Error> {
@@ -5660,7 +7826,23 @@ impl<'a> SessionRpcPermissionsPaths<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<PermissionPathsList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_PATHS_LIST,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<PermissionPathsList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -5692,7 +7874,27 @@ impl<'a> SessionRpcPermissionsPaths<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn add(
+        &self,
+        params: PermissionPathsAddParams,
+    ) -> Result<PermissionsPathsAddResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_PATHS_ADD,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn add(
         &self,
         params: PermissionPathsAddParams,
     ) -> Result<PermissionsPathsAddResult, Error> {
@@ -5728,7 +7930,27 @@ impl<'a> SessionRpcPermissionsPaths<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn update_primary(
+        &self,
+        params: PermissionPathsUpdatePrimaryParams,
+    ) -> Result<PermissionsPathsUpdatePrimaryResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_PATHS_UPDATEPRIMARY,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn update_primary(
         &self,
         params: PermissionPathsUpdatePrimaryParams,
     ) -> Result<PermissionsPathsUpdatePrimaryResult, Error> {
@@ -5764,7 +7986,27 @@ impl<'a> SessionRpcPermissionsPaths<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn is_path_within_allowed_directories(
+        &self,
+        params: PermissionPathsAllowedCheckParams,
+    ) -> Result<PermissionPathsAllowedCheckResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_PATHS_ISPATHWITHINALLOWEDDIRECTORIES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn is_path_within_allowed_directories(
         &self,
         params: PermissionPathsAllowedCheckParams,
     ) -> Result<PermissionPathsAllowedCheckResult, Error> {
@@ -5800,7 +8042,27 @@ impl<'a> SessionRpcPermissionsPaths<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn is_path_within_workspace(
+        &self,
+        params: PermissionPathsWorkspaceCheckParams,
+    ) -> Result<PermissionPathsWorkspaceCheckResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_PATHS_ISPATHWITHINWORKSPACE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn is_path_within_workspace(
         &self,
         params: PermissionPathsWorkspaceCheckParams,
     ) -> Result<PermissionPathsWorkspaceCheckResult, Error> {
@@ -5844,7 +8106,27 @@ impl<'a> SessionRpcPermissionsUrls<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_unrestricted_mode(
+        &self,
+        params: PermissionUrlsSetUnrestrictedModeParams,
+    ) -> Result<PermissionsUrlsSetUnrestrictedModeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_URLS_SETUNRESTRICTEDMODE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_unrestricted_mode(
         &self,
         params: PermissionUrlsSetUnrestrictedModeParams,
     ) -> Result<PermissionsUrlsSetUnrestrictedModeResult, Error> {
@@ -5884,7 +8166,20 @@ impl<'a> SessionRpcPlan<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn read(&self) -> Result<PlanReadResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLAN_READ, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn read(&self) -> Result<PlanReadResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -5909,7 +8204,21 @@ impl<'a> SessionRpcPlan<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn update(&self, params: PlanUpdateRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLAN_UPDATE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn update(&self, params: PlanUpdateRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -5931,7 +8240,20 @@ impl<'a> SessionRpcPlan<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn delete(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLAN_DELETE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn delete(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -5956,7 +8278,20 @@ impl<'a> SessionRpcPlan<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn read_sql_todos(&self) -> Result<PlanReadSqlTodosResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLAN_READSQLTODOS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn read_sql_todos(&self) -> Result<PlanReadSqlTodosResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -5981,7 +8316,25 @@ impl<'a> SessionRpcPlan<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn read_sql_todos_with_dependencies(
+        &self,
+    ) -> Result<PlanReadSqlTodosWithDependenciesResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PLAN_READSQLTODOSWITHDEPENDENCIES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn read_sql_todos_with_dependencies(
         &self,
     ) -> Result<PlanReadSqlTodosWithDependenciesResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
@@ -6019,7 +8372,20 @@ impl<'a> SessionRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<PluginList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLUGINS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<PluginList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6040,7 +8406,20 @@ impl<'a> SessionRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn reload(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLUGINS_RELOAD, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn reload(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6065,7 +8444,24 @@ impl<'a> SessionRpcPlugins<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn reload_with_params(&self, params: PluginsReloadRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLUGINS_RELOAD, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn reload_with_params(
+        &self,
+        params: PluginsReloadRequest,
+    ) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6099,7 +8495,20 @@ impl<'a> SessionRpcProvider<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_endpoint(&self) -> Result<ProviderEndpoint, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PROVIDER_GETENDPOINT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_endpoint(&self) -> Result<ProviderEndpoint, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6128,7 +8537,24 @@ impl<'a> SessionRpcProvider<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_endpoint_with_params(
+        &self,
+        params: ProviderGetEndpointRequest,
+    ) -> Result<ProviderEndpoint, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PROVIDER_GETENDPOINT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_endpoint_with_params(
         &self,
         params: ProviderGetEndpointRequest,
     ) -> Result<ProviderEndpoint, Error> {
@@ -6165,7 +8591,20 @@ impl<'a> SessionRpcQueue<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn pending_items(&self) -> Result<QueuePendingItemsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_QUEUE_PENDINGITEMS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn pending_items(&self) -> Result<QueuePendingItemsResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6190,7 +8629,23 @@ impl<'a> SessionRpcQueue<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn remove_most_recent(&self) -> Result<QueueRemoveMostRecentResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_QUEUE_REMOVEMOSTRECENT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn remove_most_recent(&self) -> Result<QueueRemoveMostRecentResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6214,7 +8669,20 @@ impl<'a> SessionRpcQueue<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn clear(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_QUEUE_CLEAR, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn clear(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6251,7 +8719,24 @@ impl<'a> SessionRpcRemote<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn enable(&self, params: RemoteEnableRequest) -> Result<RemoteEnableResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_REMOTE_ENABLE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn enable(
+        &self,
+        params: RemoteEnableRequest,
+    ) -> Result<RemoteEnableResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6273,7 +8758,20 @@ impl<'a> SessionRpcRemote<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn disable(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_REMOTE_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn disable(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6302,7 +8800,27 @@ impl<'a> SessionRpcRemote<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn notify_steerable_changed(
+        &self,
+        params: RemoteNotifySteerableChangedRequest,
+    ) -> Result<RemoteNotifySteerableChangedResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_REMOTE_NOTIFYSTEERABLECHANGED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn notify_steerable_changed(
         &self,
         params: RemoteNotifySteerableChangedRequest,
     ) -> Result<RemoteNotifySteerableChangedResult, Error> {
@@ -6342,7 +8860,20 @@ impl<'a> SessionRpcSchedule<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<ScheduleList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SCHEDULE_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<ScheduleList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6371,7 +8902,24 @@ impl<'a> SessionRpcSchedule<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn stop(&self, params: ScheduleStopRequest) -> Result<ScheduleStopResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SCHEDULE_STOP, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn stop(
+        &self,
+        params: ScheduleStopRequest,
+    ) -> Result<ScheduleStopResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6409,7 +8957,21 @@ impl<'a> SessionRpcShell<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn exec(&self, params: ShellExecRequest) -> Result<ShellExecResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SHELL_EXEC, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn exec(&self, params: ShellExecRequest) -> Result<ShellExecResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6439,7 +9001,21 @@ impl<'a> SessionRpcShell<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn kill(&self, params: ShellKillRequest) -> Result<ShellKillResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SHELL_KILL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn kill(&self, params: ShellKillRequest) -> Result<ShellKillResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6469,7 +9045,27 @@ impl<'a> SessionRpcShell<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn execute_user_requested(
+        &self,
+        params: ShellExecuteUserRequestedRequest,
+    ) -> Result<UserRequestedShellCommandResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SHELL_EXECUTEUSERREQUESTED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn execute_user_requested(
         &self,
         params: ShellExecuteUserRequestedRequest,
     ) -> Result<UserRequestedShellCommandResult, Error> {
@@ -6505,7 +9101,27 @@ impl<'a> SessionRpcShell<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn cancel_user_requested(
+        &self,
+        params: ShellCancelUserRequestedRequest,
+    ) -> Result<CancelUserRequestedShellCommandResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SHELL_CANCELUSERREQUESTED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn cancel_user_requested(
         &self,
         params: ShellCancelUserRequestedRequest,
     ) -> Result<CancelUserRequestedShellCommandResult, Error> {
@@ -6545,7 +9161,20 @@ impl<'a> SessionRpcSkills<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<SkillList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SKILLS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<SkillList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6570,7 +9199,20 @@ impl<'a> SessionRpcSkills<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_invoked(&self) -> Result<SkillsGetInvokedResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SKILLS_GETINVOKED, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_invoked(&self) -> Result<SkillsGetInvokedResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6595,7 +9237,21 @@ impl<'a> SessionRpcSkills<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn enable(&self, params: SkillsEnableRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SKILLS_ENABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn enable(&self, params: SkillsEnableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6621,7 +9277,21 @@ impl<'a> SessionRpcSkills<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn disable(&self, params: SkillsDisableRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SKILLS_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn disable(&self, params: SkillsDisableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6647,7 +9317,20 @@ impl<'a> SessionRpcSkills<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn reload(&self) -> Result<SkillsLoadDiagnostics, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SKILLS_RELOAD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn reload(&self) -> Result<SkillsLoadDiagnostics, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6668,7 +9351,20 @@ impl<'a> SessionRpcSkills<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn ensure_loaded(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SKILLS_ENSURELOADED, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn ensure_loaded(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6705,7 +9401,24 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn start_agent(
+        &self,
+        params: TasksStartAgentRequest,
+    ) -> Result<TasksStartAgentResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_STARTAGENT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn start_agent(
         &self,
         params: TasksStartAgentRequest,
     ) -> Result<TasksStartAgentResult, Error> {
@@ -6734,7 +9447,20 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list(&self) -> Result<TaskList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list(&self) -> Result<TaskList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6759,7 +9485,20 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn refresh(&self) -> Result<TasksRefreshResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_REFRESH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn refresh(&self) -> Result<TasksRefreshResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6784,7 +9523,20 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn wait_for_pending(&self) -> Result<TasksWaitForPendingResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_WAITFORPENDING, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn wait_for_pending(&self) -> Result<TasksWaitForPendingResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6813,7 +9565,24 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_progress(
+        &self,
+        params: TasksGetProgressRequest,
+    ) -> Result<TasksGetProgressResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_GETPROGRESS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_progress(
         &self,
         params: TasksGetProgressRequest,
     ) -> Result<TasksGetProgressResult, Error> {
@@ -6842,7 +9611,25 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_current_promotable(&self) -> Result<TasksGetCurrentPromotableResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TASKS_GETCURRENTPROMOTABLE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_current_promotable(
+        &self,
+    ) -> Result<TasksGetCurrentPromotableResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -6874,7 +9661,27 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn promote_to_background(
+        &self,
+        params: TasksPromoteToBackgroundRequest,
+    ) -> Result<TasksPromoteToBackgroundResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TASKS_PROMOTETOBACKGROUND,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn promote_to_background(
         &self,
         params: TasksPromoteToBackgroundRequest,
     ) -> Result<TasksPromoteToBackgroundResult, Error> {
@@ -6906,7 +9713,25 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn promote_current_to_background(
+        &self,
+    ) -> Result<TasksPromoteCurrentToBackgroundResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TASKS_PROMOTECURRENTTOBACKGROUND,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn promote_current_to_background(
         &self,
     ) -> Result<TasksPromoteCurrentToBackgroundResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
@@ -6940,7 +9765,24 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn cancel(&self, params: TasksCancelRequest) -> Result<TasksCancelResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_CANCEL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn cancel(
+        &self,
+        params: TasksCancelRequest,
+    ) -> Result<TasksCancelResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6970,7 +9812,24 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn remove(&self, params: TasksRemoveRequest) -> Result<TasksRemoveResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_REMOVE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn remove(
+        &self,
+        params: TasksRemoveRequest,
+    ) -> Result<TasksRemoveResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -7000,7 +9859,24 @@ impl<'a> SessionRpcTasks<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn send_message(
+        &self,
+        params: TasksSendMessageRequest,
+    ) -> Result<TasksSendMessageResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_SENDMESSAGE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn send_message(
         &self,
         params: TasksSendMessageRequest,
     ) -> Result<TasksSendMessageResult, Error> {
@@ -7037,7 +9913,23 @@ impl<'a> SessionRpcTelemetry<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_engagement_id(&self) -> Result<SessionTelemetryEngagement, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TELEMETRY_GETENGAGEMENTID,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_engagement_id(&self) -> Result<SessionTelemetryEngagement, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -7065,7 +9957,27 @@ impl<'a> SessionRpcTelemetry<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn set_feature_overrides(
+        &self,
+        params: TelemetrySetFeatureOverridesRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TELEMETRY_SETFEATUREOVERRIDES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn set_feature_overrides(
         &self,
         params: TelemetrySetFeatureOverridesRequest,
     ) -> Result<(), Error> {
@@ -7109,7 +10021,27 @@ impl<'a> SessionRpcTools<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn handle_pending_tool_call(
+        &self,
+        params: HandlePendingToolCallRequest,
+    ) -> Result<HandlePendingToolCallResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_HANDLEPENDINGTOOLCALL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn handle_pending_tool_call(
         &self,
         params: HandlePendingToolCallRequest,
     ) -> Result<HandlePendingToolCallResult, Error> {
@@ -7141,7 +10073,25 @@ impl<'a> SessionRpcTools<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn initialize_and_validate(&self) -> Result<ToolsInitializeAndValidateResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_INITIALIZEANDVALIDATE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn initialize_and_validate(
+        &self,
+    ) -> Result<ToolsInitializeAndValidateResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -7169,7 +10119,25 @@ impl<'a> SessionRpcTools<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_current_metadata(&self) -> Result<ToolsGetCurrentMetadataResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_GETCURRENTMETADATA,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_current_metadata(
+        &self,
+    ) -> Result<ToolsGetCurrentMetadataResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -7201,7 +10169,27 @@ impl<'a> SessionRpcTools<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn update_subagent_settings(
+        &self,
+        params: UpdateSubagentSettingsRequest,
+    ) -> Result<ToolsUpdateSubagentSettingsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_UPDATESUBAGENTSETTINGS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn update_subagent_settings(
         &self,
         params: UpdateSubagentSettingsRequest,
     ) -> Result<ToolsUpdateSubagentSettingsResult, Error> {
@@ -7245,7 +10233,24 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn ephemeral_query(
+        &self,
+        params: UIEphemeralQueryRequest,
+    ) -> Result<UIEphemeralQueryResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_UI_EPHEMERALQUERY, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn ephemeral_query(
         &self,
         params: UIEphemeralQueryRequest,
     ) -> Result<UIEphemeralQueryResult, Error> {
@@ -7278,7 +10283,24 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn elicitation(
+        &self,
+        params: UIElicitationRequest,
+    ) -> Result<UIElicitationResponse, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_UI_ELICITATION, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn elicitation(
         &self,
         params: UIElicitationRequest,
     ) -> Result<UIElicitationResponse, Error> {
@@ -7311,7 +10333,27 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn handle_pending_elicitation(
+        &self,
+        params: UIHandlePendingElicitationRequest,
+    ) -> Result<UIElicitationResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_HANDLEPENDINGELICITATION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn handle_pending_elicitation(
         &self,
         params: UIHandlePendingElicitationRequest,
     ) -> Result<UIElicitationResult, Error> {
@@ -7347,7 +10389,27 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn handle_pending_user_input(
+        &self,
+        params: UIHandlePendingUserInputRequest,
+    ) -> Result<UIHandlePendingResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_HANDLEPENDINGUSERINPUT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn handle_pending_user_input(
         &self,
         params: UIHandlePendingUserInputRequest,
     ) -> Result<UIHandlePendingResult, Error> {
@@ -7383,7 +10445,27 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn handle_pending_sampling(
+        &self,
+        params: UIHandlePendingSamplingRequest,
+    ) -> Result<UIHandlePendingResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_HANDLEPENDINGSAMPLING,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn handle_pending_sampling(
         &self,
         params: UIHandlePendingSamplingRequest,
     ) -> Result<UIHandlePendingResult, Error> {
@@ -7419,7 +10501,27 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn handle_pending_auto_mode_switch(
+        &self,
+        params: UIHandlePendingAutoModeSwitchRequest,
+    ) -> Result<UIHandlePendingResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_HANDLEPENDINGAUTOMODESWITCH,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn handle_pending_auto_mode_switch(
         &self,
         params: UIHandlePendingAutoModeSwitchRequest,
     ) -> Result<UIHandlePendingResult, Error> {
@@ -7455,7 +10557,27 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn handle_pending_exit_plan_mode(
+        &self,
+        params: UIHandlePendingExitPlanModeRequest,
+    ) -> Result<UIHandlePendingResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_HANDLEPENDINGEXITPLANMODE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn handle_pending_exit_plan_mode(
         &self,
         params: UIHandlePendingExitPlanModeRequest,
     ) -> Result<UIHandlePendingResult, Error> {
@@ -7487,7 +10609,25 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn register_direct_auto_mode_switch_handler(
+        &self,
+    ) -> Result<UIRegisterDirectAutoModeSwitchHandlerResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_REGISTERDIRECTAUTOMODESWITCHHANDLER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn register_direct_auto_mode_switch_handler(
         &self,
     ) -> Result<UIRegisterDirectAutoModeSwitchHandlerResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
@@ -7521,7 +10661,27 @@ impl<'a> SessionRpcUi<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn unregister_direct_auto_mode_switch_handler(
+        &self,
+        params: UIUnregisterDirectAutoModeSwitchHandlerRequest,
+    ) -> Result<UIUnregisterDirectAutoModeSwitchHandlerResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_UNREGISTERDIRECTAUTOMODESWITCHHANDLER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn unregister_direct_auto_mode_switch_handler(
         &self,
         params: UIUnregisterDirectAutoModeSwitchHandlerRequest,
     ) -> Result<UIUnregisterDirectAutoModeSwitchHandlerResult, Error> {
@@ -7561,7 +10721,20 @@ impl<'a> SessionRpcUsage<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_metrics(&self) -> Result<UsageGetMetricsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_USAGE_GETMETRICS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_metrics(&self) -> Result<UsageGetMetricsResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -7594,7 +10767,23 @@ impl<'a> SessionRpcWorkspaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn get_workspace(&self) -> Result<WorkspacesGetWorkspaceResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_GETWORKSPACE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn get_workspace(&self) -> Result<WorkspacesGetWorkspaceResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -7622,7 +10811,20 @@ impl<'a> SessionRpcWorkspaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list_files(&self) -> Result<WorkspacesListFilesResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_WORKSPACES_LISTFILES, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list_files(&self) -> Result<WorkspacesListFilesResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -7651,7 +10853,24 @@ impl<'a> SessionRpcWorkspaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn read_file(
+        &self,
+        params: WorkspacesReadFileRequest,
+    ) -> Result<WorkspacesReadFileResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_WORKSPACES_READFILE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn read_file(
         &self,
         params: WorkspacesReadFileRequest,
     ) -> Result<WorkspacesReadFileResult, Error> {
@@ -7680,7 +10899,27 @@ impl<'a> SessionRpcWorkspaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn create_file(&self, params: WorkspacesCreateFileRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_CREATEFILE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn create_file(
+        &self,
+        params: WorkspacesCreateFileRequest,
+    ) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -7709,7 +10948,23 @@ impl<'a> SessionRpcWorkspaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn list_checkpoints(&self) -> Result<WorkspacesListCheckpointsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_LISTCHECKPOINTS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn list_checkpoints(&self) -> Result<WorkspacesListCheckpointsResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
@@ -7741,7 +10996,27 @@ impl<'a> SessionRpcWorkspaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn read_checkpoint(
+        &self,
+        params: WorkspacesReadCheckpointRequest,
+    ) -> Result<WorkspacesReadCheckpointResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_READCHECKPOINT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn read_checkpoint(
         &self,
         params: WorkspacesReadCheckpointRequest,
     ) -> Result<WorkspacesReadCheckpointResult, Error> {
@@ -7777,7 +11052,27 @@ impl<'a> SessionRpcWorkspaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn save_large_paste(
+        &self,
+        params: WorkspacesSaveLargePasteRequest,
+    ) -> Result<WorkspacesSaveLargePasteResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_SAVELARGEPASTE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn save_large_paste(
         &self,
         params: WorkspacesSaveLargePasteRequest,
     ) -> Result<WorkspacesSaveLargePasteResult, Error> {
@@ -7813,7 +11108,24 @@ impl<'a> SessionRpcWorkspaces<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
+    #[cfg(feature = "experimental")]
     pub async fn diff(&self, params: WorkspacesDiffRequest) -> Result<WorkspaceDiffResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_WORKSPACES_DIFF, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    #[cfg(not(feature = "experimental"))]
+    #[doc(hidden)]
+    pub(crate) async fn diff(
+        &self,
+        params: WorkspacesDiffRequest,
+    ) -> Result<WorkspaceDiffResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
