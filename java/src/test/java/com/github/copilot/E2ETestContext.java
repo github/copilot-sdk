@@ -438,8 +438,9 @@ public class E2ETestContext implements AutoCloseable {
             return harnessCliPath.toString();
         }
 
-        // Try nodejs installation
-        Path cliPath = repoRoot.resolve("nodejs/node_modules/@github/copilot/index.js");
+        // Try nodejs installation (thin loader; resolves the platform-specific
+        // CLI package internally)
+        Path cliPath = repoRoot.resolve("nodejs/node_modules/@github/copilot/npm-loader.js");
         if (Files.exists(cliPath)) {
             return cliPath.toString();
         }

@@ -140,11 +140,22 @@ public sealed class E2ETestContext : IAsyncDisposable
         var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 
-        var path = Path.Combine(repoRoot, "nodejs/node_modules/@github/copilot/index.js");
-        if (!File.Exists(path))
-            throw new InvalidOperationException($"CLI not found at {path}. Run 'npm install' in the nodejs directory first.");
+        // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
+        // runnable index.js ships in the installed platform package
+        // (e.g. @github/copilot-linux-x64). Exactly one is installed.
+        var githubModules = Path.Combine(repoRoot, "nodejs", "node_modules", "@github");
+        if (Directory.Exists(githubModules))
+        {
+            foreach (var dir in Directory.EnumerateDirectories(githubModules, "copilot-*"))
+            {
+                var candidate = Path.Combine(dir, "index.js");
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+        }
 
-        return path;
+        throw new InvalidOperationException(
+            $"CLI not found under {githubModules}. Run 'npm install' in the nodejs directory first.");
     }
 
     public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)

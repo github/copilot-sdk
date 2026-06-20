@@ -28,11 +28,15 @@ def get_cli_path_for_tests() -> str:
     if env_path and Path(env_path).exists():
         return str(Path(env_path).resolve())
 
-    # Look for CLI in sibling nodejs directory's node_modules
+    # Look for CLI in sibling nodejs directory's node_modules. As of CLI 1.0.64-1
+    # the @github/copilot package is a thin loader; the runnable index.js ships in
+    # the installed platform package (e.g. @github/copilot-linux-x64).
     base_path = Path(__file__).parents[3]
-    full_path = base_path / "nodejs" / "node_modules" / "@github" / "copilot" / "index.js"
-    if full_path.exists():
-        return str(full_path.resolve())
+    github_modules = base_path / "nodejs" / "node_modules" / "@github"
+    for platform_pkg in sorted(github_modules.glob("copilot-*")):
+        candidate = platform_pkg / "index.js"
+        if candidate.exists():
+            return str(candidate.resolve())
 
     raise RuntimeError("CLI not found for tests. Run 'npm install' in the nodejs directory.")
 

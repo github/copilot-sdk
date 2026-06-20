@@ -420,16 +420,14 @@ func TestClient_SessionIdleTimeoutSeconds(t *testing.T) {
 }
 
 func findCLIPathForTest() string {
-	abs, _ := filepath.Abs("../nodejs/node_modules/@github/copilot/index.js")
-	if fileExistsForTest(abs) {
-		return abs
+	base, err := filepath.Abs("../nodejs/node_modules/@github")
+	if err == nil {
+		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
+		if len(matches) > 0 {
+			return matches[0]
+		}
 	}
 	return ""
-}
-
-func fileExistsForTest(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func TestCreateSessionRequest_ClientName(t *testing.T) {
