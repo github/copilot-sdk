@@ -502,6 +502,17 @@ export type InstructionSourceLocation =
   /** Instructions live in plugin-provided configuration. */
   | "plugin";
 /**
+ * Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpRequestStartTransport".
+ */
+export type LlmInferenceHttpRequestStartTransport =
+  /** Plain HTTP or SSE response. Each body chunk is an opaque byte range; the response is a status line, headers, and a (possibly streamed) body. */
+  | "http"
+  /** Full-duplex WebSocket channel. Each body chunk maps to exactly one WebSocket message and the `binary` flag distinguishes text from binary frames; request and response chunks flow concurrently. */
+  | "websocket";
+/**
  * Repository host type
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -682,6 +693,36 @@ export type McpServerConfigHttpOauthGrantType =
   | "authorization_code"
   /** Headless client credentials flow using the configured OAuth client. */
   | "client_credentials";
+/**
+ * Host response to the pending OAuth request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthPendingRequestResponse".
+ */
+/** @experimental */
+export type McpOauthPendingRequestResponse =
+  | {
+      /**
+       * Access token acquired by the SDK host
+       */
+      accessToken: string;
+      /**
+       * OAuth token type. Defaults to Bearer when omitted.
+       */
+      tokenType?: string;
+      /**
+       * Refresh token supplied by the host, if available.
+       */
+      refreshToken?: string;
+      /**
+       * Token lifetime in seconds, if known.
+       */
+      expiresIn?: number;
+      kind: "token";
+    }
+  | {
+      kind: "cancelled";
+    };
 /**
  * Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
  *
@@ -3648,7 +3689,6 @@ export interface ExternalToolTextResultForLlm {
    * Structured content blocks from the tool
    */
   contents?: ExternalToolTextResultForLlmContent[];
-  [k: string]: unknown | undefined;
 }
 /**
  * Binary result returned by a tool for the model
@@ -4304,6 +4344,192 @@ export interface InstructionSource {
   projectPath?: string;
 }
 /**
+ * HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHeaders".
+ */
+/** @experimental */
+export interface LlmInferenceHeaders {
+  [k: string]: string[] | undefined;
+}
+/**
+ * A request body chunk or cancellation signal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpRequestChunkRequest".
+ */
+export interface LlmInferenceHttpRequestChunkRequest {
+  /**
+   * Matches the requestId from the originating httpRequestStart frame.
+   */
+  requestId: string;
+  /**
+   * Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when `binary` is true. May be empty.
+   */
+  data: string;
+  /**
+   * When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
+   */
+  binary?: boolean;
+  /**
+   * When true, this is the final body chunk for the request. The SDK may rely on having received an end-marked chunk before treating the request body as complete.
+   */
+  end?: boolean;
+  /**
+   * When true, the runtime is cancelling the in-flight request (e.g. upstream consumer aborted). `data` is ignored. Implies end-of-request.
+   */
+  cancel?: boolean;
+  /**
+   * Optional human-readable reason for the cancellation, propagated for logging.
+   */
+  cancelReason?: string;
+}
+/**
+ * Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpRequestChunkResult".
+ */
+export interface LlmInferenceHttpRequestChunkResult {}
+/**
+ * The head of an outbound model-layer HTTP request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpRequestStartRequest".
+ */
+export interface LlmInferenceHttpRequestStartRequest {
+  /**
+   * Opaque runtime-minted id, unique per in-flight request. The SDK uses this to correlate httpRequestChunk frames and to address its httpResponseStart / httpResponseChunk replies back to the runtime.
+   */
+  requestId: string;
+  /**
+   * Id of the runtime session that triggered this request, when one is in scope. Absent for requests issued outside any session (e.g. startup model-catalog or capability resolution). This is a payload field — not a dispatch key — because the client-global API is registered process-wide rather than per session.
+   */
+  sessionId?: string;
+  /**
+   * HTTP method, e.g. GET, POST.
+   */
+  method: string;
+  /**
+   * Absolute request URL.
+   */
+  url: string;
+  headers: LlmInferenceHeaders;
+  transport?: LlmInferenceHttpRequestStartTransport;
+}
+/**
+ * Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpRequestStartResult".
+ */
+export interface LlmInferenceHttpRequestStartResult {}
+/**
+ * Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpResponseChunkError".
+ */
+/** @experimental */
+export interface LlmInferenceHttpResponseChunkError {
+  /**
+   * Human-readable failure description.
+   */
+  message: string;
+  /**
+   * Optional machine-readable error code.
+   */
+  code?: string;
+}
+/**
+ * A response body chunk or terminal error.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpResponseChunkRequest".
+ */
+/** @experimental */
+export interface LlmInferenceHttpResponseChunkRequest {
+  /**
+   * Matches the requestId from the originating httpRequestStart frame.
+   */
+  requestId: string;
+  /**
+   * Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when `binary` is true. May be empty (e.g. when the response body is empty: send a single chunk with empty data and end=true).
+   */
+  data: string;
+  /**
+   * When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
+   */
+  binary?: boolean;
+  /**
+   * When true, this is the final body chunk for the response. The runtime treats the response body as complete after receiving an end-marked chunk.
+   */
+  end?: boolean;
+  error?: LlmInferenceHttpResponseChunkError;
+}
+/**
+ * Whether the chunk was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpResponseChunkResult".
+ */
+/** @experimental */
+export interface LlmInferenceHttpResponseChunkResult {
+  /**
+   * True when the chunk was matched to a pending request; false when unknown.
+   */
+  accepted: boolean;
+}
+/**
+ * Response head.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpResponseStartRequest".
+ */
+/** @experimental */
+export interface LlmInferenceHttpResponseStartRequest {
+  /**
+   * Matches the requestId from the originating httpRequestStart frame.
+   */
+  requestId: string;
+  /**
+   * HTTP status code.
+   */
+  status: number;
+  /**
+   * Optional HTTP status reason phrase.
+   */
+  statusText?: string;
+  headers: LlmInferenceHeaders;
+}
+/**
+ * Whether the start frame was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceHttpResponseStartResult".
+ */
+/** @experimental */
+export interface LlmInferenceHttpResponseStartResult {
+  /**
+   * True when the response start was matched to a pending request; false when unknown.
+   */
+  accepted: boolean;
+}
+/**
+ * Indicates whether the calling client was registered as the LLM inference provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LlmInferenceSetProviderResult".
+ */
+/** @experimental */
+export interface LlmInferenceSetProviderResult {
+  /**
+   * Whether the provider was set successfully
+   */
+  success: boolean;
+}
+/**
  * Schema for the `LocalSessionMetadataValue` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4944,7 +5170,6 @@ export interface McpServerAuthConfigRedirectPort {
    * Fixed port for the OAuth redirect callback server.
    */
   redirectPort?: number;
-  [k: string]: unknown | undefined;
 }
 /**
  * Remote MCP server configuration accessed over HTTP or SSE.
@@ -5153,7 +5378,9 @@ export interface McpExecuteSamplingParams {
   /**
    * The original MCP JSON-RPC request ID (string or number). Used by the runtime to correlate the inference with the originating MCP request for telemetry; this is distinct from `requestId` (which is the schema-level cancellation handle).
    */
-  mcpRequestId: string | number;
+  mcpRequestId: {
+    [k: string]: unknown | undefined;
+  };
   request: McpExecuteSamplingRequest;
 }
 /**
@@ -5340,6 +5567,33 @@ export interface McpTools {
    * Tool description, when provided.
    */
   description?: string;
+}
+/**
+ * Pending MCP OAuth request ID and host-provided token or cancellation response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthHandlePendingRequest".
+ */
+/** @experimental */
+export interface McpOauthHandlePendingRequest {
+  /**
+   * OAuth request identifier from the mcp.oauth_required event
+   */
+  requestId: string;
+  result: McpOauthPendingRequestResponse;
+}
+/**
+ * Indicates whether the pending MCP OAuth response was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthHandlePendingResult".
+ */
+/** @experimental */
+export interface McpOauthHandlePendingResult {
+  /**
+   * Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+   */
+  success: boolean;
 }
 /**
  * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
@@ -5996,17 +6250,29 @@ export interface ModelBillingTokenPrices {
    */
   outputPrice?: number;
   /**
-   * AI Credits cost per billing batch of cached tokens
+   * Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
    */
   cachePrice?: number;
+  /**
+   * AI Credits cost per billing batch of cached (read) tokens
+   */
+  cacheReadPrice?: number;
+  /**
+   * AI Credits cost per billing batch of cache-write (cache creation) tokens.
+   */
+  cacheWritePrice?: number;
   /**
    * Number of tokens per standard billing batch
    */
   batchSize?: number;
   /**
-   * Prompt token budget (max_prompt_tokens) for the default tier. The total context window is this value plus the model's max_output_tokens.
+   * Deprecated: use maxPromptTokens. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.
    */
   contextMax?: number;
+  /**
+   * Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.
+   */
+  maxPromptTokens?: number;
   longContext?: ModelBillingTokenPricesLongContext;
 }
 /**
@@ -6025,13 +6291,25 @@ export interface ModelBillingTokenPricesLongContext {
    */
   outputPrice?: number;
   /**
-   * AI Credits cost per billing batch of cached tokens
+   * Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
    */
   cachePrice?: number;
   /**
-   * Prompt token budget (max_prompt_tokens) for the long context tier. The total context window is this value plus the model's max_output_tokens.
+   * AI Credits cost per billing batch of cached (read) tokens
+   */
+  cacheReadPrice?: number;
+  /**
+   * AI Credits cost per billing batch of cache-write (cache creation) tokens.
+   */
+  cacheWritePrice?: number;
+  /**
+   * Deprecated: use maxPromptTokens. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
    */
   contextMax?: number;
+  /**
+   * Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
+   */
+  maxPromptTokens?: number;
 }
 /**
  * Optional capability overrides (vision, tool_calls, reasoning, etc.).
@@ -6313,9 +6591,8 @@ export interface NameSetRequest {
 /** @experimental */
 export interface OptionsUpdateAdditionalContentExclusionPolicy {
   rules: OptionsUpdateAdditionalContentExclusionPolicyRule[];
-  last_updated_at: string | number;
+  last_updated_at: unknown;
   scope: OptionsUpdateAdditionalContentExclusionPolicyScope;
-  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRule` type.
@@ -6329,7 +6606,6 @@ export interface OptionsUpdateAdditionalContentExclusionPolicyRule {
   ifAnyMatch?: string[];
   ifNoneMatch?: string[];
   source: OptionsUpdateAdditionalContentExclusionPolicyRuleSource;
-  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRuleSource` type.
@@ -7325,9 +7601,8 @@ export interface PermissionRulesSet {
 /** @experimental */
 export interface PermissionsConfigureAdditionalContentExclusionPolicy {
   rules: PermissionsConfigureAdditionalContentExclusionPolicyRule[];
-  last_updated_at: string | number;
+  last_updated_at: unknown;
   scope: PermissionsConfigureAdditionalContentExclusionPolicyScope;
-  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type.
@@ -7341,7 +7616,6 @@ export interface PermissionsConfigureAdditionalContentExclusionPolicyRule {
   ifAnyMatch?: string[];
   ifNoneMatch?: string[];
   source: PermissionsConfigureAdditionalContentExclusionPolicyRuleSource;
-  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
@@ -9687,7 +9961,7 @@ export interface SessionFsSqliteQueryRequest {
    * Optional named bind parameters
    */
   params?: {
-    [k: string]: (string | number | null) | undefined;
+    [k: string]: unknown | undefined;
   };
 }
 /**
@@ -10164,6 +10438,12 @@ export interface SessionOpenOptions {
    */
   enableStreaming?: boolean;
   /**
+   * Experimental: enable native model citations (Anthropic models today), normalized onto the `assistant.message` event. Off by default; may change or be removed while the citations surface is experimental.
+   *
+   * @experimental
+   */
+  enableCitations?: boolean;
+  /**
    * Override URL for the Copilot API endpoint.
    */
   copilotUrl?: string;
@@ -10221,9 +10501,8 @@ export interface SessionOpenOptions {
 /** @experimental */
 export interface SessionOpenOptionsAdditionalContentExclusionPolicy {
   rules: SessionOpenOptionsAdditionalContentExclusionPolicyRule[];
-  last_updated_at: string | number;
+  last_updated_at: unknown;
   scope: SessionOpenOptionsAdditionalContentExclusionPolicyScope;
-  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRule` type.
@@ -10237,7 +10516,6 @@ export interface SessionOpenOptionsAdditionalContentExclusionPolicyRule {
   ifAnyMatch?: string[];
   ifNoneMatch?: string[];
   source: SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource;
-  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource` type.
@@ -13573,6 +13851,34 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("sessionFs.setProvider", params),
         },
         /** @experimental */
+        llmInference: {
+            /**
+             * Registers an SDK client as the LLM inference callback provider.
+             *
+             * @returns Indicates whether the calling client was registered as the LLM inference provider.
+             */
+            setProvider: async (): Promise<LlmInferenceSetProviderResult> =>
+                connection.sendRequest("llmInference.setProvider", {}),
+            /**
+             * Delivers the response head (status + headers) for an in-flight request, correlated by the requestId the runtime supplied in httpRequestStart. Must be called exactly once per request before any httpResponseChunk frames.
+             *
+             * @param params Response head.
+             *
+             * @returns Whether the start frame was accepted.
+             */
+            httpResponseStart: async (params: LlmInferenceHttpResponseStartRequest): Promise<LlmInferenceHttpResponseStartResult> =>
+                connection.sendRequest("llmInference.httpResponseStart", params),
+            /**
+             * Delivers a body byte range (or a terminal transport error) for an in-flight response, correlated by requestId. Set `end` true on the last chunk. When `error` is set the response terminates with a transport-level failure and the runtime raises an APIConnectionError.
+             *
+             * @param params A response body chunk or terminal error.
+             *
+             * @returns Whether the chunk was accepted.
+             */
+            httpResponseChunk: async (params: LlmInferenceHttpResponseChunkRequest): Promise<LlmInferenceHttpResponseChunkResult> =>
+                connection.sendRequest("llmInference.httpResponseChunk", params),
+        },
+        /** @experimental */
         sessions: {
             /**
              * Creates or resumes a local session and returns the opened session ID.
@@ -14440,6 +14746,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /** @experimental */
             oauth: {
                 /**
+                 * Resolves a pending MCP OAuth request with a host-provided token or cancellation. The pending request is emitted as mcp.oauth_required with the data necessary to authorize the request.
+                 *
+                 * @param params Pending MCP OAuth request ID and host-provided token or cancellation response.
+                 *
+                 * @returns Indicates whether the pending MCP OAuth response was accepted.
+                 */
+                handlePendingRequest: async (params: McpOauthHandlePendingRequest): Promise<McpOauthHandlePendingResult> =>
+                    connection.sendRequest("session.mcp.oauth.handlePendingRequest", { sessionId, ...params }),
+                /**
                  * Starts OAuth authentication for a remote MCP server.
                  *
                  * @param params Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
@@ -15304,7 +15619,7 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
             /** @experimental */
             oauth: {
                 /**
-                 * Responds to a pending MCP OAuth provider request. Marked internal because the `provider` argument is an in-process OAuthClientProvider instance that cannot be carried over the wire; the public OAuth surface will route the response through a wire-clean handshake once the CLI moves on top of the SDK.
+                 * Responds to a pending MCP OAuth request with an in-process provider. This internal CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public SDK-safe response path.
                  *
                  * @param params MCP OAuth request id and optional provider response.
                  *

@@ -10,24 +10,25 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Resolved sandbox configuration.
+ * Pending MCP OAuth request ID and host-provided token or cancellation response.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SandboxConfig(
-    /** Whether sandboxing is enabled for the session. */
-    @JsonProperty("enabled") Boolean enabled,
-    /** User-managed sandbox policy fragment merged into the auto-discovered base policy. */
-    @JsonProperty("userPolicy") SandboxConfigUserPolicy userPolicy,
-    /** Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to `spawnSandboxFromConfig`, bypassing policy merging. */
-    @JsonProperty("config") Object config,
-    /** Whether to auto-add the current working directory to readwritePaths. Default: true. */
-    @JsonProperty("addCurrentWorkingDirectory") Boolean addCurrentWorkingDirectory
+public record SessionMcpOauthHandlePendingRequestParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** OAuth request identifier from the mcp.oauth_required event */
+    @JsonProperty("requestId") String requestId,
+    /** Host response to the pending OAuth request. */
+    @JsonProperty("result") Object result
 ) {
 }

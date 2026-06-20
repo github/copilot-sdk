@@ -13,19 +13,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `CanvasRegistryChangedCanvasAction` type.
+ * OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record CanvasRegistryChangedCanvasAction(
-    /** Action name */
-    @JsonProperty("name") String name,
-    /** Action description */
-    @JsonProperty("description") String description,
-    /** JSON Schema for action input */
-    @JsonProperty("inputSchema") Object inputSchema
+public record McpOauthWWWAuthenticateParams(
+    /** Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter */
+    @JsonProperty("resourceMetadataUrl") String resourceMetadataUrl,
+    /** Requested OAuth scopes from the WWW-Authenticate scope parameter, if present */
+    @JsonProperty("scope") String scope,
+    /** OAuth error from the WWW-Authenticate error parameter, if present */
+    @JsonProperty("error") String error
 ) {
 }

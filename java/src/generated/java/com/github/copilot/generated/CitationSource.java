@@ -13,19 +13,23 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `CanvasRegistryChangedCanvasAction` type.
+ * A source that backs one or more cited spans in the assistant's response.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record CanvasRegistryChangedCanvasAction(
-    /** Action name */
-    @JsonProperty("name") String name,
-    /** Action description */
-    @JsonProperty("description") String description,
-    /** JSON Schema for action input */
-    @JsonProperty("inputSchema") Object inputSchema
+public record CitationSource(
+    /** Stable, turn-scoped identifier for this source, referenced by CitationReference.sourceId. */
+    @JsonProperty("id") String id,
+    /** The system that produced this citation. */
+    @JsonProperty("provider") CitationProvider provider,
+    /** Human-readable title of the source. */
+    @JsonProperty("title") String title,
+    /** URL of the source, when it is a web resource. */
+    @JsonProperty("url") String url,
+    /** File path relative to the agent's workspace root, when the source is a file. */
+    @JsonProperty("path") String path
 ) {
 }

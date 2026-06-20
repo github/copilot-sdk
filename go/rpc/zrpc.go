@@ -396,12 +396,21 @@ func (r RawAttachmentData) Type() AttachmentType {
 // Blob attachment with inline base64-encoded data
 // Experimental: AttachmentBlob is part of an experimental API and may change or be removed.
 type AttachmentBlob struct {
-	// Base64-encoded content
-	Data string `json:"data"`
+	// Internal: content-addressed id of the session.binary_asset event holding this
+	// attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.
+	AssetID *string `json:"assetId,omitempty"`
+	// Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.
+	ByteLength *int64 `json:"byteLength,omitempty"`
+	// Base64-encoded content. Present on input and for external consumers; replaced by an
+	// internal `assetId` reference in persisted events when interned to a content-addressed
+	// asset.
+	Data *string `json:"data,omitempty"`
 	// User-facing display name for the attachment
 	DisplayName *string `json:"displayName,omitempty"`
 	// MIME type of the inline data
 	MIMEType string `json:"mimeType"`
+	// Internal: why model-facing bytes are absent from persistence. Absent externally.
+	OmittedReason *OmittedBinaryOmittedReason `json:"omittedReason,omitempty"`
 }
 
 func (AttachmentBlob) attachment() {}
@@ -454,10 +463,20 @@ func (AttachmentExtensionContext) Type() AttachmentType {
 // File attachment
 // Experimental: AttachmentFile is part of an experimental API and may change or be removed.
 type AttachmentFile struct {
+	// Internal: content-addressed id of the session.binary_asset event holding this
+	// attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.
+	AssetID *string `json:"assetId,omitempty"`
+	// Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.
+	ByteLength *int64 `json:"byteLength,omitempty"`
 	// User-facing display name for the attachment
 	DisplayName string `json:"displayName"`
 	// Optional line range to scope the attachment to a specific section of the file
 	LineRange *AttachmentFileLineRange `json:"lineRange,omitempty"`
+	// Internal: MIME type of the file's model-facing bytes (post-resize for images). Set when
+	// the file's bytes are interned to an asset. Absent externally.
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Internal: why model-facing bytes are absent from persistence. Absent externally.
+	OmittedReason *OmittedBinaryOmittedReason `json:"omittedReason,omitempty"`
 	// Absolute file path
 	Path string `json:"path"`
 }
@@ -1916,6 +1935,134 @@ type InstructionSource struct {
 	Type InstructionSourceType `json:"type"`
 }
 
+// HTTP headers as a map from lowercased header name to a list of values. Multi-valued
+// headers (e.g. Set-Cookie) preserve all values.
+// Experimental: LlmInferenceHeaders is part of an experimental API and may change or be
+// removed.
+type LlmInferenceHeaders map[string][]string
+
+// A request body chunk or cancellation signal.
+type LlmInferenceHTTPRequestChunkRequest struct {
+	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
+	Binary *bool `json:"binary,omitempty"`
+	// When true, the runtime is cancelling the in-flight request (e.g. upstream consumer
+	// aborted). `data` is ignored. Implies end-of-request.
+	Cancel *bool `json:"cancel,omitempty"`
+	// Optional human-readable reason for the cancellation, propagated for logging.
+	CancelReason *string `json:"cancelReason,omitempty"`
+	// Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when
+	// `binary` is true. May be empty.
+	Data string `json:"data"`
+	// When true, this is the final body chunk for the request. The SDK may rely on having
+	// received an end-marked chunk before treating the request body as complete.
+	End *bool `json:"end,omitempty"`
+	// Matches the requestId from the originating httpRequestStart frame.
+	RequestID string `json:"requestId"`
+}
+
+// Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as
+// fire-and-forget.
+type LlmInferenceHTTPRequestChunkResult struct {
+}
+
+// The head of an outbound model-layer HTTP request.
+type LlmInferenceHTTPRequestStartRequest struct {
+	Headers map[string][]string `json:"headers"`
+	// HTTP method, e.g. GET, POST.
+	Method string `json:"method"`
+	// Opaque runtime-minted id, unique per in-flight request. The SDK uses this to correlate
+	// httpRequestChunk frames and to address its httpResponseStart / httpResponseChunk replies
+	// back to the runtime.
+	RequestID string `json:"requestId"`
+	// Id of the runtime session that triggered this request, when one is in scope. Absent for
+	// requests issued outside any session (e.g. startup model-catalog or capability
+	// resolution). This is a payload field — not a dispatch key — because the client-global API
+	// is registered process-wide rather than per session.
+	SessionID *string `json:"sessionId,omitempty"`
+	// Transport the runtime would otherwise use for this request. `http` (the default when
+	// absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message
+	// channel where each body chunk maps to one WebSocket message and the `binary` flag
+	// distinguishes text from binary frames. The SDK consumer uses this to decide whether to
+	// service the request with an HTTP client or a WebSocket client. It is the one piece of
+	// request metadata the consumer cannot reliably infer from the URL or headers alone.
+	Transport *LlmInferenceHTTPRequestStartTransport `json:"transport,omitempty"`
+	// Absolute request URL.
+	URL string `json:"url"`
+}
+
+// Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it
+// does not imply the request will succeed.
+type LlmInferenceHTTPRequestStartResult struct {
+}
+
+// Set to terminate the response with a transport-level failure. Implies end-of-stream; any
+// further chunks for this requestId are ignored.
+// Experimental: LlmInferenceHTTPResponseChunkError is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseChunkError struct {
+	// Optional machine-readable error code.
+	Code *string `json:"code,omitempty"`
+	// Human-readable failure description.
+	Message string `json:"message"`
+}
+
+// A response body chunk or terminal error.
+// Experimental: LlmInferenceHTTPResponseChunkRequest is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseChunkRequest struct {
+	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
+	Binary *bool `json:"binary,omitempty"`
+	// Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when
+	// `binary` is true. May be empty (e.g. when the response body is empty: send a single chunk
+	// with empty data and end=true).
+	Data string `json:"data"`
+	// When true, this is the final body chunk for the response. The runtime treats the response
+	// body as complete after receiving an end-marked chunk.
+	End *bool `json:"end,omitempty"`
+	// Set to terminate the response with a transport-level failure. Implies end-of-stream; any
+	// further chunks for this requestId are ignored.
+	Error *LlmInferenceHTTPResponseChunkError `json:"error,omitempty"`
+	// Matches the requestId from the originating httpRequestStart frame.
+	RequestID string `json:"requestId"`
+}
+
+// Whether the chunk was accepted.
+// Experimental: LlmInferenceHTTPResponseChunkResult is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseChunkResult struct {
+	// True when the chunk was matched to a pending request; false when unknown.
+	Accepted bool `json:"accepted"`
+}
+
+// Response head.
+// Experimental: LlmInferenceHTTPResponseStartRequest is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseStartRequest struct {
+	Headers map[string][]string `json:"headers"`
+	// Matches the requestId from the originating httpRequestStart frame.
+	RequestID string `json:"requestId"`
+	// HTTP status code.
+	Status int64 `json:"status"`
+	// Optional HTTP status reason phrase.
+	StatusText *string `json:"statusText,omitempty"`
+}
+
+// Whether the start frame was accepted.
+// Experimental: LlmInferenceHTTPResponseStartResult is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseStartResult struct {
+	// True when the response start was matched to a pending request; false when unknown.
+	Accepted bool `json:"accepted"`
+}
+
+// Indicates whether the calling client was registered as the LLM inference provider.
+// Experimental: LlmInferenceSetProviderResult is part of an experimental API and may change
+// or be removed.
+type LlmInferenceSetProviderResult struct {
+	// Whether the provider was set successfully
+	Success bool `json:"success"`
+}
+
 // Schema for the `LocalSessionMetadataValue` type.
 // Experimental: LocalSessionMetadataValue is part of an experimental API and may change or
 // be removed.
@@ -2471,6 +2618,25 @@ type MCPListToolsResult struct {
 	Tools []MCPTools `json:"tools"`
 }
 
+// Pending MCP OAuth request ID and host-provided token or cancellation response.
+// Experimental: MCPOauthHandlePendingRequest is part of an experimental API and may change
+// or be removed.
+type MCPOauthHandlePendingRequest struct {
+	// OAuth request identifier from the mcp.oauth_required event
+	RequestID string `json:"requestId"`
+	// Host response to the pending OAuth request.
+	Result MCPOauthPendingRequestResponse `json:"result"`
+}
+
+// Indicates whether the pending MCP OAuth response was accepted.
+// Experimental: MCPOauthHandlePendingResult is part of an experimental API and may change
+// or be removed.
+type MCPOauthHandlePendingResult struct {
+	// Whether the response was accepted. False if the request was unknown, timed out, or
+	// already resolved.
+	Success bool `json:"success"`
+}
+
 // Remote MCP server name and optional overrides controlling reauthentication, OAuth client
 // display name, and the callback success-page copy.
 // Experimental: MCPOauthLoginRequest is part of an experimental API and may change or be
@@ -2505,6 +2671,48 @@ type MCPOauthLoginResult struct {
 	// returning and continues the flow in the background; completion is signaled via
 	// session.mcp_server_status_changed.
 	AuthorizationURL *string `json:"authorizationUrl,omitempty"`
+}
+
+// Host response to the pending OAuth request.
+// Experimental: MCPOauthPendingRequestResponse is part of an experimental API and may
+// change or be removed.
+type MCPOauthPendingRequestResponse interface {
+	mcpOauthPendingRequestResponse()
+	Kind() MCPOauthPendingRequestResponseKind
+}
+
+type RawMCPOauthPendingRequestResponseData struct {
+	Discriminator MCPOauthPendingRequestResponseKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPOauthPendingRequestResponseData) mcpOauthPendingRequestResponse() {}
+func (r RawMCPOauthPendingRequestResponseData) Kind() MCPOauthPendingRequestResponseKind {
+	return r.Discriminator
+}
+
+type MCPOauthPendingRequestResponseCancelled struct {
+}
+
+func (MCPOauthPendingRequestResponseCancelled) mcpOauthPendingRequestResponse() {}
+func (MCPOauthPendingRequestResponseCancelled) Kind() MCPOauthPendingRequestResponseKind {
+	return MCPOauthPendingRequestResponseKindCancelled
+}
+
+type MCPOauthPendingRequestResponseToken struct {
+	// Access token acquired by the SDK host
+	AccessToken string `json:"accessToken"`
+	// Token lifetime in seconds, if known.
+	ExpiresIn *int64 `json:"expiresIn,omitempty"`
+	// Refresh token supplied by the host, if available.
+	RefreshToken *string `json:"refreshToken,omitempty"`
+	// OAuth token type. Defaults to Bearer when omitted.
+	TokenType *string `json:"tokenType,omitempty"`
+}
+
+func (MCPOauthPendingRequestResponseToken) mcpOauthPendingRequestResponse() {}
+func (MCPOauthPendingRequestResponseToken) Kind() MCPOauthPendingRequestResponseKind {
+	return MCPOauthPendingRequestResponseKindToken
 }
 
 // MCP OAuth request id and optional provider response.
@@ -2974,28 +3182,42 @@ type ModelBilling struct {
 type ModelBillingTokenPrices struct {
 	// Number of tokens per standard billing batch
 	BatchSize *int64 `json:"batchSize,omitempty"`
-	// AI Credits cost per billing batch of cached tokens
+	// Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
 	CachePrice *float64 `json:"cachePrice,omitempty"`
-	// Prompt token budget (max_prompt_tokens) for the default tier. The total context window is
-	// this value plus the model's max_output_tokens.
+	// AI Credits cost per billing batch of cached (read) tokens
+	CacheReadPrice *float64 `json:"cacheReadPrice,omitempty"`
+	// AI Credits cost per billing batch of cache-write (cache creation) tokens.
+	CacheWritePrice *float64 `json:"cacheWritePrice,omitempty"`
+	// Deprecated: use maxPromptTokens. Prompt token budget for the default tier. The total
+	// context window is this value plus the model's max_output_tokens.
 	ContextMax *int64 `json:"contextMax,omitempty"`
 	// AI Credits cost per billing batch of input tokens
 	InputPrice *float64 `json:"inputPrice,omitempty"`
 	// Long context tier pricing (available for models with extended context windows)
 	LongContext *ModelBillingTokenPricesLongContext `json:"longContext,omitempty"`
+	// Prompt token budget for the default tier. The total context window is this value plus the
+	// model's max_output_tokens.
+	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// AI Credits cost per billing batch of output tokens
 	OutputPrice *float64 `json:"outputPrice,omitempty"`
 }
 
 // Long context tier pricing (available for models with extended context windows)
 type ModelBillingTokenPricesLongContext struct {
-	// AI Credits cost per billing batch of cached tokens
+	// Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
 	CachePrice *float64 `json:"cachePrice,omitempty"`
-	// Prompt token budget (max_prompt_tokens) for the long context tier. The total context
-	// window is this value plus the model's max_output_tokens.
+	// AI Credits cost per billing batch of cached (read) tokens
+	CacheReadPrice *float64 `json:"cacheReadPrice,omitempty"`
+	// AI Credits cost per billing batch of cache-write (cache creation) tokens.
+	CacheWritePrice *float64 `json:"cacheWritePrice,omitempty"`
+	// Deprecated: use maxPromptTokens. Prompt token budget for the long context tier. The total
+	// context window is this value plus the model's max_output_tokens.
 	ContextMax *int64 `json:"contextMax,omitempty"`
 	// AI Credits cost per billing batch of input tokens
 	InputPrice *float64 `json:"inputPrice,omitempty"`
+	// Prompt token budget for the long context tier. The total context window is this value
+	// plus the model's max_output_tokens.
+	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// AI Credits cost per billing batch of output tokens
 	OutputPrice *float64 `json:"outputPrice,omitempty"`
 }
@@ -5291,7 +5513,7 @@ type SandboxConfig struct {
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
 	// Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to
 	// `spawnSandboxFromConfig`, bypassing policy merging.
-	Config map[string]any `json:"config,omitzero"`
+	Config any `json:"config,omitempty"`
 	// Whether sandboxing is enabled for the session.
 	Enabled bool `json:"enabled"`
 	// User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -6219,6 +6441,11 @@ type SessionOpenOptions struct {
 	DisabledInstructionSources []string `json:"disabledInstructionSources,omitzero"`
 	// Skill IDs disabled for this session.
 	DisabledSkills []string `json:"disabledSkills,omitzero"`
+	// Experimental: enable native model citations (Anthropic models today), normalized onto the
+	// `assistant.message` event. Off by default; may change or be removed while the citations
+	// surface is experimental.
+	// Experimental: EnableCitations is part of an experimental API and may change or be removed.
+	EnableCitations *bool `json:"enableCitations,omitempty"`
 	// Whether on-demand custom instruction discovery is enabled.
 	EnableOnDemandInstructionDiscovery *bool `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	// Whether shell-script safety heuristics are enabled.
@@ -9262,6 +9489,24 @@ const (
 	InstructionSourceTypeVscode InstructionSourceType = "vscode"
 )
 
+// Transport the runtime would otherwise use for this request. `http` (the default when
+// absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message
+// channel where each body chunk maps to one WebSocket message and the `binary` flag
+// distinguishes text from binary frames. The SDK consumer uses this to decide whether to
+// service the request with an HTTP client or a WebSocket client. It is the one piece of
+// request metadata the consumer cannot reliably infer from the URL or headers alone.
+type LlmInferenceHTTPRequestStartTransport string
+
+const (
+	// Plain HTTP or SSE response. Each body chunk is an opaque byte range; the response is a
+	// status line, headers, and a (possibly streamed) body.
+	LlmInferenceHTTPRequestStartTransportHTTP LlmInferenceHTTPRequestStartTransport = "http"
+	// Full-duplex WebSocket channel. Each body chunk maps to exactly one WebSocket message and
+	// the `binary` flag distinguishes text from binary frames; request and response chunks flow
+	// concurrently.
+	LlmInferenceHTTPRequestStartTransportWebsocket LlmInferenceHTTPRequestStartTransport = "websocket"
+)
+
 // Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.
 // Experimental: MCPAppsHostContextDetailsAvailableDisplayMode is part of an experimental
 // API and may change or be removed.
@@ -9368,6 +9613,14 @@ const (
 	MCPAppsSetHostContextDetailsThemeDark MCPAppsSetHostContextDetailsTheme = "dark"
 	// Light UI theme
 	MCPAppsSetHostContextDetailsThemeLight MCPAppsSetHostContextDetailsTheme = "light"
+)
+
+// Kind discriminator for MCPOauthPendingRequestResponse.
+type MCPOauthPendingRequestResponseKind string
+
+const (
+	MCPOauthPendingRequestResponseKindCancelled MCPOauthPendingRequestResponseKind = "cancelled"
+	MCPOauthPendingRequestResponseKindToken     MCPOauthPendingRequestResponseKind = "token"
 )
 
 // Outcome of the sampling inference. 'success' produced a response; 'failure' encountered
@@ -9529,6 +9782,19 @@ const (
 	ModelPolicyStateEnabled ModelPolicyState = "enabled"
 	// No explicit policy is configured for the model.
 	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
+)
+
+// Why the binary data is absent: it exceeded the inline size limit, or its asset was
+// unavailable
+// Experimental: OmittedBinaryOmittedReason is part of an experimental API and may change or
+// be removed.
+type OmittedBinaryOmittedReason string
+
+const (
+	// The referenced binary asset could not be found (e.g. a truncated log).
+	OmittedBinaryOmittedReasonAssetUnavailable OmittedBinaryOmittedReason = "asset_unavailable"
+	// Bytes exceeded the session's inline size limit.
+	OmittedBinaryOmittedReasonTooLarge OmittedBinaryOmittedReason = "too_large"
 )
 
 // Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
@@ -10660,6 +10926,71 @@ func (a *ServerInstructionsAPI) GetDiscoveryPaths(ctx context.Context, params *I
 	return &result, nil
 }
 
+// Experimental: ServerLlmInferenceAPI contains experimental APIs that may change or be
+// removed.
+type ServerLlmInferenceAPI serverAPI
+
+// HttpResponseChunk delivers a body byte range (or a terminal transport error) for an
+// in-flight response, correlated by requestId. Set `end` true on the last chunk. When
+// `error` is set the response terminates with a transport-level failure and the runtime
+// raises an APIConnectionError.
+//
+// RPC method: llmInference.httpResponseChunk.
+//
+// Parameters: A response body chunk or terminal error.
+//
+// Returns: Whether the chunk was accepted.
+func (a *ServerLlmInferenceAPI) HttpResponseChunk(ctx context.Context, params *LlmInferenceHTTPResponseChunkRequest) (*LlmInferenceHTTPResponseChunkResult, error) {
+	raw, err := a.client.Request(ctx, "llmInference.httpResponseChunk", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LlmInferenceHTTPResponseChunkResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// HttpResponseStart delivers the response head (status + headers) for an in-flight request,
+// correlated by the requestId the runtime supplied in httpRequestStart. Must be called
+// exactly once per request before any httpResponseChunk frames.
+//
+// RPC method: llmInference.httpResponseStart.
+//
+// Parameters: Response head.
+//
+// Returns: Whether the start frame was accepted.
+func (a *ServerLlmInferenceAPI) HttpResponseStart(ctx context.Context, params *LlmInferenceHTTPResponseStartRequest) (*LlmInferenceHTTPResponseStartResult, error) {
+	raw, err := a.client.Request(ctx, "llmInference.httpResponseStart", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LlmInferenceHTTPResponseStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetProvider registers an SDK client as the LLM inference callback provider.
+//
+// RPC method: llmInference.setProvider.
+//
+// Returns: Indicates whether the calling client was registered as the LLM inference
+// provider.
+func (a *ServerLlmInferenceAPI) SetProvider(ctx context.Context) (*LlmInferenceSetProviderResult, error) {
+	raw, err := a.client.Request(ctx, "llmInference.setProvider", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result LlmInferenceSetProviderResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type ServerMCPAPI serverAPI
 
 // Discovers MCP servers from user, workspace, plugin, and builtin sources.
@@ -11726,6 +12057,7 @@ type ServerRPC struct {
 	AgentRegistry *ServerAgentRegistryAPI
 	Agents        *ServerAgentsAPI
 	Instructions  *ServerInstructionsAPI
+	LlmInference  *ServerLlmInferenceAPI
 	MCP           *ServerMCPAPI
 	Models        *ServerModelsAPI
 	Plugins       *ServerPluginsAPI
@@ -11765,6 +12097,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
 	r.Agents = (*ServerAgentsAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
+	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
 	r.Models = (*ServerModelsAPI)(&r.common)
 	r.Plugins = (*ServerPluginsAPI)(&r.common)
@@ -13235,6 +13568,32 @@ func (s *MCPAPI) Apps() *MCPAppsAPI {
 
 // Experimental: MCPOauthAPI contains experimental APIs that may change or be removed.
 type MCPOauthAPI sessionAPI
+
+// HandlePendingRequest resolves a pending MCP OAuth request with a host-provided token or
+// cancellation. The pending request is emitted as mcp.oauth_required with the data
+// necessary to authorize the request.
+//
+// RPC method: session.mcp.oauth.handlePendingRequest.
+//
+// Parameters: Pending MCP OAuth request ID and host-provided token or cancellation response.
+//
+// Returns: Indicates whether the pending MCP OAuth response was accepted.
+func (a *MCPOauthAPI) HandlePendingRequest(ctx context.Context, params *MCPOauthHandlePendingRequest) (*MCPOauthHandlePendingResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.handlePendingRequest", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPOauthHandlePendingResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // Login starts OAuth authentication for a remote MCP server.
 //
@@ -16250,10 +16609,10 @@ func (a *InternalMCPAPI) UnregisterExternalClient(ctx context.Context, params *M
 // removed.
 type InternalMCPOauthAPI internalSessionAPI
 
-// Responds to a pending MCP OAuth provider request. Marked internal because the `provider`
-// argument is an in-process OAuthClientProvider instance that cannot be carried over the
-// wire; the public OAuth surface will route the response through a wire-clean handshake
-// once the CLI moves on top of the SDK.
+// Responds to a pending MCP OAuth request with an in-process provider. This internal
+// CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK
+// JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public
+// SDK-safe response path.
 //
 // RPC method: session.mcp.oauth.respond.
 //

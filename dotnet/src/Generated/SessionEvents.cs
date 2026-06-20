@@ -2220,6 +2220,12 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("apiCallId")]
     public string? ApiCallId { get; set; }
 
+    /// <summary>Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("citations")]
+    public Citations? Citations { get; set; }
+
     /// <summary>The assistant's text response content.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
@@ -2459,16 +2465,31 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("apiCallId")]
     public string? ApiCallId { get; set; }
 
+    /// <summary>For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("badRequestKind")]
+    public ModelCallFailureBadRequestKind? BadRequestKind { get; set; }
+
     /// <summary>Duration of the failed API call in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
     public TimeSpan? Duration { get; set; }
 
+    /// <summary>For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
     /// <summary>Raw provider/runtime error message for restricted telemetry.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("errorMessage")]
     public string? ErrorMessage { get; set; }
+
+    /// <summary>For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorType")]
+    public string? ErrorType { get; set; }
 
     /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3128,9 +3149,14 @@ public sealed partial class SamplingCompletedData
 /// <summary>OAuth authentication request for an MCP server.</summary>
 public sealed partial class McpOauthRequiredData
 {
-    /// <summary>Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth().</summary>
+    /// <summary>Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+
+    /// <summary>Raw OAuth protected-resource metadata document fetched for the MCP server, if available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resourceMetadata")]
+    public string? ResourceMetadata { get; set; }
 
     /// <summary>Display name of the MCP server that requires OAuth.</summary>
     [JsonPropertyName("serverName")]
@@ -3144,11 +3170,20 @@ public sealed partial class McpOauthRequiredData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("staticClientConfig")]
     public McpOauthRequiredStaticClientConfig? StaticClientConfig { get; set; }
+
+    /// <summary>OAuth WWW-Authenticate parameters parsed from the auth challenge, if available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("wwwAuthenticateParams")]
+    public McpOauthWWWAuthenticateParams? WwwAuthenticateParams { get; set; }
 }
 
 /// <summary>MCP OAuth request completion notification.</summary>
 public sealed partial class McpOauthCompletedData
 {
+    /// <summary>How the pending OAuth request was completed.</summary>
+    [JsonPropertyName("outcome")]
+    public required McpOauthCompletionOutcome Outcome { get; set; }
+
     /// <summary>Request ID of the resolved OAuth request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -3827,6 +3862,16 @@ public sealed partial class AttachmentFile : Attachment
     [JsonIgnore]
     public override string Type => "file";
 
+    /// <summary>Internal: content-addressed id of the session.binary_asset event holding this attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("assetId")]
+    public string? AssetId { get; set; }
+
+    /// <summary>Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("byteLength")]
+    public long? ByteLength { get; set; }
+
     /// <summary>User-facing display name for the attachment.</summary>
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
@@ -3835,6 +3880,16 @@ public sealed partial class AttachmentFile : Attachment
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("lineRange")]
     public AttachmentFileLineRange? LineRange { get; set; }
+
+    /// <summary>Internal: MIME type of the file's model-facing bytes (post-resize for images). Set when the file's bytes are interned to an asset. Absent externally.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>Internal: why model-facing bytes are absent from persistence. Absent externally.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("omittedReason")]
+    public OmittedBinaryOmittedReason? OmittedReason { get; set; }
 
     /// <summary>Absolute file path.</summary>
     [JsonPropertyName("path")]
@@ -3959,10 +4014,21 @@ public sealed partial class AttachmentBlob : Attachment
     [JsonIgnore]
     public override string Type => "blob";
 
-    /// <summary>Base64-encoded content.</summary>
+    /// <summary>Internal: content-addressed id of the session.binary_asset event holding this attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("assetId")]
+    public string? AssetId { get; set; }
+
+    /// <summary>Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("byteLength")]
+    public long? ByteLength { get; set; }
+
+    /// <summary>Base64-encoded content. Present on input and for external consumers; replaced by an internal `assetId` reference in persisted events when interned to a content-addressed asset.</summary>
     [Base64String]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("data")]
-    public required string Data { get; set; }
+    public string? Data { get; set; }
 
     /// <summary>User-facing display name for the attachment.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3972,6 +4038,11 @@ public sealed partial class AttachmentBlob : Attachment
     /// <summary>MIME type of the inline data.</summary>
     [JsonPropertyName("mimeType")]
     public required string MimeType { get; set; }
+
+    /// <summary>Internal: why model-facing bytes are absent from persistence. Absent externally.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("omittedReason")]
+    public OmittedBinaryOmittedReason? OmittedReason { get; set; }
 }
 
 /// <summary>Structured context contributed by an extension. Composer pills displayed in the host are forwarded back through session.send.attachments, then rendered into the model prompt as an &lt;extension_context&gt; XML block.</summary>
@@ -4030,6 +4101,163 @@ public partial class Attachment
     public virtual string Type { get; set; } = string.Empty;
 }
 
+
+/// <summary>A source that backs one or more cited spans in the assistant's response.</summary>
+/// <remarks>Nested data type for <c>CitationSource</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class CitationSource
+{
+    /// <summary>Stable, turn-scoped identifier for this source, referenced by CitationReference.sourceId.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    /// <summary>File path relative to the agent's workspace root, when the source is a file.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    /// <summary>The system that produced this citation.</summary>
+    [JsonPropertyName("provider")]
+    public required CitationProvider Provider { get; set; }
+
+    /// <summary>Human-readable title of the source.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>URL of the source, when it is a web resource.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+}
+
+/// <summary>A character range within the source's text content.</summary>
+/// <remarks>The <c>char</c> variant of <see cref="CitationLocation"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class CitationLocationChar : CitationLocation
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "char";
+
+    /// <summary>End character offset within the source text (zero-based, exclusive).</summary>
+    [JsonPropertyName("endIndex")]
+    public required long EndIndex { get; set; }
+
+    /// <summary>Start character offset within the source text (zero-based, inclusive).</summary>
+    [JsonPropertyName("startIndex")]
+    public required long StartIndex { get; set; }
+}
+
+/// <summary>A page range within a paginated source document.</summary>
+/// <remarks>The <c>page</c> variant of <see cref="CitationLocation"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class CitationLocationPage : CitationLocation
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "page";
+
+    /// <summary>Last page number of the cited range (inclusive).</summary>
+    [JsonPropertyName("endPage")]
+    public required long EndPage { get; set; }
+
+    /// <summary>First page number of the cited range.</summary>
+    [JsonPropertyName("startPage")]
+    public required long StartPage { get; set; }
+}
+
+/// <summary>A content-block range within a structured source document.</summary>
+/// <remarks>The <c>block</c> variant of <see cref="CitationLocation"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class CitationLocationBlock : CitationLocation
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "block";
+
+    /// <summary>Index of the last content block of the cited range (zero-based, exclusive).</summary>
+    [JsonPropertyName("endBlock")]
+    public required long EndBlock { get; set; }
+
+    /// <summary>Index of the first content block of the cited range (zero-based, inclusive).</summary>
+    [JsonPropertyName("startBlock")]
+    public required long StartBlock { get; set; }
+}
+
+/// <summary>Location within a cited source (character, page, or content-block range) that supports a span.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(CitationLocationChar), "char")]
+[JsonDerivedType(typeof(CitationLocationPage), "page")]
+[JsonDerivedType(typeof(CitationLocationBlock), "block")]
+public partial class CitationLocation
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
+/// <summary>A single citation occurrence linking a span of generated text to a supporting source.</summary>
+/// <remarks>Nested data type for <c>CitationReference</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class CitationReference
+{
+    /// <summary>The exact text from the source that supports the cited span, when provided by the model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("citedText")]
+    public string? CitedText { get; set; }
+
+    /// <summary>Location within the source that supports the cited span, when the provider reports one.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("location")]
+    public CitationLocation? Location { get; set; }
+
+    /// <summary>Provider-native citation correlation data (e.g. Anthropic search_result_index / document_index), passed through opaquely for debugging and forward compatibility.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerMetadata")]
+    public JsonElement? ProviderMetadata { get; set; }
+
+    /// <summary>Identifier of the CitationSource this reference points to (CitationSource.id).</summary>
+    [JsonPropertyName("sourceId")]
+    public required string SourceId { get; set; }
+}
+
+/// <summary>A contiguous span of generated assistant text and the source references that support it.</summary>
+/// <remarks>Nested data type for <c>CitationSpan</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class CitationSpan
+{
+    /// <summary>End offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, exclusive).</summary>
+    [JsonPropertyName("endIndex")]
+    public required long EndIndex { get; set; }
+
+    /// <summary>The sources that support this span of generated text.</summary>
+    [JsonPropertyName("references")]
+    public required CitationReference[] References { get; set; }
+
+    /// <summary>Start offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, inclusive).</summary>
+    [JsonPropertyName("startIndex")]
+    public required long StartIndex { get; set; }
+}
+
+/// <summary>Provider-agnostic citations linking spans of the assistant's response to their supporting sources.</summary>
+/// <remarks>Nested data type for <c>Citations</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class Citations
+{
+    /// <summary>Deduplicated set of sources referenced by the citation spans.</summary>
+    [JsonPropertyName("sources")]
+    public required CitationSource[] Sources { get; set; }
+
+    /// <summary>Spans of generated text annotated with the sources that support them.</summary>
+    [JsonPropertyName("spans")]
+    public required CitationSpan[] Spans { get; set; }
+}
 
 /// <summary>Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping.</summary>
 /// <remarks>Nested data type for <c>AssistantMessageServerTools</c>.</remarks>
@@ -4435,6 +4663,35 @@ public sealed partial class PersistedBinaryResult
             throw new JsonException("No PersistedBinaryResult variant value is set.");
         }
     }
+}
+
+/// <summary>A source supplied by a tool that should be made available to the model as citable content.</summary>
+/// <remarks>Nested data type for <c>CitableSource</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class CitableSource
+{
+    /// <summary>The source text made available to the model as citable content.</summary>
+    [JsonPropertyName("content")]
+    public required string Content { get; set; }
+
+    /// <summary>Stable identifier for this source within the tool result. Used for deduplication and may be used by future provider integrations to correlate response citations back to the originating source.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    /// <summary>File path relative to the agent's workspace root, when the source is a file.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    /// <summary>Human-readable title of the source.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>URL of the source, when it is a web resource.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
 }
 
 /// <summary>Plain text content block.</summary>
@@ -4868,6 +5125,12 @@ public sealed partial class ToolExecutionCompleteResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("binaryResultsForLlm")]
     public PersistedBinaryResult[]? BinaryResultsForLlm { get; set; }
+
+    /// <summary>Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("citableSources")]
+    public CitableSource[]? CitableSources { get; set; }
 
     /// <summary>Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency.</summary>
     [JsonPropertyName("content")]
@@ -6139,6 +6402,25 @@ public sealed partial class McpOauthRequiredStaticClientConfig
     public bool? PublicClient { get; set; }
 }
 
+/// <summary>OAuth WWW-Authenticate parameters parsed from an MCP auth challenge.</summary>
+/// <remarks>Nested data type for <c>McpOauthWWWAuthenticateParams</c>.</remarks>
+public sealed partial class McpOauthWWWAuthenticateParams
+{
+    /// <summary>OAuth error from the WWW-Authenticate error parameter, if present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter.</summary>
+    [JsonPropertyName("resourceMetadataUrl")]
+    public required string ResourceMetadataUrl { get; set; }
+
+    /// <summary>Requested OAuth scopes from the WWW-Authenticate scope parameter, if present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("scope")]
+    public string? Scope { get; set; }
+}
+
 /// <summary>Schema for the `CommandsChangedCommand` type.</summary>
 /// <remarks>Nested data type for <c>CommandsChangedCommand</c>.</remarks>
 public sealed partial class CommandsChangedCommand
@@ -7086,6 +7368,67 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
     }
 }
 
+/// <summary>Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct OmittedBinaryOmittedReason : IEquatable<OmittedBinaryOmittedReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="OmittedBinaryOmittedReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="OmittedBinaryOmittedReason"/>.</param>
+    [JsonConstructor]
+    public OmittedBinaryOmittedReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="OmittedBinaryOmittedReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Bytes exceeded the session's inline size limit.</summary>
+    public static OmittedBinaryOmittedReason TooLarge { get; } = new("too_large");
+
+    /// <summary>The referenced binary asset could not be found (e.g. a truncated log).</summary>
+    public static OmittedBinaryOmittedReason AssetUnavailable { get; } = new("asset_unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryOmittedReason"/> instances are equivalent.</summary>
+    public static bool operator ==(OmittedBinaryOmittedReason left, OmittedBinaryOmittedReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryOmittedReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(OmittedBinaryOmittedReason left, OmittedBinaryOmittedReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is OmittedBinaryOmittedReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(OmittedBinaryOmittedReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{OmittedBinaryOmittedReason}"/> for serializing <see cref="OmittedBinaryOmittedReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<OmittedBinaryOmittedReason>
+    {
+        /// <inheritdoc />
+        public override OmittedBinaryOmittedReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, OmittedBinaryOmittedReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OmittedBinaryOmittedReason));
+        }
+    }
+}
+
 /// <summary>Type of GitHub reference.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -7146,6 +7489,71 @@ public readonly struct AttachmentGitHubReferenceType : IEquatable<AttachmentGitH
         public override void Write(Utf8JsonWriter writer, AttachmentGitHubReferenceType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AttachmentGitHubReferenceType));
+        }
+    }
+}
+
+/// <summary>The system that produced a citation.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CitationProvider : IEquatable<CitationProvider>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CitationProvider"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CitationProvider"/>.</param>
+    [JsonConstructor]
+    public CitationProvider(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CitationProvider"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Citation produced by an Anthropic (Claude) model response.</summary>
+    public static CitationProvider Anthropic { get; } = new("anthropic");
+
+    /// <summary>Citation produced by an OpenAI model response.</summary>
+    public static CitationProvider Openai { get; } = new("openai");
+
+    /// <summary>Citation synthesized client-side by the runtime from tool output.</summary>
+    public static CitationProvider Client { get; } = new("client");
+
+    /// <summary>Returns a value indicating whether two <see cref="CitationProvider"/> instances are equivalent.</summary>
+    public static bool operator ==(CitationProvider left, CitationProvider right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CitationProvider"/> instances are not equivalent.</summary>
+    public static bool operator !=(CitationProvider left, CitationProvider right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CitationProvider other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CitationProvider other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CitationProvider}"/> for serializing <see cref="CitationProvider"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CitationProvider>
+    {
+        /// <inheritdoc />
+        public override CitationProvider Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CitationProvider value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CitationProvider));
         }
     }
 }
@@ -7274,6 +7682,67 @@ public readonly struct AssistantUsageApiEndpoint : IEquatable<AssistantUsageApiE
         public override void Write(Utf8JsonWriter writer, AssistantUsageApiEndpoint value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantUsageApiEndpoint));
+        }
+    }
+}
+
+/// <summary>For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelCallFailureBadRequestKind : IEquatable<ModelCallFailureBadRequestKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelCallFailureBadRequestKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelCallFailureBadRequestKind"/>.</param>
+    [JsonConstructor]
+    public ModelCallFailureBadRequestKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelCallFailureBadRequestKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The 400 response carried no error body (transient gateway/proxy signature).</summary>
+    public static ModelCallFailureBadRequestKind Bodyless { get; } = new("bodyless");
+
+    /// <summary>The 400 response carried a structured CAPI error envelope (deterministic validation failure).</summary>
+    public static ModelCallFailureBadRequestKind StructuredError { get; } = new("structured_error");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallFailureBadRequestKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelCallFailureBadRequestKind left, ModelCallFailureBadRequestKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallFailureBadRequestKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelCallFailureBadRequestKind left, ModelCallFailureBadRequestKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelCallFailureBadRequestKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelCallFailureBadRequestKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelCallFailureBadRequestKind}"/> for serializing <see cref="ModelCallFailureBadRequestKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelCallFailureBadRequestKind>
+    {
+        /// <inheritdoc />
+        public override ModelCallFailureBadRequestKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelCallFailureBadRequestKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallFailureBadRequestKind));
         }
     }
 }
@@ -7524,67 +7993,6 @@ public readonly struct PersistedBinaryImageType : IEquatable<PersistedBinaryImag
         public override void Write(Utf8JsonWriter writer, PersistedBinaryImageType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PersistedBinaryImageType));
-        }
-    }
-}
-
-/// <summary>Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct OmittedBinaryOmittedReason : IEquatable<OmittedBinaryOmittedReason>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="OmittedBinaryOmittedReason"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="OmittedBinaryOmittedReason"/>.</param>
-    [JsonConstructor]
-    public OmittedBinaryOmittedReason(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="OmittedBinaryOmittedReason"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Bytes exceeded the session's inline size limit.</summary>
-    public static OmittedBinaryOmittedReason TooLarge { get; } = new("too_large");
-
-    /// <summary>The referenced binary asset could not be found (e.g. a truncated log).</summary>
-    public static OmittedBinaryOmittedReason AssetUnavailable { get; } = new("asset_unavailable");
-
-    /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryOmittedReason"/> instances are equivalent.</summary>
-    public static bool operator ==(OmittedBinaryOmittedReason left, OmittedBinaryOmittedReason right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryOmittedReason"/> instances are not equivalent.</summary>
-    public static bool operator !=(OmittedBinaryOmittedReason left, OmittedBinaryOmittedReason right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is OmittedBinaryOmittedReason other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(OmittedBinaryOmittedReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{OmittedBinaryOmittedReason}"/> for serializing <see cref="OmittedBinaryOmittedReason"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<OmittedBinaryOmittedReason>
-    {
-        /// <inheritdoc />
-        public override OmittedBinaryOmittedReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, OmittedBinaryOmittedReason value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OmittedBinaryOmittedReason));
         }
     }
 }
@@ -8391,6 +8799,67 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
     }
 }
 
+/// <summary>How the pending MCP OAuth request was completed.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpOauthCompletionOutcome : IEquatable<McpOauthCompletionOutcome>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpOauthCompletionOutcome"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpOauthCompletionOutcome"/>.</param>
+    [JsonConstructor]
+    public McpOauthCompletionOutcome(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpOauthCompletionOutcome"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The request completed with a token-backed OAuth provider.</summary>
+    public static McpOauthCompletionOutcome Token { get; } = new("token");
+
+    /// <summary>The request completed without an OAuth provider.</summary>
+    public static McpOauthCompletionOutcome Cancelled { get; } = new("cancelled");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOauthCompletionOutcome"/> instances are equivalent.</summary>
+    public static bool operator ==(McpOauthCompletionOutcome left, McpOauthCompletionOutcome right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOauthCompletionOutcome"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpOauthCompletionOutcome left, McpOauthCompletionOutcome right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpOauthCompletionOutcome other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpOauthCompletionOutcome other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpOauthCompletionOutcome}"/> for serializing <see cref="McpOauthCompletionOutcome"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpOauthCompletionOutcome>
+    {
+        /// <inheritdoc />
+        public override McpOauthCompletionOutcome Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpOauthCompletionOutcome value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpOauthCompletionOutcome));
+        }
+    }
+}
+
 /// <summary>The user's auto-mode-switch choice.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -9053,6 +9522,15 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(CapabilitiesChangedData))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedUI))]
+[JsonSerializable(typeof(CitableSource))]
+[JsonSerializable(typeof(CitationLocation))]
+[JsonSerializable(typeof(CitationLocationBlock))]
+[JsonSerializable(typeof(CitationLocationChar))]
+[JsonSerializable(typeof(CitationLocationPage))]
+[JsonSerializable(typeof(CitationReference))]
+[JsonSerializable(typeof(CitationSource))]
+[JsonSerializable(typeof(CitationSpan))]
+[JsonSerializable(typeof(Citations))]
 [JsonSerializable(typeof(CommandCompletedData))]
 [JsonSerializable(typeof(CommandCompletedEvent))]
 [JsonSerializable(typeof(CommandExecuteData))]
@@ -9100,6 +9578,7 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(McpOauthRequiredData))]
 [JsonSerializable(typeof(McpOauthRequiredEvent))]
 [JsonSerializable(typeof(McpOauthRequiredStaticClientConfig))]
+[JsonSerializable(typeof(McpOauthWWWAuthenticateParams))]
 [JsonSerializable(typeof(McpServersLoadedServer))]
 [JsonSerializable(typeof(ModelCallFailureData))]
 [JsonSerializable(typeof(ModelCallFailureEvent))]
