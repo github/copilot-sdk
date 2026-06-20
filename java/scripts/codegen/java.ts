@@ -176,7 +176,11 @@ async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
                     candidates.push(path.join(githubScopeDir, entry, "schemas", fileName));
                 }
             }
-        } catch {
+        } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            if (code !== "ENOENT" && code !== "ENOTDIR") {
+                throw err;
+            }
             // @github scope directory may not exist; try the next location.
         }
     }
@@ -190,7 +194,7 @@ async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
         }
     }
 
-    throw new Error(`${fileName} not found. Run 'npm ci' in scripts/codegen first.`);
+    throw new Error(`${fileName} not found. Run 'npm ci' in java/scripts/codegen or java/nodejs first.`);
 }
 
 async function getSessionEventsSchemaPath(): Promise<string> {

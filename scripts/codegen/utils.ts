@@ -69,7 +69,11 @@ async function resolveCopilotSchemaPath(nodeModulesDir: string, fileName: string
                 candidates.push(path.join(githubScopeDir, entry, "schemas", fileName));
             }
         }
-    } catch {
+    } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT" && code !== "ENOTDIR") {
+            throw err;
+        }
         // @github scope directory may not exist yet; fall through to the error below.
     }
 
