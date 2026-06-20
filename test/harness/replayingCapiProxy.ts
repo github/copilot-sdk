@@ -283,8 +283,14 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
               ? rawAuthHeader
               : undefined;
           const token = authHeader?.replace("Bearer ", "");
-          const userResponse = token
+          const registered = token
             ? this.copilotUserByToken.get(token)
+            : undefined;
+          // The CLI gates third-party MCP servers behind the copilot user's
+          // `is_mcp_enabled` flag (a null/missing value disables them). Default
+          // it to true so e2e MCP servers are enabled unless a test opts out.
+          const userResponse = registered
+            ? ({ is_mcp_enabled: true, ...registered } as CopilotUserResponse)
             : undefined;
           if (userResponse) {
             const headers = {
@@ -1504,6 +1510,7 @@ export type ToolResultNormalizer = {
 export type CopilotUserResponse = {
   login: string;
   copilot_plan?: string;
+  is_mcp_enabled?: boolean;
   endpoints?: {
     api?: string;
     telemetry?: string;
