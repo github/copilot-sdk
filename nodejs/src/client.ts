@@ -285,8 +285,7 @@ function getNodeExecPath(): string {
  */
 function getCliPlatformPackageNames(): string[] {
     const arch = process.arch;
-    const variants =
-        process.platform === "linux" ? ["linux", "linuxmusl"] : [process.platform];
+    const variants = process.platform === "linux" ? ["linux", "linuxmusl"] : [process.platform];
     return variants.map((variant) => `@github/copilot-${variant}-${arch}`);
 }
 

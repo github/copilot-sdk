@@ -1096,7 +1096,7 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 				"inputPrice": 4.0,
 				"outputPrice": 16.0,
 				"cachePrice": 1.0,
-				"contextMax": 1000000
+				"maxPromptTokens": 1000000
 			}
 		}
 	}`
@@ -1107,10 +1107,10 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 		BatchSize:   int64Ptr(1000000),
 		ContextMax:  int64Ptr(128000),
 		LongContext: &rpc.ModelBillingTokenPricesLongContext{
-			InputPrice:  Float64(4.0),
-			OutputPrice: Float64(16.0),
-			CachePrice:  Float64(1.0),
-			ContextMax:  int64Ptr(1000000),
+			InputPrice:      Float64(4.0),
+			OutputPrice:     Float64(16.0),
+			CachePrice:      Float64(1.0),
+			MaxPromptTokens: int64Ptr(1000000),
 		},
 	}
 
@@ -1133,8 +1133,8 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 	if lc.InputPrice == nil || *lc.InputPrice != 4.0 {
 		t.Errorf("unexpected LongContext.InputPrice: %v", lc.InputPrice)
 	}
-	if lc.ContextMax == nil || *lc.ContextMax != 1000000 {
-		t.Errorf("unexpected LongContext.ContextMax: %v", lc.ContextMax)
+	if lc.MaxPromptTokens == nil || *lc.MaxPromptTokens != 1000000 {
+		t.Errorf("unexpected LongContext.MaxPromptTokens: %v", lc.MaxPromptTokens)
 	}
 
 	// Round-trip back to JSON and ensure the nested structure survives.
