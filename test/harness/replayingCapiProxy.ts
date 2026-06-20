@@ -241,34 +241,12 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
 
-        const state = this.state;
-        if (!state) {
-          throw new Error(
-            "ReplayingCapiProxy not yet initialized. Either pass filePath and workDir to the constructor, " +
-              "or post configuration to /config before making other HTTP requests.",
-          );
-        }
-
-        // Handle /models endpoint
-        // Use stored models if available, otherwise use default model
-        if (options.requestOptions.path === "/models") {
-          const models =
-            state.storedData?.models && state.storedData.models.length > 0
-              ? state.storedData.models
-              : [defaultModel];
-          const modelsResponse = createGetModelsResponse(models);
-          const body = JSON.stringify(modelsResponse);
-          const headers = {
-            "content-type": "application/json",
-            ...commonResponseHeaders,
-          };
-          options.onResponseStart(200, headers);
-          options.onData(Buffer.from(body));
-          options.onResponseEnd();
-          return;
-        }
-
-        // Handle /copilot_internal/user endpoint for per-session auth
+        // Handle /copilot_internal/user endpoint for per-session auth.
+        // This must run before the state guard below: the CLI authenticates and
+        // calls /copilot_internal/user at startup, which can race ahead of the
+        // per-test POST /config (e.g. the Go harness spawns the CLI before the
+        // first ConfigureForTest). The response only depends on the token map,
+        // which is populated independently of `state`.
         if (options.requestOptions.path === "/copilot_internal/user") {
           const headers = options.requestOptions.headers;
           const headerMap = headers as
@@ -307,6 +285,33 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             );
             options.onResponseEnd();
           }
+          return;
+        }
+
+        const state = this.state;
+        if (!state) {
+          throw new Error(
+            "ReplayingCapiProxy not yet initialized. Either pass filePath and workDir to the constructor, " +
+              "or post configuration to /config before making other HTTP requests.",
+          );
+        }
+
+        // Handle /models endpoint
+        // Use stored models if available, otherwise use default model
+        if (options.requestOptions.path === "/models") {
+          const models =
+            state.storedData?.models && state.storedData.models.length > 0
+              ? state.storedData.models
+              : [defaultModel];
+          const modelsResponse = createGetModelsResponse(models);
+          const body = JSON.stringify(modelsResponse);
+          const headers = {
+            "content-type": "application/json",
+            ...commonResponseHeaders,
+          };
+          options.onResponseStart(200, headers);
+          options.onData(Buffer.from(body));
+          options.onResponseEnd();
           return;
         }
 
