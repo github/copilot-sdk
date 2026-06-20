@@ -256,6 +256,11 @@ public class E2ETestContext implements AutoCloseable {
     public Map<String, String> getEnvironment() {
         Map<String, String> env = new HashMap<>(System.getenv());
         env.put("COPILOT_API_URL", proxyUrl);
+        // Route GitHub API calls (e.g. the MCP registry policy check) to the
+        // replay proxy so MCP enablement stays hermetic. Without this the CLI
+        // reaches the real api.github.com, which is slow/unreachable on macOS
+        // CI runners and makes MCP servers time out before reaching connected.
+        env.put("COPILOT_DEBUG_GITHUB_API_URL", proxyUrl);
         env.put("COPILOT_HOME", homeDir.toString());
         env.put("GH_CONFIG_DIR", homeDir.toString());
         env.put("XDG_CONFIG_HOME", homeDir.toString());

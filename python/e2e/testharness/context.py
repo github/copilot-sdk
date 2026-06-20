@@ -155,6 +155,12 @@ class E2ETestContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
+                # Route GitHub API calls (e.g. the MCP registry policy check) to
+                # the replay proxy so MCP enablement stays hermetic. Without this
+                # the CLI reaches the real api.github.com, which is slow/unreachable
+                # on macOS CI runners and makes MCP servers time out before
+                # reaching connected.
+                "COPILOT_DEBUG_GITHUB_API_URL": self.proxy_url,
                 "COPILOT_HOME": self.home_dir,
                 "COPILOT_SDK_AUTH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GH_CONFIG_DIR": self.home_dir,

@@ -213,6 +213,11 @@ func (c *TestContext) Env() []string {
 	env = append(env, c.proxy.ProxyEnv()...)
 	env = append(env,
 		"COPILOT_API_URL="+c.ProxyURL,
+		// Route GitHub API calls (e.g. the MCP registry policy check) to the
+		// replay proxy so MCP enablement stays hermetic. Without this the CLI
+		// reaches the real api.github.com, which is slow/unreachable on macOS
+		// CI runners and makes MCP servers time out before reaching connected.
+		"COPILOT_DEBUG_GITHUB_API_URL="+c.ProxyURL,
 		"COPILOT_HOME="+c.HomeDir,
 		"COPILOT_SDK_AUTH_TOKEN="+defaultGitHubToken,
 		"GH_CONFIG_DIR="+c.HomeDir,

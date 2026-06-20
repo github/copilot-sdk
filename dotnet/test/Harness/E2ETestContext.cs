@@ -183,6 +183,11 @@ public sealed class E2ETestContext : IAsyncDisposable
             .ToDictionary(e => (string)e.Key, e => e.Value?.ToString());
 
         env["COPILOT_API_URL"] = ProxyUrl;
+        // Route GitHub API calls (e.g. the MCP registry policy check) to the
+        // replay proxy so MCP enablement stays hermetic. Without this the CLI
+        // reaches the real api.github.com, which is slow/unreachable on macOS
+        // CI runners and makes MCP servers time out before reaching connected.
+        env["COPILOT_DEBUG_GITHUB_API_URL"] = ProxyUrl;
         env["COPILOT_HOME"] = HomeDir;
         env["GH_CONFIG_DIR"] = HomeDir;
         env["XDG_CONFIG_HOME"] = HomeDir;
