@@ -143,15 +143,14 @@ public sealed class E2ETestContext : IAsyncDisposable
         // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
         // runnable index.js ships in the installed platform package
         // (e.g. @github/copilot-linux-x64). Exactly one is installed.
-        var githubModules = Path.Combine(repoRoot, "nodejs", "node_modules", "@github");
+        var githubModules = Path.Join(repoRoot, "nodejs", "node_modules", "@github");
         if (Directory.Exists(githubModules))
         {
-            foreach (var dir in Directory.EnumerateDirectories(githubModules, "copilot-*"))
-            {
-                var candidate = Path.Combine(dir, "index.js");
-                if (File.Exists(candidate))
-                    return candidate;
-            }
+            var candidate = Directory.EnumerateDirectories(githubModules, "copilot-*")
+                .Select(dir => Path.Join(dir, "index.js"))
+                .FirstOrDefault(File.Exists);
+            if (candidate != null)
+                return candidate;
         }
 
         throw new InvalidOperationException(
