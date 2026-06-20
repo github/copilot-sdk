@@ -45,23 +45,55 @@ export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T
 };
 // ── Schema paths ────────────────────────────────────────────────────────────
 
-export async function getSessionEventsSchemaPath(): Promise<string> {
-    const schemaPath = path.join(
-        REPO_ROOT,
-        "nodejs/node_modules/@github/copilot/schemas/session-events.schema.json"
+const SDK_NODE_MODULES = path.join(REPO_ROOT, "nodejs/node_modules");
+
+/**
+ * Resolve a JSON schema shipped by the `@github/copilot` CLI package.
+ *
+ * The CLI package layout changed in 1.0.64-1: the umbrella `@github/copilot`
+ * package became a thin loader and its bundled assets (including the JSON
+ * schemas) moved into the platform-specific packages installed as optional
+ * dependencies, e.g. `@github/copilot-linux-x64` or `@github/copilot-win32-x64`.
+ *
+ * To support both layouts we look in the umbrella package first (older
+ * versions) and then in whichever platform package was installed for the
+ * current host.
+ */
+async function resolveCopilotSchemaPath(nodeModulesDir: string, fileName: string): Promise<string> {
+    const candidates = [path.join(nodeModulesDir, "@github/copilot/schemas", fileName)];
+
+    const githubScopeDir = path.join(nodeModulesDir, "@github");
+    try {
+        for (const entry of await fs.readdir(githubScopeDir)) {
+            if (entry.startsWith("copilot-")) {
+                candidates.push(path.join(githubScopeDir, entry, "schemas", fileName));
+            }
+        }
+    } catch {
+        // @github scope directory may not exist yet; fall through to the error below.
+    }
+
+    for (const candidate of candidates) {
+        try {
+            await fs.access(candidate);
+            return candidate;
+        } catch {
+            // Try the next candidate.
+        }
+    }
+
+    throw new Error(
+        `${fileName} not found under ${githubScopeDir}. Run 'npm ci' in nodejs/ first.`
     );
-    await fs.access(schemaPath);
-    return schemaPath;
+}
+
+export async function getSessionEventsSchemaPath(): Promise<string> {
+    return resolveCopilotSchemaPath(SDK_NODE_MODULES, "session-events.schema.json");
 }
 
 export async function getApiSchemaPath(cliArg?: string): Promise<string> {
     if (cliArg) return cliArg;
-    const schemaPath = path.join(
-        REPO_ROOT,
-        "nodejs/node_modules/@github/copilot/schemas/api.schema.json"
-    );
-    await fs.access(schemaPath);
-    return schemaPath;
+    return resolveCopilotSchemaPath(SDK_NODE_MODULES, "api.schema.json");
 }
 
 // ── Brand casing normalization ──────────────────────────────────────────────

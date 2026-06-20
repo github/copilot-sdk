@@ -148,36 +148,57 @@ function toEnumConstant(value: string): string {
 
 // ── Schema path resolution ───────────────────────────────────────────────────
 
-async function getSessionEventsSchemaPath(): Promise<string> {
-    const candidates = [
-        path.join(REPO_ROOT, "scripts/codegen/node_modules/@github/copilot/schemas/session-events.schema.json"),
-        path.join(REPO_ROOT, "nodejs/node_modules/@github/copilot/schemas/session-events.schema.json"),
+/**
+ * Resolve a JSON schema shipped by the `@github/copilot` CLI package.
+ *
+ * The CLI package layout changed in 1.0.64-1: the umbrella `@github/copilot`
+ * package became a thin loader and its bundled assets (including the JSON
+ * schemas) moved into the platform-specific packages installed as optional
+ * dependencies, e.g. `@github/copilot-linux-x64` or `@github/copilot-win32-x64`.
+ *
+ * We search both the Java codegen install (`scripts/codegen/node_modules`) and
+ * the Node SDK install (`nodejs/node_modules`), checking the umbrella package
+ * first (older versions) and then whichever platform package is present.
+ */
+async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
+    const nodeModulesDirs = [
+        path.join(REPO_ROOT, "scripts/codegen/node_modules"),
+        path.join(REPO_ROOT, "nodejs/node_modules"),
     ];
-    for (const p of candidates) {
+
+    const candidates: string[] = [];
+    for (const nodeModulesDir of nodeModulesDirs) {
+        candidates.push(path.join(nodeModulesDir, "@github/copilot/schemas", fileName));
+        const githubScopeDir = path.join(nodeModulesDir, "@github");
         try {
-            await fs.access(p);
-            return p;
+            for (const entry of await fs.readdir(githubScopeDir)) {
+                if (entry.startsWith("copilot-")) {
+                    candidates.push(path.join(githubScopeDir, entry, "schemas", fileName));
+                }
+            }
         } catch {
-            // try next
+            // @github scope directory may not exist; try the next location.
         }
     }
-    throw new Error("session-events.schema.json not found. Run 'npm ci' in scripts/codegen first.");
+
+    for (const candidate of candidates) {
+        try {
+            await fs.access(candidate);
+            return candidate;
+        } catch {
+            // Try the next candidate.
+        }
+    }
+
+    throw new Error(`${fileName} not found. Run 'npm ci' in scripts/codegen first.`);
+}
+
+async function getSessionEventsSchemaPath(): Promise<string> {
+    return resolveCopilotSchemaPath("session-events.schema.json");
 }
 
 async function getApiSchemaPath(): Promise<string> {
-    const candidates = [
-        path.join(REPO_ROOT, "scripts/codegen/node_modules/@github/copilot/schemas/api.schema.json"),
-        path.join(REPO_ROOT, "nodejs/node_modules/@github/copilot/schemas/api.schema.json"),
-    ];
-    for (const p of candidates) {
-        try {
-            await fs.access(p);
-            return p;
-        } catch {
-            // try next
-        }
-    }
-    throw new Error("api.schema.json not found. Run 'npm ci' in scripts/codegen first.");
+    return resolveCopilotSchemaPath("api.schema.json");
 }
 
 // ── File writing ─────────────────────────────────────────────────────────────
