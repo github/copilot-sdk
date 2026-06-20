@@ -438,11 +438,21 @@ public class E2ETestContext implements AutoCloseable {
             return harnessCliPath.toString();
         }
 
-        // Try nodejs installation (thin loader; resolves the platform-specific
-        // CLI package internally)
-        Path cliPath = repoRoot.resolve("nodejs/node_modules/@github/copilot/npm-loader.js");
-        if (Files.exists(cliPath)) {
-            return cliPath.toString();
+        // Try nodejs installation. As of CLI 1.0.64-1 the @github/copilot package
+        // is a thin loader; the runnable index.js ships in the installed
+        // platform-specific package (e.g. @github/copilot-linux-x64). Exactly one
+        // is installed. Running index.js under Node.js is the documented preferred
+        // entry point and matches the Go, Python, Rust, and .NET test harnesses.
+        Path githubModules = repoRoot.resolve("nodejs/node_modules/@github");
+        if (Files.isDirectory(githubModules)) {
+            try (var modules = Files.newDirectoryStream(githubModules, "copilot-*")) {
+                for (Path module : modules) {
+                    Path indexJs = module.resolve("index.js");
+                    if (Files.exists(indexJs)) {
+                        return indexJs.toString();
+                    }
+                }
+            }
         }
 
         // Fallback: try to find 'copilot' in PATH
