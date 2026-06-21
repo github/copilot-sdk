@@ -11,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
-import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -34,7 +33,7 @@ public record CanvasRegistryChangedCanvas(
     /** Short, single-sentence description shown to the agent in canvas catalogs. */
     @JsonProperty("description") String description,
     /** JSON Schema for canvas open input */
-    @JsonProperty("inputSchema") Map<String, Object> inputSchema,
+    @JsonProperty("inputSchema") Object inputSchema,
     /** Actions the agent or host may invoke */
     @JsonProperty("actions") List<CanvasRegistryChangedCanvasAction> actions
 ) {

@@ -47,6 +47,22 @@ public final class SessionMcpOauthApi {
     }
 
     /**
+     * Pending MCP OAuth request ID and host-provided token or cancellation response.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionMcpOauthHandlePendingRequestResult> handlePendingRequest(SessionMcpOauthHandlePendingRequestParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.oauth.handlePendingRequest", _p, SessionMcpOauthHandlePendingRequestResult.class);
+    }
+
+    /**
      * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

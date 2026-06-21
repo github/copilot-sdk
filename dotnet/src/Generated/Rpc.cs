@@ -69,17 +69,29 @@ internal sealed class ConnectRequest
 /// <summary>Long context tier pricing (available for models with extended context windows).</summary>
 public sealed class ModelBillingTokenPricesLongContext
 {
-    /// <summary>AI Credits cost per billing batch of cached tokens.</summary>
+    /// <summary>Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens.</summary>
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
-    /// <summary>Prompt token budget (max_prompt_tokens) for the long context tier. The total context window is this value plus the model's max_output_tokens.</summary>
+    /// <summary>AI Credits cost per billing batch of cached (read) tokens.</summary>
+    [JsonPropertyName("cacheReadPrice")]
+    public double? CacheReadPrice { get; set; }
+
+    /// <summary>AI Credits cost per billing batch of cache-write (cache creation) tokens.</summary>
+    [JsonPropertyName("cacheWritePrice")]
+    public double? CacheWritePrice { get; set; }
+
+    /// <summary>Deprecated: use maxPromptTokens. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.</summary>
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
     /// <summary>AI Credits cost per billing batch of input tokens.</summary>
     [JsonPropertyName("inputPrice")]
     public double? InputPrice { get; set; }
+
+    /// <summary>Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.</summary>
+    [JsonPropertyName("maxPromptTokens")]
+    public long? MaxPromptTokens { get; set; }
 
     /// <summary>AI Credits cost per billing batch of output tokens.</summary>
     [JsonPropertyName("outputPrice")]
@@ -93,11 +105,19 @@ public sealed class ModelBillingTokenPrices
     [JsonPropertyName("batchSize")]
     public long? BatchSize { get; set; }
 
-    /// <summary>AI Credits cost per billing batch of cached tokens.</summary>
+    /// <summary>Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens.</summary>
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
-    /// <summary>Prompt token budget (max_prompt_tokens) for the default tier. The total context window is this value plus the model's max_output_tokens.</summary>
+    /// <summary>AI Credits cost per billing batch of cached (read) tokens.</summary>
+    [JsonPropertyName("cacheReadPrice")]
+    public double? CacheReadPrice { get; set; }
+
+    /// <summary>AI Credits cost per billing batch of cache-write (cache creation) tokens.</summary>
+    [JsonPropertyName("cacheWritePrice")]
+    public double? CacheWritePrice { get; set; }
+
+    /// <summary>Deprecated: use maxPromptTokens. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.</summary>
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
@@ -108,6 +128,10 @@ public sealed class ModelBillingTokenPrices
     /// <summary>Long context tier pricing (available for models with extended context windows).</summary>
     [JsonPropertyName("longContext")]
     public ModelBillingTokenPricesLongContext? LongContext { get; set; }
+
+    /// <summary>Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.</summary>
+    [JsonPropertyName("maxPromptTokens")]
+    public long? MaxPromptTokens { get; set; }
 
     /// <summary>AI Credits cost per billing batch of output tokens.</summary>
     [JsonPropertyName("outputPrice")]
@@ -1139,6 +1163,92 @@ internal sealed class SessionFsSetProviderRequest
     /// <summary>Path within each session's SessionFs where the runtime stores files for that session.</summary>
     [JsonPropertyName("sessionStatePath")]
     public string SessionStatePath { get; set; } = string.Empty;
+}
+
+/// <summary>Indicates whether the calling client was registered as the LLM inference provider.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class LlmInferenceSetProviderResult
+{
+    /// <summary>Whether the provider was set successfully.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>Whether the start frame was accepted.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class LlmInferenceHttpResponseStartResult
+{
+    /// <summary>True when the response start was matched to a pending request; false when unknown.</summary>
+    [JsonPropertyName("accepted")]
+    public bool Accepted { get; set; }
+}
+
+/// <summary>Response head.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class LlmInferenceHttpResponseStartRequest
+{
+    /// <summary>Gets or sets the <c>headers</c> value.</summary>
+    [JsonPropertyName("headers")]
+    public IDictionary<string, IList<string>> Headers { get => field ??= new Dictionary<string, IList<string>>(); set; }
+
+    /// <summary>Matches the requestId from the originating httpRequestStart frame.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>HTTP status code.</summary>
+    [JsonPropertyName("status")]
+    public long Status { get; set; }
+
+    /// <summary>Optional HTTP status reason phrase.</summary>
+    [JsonPropertyName("statusText")]
+    public string? StatusText { get; set; }
+}
+
+/// <summary>Whether the chunk was accepted.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class LlmInferenceHttpResponseChunkResult
+{
+    /// <summary>True when the chunk was matched to a pending request; false when unknown.</summary>
+    [JsonPropertyName("accepted")]
+    public bool Accepted { get; set; }
+}
+
+/// <summary>Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class LlmInferenceHttpResponseChunkError
+{
+    /// <summary>Optional machine-readable error code.</summary>
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
+
+    /// <summary>Human-readable failure description.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+}
+
+/// <summary>A response body chunk or terminal error.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class LlmInferenceHttpResponseChunkRequest
+{
+    /// <summary>When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.</summary>
+    [JsonPropertyName("binary")]
+    public bool? Binary { get; set; }
+
+    /// <summary>Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when `binary` is true. May be empty (e.g. when the response body is empty: send a single chunk with empty data and end=true).</summary>
+    [JsonPropertyName("data")]
+    public string Data { get; set; } = string.Empty;
+
+    /// <summary>When true, this is the final body chunk for the response. The runtime treats the response body as complete after receiving an end-marked chunk.</summary>
+    [JsonPropertyName("end")]
+    public bool? End { get; set; }
+
+    /// <summary>Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored.</summary>
+    [JsonPropertyName("error")]
+    public LlmInferenceHttpResponseChunkError? Error { get; set; }
+
+    /// <summary>Matches the requestId from the originating httpRequestStart frame.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
 }
 
 /// <summary>Pre-resolved working-directory context for session startup.</summary>
@@ -5396,6 +5506,85 @@ internal sealed class McpOauthRespondRequest
     /// <summary>OAuth request identifier from mcp.oauth_required.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Indicates whether the pending MCP OAuth response was accepted.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpOauthHandlePendingResult
+{
+    /// <summary>Whether the response was accepted. False if the request was unknown, timed out, or already resolved.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>Host response to the pending OAuth request.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpOauthPendingRequestResponseToken), "token")]
+[JsonDerivedType(typeof(McpOauthPendingRequestResponseCancelled), "cancelled")]
+public partial class McpOauthPendingRequestResponse
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>token</c> variant of <see cref="McpOauthPendingRequestResponse"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpOauthPendingRequestResponseToken : McpOauthPendingRequestResponse
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "token";
+
+    /// <summary>Access token acquired by the SDK host.</summary>
+    [JsonPropertyName("accessToken")]
+    public required string AccessToken { get; set; }
+
+    /// <summary>Token lifetime in seconds, if known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("expiresIn")]
+    public long? ExpiresIn { get; set; }
+
+    /// <summary>Refresh token supplied by the host, if available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("refreshToken")]
+    public string? RefreshToken { get; set; }
+
+    /// <summary>OAuth token type. Defaults to Bearer when omitted.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tokenType")]
+    public string? TokenType { get; set; }
+}
+
+/// <summary>The <c>cancelled</c> variant of <see cref="McpOauthPendingRequestResponse"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpOauthPendingRequestResponseCancelled : McpOauthPendingRequestResponse
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "cancelled";
+}
+
+/// <summary>Pending MCP OAuth request ID and host-provided token or cancellation response.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpOauthHandlePendingRequest
+{
+    /// <summary>OAuth request identifier from the mcp.oauth_required event.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Host response to the pending OAuth request.</summary>
+    [JsonPropertyName("result")]
+    public McpOauthPendingRequestResponse Result { get => field ??= new(); set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -16049,6 +16238,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>LlmInference APIs.</summary>
+    public ServerLlmInferenceApi LlmInference =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Sessions APIs.</summary>
     public ServerSessionsApi Sessions =>
         field ??
@@ -16627,6 +16822,59 @@ public sealed class ServerSessionFsApi
 
         var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions, Capabilities = capabilities };
         return await CopilotClient.InvokeRpcAsync<SessionFsSetProviderResult>(_rpc, "sessionFs.setProvider", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped LlmInference APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerLlmInferenceApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerLlmInferenceApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Registers an SDK client as the LLM inference callback provider.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the calling client was registered as the LLM inference provider.</returns>
+    public async Task<LlmInferenceSetProviderResult> SetProviderAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<LlmInferenceSetProviderResult>(_rpc, "llmInference.setProvider", [], cancellationToken);
+    }
+
+    /// <summary>Delivers the response head (status + headers) for an in-flight request, correlated by the requestId the runtime supplied in httpRequestStart. Must be called exactly once per request before any httpResponseChunk frames.</summary>
+    /// <param name="requestId">Matches the requestId from the originating httpRequestStart frame.</param>
+    /// <param name="status">HTTP status code.</param>
+    /// <param name="headers">The headers parameter.</param>
+    /// <param name="statusText">Optional HTTP status reason phrase.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether the start frame was accepted.</returns>
+    public async Task<LlmInferenceHttpResponseStartResult> HttpResponseStartAsync(string requestId, long status, IDictionary<string, IList<string>> headers, string? statusText = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentNullException.ThrowIfNull(headers);
+
+        var request = new LlmInferenceHttpResponseStartRequest { RequestId = requestId, Status = status, Headers = headers, StatusText = statusText };
+        return await CopilotClient.InvokeRpcAsync<LlmInferenceHttpResponseStartResult>(_rpc, "llmInference.httpResponseStart", [request], cancellationToken);
+    }
+
+    /// <summary>Delivers a body byte range (or a terminal transport error) for an in-flight response, correlated by requestId. Set `end` true on the last chunk. When `error` is set the response terminates with a transport-level failure and the runtime raises an APIConnectionError.</summary>
+    /// <param name="requestId">Matches the requestId from the originating httpRequestStart frame.</param>
+    /// <param name="data">Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when `binary` is true. May be empty (e.g. when the response body is empty: send a single chunk with empty data and end=true).</param>
+    /// <param name="binary">When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.</param>
+    /// <param name="end">When true, this is the final body chunk for the response. The runtime treats the response body as complete after receiving an end-marked chunk.</param>
+    /// <param name="error">Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether the chunk was accepted.</returns>
+    public async Task<LlmInferenceHttpResponseChunkResult> HttpResponseChunkAsync(string requestId, string data, bool? binary = null, bool? end = null, LlmInferenceHttpResponseChunkError? error = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentNullException.ThrowIfNull(data);
+
+        var request = new LlmInferenceHttpResponseChunkRequest { RequestId = requestId, Data = data, Binary = binary, End = end, Error = error };
+        return await CopilotClient.InvokeRpcAsync<LlmInferenceHttpResponseChunkResult>(_rpc, "llmInference.httpResponseChunk", [request], cancellationToken);
     }
 }
 
@@ -18355,7 +18603,7 @@ public sealed class McpOauthApi
         _session = session;
     }
 
-    /// <summary>Responds to a pending MCP OAuth provider request. Marked internal because the `provider` argument is an in-process OAuthClientProvider instance that cannot be carried over the wire; the public OAuth surface will route the response through a wire-clean handshake once the CLI moves on top of the SDK.</summary>
+    /// <summary>Responds to a pending MCP OAuth request with an in-process provider. This internal CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public SDK-safe response path.</summary>
     /// <param name="requestId">OAuth request identifier from mcp.oauth_required.</param>
     /// <param name="provider">In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be serialized across the JSON-RPC boundary.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -18367,6 +18615,21 @@ public sealed class McpOauthApi
 
         var request = new McpOauthRespondRequest { SessionId = _session.SessionId, RequestId = requestId, Provider = CopilotClient.ToJsonElementForWire(provider) };
         return await CopilotClient.InvokeRpcAsync<McpOauthRespondResult>(_session.Rpc, "session.mcp.oauth.respond", [request], cancellationToken);
+    }
+
+    /// <summary>Resolves a pending MCP OAuth request with a host-provided token or cancellation. The pending request is emitted as mcp.oauth_required with the data necessary to authorize the request.</summary>
+    /// <param name="requestId">OAuth request identifier from the mcp.oauth_required event.</param>
+    /// <param name="result">Host response to the pending OAuth request.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the pending MCP OAuth response was accepted.</returns>
+    public async Task<McpOauthHandlePendingResult> HandlePendingRequestAsync(string requestId, McpOauthPendingRequestResponse result, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentNullException.ThrowIfNull(result);
+        _session.ThrowIfDisposed();
+
+        var request = new McpOauthHandlePendingRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<McpOauthHandlePendingResult>(_session.Rpc, "session.mcp.oauth.handlePendingRequest", [request], cancellationToken);
     }
 
     /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
@@ -20109,6 +20372,16 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedData), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedData")]
 [JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedEvent), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedUI), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedUI")]
+[JsonSerializable(typeof(GitHub.Copilot.CitableSource), TypeInfoPropertyName = "SessionEventsCitableSource")]
+[JsonSerializable(typeof(GitHub.Copilot.CitationLocation), TypeInfoPropertyName = "SessionEventsCitationLocation")]
+[JsonSerializable(typeof(GitHub.Copilot.CitationLocationBlock), TypeInfoPropertyName = "SessionEventsCitationLocationBlock")]
+[JsonSerializable(typeof(GitHub.Copilot.CitationLocationChar), TypeInfoPropertyName = "SessionEventsCitationLocationChar")]
+[JsonSerializable(typeof(GitHub.Copilot.CitationLocationPage), TypeInfoPropertyName = "SessionEventsCitationLocationPage")]
+[JsonSerializable(typeof(GitHub.Copilot.CitationProvider), TypeInfoPropertyName = "SessionEventsCitationProvider")]
+[JsonSerializable(typeof(GitHub.Copilot.CitationReference), TypeInfoPropertyName = "SessionEventsCitationReference")]
+[JsonSerializable(typeof(GitHub.Copilot.CitationSource), TypeInfoPropertyName = "SessionEventsCitationSource")]
+[JsonSerializable(typeof(GitHub.Copilot.CitationSpan), TypeInfoPropertyName = "SessionEventsCitationSpan")]
+[JsonSerializable(typeof(GitHub.Copilot.Citations), TypeInfoPropertyName = "SessionEventsCitations")]
 [JsonSerializable(typeof(GitHub.Copilot.CommandCompletedData), TypeInfoPropertyName = "SessionEventsCommandCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.CommandCompletedEvent), TypeInfoPropertyName = "SessionEventsCommandCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.CommandExecuteData), TypeInfoPropertyName = "SessionEventsCommandExecuteData")]
@@ -20159,13 +20432,16 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteToolMetaUI), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteToolMetaUI")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletionOutcome), TypeInfoPropertyName = "SessionEventsMcpOauthCompletionOutcome")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthWWWAuthenticateParams), TypeInfoPropertyName = "SessionEventsMcpOauthWWWAuthenticateParams")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerTransport), TypeInfoPropertyName = "SessionEventsMcpServerTransport")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServersLoadedServer), TypeInfoPropertyName = "SessionEventsMcpServersLoadedServer")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureBadRequestKind), TypeInfoPropertyName = "SessionEventsModelCallFailureBadRequestKind")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
@@ -20410,6 +20686,12 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(InstructionsDiscoverRequest))]
 [JsonSerializable(typeof(InstructionsGetDiscoveryPathsRequest))]
 [JsonSerializable(typeof(InstructionsGetSourcesResult))]
+[JsonSerializable(typeof(LlmInferenceHttpResponseChunkError))]
+[JsonSerializable(typeof(LlmInferenceHttpResponseChunkRequest))]
+[JsonSerializable(typeof(LlmInferenceHttpResponseChunkResult))]
+[JsonSerializable(typeof(LlmInferenceHttpResponseStartRequest))]
+[JsonSerializable(typeof(LlmInferenceHttpResponseStartResult))]
+[JsonSerializable(typeof(LlmInferenceSetProviderResult))]
 [JsonSerializable(typeof(LocalSessionMetadataValue))]
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
@@ -20460,8 +20742,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(McpIsServerRunningResult))]
 [JsonSerializable(typeof(McpListToolsRequest))]
 [JsonSerializable(typeof(McpListToolsResult))]
+[JsonSerializable(typeof(McpOauthHandlePendingRequest))]
+[JsonSerializable(typeof(McpOauthHandlePendingResult))]
 [JsonSerializable(typeof(McpOauthLoginRequest))]
 [JsonSerializable(typeof(McpOauthLoginResult))]
+[JsonSerializable(typeof(McpOauthPendingRequestResponse))]
 [JsonSerializable(typeof(McpOauthRespondRequest))]
 [JsonSerializable(typeof(McpOauthRespondResult))]
 [JsonSerializable(typeof(McpRegisterExternalClientRequest))]

@@ -29,11 +29,17 @@ func CLIPath() string {
 			return
 		}
 
-		// Look for CLI in sibling nodejs directory's node_modules
-		abs, err := filepath.Abs("../../../nodejs/node_modules/@github/copilot/index.js")
-		if err == nil && fileExists(abs) {
-			cliPath = abs
-			return
+		// Look for CLI in sibling nodejs directory's node_modules. As of CLI
+		// 1.0.64-1 the @github/copilot package is a thin loader; the runnable
+		// index.js ships in the installed platform package
+		// (e.g. @github/copilot-linux-x64).
+		base, err := filepath.Abs("../../../nodejs/node_modules/@github")
+		if err == nil {
+			matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
+			if len(matches) > 0 {
+				cliPath = matches[0]
+				return
+			}
 		}
 	})
 	return cliPath
@@ -207,6 +213,11 @@ func (c *TestContext) Env() []string {
 	env = append(env, c.proxy.ProxyEnv()...)
 	env = append(env,
 		"COPILOT_API_URL="+c.ProxyURL,
+		// Route GitHub API calls (e.g. the MCP registry policy check) to the
+		// replay proxy so MCP enablement stays hermetic. Without this the CLI
+		// reaches the real api.github.com, which is slow/unreachable on macOS
+		// CI runners and makes MCP servers time out before reaching connected.
+		"COPILOT_DEBUG_GITHUB_API_URL="+c.ProxyURL,
 		"COPILOT_HOME="+c.HomeDir,
 		"COPILOT_SDK_AUTH_TOKEN="+defaultGitHubToken,
 		"GH_CONFIG_DIR="+c.HomeDir,

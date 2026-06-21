@@ -40,7 +40,7 @@ public final class TestUtil {
      * <li>Otherwise search the system PATH using {@code where.exe} (Windows) or
      * {@code which} (Linux/macOS).</li>
      * <li>Walk parent directories looking for
-     * {@code nodejs/node_modules/@github/copilot/index.js}.</li>
+     * {@code nodejs/node_modules/@github/copilot/npm-loader.js}.</li>
      * </ol>
      *
      * <p>
@@ -88,8 +88,9 @@ public final class TestUtil {
                 return npmLoader.toString();
             }
 
-            // nodejs installation
-            Path cliPath = current.resolve("nodejs/node_modules/@github/copilot/index.js");
+            // nodejs installation (thin loader; resolves the platform-specific
+            // CLI package internally)
+            Path cliPath = current.resolve("nodejs/node_modules/@github/copilot/npm-loader.js");
             if (cliPath.toFile().exists()) {
                 return cliPath.toString();
             }

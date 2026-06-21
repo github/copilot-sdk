@@ -49,6 +49,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `llmInference.*` sub-namespace.
+    pub fn llm_inference(&self) -> ClientRpcLlmInference<'a> {
+        ClientRpcLlmInference {
+            client: self.client,
+        }
+    }
+
     /// `mcp.*` sub-namespace.
     pub fn mcp(&self) -> ClientRpcMcp<'a> {
         ClientRpcMcp {
@@ -379,6 +386,106 @@ impl<'a> ClientRpcInstructions<'a> {
             .client
             .call(
                 rpc_methods::INSTRUCTIONS_GETDISCOVERYPATHS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `llmInference.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcLlmInference<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcLlmInference<'a> {
+    /// Registers an SDK client as the LLM inference callback provider.
+    ///
+    /// Wire method: `llmInference.setProvider`.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the calling client was registered as the LLM inference provider.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_provider(&self) -> Result<LlmInferenceSetProviderResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::LLMINFERENCE_SETPROVIDER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Delivers the response head (status + headers) for an in-flight request, correlated by the requestId the runtime supplied in httpRequestStart. Must be called exactly once per request before any httpResponseChunk frames.
+    ///
+    /// Wire method: `llmInference.httpResponseStart`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Response head.
+    ///
+    /// # Returns
+    ///
+    /// Whether the start frame was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn http_response_start(
+        &self,
+        params: LlmInferenceHttpResponseStartRequest,
+    ) -> Result<LlmInferenceHttpResponseStartResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::LLMINFERENCE_HTTPRESPONSESTART,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Delivers a body byte range (or a terminal transport error) for an in-flight response, correlated by requestId. Set `end` true on the last chunk. When `error` is set the response terminates with a transport-level failure and the runtime raises an APIConnectionError.
+    ///
+    /// Wire method: `llmInference.httpResponseChunk`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A response body chunk or terminal error.
+    ///
+    /// # Returns
+    ///
+    /// Whether the chunk was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn http_response_chunk(
+        &self,
+        params: LlmInferenceHttpResponseChunkRequest,
+    ) -> Result<LlmInferenceHttpResponseChunkResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::LLMINFERENCE_HTTPRESPONSECHUNK,
                 Some(wire_params),
             )
             .await?;
@@ -4428,7 +4535,7 @@ pub struct SessionRpcMcpOauth<'a> {
 }
 
 impl<'a> SessionRpcMcpOauth<'a> {
-    /// Responds to a pending MCP OAuth provider request. Marked internal because the `provider` argument is an in-process OAuthClientProvider instance that cannot be carried over the wire; the public OAuth surface will route the response through a wire-clean handshake once the CLI moves on top of the SDK.
+    /// Responds to a pending MCP OAuth request with an in-process provider. This internal CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public SDK-safe response path.
     ///
     /// Wire method: `session.mcp.oauth.respond`.
     ///
@@ -4457,6 +4564,42 @@ impl<'a> SessionRpcMcpOauth<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MCP_OAUTH_RESPOND, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Resolves a pending MCP OAuth request with a host-provided token or cancellation. The pending request is emitted as mcp.oauth_required with the data necessary to authorize the request.
+    ///
+    /// Wire method: `session.mcp.oauth.handlePendingRequest`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pending MCP OAuth request ID and host-provided token or cancellation response.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the pending MCP OAuth response was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn handle_pending_request(
+        &self,
+        params: McpOauthHandlePendingRequest,
+    ) -> Result<McpOauthHandlePendingResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

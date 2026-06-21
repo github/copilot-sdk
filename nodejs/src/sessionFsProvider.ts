@@ -96,7 +96,7 @@ export interface SessionFsProvider {
 }
 
 function normalizeSqliteParams(
-    params?: Record<string, string | number | null | undefined>
+    params?: Record<string, unknown>
 ): Record<string, string | number | null> | undefined {
     if (!params) {
         return undefined;
@@ -105,7 +105,7 @@ function normalizeSqliteParams(
     const normalized: Record<string, string | number | null> = {};
     for (const [key, value] of Object.entries(params)) {
         if (value !== undefined) {
-            normalized[key] = value;
+            normalized[key] = value as string | number | null;
         }
     }
     return normalized;

@@ -241,6 +241,53 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
 
+        // Handle /copilot_internal/user endpoint for per-session auth.
+        // This must run before the state guard below: the CLI authenticates and
+        // calls /copilot_internal/user at startup, which can race ahead of the
+        // per-test POST /config (e.g. the Go harness spawns the CLI before the
+        // first ConfigureForTest). The response only depends on the token map,
+        // which is populated independently of `state`.
+        if (options.requestOptions.path === "/copilot_internal/user") {
+          const headers = options.requestOptions.headers;
+          const headerMap = headers as
+            | Record<string, string | string[] | number | undefined>
+            | undefined;
+          const rawAuthHeader = Array.isArray(headers)
+            ? undefined
+            : (headerMap?.authorization ?? headerMap?.Authorization);
+          const authHeader = Array.isArray(rawAuthHeader)
+            ? rawAuthHeader[0]
+            : typeof rawAuthHeader === "string"
+              ? rawAuthHeader
+              : undefined;
+          const token = authHeader?.replace("Bearer ", "");
+          const registered = token
+            ? this.copilotUserByToken.get(token)
+            : undefined;
+          // The CLI gates third-party MCP servers behind the copilot user's
+          // `is_mcp_enabled` flag (a null/missing value disables them). Default
+          // it to true so e2e MCP servers are enabled unless a test opts out.
+          const userResponse = registered
+            ? ({ is_mcp_enabled: true, ...registered } as CopilotUserResponse)
+            : undefined;
+          if (userResponse) {
+            const headers = {
+              "content-type": "application/json",
+              ...commonResponseHeaders,
+            };
+            options.onResponseStart(200, headers);
+            options.onData(Buffer.from(JSON.stringify(userResponse)));
+            options.onResponseEnd();
+          } else {
+            options.onResponseStart(401, commonResponseHeaders);
+            options.onData(
+              Buffer.from(JSON.stringify({ message: "Bad credentials" })),
+            );
+            options.onResponseEnd();
+          }
+          return;
+        }
+
         const state = this.state;
         if (!state) {
           throw new Error(
@@ -265,42 +312,6 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.onResponseStart(200, headers);
           options.onData(Buffer.from(body));
           options.onResponseEnd();
-          return;
-        }
-
-        // Handle /copilot_internal/user endpoint for per-session auth
-        if (options.requestOptions.path === "/copilot_internal/user") {
-          const headers = options.requestOptions.headers;
-          const headerMap = headers as
-            | Record<string, string | string[] | number | undefined>
-            | undefined;
-          const rawAuthHeader = Array.isArray(headers)
-            ? undefined
-            : (headerMap?.authorization ?? headerMap?.Authorization);
-          const authHeader = Array.isArray(rawAuthHeader)
-            ? rawAuthHeader[0]
-            : typeof rawAuthHeader === "string"
-              ? rawAuthHeader
-              : undefined;
-          const token = authHeader?.replace("Bearer ", "");
-          const userResponse = token
-            ? this.copilotUserByToken.get(token)
-            : undefined;
-          if (userResponse) {
-            const headers = {
-              "content-type": "application/json",
-              ...commonResponseHeaders,
-            };
-            options.onResponseStart(200, headers);
-            options.onData(Buffer.from(JSON.stringify(userResponse)));
-            options.onResponseEnd();
-          } else {
-            options.onResponseStart(401, commonResponseHeaders);
-            options.onData(
-              Buffer.from(JSON.stringify({ message: "Bad credentials" })),
-            );
-            options.onResponseEnd();
-          }
           return;
         }
 
@@ -1504,6 +1515,7 @@ export type ToolResultNormalizer = {
 export type CopilotUserResponse = {
   login: string;
   copilot_plan?: string;
+  is_mcp_enabled?: boolean;
   endpoints?: {
     api?: string;
     telemetry?: string;

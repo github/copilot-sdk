@@ -1104,7 +1104,7 @@ func TestSessionBlobAttachmentE2E(t *testing.T) {
 			Prompt: "Describe this image",
 			Attachments: []copilot.Attachment{
 				&copilot.AttachmentBlob{
-					Data:        data,
+					Data:        &data,
 					MIMEType:    mimeType,
 					DisplayName: &displayName,
 				},

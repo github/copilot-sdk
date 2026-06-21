@@ -89,6 +89,12 @@ pub mod rpc_methods {
     pub const RUNTIME_SHUTDOWN: &str = "runtime.shutdown";
     /// `sessionFs.setProvider`
     pub const SESSIONFS_SETPROVIDER: &str = "sessionFs.setProvider";
+    /// `llmInference.setProvider`
+    pub const LLMINFERENCE_SETPROVIDER: &str = "llmInference.setProvider";
+    /// `llmInference.httpResponseStart`
+    pub const LLMINFERENCE_HTTPRESPONSESTART: &str = "llmInference.httpResponseStart";
+    /// `llmInference.httpResponseChunk`
+    pub const LLMINFERENCE_HTTPRESPONSECHUNK: &str = "llmInference.httpResponseChunk";
     /// `sessions.open`
     pub const SESSIONS_OPEN: &str = "sessions.open";
     /// `sessions.fork`
@@ -302,6 +308,9 @@ pub mod rpc_methods {
     pub const SESSION_MCP_ISSERVERRUNNING: &str = "session.mcp.isServerRunning";
     /// `session.mcp.oauth.respond`
     pub const SESSION_MCP_OAUTH_RESPOND: &str = "session.mcp.oauth.respond";
+    /// `session.mcp.oauth.handlePendingRequest`
+    pub const SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST: &str =
+        "session.mcp.oauth.handlePendingRequest";
     /// `session.mcp.oauth.login`
     pub const SESSION_MCP_OAUTH_LOGIN: &str = "session.mcp.oauth.login";
     /// `session.mcp.apps.readResource`
@@ -1335,13 +1344,23 @@ pub struct ApiKeyAuthInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentBlob {
-    /// Base64-encoded content
-    pub data: String,
+    /// Internal: content-addressed id of the session.binary_asset event holding this attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_id: Option<String>,
+    /// Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub byte_length: Option<i64>,
+    /// Base64-encoded content. Present on input and for external consumers; replaced by an internal `assetId` reference in persisted events when interned to a content-addressed asset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,
     /// User-facing display name for the attachment
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
     /// MIME type of the inline data
     pub mime_type: String,
+    /// Internal: why model-facing bytes are absent from persistence. Absent externally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub omitted_reason: Option<OmittedBinaryOmittedReason>,
     /// Attachment type discriminator
     pub r#type: AttachmentBlobType,
 }
@@ -1423,11 +1442,23 @@ pub struct AttachmentFileLineRange {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentFile {
+    /// Internal: content-addressed id of the session.binary_asset event holding this attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_id: Option<String>,
+    /// Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub byte_length: Option<i64>,
     /// User-facing display name for the attachment
     pub display_name: String,
     /// Optional line range to scope the attachment to a specific section of the file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line_range: Option<AttachmentFileLineRange>,
+    /// Internal: MIME type of the file's model-facing bytes (post-resize for images). Set when the file's bytes are interned to an asset. Absent externally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Internal: why model-facing bytes are absent from persistence. Absent externally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub omitted_reason: Option<OmittedBinaryOmittedReason>,
     /// Absolute file path
     pub path: String,
     /// Attachment type discriminator
@@ -3295,6 +3326,167 @@ pub struct InstructionsGetSourcesResult {
     pub sources: Vec<InstructionSource>,
 }
 
+/// A request body chunk or cancellation signal.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpRequestChunkRequest {
+    /// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary: Option<bool>,
+    /// When true, the runtime is cancelling the in-flight request (e.g. upstream consumer aborted). `data` is ignored. Implies end-of-request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel: Option<bool>,
+    /// Optional human-readable reason for the cancellation, propagated for logging.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_reason: Option<String>,
+    /// Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when `binary` is true. May be empty.
+    pub data: String,
+    /// When true, this is the final body chunk for the request. The SDK may rely on having received an end-marked chunk before treating the request body as complete.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end: Option<bool>,
+    /// Matches the requestId from the originating httpRequestStart frame.
+    pub request_id: RequestId,
+}
+
+/// Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpRequestChunkResult {}
+
+/// The head of an outbound model-layer HTTP request.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpRequestStartRequest {
+    pub headers: HashMap<String, Vec<String>>,
+    /// HTTP method, e.g. GET, POST.
+    pub method: String,
+    /// Opaque runtime-minted id, unique per in-flight request. The SDK uses this to correlate httpRequestChunk frames and to address its httpResponseStart / httpResponseChunk replies back to the runtime.
+    pub request_id: RequestId,
+    /// Id of the runtime session that triggered this request, when one is in scope. Absent for requests issued outside any session (e.g. startup model-catalog or capability resolution). This is a payload field — not a dispatch key — because the client-global API is registered process-wide rather than per session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+    /// Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<LlmInferenceHttpRequestStartTransport>,
+    /// Absolute request URL.
+    pub url: String,
+}
+
+/// Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpRequestStartResult {}
+
+/// Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpResponseChunkError {
+    /// Optional machine-readable error code.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Human-readable failure description.
+    pub message: String,
+}
+
+/// A response body chunk or terminal error.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpResponseChunkRequest {
+    /// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary: Option<bool>,
+    /// Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when `binary` is true. May be empty (e.g. when the response body is empty: send a single chunk with empty data and end=true).
+    pub data: String,
+    /// When true, this is the final body chunk for the response. The runtime treats the response body as complete after receiving an end-marked chunk.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end: Option<bool>,
+    /// Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<LlmInferenceHttpResponseChunkError>,
+    /// Matches the requestId from the originating httpRequestStart frame.
+    pub request_id: RequestId,
+}
+
+/// Whether the chunk was accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpResponseChunkResult {
+    /// True when the chunk was matched to a pending request; false when unknown.
+    pub accepted: bool,
+}
+
+/// Response head.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpResponseStartRequest {
+    pub headers: HashMap<String, Vec<String>>,
+    /// Matches the requestId from the originating httpRequestStart frame.
+    pub request_id: RequestId,
+    /// HTTP status code.
+    pub status: i64,
+    /// Optional HTTP status reason phrase.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_text: Option<String>,
+}
+
+/// Whether the start frame was accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceHttpResponseStartResult {
+    /// True when the response start was matched to a pending request; false when unknown.
+    pub accepted: bool,
+}
+
+/// Indicates whether the calling client was registered as the LLM inference provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmInferenceSetProviderResult {
+    /// Whether the provider was set successfully
+    pub success: bool,
+}
+
 /// Pre-resolved working-directory context for session startup.
 ///
 /// <div class="warning">
@@ -4218,6 +4410,61 @@ pub struct McpListToolsResult {
     pub tools: Vec<McpTools>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthPendingRequestResponseToken {
+    /// Access token acquired by the SDK host
+    pub access_token: String,
+    /// Token lifetime in seconds, if known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<i64>,
+    pub kind: McpOauthPendingRequestResponseTokenKind,
+    /// Refresh token supplied by the host, if available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+    /// OAuth token type. Defaults to Bearer when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthPendingRequestResponseCancelled {
+    pub kind: McpOauthPendingRequestResponseCancelledKind,
+}
+
+/// Pending MCP OAuth request ID and host-provided token or cancellation response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthHandlePendingRequest {
+    /// OAuth request identifier from the mcp.oauth_required event
+    pub request_id: RequestId,
+    /// Host response to the pending OAuth request.
+    pub result: McpOauthPendingRequestResponse,
+}
+
+/// Indicates whether the pending MCP OAuth response was accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthHandlePendingResult {
+    /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+    pub success: bool,
+}
+
 /// Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
 ///
 /// <div class="warning">
@@ -4882,15 +5129,24 @@ pub struct MetadataSnapshotRemoteMetadata {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelBillingTokenPricesLongContext {
-    /// AI Credits cost per billing batch of cached tokens
+    /// Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_price: Option<f64>,
-    /// Prompt token budget (max_prompt_tokens) for the long context tier. The total context window is this value plus the model's max_output_tokens.
+    /// AI Credits cost per billing batch of cached (read) tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_read_price: Option<f64>,
+    /// AI Credits cost per billing batch of cache-write (cache creation) tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_price: Option<f64>,
+    /// Deprecated: use maxPromptTokens. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_max: Option<i64>,
     /// AI Credits cost per billing batch of input tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_price: Option<f64>,
+    /// Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
     /// AI Credits cost per billing batch of output tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_price: Option<f64>,
@@ -4903,10 +5159,16 @@ pub struct ModelBillingTokenPrices {
     /// Number of tokens per standard billing batch
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_size: Option<i64>,
-    /// AI Credits cost per billing batch of cached tokens
+    /// Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_price: Option<f64>,
-    /// Prompt token budget (max_prompt_tokens) for the default tier. The total context window is this value plus the model's max_output_tokens.
+    /// AI Credits cost per billing batch of cached (read) tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_read_price: Option<f64>,
+    /// AI Credits cost per billing batch of cache-write (cache creation) tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_price: Option<f64>,
+    /// Deprecated: use maxPromptTokens. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_max: Option<i64>,
     /// AI Credits cost per billing batch of input tokens
@@ -4915,6 +5177,9 @@ pub struct ModelBillingTokenPrices {
     /// Long context tier pricing (available for models with extended context windows)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub long_context: Option<ModelBillingTokenPricesLongContext>,
+    /// Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
     /// AI Credits cost per billing batch of output tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_price: Option<f64>,
@@ -8293,7 +8558,7 @@ pub struct SandboxConfig {
     pub add_current_working_directory: Option<bool>,
     /// Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to `spawnSandboxFromConfig`, bypassing policy merging.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub config: Option<HashMap<String, serde_json::Value>>,
+    pub config: Option<serde_json::Value>,
     /// Whether sandboxing is enabled for the session.
     pub enabled: bool,
     /// User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -9435,6 +9700,16 @@ pub struct SessionOpenOptions {
     /// Skill IDs disabled for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
+    /// Experimental: enable native model citations (Anthropic models today), normalized onto the `assistant.message` event. Off by default; may change or be removed while the citations surface is experimental.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_citations: Option<bool>,
     /// Whether on-demand custom instruction discovery is enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_on_demand_instruction_discovery: Option<bool>,
@@ -14746,6 +15021,21 @@ pub struct SessionMcpIsServerRunningResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpOauthRespondResult {}
 
+/// Indicates whether the pending MCP OAuth response was accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpOauthHandlePendingRequestResult {
+    /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+    pub success: bool,
+}
+
 /// OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.
 ///
 /// <div class="warning">
@@ -16431,6 +16721,16 @@ pub struct CanvasOpenResult {
     pub url: Option<String>,
 }
 
+/// HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type LlmInferenceHeaders = HashMap<String, Vec<String>>;
+
 /// MCP CreateMessageResult payload (with optional 'tools' extension), present when action='success'. Treated as opaque at the schema layer; consumers should construct/consume it per the MCP CreateMessageResult shape.
 ///
 /// <div class="warning">
@@ -16787,6 +17087,28 @@ pub enum ApiKeyAuthInfoType {
     #[serde(rename = "api-key")]
     #[default]
     ApiKey,
+}
+
+/// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OmittedBinaryOmittedReason {
+    /// Bytes exceeded the session's inline size limit.
+    #[serde(rename = "too_large")]
+    TooLarge,
+    /// The referenced binary asset could not be found (e.g. a truncated log).
+    #[serde(rename = "asset_unavailable")]
+    AssetUnavailable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Attachment type discriminator
@@ -17405,6 +17727,21 @@ pub enum InstructionSourceType {
     Unknown,
 }
 
+/// Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LlmInferenceHttpRequestStartTransport {
+    /// Plain HTTP or SSE response. Each body chunk is an opaque byte range; the response is a status line, headers, and a (possibly streamed) body.
+    #[serde(rename = "http")]
+    Http,
+    /// Full-duplex WebSocket channel. Each body chunk maps to exactly one WebSocket message and the `binary` flag distinguishes text from binary frames; request and response chunks flow concurrently.
+    #[serde(rename = "websocket")]
+    Websocket,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Repository host type
 ///
 /// <div class="warning">
@@ -17644,6 +17981,35 @@ pub enum McpAppsSetHostContextDetailsTheme {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthPendingRequestResponseTokenKind {
+    #[serde(rename = "token")]
+    #[default]
+    Token,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthPendingRequestResponseCancelledKind {
+    #[serde(rename = "cancelled")]
+    #[default]
+    Cancelled,
+}
+
+/// Host response to the pending OAuth request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpOauthPendingRequestResponse {
+    Token(McpOauthPendingRequestResponseToken),
+    Cancelled(McpOauthPendingRequestResponseCancelled),
 }
 
 /// Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.

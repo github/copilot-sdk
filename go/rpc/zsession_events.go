@@ -183,6 +183,9 @@ func (*AssistantReasoningData) Type() SessionEventType { return SessionEventType
 type AssistantMessageData struct {
 	// Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
 	APICallID *string `json:"apiCallId,omitempty"`
+	// Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
+	// Experimental: Citations is part of an experimental API and may change or be removed.
+	Citations *Citations `json:"citations,omitempty"`
 	// The assistant's text response content
 	Content string `json:"content"`
 	// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -403,7 +406,7 @@ type ElicitationCompletedData struct {
 	// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 	Action *ElicitationCompletedAction `json:"action,omitempty"`
 	// The submitted form data when action is 'accept'; keys match the requested schema fields
-	Content map[string]ElicitationCompletedContent `json:"content,omitzero"`
+	Content map[string]any `json:"content,omitzero"`
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
 }
@@ -524,10 +527,16 @@ func (*ExternalToolRequestedData) Type() SessionEventType {
 type ModelCallFailureData struct {
 	// Completion ID from the model provider (e.g., chatcmpl-abc123)
 	APICallID *string `json:"apiCallId,omitempty"`
+	// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+	BadRequestKind *ModelCallFailureBadRequestKind `json:"badRequestKind,omitempty"`
 	// Duration of the failed API call in milliseconds
 	DurationMs *int64 `json:"durationMs,omitempty"`
+	// For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+	ErrorCode *string `json:"errorCode,omitempty"`
 	// Raw provider/runtime error message for restricted telemetry
 	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+	ErrorType *string `json:"errorType,omitempty"`
 	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
 	Initiator *string `json:"initiator,omitempty"`
 	// Model identifier used for the failed API call
@@ -669,6 +678,8 @@ func (*MCPAppToolCallCompleteData) Type() SessionEventType {
 
 // MCP OAuth request completion notification
 type MCPOauthCompletedData struct {
+	// How the pending OAuth request was completed
+	Outcome MCPOauthCompletionOutcome `json:"outcome"`
 	// Request ID of the resolved OAuth request
 	RequestID string `json:"requestId"`
 }
@@ -712,14 +723,18 @@ func (*SessionRemoteSteerableChangedData) Type() SessionEventType {
 
 // OAuth authentication request for an MCP server
 type MCPOauthRequiredData struct {
-	// Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth()
+	// Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
 	RequestID string `json:"requestId"`
+	// Raw OAuth protected-resource metadata document fetched for the MCP server, if available
+	ResourceMetadata *string `json:"resourceMetadata,omitempty"`
 	// Display name of the MCP server that requires OAuth
 	ServerName string `json:"serverName"`
 	// URL of the MCP server that requires OAuth
 	ServerURL string `json:"serverUrl"`
 	// Static OAuth client configuration, if the server specifies one
 	StaticClientConfig *MCPOauthRequiredStaticClientConfig `json:"staticClientConfig,omitempty"`
+	// OAuth WWW-Authenticate parameters parsed from the auth challenge, if available
+	WwwAuthenticateParams *MCPOauthWwwAuthenticateParams `json:"wwwAuthenticateParams,omitempty"`
 }
 
 func (*MCPOauthRequiredData) sessionEventData()      {}
@@ -730,7 +745,7 @@ type SessionCustomNotificationData struct {
 	// Source-defined custom notification name
 	Name string `json:"name"`
 	// Source-defined JSON payload for the custom notification
-	Payload CustomNotificationPayload `json:"payload"`
+	Payload any `json:"payload"`
 	// Namespace for the custom notification producer
 	Source string `json:"source"`
 	// Optional source-defined string identifiers describing the payload subject
@@ -1755,7 +1770,7 @@ type CanvasRegistryChangedCanvas struct {
 	// Owning extension display name, when available
 	ExtensionName *string `json:"extensionName,omitempty"`
 	// JSON Schema for canvas open input
-	InputSchema map[string]any `json:"inputSchema,omitzero"`
+	InputSchema any `json:"inputSchema,omitempty"`
 }
 
 // Schema for the `CanvasRegistryChangedCanvasAction` type.
@@ -1763,7 +1778,7 @@ type CanvasRegistryChangedCanvasAction struct {
 	// Action description
 	Description *string `json:"description,omitempty"`
 	// JSON Schema for action input
-	InputSchema map[string]any `json:"inputSchema,omitzero"`
+	InputSchema any `json:"inputSchema,omitempty"`
 	// Action name
 	Name string `json:"name"`
 }
@@ -1776,6 +1791,125 @@ type CapabilitiesChangedUI struct {
 	Elicitation *bool `json:"elicitation,omitempty"`
 	// Whether MCP Apps (SEP-1865) UI passthrough is now supported
 	MCPApps *bool `json:"mcpApps,omitempty"`
+}
+
+// A source supplied by a tool that should be made available to the model as citable content.
+// Experimental: CitableSource is part of an experimental API and may change or be removed.
+type CitableSource struct {
+	// The source text made available to the model as citable content.
+	Content string `json:"content"`
+	// Stable identifier for this source within the tool result. Used for deduplication and may be used by future provider integrations to correlate response citations back to the originating source.
+	ID string `json:"id"`
+	// File path relative to the agent's workspace root, when the source is a file.
+	Path *string `json:"path,omitempty"`
+	// Human-readable title of the source.
+	Title *string `json:"title,omitempty"`
+	// URL of the source, when it is a web resource.
+	URL *string `json:"url,omitempty"`
+}
+
+// Location within a cited source (character, page, or content-block range) that supports a span.
+// Experimental: CitationLocation is part of an experimental API and may change or be removed.
+type CitationLocation interface {
+	citationLocation()
+	Type() CitationLocationType
+}
+
+type RawCitationLocation struct {
+	Discriminator CitationLocationType
+	Raw           json.RawMessage
+}
+
+func (RawCitationLocation) citationLocation() {}
+func (r RawCitationLocation) Type() CitationLocationType {
+	return r.Discriminator
+}
+
+// A content-block range within a structured source document.
+type CitationLocationBlock struct {
+	// Index of the last content block of the cited range (zero-based, exclusive).
+	EndBlock int64 `json:"endBlock"`
+	// Index of the first content block of the cited range (zero-based, inclusive).
+	StartBlock int64 `json:"startBlock"`
+}
+
+func (CitationLocationBlock) citationLocation() {}
+func (CitationLocationBlock) Type() CitationLocationType {
+	return CitationLocationTypeBlock
+}
+
+// A character range within the source's text content.
+type CitationLocationChar struct {
+	// End character offset within the source text (zero-based, exclusive).
+	EndIndex int64 `json:"endIndex"`
+	// Start character offset within the source text (zero-based, inclusive).
+	StartIndex int64 `json:"startIndex"`
+}
+
+func (CitationLocationChar) citationLocation() {}
+func (CitationLocationChar) Type() CitationLocationType {
+	return CitationLocationTypeChar
+}
+
+// A page range within a paginated source document.
+type CitationLocationPage struct {
+	// Last page number of the cited range (inclusive).
+	EndPage int64 `json:"endPage"`
+	// First page number of the cited range.
+	StartPage int64 `json:"startPage"`
+}
+
+func (CitationLocationPage) citationLocation() {}
+func (CitationLocationPage) Type() CitationLocationType {
+	return CitationLocationTypePage
+}
+
+// A single citation occurrence linking a span of generated text to a supporting source.
+// Experimental: CitationReference is part of an experimental API and may change or be removed.
+type CitationReference struct {
+	// The exact text from the source that supports the cited span, when provided by the model.
+	CitedText *string `json:"citedText,omitempty"`
+	// Location within the source that supports the cited span, when the provider reports one.
+	Location CitationLocation `json:"location,omitempty"`
+	// Provider-native citation correlation data (e.g. Anthropic search_result_index / document_index), passed through opaquely for debugging and forward compatibility.
+	ProviderMetadata any `json:"providerMetadata,omitempty"`
+	// Identifier of the CitationSource this reference points to (CitationSource.id).
+	SourceID string `json:"sourceId"`
+}
+
+// Provider-agnostic citations linking spans of the assistant's response to their supporting sources.
+// Experimental: Citations is part of an experimental API and may change or be removed.
+type Citations struct {
+	// Deduplicated set of sources referenced by the citation spans.
+	Sources []CitationSource `json:"sources"`
+	// Spans of generated text annotated with the sources that support them.
+	Spans []CitationSpan `json:"spans"`
+}
+
+// A source that backs one or more cited spans in the assistant's response.
+// Experimental: CitationSource is part of an experimental API and may change or be removed.
+type CitationSource struct {
+	// Stable, turn-scoped identifier for this source, referenced by CitationReference.sourceId.
+	ID string `json:"id"`
+	// File path relative to the agent's workspace root, when the source is a file.
+	Path *string `json:"path,omitempty"`
+	// The system that produced this citation.
+	Provider CitationProvider `json:"provider"`
+	// Human-readable title of the source.
+	Title *string `json:"title,omitempty"`
+	// URL of the source, when it is a web resource.
+	URL *string `json:"url,omitempty"`
+}
+
+// A contiguous span of generated assistant text and the source references that support it.
+// Experimental: CitationSpan is part of an experimental API and may change or be removed.
+type CitationSpan struct {
+	// End offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, exclusive).
+	EndIndex int64 `json:"endIndex"`
+	// The sources that support this span of generated text.
+	References []CitationReference `json:"references"`
+	// Start offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, inclusive).
+	StartIndex int64 `json:"startIndex"`
 }
 
 // Schema for the `CommandsChangedCommand` type.
@@ -1847,36 +1981,6 @@ type CustomAgentsUpdatedAgent struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
-// Source-defined JSON payload for the custom notification
-type CustomNotificationPayload struct {
-	AnyArray []any
-	AnyMap   map[string]any
-	Bool     *bool
-	Double   *float64
-	String   *string
-}
-
-// Schema for the `ElicitationCompletedContent` type.
-type ElicitationCompletedContent interface {
-	elicitationCompletedContent()
-}
-
-type ElicitationCompletedBooleanContent bool
-
-func (ElicitationCompletedBooleanContent) elicitationCompletedContent() {}
-
-type ElicitationCompletedNumberContent float64
-
-func (ElicitationCompletedNumberContent) elicitationCompletedContent() {}
-
-type ElicitationCompletedStringArrayContent []string
-
-func (ElicitationCompletedStringArrayContent) elicitationCompletedContent() {}
-
-type ElicitationCompletedStringContent string
-
-func (ElicitationCompletedStringContent) elicitationCompletedContent() {}
-
 // JSON Schema describing the form fields to present to the user (form mode only)
 type ElicitationRequestedSchema struct {
 	// Form field definitions, keyed by field name
@@ -1947,6 +2051,16 @@ type MCPOauthRequiredStaticClientConfig struct {
 	GrantType *MCPOauthRequiredStaticClientConfigGrantType `json:"grantType,omitempty"`
 	// Whether this is a public OAuth client
 	PublicClient *bool `json:"publicClient,omitempty"`
+}
+
+// OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
+type MCPOauthWwwAuthenticateParams struct {
+	// OAuth error from the WWW-Authenticate error parameter, if present
+	Error *string `json:"error,omitempty"`
+	// Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter
+	ResourceMetadataURL string `json:"resourceMetadataUrl"`
+	// Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
+	Scope *string `json:"scope,omitempty"`
 }
 
 // Schema for the `McpServersLoadedServer` type.
@@ -2071,7 +2185,7 @@ func (PermissionPromptRequestHook) Kind() PermissionPromptRequestKind {
 // MCP tool invocation permission prompt
 type PermissionPromptRequestMCP struct {
 	// Arguments to pass to the MCP tool
-	Args *any `json:"args,omitempty"`
+	Args any `json:"args,omitempty"`
 	// Name of the MCP server providing the tool
 	ServerName string `json:"serverName"`
 	// Tool call ID that triggered this permission request
@@ -2923,6 +3037,9 @@ type ToolExecutionCompleteResult struct {
 	// Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call
 	// Experimental: BinaryResultsForLlm is part of an experimental API and may change or be removed.
 	BinaryResultsForLlm []PersistedBinaryResult `json:"binaryResultsForLlm,omitzero"`
+	// Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental.
+	// Experimental: CitableSources is part of an experimental API and may change or be removed.
+	CitableSources []CitableSource `json:"citableSources,omitzero"`
 	// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
 	Content string `json:"content"`
 	// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
@@ -3161,6 +3278,29 @@ const (
 	CanvasOpenedAvailabilityStale CanvasOpenedAvailability = "stale"
 )
 
+// Type discriminator for CitationLocation.
+// Experimental: CitationLocationType is part of an experimental API and may change or be removed.
+type CitationLocationType string
+
+const (
+	CitationLocationTypeBlock CitationLocationType = "block"
+	CitationLocationTypeChar  CitationLocationType = "char"
+	CitationLocationTypePage  CitationLocationType = "page"
+)
+
+// The system that produced a citation.
+// Experimental: CitationProvider is part of an experimental API and may change or be removed.
+type CitationProvider string
+
+const (
+	// Citation produced by an Anthropic (Claude) model response.
+	CitationProviderAnthropic CitationProvider = "anthropic"
+	// Citation synthesized client-side by the runtime from tool output.
+	CitationProviderClient CitationProvider = "client"
+	// Citation produced by an OpenAI model response.
+	CitationProviderOpenai CitationProvider = "openai"
+)
+
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 type ElicitationCompletedAction string
 
@@ -3242,6 +3382,16 @@ const (
 	HandoffSourceTypeRemote HandoffSourceType = "remote"
 )
 
+// How the pending MCP OAuth request was completed
+type MCPOauthCompletionOutcome string
+
+const (
+	// The request completed without an OAuth provider.
+	MCPOauthCompletionOutcomeCancelled MCPOauthCompletionOutcome = "cancelled"
+	// The request completed with a token-backed OAuth provider.
+	MCPOauthCompletionOutcomeToken MCPOauthCompletionOutcome = "token"
+)
+
 // Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
 type MCPOauthRequiredStaticClientConfigGrantType string
 
@@ -3263,6 +3413,16 @@ const (
 	MCPServerTransportStdio MCPServerTransport = "stdio"
 )
 
+// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+type ModelCallFailureBadRequestKind string
+
+const (
+	// The 400 response carried no error body (transient gateway/proxy signature).
+	ModelCallFailureBadRequestKindBodyless ModelCallFailureBadRequestKind = "bodyless"
+	// The 400 response carried a structured CAPI error envelope (deterministic validation failure).
+	ModelCallFailureBadRequestKindStructuredError ModelCallFailureBadRequestKind = "structured_error"
+)
+
 // Where the failed model call originated
 type ModelCallFailureSource string
 
@@ -3273,16 +3433,6 @@ const (
 	ModelCallFailureSourceSubagent ModelCallFailureSource = "subagent"
 	// Model call from the top-level agent.
 	ModelCallFailureSourceTopLevel ModelCallFailureSource = "top_level"
-)
-
-// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
-type OmittedBinaryOmittedReason string
-
-const (
-	// The referenced binary asset could not be found (e.g. a truncated log).
-	OmittedBinaryOmittedReasonAssetUnavailable OmittedBinaryOmittedReason = "asset_unavailable"
-	// Bytes exceeded the session's inline size limit.
-	OmittedBinaryOmittedReasonTooLarge OmittedBinaryOmittedReason = "too_large"
 )
 
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.

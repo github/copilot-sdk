@@ -66,7 +66,9 @@ public final class AssistantMessageEvent extends SessionEvent {
         /** Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event */
         @JsonProperty("turnId") String turnId,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
-        @JsonProperty("parentToolCallId") String parentToolCallId
+        @JsonProperty("parentToolCallId") String parentToolCallId,
+        /** Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled. */
+        @JsonProperty("citations") Citations citations
     ) {
     }
 }

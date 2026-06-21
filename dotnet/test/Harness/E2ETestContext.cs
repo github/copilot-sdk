@@ -140,11 +140,21 @@ public sealed class E2ETestContext : IAsyncDisposable
         var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 
-        var path = Path.Combine(repoRoot, "nodejs/node_modules/@github/copilot/index.js");
-        if (!File.Exists(path))
-            throw new InvalidOperationException($"CLI not found at {path}. Run 'npm install' in the nodejs directory first.");
+        // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
+        // runnable index.js ships in the installed platform package
+        // (e.g. @github/copilot-linux-x64). Exactly one is installed.
+        var githubModules = Path.Join(repoRoot, "nodejs", "node_modules", "@github");
+        if (Directory.Exists(githubModules))
+        {
+            var candidate = Directory.EnumerateDirectories(githubModules, "copilot-*")
+                .Select(dir => Path.Join(dir, "index.js"))
+                .FirstOrDefault(File.Exists);
+            if (candidate != null)
+                return candidate;
+        }
 
-        return path;
+        throw new InvalidOperationException(
+            $"CLI not found under {githubModules}. Run 'npm install' in the nodejs directory first.");
     }
 
     public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
@@ -173,6 +183,11 @@ public sealed class E2ETestContext : IAsyncDisposable
             .ToDictionary(e => (string)e.Key, e => e.Value?.ToString());
 
         env["COPILOT_API_URL"] = ProxyUrl;
+        // Route GitHub API calls (e.g. the MCP registry policy check) to the
+        // replay proxy so MCP enablement stays hermetic. Without this the CLI
+        // reaches the real api.github.com, which is slow/unreachable on macOS
+        // CI runners and makes MCP servers time out before reaching connected.
+        env["COPILOT_DEBUG_GITHUB_API_URL"] = ProxyUrl;
         env["COPILOT_HOME"] = HomeDir;
         env["GH_CONFIG_DIR"] = HomeDir;
         env["XDG_CONFIG_HOME"] = HomeDir;

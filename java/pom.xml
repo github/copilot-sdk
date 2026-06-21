@@ -60,9 +60,9 @@
             environment variable, so `mvn verify` is self-contained and the
             developer never has to set it manually. Override on the command
             line to point at a different CLI build, e.g.:
-              mvn verify -Dcopilot.cli.path=/some/other/copilot/index.js
+              mvn verify -Dcopilot.cli.path=/some/other/copilot/npm-loader.js
         -->
-        <copilot.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot/index.js</copilot.cli.path>
+        <copilot.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot/npm-loader.js</copilot.cli.path>
         <!-- Set to true (via -Pskip-test-harness) to skip npm install of test harness -->
         <skip.test.harness>false</skip.test.harness>
         <!--
@@ -86,7 +86,7 @@
             DO NOT EDIT MANUALLY. Updated by the update-copilot-dependency
             workflow.
         -->
-        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.64-0</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
+        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.64-1</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
 
     </properties>
 

@@ -33,6 +33,8 @@ public record ToolExecutionCompleteResult(
     /** MCP Apps UI resource content for rendering in a sandboxed iframe */
     @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource,
     /** Structured content (arbitrary JSON) returned verbatim by the MCP tool */
-    @JsonProperty("structuredContent") Object structuredContent
+    @JsonProperty("structuredContent") Object structuredContent,
+    /** Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental. */
+    @JsonProperty("citableSources") List<CitableSource> citableSources
 ) {
 }
