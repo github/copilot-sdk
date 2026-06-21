@@ -55,6 +55,12 @@ import com.github.copilot.rpc.CopilotClientOptions;
 public class E2ETestContext implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(E2ETestContext.class.getName());
+
+    /**
+     * The default GitHub token used by the CLI in e2e tests. The proxy resolves
+     * this token to the default Copilot user registered at context creation.
+     */
+    private static final String DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
     private static final Pattern SNAKE_CASE = Pattern.compile("[^a-zA-Z0-9]");
     private static final Pattern USER_CONTENT_PATTERN = Pattern
             .compile("^\\s+-\\s+role:\\s+user\\s*$\\s+content:\\s*(.+?)$", Pattern.MULTILINE);
@@ -96,6 +102,23 @@ public class E2ETestContext implements AutoCloseable {
 
         CapiProxy proxy = new CapiProxy();
         String proxyUrl = proxy.start();
+
+        // Register a default Copilot user for the CLI's default token so the proxy's
+        // /copilot_internal/user endpoint returns a valid user (HTTP 200) instead of
+        // 401 "Bad credentials". CLI 1.0.64-1 gates MCP enablement on this user:
+        // `is_mcp_enabled` (added by the proxy) is the global gate, and snake_case
+        // `copilot_plan` makes the third-party MCP policy resolver early-return
+        // allow-all for non-org plans (anything other than business/enterprise),
+        // avoiding a /copilot/mcp_registry network call the proxy does not serve.
+        // Without this, MCP servers never reach CONNECTED. This mirrors the Go,
+        // Node, Python, and .NET harnesses, which all register the same default
+        // individual_pro user at context creation.
+        Map<String, Object> defaultUser = new HashMap<>();
+        defaultUser.put("login", "e2e-test-user");
+        defaultUser.put("copilot_plan", "individual_pro");
+        defaultUser.put("endpoints", Map.of("api", proxyUrl, "telemetry", "https://localhost:1/telemetry"));
+        defaultUser.put("analytics_tracking_id", "e2e-test-tracking-id");
+        proxy.setCopilotUserByToken(DEFAULT_GITHUB_TOKEN, defaultUser);
 
         return new E2ETestContext(cliPath, homeDir, workDir, proxyUrl, proxy, repoRoot);
     }
@@ -282,8 +305,8 @@ public class E2ETestContext implements AutoCloseable {
             env.put("REQUESTS_CA_BUNDLE", caFile);
             env.put("CURL_CA_BUNDLE", caFile);
             env.put("GIT_SSL_CAINFO", caFile);
-            env.put("GH_TOKEN", "fake-token-for-e2e-tests");
-            env.put("GITHUB_TOKEN", "fake-token-for-e2e-tests");
+            env.put("GH_TOKEN", DEFAULT_GITHUB_TOKEN);
+            env.put("GITHUB_TOKEN", DEFAULT_GITHUB_TOKEN);
             env.put("GH_ENTERPRISE_TOKEN", "");
             env.put("GITHUB_ENTERPRISE_TOKEN", "");
         }
@@ -298,7 +321,7 @@ public class E2ETestContext implements AutoCloseable {
      */
     public CopilotClient createClient() {
         CopilotClientOptions options = new CopilotClientOptions().setCliPath(cliPath).setCwd(workDir.toString())
-                .setEnvironment(getEnvironment()).setGitHubToken("fake-token-for-e2e-tests");
+                .setEnvironment(getEnvironment()).setGitHubToken(DEFAULT_GITHUB_TOKEN);
 
         return new CopilotClient(options);
     }
@@ -323,7 +346,7 @@ public class E2ETestContext implements AutoCloseable {
             options.setEnvironment(getEnvironment());
         }
         if (options.getGitHubToken() == null) {
-            options.setGitHubToken("fake-token-for-e2e-tests");
+            options.setGitHubToken(DEFAULT_GITHUB_TOKEN);
         }
 
         return new CopilotClient(options);
