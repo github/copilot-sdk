@@ -259,8 +259,8 @@ class TestCreateSessionConfig:
                 return {}
 
             client._client.request = mock_request
-            create_capi: CapiSessionOptions = {"disable_web_socket_responses": True}
-            resume_capi: CapiSessionOptions = {"disable_web_socket_responses": False}
+            create_capi: CapiSessionOptions = {"enable_web_socket_responses": False}
+            resume_capi: CapiSessionOptions = {"enable_web_socket_responses": True}
 
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -273,10 +273,10 @@ class TestCreateSessionConfig:
             )
 
             assert captured["session.create"]["capi"] == {
-                "disableWebSocketResponses": True,
+                "enableWebSocketResponses": False,
             }
             assert captured["session.resume"]["capi"] == {
-                "disableWebSocketResponses": False,
+                "enableWebSocketResponses": True,
             }
         finally:
             await client.force_stop()

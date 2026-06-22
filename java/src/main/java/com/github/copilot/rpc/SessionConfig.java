@@ -371,9 +371,9 @@ public class SessionConfig {
     /**
      * Sets CAPI provider-scoped session options.
      * <p>
-     * Use {@link CapiSessionOptions#setDisableWebSocketResponses(Boolean)} to opt
-     * out of the default CAPI Responses API WebSocket transport and use HTTP
-     * Responses transport instead.
+     * Use {@link CapiSessionOptions#setEnableWebSocketResponses(Boolean)} with
+     * {@code false} to force the HTTP Responses transport instead of the default
+     * CAPI Responses API WebSocket transport.
      *
      * @param capi
      *            the CAPI session options

@@ -2073,18 +2073,19 @@ public sealed class ProviderConfig
 public sealed class CapiSessionOptions
 {
     /// <summary>
-    /// When <see langword="true"/>, opts out of the WebSocket transport for the CAPI Responses API
-    /// and uses the HTTP Responses transport instead.
+    /// When <see langword="false"/>, forces the HTTP Responses transport for the CAPI Responses API
+    /// instead of the default WebSocket transport.
     /// </summary>
     /// <remarks>
     /// WebSocket transport is the default for CAPI Responses API requests when the model advertises
-    /// the <c>ws:/responses</c> endpoint. Set this option for users behind proxies where WebSockets
-    /// fail. This is equivalent to setting the <c>COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES</c>
-    /// environment variable. The option is scoped under the <c>capi</c> namespace because a single
-    /// session can host multiple providers, such as CAPI and BYOK, so transport choice is provider-level.
+    /// the <c>ws:/responses</c> endpoint. Set this to <see langword="false"/> for users behind proxies
+    /// where WebSockets fail. Setting it to <see langword="false"/> is equivalent to setting the
+    /// <c>COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES</c> environment variable. The option is scoped under
+    /// the <c>capi</c> namespace because a single session can host multiple providers, such as CAPI and
+    /// BYOK, so transport choice is provider-level.
     /// </remarks>
-    [JsonPropertyName("disableWebSocketResponses")]
-    public bool? DisableWebSocketResponses { get; set; }
+    [JsonPropertyName("enableWebSocketResponses")]
+    public bool? EnableWebSocketResponses { get; set; }
 }
 
 /// <summary>

@@ -12,9 +12,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <p>
  * WebSocket transport is the default for the CAPI Responses API whenever the
  * model advertises the {@code ws:/responses} endpoint. Setting
- * {@link #setDisableWebSocketResponses(Boolean)} to {@code true} opts out to
- * the HTTP Responses transport instead, which is useful for users behind
- * proxies where WebSockets fail. This is equivalent to setting the
+ * {@link #setEnableWebSocketResponses(Boolean)} to {@code false} forces the
+ * HTTP Responses transport instead, which is useful for users behind proxies
+ * where WebSockets fail. This is equivalent to setting the
  * {@code COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES} environment variable.
  * <p>
  * These options are scoped under the {@code capi} namespace because a single
@@ -29,35 +29,35 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CapiSessionOptions {
 
-    @JsonProperty("disableWebSocketResponses")
-    private Boolean disableWebSocketResponses;
+    @JsonProperty("enableWebSocketResponses")
+    private Boolean enableWebSocketResponses;
 
     /**
-     * Gets whether CAPI Responses API WebSocket transport is disabled.
+     * Gets whether CAPI Responses API WebSocket transport is enabled.
      *
-     * @return {@code true} to opt out of WebSocket Responses transport,
-     *         {@code false} to explicitly allow it, or {@code null} to use the
+     * @return {@code false} to force the HTTP Responses transport, {@code true} to
+     *         explicitly use WebSocket transport, or {@code null} to use the
      *         default behavior
      */
-    public Boolean getDisableWebSocketResponses() {
-        return disableWebSocketResponses;
+    public Boolean getEnableWebSocketResponses() {
+        return enableWebSocketResponses;
     }
 
     /**
-     * Sets whether to disable CAPI Responses API WebSocket transport.
+     * Sets whether to use CAPI Responses API WebSocket transport.
      * <p>
      * WebSocket transport is the default for the CAPI Responses API whenever the
-     * model advertises the {@code ws:/responses} endpoint. Set this to {@code true}
-     * to opt out to the HTTP Responses transport instead, which is useful for users
-     * behind proxies where WebSockets fail. This is equivalent to setting the
-     * {@code COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES} environment variable.
+     * model advertises the {@code ws:/responses} endpoint. Set this to
+     * {@code false} to force the HTTP Responses transport instead, which is useful
+     * for users behind proxies where WebSockets fail. This is equivalent to setting
+     * the {@code COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES} environment variable.
      *
-     * @param disableWebSocketResponses
-     *            {@code true} to opt out of WebSocket Responses transport
+     * @param enableWebSocketResponses
+     *            {@code false} to force the HTTP Responses transport
      * @return this config for method chaining
      */
-    public CapiSessionOptions setDisableWebSocketResponses(Boolean disableWebSocketResponses) {
-        this.disableWebSocketResponses = disableWebSocketResponses;
+    public CapiSessionOptions setEnableWebSocketResponses(Boolean enableWebSocketResponses) {
+        this.enableWebSocketResponses = enableWebSocketResponses;
         return this;
     }
 }

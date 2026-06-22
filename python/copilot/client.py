@@ -138,8 +138,15 @@ class CloudSessionOptions:
 class CapiSessionOptions(TypedDict, total=False):
     """Provider-scoped Copilot API (CAPI) session options."""
 
-    disable_web_socket_responses: bool
-    """Opt out of WebSocket Responses transport and use HTTP Responses instead."""
+    enable_web_socket_responses: bool
+    """Whether to use WebSocket transport for the CAPI Responses API.
+
+    Enabled by default when the model advertises ``ws:/responses`` support. Set
+    to ``False`` to force the HTTP Responses transport instead, which is
+    equivalent to the ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+    variable and useful in environments where WebSockets are blocked (e.g.
+    behind a proxy).
+    """
 
 
 def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, Any]:
@@ -157,8 +164,8 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
 
 def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]:
     wire: dict[str, Any] = {}
-    if "disable_web_socket_responses" in options:
-        wire["disableWebSocketResponses"] = options["disable_web_socket_responses"]
+    if "enable_web_socket_responses" in options:
+        wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
     return wire
 
 
@@ -1731,7 +1738,7 @@ class CopilotClient:
             capi: CAPI provider-scoped options. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
-                ``disable_web_socket_responses=True`` to opt out to the HTTP
+                ``enable_web_socket_responses=False`` to force the HTTP
                 Responses transport, which is useful behind proxies where
                 WebSockets fail. This is equivalent to setting the
                 ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
@@ -2337,7 +2344,7 @@ class CopilotClient:
             capi: CAPI provider-scoped options. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
-                ``disable_web_socket_responses=True`` to opt out to the HTTP
+                ``enable_web_socket_responses=False`` to force the HTTP
                 Responses transport, which is useful behind proxies where
                 WebSockets fail. This is equivalent to setting the
                 ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment

@@ -1575,16 +1575,17 @@ type ProviderConfig struct {
 // CapiSessionOptions configures provider-scoped Copilot API (CAPI) session behavior.
 //
 // WebSocket transport is the default for the CAPI Responses API whenever the
-// model advertises the ws:/responses endpoint. Set DisableWebSocketResponses to
-// Bool(true) to opt out to the HTTP Responses transport, which is useful behind
+// model advertises the ws:/responses endpoint. Set EnableWebSocketResponses to
+// Bool(false) to force the HTTP Responses transport, which is useful behind
 // proxies where WebSockets fail. This is equivalent to setting the
 // COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES environment variable. These options
 // are provider-scoped under the capi namespace because a single session can host
 // multiple providers, such as CAPI and BYOK, so transport choice is provider-level.
 type CapiSessionOptions struct {
-	// DisableWebSocketResponses opts out of the default WebSocket Responses
-	// transport and uses HTTP Responses transport when set to Bool(true).
-	DisableWebSocketResponses *bool `json:"disableWebSocketResponses,omitempty"`
+	// EnableWebSocketResponses controls whether the CAPI Responses API uses
+	// WebSocket transport. Enabled by default when the model advertises
+	// ws:/responses support; set to Bool(false) to force HTTP Responses transport.
+	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration

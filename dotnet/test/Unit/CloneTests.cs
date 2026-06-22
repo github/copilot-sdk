@@ -82,7 +82,7 @@ public class CloneTests
             McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
             CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5" }],
             Agent = "agent1",
-            Capi = new CapiSessionOptions { DisableWebSocketResponses = true },
+            Capi = new CapiSessionOptions { EnableWebSocketResponses = false },
             Cloud = new CloudSessionOptions
             {
                 Repository = new CloudSessionRepository
@@ -523,7 +523,7 @@ public class CloneTests
     {
         var original = new SessionConfig
         {
-            Capi = new CapiSessionOptions { DisableWebSocketResponses = true },
+            Capi = new CapiSessionOptions { EnableWebSocketResponses = false },
         };
 
         var clone = original.Clone();
@@ -536,7 +536,7 @@ public class CloneTests
     {
         var original = new ResumeSessionConfig
         {
-            Capi = new CapiSessionOptions { DisableWebSocketResponses = true },
+            Capi = new CapiSessionOptions { EnableWebSocketResponses = false },
         };
 
         var clone = original.Clone();

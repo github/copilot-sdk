@@ -1594,19 +1594,19 @@ export interface ExtensionInfo {
  */
 export interface CapiSessionOptions {
     /**
-     * Opt out of the WebSocket transport for the CAPI Responses API.
+     * Whether to use the WebSocket transport for the CAPI Responses API.
      *
      * WebSocket transport is enabled by default whenever the selected model
-     * advertises the `ws:/responses` endpoint. Set this to `true` to fall back
+     * advertises the `ws:/responses` endpoint. Set this to `false` to fall back
      * to the HTTP Responses transport instead — useful for users behind proxies
      * where WebSocket connections fail.
      *
-     * Equivalent to setting the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`
-     * environment variable.
+     * Setting this to `false` is equivalent to setting the
+     * `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
      *
-     * @default false
+     * @default true
      */
-    disableWebSocketResponses?: boolean;
+    enableWebSocketResponses?: boolean;
 }
 
 /**

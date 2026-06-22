@@ -186,11 +186,11 @@ describe("CopilotClient", () => {
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            capi: { disableWebSocketResponses: true },
+            capi: { enableWebSocketResponses: false },
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
-            capi: { disableWebSocketResponses: true },
+            capi: { enableWebSocketResponses: false },
         });
 
         const createPayload = spy.mock.calls.find(
@@ -199,8 +199,8 @@ describe("CopilotClient", () => {
         const resumePayload = spy.mock.calls.find(
             ([method]) => method === "session.resume"
         )![1] as any;
-        expect(createPayload.capi).toEqual({ disableWebSocketResponses: true });
-        expect(resumePayload.capi).toEqual({ disableWebSocketResponses: true });
+        expect(createPayload.capi).toEqual({ enableWebSocketResponses: false });
+        expect(resumePayload.capi).toEqual({ enableWebSocketResponses: false });
     });
 
     it("forwards pluginDirectories and largeOutput in session.create and session.resume", async () => {

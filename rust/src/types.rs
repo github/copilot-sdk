@@ -1164,11 +1164,11 @@ impl ProviderConfig {
 ///
 /// WebSocket transport is the default for the CAPI Responses API whenever
 /// the model advertises the `ws:/responses` endpoint. Set
-/// [`disable_web_socket_responses`](Self::disable_web_socket_responses) to
-/// `true` to opt out to the HTTP Responses transport instead, which is useful
+/// [`enable_web_socket_responses`](Self::enable_web_socket_responses) to
+/// `false` to force the HTTP Responses transport instead, which is useful
 /// for users behind proxies where WebSockets fail.
 ///
-/// This is equivalent to setting the
+/// Setting it to `false` is equivalent to setting the
 /// `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable. The option
 /// is scoped under the `capi` namespace because a single session can host
 /// multiple providers, so transport choice is provider-level.
@@ -1176,13 +1176,13 @@ impl ProviderConfig {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CapiSessionOptions {
-    /// Opt out of WebSocket transport for CAPI Responses API calls.
+    /// Whether to use WebSocket transport for CAPI Responses API calls.
     ///
-    /// When `Some(true)`, the runtime uses HTTP Responses transport even if
+    /// When `Some(false)`, the runtime uses HTTP Responses transport even if
     /// the selected model advertises `ws:/responses`. When unset, the runtime
-    /// default applies.
+    /// default applies (WebSocket transport when advertised).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_web_socket_responses: Option<bool>,
+    pub enable_web_socket_responses: Option<bool>,
 }
 
 impl CapiSessionOptions {
@@ -1191,9 +1191,9 @@ impl CapiSessionOptions {
         Self::default()
     }
 
-    /// Opt out of WebSocket transport for CAPI Responses API calls.
-    pub fn with_disable_web_socket_responses(mut self, disable: bool) -> Self {
-        self.disable_web_socket_responses = Some(disable);
+    /// Set whether to use WebSocket transport for CAPI Responses API calls.
+    pub fn with_enable_web_socket_responses(mut self, enable: bool) -> Self {
+        self.enable_web_socket_responses = Some(enable);
         self
     }
 }
@@ -5201,7 +5201,7 @@ mod tests {
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
-            .with_capi(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+            .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(false)
             .with_extension_info(ExtensionInfo::new("github-app", "counter"));
@@ -5240,7 +5240,7 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(
             cfg.capi,
-            Some(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+            Some(CapiSessionOptions::new().with_enable_web_socket_responses(false))
         );
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
@@ -5272,7 +5272,7 @@ mod tests {
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
-            .with_capi(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+            .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
             .with_suppress_resume_event(true)
@@ -5311,7 +5311,7 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(
             cfg.capi,
-            Some(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+            Some(CapiSessionOptions::new().with_enable_web_socket_responses(false))
         );
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
@@ -5495,31 +5495,31 @@ mod tests {
 
     #[test]
     fn capi_session_options_builder_composes_and_serializes() {
-        let cfg = CapiSessionOptions::new().with_disable_web_socket_responses(true);
+        let cfg = CapiSessionOptions::new().with_enable_web_socket_responses(false);
 
-        assert_eq!(cfg.disable_web_socket_responses, Some(true));
+        assert_eq!(cfg.enable_web_socket_responses, Some(false));
 
         let wire = serde_json::to_value(&cfg).unwrap();
         assert_eq!(
             wire,
-            serde_json::json!({ "disableWebSocketResponses": true })
+            serde_json::json!({ "enableWebSocketResponses": false })
         );
 
         let unset = CapiSessionOptions::new();
         let wire_unset = serde_json::to_value(&unset).unwrap();
-        assert!(wire_unset.get("disableWebSocketResponses").is_none());
+        assert!(wire_unset.get("enableWebSocketResponses").is_none());
     }
 
     #[test]
     fn session_config_with_capi_serializes() {
         let (wire, _) = SessionConfig::default()
-            .with_capi(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+            .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .into_wire(Some(SessionId::from("capi-create")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
             json["capi"],
-            serde_json::json!({ "disableWebSocketResponses": true })
+            serde_json::json!({ "enableWebSocketResponses": false })
         );
 
         let (empty_wire, _) = SessionConfig::default()
@@ -5532,13 +5532,13 @@ mod tests {
     #[test]
     fn resume_session_config_with_capi_serializes() {
         let (wire, _) = ResumeSessionConfig::new(SessionId::from("capi-resume"))
-            .with_capi(CapiSessionOptions::new().with_disable_web_socket_responses(true))
+            .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .into_wire()
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
             json["capi"],
-            serde_json::json!({ "disableWebSocketResponses": true })
+            serde_json::json!({ "enableWebSocketResponses": false })
         );
 
         let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("capi-resume-unset"))

@@ -28,45 +28,45 @@ class CapiSessionOptionsTest {
     void defaultsAreNull() {
         var capi = new CapiSessionOptions();
 
-        assertNull(capi.getDisableWebSocketResponses());
+        assertNull(capi.getEnableWebSocketResponses());
     }
 
     @Test
     void fluentSetterReturnsSameInstance() {
         var capi = new CapiSessionOptions();
 
-        assertSame(capi, capi.setDisableWebSocketResponses(true));
-        assertEquals(Boolean.TRUE, capi.getDisableWebSocketResponses());
+        assertSame(capi, capi.setEnableWebSocketResponses(true));
+        assertEquals(Boolean.TRUE, capi.getEnableWebSocketResponses());
     }
 
     @Test
-    void serializesDisableWebSocketResponses() {
-        var capi = new CapiSessionOptions().setDisableWebSocketResponses(true);
+    void serializesEnableWebSocketResponses() {
+        var capi = new CapiSessionOptions().setEnableWebSocketResponses(true);
 
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(capi);
 
-        assertTrue(json.get("disableWebSocketResponses").asBoolean());
+        assertTrue(json.get("enableWebSocketResponses").asBoolean());
     }
 
     @Test
-    void omitsUnsetDisableWebSocketResponses() {
+    void omitsUnsetEnableWebSocketResponses() {
         var capi = new CapiSessionOptions();
 
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(capi);
 
-        assertTrue(json.path("disableWebSocketResponses").isMissingNode());
+        assertTrue(json.path("enableWebSocketResponses").isMissingNode());
         assertEquals(0, json.size());
     }
 
     @Test
     void createRequestIncludesCapiWhenSet() {
-        var config = new SessionConfig().setCapi(new CapiSessionOptions().setDisableWebSocketResponses(true));
+        var config = new SessionConfig().setCapi(new CapiSessionOptions().setEnableWebSocketResponses(true));
 
         var request = SessionRequestBuilder.buildCreateRequest(config, "session-1");
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(request);
 
         assertNotNull(request.getCapi());
-        assertTrue(json.get("capi").get("disableWebSocketResponses").asBoolean());
+        assertTrue(json.get("capi").get("enableWebSocketResponses").asBoolean());
     }
 
     @Test
@@ -82,13 +82,13 @@ class CapiSessionOptionsTest {
 
     @Test
     void resumeRequestIncludesCapiWhenSet() {
-        var config = new ResumeSessionConfig().setCapi(new CapiSessionOptions().setDisableWebSocketResponses(true));
+        var config = new ResumeSessionConfig().setCapi(new CapiSessionOptions().setEnableWebSocketResponses(true));
 
         var request = SessionRequestBuilder.buildResumeRequest("session-1", config);
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(request);
 
         assertNotNull(request.getCapi());
-        assertTrue(json.get("capi").get("disableWebSocketResponses").asBoolean());
+        assertTrue(json.get("capi").get("enableWebSocketResponses").asBoolean());
     }
 
     @Test
@@ -104,7 +104,7 @@ class CapiSessionOptionsTest {
 
     @Test
     void sessionConfigCloneCopiesCapiReference() {
-        var capi = new CapiSessionOptions().setDisableWebSocketResponses(true);
+        var capi = new CapiSessionOptions().setEnableWebSocketResponses(true);
 
         var clone = new SessionConfig().setCapi(capi).clone();
 
@@ -113,7 +113,7 @@ class CapiSessionOptionsTest {
 
     @Test
     void resumeSessionConfigCloneCopiesCapiReference() {
-        var capi = new CapiSessionOptions().setDisableWebSocketResponses(true);
+        var capi = new CapiSessionOptions().setEnableWebSocketResponses(true);
 
         var clone = new ResumeSessionConfig().setCapi(capi).clone();
 
@@ -122,10 +122,10 @@ class CapiSessionOptionsTest {
 
     @Test
     void falseValueIsSerializedWhenExplicitlySet() {
-        var capi = new CapiSessionOptions().setDisableWebSocketResponses(false);
+        var capi = new CapiSessionOptions().setEnableWebSocketResponses(false);
 
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(capi);
 
-        assertFalse(json.get("disableWebSocketResponses").asBoolean());
+        assertFalse(json.get("enableWebSocketResponses").asBoolean());
     }
 }

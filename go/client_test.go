@@ -226,12 +226,12 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	})
 
 	_, err := client.CreateSession(t.Context(), &SessionConfig{
-		Capi: &CapiSessionOptions{DisableWebSocketResponses: Bool(true)},
+		Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
 	})
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertCapiDisableWebSocketResponses(t, <-createParams)
+	assertCapiEnableWebSocketResponses(t, <-createParams)
 
 	resumeParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
@@ -240,15 +240,15 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	})
 
 	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-capi", &ResumeSessionConfig{
-		Capi: &CapiSessionOptions{DisableWebSocketResponses: Bool(true)},
+		Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
 	})
 	if err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertCapiDisableWebSocketResponses(t, <-resumeParams)
+	assertCapiEnableWebSocketResponses(t, <-resumeParams)
 }
 
-func assertCapiDisableWebSocketResponses(t *testing.T, params json.RawMessage) {
+func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 	t.Helper()
 
 	var decoded map[string]any
@@ -259,8 +259,8 @@ func assertCapiDisableWebSocketResponses(t *testing.T, params json.RawMessage) {
 	if !ok {
 		t.Fatalf("expected capi object in request params, got %T", decoded["capi"])
 	}
-	if capi["disableWebSocketResponses"] != true {
-		t.Fatalf("expected capi.disableWebSocketResponses=true, got %v", capi["disableWebSocketResponses"])
+	if capi["enableWebSocketResponses"] != false {
+		t.Fatalf("expected capi.enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
 	}
 }
 
@@ -1410,7 +1410,7 @@ func TestCreateSessionRequest_Cloud(t *testing.T) {
 func TestSessionRequests_Capi(t *testing.T) {
 	t.Run("forwards capi options in session.create RPC", func(t *testing.T) {
 		req := createSessionRequest{
-			Capi: &CapiSessionOptions{DisableWebSocketResponses: Bool(true)},
+			Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
 		}
 		data, err := json.Marshal(req)
 		if err != nil {
@@ -1424,15 +1424,15 @@ func TestSessionRequests_Capi(t *testing.T) {
 		if !ok {
 			t.Fatalf("Expected capi to be an object, got %T", m["capi"])
 		}
-		if capi["disableWebSocketResponses"] != true {
-			t.Errorf("Expected disableWebSocketResponses=true, got %v", capi["disableWebSocketResponses"])
+		if capi["enableWebSocketResponses"] != false {
+			t.Errorf("Expected enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
 		}
 	})
 
 	t.Run("forwards capi options in session.resume RPC", func(t *testing.T) {
 		req := resumeSessionRequest{
 			SessionID: "s1",
-			Capi:      &CapiSessionOptions{DisableWebSocketResponses: Bool(true)},
+			Capi:      &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
 		}
 		data, err := json.Marshal(req)
 		if err != nil {
@@ -1446,8 +1446,8 @@ func TestSessionRequests_Capi(t *testing.T) {
 		if !ok {
 			t.Fatalf("Expected capi to be an object, got %T", m["capi"])
 		}
-		if capi["disableWebSocketResponses"] != true {
-			t.Errorf("Expected disableWebSocketResponses=true, got %v", capi["disableWebSocketResponses"])
+		if capi["enableWebSocketResponses"] != false {
+			t.Errorf("Expected enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
 		}
 	})
 

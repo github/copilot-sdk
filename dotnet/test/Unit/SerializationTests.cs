@@ -54,22 +54,22 @@ public class SerializationTests
     }
 
     [Fact]
-    public void CapiSessionOptions_CanSerializeDisableWebSocketResponses_WithSdkOptions()
+    public void CapiSessionOptions_CanSerializeEnableWebSocketResponses_WithSdkOptions()
     {
         var options = GetSerializerOptions();
         var original = new CapiSessionOptions
         {
-            DisableWebSocketResponses = true
+            EnableWebSocketResponses = false
         };
 
         var json = JsonSerializer.Serialize(original, options);
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        Assert.True(root.GetProperty("disableWebSocketResponses").GetBoolean());
+        Assert.False(root.GetProperty("enableWebSocketResponses").GetBoolean());
 
         var deserialized = JsonSerializer.Deserialize<CapiSessionOptions>(json, options);
         Assert.NotNull(deserialized);
-        Assert.True(deserialized.DisableWebSocketResponses);
+        Assert.False(deserialized.EnableWebSocketResponses);
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public class SerializationTests
     public void SessionRequests_CanSerializeCapiOptions_WithSdkOptions()
     {
         var options = GetSerializerOptions();
-        var capi = new CapiSessionOptions { DisableWebSocketResponses = true };
+        var capi = new CapiSessionOptions { EnableWebSocketResponses = false };
 
         var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
         var createRequest = CreateInternalRequest(
@@ -257,7 +257,7 @@ public class SerializationTests
 
         var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
         using var createDocument = JsonDocument.Parse(createJson);
-        Assert.True(createDocument.RootElement.GetProperty("capi").GetProperty("disableWebSocketResponses").GetBoolean());
+        Assert.False(createDocument.RootElement.GetProperty("capi").GetProperty("enableWebSocketResponses").GetBoolean());
 
         var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
         var resumeRequest = CreateInternalRequest(
@@ -267,7 +267,7 @@ public class SerializationTests
 
         var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
         using var resumeDocument = JsonDocument.Parse(resumeJson);
-        Assert.True(resumeDocument.RootElement.GetProperty("capi").GetProperty("disableWebSocketResponses").GetBoolean());
+        Assert.False(resumeDocument.RootElement.GetProperty("capi").GetProperty("enableWebSocketResponses").GetBoolean());
     }
 
     [Fact]
