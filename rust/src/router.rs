@@ -85,6 +85,7 @@ impl SessionRouter {
         &self,
         notification_tx: &broadcast::Sender<JsonRpcNotification>,
         request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
+        llm_inference: Option<Arc<crate::llm_inference_dispatch::LlmInferenceDispatcher>>,
     ) {
         let mut started = self.started.lock();
         if *started {
@@ -145,6 +146,20 @@ impl SessionRouter {
             let sessions = self.sessions.clone();
             tokio::spawn(async move {
                 while let Some(request) = rx.recv().await {
+                    // Client-global `llmInference.*` requests carry no routable
+                    // session and are handled by the inference dispatcher.
+                    if request.method.starts_with("llmInference.") {
+                        if let Some(dispatcher) = &llm_inference {
+                            dispatcher.dispatch(request).await;
+                        } else {
+                            warn!(
+                                method = %request.method,
+                                "llmInference request with no provider registered"
+                            );
+                        }
+                        continue;
+                    }
+
                     let session_id = request
                         .params
                         .as_ref()

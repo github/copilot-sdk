@@ -16,6 +16,13 @@ pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
 pub mod hooks;
 mod jsonrpc;
+/// Connection-level LLM inference callback — intercept and replace model-layer
+/// HTTP and WebSocket traffic for both CAPI and BYOK sessions.
+pub mod llm_inference;
+mod llm_inference_dispatch;
+/// Idiomatic HTTP/WebSocket forwarding handler built on top of
+/// [`llm_inference::LlmInferenceProvider`].
+pub mod llm_request_handler;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
 /// GitHub Copilot CLI binary resolution (env var, embedded, dev cache).
@@ -238,6 +245,15 @@ pub struct ClientOptions {
     /// [`SessionFsProvider`] via
     /// [`SessionConfig::with_session_fs_provider`](crate::SessionConfig::with_session_fs_provider).
     pub session_fs: Option<SessionFsConfig>,
+    /// Connection-level LLM inference callback configuration.
+    ///
+    /// When set, the SDK registers itself as the runtime's LLM inference
+    /// provider during [`Client::start`], so the runtime routes its
+    /// model-layer HTTP and WebSocket traffic — for both CAPI and BYOK
+    /// sessions — through the configured
+    /// [`LlmInferenceProvider`](crate::llm_inference::LlmInferenceProvider)
+    /// instead of issuing the calls itself.
+    pub llm_inference: Option<crate::llm_inference::LlmInferenceConfig>,
     /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers (`traceparent` / `tracestate`) on outbound `session.create`,
     /// `session.resume`, and `session.send` requests.
@@ -313,6 +329,7 @@ impl std::fmt::Debug for ClientOptions {
                 &self.on_list_models.as_ref().map(|_| "<set>"),
             )
             .field("session_fs", &self.session_fs)
+            .field("llm_inference", &self.llm_inference)
             .field(
                 "on_get_trace_context",
                 &self.on_get_trace_context.as_ref().map(|_| "<set>"),
@@ -560,6 +577,7 @@ impl Default for ClientOptions {
             session_idle_timeout_seconds: None,
             on_list_models: None,
             session_fs: None,
+            llm_inference: None,
             on_get_trace_context: None,
             telemetry: None,
             base_directory: None,
@@ -692,6 +710,14 @@ impl ClientOptions {
         self
     }
 
+    /// Register a connection-level LLM inference callback. The runtime will
+    /// route its model-layer HTTP and WebSocket traffic through the provider
+    /// configured here instead of issuing the calls itself.
+    pub fn with_llm_inference(mut self, config: crate::llm_inference::LlmInferenceConfig) -> Self {
+        self.llm_inference = Some(config);
+        self
+    }
+
     /// Set the [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers on outbound `session.create` / `session.resume` /
     /// `session.send` requests. The provider is wrapped in `Arc` internally.
@@ -814,6 +840,9 @@ struct ClientInner {
     models_cache: parking_lot::Mutex<Arc<tokio::sync::OnceCell<Vec<Model>>>>,
     session_fs_configured: bool,
     session_fs_sqlite_declared: bool,
+    /// Inbound `llmInference.*` dispatcher, installed when
+    /// [`ClientOptions::llm_inference`] is set.
+    llm_inference: OnceLock<Arc<llm_inference_dispatch::LlmInferenceDispatcher>>,
     on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
     /// Token sent in the `connect` handshake. Auto-generated when the
     /// SDK spawns its own CLI in TCP mode and no explicit token is set;
@@ -909,6 +938,7 @@ impl Client {
             } => connection_token.clone(),
         };
         let session_fs_config = options.session_fs.clone();
+        let llm_inference_config = options.llm_inference.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
@@ -1044,6 +1074,26 @@ impl Client {
                 "Client::start session filesystem setup complete"
             );
         }
+        if let Some(cfg) = llm_inference_config {
+            let llm_inference_start = Instant::now();
+            let dispatcher = Arc::new(llm_inference_dispatch::LlmInferenceDispatcher::new(
+                cfg.provider,
+            ));
+            dispatcher.set_client(Arc::downgrade(&client.inner));
+            let _ = client.inner.llm_inference.set(dispatcher.clone());
+            // Start the router early (before any session is registered) so the
+            // startup model catalog request is dispatched to the provider.
+            client.inner.router.ensure_started(
+                &client.inner.notification_tx,
+                &client.inner.request_rx,
+                Some(dispatcher.clone()),
+            );
+            client.rpc().llm_inference().set_provider().await?;
+            debug!(
+                elapsed_ms = llm_inference_start.elapsed().as_millis(),
+                "Client::start LLM inference provider registration complete"
+            );
+        }
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start complete"
@@ -1176,6 +1226,7 @@ impl Client {
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured,
                 session_fs_sqlite_declared,
+                llm_inference: OnceLock::new(),
                 on_get_trace_context,
                 effective_connection_token,
                 mode,
@@ -1557,6 +1608,11 @@ impl Client {
         self.inner.rpc.write(response).await
     }
 
+    /// Reconstruct a [`Client`] handle from a shared inner pointer.
+    pub(crate) fn from_inner(inner: Arc<ClientInner>) -> Self {
+        Self { inner }
+    }
+
     /// Take the receiver for incoming JSON-RPC requests from the CLI.
     ///
     /// Can only be called once — subsequent calls return `None`.
@@ -1576,9 +1632,11 @@ impl Client {
         &self,
         session_id: &SessionId,
     ) -> crate::router::SessionChannels {
-        self.inner
-            .router
-            .ensure_started(&self.inner.notification_tx, &self.inner.request_rx);
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            self.inner.llm_inference.get().cloned(),
+        );
         self.inner.router.register(session_id)
     }
 
@@ -2669,6 +2727,7 @@ mod tests {
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured: false,
                 session_fs_sqlite_declared: false,
+                llm_inference: OnceLock::new(),
                 on_get_trace_context: None,
                 effective_connection_token: None,
                 mode: ClientMode::default(),

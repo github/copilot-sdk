@@ -31,6 +31,8 @@ mod event_fidelity;
 mod hooks;
 #[path = "e2e/hooks_extended.rs"]
 mod hooks_extended;
+#[path = "e2e/llm_inference.rs"]
+mod llm_inference;
 #[path = "e2e/mcp_and_agents.rs"]
 mod mcp_and_agents;
 #[path = "e2e/mode_empty.rs"]

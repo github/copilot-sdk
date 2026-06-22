@@ -52,6 +52,14 @@ parking_lot = "0.12"
 regex = "1"
 getrandom = "0.2"
 uuid = { version = "1", default-features = false, features = ["v4"] }
+# LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
+# `LlmRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
+base64 = "0.22"
+bytes = "1"
+http = "1"
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }

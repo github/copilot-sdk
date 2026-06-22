@@ -22,6 +22,15 @@ use crate::handler::{
     UserInputHandler,
 };
 use crate::hooks::SessionHooks;
+pub use crate::llm_inference::{
+    LlmInferenceConfig, LlmInferenceError, LlmInferenceProvider, LlmInferenceRequest,
+    LlmRequestBody, LlmResponseInit, LlmResponseSink, LlmTransport,
+};
+pub use crate::llm_request_handler::{
+    CopilotWebSocketHandler, ForwardingWebSocketHandler, ForwardingWebSocketHandlerBuilder,
+    LlmHttpRequest, LlmHttpResponse, LlmHttpResponseBody, LlmRequestContext, LlmRequestHandler,
+    LlmWebSocketMessage, LlmWebSocketResponse, WebSocketTransform, forward_http,
+};
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
     SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
