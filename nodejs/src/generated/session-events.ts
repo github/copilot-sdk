@@ -213,6 +213,14 @@ export type Attachment =
   | AttachmentBlob
   | AttachmentExtensionContext;
 /**
+ * Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+ */
+export type OmittedBinaryOmittedReason =
+  /** Bytes exceeded the session's inline size limit. */
+  | "too_large"
+  /** The referenced binary asset could not be found (e.g. a truncated log). */
+  | "asset_unavailable";
+/**
  * Type of GitHub reference
  */
 export type AttachmentGitHubReferenceType =
@@ -222,6 +230,22 @@ export type AttachmentGitHubReferenceType =
   | "pr"
   /** GitHub discussion reference. */
   | "discussion";
+/**
+ * The system that produced a citation.
+ */
+/** @experimental */
+export type CitationProvider =
+  /** Citation produced by an Anthropic (Claude) model response. */
+  | "anthropic"
+  /** Citation produced by an OpenAI model response. */
+  | "openai"
+  /** Citation synthesized client-side by the runtime from tool output. */
+  | "client";
+/**
+ * Location within a cited source (character, page, or content-block range) that supports a span.
+ */
+/** @experimental */
+export type CitationLocation = CitationLocationChar | CitationLocationPage | CitationLocationBlock;
 /**
  * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
  */
@@ -242,6 +266,14 @@ export type AssistantUsageApiEndpoint =
   | "/responses"
   /** WebSocket Responses API endpoint. */
   | "ws:/responses";
+/**
+ * For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+ */
+export type ModelCallFailureBadRequestKind =
+  /** The 400 response carried no error body (transient gateway/proxy signature). */
+  | "bodyless"
+  /** The 400 response carried a structured CAPI error envelope (deterministic validation failure). */
+  | "structured_error";
 /**
  * Where the failed model call originated
  */
@@ -283,14 +315,6 @@ export type PersistedBinaryImageType =
   | "image"
   /** Other binary resource data. */
   | "resource";
-/**
- * Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
- */
-export type OmittedBinaryOmittedReason =
-  /** Bytes exceeded the session's inline size limit. */
-  | "too_large"
-  /** The referenced binary asset could not be found (e.g. a truncated log). */
-  | "asset_unavailable";
 /**
  * Binary result type discriminator. Use "image" for images and "resource" for other binary data.
  */
@@ -480,21 +504,13 @@ export type ElicitationCompletedAction =
   /** The user dismissed the request. */
   | "cancel";
 /**
- * Schema for the `ElicitationCompletedContent` type.
+ * How the pending MCP OAuth request was completed
  */
-export type ElicitationCompletedContent = (string | number | boolean | string[]) | undefined;
-/**
- * Source-defined JSON payload for the custom notification
- */
-export type CustomNotificationPayload =
-  | string
-  | number
-  | boolean
-  | null
-  | unknown[]
-  | {
-      [k: string]: unknown | undefined;
-    };
+export type McpOauthCompletionOutcome =
+  /** The request completed with a token-backed OAuth provider. */
+  | "token"
+  /** The request completed without an OAuth provider. */
+  | "cancelled";
 /**
  * The user's auto-mode-switch choice
  */
@@ -2293,10 +2309,23 @@ export interface UserMessageData {
  */
 export interface AttachmentFile {
   /**
+   * Internal: content-addressed id of the session.binary_asset event holding this attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.
+   */
+  assetId?: string;
+  /**
+   * Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.
+   */
+  byteLength?: number;
+  /**
    * User-facing display name for the attachment
    */
   displayName: string;
   lineRange?: AttachmentFileLineRange;
+  /**
+   * Internal: MIME type of the file's model-facing bytes (post-resize for images). Set when the file's bytes are interned to an asset. Absent externally.
+   */
+  mimeType?: string;
+  omittedReason?: OmittedBinaryOmittedReason;
   /**
    * Absolute file path
    */
@@ -2422,9 +2451,17 @@ export interface AttachmentGitHubReference {
  */
 export interface AttachmentBlob {
   /**
-   * Base64-encoded content
+   * Internal: content-addressed id of the session.binary_asset event holding this attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.
    */
-  data: string;
+  assetId?: string;
+  /**
+   * Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.
+   */
+  byteLength?: number;
+  /**
+   * Base64-encoded content. Present on input and for external consumers; replaced by an internal `assetId` reference in persisted events when interned to a content-addressed asset.
+   */
+  data?: string;
   /**
    * User-facing display name for the attachment
    */
@@ -2433,6 +2470,7 @@ export interface AttachmentBlob {
    * MIME type of the inline data
    */
   mimeType: string;
+  omittedReason?: OmittedBinaryOmittedReason;
   /**
    * Attachment type discriminator
    */
@@ -2753,6 +2791,12 @@ export interface AssistantMessageData {
    */
   apiCallId?: string;
   /**
+   * Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
+   *
+   * @experimental
+   */
+  citations?: Citations;
+  /**
    * The assistant's text response content
    */
   content: string;
@@ -2810,6 +2854,136 @@ export interface AssistantMessageData {
    * Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event
    */
   turnId?: string;
+}
+/**
+ * Provider-agnostic citations linking spans of the assistant's response to their supporting sources.
+ */
+/** @experimental */
+export interface Citations {
+  /**
+   * Deduplicated set of sources referenced by the citation spans.
+   */
+  sources: CitationSource[];
+  /**
+   * Spans of generated text annotated with the sources that support them.
+   */
+  spans: CitationSpan[];
+}
+/**
+ * A source that backs one or more cited spans in the assistant's response.
+ */
+/** @experimental */
+export interface CitationSource {
+  /**
+   * Stable, turn-scoped identifier for this source, referenced by CitationReference.sourceId.
+   */
+  id: string;
+  /**
+   * File path relative to the agent's workspace root, when the source is a file.
+   */
+  path?: string;
+  provider: CitationProvider;
+  /**
+   * Human-readable title of the source.
+   */
+  title?: string;
+  /**
+   * URL of the source, when it is a web resource.
+   */
+  url?: string;
+}
+/**
+ * A contiguous span of generated assistant text and the source references that support it.
+ */
+/** @experimental */
+export interface CitationSpan {
+  /**
+   * End offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, exclusive).
+   */
+  endIndex: number;
+  /**
+   * The sources that support this span of generated text.
+   */
+  references: CitationReference[];
+  /**
+   * Start offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, inclusive).
+   */
+  startIndex: number;
+}
+/**
+ * A single citation occurrence linking a span of generated text to a supporting source.
+ */
+/** @experimental */
+export interface CitationReference {
+  /**
+   * The exact text from the source that supports the cited span, when provided by the model.
+   */
+  citedText?: string;
+  location?: CitationLocation;
+  /**
+   * Provider-native citation correlation data (e.g. Anthropic search_result_index / document_index), passed through opaquely for debugging and forward compatibility.
+   */
+  providerMetadata?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Identifier of the CitationSource this reference points to (CitationSource.id).
+   */
+  sourceId: string;
+}
+/**
+ * A character range within the source's text content.
+ */
+/** @experimental */
+export interface CitationLocationChar {
+  /**
+   * End character offset within the source text (zero-based, exclusive).
+   */
+  endIndex: number;
+  /**
+   * Start character offset within the source text (zero-based, inclusive).
+   */
+  startIndex: number;
+  /**
+   * Citation location type discriminator
+   */
+  type: "char";
+}
+/**
+ * A page range within a paginated source document.
+ */
+/** @experimental */
+export interface CitationLocationPage {
+  /**
+   * Last page number of the cited range (inclusive).
+   */
+  endPage: number;
+  /**
+   * First page number of the cited range.
+   */
+  startPage: number;
+  /**
+   * Citation location type discriminator
+   */
+  type: "page";
+}
+/**
+ * A content-block range within a structured source document.
+ */
+/** @experimental */
+export interface CitationLocationBlock {
+  /**
+   * Index of the last content block of the cited range (zero-based, exclusive).
+   */
+  endBlock: number;
+  /**
+   * Index of the first content block of the cited range (zero-based, inclusive).
+   */
+  startBlock: number;
+  /**
+   * Citation location type discriminator
+   */
+  type: "block";
 }
 /**
  * Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
@@ -3238,14 +3412,23 @@ export interface ModelCallFailureData {
    * Completion ID from the model provider (e.g., chatcmpl-abc123)
    */
   apiCallId?: string;
+  badRequestKind?: ModelCallFailureBadRequestKind;
   /**
    * Duration of the failed API call in milliseconds
    */
   durationMs?: number;
   /**
+   * For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+   */
+  errorCode?: string;
+  /**
    * Raw provider/runtime error message for restricted telemetry
    */
   errorMessage?: string;
+  /**
+   * For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+   */
+  errorType?: string;
   /**
    * What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
    */
@@ -3648,6 +3831,12 @@ export interface ToolExecutionCompleteResult {
    */
   binaryResultsForLlm?: PersistedBinaryResult[];
   /**
+   * Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental.
+   *
+   * @experimental
+   */
+  citableSources?: CitableSource[];
+  /**
    * Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
    */
   content: string;
@@ -3745,6 +3934,32 @@ export interface BinaryAssetReference {
    */
   mimeType: string;
   type: BinaryAssetReferenceType;
+}
+/**
+ * A source supplied by a tool that should be made available to the model as citable content.
+ */
+/** @experimental */
+export interface CitableSource {
+  /**
+   * The source text made available to the model as citable content.
+   */
+  content: string;
+  /**
+   * Stable identifier for this source within the tool result. Used for deduplication and may be used by future provider integrations to correlate response citations back to the originating source.
+   */
+  id: string;
+  /**
+   * File path relative to the agent's workspace root, when the source is a file.
+   */
+  path?: string;
+  /**
+   * Human-readable title of the source.
+   */
+  title?: string;
+  /**
+   * URL of the source, when it is a web resource.
+   */
+  url?: string;
 }
 /**
  * Plain text content block
@@ -3971,27 +4186,19 @@ export interface ToolExecutionCompleteUIResourceMetaUIPermissions {
 /**
  * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
  */
-export interface ToolExecutionCompleteUIResourceMetaUIPermissionsCamera {
-  [k: string]: unknown | undefined;
-}
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsCamera {}
 /**
  * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
  */
-export interface ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite {
-  [k: string]: unknown | undefined;
-}
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite {}
 /**
  * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
  */
-export interface ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {
-  [k: string]: unknown | undefined;
-}
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {}
 /**
  * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
  */
-export interface ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {
-  [k: string]: unknown | undefined;
-}
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {}
 /**
  * Tool definition metadata, present for MCP tools with MCP Apps support
  */
@@ -5260,7 +5467,12 @@ export interface PermissionPromptRequestRead {
  * MCP tool invocation permission prompt
  */
 export interface PermissionPromptRequestMcp {
-  args?: unknown;
+  /**
+   * Arguments to pass to the MCP tool
+   */
+  args?: {
+    [k: string]: unknown | undefined;
+  };
   /**
    * Prompt kind discriminator
    */
@@ -5878,7 +6090,6 @@ export interface ElicitationRequestedData {
    * URL to open in the user's browser (url mode only)
    */
   url?: string;
-  [k: string]: unknown | undefined;
 }
 /**
  * JSON Schema describing the form fields to present to the user (form mode only)
@@ -5946,6 +6157,12 @@ export interface ElicitationCompletedData {
   requestId: string;
 }
 /**
+ * Schema for the `ElicitationCompletedContent` type.
+ */
+export interface ElicitationCompletedContent {
+  [k: string]: unknown | undefined;
+}
+/**
  * Session event "sampling.requested". Sampling request from an MCP server; contains the server name and a requestId for correlation
  */
 export interface SamplingRequestedEvent {
@@ -5982,7 +6199,9 @@ export interface SamplingRequestedData {
   /**
    * The JSON-RPC request ID from the MCP protocol
    */
-  mcpRequestId: string | number;
+  mcpRequestId: {
+    [k: string]: unknown | undefined;
+  };
   /**
    * Unique identifier for this sampling request; used to respond via session.respondToSampling()
    */
@@ -5991,7 +6210,6 @@ export interface SamplingRequestedData {
    * Name of the MCP server that initiated the sampling request
    */
   serverName: string;
-  [k: string]: unknown | undefined;
 }
 /**
  * Session event "sampling.completed". Sampling request completion notification signaling UI dismissal
@@ -6067,9 +6285,13 @@ export interface McpOauthRequiredEvent {
  */
 export interface McpOauthRequiredData {
   /**
-   * Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth()
+   * Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
    */
   requestId: string;
+  /**
+   * Raw OAuth protected-resource metadata document fetched for the MCP server, if available
+   */
+  resourceMetadata?: string;
   /**
    * Display name of the MCP server that requires OAuth
    */
@@ -6079,6 +6301,7 @@ export interface McpOauthRequiredData {
    */
   serverUrl: string;
   staticClientConfig?: McpOauthRequiredStaticClientConfig;
+  wwwAuthenticateParams?: McpOauthWWWAuthenticateParams;
 }
 /**
  * Static OAuth client configuration, if the server specifies one
@@ -6096,6 +6319,23 @@ export interface McpOauthRequiredStaticClientConfig {
    * Whether this is a public OAuth client
    */
   publicClient?: boolean;
+}
+/**
+ * OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
+ */
+export interface McpOauthWWWAuthenticateParams {
+  /**
+   * OAuth error from the WWW-Authenticate error parameter, if present
+   */
+  error?: string;
+  /**
+   * Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter
+   */
+  resourceMetadataUrl: string;
+  /**
+   * Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
+   */
+  scope?: string;
 }
 /**
  * Session event "mcp.oauth_completed". MCP OAuth request completion notification
@@ -6131,6 +6371,7 @@ export interface McpOauthCompletedEvent {
  * MCP OAuth request completion notification
  */
 export interface McpOauthCompletedData {
+  outcome: McpOauthCompletionOutcome;
   /**
    * Request ID of the resolved OAuth request
    */
@@ -6184,6 +6425,12 @@ export interface CustomNotificationData {
    * Optional source-defined payload schema version
    */
   version?: number;
+}
+/**
+ * Source-defined JSON payload for the custom notification
+ */
+export interface CustomNotificationPayload {
+  [k: string]: unknown | undefined;
 }
 /**
  * Optional source-defined string identifiers describing the payload subject
@@ -7443,7 +7690,6 @@ export interface McpAppToolCallCompleteError {
  */
 export interface McpAppToolCallCompleteToolMeta {
   ui?: McpAppToolCallCompleteToolMetaUI;
-  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `McpAppToolCallCompleteToolMetaUI` type.
@@ -7457,5 +7703,4 @@ export interface McpAppToolCallCompleteToolMetaUI {
    * Tool visibility per SEP-1865 (typically a subset of `["model","app"]`)
    */
   visibility?: string[];
-  [k: string]: unknown | undefined;
 }

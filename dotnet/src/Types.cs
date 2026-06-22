@@ -2099,6 +2099,135 @@ public sealed class AzureOptions
     public string? ApiVersion { get; set; }
 }
 
+/// <summary>
+/// A named BYOK provider connection (transport + credentials only), referenced by
+/// <see cref="ProviderModelConfig"/> entries via <see cref="Name"/>.
+/// <para>
+/// Unlike the singular, whole-session <see cref="ProviderConfig"/> — which bypasses
+/// Copilot API authentication — named providers are additive and coexist with Copilot
+/// API auth, so models from CAPI and one or more BYOK providers can be mixed within a
+/// single session and across sub-agents. Combining named providers/models with
+/// <see cref="SessionConfigBase.Provider"/> is rejected.
+/// </para>
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class NamedProviderConfig
+{
+    /// <summary>
+    /// Stable identifier referenced by <see cref="ProviderModelConfig.Provider"/>.
+    /// Must not contain '/'.
+    /// </summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+    /// </summary>
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    /// <summary>
+    /// Wire API format (openai/azure only). Defaults to "completions".
+    /// </summary>
+    [JsonPropertyName("wireApi")]
+    public string? WireApi { get; set; }
+
+    /// <summary>
+    /// API endpoint URL.
+    /// </summary>
+    [JsonPropertyName("baseUrl")]
+    public string BaseUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// API key. Optional for local providers like Ollama.
+    /// </summary>
+    [JsonPropertyName("apiKey")]
+    public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// Bearer token for authentication. Sets the Authorization header directly.
+    /// Takes precedence over <see cref="ApiKey"/> when both are set.
+    /// </summary>
+    [JsonPropertyName("bearerToken")]
+    public string? BearerToken { get; set; }
+
+    /// <summary>
+    /// Azure-specific configuration options.
+    /// </summary>
+    [JsonPropertyName("azure")]
+    public AzureOptions? Azure { get; set; }
+
+    /// <summary>
+    /// Custom HTTP headers to include in all outbound requests to the provider.
+    /// </summary>
+    [JsonPropertyName("headers")]
+    public IDictionary<string, string>? Headers { get; set; }
+}
+
+/// <summary>
+/// A BYOK model definition that references a <see cref="NamedProviderConfig"/> by name
+/// and is added to the session's selectable model list. The session-wide selection id
+/// (shown in the model list and passed to model switching) is the provider-qualified
+/// <c>provider/id</c>, so BYOK ids never collide with bare CAPI ids.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProviderModelConfig
+{
+    /// <summary>
+    /// Provider-local model id, unique within its provider.
+    /// </summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Name of the <see cref="NamedProviderConfig"/> that serves this model.
+    /// </summary>
+    [JsonPropertyName("provider")]
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The model name sent to the provider API for inference. Defaults to <see cref="Id"/>.
+    /// </summary>
+    [JsonPropertyName("wireModel")]
+    public string? WireModel { get; set; }
+
+    /// <summary>
+    /// Well-known base model id used for behavior/capability/config lookup. Defaults to <see cref="Id"/>.
+    /// </summary>
+    [JsonPropertyName("modelId")]
+    public string? ModelId { get; set; }
+
+    /// <summary>
+    /// Display name for model pickers. Defaults to the provider-qualified selection id.
+    /// </summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Maximum prompt/input tokens for the model.
+    /// </summary>
+    [JsonPropertyName("maxPromptTokens")]
+    public int? MaxPromptTokens { get; set; }
+
+    /// <summary>
+    /// Maximum context window tokens for the model.
+    /// </summary>
+    [JsonPropertyName("maxContextWindowTokens")]
+    public int? MaxContextWindowTokens { get; set; }
+
+    /// <summary>
+    /// Maximum output tokens for the model.
+    /// </summary>
+    [JsonPropertyName("maxOutputTokens")]
+    public int? MaxOutputTokens { get; set; }
+
+    /// <summary>
+    /// Optional capability overrides (vision, tool_calls, reasoning, etc.) for the synthesized model.
+    /// </summary>
+    [JsonPropertyName("capabilities")]
+    public ModelCapabilitiesOverride? Capabilities { get; set; }
+}
+
 // ============================================================================
 // MCP Server Configuration Types
 // ============================================================================
@@ -2524,6 +2653,8 @@ public abstract class SessionConfigBase
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         Capi = other.Capi;
+        Providers = other.Providers is not null ? [.. other.Providers] : null;
+        Models = other.Models is not null ? [.. other.Models] : null;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
         SkipCustomInstructions = other.SkipCustomInstructions;
         CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
@@ -2683,6 +2814,21 @@ public abstract class SessionConfigBase
     /// CAPI (Copilot API) provider-scoped configuration for the session.
     /// </summary>
     public CapiSessionOptions? Capi { get; set; }
+
+    /// <summary>
+    /// Named BYOK provider connections (transport + credentials). Additive to Copilot
+    /// API authentication (unlike <see cref="Provider"/>); combine with <see cref="Models"/>.
+    /// Cannot be combined with <see cref="Provider"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public IList<NamedProviderConfig>? Providers { get; set; }
+
+    /// <summary>
+    /// BYOK model definitions added to the session's selectable model list, each
+    /// referencing a <see cref="Providers"/> entry by name.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public IList<ProviderModelConfig>? Models { get; set; }
 
     /// <summary>
     /// Enables or disables internal session telemetry for this session.

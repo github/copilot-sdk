@@ -26,7 +26,7 @@ use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
     CapiSessionOptions, CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
     InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, MemoryConfiguration,
-    ProviderConfig, SessionId, SystemMessageConfig, Tool,
+    NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId, SystemMessageConfig, Tool,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -131,6 +131,10 @@ pub(crate) struct SessionCreateWire {
     pub provider: Option<ProviderConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capi: Option<CapiSessionOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub providers: Option<Vec<NamedProviderConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<ProviderModelConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_telemetry: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -242,6 +246,10 @@ pub(crate) struct SessionResumeWire {
     pub provider: Option<ProviderConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capi: Option<CapiSessionOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub providers: Option<Vec<NamedProviderConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<ProviderModelConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_telemetry: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

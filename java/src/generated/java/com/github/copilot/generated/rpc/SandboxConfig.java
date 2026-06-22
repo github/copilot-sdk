@@ -10,7 +10,6 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -27,7 +26,7 @@ public record SandboxConfig(
     /** User-managed sandbox policy fragment merged into the auto-discovered base policy. */
     @JsonProperty("userPolicy") SandboxConfigUserPolicy userPolicy,
     /** Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to `spawnSandboxFromConfig`, bypassing policy merging. */
-    @JsonProperty("config") Map<String, Object> config,
+    @JsonProperty("config") Object config,
     /** Whether to auto-add the current working directory to readwritePaths. Default: true. */
     @JsonProperty("addCurrentWorkingDirectory") Boolean addCurrentWorkingDirectory
 ) {

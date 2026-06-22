@@ -1080,6 +1080,89 @@ func (r *MCPConfigUpdateRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalMCPOauthPendingRequestResponse(data []byte) (MCPOauthPendingRequestResponse, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind MCPOauthPendingRequestResponseKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case MCPOauthPendingRequestResponseKindCancelled:
+		var d MCPOauthPendingRequestResponseCancelled
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPOauthPendingRequestResponseKindToken:
+		var d MCPOauthPendingRequestResponseToken
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawMCPOauthPendingRequestResponseData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawMCPOauthPendingRequestResponseData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind MCPOauthPendingRequestResponseKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r MCPOauthPendingRequestResponseCancelled) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthPendingRequestResponseCancelled
+	return json.Marshal(struct {
+		Kind MCPOauthPendingRequestResponseKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPOauthPendingRequestResponseToken) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthPendingRequestResponseToken
+	return json.Marshal(struct {
+		Kind MCPOauthPendingRequestResponseKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *MCPOauthHandlePendingRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPOauthHandlePendingRequest struct {
+		RequestID string          `json:"requestId"`
+		Result    json.RawMessage `json:"result"`
+	}
+	var raw rawMCPOauthHandlePendingRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.RequestID = raw.RequestID
+	if raw.Result != nil {
+		value, err := unmarshalMCPOauthPendingRequestResponse(raw.Result)
+		if err != nil {
+			return err
+		}
+		r.Result = value
+	}
+	return nil
+}
+
 func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -2692,6 +2775,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		DetachedFromSpawningParentSessionID    *string                                              `json:"detachedFromSpawningParentSessionId,omitempty"`
 		DisabledInstructionSources             []string                                             `json:"disabledInstructionSources,omitzero"`
 		DisabledSkills                         []string                                             `json:"disabledSkills,omitzero"`
+		EnableCitations                        *bool                                                `json:"enableCitations,omitempty"`
 		EnableOnDemandInstructionDiscovery     *bool                                                `json:"enableOnDemandInstructionDiscovery,omitempty"`
 		EnableScriptSafety                     *bool                                                `json:"enableScriptSafety,omitempty"`
 		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
@@ -2756,6 +2840,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.DetachedFromSpawningParentSessionID = raw.DetachedFromSpawningParentSessionID
 	r.DisabledInstructionSources = raw.DisabledInstructionSources
 	r.DisabledSkills = raw.DisabledSkills
+	r.EnableCitations = raw.EnableCitations
 	r.EnableOnDemandInstructionDiscovery = raw.EnableOnDemandInstructionDiscovery
 	r.EnableScriptSafety = raw.EnableScriptSafety
 	r.EnableStreaming = raw.EnableStreaming

@@ -277,36 +277,65 @@ function getNodeExecPath(): string {
 }
 
 /**
- * Gets the path to the bundled CLI from the @github/copilot package.
- * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
+ * Computes the candidate platform-specific CLI package names for the current
+ * platform/arch, mirroring @github/copilot's npm-loader. As of CLI 1.0.64-1 the
+ * @github/copilot package is a thin loader and the actual CLI ships in a
+ * platform package (e.g. @github/copilot-darwin-arm64). For Linux we try both
+ * the glibc and musl variants since only the matching one is installed.
+ */
+function getCliPlatformPackageNames(): string[] {
+    const arch = process.arch;
+    const variants = process.platform === "linux" ? ["linux", "linuxmusl"] : [process.platform];
+    return variants.map((variant) => `@github/copilot-${variant}-${arch}`);
+}
+
+/**
+ * Gets the path to the bundled CLI from the platform-specific @github/copilot-*
+ * package. Uses index.js directly rather than the native binary so the CLI runs
+ * under the current Node.js runtime.
  *
  * In ESM, uses import.meta.resolve directly. In CJS (e.g., VS Code extensions
  * bundled with esbuild format:"cjs"), import.meta is empty so we fall back to
  * walking node_modules to find the package.
  */
 function getBundledCliPath(): string {
+    const packageNames = getCliPlatformPackageNames();
+
     if (typeof import.meta.resolve === "function") {
         // ESM: resolve via import.meta.resolve
-        const sdkUrl = import.meta.resolve("@github/copilot/sdk");
-        const sdkPath = fileURLToPath(sdkUrl);
-        // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
-        // Go up two levels to get the package root, then append index.js
-        return join(dirname(dirname(sdkPath)), "index.js");
+        for (const packageName of packageNames) {
+            try {
+                const sdkUrl = import.meta.resolve(`${packageName}/sdk`);
+                const sdkPath = fileURLToPath(sdkUrl);
+                // sdkPath is like .../node_modules/@github/copilot-<platform>/sdk/index.js
+                // Go up two levels to get the package root, then append index.js
+                return join(dirname(dirname(sdkPath)), "index.js");
+            } catch {
+                // Try the next candidate platform package.
+            }
+        }
+        throw new Error(
+            `Could not resolve a @github/copilot platform package (tried ${packageNames.join(", ")}). ` +
+                `Ensure @github/copilot is installed, or pass cliPath/cliUrl to CopilotClient.`
+        );
     }
 
-    // CJS fallback: the @github/copilot package has ESM-only exports so
-    // require.resolve cannot reach it. Walk the module search paths instead.
+    // CJS fallback: the platform packages have ESM-only exports so
+    // require.resolve cannot reach them. Walk the module search paths instead.
     const req = createRequire(__filename);
     const searchPaths = req.resolve.paths("@github/copilot") ?? [];
     for (const base of searchPaths) {
-        const candidate = join(base, "@github", "copilot", "index.js");
-        if (existsSync(candidate)) {
-            return candidate;
+        for (const packageName of packageNames) {
+            const candidate = join(base, ...packageName.split("/"), "index.js");
+            if (existsSync(candidate)) {
+                return candidate;
+            }
         }
     }
     throw new Error(
-        `Could not find @github/copilot package. Searched ${searchPaths.length} paths. ` +
-            `Ensure it is installed, or pass cliPath/cliUrl to CopilotClient.`
+        `Could not find a @github/copilot platform package (tried ${packageNames.join(", ")}). ` +
+            `Searched ${searchPaths.length} paths. ` +
+            `Ensure @github/copilot is installed, or pass cliPath/cliUrl to CopilotClient.`
     );
 }
 
@@ -1222,6 +1251,8 @@ export class CopilotClient {
                 toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
                 provider: config.provider,
                 capi: config.capi,
+                providers: config.providers,
+                models: config.models,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
@@ -1407,6 +1438,8 @@ export class CopilotClient {
                 })),
                 provider: config.provider,
                 capi: config.capi,
+                providers: config.providers,
+                models: config.models,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission:

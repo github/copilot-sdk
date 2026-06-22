@@ -11,6 +11,8 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * Internal request object for resuming an existing session.
  * <p>
@@ -64,6 +66,11 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("capi")
     private CapiSessionOptions capi;
+    @JsonProperty("providers")
+    private List<NamedProviderConfig> providers;
+
+    @JsonProperty("models")
+    private List<ProviderModelConfig> models;
 
     @JsonProperty("enableSessionTelemetry")
     private Boolean enableSessionTelemetry;
@@ -329,6 +336,30 @@ public final class ResumeSessionRequest {
     /** Sets the CAPI session options. @param capi the CAPI session options */
     public void setCapi(CapiSessionOptions capi) {
         this.capi = capi;
+    }
+
+    /** Gets the named provider connections. @return the named providers */
+    @CopilotExperimental
+    public List<NamedProviderConfig> getProviders() {
+        return providers;
+    }
+
+    /** Sets the named provider connections. @param providers the named providers */
+    @CopilotExperimental
+    public void setProviders(List<NamedProviderConfig> providers) {
+        this.providers = providers;
+    }
+
+    /** Gets the BYOK model definitions. @return the models */
+    @CopilotExperimental
+    public List<ProviderModelConfig> getModels() {
+        return models;
+    }
+
+    /** Sets the BYOK model definitions. @param models the models */
+    @CopilotExperimental
+    public void setModels(List<ProviderModelConfig> models) {
+        this.models = models;
     }
 
     /** Gets enable session telemetry flag. @return the flag */

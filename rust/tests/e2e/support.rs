@@ -517,21 +517,29 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
         }
     }
 
-    let path = repo_root
+    // The `@github/copilot` package is a thin loader; the runnable `index.js`
+    // ships in a platform-specific `@github/copilot-<platform>-<arch>` package,
+    // exactly one of which is installed. Resolve whichever one is present.
+    let github_dir = repo_root
         .join("nodejs")
         .join("node_modules")
-        .join("@github")
-        .join("copilot")
-        .join("index.js");
-    if path.exists() {
-        return Ok(path);
+        .join("@github");
+    if let Ok(entries) = std::fs::read_dir(&github_dir) {
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with("copilot-") {
+                let candidate = entry.path().join("index.js");
+                if candidate.exists() {
+                    return Ok(candidate);
+                }
+            }
+        }
     }
 
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         format!(
-            "CLI not found at {}; run npm install in nodejs first",
-            path.display()
+            "CLI not found under {}; run npm install in nodejs first",
+            github_dir.display()
         ),
     ))
 }

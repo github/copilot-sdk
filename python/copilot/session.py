@@ -1104,6 +1104,61 @@ class ProviderConfig(TypedDict, total=False):
     max_output_tokens: int
 
 
+class NamedProviderConfig(TypedDict, total=False):
+    """A named BYOK provider connection (transport + credentials).
+
+    Referenced by :class:`ProviderModelConfig` entries via ``name``. Unlike the
+    singular :class:`ProviderConfig` (which makes the whole session BYOK and
+    bypasses Copilot API authentication), named providers are additive: they
+    coexist with Copilot API auth so models from CAPI and one or more BYOK
+    providers can be mixed within a single session and across sub-agents.
+
+    **Experimental.** Multi-provider BYOK configuration is experimental and may
+    change or be removed in future SDK or CLI releases.
+    """
+
+    # Stable identifier referenced by ProviderModelConfig.provider. Must not contain "/".
+    name: str
+    type: Literal["openai", "azure", "anthropic"]
+    wire_api: Literal["completions", "responses"]
+    base_url: str
+    api_key: str
+    # Bearer token for authentication. Sets the Authorization header directly.
+    # Takes precedence over api_key when both are set.
+    bearer_token: str
+    azure: AzureProviderOptions  # Azure-specific options
+    headers: dict[str, str]
+
+
+class ProviderModelConfig(TypedDict, total=False):
+    """A BYOK model definition that references a :class:`NamedProviderConfig`.
+
+    Added to the session's selectable model list. The session-wide selection id
+    (shown in the model list and passed to model switching) is the
+    provider-qualified ``provider/id``, so BYOK ids never collide with bare CAPI
+    ids.
+
+    **Experimental.** Multi-provider BYOK configuration is experimental and may
+    change or be removed in future SDK or CLI releases.
+    """
+
+    # Provider-local model id, unique within its provider.
+    id: str
+    # Name of the NamedProviderConfig that serves this model.
+    provider: str
+    # Model name sent to the provider API for inference. Defaults to id.
+    wire_model: str
+    # Well-known base model id used for behavior/capability/config lookup. Defaults to id.
+    model_id: str
+    # Display name for model pickers. Defaults to the provider-qualified selection id.
+    name: str
+    max_prompt_tokens: int
+    max_context_window_tokens: int
+    max_output_tokens: int
+    # Optional capability overrides for the synthesized model.
+    capabilities: ModelCapabilitiesOverride
+
+
 SessionEventHandler = Callable[[SessionEvent], None]
 
 

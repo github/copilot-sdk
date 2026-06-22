@@ -1233,6 +1233,92 @@ pub struct AssistantStreamingDeltaData {
     pub total_response_size_bytes: i64,
 }
 
+/// A source that backs one or more cited spans in the assistant's response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationSource {
+    /// Stable, turn-scoped identifier for this source, referenced by CitationReference.sourceId.
+    pub id: String,
+    /// File path relative to the agent's workspace root, when the source is a file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// The system that produced this citation.
+    pub provider: CitationProvider,
+    /// Human-readable title of the source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL of the source, when it is a web resource.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// A single citation occurrence linking a span of generated text to a supporting source.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationReference {
+    /// The exact text from the source that supports the cited span, when provided by the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cited_text: Option<String>,
+    /// Location within the source that supports the cited span, when the provider reports one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<serde_json::Value>,
+    /// Provider-native citation correlation data (e.g. Anthropic search_result_index / document_index), passed through opaquely for debugging and forward compatibility.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<serde_json::Value>,
+    /// Identifier of the CitationSource this reference points to (CitationSource.id).
+    pub source_id: String,
+}
+
+/// A contiguous span of generated assistant text and the source references that support it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationSpan {
+    /// End offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, exclusive).
+    pub end_index: i64,
+    /// The sources that support this span of generated text.
+    pub references: Vec<CitationReference>,
+    /// Start offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, inclusive).
+    pub start_index: i64,
+}
+
+/// Provider-agnostic citations linking spans of the assistant's response to their supporting sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Citations {
+    /// Deduplicated set of sources referenced by the citation spans.
+    pub sources: Vec<CitationSource>,
+    /// Spans of generated text annotated with the sources that support them.
+    pub spans: Vec<CitationSpan>,
+}
+
 /// Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
 ///
 /// <div class="warning">
@@ -1290,6 +1376,16 @@ pub struct AssistantMessageData {
     /// Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
+    /// Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citations: Option<Citations>,
     /// The assistant's text response content
     pub content: String,
     /// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -1513,12 +1609,21 @@ pub struct ModelCallFailureData {
     /// Completion ID from the model provider (e.g., chatcmpl-abc123)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
+    /// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bad_request_kind: Option<ModelCallFailureBadRequestKind>,
     /// Duration of the failed API call in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<i64>,
+    /// For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
     /// Raw provider/runtime error message for restricted telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
+    /// For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_type: Option<String>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
@@ -1659,6 +1764,32 @@ pub struct ToolExecutionCompleteError {
     pub code: Option<String>,
     /// Human-readable error message
     pub message: String,
+}
+
+/// A source supplied by a tool that should be made available to the model as citable content.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitableSource {
+    /// The source text made available to the model as citable content.
+    pub content: String,
+    /// Stable identifier for this source within the tool result. Used for deduplication and may be used by future provider integrations to correlate response citations back to the originating source.
+    pub id: String,
+    /// File path relative to the agent's workspace root, when the source is a file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// Human-readable title of the source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL of the source, when it is a web resource.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 /// Plain text content block
@@ -1901,6 +2032,16 @@ pub struct ToolExecutionCompleteResult {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub binary_results_for_llm: Option<Vec<serde_json::Value>>,
+    /// Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citable_sources: Option<Vec<CitableSource>>,
     /// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
     pub content: String,
     /// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
@@ -2979,12 +3120,29 @@ pub struct McpOauthRequiredStaticClientConfig {
     pub public_client: Option<bool>,
 }
 
+/// OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthWWWAuthenticateParams {
+    /// OAuth error from the WWW-Authenticate error parameter, if present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter
+    pub resource_metadata_url: String,
+    /// Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+}
+
 /// Session event "mcp.oauth_required". OAuth authentication request for an MCP server
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthRequiredData {
-    /// Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth()
+    /// Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
     pub request_id: RequestId,
+    /// Raw OAuth protected-resource metadata document fetched for the MCP server, if available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_metadata: Option<String>,
     /// Display name of the MCP server that requires OAuth
     pub server_name: String,
     /// URL of the MCP server that requires OAuth
@@ -2992,12 +3150,17 @@ pub struct McpOauthRequiredData {
     /// Static OAuth client configuration, if the server specifies one
     #[serde(skip_serializing_if = "Option::is_none")]
     pub static_client_config: Option<McpOauthRequiredStaticClientConfig>,
+    /// OAuth WWW-Authenticate parameters parsed from the auth challenge, if available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub www_authenticate_params: Option<McpOauthWWWAuthenticateParams>,
 }
 
 /// Session event "mcp.oauth_completed". MCP OAuth request completion notification
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthCompletedData {
+    /// How the pending OAuth request was completed
+    pub outcome: McpOauthCompletionOutcome,
     /// Request ID of the resolved OAuth request
     pub request_id: RequestId,
 }
@@ -3372,7 +3535,7 @@ pub struct CanvasRegistryChangedCanvasAction {
     pub description: Option<String>,
     /// JSON Schema for action input
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_schema: Option<HashMap<String, serde_json::Value>>,
+    pub input_schema: Option<serde_json::Value>,
     /// Action name
     pub name: String,
 }
@@ -3397,7 +3560,7 @@ pub struct CanvasRegistryChangedCanvas {
     pub extension_name: Option<String>,
     /// JSON Schema for canvas open input
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_schema: Option<HashMap<String, serde_json::Value>>,
+    pub input_schema: Option<serde_json::Value>,
 }
 
 /// Session event "session.canvas.registry_changed".
@@ -3672,6 +3835,31 @@ pub enum UserMessageAgentMode {
     Unknown,
 }
 
+/// The system that produced a citation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CitationProvider {
+    /// Citation produced by an Anthropic (Claude) model response.
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    /// Citation produced by an OpenAI model response.
+    #[serde(rename = "openai")]
+    Openai,
+    /// Citation synthesized client-side by the runtime from tool output.
+    #[serde(rename = "client")]
+    Client,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssistantMessageToolRequestType {
@@ -3702,6 +3890,21 @@ pub enum AssistantUsageApiEndpoint {
     /// WebSocket Responses API endpoint.
     #[serde(rename = "ws:/responses")]
     WsResponses,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFailureBadRequestKind {
+    /// The 400 response carried no error body (transient gateway/proxy signature).
+    #[serde(rename = "bodyless")]
+    Bodyless,
+    /// The 400 response carried a structured CAPI error envelope (deterministic validation failure).
+    #[serde(rename = "structured_error")]
+    StructuredError,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -4368,6 +4571,21 @@ pub enum McpOauthRequiredStaticClientConfigGrantType {
     #[serde(rename = "client_credentials")]
     #[default]
     ClientCredentials,
+}
+
+/// How the pending MCP OAuth request was completed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthCompletionOutcome {
+    /// The request completed with a token-backed OAuth provider.
+    #[serde(rename = "token")]
+    Token,
+    /// The request completed without an OAuth provider.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// The user's auto-mode-switch choice

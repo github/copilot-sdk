@@ -655,6 +655,7 @@ try {
 10. **Provide descriptive tool names and descriptions** for better model understanding
 11. **Handle both delta and final events** when streaming is enabled
 12. **Use `getArgumentsAs()`** for type-safe tool argument deserialization
+13. **Run Spotless before committing:** CI will fail if `mvn spotless:check` fails. Before committing Java changes, run `cd java && mvn spotless:apply` and include the resulting changes in the commit.
 
 ## Common Patterns
 

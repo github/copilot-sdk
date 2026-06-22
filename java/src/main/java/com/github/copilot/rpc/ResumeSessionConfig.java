@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
 import java.util.Optional;
 
@@ -46,6 +47,8 @@ public class ResumeSessionConfig {
     private List<String> excludedTools;
     private ProviderConfig provider;
     private CapiSessionOptions capi;
+    private List<NamedProviderConfig> providers;
+    private List<ProviderModelConfig> models;
     private Boolean enableSessionTelemetry;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
@@ -278,6 +281,58 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setCapi(CapiSessionOptions capi) {
         this.capi = capi;
+        return this;
+    }
+
+    /**
+     * Gets the named BYOK provider connections.
+     *
+     * @return the named provider connections, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public List<NamedProviderConfig> getProviders() {
+        return providers;
+    }
+
+    /**
+     * Re-supplies the named BYOK provider connections on resume (additive
+     * multi-provider registry).
+     * <p>
+     * Attach models referencing these connections with {@link #setModels(List)}.
+     *
+     * @param providers
+     *            the named provider connections
+     * @return this config instance for method chaining
+     * @see NamedProviderConfig
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig setProviders(List<NamedProviderConfig> providers) {
+        this.providers = providers;
+        return this;
+    }
+
+    /**
+     * Gets the BYOK model definitions.
+     *
+     * @return the model definitions, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public List<ProviderModelConfig> getModels() {
+        return models;
+    }
+
+    /**
+     * Re-supplies the BYOK model definitions on resume, each referencing a named
+     * provider supplied via {@link #setProviders(List)}.
+     *
+     * @param models
+     *            the model definitions
+     * @return this config instance for method chaining
+     * @see ProviderModelConfig
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig setModels(List<ProviderModelConfig> models) {
+        this.models = models;
         return this;
     }
 
@@ -1576,6 +1631,8 @@ public class ResumeSessionConfig {
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
         copy.capi = this.capi;
+        copy.providers = this.providers != null ? new ArrayList<>(this.providers) : null;
+        copy.models = this.models != null ? new ArrayList<>(this.models) : null;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
