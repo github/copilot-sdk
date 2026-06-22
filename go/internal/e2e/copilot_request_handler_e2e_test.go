@@ -48,7 +48,7 @@ func startFakeUpstreams(t *testing.T, counters *handlerCounters) (httpURL, wsURL
 
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.ToLower(strings.SplitN(r.URL.Path, "?", 2)[0])
-		_ = r.Body.Close
+		defer func() { _ = r.Body.Close() }()
 		switch {
 		case strings.HasSuffix(path, "/models"):
 			w.Header().Set("content-type", "application/json")

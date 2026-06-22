@@ -58,8 +58,10 @@ type CopilotRequestContext struct {
 	URL       string
 	Headers   http.Header
 	// Body yields request body frames as they arrive from the runtime. The
-	// channel is closed when the body ends or the request is cancelled.
-	Body <-chan []byte
+	// channel is closed when the body ends or the request is cancelled. For
+	// WebSocket requests each frame's Binary flag distinguishes a binary frame
+	// from a UTF-8 text frame; for HTTP it is always a body byte chunk.
+	Body <-chan CopilotWebSocketMessage
 	// Context is cancelled when the runtime cancels this in-flight request.
 	Context context.Context
 }
@@ -68,8 +70,15 @@ type CopilotRequestContext struct {
 // WebSocket connection.
 type CopilotWebSocketCloseStatus struct {
 	Description string
-	Code        string
+	ErrorCode   string
 	Err         error
+}
+
+// CopilotWebSocketMessage is a single WebSocket frame exchanged through the
+// handler seam. Binary distinguishes a binary frame from a UTF-8 text frame.
+type CopilotWebSocketMessage struct {
+	Data   []byte
+	Binary bool
 }
 
 // CopilotRequestHandler is the idiomatic handler for intercepting or replacing
@@ -109,7 +118,7 @@ type CopilotWebSocketHandler interface {
 	// messages into resp. It must not block. ctx is cancelled on teardown.
 	Open(ctx context.Context, resp WebSocketResponseWriter) error
 	// SendRequestMessage forwards one runtime→upstream message.
-	SendRequestMessage(ctx context.Context, data []byte) error
+	SendRequestMessage(ctx context.Context, msg CopilotWebSocketMessage) error
 	// Done is closed when the upstream connection completes (closed or errored).
 	Done() <-chan struct{}
 	// Err returns the terminal error after Done is closed, or nil on clean close.
@@ -183,10 +192,10 @@ func buildHTTPRequest(rctx *CopilotRequestContext) (*http.Request, error) {
 	return httpReq, nil
 }
 
-func drainBody(ch <-chan []byte) []byte {
+func drainBody(ch <-chan CopilotWebSocketMessage) []byte {
 	var buf bytes.Buffer
 	for frame := range ch {
-		buf.Write(frame)
+		buf.Write(frame.Data)
 	}
 	return buf.Bytes()
 }
@@ -428,10 +437,10 @@ func (f *ForwardingCopilotWebSocketHandler) receiveLoop(ctx context.Context) {
 	}
 }
 
-func (f *ForwardingCopilotWebSocketHandler) SendRequestMessage(ctx context.Context, data []byte) error {
-	out := data
+func (f *ForwardingCopilotWebSocketHandler) SendRequestMessage(ctx context.Context, msg CopilotWebSocketMessage) error {
+	out := msg.Data
 	if f.OnSendRequestMessage != nil {
-		out = f.OnSendRequestMessage(data)
+		out = f.OnSendRequestMessage(msg.Data)
 		if out == nil {
 			return nil
 		}
@@ -439,7 +448,11 @@ func (f *ForwardingCopilotWebSocketHandler) SendRequestMessage(ctx context.Conte
 	if f.conn == nil {
 		return nil
 	}
-	return f.conn.Write(ctx, websocket.MessageText, out)
+	msgType := websocket.MessageText
+	if msg.Binary {
+		msgType = websocket.MessageBinary
+	}
+	return f.conn.Write(ctx, msgType, out)
 }
 
 func (f *ForwardingCopilotWebSocketHandler) Done() <-chan struct{} { return f.done }
@@ -461,7 +474,7 @@ func (f *ForwardingCopilotWebSocketHandler) Close() error {
 type frameQueue struct {
 	mu    sync.Mutex
 	cond  *sync.Cond
-	items [][]byte
+	items []CopilotWebSocketMessage
 	done  bool
 }
 
@@ -471,10 +484,10 @@ func newFrameQueue() *frameQueue {
 	return q
 }
 
-func (q *frameQueue) push(b []byte) {
+func (q *frameQueue) push(m CopilotWebSocketMessage) {
 	q.mu.Lock()
 	if !q.done {
-		q.items = append(q.items, b)
+		q.items = append(q.items, m)
 	}
 	q.cond.Signal()
 	q.mu.Unlock()
@@ -487,18 +500,18 @@ func (q *frameQueue) close() {
 	q.mu.Unlock()
 }
 
-func (q *frameQueue) pop() ([]byte, bool) {
+func (q *frameQueue) pop() (CopilotWebSocketMessage, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for len(q.items) == 0 && !q.done {
 		q.cond.Wait()
 	}
 	if len(q.items) > 0 {
-		b := q.items[0]
+		m := q.items[0]
 		q.items = q.items[1:]
-		return b, true
+		return m, true
 	}
-	return nil, false
+	return CopilotWebSocketMessage{}, false
 }
 
 type pendingExchange struct {
@@ -550,17 +563,17 @@ func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPReq
 	// body — rather than dropping those frames.
 	exchange := a.getOrCreateExchange(params.RequestID)
 	ctx := exchange.ctx
-	bodyCh := make(chan []byte)
+	bodyCh := make(chan CopilotWebSocketMessage)
 
 	go func() {
 		defer close(bodyCh)
 		for {
-			b, ok := exchange.queue.pop()
+			m, ok := exchange.queue.pop()
 			if !ok {
 				return
 			}
 			select {
-			case bodyCh <- b:
+			case bodyCh <- m:
 			case <-ctx.Done():
 				return
 			}
@@ -612,7 +625,7 @@ func (a *copilotRequestAdapter) routeChunk(exchange *pendingExchange, params *rp
 	if params.Data != "" {
 		binary := params.Binary != nil && *params.Binary
 		if data, err := decodeChunkData(params.Data, binary); err == nil {
-			exchange.queue.push(data)
+			exchange.queue.push(CopilotWebSocketMessage{Data: data, Binary: binary})
 		}
 	}
 	if params.End != nil && *params.End {
