@@ -295,7 +295,7 @@ public static List<ToolDefinition> fromObject(Object instance) {
 
 **Recommendation:** Implement the reflection fallback but mark it `@CopilotExperimental` separately. The primary path is the generated `$$CopilotToolMeta`.
 
-**Resolution** we only want the processor approach.
+**Resolution:** we only want the processor approach.
 
 ### 3.7 — `module-info.java` impact
 
@@ -307,7 +307,7 @@ The SDK uses JPMS. The processor generates classes into the user's module, not t
 
 **Action:** Verify this works in a simple named-module test.
 
-**Resolution**
+**Resolution:**
 
 See `1682-java-tool-ergonomics-prompts-remove-before-merge/dd3021192/pom.xml` and files
 
@@ -336,7 +336,7 @@ provides javax.annotation.processing.Processor
     with CopilotExperimentalProcessor, CopilotToolProcessor;
 ```
 
-**No issues expected here** — this is standard JSR 269 multi-processor registration.
+**Resolution:** **No issues expected here** — this is standard JSR 269 multi-processor registration.
 
 ---
 
@@ -446,6 +446,8 @@ void ergonomicToolDefinition() throws Exception {
 **Gating criteria:** Test passes with the same assertions as `LowLevelToolDefinitionIT` — proving the ergonomic API produces identical behavior to the explicit API.
 
 ### 4.6 — Reflection fallback (optional, can defer)
+
+Per resolution 3.6, we have decided to defer item 4.6.
 
 **What:** `fromObject()` falls back to runtime reflection when `$$CopilotToolMeta` is not found.
 
