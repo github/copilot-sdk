@@ -6,6 +6,7 @@ import { ChildProcess, spawn } from "child_process";
 import { resolve } from "path";
 import { createInterface } from "readline";
 import type {
+    MockIdentityConfig,
     MockIdentityEndpointInfo,
     RecordedIdentityRequest,
 } from "../../../../test/harness/mockIdentityEndpoint";
@@ -88,9 +89,18 @@ export class MockIdentityServer {
         return (await response.json()) as RecordedIdentityRequest[];
     }
 
-    /** Clears the endpoint's recorded token requests. */
+    /** Clears the endpoint's recorded token requests and restores defaults. */
     async reset(): Promise<void> {
         await fetch(this.requireInfo().resetUrl, { method: "POST" });
+    }
+
+    /** Sets the endpoint's token lifetime / rotation behaviour. */
+    async configure(config: MockIdentityConfig): Promise<void> {
+        await fetch(this.requireInfo().configureUrl, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(config),
+        });
     }
 
     async stop(): Promise<void> {

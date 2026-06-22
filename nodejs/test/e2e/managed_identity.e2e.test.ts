@@ -236,4 +236,64 @@ describe("BYOK managed identity authentication", async () => {
             client_id: "11111111-2222-3333-4444-555555555555",
         });
     });
+
+    it("reuses a cached token across turns while it is still valid", async () => {
+        // A unique scope keeps this turn's cache key isolated from the other
+        // tests (the runtime caches process-wide by scope + identity).
+        const provider: ProviderConfig = {
+            type: "openai",
+            wireApi: "completions",
+            baseUrl: modelBaseUrl,
+            modelId: "claude-sonnet-4.5",
+            managedIdentity: { scope: "https://cache-test.example.test/.default" },
+        };
+
+        // Default lifetime (1h) is well outside the runtime's 5-minute refresh
+        // buffer, so the token acquired on the first turn stays cached.
+        await runTurn(provider);
+        await runTurn(provider);
+
+        // Two turns, but the identity endpoint was only hit once: the second
+        // turn reused the cached token instead of re-acquiring one.
+        const identityRequests = await identity.getRecordedRequests();
+        expect(identityRequests.length).toBe(1);
+
+        // Every model request across both turns carried that one cached token.
+        expect(modelRequests.length).toBeGreaterThanOrEqual(2);
+        for (const request of modelRequests) {
+            expect(request.authorization).toBe(`Bearer ${identity.token}`);
+        }
+    });
+
+    it("refreshes the token on the next turn once it is within the expiry buffer", async () => {
+        // Mint short-lived, rotating tokens: a 1-second lifetime is inside the
+        // runtime's 5-minute refresh buffer, so the cached token is treated as
+        // stale immediately and re-acquired on the next turn. Rotation makes the
+        // refreshed token observably different from the first one.
+        await identity.configure({ expiresInSeconds: 1, rotateTokens: true });
+
+        const provider: ProviderConfig = {
+            type: "openai",
+            wireApi: "completions",
+            baseUrl: modelBaseUrl,
+            modelId: "claude-sonnet-4.5",
+            managedIdentity: { scope: "https://refresh-test.example.test/.default" },
+        };
+
+        await runTurn(provider);
+        const firstTurnBearer = modelRequests.at(-1)?.authorization;
+
+        await runTurn(provider);
+        const secondTurnBearer = modelRequests.at(-1)?.authorization;
+
+        // The endpoint was hit again for the second turn rather than serving a
+        // cached token.
+        const identityRequests = await identity.getRecordedRequests();
+        expect(identityRequests.length).toBeGreaterThanOrEqual(2);
+
+        // The second turn's model request carried a freshly minted token, not
+        // the one from the first turn — proving automatic refresh.
+        expect(secondTurnBearer).not.toBe(firstTurnBearer);
+        expect(secondTurnBearer).toBe(`Bearer ${identityRequests.at(-1)?.issuedToken}`);
+    });
 });
