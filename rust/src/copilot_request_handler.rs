@@ -53,9 +53,10 @@ const METHOD_HTTP_REQUEST_START: &str = "llmInference.httpRequestStart";
 const METHOD_HTTP_REQUEST_CHUNK: &str = "llmInference.httpRequestChunk";
 
 /// Transport the runtime would otherwise use for an intercepted request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CopilotRequestTransport {
     /// Plain HTTP or SSE. Each response body frame is an opaque byte range.
+    #[default]
     Http,
     /// Full-duplex WebSocket. Each request/response body frame maps to exactly
     /// one WebSocket message.
@@ -582,13 +583,21 @@ struct ResponseState {
 /// via `httpRequestChunk` frames, and emits the handler's response straight back
 /// to the runtime through the generated `llmInference` server API — a single
 /// object the dispatcher owns and the handler drives.
-struct CopilotRequestExchange {
-    request_id: String,
+/// Request context populated when the matching `httpRequestStart` frame
+/// arrives. Held behind a `OnceLock` so the owning [`CopilotRequestExchange`]
+/// can be created bare by a body chunk that races ahead of its start frame.
+#[derive(Default)]
+struct RequestMeta {
     session_id: Option<String>,
     method: String,
     url: String,
     headers: HeaderMap,
     transport: CopilotRequestTransport,
+}
+
+struct CopilotRequestExchange {
+    request_id: String,
+    meta: OnceLock<RequestMeta>,
     cancel: CancellationToken,
     client: Weak<ClientInner>,
     /// Sender feeding the request body stream. Dropped (set to `None`) on `end`
@@ -599,15 +608,11 @@ struct CopilotRequestExchange {
 }
 
 impl CopilotRequestExchange {
-    fn new(params: LlmInferenceHttpRequestStartRequest, client: Weak<ClientInner>) -> Self {
+    fn new(request_id: String, client: Weak<ClientInner>) -> Self {
         let (body_tx, body_rx) = mpsc::unbounded_channel();
         Self {
-            request_id: params.request_id.into_inner(),
-            session_id: params.session_id.map(SessionId::into_inner),
-            method: params.method,
-            url: params.url,
-            headers: headers_from_wire(&params.headers),
-            transport: CopilotRequestTransport::from_wire(params.transport),
+            request_id,
+            meta: OnceLock::new(),
             cancel: CancellationToken::new(),
             client,
             body_tx: Mutex::new(Some(body_tx)),
@@ -616,13 +621,32 @@ impl CopilotRequestExchange {
         }
     }
 
+    /// Fill in the request context once the matching start frame arrives.
+    fn set_context(&self, params: LlmInferenceHttpRequestStartRequest) {
+        let _ = self.meta.set(RequestMeta {
+            session_id: params.session_id.map(SessionId::into_inner),
+            method: params.method,
+            url: params.url,
+            headers: headers_from_wire(&params.headers),
+            transport: CopilotRequestTransport::from_wire(params.transport),
+        });
+    }
+
+    /// Request metadata. Always populated before the handler runs; the
+    /// defaulted fallback only guards the (contract-impossible) case of a body
+    /// chunk with no preceding start frame.
+    fn meta(&self) -> &RequestMeta {
+        self.meta.get_or_init(RequestMeta::default)
+    }
+
     fn context(&self) -> CopilotRequestContext {
+        let meta = self.meta();
         CopilotRequestContext {
             request_id: self.request_id.clone(),
-            session_id: self.session_id.clone(),
-            transport: self.transport,
-            url: self.url.clone(),
-            headers: self.headers.clone(),
+            session_id: meta.session_id.clone(),
+            transport: meta.transport,
+            url: meta.url.clone(),
+            headers: meta.headers.clone(),
             cancel: self.cancel.clone(),
         }
     }
@@ -822,13 +846,14 @@ async fn drive_exchange(
     handler: &Arc<dyn CopilotRequestHandler>,
 ) -> Result<(), CopilotRequestError> {
     let ctx = exchange.context();
-    match exchange.transport {
+    let meta = exchange.meta();
+    match meta.transport {
         CopilotRequestTransport::Http => {
             let body = exchange.drain_body().await;
             let request = CopilotHttpRequest {
-                method: exchange.method.clone(),
-                url: exchange.url.clone(),
-                headers: exchange.headers.clone(),
+                method: meta.method.clone(),
+                url: meta.url.clone(),
+                headers: meta.headers.clone(),
                 body,
                 cancel: ctx.cancel.clone(),
             };
@@ -1014,6 +1039,21 @@ impl CopilotRequestDispatcher {
         }
     }
 
+    fn get_or_create_exchange(&self, request_id: String) -> Arc<CopilotRequestExchange> {
+        // The runtime dispatches httpRequestStart and httpRequestChunk frames
+        // independently. get-or-create keeps the adapter correct regardless of
+        // arrival order: a body chunk (including the terminal end frame) that
+        // races ahead of its start frame is buffered into the same exchange
+        // rather than dropped, which would otherwise hang the body drain.
+        self.pending
+            .lock()
+            .entry(request_id.clone())
+            .or_insert_with(|| {
+                Arc::new(CopilotRequestExchange::new(request_id, self.client_weak()))
+            })
+            .clone()
+    }
+
     async fn handle_start(self: &Arc<Self>, request: JsonRpcRequest) {
         let id = request.id;
         let Some(params) = parse_params::<LlmInferenceHttpRequestStartRequest>(&request) else {
@@ -1022,17 +1062,18 @@ impl CopilotRequestDispatcher {
             return;
         };
 
-        let exchange = Arc::new(CopilotRequestExchange::new(params, self.client_weak()));
-        let request_id = exchange.request_id.clone();
-        self.pending
-            .lock()
-            .insert(request_id.clone(), exchange.clone());
+        // Adopt any exchange a racing chunk already created — with its buffered
+        // body — rather than dropping those frames.
+        let request_id = params.request_id.clone().into_inner();
+        let exchange = self.get_or_create_exchange(request_id.clone());
+        exchange.set_context(params);
 
         let handler = self.handler.clone();
         let dispatcher = Arc::clone(self);
+        let exchange_for_task = exchange.clone();
         tokio::spawn(async move {
-            let result = drive_exchange(&exchange, &handler).await;
-            finalize_exchange(&exchange, result).await;
+            let result = drive_exchange(&exchange_for_task, &handler).await;
+            finalize_exchange(&exchange_for_task, result).await;
             dispatcher.remove_pending(&request_id);
         });
 
@@ -1047,11 +1088,10 @@ impl CopilotRequestDispatcher {
             return;
         };
 
-        let request_id = params.request_id.to_string();
-        let exchange = self.pending.lock().get(&request_id).cloned();
-        if let Some(exchange) = exchange {
-            apply_chunk(&exchange, &params);
-        }
+        // May arrive before the matching start frame; get-or-create so the body
+        // is buffered, never lost.
+        let exchange = self.get_or_create_exchange(params.request_id.to_string());
+        apply_chunk(&exchange, &params);
 
         self.ack(id).await;
     }
