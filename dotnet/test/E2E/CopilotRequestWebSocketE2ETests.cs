@@ -354,16 +354,9 @@ internal sealed class FakeCopilotUpstream : IAsyncDisposable
 
     private static int GetFreePort()
     {
-        var probe = new TcpListener(IPAddress.Loopback, 0);
+        using var probe = new TcpListener(IPAddress.Loopback, 0);
         probe.Start();
-        try
-        {
-            return ((IPEndPoint)probe.LocalEndpoint).Port;
-        }
-        finally
-        {
-            probe.Stop();
-        }
+        return ((IPEndPoint)probe.LocalEndpoint).Port;
     }
 
     public async ValueTask DisposeAsync()
