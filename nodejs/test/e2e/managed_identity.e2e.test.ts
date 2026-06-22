@@ -7,6 +7,7 @@ import { AddressInfo } from "net";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { approveAll } from "../../src/index.js";
 import type { ProviderConfig } from "../../src/index.js";
+import { MockIdentityServer } from "./harness/MockIdentityServer.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { retry } from "./harness/sdkTestHelper.js";
 
@@ -15,10 +16,12 @@ import { retry } from "./harness/sdkTestHelper.js";
  * provider. Proves the full SDK → runtime → Rust credential chain wiring without
  * any real network:
  *
- *  - A local **mock identity endpoint** plays the App Service / Functions managed
- *    identity contract (`IDENTITY_ENDPOINT` + `IDENTITY_HEADER`). It returns a
- *    fixed fake AAD token and records the `resource` + identity query parameters
- *    the runtime asked for.
+ *  - The shared **mock identity endpoint** (`test/harness/mockIdentityServer.ts`,
+ *    spawned via {@link MockIdentityServer}) plays the App Service / Functions
+ *    managed identity contract (`IDENTITY_ENDPOINT` + `IDENTITY_HEADER`). It
+ *    returns a fixed fake AAD token and records the `resource` + identity query
+ *    parameters the runtime asked for. Living in the shared harness lets every
+ *    SDK language reuse it.
  *  - A local **mock model endpoint** is the BYOK provider's `baseUrl`. It records
  *    the `Authorization` header the runtime sent and replies with a minimal
  *    streamed chat completion so the turn finishes cleanly.
@@ -30,17 +33,6 @@ import { retry } from "./harness/sdkTestHelper.js";
  * server (not the replay proxy), the test needs no recorded snapshot and never
  * touches the network.
  */
-
-const FAKE_MI_TOKEN = "fake-managed-identity-token";
-const IDENTITY_HEADER_SECRET = "fake-identity-header-secret";
-
-interface IdentityRequest {
-    resource: string | null;
-    apiVersion: string | null;
-    identityHeader: string | undefined;
-    /** Identity-selector query params present (client_id / principal_id / mi_res_id). */
-    identityParams: Record<string, string>;
-}
 
 interface ModelRequest {
     authorization: string | undefined;
@@ -71,36 +63,11 @@ function close(server: Server): Promise<void> {
 describe("BYOK managed identity authentication", async () => {
     const { copilotClient: client, env } = await createSdkTestContext();
 
-    const identityRequests: IdentityRequest[] = [];
-    const modelRequests: ModelRequest[] = [];
+    // App Service / Functions managed identity endpoint, shared across SDKs.
+    const identity = new MockIdentityServer();
+    await identity.start();
 
-    // App Service / Functions managed identity endpoint. Validates the secret
-    // header, records what was asked for, and returns a fixed fake token.
-    const identityServer = createServer((req: IncomingMessage, res: ServerResponse) => {
-        const url = new URL(req.url ?? "/", "http://127.0.0.1");
-        const identityParams: Record<string, string> = {};
-        for (const key of ["client_id", "principal_id", "mi_res_id"]) {
-            const value = url.searchParams.get(key);
-            if (value !== null) {
-                identityParams[key] = value;
-            }
-        }
-        identityRequests.push({
-            resource: url.searchParams.get("resource"),
-            apiVersion: url.searchParams.get("api-version"),
-            identityHeader: (req.headers["x-identity-header"] as string | undefined) ?? undefined,
-            identityParams,
-        });
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(
-            JSON.stringify({
-                access_token: FAKE_MI_TOKEN,
-                expires_in: 3600,
-                token_type: "Bearer",
-                resource: url.searchParams.get("resource"),
-            })
-        );
-    });
+    const modelRequests: ModelRequest[] = [];
 
     // BYOK model endpoint. Records the Authorization header the runtime injected
     // and returns a minimal streamed OpenAI chat completion so the turn ends.
@@ -168,26 +135,25 @@ describe("BYOK managed identity authentication", async () => {
         }
     });
 
-    const identityPort = await listen(identityServer);
     const modelPort = await listen(modelServer);
     const modelBaseUrl = `http://127.0.0.1:${modelPort}`;
 
     // The harness env object is the same one passed to the CLI subprocess, so
     // mutating it before the first createSession() configures managed identity
     // resolution inside the runtime. These are all standard Azure env vars.
-    env.IDENTITY_ENDPOINT = `http://127.0.0.1:${identityPort}/msi/token`;
-    env.IDENTITY_HEADER = IDENTITY_HEADER_SECRET;
+    env.IDENTITY_ENDPOINT = identity.endpoint;
+    env.IDENTITY_HEADER = identity.header;
     env.AZURE_TOKEN_CREDENTIALS = "ManagedIdentityCredential";
     // Ensure no ambient user-assigned id leaks in from the host environment.
     env.AZURE_CLIENT_ID = "";
 
-    beforeEach(() => {
-        identityRequests.length = 0;
+    beforeEach(async () => {
+        await identity.reset();
         modelRequests.length = 0;
     });
 
     afterAll(async () => {
-        await close(identityServer);
+        await identity.stop();
         await close(modelServer);
     });
 
@@ -224,14 +190,15 @@ describe("BYOK managed identity authentication", async () => {
 
         // The runtime acquired the fake token from the identity endpoint and
         // injected it as the model request's bearer credential.
-        expect(modelRequests[0].authorization).toBe(`Bearer ${FAKE_MI_TOKEN}`);
+        expect(modelRequests[0].authorization).toBe(`Bearer ${identity.token}`);
 
         // The identity endpoint was hit with the App Service secret header, the
         // default cognitiveservices resource, and NO identity selector (system
         // assigned).
+        const identityRequests = await identity.getRecordedRequests();
         expect(identityRequests.length).toBeGreaterThanOrEqual(1);
         const idReq = identityRequests[0];
-        expect(idReq.identityHeader).toBe(IDENTITY_HEADER_SECRET);
+        expect(idReq.identityHeader).toBe(identity.header);
         expect(idReq.resource).toBe("https://cognitiveservices.azure.com");
         expect(idReq.identityParams).toEqual({});
     });
@@ -256,11 +223,12 @@ describe("BYOK managed identity authentication", async () => {
             1_200
         );
 
-        expect(modelRequests[0].authorization).toBe(`Bearer ${FAKE_MI_TOKEN}`);
+        expect(modelRequests[0].authorization).toBe(`Bearer ${identity.token}`);
 
+        const identityRequests = await identity.getRecordedRequests();
         expect(identityRequests.length).toBeGreaterThanOrEqual(1);
         const idReq = identityRequests[0];
-        expect(idReq.identityHeader).toBe(IDENTITY_HEADER_SECRET);
+        expect(idReq.identityHeader).toBe(identity.header);
         // The custom scope's resource (scope minus the /.default suffix).
         expect(idReq.resource).toBe("https://gateway.example.test");
         // The user-assigned client id was sent as the App Service client_id param.
