@@ -377,16 +377,15 @@ class _CopilotRequestExchange:
 
     def __init__(
         self,
-        params: LlmInferenceHTTPRequestStartRequest,
+        request_id: str,
         get_server_rpc: Callable[[], ServerLlmInferenceApi | None],
     ) -> None:
-        self.request_id = params.request_id
-        self.session_id = params.session_id
-        self.method = params.method
-        self.url = params.url
-        self.headers = params.headers
-        transport = params.transport
-        self.transport: str = transport.value if transport is not None else "http"
+        self.request_id = request_id
+        self.session_id: str | None = None
+        self.method: str = "GET"
+        self.url: str = ""
+        self.headers: dict[str, list[str]] = {}
+        self.transport: str = "http"
         self._get_server_rpc = get_server_rpc
         self._queue = _BodyQueue()
         self.cancel_event: asyncio.Event = asyncio.Event()
@@ -394,6 +393,15 @@ class _CopilotRequestExchange:
         self.finished: bool = False
         self.cancelled: bool = False
         self.task: asyncio.Task[None] | None = None
+
+    def set_context(self, params: LlmInferenceHTTPRequestStartRequest) -> None:
+        """Fill in the request context once the matching start frame arrives."""
+        self.session_id = params.session_id
+        self.method = params.method
+        self.url = params.url
+        self.headers = params.headers
+        transport = params.transport
+        self.transport = transport.value if transport is not None else "http"
 
     @property
     def request_body(self) -> _BodyQueue:
@@ -529,20 +537,35 @@ class _CopilotRequestAdapterHandler:
         finally:
             self._pending.pop(exchange.request_id, None)
 
+    def _get_or_create(self, request_id: str) -> _CopilotRequestExchange:
+        # The runtime dispatches httpRequestStart and httpRequestChunk frames
+        # independently. get-or-create keeps the adapter correct regardless of
+        # arrival order: a body chunk (including the terminal end frame) that
+        # races ahead of its start frame is buffered into the same exchange
+        # rather than dropped, which would otherwise hang the body drain.
+        exchange = self._pending.get(request_id)
+        if exchange is None:
+            exchange = _CopilotRequestExchange(request_id, self._get_server_rpc)
+            self._pending[request_id] = exchange
+        return exchange
+
     async def http_request_start(
         self, params: LlmInferenceHTTPRequestStartRequest
     ) -> LlmInferenceHTTPRequestStartResult:
-        exchange = _CopilotRequestExchange(params, self._get_server_rpc)
-        self._pending[params.request_id] = exchange
+        # Adopt any exchange a racing chunk already created — with its buffered
+        # body — rather than dropping those frames.
+        exchange = self._get_or_create(params.request_id)
+        exchange.set_context(params)
         exchange.task = asyncio.create_task(self._run(exchange))
         return LlmInferenceHTTPRequestStartResult()
 
     async def http_request_chunk(
         self, params: LlmInferenceHTTPRequestChunkRequest
     ) -> LlmInferenceHTTPRequestChunkResult:
-        exchange = self._pending.get(params.request_id)
-        if exchange is not None:
-            self._route_chunk(exchange, params)
+        # May arrive before the matching start frame; get-or-create so the body
+        # is buffered, never lost.
+        exchange = self._get_or_create(params.request_id)
+        self._route_chunk(exchange, params)
         return LlmInferenceHTTPRequestChunkResult()
 
 
