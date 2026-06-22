@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Provider-scoped session options for the CAPI (Copilot API) provider.
+ * Provider-scoped session options for the Copilot API (CAPI) provider.
  * <p>
  * WebSocket transport is the default for the CAPI Responses API whenever the
  * model advertises the {@code ws:/responses} endpoint. Setting

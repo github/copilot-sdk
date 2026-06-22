@@ -1160,7 +1160,7 @@ impl ProviderConfig {
     }
 }
 
-/// Provider-scoped CAPI (Copilot API) session options.
+/// Provider-scoped Copilot API (CAPI) session options.
 ///
 /// WebSocket transport is the default for the CAPI Responses API whenever
 /// the model advertises the `ws:/responses` endpoint. Set

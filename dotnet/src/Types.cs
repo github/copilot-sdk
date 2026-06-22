@@ -2068,7 +2068,7 @@ public sealed class ProviderConfig
 }
 
 /// <summary>
-/// Provider-scoped options for the CAPI (Copilot API) provider.
+/// Provider-scoped options for the Copilot API (CAPI) provider.
 /// </summary>
 public sealed class CapiSessionOptions
 {

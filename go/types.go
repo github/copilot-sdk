@@ -1572,7 +1572,7 @@ type ProviderConfig struct {
 	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
 }
 
-// CapiSessionOptions configures provider-scoped CAPI (Copilot API) session behavior.
+// CapiSessionOptions configures provider-scoped Copilot API (CAPI) session behavior.
 //
 // WebSocket transport is the default for the CAPI Responses API whenever the
 // model advertises the ws:/responses endpoint. Set DisableWebSocketResponses to

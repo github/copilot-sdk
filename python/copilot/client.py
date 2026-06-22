@@ -136,7 +136,7 @@ class CloudSessionOptions:
 
 
 class CapiSessionOptions(TypedDict, total=False):
-    """CAPI provider-scoped session options."""
+    """Provider-scoped Copilot API (CAPI) session options."""
 
     disable_web_socket_responses: bool
     """Opt out of WebSocket Responses transport and use HTTP Responses instead."""
