@@ -248,7 +248,7 @@ pub struct ClientOptions {
     /// during [`Client::start`], so the runtime routes its model-layer HTTP and
     /// WebSocket traffic — for both CAPI and BYOK sessions — through the
     /// configured
-    /// [`CopilotRequestHandler`](crate::copilot_request_handler::CopilotRequestHandler)
+    /// [`CopilotRequestHandler`]
     /// instead of issuing the calls itself.
     pub request_handler: Option<Arc<dyn crate::copilot_request_handler::CopilotRequestHandler>>,
     /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
