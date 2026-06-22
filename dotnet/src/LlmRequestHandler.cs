@@ -2,17 +2,40 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading.Channels;
 
 namespace GitHub.Copilot;
 
 /// <summary>
+/// Transport the runtime would otherwise use to issue an intercepted
+/// model-layer request.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public enum LlmInferenceTransport
+{
+    /// <summary>
+    /// Plain HTTP or a streamed SSE response. Each body chunk is an opaque
+    /// byte range.
+    /// </summary>
+    Http,
+
+    /// <summary>
+    /// Full-duplex WebSocket channel. Each request-body chunk is one inbound
+    /// WebSocket message and each response-body write is one outbound message.
+    /// </summary>
+    WebSocket,
+}
+
+/// <summary>
 /// Per-request context handed to every <see cref="LlmRequestHandler"/> hook.
-/// Mirrors the subset of <see cref="LlmInferenceRequest"/> fields that are
-/// stable across the request lifetime, letting overrides observe routing /
-/// cancellation without re-plumbing the underlying request.
+/// Exposes the routing and cancellation details of a single intercepted request
+/// so overrides can observe or rewrite it.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class LlmRequestContext
@@ -202,7 +225,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
         var socket = new ClientWebSocket();
         foreach (var (name, values) in _headers)
         {
-            if (s_forbiddenRequestHeaders.Contains(name))
+            if (LlmInferenceHeaders.Forbidden.Contains(name))
             {
                 continue;
             }
@@ -310,73 +333,17 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
             }).ConfigureAwait(false);
         }
     }
-
-    // Computed/managed by the HTTP/WS stack; forwarding them verbatim either
-    // throws or corrupts the request.
-    private static readonly HashSet<string> s_forbiddenRequestHeaders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "host",
-        "connection",
-        "content-length",
-        "transfer-encoding",
-        "keep-alive",
-        "upgrade",
-        "proxy-connection",
-        "te",
-        "trailer",
-    };
 }
 
 /// <summary>
 /// Base class for SDK consumers who want to observe or mutate the LLM inference
-/// requests the runtime issues.
+/// requests the runtime issues (for both CAPI and BYOK providers). Subclass and
+/// override <see cref="SendRequestAsync"/> or <see cref="OpenWebSocketAsync"/>.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public class LlmRequestHandler : ILlmInferenceProvider
+public class LlmRequestHandler
 {
     private static readonly HttpClient s_sharedHttpClient = new();
-
-    // Computed/managed by the HTTP stack; forwarding them verbatim either throws
-    // or corrupts the request.
-    private static readonly HashSet<string> s_forbiddenRequestHeaders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "host",
-        "connection",
-        "content-length",
-        "transfer-encoding",
-        "keep-alive",
-        "upgrade",
-        "proxy-connection",
-        "te",
-        "trailer",
-    };
-
-    /// <inheritdoc />
-    async Task ILlmInferenceProvider.OnLlmRequestAsync(LlmInferenceRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        var wsResponse = new LlmWebSocketResponseBridge(request.ResponseBody);
-        var ctx = new LlmRequestContext
-        {
-            RequestId = request.RequestId,
-            SessionId = request.SessionId,
-            Transport = request.Transport,
-            Url = request.Url,
-            Headers = request.Headers,
-            CancellationToken = request.CancellationToken,
-        };
-        ctx.WebSocketResponse = wsResponse;
-
-        if (request.Transport == LlmInferenceTransport.WebSocket)
-        {
-            await HandleWebSocketAsync(request, ctx).ConfigureAwait(false);
-        }
-        else
-        {
-            await HandleHttpAsync(request, ctx).ConfigureAwait(false);
-        }
-    }
 
     /// <summary>
     /// Issue the upstream HTTP request. Override to mutate the request before
@@ -394,28 +361,37 @@ public class LlmRequestHandler : ILlmInferenceProvider
     protected virtual Task<CopilotWebSocketHandler> OpenWebSocketAsync(LlmRequestContext ctx) =>
         Task.FromResult<CopilotWebSocketHandler>(new ForwardingWebSocketHandler(ctx));
 
-    private async Task HandleHttpAsync(LlmInferenceRequest req, LlmRequestContext ctx)
+    /// <summary>
+    /// Entry point invoked by the adapter once per intercepted request. Routes to
+    /// the HTTP or WebSocket flow and drives the consumer's overridable hooks.
+    /// </summary>
+    internal Task HandleAsync(LlmInferenceExchange exchange) =>
+        exchange.Context.Transport == LlmInferenceTransport.WebSocket
+            ? HandleWebSocketAsync(exchange)
+            : HandleHttpAsync(exchange);
+
+    private async Task HandleHttpAsync(LlmInferenceExchange exchange)
     {
-        using var request = await BuildHttpRequestAsync(req).ConfigureAwait(false);
-        using var response = await SendRequestAsync(request, ctx).ConfigureAwait(false);
-        await StreamResponseToSinkAsync(response, req, ctx).ConfigureAwait(false);
+        using var request = await BuildHttpRequestAsync(exchange).ConfigureAwait(false);
+        using var response = await SendRequestAsync(request, exchange.Context).ConfigureAwait(false);
+        await StreamResponseAsync(response, exchange).ConfigureAwait(false);
     }
 
-    private static async Task<HttpRequestMessage> BuildHttpRequestAsync(LlmInferenceRequest req)
+    private static async Task<HttpRequestMessage> BuildHttpRequestAsync(LlmInferenceExchange exchange)
     {
-        var method = new HttpMethod(req.Method.ToUpperInvariant());
-        var message = new HttpRequestMessage(method, req.Url);
+        var method = new HttpMethod(exchange.Method.ToUpperInvariant());
+        var message = new HttpRequestMessage(method, exchange.Context.Url);
 
         var hasBody = method != HttpMethod.Get && method != HttpMethod.Head;
-        var body = await DrainAsync(req.RequestBody).ConfigureAwait(false);
+        var body = await DrainAsync(exchange.RequestBody).ConfigureAwait(false);
         if (hasBody && body.Length > 0)
         {
             message.Content = new ByteArrayContent(body);
         }
 
-        foreach (var (name, values) in req.Headers)
+        foreach (var (name, values) in exchange.Context.Headers)
         {
-            if (s_forbiddenRequestHeaders.Contains(name))
+            if (LlmInferenceHeaders.Forbidden.Contains(name))
             {
                 continue;
             }
@@ -430,48 +406,48 @@ public class LlmRequestHandler : ILlmInferenceProvider
         return message;
     }
 
-    private static async Task StreamResponseToSinkAsync(HttpResponseMessage response, LlmInferenceRequest req, LlmRequestContext ctx)
+    private static async Task StreamResponseAsync(HttpResponseMessage response, LlmInferenceExchange exchange)
     {
-        await req.ResponseBody.StartAsync(new LlmInferenceResponseInit
-        {
-            Status = (int)response.StatusCode,
-            StatusText = response.ReasonPhrase,
-            Headers = HeadersToMultiMap(response),
-        }).ConfigureAwait(false);
+        await exchange.StartResponseAsync(
+            (int)response.StatusCode,
+            response.ReasonPhrase,
+            HeadersToMultiMap(response)).ConfigureAwait(false);
 
+        var ct = exchange.Context.CancellationToken;
 #if NETSTANDARD2_0
         using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
 #else
-        using var stream = await response.Content.ReadAsStreamAsync(ctx.CancellationToken).ConfigureAwait(false);
+        using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 #endif
         var buffer = new byte[16 * 1024];
         int read;
 #if NETSTANDARD2_0
-        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, ctx.CancellationToken).ConfigureAwait(false)) > 0)
-        {
-            await req.ResponseBody.WriteAsync(new ReadOnlyMemory<byte>(buffer, 0, read)).ConfigureAwait(false);
-        }
+        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
 #else
-        while ((read = await stream.ReadAsync(buffer.AsMemory(), ctx.CancellationToken).ConfigureAwait(false)) > 0)
-        {
-            await req.ResponseBody.WriteAsync(new ReadOnlyMemory<byte>(buffer, 0, read)).ConfigureAwait(false);
-        }
+        while ((read = await stream.ReadAsync(buffer.AsMemory(), ct).ConfigureAwait(false)) > 0)
 #endif
+        {
+            await exchange.WriteResponseAsync(new ReadOnlyMemory<byte>(buffer, 0, read)).ConfigureAwait(false);
+        }
 
-        await req.ResponseBody.EndAsync().ConfigureAwait(false);
+        await exchange.EndResponseAsync().ConfigureAwait(false);
     }
 
-    private async Task HandleWebSocketAsync(LlmInferenceRequest req, LlmRequestContext ctx)
+    private async Task HandleWebSocketAsync(LlmInferenceExchange exchange)
     {
+        var ctx = exchange.Context;
+        var bridge = new LlmWebSocketResponseBridge(exchange);
+        ctx.WebSocketResponse = bridge;
+
         var handler = await OpenWebSocketAsync(ctx).ConfigureAwait(false);
         try
         {
             await handler.OpenAsync().ConfigureAwait(false);
-            await ctx.WebSocketResponse!.StartAsync().ConfigureAwait(false);
+            await bridge.StartAsync().ConfigureAwait(false);
 
             var clientPump = Task.Run(async () =>
             {
-                await foreach (var chunk in req.RequestBody.WithCancellation(ctx.CancellationToken).ConfigureAwait(false))
+                await foreach (var chunk in exchange.RequestBody.WithCancellation(ctx.CancellationToken).ConfigureAwait(false))
                 {
                     await handler.SendRequestMessageAsync(new LlmWebSocketMessage(chunk, isBinary: false)).ConfigureAwait(false);
                 }
@@ -535,7 +511,513 @@ public class LlmRequestHandler : ILlmInferenceProvider
 
         return result;
     }
+}
 
+/// <summary>
+/// One intercepted request in flight. Carries the request context plus the body
+/// byte stream the runtime feeds in via <c>httpRequestChunk</c> frames, and
+/// emits the consumer's response straight back to the runtime through the
+/// generated <c>llmInference</c> server API. Replaces the former
+/// provider/sink/response-channel indirection with a single object the adapter
+/// owns and the handler writes to.
+/// </summary>
+internal sealed class LlmInferenceExchange
+{
+    private readonly Func<ServerRpc?> _getServerRpc;
+    private readonly Channel<BodyItem> _body = Channel.CreateUnbounded<BodyItem>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+
+    private bool _started;
+    private bool _finished;
+    private bool _cancelled;
+
+    internal LlmInferenceExchange(string requestId, string method, Func<ServerRpc?> getServerRpc)
+    {
+        RequestId = requestId;
+        Method = method;
+        _getServerRpc = getServerRpc;
+    }
+
+    internal string RequestId { get; }
+
+    internal string Method { get; }
+
+    internal LlmRequestContext Context { get; set; } = null!;
+
+    internal CancellationTokenSource Abort { get; } = new();
+
+    internal bool Started => _started;
+
+    internal bool Finished => _finished;
+
+    internal bool Cancelled => _cancelled;
+
+    // --- Request body feed (driven by the adapter as chunk frames arrive) ---
+
+    internal void PushChunk(byte[] data) => _body.Writer.TryWrite(new BodyItem { Chunk = data });
+
+    internal void PushEnd() => _body.Writer.TryWrite(new BodyItem { End = true });
+
+    internal void PushCancel(string? reason)
+    {
+        _cancelled = true;
+        Abort.Cancel();
+        _body.Writer.TryWrite(new BodyItem { Cancel = true, CancelReason = reason });
+    }
+
+    /// <summary>
+    /// Request body bytes, yielded as they arrive. A cancel frame surfaces as an
+    /// <see cref="OperationCanceledException"/> so the consumer's upstream call
+    /// is torn down.
+    /// </summary>
+    internal IAsyncEnumerable<ReadOnlyMemory<byte>> RequestBody => ReadBodyAsync(Abort.Token);
+
+    private async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadBodyAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        while (await _body.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            while (_body.Reader.TryRead(out var item))
+            {
+                if (item.Cancel)
+                {
+                    _body.Writer.TryComplete();
+                    throw new OperationCanceledException(
+                        item.CancelReason is null
+                            ? "Request cancelled by runtime"
+                            : $"Request cancelled by runtime: {item.CancelReason}");
+                }
+
+                if (item.End)
+                {
+                    _body.Writer.TryComplete();
+                    yield break;
+                }
+
+                if (item.Chunk is { Length: > 0 })
+                {
+                    yield return item.Chunk;
+                }
+            }
+        }
+    }
+
+    // --- Response emit (driven by the handler). Strict state machine: ---
+    // StartResponseAsync once -> zero or more WriteResponseAsync -> exactly one
+    // of EndResponseAsync / ErrorResponseAsync.
+
+    internal async Task StartResponseAsync(int status, string? statusText, IReadOnlyDictionary<string, IReadOnlyList<string>>? headers)
+    {
+        if (_started)
+        {
+            throw new InvalidOperationException("LLM inference response StartAsync() called twice.");
+        }
+
+        if (_finished)
+        {
+            throw new InvalidOperationException("LLM inference response already finished.");
+        }
+
+        _started = true;
+        var result = await ServerRpc()
+            .LlmInference.HttpResponseStartAsync(RequestId, status, ToWireHeaders(headers), statusText)
+            .ConfigureAwait(false);
+        if (!result.Accepted)
+        {
+            RejectedByRuntime();
+        }
+    }
+
+    internal Task WriteResponseAsync(ReadOnlyMemory<byte> data) =>
+        WriteChunkAsync(Convert.ToBase64String(data.ToArray()), binary: true);
+
+    internal Task WriteResponseAsync(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return WriteChunkAsync(text, binary: false);
+    }
+
+    internal async Task EndResponseAsync()
+    {
+        if (_finished)
+        {
+            return;
+        }
+
+        _finished = true;
+        await ServerRpc().LlmInference.HttpResponseChunkAsync(RequestId, string.Empty, end: true).ConfigureAwait(false);
+    }
+
+    internal async Task ErrorResponseAsync(string message, string? code = null)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (_finished)
+        {
+            return;
+        }
+
+        _finished = true;
+        await ServerRpc()
+            .LlmInference.HttpResponseChunkAsync(
+                RequestId,
+                string.Empty,
+                end: true,
+                error: new LlmInferenceHttpResponseChunkError { Message = message, Code = code })
+            .ConfigureAwait(false);
+    }
+
+    private async Task WriteChunkAsync(string data, bool binary)
+    {
+        if (_cancelled)
+        {
+            throw new InvalidOperationException("LLM inference request was cancelled by the runtime.");
+        }
+
+        if (!_started)
+        {
+            throw new InvalidOperationException("LLM inference response WriteAsync() called before StartAsync().");
+        }
+
+        if (_finished)
+        {
+            throw new InvalidOperationException("LLM inference response WriteAsync() called after EndAsync()/ErrorAsync().");
+        }
+
+        var result = await ServerRpc()
+            .LlmInference.HttpResponseChunkAsync(RequestId, data, binary: binary, end: false)
+            .ConfigureAwait(false);
+        if (!result.Accepted)
+        {
+            RejectedByRuntime();
+        }
+    }
+
+    private ServerRpc ServerRpc() =>
+        _getServerRpc() ?? throw new InvalidOperationException("LLM inference response used after RPC connection closed.");
+
+    // The runtime acknowledges every response frame with accepted; accepted:
+    // false means it has dropped the request (e.g. it cancelled), so we abort the
+    // consumer's upstream work and stop emitting.
+    private void RejectedByRuntime()
+    {
+        if (!_cancelled)
+        {
+            _cancelled = true;
+            Abort.Cancel();
+        }
+
+        _finished = true;
+        throw new InvalidOperationException("LLM inference response was rejected by the runtime (request no longer active).");
+    }
+
+    private static Dictionary<string, IList<string>> ToWireHeaders(IReadOnlyDictionary<string, IReadOnlyList<string>>? headers)
+    {
+        var result = new Dictionary<string, IList<string>>(StringComparer.OrdinalIgnoreCase);
+        if (headers is null)
+        {
+            return result;
+        }
+
+        foreach (var (name, values) in headers)
+        {
+            result[name] = values as IList<string> ?? [.. values];
+        }
+
+        return result;
+    }
+
+    private struct BodyItem
+    {
+        public byte[]? Chunk;
+        public bool End;
+        public bool Cancel;
+        public string? CancelReason;
+    }
+}
+
+/// <summary>
+/// Adapts the generated <see cref="ILlmInferenceHandler"/> RPC entry points onto
+/// a consumer's <see cref="LlmRequestHandler"/>. Each <c>httpRequestStart</c>
+/// allocates an <see cref="LlmInferenceExchange"/> and runs the handler in the
+/// background; subsequent <c>httpRequestChunk</c> frames feed its body stream.
+/// </summary>
+internal sealed class LlmInferenceAdapter(LlmRequestHandler handler, Func<ServerRpc?> getServerRpc) : ILlmInferenceHandler
+{
+    private readonly LlmRequestHandler _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+    private readonly Func<ServerRpc?> _getServerRpc = getServerRpc ?? throw new ArgumentNullException(nameof(getServerRpc));
+    private readonly ConcurrentDictionary<string, LlmInferenceExchange> _pending = new(StringComparer.Ordinal);
+
+    public Task<LlmInferenceHttpRequestStartResult> HttpRequestStartAsync(LlmInferenceHttpRequestStartRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var transport = request.Transport == LlmInferenceHttpRequestStartTransport.Websocket
+            ? LlmInferenceTransport.WebSocket
+            : LlmInferenceTransport.Http;
+
+        var exchange = new LlmInferenceExchange(request.RequestId, request.Method, _getServerRpc);
+        exchange.Context = new LlmRequestContext
+        {
+            RequestId = request.RequestId,
+            SessionId = request.SessionId,
+            Transport = transport,
+            Url = request.Url,
+            Headers = ToReadOnlyHeaders(request.Headers),
+            CancellationToken = exchange.Abort.Token,
+        };
+        _pending[request.RequestId] = exchange;
+
+        // Return from httpRequestStart immediately (after registering state) so
+        // the runtime's RPC reply is not gated on the consumer's I/O. The actual
+        // handler work runs asynchronously.
+        _ = RunAsync(exchange);
+
+        return Task.FromResult(new LlmInferenceHttpRequestStartResult());
+    }
+
+    public Task<LlmInferenceHttpRequestChunkResult> HttpRequestChunkAsync(LlmInferenceHttpRequestChunkRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (_pending.TryGetValue(request.RequestId, out var exchange))
+        {
+            RouteChunk(exchange, request);
+        }
+
+        return Task.FromResult(new LlmInferenceHttpRequestChunkResult());
+    }
+
+    private async Task RunAsync(LlmInferenceExchange exchange)
+    {
+        try
+        {
+            await _handler.HandleAsync(exchange).ConfigureAwait(false);
+            if (!exchange.Finished)
+            {
+                await FinalizeAsync(exchange, 502, "LLM inference handler returned without finalising the response (call ResponseBody.EndAsync() or .ErrorAsync()).", code: null).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (exchange.Cancelled || exchange.Abort.IsCancellationRequested)
+            {
+                // The runtime already cancelled this request; the handler's throw
+                // is just the abort propagating out of its upstream call.
+                await FinalizeAsync(exchange, 499, "Request cancelled by runtime", code: "cancelled").ConfigureAwait(false);
+                return;
+            }
+
+            await FinalizeAsync(exchange, 502, ex.Message, code: null).ConfigureAwait(false);
+        }
+        finally
+        {
+            _pending.TryRemove(exchange.RequestId, out _);
+        }
+    }
+
+    private static async Task FinalizeAsync(LlmInferenceExchange exchange, int status, string message, string? code)
+    {
+        if (exchange.Finished)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!exchange.Started)
+            {
+                await exchange.StartResponseAsync(status, statusText: null, headers: null).ConfigureAwait(false);
+            }
+
+            await exchange.ErrorResponseAsync(message, code).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Best-effort — the connection may already be dead.
+        }
+    }
+
+    private static void RouteChunk(LlmInferenceExchange exchange, LlmInferenceHttpRequestChunkRequest chunk)
+    {
+        if (chunk.Cancel == true)
+        {
+            exchange.PushCancel(chunk.CancelReason);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(chunk.Data))
+        {
+            exchange.PushChunk(DecodeChunkData(chunk.Data, chunk.Binary == true));
+        }
+
+        if (chunk.End == true)
+        {
+            exchange.PushEnd();
+        }
+    }
+
+    private static byte[] DecodeChunkData(string data, bool binary) =>
+        binary ? Convert.FromBase64String(data) : Encoding.UTF8.GetBytes(data);
+
+    private static Dictionary<string, IReadOnlyList<string>> ToReadOnlyHeaders(IDictionary<string, IList<string>> headers)
+    {
+        var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, values) in headers)
+        {
+            result[name] = values as IReadOnlyList<string> ?? [.. values];
+        }
+
+        return result;
+    }
+}
+
+/// <summary>
+/// Buffers WebSocket response messages until the runtime-facing response is
+/// started, then forwards each message (and the terminal end/error) to the
+/// owning <see cref="LlmInferenceExchange"/>. Serialises access so the start
+/// frame is always emitted before any body message.
+/// </summary>
+internal sealed class LlmWebSocketResponseBridge(LlmInferenceExchange exchange)
+{
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly Queue<PendingAction> _pending = new();
+    private bool _started;
+    private bool _completed;
+
+    internal async Task StartAsync()
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_started)
+            {
+                return;
+            }
+
+            _started = true;
+            await exchange.StartResponseAsync(101, statusText: null, headers: null).ConfigureAwait(false);
+            while (_pending.Count > 0)
+            {
+                await ApplyAsync(_pending.Dequeue()).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    internal Task WriteAsync(LlmWebSocketMessage message) => EnqueueOrApplyAsync(PendingAction.Write(message));
+
+    internal Task EndAsync() => EnqueueOrApplyAsync(PendingAction.End());
+
+    internal Task ErrorAsync(string message, string? code) => EnqueueOrApplyAsync(PendingAction.Error(message, code));
+
+    private async Task EnqueueOrApplyAsync(PendingAction action)
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_completed && action.Kind == PendingActionKind.Write)
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _pending.Enqueue(action);
+                if (action.Kind is PendingActionKind.End or PendingActionKind.Error)
+                {
+                    _completed = true;
+                }
+
+                return;
+            }
+
+            await ApplyAsync(action).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task ApplyAsync(PendingAction action)
+    {
+        if (_completed && action.Kind == PendingActionKind.Write)
+        {
+            return;
+        }
+
+        switch (action.Kind)
+        {
+            case PendingActionKind.Write:
+                if (action.Message!.Value.IsBinary)
+                {
+                    await exchange.WriteResponseAsync(action.Message.Value.Data).ConfigureAwait(false);
+                }
+                else
+                {
+                    await exchange.WriteResponseAsync(action.Message.Value.GetText()).ConfigureAwait(false);
+                }
+                break;
+            case PendingActionKind.End:
+                if (_completed)
+                {
+                    return;
+                }
+
+                _completed = true;
+                await exchange.EndResponseAsync().ConfigureAwait(false);
+                break;
+            case PendingActionKind.Error:
+                if (_completed)
+                {
+                    return;
+                }
+
+                _completed = true;
+                await exchange.ErrorResponseAsync(action.ErrorMessage!, action.ErrorCode).ConfigureAwait(false);
+                break;
+        }
+    }
+
+    private readonly record struct PendingAction(
+        PendingActionKind Kind,
+        LlmWebSocketMessage? Message = null,
+        string? ErrorMessage = null,
+        string? ErrorCode = null)
+    {
+        internal static PendingAction Write(LlmWebSocketMessage message) => new(PendingActionKind.Write, message);
+        internal static PendingAction End() => new(PendingActionKind.End);
+        internal static PendingAction Error(string message, string? code) => new(PendingActionKind.Error, null, message, code);
+    }
+
+    private enum PendingActionKind
+    {
+        Write,
+        End,
+        Error,
+    }
+}
+
+internal static class LlmInferenceHeaders
+{
+    // Computed/managed by the HTTP/WS stack; forwarding them verbatim either
+    // throws or corrupts the request.
+    internal static readonly HashSet<string> Forbidden = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "host",
+        "connection",
+        "content-length",
+        "transfer-encoding",
+        "keep-alive",
+        "upgrade",
+        "proxy-connection",
+        "te",
+        "trailer",
+    };
 }
 
 internal static class LlmWebSocketHelpers
@@ -613,135 +1095,5 @@ internal static class LlmWebSocketHelpers
         }
 
         return builder.Uri;
-    }
-}
-
-internal sealed class LlmWebSocketResponseBridge
-{
-    private readonly LlmInferenceResponseSink _sink;
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly Queue<PendingAction> _pending = new();
-    private bool _started;
-    private bool _completed;
-
-    internal LlmWebSocketResponseBridge(LlmInferenceResponseSink sink)
-    {
-        _sink = sink;
-    }
-
-    internal async Task StartAsync()
-    {
-        await _gate.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (_started)
-            {
-                return;
-            }
-
-            _started = true;
-            await _sink.StartAsync(new LlmInferenceResponseInit { Status = 101 }).ConfigureAwait(false);
-            while (_pending.Count > 0)
-            {
-                await ApplyAsync(_pending.Dequeue()).ConfigureAwait(false);
-            }
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    internal Task WriteAsync(LlmWebSocketMessage message) => EnqueueOrApplyAsync(PendingAction.Write(message));
-
-    internal Task EndAsync() => EnqueueOrApplyAsync(PendingAction.End());
-
-    internal Task ErrorAsync(string message, string? code) => EnqueueOrApplyAsync(PendingAction.Error(message, code));
-
-    private async Task EnqueueOrApplyAsync(PendingAction action)
-    {
-        await _gate.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (_completed && action.Kind == PendingActionKind.Write)
-            {
-                return;
-            }
-
-            if (!_started)
-            {
-                _pending.Enqueue(action);
-                if (action.Kind is PendingActionKind.End or PendingActionKind.Error)
-                {
-                    _completed = true;
-                }
-
-                return;
-            }
-
-            await ApplyAsync(action).ConfigureAwait(false);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    private async Task ApplyAsync(PendingAction action)
-    {
-        if (_completed && action.Kind == PendingActionKind.Write)
-        {
-            return;
-        }
-
-        switch (action.Kind)
-        {
-            case PendingActionKind.Write:
-                if (action.Message!.Value.IsBinary)
-                {
-                    await _sink.WriteAsync(action.Message.Value.Data).ConfigureAwait(false);
-                }
-                else
-                {
-                    await _sink.WriteAsync(action.Message.Value.GetText()).ConfigureAwait(false);
-                }
-                break;
-            case PendingActionKind.End:
-                if (_completed)
-                {
-                    return;
-                }
-
-                _completed = true;
-                await _sink.EndAsync().ConfigureAwait(false);
-                break;
-            case PendingActionKind.Error:
-                if (_completed)
-                {
-                    return;
-                }
-
-                _completed = true;
-                await _sink.ErrorAsync(action.ErrorMessage!, action.ErrorCode).ConfigureAwait(false);
-                break;
-        }
-    }
-
-    private readonly record struct PendingAction(
-        PendingActionKind Kind,
-        LlmWebSocketMessage? Message = null,
-        string? ErrorMessage = null,
-        string? ErrorCode = null)
-    {
-        internal static PendingAction Write(LlmWebSocketMessage message) => new(PendingActionKind.Write, message);
-        internal static PendingAction End() => new(PendingActionKind.End);
-        internal static PendingAction Error(string message, string? code) => new(PendingActionKind.Error, null, message, code);
-    }
-
-    private enum PendingActionKind
-    {
-        Write,
-        End,
-        Error,
     }
 }

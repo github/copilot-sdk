@@ -27,10 +27,6 @@
     <NoWarn>$(NoWarn);GHCP001</NoWarn>
   </PropertyGroup>
 
-    <ItemGroup>
-        <InternalsVisibleTo Include="GitHub.Copilot.SDK.Test" />
-    </ItemGroup>
-
     <PropertyGroup Condition="'$(CI)' == 'true' or '$(TF_BUILD)' == 'true'">
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>

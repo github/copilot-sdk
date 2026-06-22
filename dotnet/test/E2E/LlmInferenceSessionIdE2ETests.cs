@@ -24,10 +24,7 @@ public class LlmInferenceSessionIdE2ETests(E2ETestFixture fixture, ITestOutputHe
         Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(),
-            LlmInference = new LlmInferenceConfig
-            {
-                Handler = provider,
-            },
+            LlmInferenceHandler = provider,
         });
 
     [Fact]
