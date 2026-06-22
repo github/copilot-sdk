@@ -11,7 +11,7 @@
 //! [`CopilotRequestHandler`] is the single seam consumers implement: one HTTP
 //! send method and one WebSocket factory, each defaulting to transparent
 //! pass-through to the real upstream. Override
-//! [`send_http`](CopilotRequestHandler::send_http) to mutate / replace HTTP
+//! [`send_request`](CopilotRequestHandler::send_request) to mutate / replace HTTP
 //! requests, or [`open_websocket`](CopilotRequestHandler::open_websocket) to
 //! mutate the handshake or return a custom [`CopilotWebSocketHandler`].
 //!
@@ -154,7 +154,7 @@ pub struct CopilotRequestContext {
 pub type CopilotHttpResponseBody =
     Pin<Box<dyn Stream<Item = Result<Bytes, CopilotRequestError>> + Send>>;
 
-/// A buffered HTTP request handed to [`CopilotRequestHandler::send_http`].
+/// A buffered HTTP request handed to [`CopilotRequestHandler::send_request`].
 #[non_exhaustive]
 pub struct CopilotHttpRequest {
     /// HTTP method (`GET`, `POST`, …).
@@ -169,7 +169,7 @@ pub struct CopilotHttpRequest {
     pub cancel: CancellationToken,
 }
 
-/// A streaming HTTP response returned by [`CopilotRequestHandler::send_http`].
+/// A streaming HTTP response returned by [`CopilotRequestHandler::send_request`].
 #[non_exhaustive]
 pub struct CopilotHttpResponse {
     /// HTTP status code.
@@ -288,7 +288,7 @@ pub trait CopilotRequestHandler: Send + Sync + 'static {
     /// Service one intercepted HTTP request. Default: forward to the real
     /// upstream via [`forward_http`]. Override to mutate the request before
     /// forwarding, mutate the response after, or replace the call entirely.
-    async fn send_http(
+    async fn send_request(
         &self,
         request: CopilotHttpRequest,
         _ctx: &CopilotRequestContext,
@@ -299,8 +299,14 @@ pub trait CopilotRequestHandler: Send + Sync + 'static {
     /// Open a per-connection WebSocket handler. Default: a
     /// [`ForwardingCopilotWebSocketHandler`] wired to the real upstream.
     /// Override to mutate the handshake (URL / headers via `ctx`) or return a
-    /// custom handler. `response` is the runtime-facing sink for upstream
-    /// messages.
+    /// custom handler.
+    ///
+    /// Unlike the other SDKs, Rust passes `response` — the runtime-facing sink
+    /// for upstream→runtime messages — as a second argument here rather than
+    /// exposing a base-class `send_response_message` helper. A custom handler
+    /// must store this `CopilotWebSocketResponse` in the returned handler struct
+    /// and call [`CopilotWebSocketResponse::send_message`] on it to push
+    /// upstream messages back to the runtime.
     async fn open_websocket(
         &self,
         ctx: &CopilotRequestContext,
@@ -318,12 +324,12 @@ pub trait CopilotRequestHandler: Send + Sync + 'static {
 /// consumer retains a handle (for example to read state the handler records).
 #[async_trait]
 impl<H: CopilotRequestHandler> CopilotRequestHandler for Arc<H> {
-    async fn send_http(
+    async fn send_request(
         &self,
         request: CopilotHttpRequest,
         ctx: &CopilotRequestContext,
     ) -> Result<CopilotHttpResponse, CopilotRequestError> {
-        (**self).send_http(request, ctx).await
+        (**self).send_request(request, ctx).await
     }
 
     async fn open_websocket(
@@ -373,7 +379,7 @@ static SHARED_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
 
 /// Forward an HTTP request to its real upstream and stream the response back.
 ///
-/// This is the default behaviour of [`CopilotRequestHandler::send_http`];
+/// This is the default behaviour of [`CopilotRequestHandler::send_request`];
 /// consumers that mutate a request can call it to forward the mutated request.
 pub async fn forward_http(
     request: CopilotHttpRequest,
@@ -857,7 +863,7 @@ async fn drive_exchange(
                 body,
                 cancel: ctx.cancel.clone(),
             };
-            let response = handler.send_http(request, &ctx).await?;
+            let response = handler.send_request(request, &ctx).await?;
             stream_http_response(response, exchange, &ctx.cancel).await
         }
         CopilotRequestTransport::Websocket => {

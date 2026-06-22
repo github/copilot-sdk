@@ -321,7 +321,7 @@ fn rewrite_authority(
 
 #[async_trait]
 impl CopilotRequestHandler for ForwardingHandler {
-    async fn send_http(
+    async fn send_request(
         &self,
         mut request: CopilotHttpRequest,
         _ctx: &CopilotRequestContext,
@@ -589,7 +589,7 @@ impl RecordingHandler {
 
 #[async_trait]
 impl CopilotRequestHandler for RecordingHandler {
-    async fn send_http(
+    async fn send_request(
         &self,
         request: CopilotHttpRequest,
         ctx: &CopilotRequestContext,
@@ -706,7 +706,7 @@ struct ThrowingHandler {
 
 #[async_trait]
 impl CopilotRequestHandler for ThrowingHandler {
-    async fn send_http(
+    async fn send_request(
         &self,
         request: CopilotHttpRequest,
         _ctx: &CopilotRequestContext,
@@ -769,7 +769,7 @@ struct CancellingHandler {
 
 #[async_trait]
 impl CopilotRequestHandler for CancellingHandler {
-    async fn send_http(
+    async fn send_request(
         &self,
         request: CopilotHttpRequest,
         ctx: &CopilotRequestContext,
