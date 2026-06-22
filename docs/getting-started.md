@@ -18,7 +18,7 @@ Copilot: In Tokyo it's 75°F and sunny. Great day to be outside!
 
 Before you begin, make sure you have:
 
-* **GitHub Copilot CLI** installed and authenticated (the Node.js, Python, and .NET SDKs bundle the CLI automatically—see [Bundled CLI](./setup/bundled-cli.md). Required for Go, Java, and Rust unless using their application-level CLI bundling features.)
+* **GitHub Copilot CLI** installed and authenticated (the Node.js, Python, and .NET SDKs provide the CLI automatically—see [Bundled CLI](./setup/bundled-cli.md). Required for Go, Java, and Rust unless using their application-level CLI bundling features.)
 * Your preferred language runtime:
   * **Node.js** 20+ or **Python** 3.11+ or **Go** 1.24+ or **Rust** 1.94+ or **Java** 17+ or **.NET** 8.0+
 

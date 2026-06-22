@@ -28,7 +28,6 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
@@ -948,24 +947,15 @@ _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
-def _get_bundled_cli_path() -> str | None:
-    """Get the path to the bundled CLI binary, if available."""
-    # The binary is bundled in copilot/bin/ within the package
-    bin_dir = Path(__file__).parent / "bin"
-    if not bin_dir.exists():
-        return None
+def _get_or_download_cli() -> str | None:
+    """Get the cached CLI binary, downloading if necessary.
 
-    # Determine binary name based on platform
-    if sys.platform == "win32":
-        binary_name = "copilot.exe"
-    else:
-        binary_name = "copilot"
+    Returns the path to the CLI binary, or None if unavailable (dev install
+    with no pinned version, or auto-download disabled).
+    """
+    from ._cli_download import get_or_download_cli
 
-    binary_path = bin_dir / binary_name
-    if binary_path.exists():
-        return str(binary_path)
-
-    return None
+    return get_or_download_cli()
 
 
 def _extract_transform_callbacks(
@@ -1166,7 +1156,7 @@ class CopilotClient:
             else:
                 self._effective_connection_token = None
 
-            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary.
+            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > downloaded binary.
             effective_env = options.env if options.env is not None else os.environ
             self._cli_path_source: str | None = "explicit"
             if connection.path is None:
@@ -1175,14 +1165,15 @@ class CopilotClient:
                     connection.path = env_cli_path
                     self._cli_path_source = "environment"
                 else:
-                    bundled_path = _get_bundled_cli_path()
-                    if bundled_path:
-                        connection.path = bundled_path
-                        self._cli_path_source = "bundled"
+                    downloaded_path = _get_or_download_cli()
+                    if downloaded_path:
+                        connection.path = downloaded_path
+                        self._cli_path_source = "downloaded"
                     else:
                         raise RuntimeError(
-                            "Copilot CLI not found. The bundled CLI binary is not available. "
-                            "Ensure you installed a platform-specific wheel, or set "
+                            "Copilot CLI not found. Install a published wheel (which "
+                            "auto-downloads the CLI on first use), set COPILOT_CLI_PATH, "
+                            "or pass an explicit path via "
                             "RuntimeConnection.for_stdio(path=...) / "
                             "RuntimeConnection.for_tcp(path=...)."
                         )

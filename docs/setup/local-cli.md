@@ -1,6 +1,6 @@
 # Local CLI setup
 
-Use a specific CLI binary instead of the SDK's bundled CLI. This is an advanced option—you supply the CLI path explicitly, and you are responsible for ensuring version compatibility with the SDK.
+Use a specific CLI binary instead of the SDK's automatic CLI management. This is an advanced option—you supply the CLI path explicitly, and you are responsible for ensuring version compatibility with the SDK.
 
 **Use when:** You need to pin a specific CLI version, or work with the Go SDK (which does not bundle a CLI).
 
