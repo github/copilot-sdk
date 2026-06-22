@@ -171,6 +171,38 @@ describe("CopilotClient", () => {
         expect(resumePayload.contextTier).toBe("default");
     });
 
+    it("forwards capi options in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            capi: { enableWebSocketResponses: false },
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            capi: { enableWebSocketResponses: false },
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.capi).toEqual({ enableWebSocketResponses: false });
+        expect(resumePayload.capi).toEqual({ enableWebSocketResponses: false });
+    });
+
     it("forwards pluginDirectories and largeOutput in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -957,6 +989,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             },
         });
 
@@ -969,6 +1002,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             })
         );
         spy.mockRestore();
@@ -996,6 +1030,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             },
         });
 
@@ -1008,6 +1043,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             })
         );
         spy.mockRestore();

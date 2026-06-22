@@ -44,6 +44,9 @@ public class ProviderConfig {
     @JsonProperty("wireApi")
     private String wireApi;
 
+    @JsonProperty("transport")
+    private String transport;
+
     @JsonProperty("baseUrl")
     private String baseUrl;
 
@@ -119,6 +122,31 @@ public class ProviderConfig {
      */
     public ProviderConfig setWireApi(String wireApi) {
         this.wireApi = wireApi;
+        return this;
+    }
+
+    /**
+     * Gets the transport for OpenAI Responses requests.
+     *
+     * @return the transport ("http" or "websockets")
+     */
+    public String getTransport() {
+        return transport;
+    }
+
+    /**
+     * Sets the transport for OpenAI Responses requests.
+     * <p>
+     * Defaults to "http". Set to "websockets" to deliver Responses API requests
+     * over a persistent WebSocket connection instead of HTTP. Applies to
+     * OpenAI-compatible providers using {@code wireApi} "responses".
+     *
+     * @param transport
+     *            the transport ("http" or "websockets")
+     * @return this config for method chaining
+     */
+    public ProviderConfig setTransport(String transport) {
+        this.transport = transport;
         return this;
     }
 

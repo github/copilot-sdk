@@ -1071,6 +1071,11 @@ class ProviderConfig(TypedDict, total=False):
 
     type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
+    # Transport for OpenAI Responses requests. Defaults to "http". Set
+    # "websockets" to deliver Responses API requests over a persistent WebSocket
+    # connection instead of HTTP. Applies to OpenAI-compatible providers using
+    # wire_api "responses".
+    transport: Literal["http", "websockets"]
     base_url: str
     api_key: str
     # Bearer token for authentication. Sets the Authorization header directly.

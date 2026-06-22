@@ -135,6 +135,20 @@ class CloudSessionOptions:
     repository: CloudSessionRepository | None = None
 
 
+class CapiSessionOptions(TypedDict, total=False):
+    """Provider-scoped Copilot API (CAPI) session options."""
+
+    enable_web_socket_responses: bool
+    """Whether to use WebSocket transport for the CAPI Responses API.
+
+    Enabled by default when the model advertises ``ws:/responses`` support. Set
+    to ``False`` to force the HTTP Responses transport instead, which is
+    equivalent to the ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+    variable and useful in environments where WebSockets are blocked (e.g.
+    behind a proxy).
+    """
+
+
 def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, Any]:
     result: dict[str, Any] = {}
     if options.repository is not None:
@@ -146,6 +160,13 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
             repository["branch"] = options.repository.branch
         result["repository"] = repository
     return result
+
+
+def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]:
+    wire: dict[str, Any] = {}
+    if "enable_web_socket_responses" in options:
+        wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
+    return wire
 
 
 def _validate_session_fs_config(config: SessionFsConfig) -> None:
@@ -1629,6 +1650,7 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        capi: CapiSessionOptions | None = None,
         providers: list[NamedProviderConfig] | None = None,
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
@@ -1713,6 +1735,16 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            capi: CAPI provider-scoped options. WebSocket transport is the
+                default for the CAPI Responses API whenever the model advertises
+                the ``ws:/responses`` endpoint. Set
+                ``enable_web_socket_responses=False`` to force the HTTP
+                Responses transport, which is useful behind proxies where
+                WebSockets fail. This is equivalent to setting the
+                ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+                variable. The option is under the ``capi`` namespace because a
+                single session can host multiple providers (CAPI + BYOK), so
+                transport choice is provider-level.
             providers: Named BYOK provider connections. Additive to Copilot API
                 auth (unlike `provider`); combine with `models`. Cannot be
                 combined with `provider`.
@@ -1925,6 +1957,8 @@ class CopilotClient:
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
 
+        if capi is not None:
+            payload["capi"] = _capi_session_options_to_wire(capi)
         # Add additive BYOK provider/model registry if provided
         if providers:
             payload["providers"] = [
@@ -2221,6 +2255,7 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        capi: CapiSessionOptions | None = None,
         providers: list[NamedProviderConfig] | None = None,
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
@@ -2306,6 +2341,16 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            capi: CAPI provider-scoped options. WebSocket transport is the
+                default for the CAPI Responses API whenever the model advertises
+                the ``ws:/responses`` endpoint. Set
+                ``enable_web_socket_responses=False`` to force the HTTP
+                Responses transport, which is useful behind proxies where
+                WebSockets fail. This is equivalent to setting the
+                ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+                variable. The option is under the ``capi`` namespace because a
+                single session can host multiple providers (CAPI + BYOK), so
+                transport choice is provider-level.
             providers: Named BYOK provider connections. Additive to Copilot API
                 auth (unlike `provider`); combine with `models`. Cannot be
                 combined with `provider`.
@@ -2461,6 +2506,8 @@ class CopilotClient:
         payload["toolFilterPrecedence"] = "excluded"
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+        if capi is not None:
+            payload["capi"] = _capi_session_options_to_wire(capi)
         if providers:
             payload["providers"] = [
                 self._convert_named_provider_to_wire_format(p) for p in providers
@@ -3168,6 +3215,8 @@ class CopilotClient:
             wire_provider["apiKey"] = provider["api_key"]
         if "wire_api" in provider:
             wire_provider["wireApi"] = provider["wire_api"]
+        if "transport" in provider:
+            wire_provider["transport"] = provider["transport"]
         if "bearer_token" in provider:
             wire_provider["bearerToken"] = provider["bearer_token"]
         if "headers" in provider:

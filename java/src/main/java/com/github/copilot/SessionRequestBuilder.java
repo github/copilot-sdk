@@ -113,6 +113,7 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
+        request.setCapi(config.getCapi());
         request.setProviders(config.getProviders());
         request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
@@ -227,6 +228,7 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
+        request.setCapi(config.getCapi());
         request.setProviders(config.getProviders());
         request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
