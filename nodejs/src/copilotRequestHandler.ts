@@ -55,11 +55,18 @@ export class CopilotWebSocketCloseStatus {
 }
 
 /**
- * Per-connection WebSocket handler returned by {@link CopilotRequestHandler.openWebSocket}.
+ * Lower-level WebSocket handler with no upstream connection.
+ *
+ * This is the abstract base shared by all WebSocket handlers. It does not open
+ * or forward to any upstream server on its own — subclass it directly only when
+ * you want to service a fully synthetic connection yourself (e.g. answer the
+ * runtime without any real backend). For the common case of mutating and
+ * forwarding traffic to the real upstream, subclass {@link CopilotWebSocketHandler}
+ * instead, which connects upstream and forwards by default.
  *
  * @experimental
  */
-export abstract class CopilotWebSocketHandler implements AsyncDisposable {
+export abstract class CopilotWebSocketHandlerBase implements AsyncDisposable {
     readonly #response: CopilotWebSocketResponseBridge;
     readonly #completion: Promise<CopilotWebSocketCloseStatus>;
     #resolveCompletion!: (status: CopilotWebSocketCloseStatus) => void;
@@ -120,11 +127,18 @@ export abstract class CopilotWebSocketHandler implements AsyncDisposable {
 }
 
 /**
- * Default pass-through WebSocket handler backed by the WHATWG `WebSocket`.
+ * WebSocket handler that connects to the real upstream and forwards traffic by
+ * default. This is the type returned by the default
+ * {@link CopilotRequestHandler.openWebSocket}.
+ *
+ * Override nothing to get full pass-through. To mutate traffic, subclass this
+ * type and override a message hook, then call `super` to keep forwarding to the
+ * upstream. (Subclassing {@link CopilotWebSocketHandlerBase} instead would drop
+ * forwarding entirely.)
  *
  * @experimental
  */
-export class ForwardingCopilotWebSocketHandler extends CopilotWebSocketHandler {
+export class CopilotWebSocketHandler extends CopilotWebSocketHandlerBase {
     readonly #url: string;
     #upstream: WebSocket | null = null;
 
@@ -227,8 +241,8 @@ export class CopilotRequestHandler {
         return fetch(request, { signal: ctx.signal });
     }
 
-    protected openWebSocket(ctx: CopilotRequestContext): Promise<CopilotWebSocketHandler> {
-        return Promise.resolve(new ForwardingCopilotWebSocketHandler(ctx));
+    protected openWebSocket(ctx: CopilotRequestContext): Promise<CopilotWebSocketHandlerBase> {
+        return Promise.resolve(new CopilotWebSocketHandler(ctx));
     }
 
     /** @internal */

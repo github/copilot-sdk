@@ -4,116 +4,194 @@
 
 package com.github.copilot;
 
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.io.ByteArrayOutputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletionStage;
 
 /**
- * A per-connection WebSocket handler returned by
- * {@link CopilotRequestHandler#openWebSocket}.
+ * The default pass-through {@link CopilotWebSocketHandlerBase}: it dials the
+ * real upstream using {@link java.net.http.WebSocket} and relays
+ * upstream-to-runtime messages into the runtime response unchanged.
  * <p>
- * The default implementation is {@link ForwardingCopilotWebSocketHandler},
- * which dials the real upstream and transparently relays messages in both
- * directions. A full transport replacement subclasses this type directly and
- * brings its own transport and receive loop, forwarding upstream-to-runtime
- * messages by calling {@link #sendResponseMessage} and finishing with
- * {@link #close(CopilotWebSocketCloseStatus)}.
+ * Subclass and override {@link #sendRequestMessage} or
+ * {@link #sendResponseMessage} (calling {@code super}) to observe, transform,
+ * or drop messages in either direction.
  *
  * @since 1.0.0
  */
-public abstract class CopilotWebSocketHandler implements AutoCloseable {
+public class CopilotWebSocketHandler extends CopilotWebSocketHandlerBase {
 
-    private final LlmWebSocketResponseBridge response;
-    private final CompletableFuture<CopilotWebSocketCloseStatus> completion = new CompletableFuture<>();
-    private final AtomicBoolean closed = new AtomicBoolean();
-    private volatile boolean suppressCloseOnDispose;
+    private final String url;
+    private final Map<String, List<String>> headers;
 
-    /** The request context for this WebSocket connection. */
-    protected final CopilotRequestContext context;
+    private volatile WebSocket webSocket;
 
     /**
-     * Initializes a per-connection handler for the supplied request context.
+     * Creates a forwarding handler targeting the request URL and headers from
+     * {@code context}.
      *
      * @param context
      *            the per-request context
      */
-    protected CopilotWebSocketHandler(CopilotRequestContext context) {
-        this.context = context;
-        this.response = Objects.requireNonNull(context.webSocketResponse(),
-                "WebSocket response bridge is not attached");
+    public CopilotWebSocketHandler(CopilotRequestContext context) {
+        this(context, context.url(), context.headers());
     }
 
     /**
-     * Sends a message from the runtime to the upstream connection.
+     * Creates a forwarding handler targeting {@code url} with the handshake headers
+     * from {@code context}.
      *
-     * @param message
-     *            the message to forward upstream
-     * @throws Exception
-     *             if the message could not be forwarded
+     * @param context
+     *            the per-request context
+     * @param url
+     *            the upstream WebSocket URL
      */
-    public abstract void sendRequestMessage(CopilotWebSocketMessage message) throws Exception;
-
-    /**
-     * Sends a message from the upstream connection back to the runtime. Override to
-     * mutate or duplicate messages; call {@code super} to emit.
-     *
-     * @param message
-     *            the upstream-to-runtime message
-     * @throws Exception
-     *             if the message could not be delivered
-     */
-    public void sendResponseMessage(CopilotWebSocketMessage message) throws Exception {
-        response.write(message);
+    public CopilotWebSocketHandler(CopilotRequestContext context, String url) {
+        this(context, url, context.headers());
     }
 
     /**
-     * Closes the connection and finalises the runtime-facing response. Idempotent.
+     * Creates a forwarding handler targeting {@code url} with the given handshake
+     * headers.
      *
-     * @param status
-     *            the terminal status; a non-null
-     *            {@link CopilotWebSocketCloseStatus#error()} surfaces a transport
-     *            failure, otherwise a clean end-of-stream
-     * @throws Exception
-     *             if the terminal frame could not be delivered
+     * @param context
+     *            the per-request context
+     * @param url
+     *            the upstream WebSocket URL
+     * @param headers
+     *            the handshake headers, multi-valued
      */
-    public void close(CopilotWebSocketCloseStatus status) throws Exception {
-        if (!closed.compareAndSet(false, true)) {
+    public CopilotWebSocketHandler(CopilotRequestContext context, String url, Map<String, List<String>> headers) {
+        super(context);
+        this.url = url;
+        this.headers = headers;
+    }
+
+    @Override
+    void open() throws Exception {
+        if (webSocket != null) {
             return;
         }
-        if (status.error() != null) {
-            response.error(status.description() != null ? status.description() : status.error().getMessage(),
-                    status.errorCode());
-        } else {
-            response.end();
-        }
-        completion.complete(status);
-    }
-
-    /**
-     * Tears down the connection, finalising with a normal closure unless the
-     * connection has already been closed or close-on-dispose was suppressed.
-     */
-    @Override
-    public void close() {
-        if (!suppressCloseOnDispose && !closed.get()) {
-            try {
-                close(CopilotWebSocketCloseStatus.NORMAL_CLOSURE);
-            } catch (Exception ignored) {
-                // Best-effort teardown; the connection may already be gone.
+        WebSocket.Builder builder = HttpClient.newHttpClient().newWebSocketBuilder();
+        if (headers != null) {
+            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+                if (CopilotRequestHandler.isForbiddenRequestHeader(entry.getKey()) || entry.getValue() == null) {
+                    continue;
+                }
+                for (String value : entry.getValue()) {
+                    builder.header(entry.getKey(), value);
+                }
             }
         }
+        try {
+            this.webSocket = builder.buildAsync(URI.create(normalizeWebSocketScheme(url)), new ForwardingListener())
+                    .join();
+        } catch (Exception e) {
+            throw unwrap(e);
+        }
     }
 
-    CompletableFuture<CopilotWebSocketCloseStatus> completion() {
-        return completion;
+    @Override
+    public void sendRequestMessage(CopilotWebSocketMessage message) throws Exception {
+        WebSocket ws = this.webSocket;
+        if (ws == null) {
+            return;
+        }
+        if (message.binary()) {
+            ws.sendBinary(ByteBuffer.wrap(message.data()), true).join();
+        } else {
+            ws.sendText(message.text(), true).join();
+        }
     }
 
-    void suppressCloseOnDispose() {
-        suppressCloseOnDispose = true;
+    @Override
+    public void close(CopilotWebSocketCloseStatus status) throws Exception {
+        WebSocket ws = this.webSocket;
+        if (ws != null && !ws.isOutputClosed()) {
+            ws.sendClose(WebSocket.NORMAL_CLOSURE, "").exceptionally(ex -> null);
+        }
+        super.close(status);
     }
 
-    void open() throws Exception {
-        // Default: nothing to establish. ForwardingCopilotWebSocketHandler dials
-        // the upstream here.
+    private void forward(byte[] data, boolean binary) {
+        try {
+            sendResponseMessage(new CopilotWebSocketMessage(data, binary));
+        } catch (Exception e) {
+            completion().completeExceptionally(e);
+        }
+    }
+
+    private static String normalizeWebSocketScheme(String url) {
+        if (url.startsWith("http://")) {
+            return "ws://" + url.substring("http://".length());
+        }
+        if (url.startsWith("https://")) {
+            return "wss://" + url.substring("https://".length());
+        }
+        return url;
+    }
+
+    private static Exception unwrap(Exception e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof Exception ex) {
+            return ex;
+        }
+        return e;
+    }
+
+    private final class ForwardingListener implements WebSocket.Listener {
+
+        private final StringBuilder textBuffer = new StringBuilder();
+        private final ByteArrayOutputStream binaryBuffer = new ByteArrayOutputStream();
+
+        @Override
+        public void onOpen(WebSocket webSocket) {
+            webSocket.request(Long.MAX_VALUE);
+        }
+
+        @Override
+        public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+            textBuffer.append(data);
+            if (last) {
+                byte[] message = textBuffer.toString().getBytes(StandardCharsets.UTF_8);
+                textBuffer.setLength(0);
+                forward(message, false);
+            }
+            return null;
+        }
+
+        @Override
+        public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
+            byte[] chunk = new byte[data.remaining()];
+            data.get(chunk);
+            binaryBuffer.writeBytes(chunk);
+            if (last) {
+                byte[] message = binaryBuffer.toByteArray();
+                binaryBuffer.reset();
+                forward(message, true);
+            }
+            return null;
+        }
+
+        @Override
+        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+            close();
+            return null;
+        }
+
+        @Override
+        public void onError(WebSocket webSocket, Throwable error) {
+            try {
+                close(new CopilotWebSocketCloseStatus(error.getMessage(), null, error));
+            } catch (Exception e) {
+                completion().completeExceptionally(e);
+            }
+        }
     }
 }

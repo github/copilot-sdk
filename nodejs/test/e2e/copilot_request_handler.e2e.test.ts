@@ -9,7 +9,7 @@ import { WebSocket as WsClient, WebSocketServer } from "ws";
 import {
     approveAll,
     CopilotRequestHandler,
-    CopilotWebSocketHandler,
+    CopilotWebSocketHandlerBase,
     CopilotWebSocketCloseStatus,
     type CopilotRequestContext,
 } from "../../src/index.js";
@@ -259,12 +259,12 @@ class TestHandler extends CopilotRequestHandler {
 
     protected override async openWebSocket(
         ctx: CopilotRequestContext
-    ): Promise<CopilotWebSocketHandler> {
+    ): Promise<CopilotWebSocketHandlerBase> {
         return TestSocketHandler.connect(this.rewriteWsUrl(ctx.url), ctx, this.counters);
     }
 }
 
-class TestSocketHandler extends CopilotWebSocketHandler {
+class TestSocketHandler extends CopilotWebSocketHandlerBase {
     static async connect(
         url: string,
         ctx: CopilotRequestContext,

@@ -36,7 +36,7 @@ from copilot import (
     CopilotClient,
     CopilotRequestContext,
     CopilotRequestHandler,
-    ForwardingCopilotWebSocketHandler,
+    CopilotWebSocketHandler,
     RuntimeConnection,
 )
 from copilot.session import PermissionHandler
@@ -164,7 +164,7 @@ async def _start_fake_upstream() -> _Upstream:
     )
 
 
-class _CountingSocketHandler(ForwardingCopilotWebSocketHandler):
+class _CountingSocketHandler(CopilotWebSocketHandler):
     """Forwarding WebSocket handler that counts messages in both directions."""
 
     def __init__(self, ctx: CopilotRequestContext, url: str, counters: _Counters) -> None:

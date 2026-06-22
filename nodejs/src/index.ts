@@ -29,9 +29,9 @@ export {
     convertMcpCallToolResult,
     createSessionFsAdapter,
     CopilotRequestHandler,
-    CopilotWebSocketHandler,
+    CopilotWebSocketHandlerBase,
     CopilotWebSocketCloseStatus,
-    ForwardingCopilotWebSocketHandler,
+    CopilotWebSocketHandler,
     SYSTEM_MESSAGE_SECTIONS,
 } from "./types.js";
 // Re-export the generated session-event types (every *Event interface and

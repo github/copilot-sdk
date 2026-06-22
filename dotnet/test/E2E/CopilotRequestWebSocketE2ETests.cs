@@ -22,7 +22,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// transports against an in-process fake upstream: model-layer GETs and the
 /// single-shot HTTP <c>/responses</c> call are forwarded over HTTP, while the
 /// main turn flows over a real WebSocket opened by a
-/// <see cref="ForwardingCopilotWebSocketHandler"/>.
+/// <see cref="CopilotWebSocketHandler"/>.
 /// </summary>
 /// <remarks>
 /// This is the regression test for the WebSocket upgrade deadlock: the runtime
@@ -101,7 +101,7 @@ internal sealed class HandlerCounters
 /// A <see cref="CopilotRequestHandler"/> that points every intercepted request at
 /// the in-process <see cref="FakeCopilotUpstream"/>: HTTP requests are rewritten
 /// and forwarded by the base class, and WebSocket connections are opened against
-/// the rewritten URL via a counting <see cref="ForwardingCopilotWebSocketHandler"/>.
+/// the rewritten URL via a counting <see cref="CopilotWebSocketHandler"/>.
 /// </summary>
 internal sealed class ForwardingUpstreamHandler(string upstreamBaseUrl, HandlerCounters counters) : CopilotRequestHandler
 {
@@ -114,10 +114,10 @@ internal sealed class ForwardingUpstreamHandler(string upstreamBaseUrl, HandlerC
         return base.SendRequestAsync(request, ctx);
     }
 
-    protected override Task<CopilotWebSocketHandler> OpenWebSocketAsync(CopilotRequestContext ctx)
+    protected override Task<CopilotWebSocketHandlerBase> OpenWebSocketAsync(CopilotRequestContext ctx)
     {
         var wsUrl = Rewrite(new Uri(ctx.Url)).ToString();
-        return Task.FromResult<CopilotWebSocketHandler>(new CountingForwardingWebSocketHandler(ctx, wsUrl, counters));
+        return Task.FromResult<CopilotWebSocketHandlerBase>(new CountingForwardingWebSocketHandler(ctx, wsUrl, counters));
     }
 
     private Uri Rewrite(Uri original) => new UriBuilder(original)
@@ -135,7 +135,7 @@ internal sealed class CountingForwardingWebSocketHandler(
     CopilotRequestContext context,
     string url,
     HandlerCounters counters)
-    : ForwardingCopilotWebSocketHandler(context, url)
+    : CopilotWebSocketHandler(context, url)
 {
     public override Task SendRequestMessageAsync(CopilotWebSocketMessage message)
     {

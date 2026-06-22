@@ -108,11 +108,16 @@ public sealed class CopilotWebSocketCloseStatus
 }
 
 /// <summary>
-/// Per-connection WebSocket handler returned by
-/// <see cref="CopilotRequestHandler.OpenWebSocketAsync"/>.
+/// Lower-level WebSocket handler with no upstream connection. This is the
+/// abstract base shared by all WebSocket handlers; it does not open or forward
+/// to any upstream server on its own. Subclass it directly only to service a
+/// fully synthetic connection yourself. For the common case of mutating and
+/// forwarding traffic to the real upstream, subclass
+/// <see cref="CopilotWebSocketHandler"/> instead, which connects upstream and
+/// forwards by default.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public abstract class CopilotWebSocketHandler : IAsyncDisposable
+public abstract class CopilotWebSocketHandlerBase : IAsyncDisposable
 {
     private readonly TaskCompletionSource<CopilotWebSocketCloseStatus> _completion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -127,7 +132,7 @@ public abstract class CopilotWebSocketHandler : IAsyncDisposable
     /// <summary>
     /// Initializes a per-connection handler for the supplied request context.
     /// </summary>
-    protected CopilotWebSocketHandler(CopilotRequestContext context)
+    protected CopilotWebSocketHandlerBase(CopilotRequestContext context)
     {
         Context = context;
         _ = context.WebSocketResponse ?? throw new InvalidOperationException("WebSocket response bridge is not attached.");
@@ -185,11 +190,16 @@ public abstract class CopilotWebSocketHandler : IAsyncDisposable
 }
 
 /// <summary>
-/// Default pass-through WebSocket handler. Opens the real upstream socket and
-/// relays messages unchanged unless a subclass overrides the send methods.
+/// WebSocket handler that connects to the real upstream and forwards traffic by
+/// default. This is the type returned by the default
+/// <see cref="CopilotRequestHandler.OpenWebSocketAsync"/>. Override nothing to
+/// get full pass-through. To mutate traffic, subclass this type and override a
+/// send method, then call the base implementation to keep forwarding upstream.
+/// (Subclassing <see cref="CopilotWebSocketHandlerBase"/> instead would drop
+/// forwarding entirely.)
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public class ForwardingCopilotWebSocketHandler : CopilotWebSocketHandler
+public class CopilotWebSocketHandler : CopilotWebSocketHandlerBase
 {
     private readonly string _url;
     private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _headers;
@@ -202,7 +212,7 @@ public class ForwardingCopilotWebSocketHandler : CopilotWebSocketHandler
     /// demand using the supplied URL/headers (or the values from
     /// <paramref name="context"/> when omitted).
     /// </summary>
-    public ForwardingCopilotWebSocketHandler(
+    public CopilotWebSocketHandler(
         CopilotRequestContext context,
         string? url = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
@@ -430,11 +440,11 @@ public class CopilotRequestHandler
 
     /// <summary>
     /// Open the upstream WebSocket connection. Override to return a custom
-    /// <see cref="CopilotWebSocketHandler"/> or to construct a
-    /// <see cref="ForwardingCopilotWebSocketHandler"/> against a rewritten URL.
+    /// <see cref="CopilotWebSocketHandlerBase"/> or to construct a
+    /// <see cref="CopilotWebSocketHandler"/> against a rewritten URL.
     /// </summary>
-    protected virtual Task<CopilotWebSocketHandler> OpenWebSocketAsync(CopilotRequestContext ctx) =>
-        Task.FromResult<CopilotWebSocketHandler>(new ForwardingCopilotWebSocketHandler(ctx));
+    protected virtual Task<CopilotWebSocketHandlerBase> OpenWebSocketAsync(CopilotRequestContext ctx) =>
+        Task.FromResult<CopilotWebSocketHandlerBase>(new CopilotWebSocketHandler(ctx));
 
     /// <summary>
     /// Entry point invoked by the adapter once per intercepted request. Routes to
