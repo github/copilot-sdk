@@ -1,9 +1,13 @@
-"""E2E tests asserting the runtime threads its session id into the LLM
-inference callback for both CAPI and BYOK sessions.
+# --------------------------------------------------------------------------------------------
+#  Copyright (c) Microsoft Corporation. All rights reserved.
+# --------------------------------------------------------------------------------------------
 
-Mirrors ``nodejs/test/e2e/llm_inference_session_id.e2e.test.ts``. The callback
+"""E2E tests asserting the runtime threads its session id into the
+CopilotRequestHandler for both CAPI and BYOK sessions.
+
+Mirrors ``nodejs/test/e2e/copilot_request_session_id.e2e.test.ts``. The handler
 alone services every model-layer request (no upstream server, no CAPI proxy
-acting as the inference endpoint), so the only source of ``req.session_id`` is
+acting as the inference endpoint), so the only source of ``ctx.session_id`` is
 the runtime's own per-client threading.
 """
 
@@ -11,15 +15,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import httpx
 import pytest
 
-from copilot import LlmInferenceRequest, LlmRequestHandler
+from copilot import CopilotRequestContext, CopilotRequestHandler
 from copilot.session import PermissionHandler
 
-from ._llm_inference_helpers import (
+from ._copilot_request_helpers import (
     assistant_text,
-    handle_inference,
-    handle_non_inference_model_traffic,
+    build_inference_response,
+    build_non_inference_response,
     is_inference_url,
     isolated_client_fixture,
 )
@@ -34,32 +39,33 @@ class _InterceptedRequest:
     session_id: str | None
 
 
-class _SessionIdHandler(LlmRequestHandler):
+class _SessionIdHandler(CopilotRequestHandler):
     def __init__(self) -> None:
         self.records: list[_InterceptedRequest] = []
 
-    async def on_llm_request(self, req: LlmInferenceRequest) -> None:
-        self.records.append(_InterceptedRequest(url=req.url, session_id=req.session_id))
-        if is_inference_url(req.url):
-            await handle_inference(req)
-        else:
-            await handle_non_inference_model_traffic(req)
+    async def send_request(
+        self, request: httpx.Request, ctx: CopilotRequestContext
+    ) -> httpx.Response:
+        url = str(request.url)
+        self.records.append(_InterceptedRequest(url=url, session_id=ctx.session_id))
+        if is_inference_url(url):
+            return build_inference_response(request)
+        # Force /responses transport so the inference URL is predictable.
+        return build_non_inference_response(url, supported_endpoints=["/responses"])
 
 
 session_id_client = isolated_client_fixture(_SessionIdHandler)
 
 
-class TestLlmInferenceSessionId:
+class TestCopilotRequestSessionId:
     capi_session_id: str | None = None
 
     async def test_threads_session_id_into_capi_session(self, session_id_client):
         client, handler = session_id_client
         await client.start()
         baseline = len(handler.records)
-        session = await client.create_session(
-            on_permission_request=PermissionHandler.approve_all
-        )
-        TestLlmInferenceSessionId.capi_session_id = session.session_id
+        session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
+        TestCopilotRequestSessionId.capi_session_id = session.session_id
         text = ""
         try:
             result = await session.send_and_wait("Say OK.")
@@ -109,7 +115,7 @@ class TestLlmInferenceSessionId:
             )
 
         # Session ids are per-session, so the two turns must differ.
-        assert byok_session_id != TestLlmInferenceSessionId.capi_session_id
+        assert byok_session_id != TestCopilotRequestSessionId.capi_session_id
 
         # Validate the final assistant response arrived (guards against truncated captures)
         assert "OK from the synthetic" in text

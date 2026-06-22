@@ -1,7 +1,11 @@
-"""E2E test for the idiomatic ``LlmRequestHandler`` forwarding seams.
+# --------------------------------------------------------------------------------------------
+#  Copyright (c) Microsoft Corporation. All rights reserved.
+# --------------------------------------------------------------------------------------------
 
-Mirrors ``nodejs/test/e2e/llm_inference_handler.e2e.test.ts``. A single handler
-subclass services BOTH transports against a per-test fake upstream:
+"""E2E test for the idiomatic ``CopilotRequestHandler`` forwarding seams.
+
+Mirrors ``nodejs/test/e2e/copilot_request_handler.e2e.test.ts``. A single
+handler subclass services BOTH transports against a per-test fake upstream:
 
 * HTTP — :meth:`send_request` rewrites the request to the local HTTP upstream,
   mutates an outbound and a response header, and forwards via httpx.
@@ -17,7 +21,6 @@ runtime is intact for whichever transport the agent turn selects.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import threading
@@ -27,20 +30,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import httpx
 import pytest
 import pytest_asyncio
-import websockets
 from websockets.asyncio.server import serve as ws_serve
 
 from copilot import (
     CopilotClient,
-    ForwardingWebSocketHandler,
-    LlmInferenceConfig,
-    LlmRequestContext,
-    LlmRequestHandler,
+    CopilotRequestContext,
+    CopilotRequestHandler,
+    ForwardingCopilotWebSocketHandler,
     RuntimeConnection,
 )
 from copilot.session import PermissionHandler
 
-from ._llm_inference_helpers import assistant_text, model_catalog, responses_events
+from ._copilot_request_helpers import assistant_text, model_catalog, responses_events
 from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -116,12 +117,20 @@ async def _start_fake_upstream() -> _Upstream:
                 self._send(200, "application/json", b"{}")
                 return
             if "/policy" in path:
-                self._send(200, "application/json", json.dumps({"state": "enabled"}).encode("utf-8"))
+                self._send(
+                    200,
+                    "application/json",
+                    json.dumps({"state": "enabled"}).encode("utf-8"),
+                )
                 return
             if path.endswith("/responses"):
                 self._send(200, "text/event-stream", _sse_body(HTTP_TEXT, "resp_stub_http"))
                 return
-            self._send(404, "application/json", json.dumps({"error": "not_found", "path": path}).encode("utf-8"))
+            self._send(
+                404,
+                "application/json",
+                json.dumps({"error": "not_found", "path": path}).encode("utf-8"),
+            )
 
         def do_GET(self):  # noqa: N802
             self._route()
@@ -155,10 +164,10 @@ async def _start_fake_upstream() -> _Upstream:
     )
 
 
-class _CountingSocketHandler(ForwardingWebSocketHandler):
+class _CountingSocketHandler(ForwardingCopilotWebSocketHandler):
     """Forwarding WebSocket handler that counts messages in both directions."""
 
-    def __init__(self, ctx: LlmRequestContext, url: str, counters: _Counters) -> None:
+    def __init__(self, ctx: CopilotRequestContext, url: str, counters: _Counters) -> None:
         super().__init__(ctx, url=url)
         self._counters = counters
 
@@ -171,7 +180,7 @@ class _CountingSocketHandler(ForwardingWebSocketHandler):
         await super().send_response_message(data)
 
 
-class _TestHandler(LlmRequestHandler):
+class _TestHandler(CopilotRequestHandler):
     def __init__(self, upstream: _Upstream, counters: _Counters) -> None:
         self._upstream = upstream
         self._counters = counters
@@ -186,7 +195,9 @@ class _TestHandler(LlmRequestHandler):
         up = httpx.URL(self._upstream.ws_url)
         return str(parsed.copy_with(scheme=up.scheme, host=up.host, port=up.port))
 
-    async def send_request(self, request: httpx.Request, ctx: LlmRequestContext) -> httpx.Response:
+    async def send_request(
+        self, request: httpx.Request, ctx: CopilotRequestContext
+    ) -> httpx.Response:
         self._counters.http_requests += 1
         headers = dict(request.headers)
         headers["x-test-mutated"] = "1"
@@ -201,7 +212,7 @@ class _TestHandler(LlmRequestHandler):
         response.headers["x-test-response-mutated"] = "1"
         return response
 
-    async def open_web_socket(self, ctx: LlmRequestContext):
+    async def open_web_socket(self, ctx: CopilotRequestContext):
         return _CountingSocketHandler(ctx, self._rewrite_ws(ctx.url), self._counters)
 
     async def aclose(self) -> None:
@@ -229,7 +240,7 @@ async def handler_fixture(ctx: E2ETestContext):
         working_directory=ctx.work_dir,
         env=env,
         github_token=github_token,
-        llm_inference=LlmInferenceConfig(handler=handler),
+        request_handler=handler,
     )
     try:
         yield _HandlerFixture(client=client, upstream=upstream, counters=counters)
@@ -242,7 +253,7 @@ async def handler_fixture(ctx: E2ETestContext):
         await upstream.close()
 
 
-class TestLlmInferenceHandler:
+class TestCopilotRequestHandler:
     async def test_services_http_and_websocket_via_one_handler(self, handler_fixture):
         fx = handler_fixture
         await fx.client.start()

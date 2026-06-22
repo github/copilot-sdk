@@ -61,6 +61,7 @@ from .canvas import (
     CanvasHandler,
     ExtensionInfo,
 )
+from .copilot_request_handler import CopilotRequestHandler, create_copilot_request_adapter
 from .generated.rpc import (
     ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
@@ -108,7 +109,6 @@ from .session import (
     _PermissionHandlerFn,
 )
 from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
-from .llm_inference_provider import LlmInferenceConfig, create_llm_inference_adapter
 from .tools import Tool
 
 logger = logging.getLogger(__name__)
@@ -355,7 +355,7 @@ class _CopilotClientOptions:
     use_logged_in_user: bool | None = None
     telemetry: TelemetryConfig | None = None
     session_fs: SessionFsConfig | None = None
-    llm_inference: LlmInferenceConfig | None = None
+    request_handler: CopilotRequestHandler | None = None
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
@@ -1053,7 +1053,7 @@ class CopilotClient:
         use_logged_in_user: bool | None = None,
         telemetry: TelemetryConfig | None = None,
         session_fs: SessionFsConfig | None = None,
-        llm_inference: LlmInferenceConfig | None = None,
+        request_handler: CopilotRequestHandler | None = None,
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
@@ -1088,10 +1088,9 @@ class CopilotClient:
                 telemetry.
             session_fs: Connection-level session filesystem provider
                 configuration.
-            llm_inference: Connection-level LLM inference callback
-                configuration. When set, the supplied handler services every
-                model-layer HTTP/WebSocket request the runtime would otherwise
-                issue (both BYOK and CAPI).
+            request_handler: Connection-level request handler. When set, the
+                supplied handler services every model-layer HTTP/WebSocket
+                request the runtime would otherwise issue (both BYOK and CAPI).
             session_idle_timeout_seconds: Server-wide session idle timeout in
                 seconds. Sessions without activity for this duration are
                 automatically cleaned up. Set to ``None`` or ``0`` to disable.
@@ -1128,7 +1127,7 @@ class CopilotClient:
             use_logged_in_user=use_logged_in_user,
             telemetry=telemetry,
             session_fs=session_fs,
-            llm_inference=llm_inference,
+            request_handler=request_handler,
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
             on_list_models=on_list_models,
@@ -1219,7 +1218,7 @@ class CopilotClient:
         if options.session_fs is not None:
             _validate_session_fs_config(options.session_fs)
         self._session_fs_config = options.session_fs
-        self._llm_inference_config = options.llm_inference
+        self._request_handler = options.request_handler
 
     @property
     def rpc(self) -> ServerRpc:
@@ -1372,7 +1371,7 @@ class CopilotClient:
                     session_fs_start,
                 )
 
-            if self._llm_inference_config is not None:
+            if self._request_handler is not None:
                 await self._set_llm_inference_provider()
 
             self._state = "connected"
@@ -3740,10 +3739,10 @@ class CopilotClient:
         await self._client.request("sessionFs.setProvider", params)
 
     def _register_llm_inference_handlers(self) -> None:
-        if self._llm_inference_config is None or not self._client:
+        if self._request_handler is None or not self._client:
             return
-        adapter = create_llm_inference_adapter(
-            self._llm_inference_config.handler,
+        adapter = create_copilot_request_adapter(
+            self._request_handler,
             lambda: self._rpc.llm_inference if self._rpc is not None else None,
         )
         register_client_global_api_handlers(
@@ -3751,7 +3750,7 @@ class CopilotClient:
         )
 
     async def _set_llm_inference_provider(self) -> None:
-        if self._llm_inference_config is None or self._rpc is None:
+        if self._request_handler is None or self._rpc is None:
             return
         await self._rpc.llm_inference.set_provider()
 

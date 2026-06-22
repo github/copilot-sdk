@@ -64,6 +64,15 @@ from .client import (
     TelemetryConfig,
     UriRuntimeConnection,
 )
+from .copilot_request_handler import (
+    CopilotRequestContext,
+    CopilotRequestHandler,
+    CopilotWebSocketCloseStatus,
+    CopilotWebSocketHandler,
+    ForwardingCopilotWebSocketHandler,
+    LlmInferenceHeaders,
+    create_copilot_request_adapter,
+)
 from .generated.rpc import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -148,22 +157,6 @@ from .session_fs_provider import (
     SessionFsSqliteQueryResult,
     create_session_fs_adapter,
 )
-from .llm_inference_provider import (
-    LlmInferenceConfig,
-    LlmInferenceHeaders,
-    LlmInferenceProvider,
-    LlmInferenceRequest,
-    LlmInferenceResponseInit,
-    LlmInferenceResponseSink,
-    create_llm_inference_adapter,
-)
-from .llm_request_handler import (
-    CopilotWebSocketHandler,
-    ForwardingWebSocketHandler,
-    LlmRequestContext,
-    LlmRequestHandler,
-    LlmWebSocketCloseStatus,
-)
 from .tools import (
     Tool,
     ToolBinaryResult,
@@ -202,6 +195,9 @@ __all__ = [
     "CopilotClient",
     "CopilotClientMode",
     "CopilotSession",
+    "CopilotRequestContext",
+    "CopilotRequestHandler",
+    "CopilotWebSocketCloseStatus",
     "CopilotWebSocketHandler",
     "CreateSessionFsHandler",
     "ElicitationContext",
@@ -215,21 +211,13 @@ __all__ = [
     "ExitPlanModeRequest",
     "ExitPlanModeResult",
     "ExtensionInfo",
-    "ForwardingWebSocketHandler",
+    "ForwardingCopilotWebSocketHandler",
     "GetAuthStatusResponse",
     "GetStatusResponse",
     "InfiniteSessionConfig",
     "InputOptions",
     "LargeToolOutputConfig",
-    "LlmInferenceConfig",
     "LlmInferenceHeaders",
-    "LlmInferenceProvider",
-    "LlmInferenceRequest",
-    "LlmInferenceResponseInit",
-    "LlmInferenceResponseSink",
-    "LlmRequestContext",
-    "LlmRequestHandler",
-    "LlmWebSocketCloseStatus",
     "LogLevel",
     "MCPHTTPServerConfig",
     "MCPServerConfig",
@@ -324,7 +312,7 @@ __all__ = [
     "UserPromptSubmittedHookInput",
     "UserPromptSubmittedHookOutput",
     "convert_mcp_call_tool_result",
-    "create_llm_inference_adapter",
+    "create_copilot_request_adapter",
     "create_session_fs_adapter",
     "define_tool",
 ]
