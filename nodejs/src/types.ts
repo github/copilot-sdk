@@ -9,7 +9,7 @@
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
-import type { LlmRequestHandler } from "./llmRequestHandler.js";
+import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
     ReasoningSummary,
     SessionEvent as GeneratedSessionEvent,
@@ -34,19 +34,14 @@ export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
-export type {
-    LlmInferenceRequest,
-    LlmInferenceResponseInit,
-    LlmInferenceResponseSink,
-} from "./llmInferenceProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
-export type { LlmRequestContext } from "./llmRequestHandler.js";
+export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
+    CopilotRequestHandler,
     CopilotWebSocketHandler,
-    ForwardingWebSocketHandler,
-    LlmRequestHandler,
-    LlmWebSocketCloseStatus,
-} from "./llmRequestHandler.js";
+    CopilotWebSocketCloseStatus,
+    ForwardingCopilotWebSocketHandler,
+} from "./copilotRequestHandler.js";
 
 /**
  * Options for creating a CopilotClient
@@ -320,25 +315,28 @@ export interface CopilotClientOptions {
     sessionFs?: SessionFsConfig;
 
     /**
-     * Custom LLM inference callback provider (experimental).
+     * Custom handler for outbound model-layer requests (experimental).
      *
-     * When provided, the client registers as the runtime's LLM inference
-     * provider on connection: every outbound model-layer request the runtime
-     * would otherwise have issued itself — plain HTTP, streaming SSE, and
-     * WebSocket — is dispatched back to the callback over JSON-RPC. The
-     * callback returns the response verbatim, exactly as if the runtime had
+     * When provided, the client registers as the runtime's request handler
+     * on connection: every outbound model-layer request the runtime would
+     * otherwise have issued itself — plain HTTP, streaming SSE, and
+     * WebSocket — is dispatched back to the handler over JSON-RPC. The
+     * handler returns the response verbatim, exactly as if the runtime had
      * issued the request itself.
+     *
+     * Subclass {@link CopilotRequestHandler} and override the hooks you need;
+     * an instance that overrides nothing is a transparent pass-through.
      *
      * v1 notes:
      * - HTTP (buffered and streaming SSE) and WebSocket transports are all
-     *   intercepted. The callback receives a `transport` discriminator and a
-     *   symmetric request-body stream / response-body sink for both.
-     * - The callback is set process-globally on the runtime; the same
-     *   provider is invoked for every session created on this client.
+     *   intercepted. The handler receives a `transport` discriminator on the
+     *   {@link CopilotRequestContext} for both.
+     * - The handler is set process-globally on the runtime; the same
+     *   handler is invoked for every session created on this client.
      *
      * @experimental
      */
-    llmInference?: LlmInferenceConfig;
+    requestHandler?: CopilotRequestHandler;
 
     /**
      * Server-wide idle timeout for sessions in seconds.
@@ -2498,28 +2496,6 @@ export interface SessionFsConfig {
          */
         sqlite?: boolean;
     };
-}
-
-/**
- * Configuration for a custom LLM inference callback provider
- * (experimental).
- *
- * @experimental
- */
-export interface LlmInferenceConfig {
-    /**
-     * The handler that services LLM inference requests. The runtime routes
-     * all outbound model HTTP and WebSocket requests through this handler
-     * for the lifetime of the client, regardless of which session triggered
-     * them.
-     *
-     * Subclass {@link LlmRequestHandler} and override the hooks you need;
-     * an instance that overrides nothing is a transparent pass-through.
-     *
-     * Per-request session correlation is available on
-     * {@link LlmInferenceRequest.sessionId}.
-     */
-    handler?: LlmRequestHandler;
 }
 
 /**

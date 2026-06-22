@@ -36,7 +36,8 @@ import type { OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
-import { createLlmInferenceAdapter } from "./llmInferenceProvider.js";
+import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
+import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { ToolSet } from "./toolSet.js";
 import type {
@@ -62,7 +63,6 @@ import type {
     SessionCapabilities,
     SessionEvent,
     SessionFsConfig,
-    LlmInferenceConfig,
     SessionLifecycleEvent,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
@@ -421,7 +421,7 @@ export class CopilotClient {
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
-    private llmInferenceConfig: LlmInferenceConfig | null = null;
+    private requestHandler: CopilotRequestHandler | null = null;
     private llmInferenceHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
 
     /**
@@ -534,7 +534,7 @@ export class CopilotClient {
         this.onListModels = options.onListModels;
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
-        this.llmInferenceConfig = options.llmInference ?? null;
+        this.requestHandler = options.requestHandler ?? null;
         this.setupLlmInference();
 
         const effectiveEnv = options.env ?? process.env;
@@ -653,17 +653,11 @@ export class CopilotClient {
     }
 
     private setupLlmInference(): void {
-        if (!this.llmInferenceConfig) {
+        if (!this.requestHandler) {
             return;
         }
-        const provider = this.llmInferenceConfig.handler;
-        if (!provider) {
-            throw new Error(
-                "handler is required on client options.llmInference when llmInference is enabled."
-            );
-        }
         this.llmInferenceHandlers = {
-            llmInference: createLlmInferenceAdapter(provider, () => {
+            llmInference: createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
                     return undefined;
                 }
@@ -720,10 +714,10 @@ export class CopilotClient {
                 });
             }
 
-            // If an LLM inference provider was configured, register it.
-            // The runtime will then route outbound model HTTP requests
-            // through the registered handler for the duration of each session.
-            if (this.llmInferenceConfig) {
+            // If a request handler was configured, register it. The runtime
+            // will then route outbound model HTTP requests through the
+            // registered handler for the duration of each session.
+            if (this.requestHandler) {
                 await this.connection!.sendRequest("llmInference.setProvider", {});
             }
 

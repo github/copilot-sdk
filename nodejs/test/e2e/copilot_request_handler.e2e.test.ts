@@ -8,10 +8,10 @@ import { afterAll, describe, expect, it } from "vitest";
 import { WebSocket as WsClient, WebSocketServer } from "ws";
 import {
     approveAll,
+    CopilotRequestHandler,
     CopilotWebSocketHandler,
-    LlmRequestHandler,
-    LlmWebSocketCloseStatus,
-    type LlmRequestContext,
+    CopilotWebSocketCloseStatus,
+    type CopilotRequestContext,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -206,7 +206,7 @@ interface Counters {
  *   package inside a custom per-connection handler, and observes
  *   message counts in both directions.
  */
-class TestHandler extends LlmRequestHandler {
+class TestHandler extends CopilotRequestHandler {
     constructor(
         private readonly upstreamUrl: string,
         private readonly counters: Counters
@@ -231,7 +231,10 @@ class TestHandler extends LlmRequestHandler {
         return parsed.toString();
     }
 
-    protected override async sendRequest(request: Request, _ctx: LlmRequestContext): Promise<Response> {
+    protected override async sendRequest(
+        request: Request,
+        _ctx: CopilotRequestContext
+    ): Promise<Response> {
         this.counters.httpRequests++;
         const rewritten = this.rewriteUrl(request.url);
         const requestHeaders = new Headers(request.headers);
@@ -254,7 +257,9 @@ class TestHandler extends LlmRequestHandler {
         });
     }
 
-    protected override async openWebSocket(ctx: LlmRequestContext): Promise<CopilotWebSocketHandler> {
+    protected override async openWebSocket(
+        ctx: CopilotRequestContext
+    ): Promise<CopilotWebSocketHandler> {
         return TestSocketHandler.connect(this.rewriteWsUrl(ctx.url), ctx, this.counters);
     }
 }
@@ -262,7 +267,7 @@ class TestHandler extends LlmRequestHandler {
 class TestSocketHandler extends CopilotWebSocketHandler {
     static async connect(
         url: string,
-        ctx: LlmRequestContext,
+        ctx: CopilotRequestContext,
         counters: Counters
     ): Promise<TestSocketHandler> {
         const client = new WsClient(url);
@@ -275,7 +280,7 @@ class TestSocketHandler extends CopilotWebSocketHandler {
 
     private constructor(
         private readonly client: WsClient,
-        ctx: LlmRequestContext,
+        ctx: CopilotRequestContext,
         private readonly counters: Counters
     ) {
         super(ctx);
@@ -287,7 +292,7 @@ class TestSocketHandler extends CopilotWebSocketHandler {
             void this.close();
         });
         this.client.once("error", (err) => {
-            void this.close(new LlmWebSocketCloseStatus(err.message, undefined, err as Error));
+            void this.close(new CopilotWebSocketCloseStatus(err.message, undefined, err as Error));
         });
         const onAbort = (): void => {
             try {
@@ -321,7 +326,7 @@ class TestSocketHandler extends CopilotWebSocketHandler {
     }
 }
 
-describe("LlmRequestHandler — single subclass handles HTTP + WebSocket", async () => {
+describe("CopilotRequestHandler — single subclass handles HTTP + WebSocket", async () => {
     const upstream = await startFakeUpstream();
     const counters: Counters = {
         httpRequests: 0,
@@ -332,9 +337,7 @@ describe("LlmRequestHandler — single subclass handles HTTP + WebSocket", async
 
     const { copilotClient: client, env } = await createSdkTestContext({
         copilotClientOptions: {
-            llmInference: {
-                handler: new TestHandler(upstream.url, counters),
-            },
+            requestHandler: new TestHandler(upstream.url, counters),
         },
     });
 
@@ -361,9 +364,10 @@ describe("LlmRequestHandler — single subclass handles HTTP + WebSocket", async
         // The HTTP hooks fired — the runtime issued model-layer GETs
         // (catalog, policy) and possibly a single-shot inference.
         expect(counters.httpRequests, "expected sendRequest to fire").toBeGreaterThan(0);
-        expect(counters.httpResponses, "expected sendRequest response mutation to fire").toBeGreaterThan(
-            0
-        );
+        expect(
+            counters.httpResponses,
+            "expected sendRequest response mutation to fire"
+        ).toBeGreaterThan(0);
 
         // The WebSocket hooks fired — the main agent turn went over
         // the WS path and we observed messages in both directions.
