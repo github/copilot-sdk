@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { createServer, IncomingMessage, Server, ServerResponse } from "http";
-import { AddressInfo } from "net";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { approveAll } from "../../src/index.js";
 import type { ProviderConfig } from "../../src/index.js";
+import type { RecordedModelRequest } from "../../../../test/harness/mockModelEndpoint";
 import { MockIdentityServer } from "./harness/MockIdentityServer.js";
+import { MockModelServer } from "./harness/MockModelServer.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { retry } from "./harness/sdkTestHelper.js";
 
@@ -22,43 +22,19 @@ import { retry } from "./harness/sdkTestHelper.js";
  *    returns a fixed fake AAD token and records the `resource` + identity query
  *    parameters the runtime asked for. Living in the shared harness lets every
  *    SDK language reuse it.
- *  - A local **mock model endpoint** is the BYOK provider's `baseUrl`. It records
- *    the `Authorization` header the runtime sent and replies with a minimal
- *    streamed chat completion so the turn finishes cleanly.
+ *  - The shared **mock model endpoint** (`test/harness/mockModelServer.ts`,
+ *    spawned via {@link MockModelServer}) is the BYOK provider's `baseUrl`. It
+ *    records the `Authorization` header the runtime sent and replies with a
+ *    minimal streamed chat completion so the turn finishes cleanly.
  *
- * The session is configured with `managedIdentity` (no apiKey/bearerToken), runs
- * one real turn, and we assert the model request carried
+ * Both mock servers live in the shared harness so every SDK language reuses
+ * them. The session is configured with `managedIdentity` (no apiKey/bearerToken),
+ * runs one real turn, and we assert the model request carried
  * `Authorization: Bearer <fake-token>` and that the identity endpoint was asked
  * for the right resource + identity. Because the BYOK base URL is the mock model
  * server (not the replay proxy), the test needs no recorded snapshot and never
  * touches the network.
  */
-
-interface ModelRequest {
-    authorization: string | undefined;
-    path: string;
-}
-
-/** Reads the full request body as a string. */
-function readBody(req: IncomingMessage): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const chunks: Buffer[] = [];
-        req.on("data", (c: Buffer) => chunks.push(c));
-        req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-        req.on("error", reject);
-    });
-}
-
-function listen(server: Server): Promise<number> {
-    return new Promise((resolve, reject) => {
-        server.once("error", reject);
-        server.listen(0, "127.0.0.1", () => resolve((server.address() as AddressInfo).port));
-    });
-}
-
-function close(server: Server): Promise<void> {
-    return new Promise((resolve) => server.close(() => resolve()));
-}
 
 describe("BYOK managed identity authentication", async () => {
     const { copilotClient: client, env } = await createSdkTestContext();
@@ -67,76 +43,11 @@ describe("BYOK managed identity authentication", async () => {
     const identity = new MockIdentityServer();
     await identity.start();
 
-    const modelRequests: ModelRequest[] = [];
-
-    // BYOK model endpoint. Records the Authorization header the runtime injected
-    // and returns a minimal streamed OpenAI chat completion so the turn ends.
-    const modelServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-        const body = await readBody(req);
-        modelRequests.push({
-            authorization: (req.headers["authorization"] as string | undefined) ?? undefined,
-            path: req.url ?? "",
-        });
-        let wantsStream = false;
-        try {
-            wantsStream = (JSON.parse(body) as { stream?: boolean }).stream === true;
-        } catch {
-            // Non-JSON body: fall back to a non-streaming reply.
-        }
-
-        if (wantsStream) {
-            res.writeHead(200, { "content-type": "text/event-stream" });
-            const base = {
-                id: "mock-completion",
-                object: "chat.completion.chunk",
-                created: Math.floor(Date.now() / 1000),
-                model: "mock-model",
-            };
-            res.write(
-                `data: ${JSON.stringify({
-                    ...base,
-                    choices: [
-                        {
-                            index: 0,
-                            delta: { role: "assistant", content: "OK" },
-                            finish_reason: null,
-                            logprobs: null,
-                        },
-                    ],
-                })}\n\n`
-            );
-            res.write(
-                `data: ${JSON.stringify({
-                    ...base,
-                    choices: [{ index: 0, delta: {}, finish_reason: "stop", logprobs: null }],
-                })}\n\n`
-            );
-            res.write("data: [DONE]\n\n");
-            res.end();
-        } else {
-            res.writeHead(200, { "content-type": "application/json" });
-            res.end(
-                JSON.stringify({
-                    id: "mock-completion",
-                    object: "chat.completion",
-                    created: Math.floor(Date.now() / 1000),
-                    model: "mock-model",
-                    choices: [
-                        {
-                            index: 0,
-                            message: { role: "assistant", content: "OK" },
-                            finish_reason: "stop",
-                            logprobs: null,
-                        },
-                    ],
-                    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-                })
-            );
-        }
-    });
-
-    const modelPort = await listen(modelServer);
-    const modelBaseUrl = `http://127.0.0.1:${modelPort}`;
+    // BYOK model endpoint, shared across SDKs. Records the Authorization header
+    // the runtime injected and returns a minimal OpenAI chat completion.
+    const model = new MockModelServer();
+    await model.start();
+    const modelBaseUrl = model.baseUrl;
 
     // The harness env object is the same one passed to the CLI subprocess, so
     // mutating it before the first createSession() configures managed identity
@@ -149,12 +60,12 @@ describe("BYOK managed identity authentication", async () => {
 
     beforeEach(async () => {
         await identity.reset();
-        modelRequests.length = 0;
+        await model.reset();
     });
 
     afterAll(async () => {
         await identity.stop();
-        await close(modelServer);
+        await model.stop();
     });
 
     async function runTurn(provider: ProviderConfig): Promise<void> {
@@ -182,9 +93,13 @@ describe("BYOK managed identity authentication", async () => {
             managedIdentity: {},
         });
 
+        let modelRequests: RecordedModelRequest[] = [];
         await retry(
             "capture a model request",
-            async () => expect(modelRequests.length).toBeGreaterThanOrEqual(1),
+            async () => {
+                modelRequests = await model.getRecordedRequests();
+                expect(modelRequests.length).toBeGreaterThanOrEqual(1);
+            },
             1_200
         );
 
@@ -217,9 +132,13 @@ describe("BYOK managed identity authentication", async () => {
             },
         });
 
+        let modelRequests: RecordedModelRequest[] = [];
         await retry(
             "capture a model request",
-            async () => expect(modelRequests.length).toBeGreaterThanOrEqual(1),
+            async () => {
+                modelRequests = await model.getRecordedRequests();
+                expect(modelRequests.length).toBeGreaterThanOrEqual(1);
+            },
             1_200
         );
 
@@ -259,6 +178,7 @@ describe("BYOK managed identity authentication", async () => {
         expect(identityRequests.length).toBe(1);
 
         // Every model request across both turns carried that one cached token.
+        const modelRequests = await model.getRecordedRequests();
         expect(modelRequests.length).toBeGreaterThanOrEqual(2);
         for (const request of modelRequests) {
             expect(request.authorization).toBe(`Bearer ${identity.token}`);
@@ -281,10 +201,12 @@ describe("BYOK managed identity authentication", async () => {
         };
 
         await runTurn(provider);
-        const firstTurnBearer = modelRequests.at(-1)?.authorization;
+        const firstTurnRequests = await model.getRecordedRequests();
+        const firstTurnBearer = firstTurnRequests.at(-1)?.authorization;
 
         await runTurn(provider);
-        const secondTurnBearer = modelRequests.at(-1)?.authorization;
+        const secondTurnRequests = await model.getRecordedRequests();
+        const secondTurnBearer = secondTurnRequests.at(-1)?.authorization;
 
         // The endpoint was hit again for the second turn rather than serving a
         // cached token.
