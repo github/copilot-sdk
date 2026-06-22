@@ -15,12 +15,14 @@ import type {
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type {
+    ManagedIdentityConfig,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type { ManagedIdentityConfig, ManagedIdentityOptions } from "./generated/rpc.js";
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -2126,47 +2128,6 @@ export interface ResumeSessionConfig extends SessionConfigBase {
      */
     openCanvases?: OpenCanvasInstance[];
 }
-
-/**
- * User-assigned managed identity selector and/or custom token scope. Set at
- * most one of {@link clientId}, {@link objectId}, or {@link resourceId}.
- *
- * @experimental Part of the experimental Azure managed identity BYOK surface and
- * may change or be removed in future SDK or CLI releases.
- */
-export interface ManagedIdentityOptions {
-    /**
-     * Client (application) ID of the user-assigned managed identity.
-     */
-    clientId?: string;
-
-    /**
-     * Object (principal) ID of the user-assigned managed identity.
-     */
-    objectId?: string;
-
-    /**
-     * ARM resource ID of the user-assigned managed identity.
-     */
-    resourceId?: string;
-
-    /**
-     * AAD token scope/audience. Defaults to
-     * `https://cognitiveservices.azure.com/.default`.
-     */
-    scope?: string;
-}
-
-/**
- * Azure managed identity authentication for a BYOK provider. `true` selects the
- * system-assigned identity with the default scope; an object selects a
- * user-assigned identity and/or a custom scope. Mutually exclusive with
- * {@link ProviderConfig.apiKey}/{@link ProviderConfig.bearerToken}.
- *
- * @experimental Part of the experimental Azure managed identity BYOK surface and
- * may change or be removed in future SDK or CLI releases.
- */
-export type ManagedIdentityConfig = boolean | ManagedIdentityOptions;
 
 /**
  * Configuration for a custom API provider.
