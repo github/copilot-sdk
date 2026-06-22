@@ -37,7 +37,7 @@ public class CopilotToolAnnotationTest {
     void copilotToolTargetsMethod() {
         Target target = CopilotTool.class.getAnnotation(Target.class);
         assertNotNull(target);
-        assertArrayEquals(new ElementType[] {ElementType.METHOD}, target.value());
+        assertArrayEquals(new ElementType[]{ElementType.METHOD}, target.value());
     }
 
     @Test
@@ -46,7 +46,7 @@ public class CopilotToolAnnotationTest {
         // reflection at runtime. However, we can confirm:
         // 1. The annotation type targets TYPE (which includes @interface declarations).
         // 2. Compilation succeeded with @CopilotExperimental on @CopilotTool
-        //    (the CopilotExperimentalProcessor would reject usage otherwise).
+        // (the CopilotExperimentalProcessor would reject usage otherwise).
         Target expTarget = CopilotExperimental.class.getAnnotation(Target.class);
         assertNotNull(expTarget);
         boolean includesType = false;
@@ -56,8 +56,7 @@ public class CopilotToolAnnotationTest {
                 break;
             }
         }
-        assertTrue(includesType,
-                "@CopilotExperimental must target TYPE to be applicable to annotation declarations");
+        assertTrue(includesType, "@CopilotExperimental must target TYPE to be applicable to annotation declarations");
     }
 
     @Test
@@ -88,7 +87,7 @@ public class CopilotToolAnnotationTest {
     void paramTargetsParameter() {
         Target target = Param.class.getAnnotation(Target.class);
         assertNotNull(target);
-        assertArrayEquals(new ElementType[] {ElementType.PARAMETER}, target.value());
+        assertArrayEquals(new ElementType[]{ElementType.PARAMETER}, target.value());
     }
 
     @Test
@@ -112,8 +111,7 @@ public class CopilotToolAnnotationTest {
     static class SampleToolHolder {
 
         @CopilotTool(value = "Get weather for a location", name = "get_weather", defer = ToolDefer.AUTO)
-        public CompletableFuture<String> getWeather(
-                @Param(value = "City name", required = true) String location,
+        public CompletableFuture<String> getWeather(@Param(value = "City name", required = true) String location,
                 @Param(value = "Temperature unit", required = false, defaultValue = "celsius") String unit) {
             return CompletableFuture.completedFuture("Sunny in " + location);
         }
