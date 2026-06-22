@@ -99,6 +99,11 @@ describe("Abort", async () => {
             releaseToolResolve = resolve;
         });
 
+        let signalAbortedResolve!: () => void;
+        const signalAborted = new Promise<void>((resolve) => {
+            signalAbortedResolve = resolve;
+        });
+
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
@@ -107,8 +112,15 @@ describe("Abort", async () => {
                     parameters: z.object({
                         value: z.string().describe("Value to analyze"),
                     }),
-                    handler: async ({ value }) => {
+                    handler: async ({ value }, { signal }) => {
                         toolStartedResolve(value);
+                        if (signal.aborted) {
+                            signalAbortedResolve();
+                        } else {
+                            signal.addEventListener("abort", () => signalAbortedResolve(), {
+                                once: true,
+                            });
+                        }
                         return await releaseTool;
                     },
                 }),
@@ -126,6 +138,9 @@ describe("Abort", async () => {
 
         // Abort while the tool is running
         await session.abort();
+
+        // The handler's AbortSignal should fire as a result of session.abort()
+        await withTimeout(signalAborted, 10_000, "tool handler AbortSignal");
 
         // Release the tool so its task doesn't leak
         releaseToolResolve("RELEASED_AFTER_ABORT");
@@ -153,4 +168,75 @@ describe("Abort", async () => {
 
         await session.disconnect();
     });
+
+    it(
+        "should cancel a single tool call via cancelToolCall",
+        { timeout: TEST_TIMEOUT_MS },
+        async () => {
+            let toolCallIdResolve!: (value: string) => void;
+            const toolCallIdReady = new Promise<string>((resolve) => {
+                toolCallIdResolve = resolve;
+            });
+
+            let releaseToolResolve!: (value: string) => void;
+            const releaseTool = new Promise<string>((resolve) => {
+                releaseToolResolve = resolve;
+            });
+
+            let signalAbortedResolve!: () => void;
+            const signalAborted = new Promise<void>((resolve) => {
+                signalAbortedResolve = resolve;
+            });
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                tools: [
+                    defineTool("slow_analysis", {
+                        description: "A slow analysis tool that blocks until released",
+                        parameters: z.object({
+                            value: z.string().describe("Value to analyze"),
+                        }),
+                        handler: async ({ value: _value }, { signal, toolCallId }) => {
+                            toolCallIdResolve(toolCallId);
+                            if (signal.aborted) {
+                                signalAbortedResolve();
+                            } else {
+                                signal.addEventListener("abort", () => signalAbortedResolve(), {
+                                    once: true,
+                                });
+                            }
+                            return await releaseTool;
+                        },
+                    }),
+                ],
+            });
+
+            // Fire-and-forget
+            void session.send({
+                prompt: "Use slow_analysis with value 'test_cancel'. Wait for the result.",
+            });
+
+            // Wait for the tool to start executing and capture its toolCallId
+            const toolCallId = await withTimeout(
+                toolCallIdReady,
+                60_000,
+                "slow_analysis toolCallId"
+            );
+
+            // Unknown toolCallIds return false
+            expect(session.cancelToolCall("nonexistent-tool-call-id")).toBe(false);
+
+            // Cancelling the in-flight tool call returns true and fires its signal
+            expect(session.cancelToolCall(toolCallId)).toBe(true);
+            await withTimeout(signalAborted, 10_000, "tool handler AbortSignal via cancelToolCall");
+
+            // A second cancel of the same (now-removed) call returns false
+            expect(session.cancelToolCall(toolCallId)).toBe(false);
+
+            // Release the tool so its task doesn't leak
+            releaseToolResolve("RELEASED_AFTER_CANCEL");
+
+            await session.disconnect();
+        }
+    );
 });
