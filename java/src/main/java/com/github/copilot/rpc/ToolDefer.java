@@ -22,8 +22,18 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum ToolDefer {
 
     /**
-     * No deferral preference set. Used as the default for annotation-based tool
-     * definitions where the user has not explicitly chosen a mode.
+     * No deferral preference set. This is an <b>annotation-only sentinel</b> used
+     * as the default for {@code @CopilotTool(defer = ToolDefer.NONE)}.
+     * <p>
+     * This constant must <b>not</b> be passed to {@link ToolDefinition} factory
+     * methods. The annotation processor and {@code ToolDefinition.fromObject()}
+     * must map {@code NONE} to {@code null} so the {@code defer} field is omitted
+     * from the JSON-RPC wire payload (matching the nullable/optional semantics used
+     * by all other SDKs).
+     * <p>
+     * As a safety net, {@link #getValue()} returns {@code null} for this constant,
+     * so {@code @JsonInclude(NON_NULL)} will omit it even if it accidentally
+     * reaches serialization.
      */
     NONE(""),
 
@@ -41,12 +51,16 @@ public enum ToolDefer {
 
     /**
      * Returns the JSON value for this deferral mode.
+     * <p>
+     * Returns {@code null} for {@link #NONE} so that {@code @JsonInclude(NON_NULL)}
+     * omits it from the wire payload.
      *
-     * @return the string value used in JSON serialization
+     * @return the string value used in JSON serialization, or {@code null} for
+     *         {@link #NONE}
      */
     @JsonValue
     public String getValue() {
-        return value;
+        return this == NONE ? null : value;
     }
 
     /**
