@@ -248,10 +248,24 @@ public final class CopilotClient implements AutoCloseable {
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor);
             dispatcher.registerHandlers(rpc);
 
+            // Register the LLM inference provider handlers when configured.
+            com.github.copilot.LlmInferenceConfig llmConfig = this.options.getLlmInference();
+            boolean hasLlmInference = llmConfig != null && llmConfig.getHandler() != null;
+            if (hasLlmInference) {
+                LlmInferenceAdapter llmAdapter = new LlmInferenceAdapter(llmConfig.getHandler(),
+                        () -> connection.serverRpc().llmInference, executor);
+                llmAdapter.registerHandlers(rpc);
+            }
+
             // Verify protocol version
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
                     "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
+
+            // Register as the runtime's LLM inference provider once connected.
+            if (hasLlmInference) {
+                connection.serverRpc().llmInference.setProvider().join();
+            }
 
             LoggingHelpers.logTiming(LOG, Level.FINE, "CopilotClient.start complete. Elapsed={Elapsed}", startNanos);
             return connection;
