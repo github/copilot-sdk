@@ -8,6 +8,8 @@
   "main": "server.ts",
   "scripts": {
     "start": "tsx server.ts",
+    "start:mock-identity": "tsx mockIdentityServer.ts",
+    "start:mock-model": "tsx mockModelServer.ts",
     "test": "vitest run"
   },
   "engines": {

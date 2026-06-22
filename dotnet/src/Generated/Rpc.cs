@@ -6172,6 +6172,27 @@ public sealed class ProviderConfigAzure
     public string? ApiVersion { get; set; }
 }
 
+/// <summary>Azure managed identity authentication for a BYOK provider. An empty object selects the system-assigned identity with the default scope; set at most one of clientId, objectId, or resourceId to select a user-assigned identity, and/or scope for a custom token audience. Mutually exclusive with apiKey/bearerToken.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ManagedIdentityConfig
+{
+    /// <summary>Client (application) ID of the user-assigned managed identity.</summary>
+    [JsonPropertyName("clientId")]
+    public string? ClientId { get; set; }
+
+    /// <summary>Object (principal) ID of the user-assigned managed identity.</summary>
+    [JsonPropertyName("objectId")]
+    public string? ObjectId { get; set; }
+
+    /// <summary>ARM resource ID of the user-assigned managed identity.</summary>
+    [JsonPropertyName("resourceId")]
+    public string? ResourceId { get; set; }
+
+    /// <summary>AAD token scope/audience. Defaults to https://cognitiveservices.azure.com/.default.</summary>
+    [JsonPropertyName("scope")]
+    public string? Scope { get; set; }
+}
+
 /// <summary>Custom model-provider configuration (BYOK).</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ProviderConfig
@@ -6195,6 +6216,10 @@ public sealed class ProviderConfig
     /// <summary>Custom HTTP headers to include in all outbound requests to the provider.</summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string>? Headers { get; set; }
+
+    /// <summary>Authenticate with an Azure managed identity instead of apiKey/bearerToken. An empty object selects the system-assigned identity; set clientId/objectId/resourceId for a user-assigned identity and/or scope for a custom token audience. The runtime acquires and auto-refreshes the AAD token.</summary>
+    [JsonPropertyName("managedIdentity")]
+    public ManagedIdentityConfig? ManagedIdentity { get; set; }
 
     /// <summary>Maximum context window tokens for the model.</summary>
     [JsonPropertyName("maxContextWindowTokens")]
@@ -20696,6 +20721,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(LspInitializeRequest))]
+[JsonSerializable(typeof(ManagedIdentityConfig))]
 [JsonSerializable(typeof(MarketplaceAddResult))]
 [JsonSerializable(typeof(MarketplaceBrowseResult))]
 [JsonSerializable(typeof(MarketplaceInfo))]

@@ -2024,6 +2024,15 @@ public sealed class ProviderConfig
     public IDictionary<string, string>? Headers { get; set; }
 
     /// <summary>
+    /// Authenticate with an Azure managed identity instead of <see cref="ApiKey"/>/<see cref="BearerToken"/>.
+    /// An empty object selects the system-assigned identity; set ClientId/ObjectId/ResourceId for a
+    /// user-assigned identity and/or Scope for a custom token audience. The runtime acquires and
+    /// auto-refreshes the AAD token.
+    /// </summary>
+    [JsonPropertyName("managedIdentity")]
+    public ManagedIdentityConfig? ManagedIdentity { get; set; }
+
+    /// <summary>
     /// Well-known model name used by the runtime to look up agent configuration
     /// (tools, prompts, reasoning behavior) and default token limits. Also used
     /// as the wire model when <see cref="WireModel"/> is not set.
@@ -2133,6 +2142,15 @@ public sealed class NamedProviderConfig
     /// </summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string>? Headers { get; set; }
+
+    /// <summary>
+    /// Authenticate with an Azure managed identity instead of <see cref="ApiKey"/>/<see cref="BearerToken"/>.
+    /// An empty object selects the system-assigned identity; set ClientId/ObjectId/ResourceId for a
+    /// user-assigned identity and/or Scope for a custom token audience. The runtime acquires and
+    /// auto-refreshes the AAD token.
+    /// </summary>
+    [JsonPropertyName("managedIdentity")]
+    public ManagedIdentityConfig? ManagedIdentity { get; set; }
 }
 
 /// <summary>
@@ -3687,6 +3705,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(GetStatusResponse))]
 [JsonSerializable(typeof(McpServerConfig))]
 [JsonSerializable(typeof(MessageOptions))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ManagedIdentityConfig))]
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPrices))]
 [JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPricesLongContext))]
