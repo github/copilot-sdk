@@ -1648,6 +1648,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Message = "CopilotClient.ConnectToServerAsync connecting to CLI server. Host={Host}, Port={Port}")]
     private static partial void LogConnectingToCliServer(ILogger logger, string host, int port);
 
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "[CLI] {Line}")]
+    private static partial void LogCliStderrLine(ILogger logger, string line);
+
     private static IOException CreateCliExitedException(string message, StringBuilder stderrBuffer)
     {
         string stderrOutput;
@@ -2324,7 +2329,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         Buffer.AppendLine(line);
                     }
 
-                    logger.LogWarning("[CLI] {Line}", line);
+                    LogCliStderrLine(logger, line);
                 }
             }
             catch (Exception e) when (cancellationToken.IsCancellationRequested

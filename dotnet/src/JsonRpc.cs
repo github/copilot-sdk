@@ -470,7 +470,7 @@ internal sealed partial class JsonRpc : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Inline response callback for request {RequestId} threw", id);
+                    LogInlineResponseCallbackThrew(_logger, ex, id);
                     pending.TrySetException(ex);
                     return;
                 }
@@ -934,6 +934,11 @@ internal sealed partial class JsonRpc : IDisposable
         [JsonPropertyName("id")]
         public long Id { get; set; }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Inline response callback for request {RequestId} threw")]
+    private static partial void LogInlineResponseCallbackThrew(ILogger logger, Exception exception, long requestId);
 
     [JsonSerializable(typeof(CancelRequestParams))]
     private partial class CancelRequestParamsContext : JsonSerializerContext;

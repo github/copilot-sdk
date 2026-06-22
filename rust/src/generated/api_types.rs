@@ -16792,6 +16792,9 @@ pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
 /// </div>
 pub type UIElicitationResponseContent = HashMap<String, serde_json::Value>;
 
+/// List of all authenticated users
+pub type AccountGetAllUsersResult = Vec<AccountAllUsers>;
+
 /// Standard MCP CallToolResult
 ///
 /// <div class="warning">
