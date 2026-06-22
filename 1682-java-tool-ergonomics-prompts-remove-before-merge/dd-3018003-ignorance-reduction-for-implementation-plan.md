@@ -307,6 +307,18 @@ The SDK uses JPMS. The processor generates classes into the user's module, not t
 
 **Action:** Verify this works in a simple named-module test.
 
+**Resolution**
+
+See `1682-java-tool-ergonomics-prompts-remove-before-merge/dd3021192/pom.xml` and files
+
+```
+src/main/java/com/github/dd3021192/MyTools$$CopilotToolMeta.java
+src/main/java/com/github/dd3021192/MyTools.java
+src/main/java/com/github/dd3021192/Main.java
+```
+
+For verificiation.
+
 ### 3.8 — Processor registration
 
 **Question:** How is the new `@CopilotTool` processor registered alongside `CopilotExperimentalProcessor`?
