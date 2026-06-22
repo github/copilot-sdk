@@ -81,6 +81,8 @@ export type {
     MCPServerConfig,
     DefaultAgentConfig,
     MessageOptions,
+    ManagedIdentityConfig,
+    ManagedIdentityOptions,
     ModelBilling,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,

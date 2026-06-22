@@ -539,6 +539,14 @@ export type SessionLogLevel =
   /** Error message describing a failure. */
   | "error";
 /**
+ * Azure managed identity authentication for a BYOK provider. `true` selects the system-assigned identity with the default scope; an object selects a user-assigned identity and/or a custom scope. Mutually exclusive with apiKey/bearerToken.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedIdentityConfig".
+ */
+/** @experimental */
+export type ManagedIdentityConfig = boolean | ManagedIdentityOptions;
+/**
  * UI theme preference per SEP-1865
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4666,6 +4674,31 @@ export interface LspInitializeRequest {
   force?: boolean;
 }
 /**
+ * User-assigned managed identity selector and/or custom token scope. Set at most one of clientId, objectId, or resourceId.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedIdentityOptions".
+ */
+/** @experimental */
+export interface ManagedIdentityOptions {
+  /**
+   * Client (application) ID of the user-assigned managed identity.
+   */
+  clientId?: string;
+  /**
+   * Object (principal) ID of the user-assigned managed identity.
+   */
+  objectId?: string;
+  /**
+   * ARM resource ID of the user-assigned managed identity.
+   */
+  resourceId?: string;
+  /**
+   * AAD token scope/audience. Defaults to https://cognitiveservices.azure.com/.default.
+   */
+  scope?: string;
+}
+/**
  * Result of registering a new marketplace.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6510,6 +6543,7 @@ export interface NamedProviderConfig {
    */
   bearerToken?: string;
   azure?: ProviderConfigAzure;
+  managedIdentity?: ManagedIdentityConfig;
   /**
    * Custom HTTP headers to include in all outbound requests to the provider.
    */
@@ -8396,6 +8430,7 @@ export interface ProviderConfig {
    */
   bearerToken?: string;
   azure?: ProviderConfigAzure;
+  managedIdentity?: ManagedIdentityConfig;
   /**
    * Well-known model ID used for capability lookup. When set, agent behavior config and token limits are inferred from this model.
    */
