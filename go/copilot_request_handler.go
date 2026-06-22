@@ -526,16 +526,36 @@ func newCopilotRequestAdapter(handler *CopilotRequestHandler, getRPC func() *rpc
 	}
 }
 
-func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPRequestStartRequest) (*rpc.LlmInferenceHTTPRequestStartResult, error) {
+// getOrCreateExchange returns the exchange for requestID, allocating one if it
+// does not yet exist. The runtime dispatches httpRequestStart and
+// httpRequestChunk frames on separate goroutines (see jsonrpc2.handleRequest),
+// so a body chunk — including the terminal end frame — can arrive before its
+// start frame runs. Creating the exchange (and its buffering frameQueue) on
+// first touch means those chunks are buffered rather than dropped, instead of
+// hanging the body drain forever.
+func (a *copilotRequestAdapter) getOrCreateExchange(requestID string) *pendingExchange {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if exchange, ok := a.pending[requestID]; ok {
+		return exchange
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	queue := newFrameQueue()
+	exchange := &pendingExchange{queue: newFrameQueue(), ctx: ctx, cancel: cancel}
+	a.pending[requestID] = exchange
+	return exchange
+}
+
+func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPRequestStartRequest) (*rpc.LlmInferenceHTTPRequestStartResult, error) {
+	// Adopt any exchange a racing chunk already created — with its buffered
+	// body — rather than dropping those frames.
+	exchange := a.getOrCreateExchange(params.RequestID)
+	ctx := exchange.ctx
 	bodyCh := make(chan []byte)
-	exchange := &pendingExchange{queue: queue, ctx: ctx, cancel: cancel}
 
 	go func() {
 		defer close(bodyCh)
 		for {
-			b, ok := queue.pop()
+			b, ok := exchange.queue.pop()
 			if !ok {
 				return
 			}
@@ -546,10 +566,6 @@ func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPReq
 			}
 		}
 	}()
-
-	a.mu.Lock()
-	a.pending[params.RequestID] = exchange
-	a.mu.Unlock()
 
 	transport := "http"
 	if params.Transport != nil {
@@ -580,13 +596,9 @@ func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPReq
 }
 
 func (a *copilotRequestAdapter) HttpRequestChunk(params *rpc.LlmInferenceHTTPRequestChunkRequest) (*rpc.LlmInferenceHTTPRequestChunkResult, error) {
-	a.mu.Lock()
-	exchange := a.pending[params.RequestID]
-	a.mu.Unlock()
-	if exchange == nil {
-		// Chunk arrived with no matching start; drop it.
-		return &rpc.LlmInferenceHTTPRequestChunkResult{}, nil
-	}
+	// May arrive before the matching start frame (frames are dispatched on
+	// separate goroutines); get-or-create so the body is buffered, never lost.
+	exchange := a.getOrCreateExchange(params.RequestID)
 	a.routeChunk(exchange, params)
 	return &rpc.LlmInferenceHTTPRequestChunkResult{}, nil
 }
