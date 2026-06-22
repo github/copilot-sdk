@@ -27,13 +27,18 @@ public enum ToolDefer {
      * <p>
      * This constant must <b>not</b> be passed to {@link ToolDefinition} factory
      * methods. The annotation processor and {@code ToolDefinition.fromObject()}
-     * must map {@code NONE} to {@code null} so the {@code defer} field is omitted
-     * from the JSON-RPC wire payload (matching the nullable/optional semantics used
-     * by all other SDKs).
+     * must map {@code NONE} to a {@code null} field reference so that
+     * {@code @JsonInclude(NON_NULL)} on {@link ToolDefinition} omits the
+     * {@code defer} key from the JSON-RPC wire payload entirely (matching the
+     * nullable/optional semantics used by all other SDKs).
      * <p>
-     * As a safety net, {@link #getValue()} returns {@code null} for this constant,
-     * so {@code @JsonInclude(NON_NULL)} will omit it even if it accidentally
-     * reaches serialization.
+     * As a secondary safety net, {@link #getValue()} returns {@code null} for this
+     * constant. Note that this alone does <b>not</b> cause field omission: if a
+     * non-null {@code NONE} reference reaches a {@link ToolDefinition} field,
+     * Jackson's {@code @JsonInclude(NON_NULL)} will still emit the field (as
+     * {@code "defer": null}) because the field reference itself is not null. The
+     * primary protection is mapping {@code NONE} to a null field reference before
+     * constructing the {@link ToolDefinition}.
      */
     NONE(""),
 
@@ -52,8 +57,10 @@ public enum ToolDefer {
     /**
      * Returns the JSON value for this deferral mode.
      * <p>
-     * Returns {@code null} for {@link #NONE} so that {@code @JsonInclude(NON_NULL)}
-     * omits it from the wire payload.
+     * Returns {@code null} for {@link #NONE} to avoid emitting an empty string
+     * ({@code "defer": ""}) if this sentinel accidentally reaches serialization.
+     * With {@code null}, the worst-case leak becomes {@code "defer": null} rather
+     * than an invalid empty string.
      *
      * @return the string value used in JSON serialization, or {@code null} for
      *         {@link #NONE}
