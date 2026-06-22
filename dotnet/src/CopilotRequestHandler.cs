@@ -614,16 +614,15 @@ internal sealed class LlmInferenceExchange
     private bool _finished;
     private bool _cancelled;
 
-    internal LlmInferenceExchange(string requestId, string method, Func<ServerRpc?> getServerRpc)
+    internal LlmInferenceExchange(string requestId, Func<ServerRpc?> getServerRpc)
     {
         RequestId = requestId;
-        Method = method;
         _getServerRpc = getServerRpc;
     }
 
     internal string RequestId { get; }
 
-    internal string Method { get; }
+    internal string Method { get; set; } = "GET";
 
     internal CopilotRequestContext Context { get; set; } = null!;
 
@@ -816,7 +815,13 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
             ? CopilotRequestTransport.WebSocket
             : CopilotRequestTransport.Http;
 
-        var exchange = new LlmInferenceExchange(request.RequestId, request.Method, _getServerRpc);
+        // The runtime dispatches httpRequestStart and httpRequestChunk frames
+        // concurrently, so body chunks (including the terminal end frame) can
+        // arrive before this start frame runs. GetOrAdd adopts any exchange a
+        // racing chunk already created — with its buffered body — instead of
+        // dropping those frames and hanging the body drain.
+        var exchange = _pending.GetOrAdd(request.RequestId, id => new LlmInferenceExchange(id, _getServerRpc));
+        exchange.Method = request.Method;
         exchange.Context = new CopilotRequestContext
         {
             RequestId = request.RequestId,
@@ -826,11 +831,10 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
             Headers = ToReadOnlyHeaders(request.Headers),
             CancellationToken = exchange.Abort.Token,
         };
-        _pending[request.RequestId] = exchange;
 
         // Return from httpRequestStart immediately (after registering state) so
         // the runtime's RPC reply is not gated on the consumer's I/O. The actual
-        // handler work runs asynchronously.
+        // handler work runs asynchronously, exactly once per request.
         _ = RunAsync(exchange);
 
         return Task.FromResult(new LlmInferenceHttpRequestStartResult());
@@ -840,10 +844,12 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (_pending.TryGetValue(request.RequestId, out var exchange))
-        {
-            RouteChunk(exchange, request);
-        }
+        // A chunk may arrive before its matching httpRequestStart (frames are
+        // dispatched concurrently). GetOrAdd buffers the body into the
+        // exchange's channel so no chunk — in particular the terminal end
+        // frame — is ever lost; the start frame later adopts this same exchange.
+        var exchange = _pending.GetOrAdd(request.RequestId, id => new LlmInferenceExchange(id, _getServerRpc));
+        RouteChunk(exchange, request);
 
         return Task.FromResult(new LlmInferenceHttpRequestChunkResult());
     }
