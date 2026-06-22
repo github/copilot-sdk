@@ -136,6 +136,47 @@ Minimum viable set (from langchain4j's `JsonSchemaElementUtils`):
 
 **Recommendation:** Start with the flat types (primitives, String, enums) and `List<primitive>`. Defer nested records and polymorphic types to a follow-up.
 
+**Resolution:**
+
+Here's the **maximum viable set** derived from every type actually used across `com.github.copilot.rpc` and `com.github.copilot.generated.rpc`:
+
+| Java type | JSON Schema | SDK usage examples |
+|-----------|-------------|-------------------|
+| `String` | `{"type": "string"}` | Pervasive (IDs, names, paths, messages) |
+| `int`, `Integer` | `{"type": "integer"}` | `ProviderConfig`, `ModelLimits`, `McpServerConfig` |
+| `long`, `Long` | `{"type": "integer"}` | Timestamps in hook inputs, JSON-RPC IDs |
+| `double`, `Double` | `{"type": "number"}` | `ModelBilling.multiplier`, `InfiniteSessionConfig` thresholds |
+| `float`, `Float` | `{"type": "number"}` | Not used in SDK today, but natural complement |
+| `boolean`, `Boolean` | `{"type": "boolean"}` | Extensively in `SessionConfig`, hook outputs, options |
+| `String[]` | `{"type": "array", "items": {"type": "string"}}` | `CopilotClientOptions.cliArgs` |
+| `enum` types | `{"type": "string", "enum": ["V1", ...]}` | 92 enums (`ToolDefer`, `AgentMode`, 85 generated) |
+| `UUID` | `{"type": "string", "format": "uuid"}` | Generated record ID fields |
+| `OffsetDateTime` | `{"type": "string", "format": "date-time"}` | Generated record timestamp fields |
+| `JsonNode` | `{}` (any) | `ToolInvocation.argumentsNode`, hook args/results |
+| `Object` | `{}` (any) | `ToolDefinition.parameters`, `JsonRpcRequest.params` |
+| `List<T>`, `Collection<T>` | `{"type": "array", "items": <schema-of-T>}` | 50+ distinct `T` across the API |
+| `Map<String, String>` | `{"type": "object", "additionalProperties": {"type": "string"}}` | `ProviderConfig.headers`, env maps |
+| `Map<String, Boolean>` | `{"type": "object", "additionalProperties": {"type": "boolean"}}` | Generated records |
+| `Map<String, Long>` | `{"type": "object", "additionalProperties": {"type": "integer"}}` | Generated records |
+| `Map<String, Object>` | `{"type": "object"}` (opaque) | `ToolInvocation.getArguments()`, telemetry, extensionData |
+| `Map<String, T>` (typed `T`) | `{"type": "object", "additionalProperties": <schema-of-T>}` | `Map<String, McpServerConfig>`, `Map<String, SectionOverride>`, etc. |
+| `Map<String, List<String>>` | `{"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}` | Generated records |
+| Records / POJOs | `{"type": "object", "properties": {...}, "required": [...]}` | ~690 types (26 handwritten records, ~65 POJOs, ~600 generated) |
+| Sealed / `@JsonSubTypes` | `{"oneOf": [...]}` with discriminator | `McpServerConfig`, `MessageAttachment`, `SlashCommandInvocationResult` |
+| `Optional<T>` | Schema of `T`, not in `required` array | `Optional<Boolean>` in `SessionConfig` |
+| `OptionalInt` | `{"type": "integer"}`, not in `required` | `CopilotClientOptions.getSessionIdleTimeoutSeconds()` |
+| `OptionalDouble` | `{"type": "number"}`, not in `required` | `ModelBilling.getMultiplierOpt()` |
+
+**Types intentionally excluded** (not sensible as tool parameter types):
+
+| Java type | Reason |
+|-----------|--------|
+| `CompletableFuture<T>` | Return type only, not a parameter type |
+| `Consumer<T>`, `Supplier<T>`, `Function<T,R>`, `Executor` | Callback/functional types, not serializable |
+| `ObjectMapper`, `TypeReference` | Infrastructure, not data |
+
+The minimum viable set from the plan covers 8 rows. This maximum viable set covers **23 rows** — adding `String[]`, `UUID`, `OffsetDateTime`, `JsonNode`/`Object` (any), typed `Map<String, T>` variants, sealed/polymorphic types, and `Optional` variants. These all have established Jackson serialization semantics in the existing SDK.
+
 ### 3.5 — Generated code shape
 
 **Question:** What exactly does the processor generate?
@@ -197,6 +238,29 @@ final class MyTools$$CopilotToolMeta {
    ```
 
    **Recommendation:** Generate direct casts for primitives/String, and `ObjectMapper.convertValue()` for enums, records, and complex types. The `ObjectMapper` instance can come from a static field in the generated class.
+   
+**Resolution:**
+
+The generated `$$CopilotToolMeta` class produces lambdas identical to what `LowLevelToolDefinitionIT` writes by hand. Decisions:
+
+1. **Access levels:** Require at least package-private. The generated `$$CopilotToolMeta` lives in the same package as the user's class, so package-private and above work without reflection. Emit a compile error for `private` methods annotated with `@CopilotTool`.
+
+2. **Return type handling:**
+
+   | Return type | Generated code |
+   |-------------|----------------|
+   | `String` | `CompletableFuture.completedFuture(instance.method(...))` |
+   | `CompletableFuture<String>` | `instance.method(...)` (use as-is) |
+   | `void` | `instance.method(...); return CompletableFuture.completedFuture("Success")` |
+   | `CompletableFuture<T>` (non-String) | `instance.method(...).thenApply(objectMapper::writeValueAsString)` |
+   | Other `T` | `CompletableFuture.completedFuture(objectMapper.writeValueAsString(instance.method(...)))` |
+
+3. **Argument deserialization:** Follow the two patterns proven in `LowLevelToolDefinitionIT`:
+   - **Simple types** (`String`, primitives, boxed): generate direct cast from `invocation.getArguments().get("name")` (e.g., `(String) args.get("city")`, `((Number) args.get("count")).intValue()`).
+   - **Complex types** (enums, records, POJOs): generate `objectMapper.convertValue(invocation.getArguments().get("name"), TargetType.class)`.
+   - **Single-record-parameter shortcut:** When a method has exactly one parameter that is a record/POJO (matching the full argument set), generate `invocation.getArgumentsAs(RecordType.class)` — the same pattern `LowLevelToolDefinitionIT.setPhaseTool` uses.
+
+   The `ObjectMapper` instance: use a `private static final` field in the generated `$$CopilotToolMeta` class, initialized from `com.github.copilot.rpc.RpcMapper.INSTANCE` (already exists in the SDK).
 
 ### 3.6 — `ToolDefinition.fromObject(Object)` registration API
 
@@ -230,6 +294,8 @@ public static List<ToolDefinition> fromObject(Object instance) {
 **Open question:** Do we want the reflection fallback? It's nice for users who don't run the processor (e.g., scripting, prototyping), but it adds code and the `-parameters` concern.
 
 **Recommendation:** Implement the reflection fallback but mark it `@CopilotExperimental` separately. The primary path is the generated `$$CopilotToolMeta`.
+
+**Resolution** we only want the processor approach.
 
 ### 3.7 — `module-info.java` impact
 
