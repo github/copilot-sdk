@@ -2078,6 +2078,20 @@ export interface SessionConfigBase {
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
     createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
+
+    /**
+     * ExP assignment ("flight") data injected by a trusted integrator, in the
+     * same JSON shape the Copilot CLI fetches from the experimentation service
+     * (`CopilotExpAssignmentResponse`). When supplied, the runtime feeds it
+     * into the same feature-flag path as CLI-fetched assignments and stamps it
+     * onto telemetry and the CAPI request header. When absent, the session does
+     * not block on ExP. Intended for out-of-process integrators that fetch ExP
+     * data themselves; malformed payloads are dropped by the runtime
+     * (fail-open). Applies to both session creation and resume.
+     *
+     * @internal
+     */
+    expAssignments?: Record<string, unknown>;
 }
 
 /**

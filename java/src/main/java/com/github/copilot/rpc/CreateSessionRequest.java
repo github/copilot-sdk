@@ -10,6 +10,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 
@@ -192,6 +193,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("cloud")
     private CloudSessionOptions cloud;
+
+    @JsonProperty("expAssignments")
+    private JsonNode expAssignments;
 
     /** Gets the model name. @return the model */
     public String getModel() {
@@ -871,5 +875,17 @@ public final class CreateSessionRequest {
     /** Sets the cloud session options. @param cloud the cloud session options */
     public void setCloud(CloudSessionOptions cloud) {
         this.cloud = cloud;
+    }
+
+    /** Gets the ExP assignment data. @return the ExP assignment data */
+    public JsonNode getExpAssignments() {
+        return expAssignments;
+    }
+
+    /**
+     * Sets the ExP assignment data. @param expAssignments the ExP assignment data
+     */
+    public void setExpAssignments(JsonNode expAssignments) {
+        this.expAssignments = expAssignments;
     }
 }

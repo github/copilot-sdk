@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
@@ -94,6 +95,7 @@ public class ResumeSessionConfig {
     private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
+    private JsonNode expAssignments;
 
     /**
      * Gets the AI model to use.
@@ -1583,6 +1585,30 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the ExP assignment ("flight") data injected by a trusted integrator.
+     *
+     * @return the ExP assignment data, or {@code null} if not set
+     */
+    public JsonNode getExpAssignments() {
+        return expAssignments;
+    }
+
+    /**
+     * Sets ExP assignment ("flight") data injected by a trusted integrator.
+     * <p>
+     * See {@link SessionConfig#setExpAssignments(JsonNode)} for details. The
+     * runtime supports injecting ExP assignments on resume as well as create.
+     *
+     * @param expAssignments
+     *            the opaque ExP assignment data
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setExpAssignments(JsonNode expAssignments) {
+        this.expAssignments = expAssignments;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -1648,6 +1674,7 @@ public class ResumeSessionConfig {
         copy.enableMcpApps = this.enableMcpApps;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
+        copy.expAssignments = this.expAssignments;
         return copy;
     }
 }

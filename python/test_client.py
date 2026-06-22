@@ -356,6 +356,75 @@ class TestCreateSessionConfig:
         finally:
             await client.force_stop()
 
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_exp_assignments(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            create_assignments = {"Configs": [{"Id": "exp-create"}]}
+            resume_assignments = {"Configs": [{"Id": "exp-resume"}]}
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                exp_assignments=create_assignments,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                exp_assignments=resume_assignments,
+            )
+
+            assert captured["session.create"]["expAssignments"] == create_assignments
+            assert captured["session.resume"]["expAssignments"] == resume_assignments
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_omit_exp_assignments_when_unset(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+
+            assert "expAssignments" not in captured["session.create"]
+            assert "expAssignments" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
 
 class TestURLParsing:
     def test_parse_port_only_url(self):

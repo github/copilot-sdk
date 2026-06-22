@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
@@ -95,6 +96,7 @@ public class SessionConfig {
     private String gitHubToken;
     private String remoteSession;
     private CloudSessionOptions cloud;
+    private JsonNode expAssignments;
 
     /**
      * Gets the custom session ID.
@@ -1703,6 +1705,38 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the ExP assignment ("flight") data injected by a trusted integrator.
+     *
+     * @return the ExP assignment data, or {@code null} if not set
+     */
+    public JsonNode getExpAssignments() {
+        return expAssignments;
+    }
+
+    /**
+     * Sets ExP assignment ("flight") data injected by a trusted integrator.
+     * <p>
+     * The value is opaque JSON in the same shape the Copilot CLI fetches from the
+     * experimentation service ({@code CopilotExpAssignmentResponse}). When
+     * provided, the runtime feeds it into the same feature-flag path as CLI-fetched
+     * assignments and stamps it onto telemetry and the CAPI request header. When
+     * absent, the session does not block on ExP. Intended for out-of-process
+     * integrators that fetch ExP data themselves; malformed payloads are dropped by
+     * the runtime (fail-open). Serialized on the wire as {@code expAssignments}.
+     * <p>
+     * This is an internal/trusted-integrator option, not part of the broadly
+     * advertised public surface.
+     *
+     * @param expAssignments
+     *            the opaque ExP assignment data
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setExpAssignments(JsonNode expAssignments) {
+        this.expAssignments = expAssignments;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -1773,6 +1807,7 @@ public class SessionConfig {
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
+        copy.expAssignments = this.expAssignments;
         return copy;
     }
 }

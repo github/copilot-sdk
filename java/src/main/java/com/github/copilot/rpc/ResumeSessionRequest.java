@@ -10,6 +10,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 
@@ -194,6 +195,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("remoteSession")
     private String remoteSession;
+
+    @JsonProperty("expAssignments")
+    private JsonNode expAssignments;
 
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
@@ -886,5 +890,17 @@ public final class ResumeSessionRequest {
      */
     public void setRemoteSession(String remoteSession) {
         this.remoteSession = remoteSession;
+    }
+
+    /** Gets the ExP assignment data. @return the ExP assignment data */
+    public JsonNode getExpAssignments() {
+        return expAssignments;
+    }
+
+    /**
+     * Sets the ExP assignment data. @param expAssignments the ExP assignment data
+     */
+    public void setExpAssignments(JsonNode expAssignments) {
+        this.expAssignments = expAssignments;
     }
 }
