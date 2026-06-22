@@ -71,7 +71,6 @@ from .copilot_request_handler import (
     CopilotWebSocketHandler,
     CopilotWebSocketHandlerBase,
     LlmInferenceHeaders,
-    create_copilot_request_adapter,
 )
 from .generated.rpc import (
     ModelBillingTokenPrices,
@@ -312,7 +311,6 @@ __all__ = [
     "UserPromptSubmittedHookInput",
     "UserPromptSubmittedHookOutput",
     "convert_mcp_call_tool_result",
-    "create_copilot_request_adapter",
     "create_session_fs_adapter",
     "define_tool",
 ]
