@@ -9,7 +9,7 @@ handler subclass services BOTH transports against a per-test fake upstream:
 
 * HTTP — :meth:`send_request` rewrites the request to the local HTTP upstream,
   mutates an outbound and a response header, and forwards via httpx.
-* WebSocket — :meth:`open_web_socket` rewrites the URL to the local WebSocket
+* WebSocket — :meth:`open_websocket` rewrites the URL to the local WebSocket
   upstream and returns a forwarding handler that counts messages in both
   directions.
 
@@ -212,7 +212,7 @@ class _TestHandler(CopilotRequestHandler):
         response.headers["x-test-response-mutated"] = "1"
         return response
 
-    async def open_web_socket(self, ctx: CopilotRequestContext):
+    async def open_websocket(self, ctx: CopilotRequestContext):
         return _CountingSocketHandler(ctx, self._rewrite_ws(ctx.url), self._counters)
 
     async def aclose(self) -> None:

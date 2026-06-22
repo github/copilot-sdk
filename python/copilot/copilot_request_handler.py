@@ -10,7 +10,7 @@ both seams:
 * HTTP — override :meth:`CopilotRequestHandler.send_request` to mutate the
   :class:`httpx.Request`, post-process the :class:`httpx.Response`, or replace
   the call entirely. The default forwards via a shared :class:`httpx.AsyncClient`.
-* WebSocket — override :meth:`CopilotRequestHandler.open_web_socket` to return
+* WebSocket — override :meth:`CopilotRequestHandler.open_websocket` to return
   a per-connection :class:`CopilotWebSocketHandlerBase`. The default opens a
   transparent forwarding connection via the ``websockets`` library.
 
@@ -114,7 +114,7 @@ class CopilotWebSocketCloseStatus:
 
 class CopilotWebSocketHandlerBase:
     """Per-connection WebSocket handler returned by
-    :meth:`CopilotRequestHandler.open_web_socket`.
+    :meth:`CopilotRequestHandler.open_websocket`.
 
     Subclass and override :meth:`send_request_message` (runtime → upstream) to
     mutate, drop, or inject messages, and :meth:`send_response_message`
@@ -186,7 +186,7 @@ class CopilotWebSocketHandler(CopilotWebSocketHandlerBase):
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise RuntimeError(
                 "WebSocket forwarding requires the 'websockets' package. "
-                "Install it or override open_web_socket()."
+                "Install it or override open_websocket()."
             ) from exc
 
         headers = [
@@ -235,7 +235,7 @@ class CopilotRequestHandler:
     """Base class for consumers that observe or replace LLM inference requests.
 
     Override :meth:`send_request` to intercept HTTP model-layer requests, or
-    :meth:`open_web_socket` to intercept WebSocket connections. An instance
+    :meth:`open_websocket` to intercept WebSocket connections. An instance
     that overrides nothing is a transparent pass-through.
     """
 
@@ -245,7 +245,7 @@ class CopilotRequestHandler:
         """Send an HTTP request. Override to mutate request/response or replace the call."""
         return await _get_shared_http_client().send(request, stream=True)
 
-    async def open_web_socket(self, ctx: CopilotRequestContext) -> CopilotWebSocketHandlerBase:
+    async def open_websocket(self, ctx: CopilotRequestContext) -> CopilotWebSocketHandlerBase:
         """Open a per-connection WebSocket handler. Override to mutate or replace."""
         return CopilotWebSocketHandler(ctx)
 
@@ -286,7 +286,7 @@ class CopilotRequestHandler:
     async def _handle_web_socket(
         self, exchange: _CopilotRequestExchange, ctx: CopilotRequestContext
     ) -> None:
-        handler = await self.open_web_socket(ctx)
+        handler = await self.open_websocket(ctx)
         assert ctx._bridge is not None
         try:
             await handler.open()
