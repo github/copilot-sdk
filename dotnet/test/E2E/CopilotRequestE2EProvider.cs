@@ -102,9 +102,10 @@ internal sealed class RecordingRequestHandler : CopilotRequestHandler
     /// <summary>
     /// Serves the non-inference model-layer GETs/POSTs the runtime issues
     /// (catalog, model session, policy). These flow through the same callback
-    /// but carry no session id (they happen outside an agent turn).
+    /// but carry no session id (they happen outside an agent turn). Shared with
+    /// the cancel/error e2e handlers so the turn can reach the inference step.
     /// </summary>
-    private static HttpResponseMessage BuildNonInferenceResponse(string url)
+    internal static HttpResponseMessage BuildNonInferenceResponse(string url)
     {
         var u = url.ToLowerInvariant();
         if (u.EndsWith("/models", StringComparison.Ordinal))
@@ -125,7 +126,7 @@ internal sealed class RecordingRequestHandler : CopilotRequestHandler
         return Json("{}");
     }
 
-    private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)
+    internal static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(body, Encoding.UTF8, "application/json"),
     };
