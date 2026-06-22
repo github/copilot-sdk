@@ -31,7 +31,7 @@ import com.github.copilot.rpc.SessionConfig;
  * forwarding tests never reach:
  * <ul>
  * <li><b>Error</b> — the handler throws from
- * {@link CopilotRequestHandler#sendHttp} for an inference request. The base
+ * {@link CopilotRequestHandler#sendRequest} for an inference request. The base
  * adapter reports a transport error back to the runtime rather than
  * hanging.</li>
  * <li><b>Runtime cancel</b> — the handler blocks an inference request
@@ -62,7 +62,7 @@ public class CopilotRequestCancelErrorE2ETest {
         private final AtomicInteger inferenceAttempts = new AtomicInteger();
 
         @Override
-        protected HttpResponse<InputStream> sendHttp(HttpRequest request, CopilotRequestContext rctx) {
+        protected HttpResponse<InputStream> sendRequest(HttpRequest request, CopilotRequestContext rctx) {
             String url = request.uri().toString();
             if (!isInferenceUrl(url)) {
                 return buildNonInferenceResponse(url);
@@ -79,7 +79,7 @@ public class CopilotRequestCancelErrorE2ETest {
         private volatile boolean sawAbort;
 
         @Override
-        protected HttpResponse<InputStream> sendHttp(HttpRequest request, CopilotRequestContext rctx) {
+        protected HttpResponse<InputStream> sendRequest(HttpRequest request, CopilotRequestContext rctx) {
             String url = request.uri().toString();
             if (!isInferenceUrl(url)) {
                 return buildNonInferenceResponse(url);

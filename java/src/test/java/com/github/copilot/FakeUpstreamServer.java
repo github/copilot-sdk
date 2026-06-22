@@ -117,7 +117,12 @@ final class FakeUpstreamServer implements AutoCloseable {
             throws IOException {
         String contentLength = headers.get("content-length");
         if (contentLength != null) {
-            int len = Integer.parseInt(contentLength.trim());
+            int len;
+            try {
+                len = Integer.parseInt(contentLength.trim());
+            } catch (NumberFormatException e) {
+                len = 0;
+            }
             byte[] body = new byte[len];
             int read = 0;
             while (read < len) {

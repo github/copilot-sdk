@@ -98,7 +98,7 @@ public class CopilotRequestHandlerE2ETest {
 
             CopilotRequestHandler handler = new CopilotRequestHandler() {
                 @Override
-                protected HttpResponse<InputStream> sendHttp(HttpRequest request, CopilotRequestContext rctx)
+                protected HttpResponse<InputStream> sendRequest(HttpRequest request, CopilotRequestContext rctx)
                         throws Exception {
                     httpRequests.incrementAndGet();
                     URI rewritten = URI.create(rewriteHost(httpBase, request.uri()));

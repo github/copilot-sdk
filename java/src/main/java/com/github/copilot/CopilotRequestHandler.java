@@ -24,9 +24,9 @@ import java.util.concurrent.CompletableFuture;
  * When set as the {@code requestHandler} on
  * {@link com.github.copilot.rpc.CopilotClientOptions}, the runtime routes its
  * model-layer HTTP and WebSocket traffic through this handler instead of
- * issuing the calls itself. Subclass and override {@link #sendHttp} to mutate
- * or replace HTTP calls, or {@link #openWebSocket} to mutate the handshake or
- * return a fully custom {@link CopilotWebSocketHandler}.
+ * issuing the calls itself. Subclass and override {@link #sendRequest} to
+ * mutate or replace HTTP calls, or {@link #openWebSocket} to mutate the
+ * handshake or return a fully custom {@link CopilotWebSocketHandler}.
  *
  * @since 1.0.0
  */
@@ -70,7 +70,7 @@ public class CopilotRequestHandler {
      * @throws Exception
      *             if the request could not be completed
      */
-    protected HttpResponse<InputStream> sendHttp(HttpRequest request, CopilotRequestContext ctx) throws Exception {
+    protected HttpResponse<InputStream> sendRequest(HttpRequest request, CopilotRequestContext ctx) throws Exception {
         CompletableFuture<HttpResponse<InputStream>> future = httpClient().sendAsync(request,
                 HttpResponse.BodyHandlers.ofInputStream());
         ctx.cancellation().whenComplete((v, t) -> future.cancel(true));
@@ -107,7 +107,7 @@ public class CopilotRequestHandler {
 
     private void handleHttp(LlmInferenceExchange exchange) throws Exception {
         HttpRequest httpRequest = buildHttpRequest(exchange);
-        HttpResponse<InputStream> response = sendHttp(httpRequest, exchange.context());
+        HttpResponse<InputStream> response = sendRequest(httpRequest, exchange.context());
         streamResponse(response, exchange);
     }
 

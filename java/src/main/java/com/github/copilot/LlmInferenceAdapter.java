@@ -187,7 +187,7 @@ final class LlmInferenceAdapter {
     private static Map<String, List<String>> parseHeaders(JsonNode node) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         if (node != null && node.isObject()) {
-            node.fields().forEachRemaining(entry -> {
+            node.properties().forEach(entry -> {
                 List<String> values = new ArrayList<>();
                 JsonNode value = entry.getValue();
                 if (value.isArray()) {

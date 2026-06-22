@@ -437,7 +437,8 @@ final class CopilotRequestTestSupport {
         }
 
         @Override
-        protected HttpResponse<InputStream> sendHttp(HttpRequest request, CopilotRequestContext ctx) throws Exception {
+        protected HttpResponse<InputStream> sendRequest(HttpRequest request, CopilotRequestContext ctx)
+                throws Exception {
             String url = request.uri().toString();
             records.add(new InterceptedRequest(url, ctx.sessionId()));
             if (isInferenceUrl(url)) {
