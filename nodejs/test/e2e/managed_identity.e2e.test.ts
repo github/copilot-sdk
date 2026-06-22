@@ -179,7 +179,7 @@ describe("BYOK managed identity authentication", async () => {
             wireApi: "completions",
             baseUrl: modelBaseUrl,
             modelId: "claude-sonnet-4.5",
-            managedIdentity: true,
+            managedIdentity: {},
         });
 
         await retry(

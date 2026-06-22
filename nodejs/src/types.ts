@@ -22,7 +22,7 @@ import type {
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
-export type { ManagedIdentityConfig, ManagedIdentityOptions } from "./generated/rpc.js";
+export type { ManagedIdentityConfig } from "./generated/rpc.js";
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,

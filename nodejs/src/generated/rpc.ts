@@ -539,14 +539,6 @@ export type SessionLogLevel =
   /** Error message describing a failure. */
   | "error";
 /**
- * Azure managed identity authentication for a BYOK provider. `true` selects the system-assigned identity with the default scope; an object selects a user-assigned identity and/or a custom scope. Mutually exclusive with apiKey/bearerToken.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedIdentityConfig".
- */
-/** @experimental */
-export type ManagedIdentityConfig = boolean | ManagedIdentityOptions;
-/**
  * UI theme preference per SEP-1865
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4674,13 +4666,13 @@ export interface LspInitializeRequest {
   force?: boolean;
 }
 /**
- * User-assigned managed identity selector and/or custom token scope. Set at most one of clientId, objectId, or resourceId.
+ * Azure managed identity authentication for a BYOK provider. An empty object selects the system-assigned identity with the default scope; set at most one of clientId, objectId, or resourceId to select a user-assigned identity, and/or scope for a custom token audience. Mutually exclusive with apiKey/bearerToken.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedIdentityOptions".
+ * via the `definition` "ManagedIdentityConfig".
  */
 /** @experimental */
-export interface ManagedIdentityOptions {
+export interface ManagedIdentityConfig {
   /**
    * Client (application) ID of the user-assigned managed identity.
    */

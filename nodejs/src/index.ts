@@ -82,7 +82,6 @@ export type {
     DefaultAgentConfig,
     MessageOptions,
     ManagedIdentityConfig,
-    ManagedIdentityOptions,
     ModelBilling,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
