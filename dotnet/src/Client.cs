@@ -1696,7 +1696,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     private ClientGlobalApiHandlers? BuildClientGlobalApis()
     {
-        var handler = _options.LlmInferenceHandler;
+        var handler = _options.RequestHandler;
         if (handler is null)
         {
             return null;

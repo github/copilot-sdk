@@ -17,20 +17,20 @@ namespace GitHub.Copilot.Test.E2E;
 /// inference endpoint — so the only source of <c>req.SessionId</c> is the
 /// runtime's own per-client threading.
 /// </summary>
-public class LlmInferenceSessionIdE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+public class CopilotRequestSessionIdE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "llm_inference_session_id", output)
 {
-    private CopilotClient CreateClientWith(RecordingInferenceProvider provider) =>
+    private CopilotClient CreateClientWith(RecordingRequestHandler provider) =>
         Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(),
-            LlmInferenceHandler = provider,
+            RequestHandler = provider,
         });
 
     [Fact]
     public async Task Threads_The_Session_Id_Into_A_Capi_Session_Inference_Request()
     {
-        var provider = new RecordingInferenceProvider();
+        var provider = new RecordingRequestHandler();
         await using var client = CreateClientWith(provider);
         await client.StartAsync();
 
@@ -62,7 +62,7 @@ public class LlmInferenceSessionIdE2ETests(E2ETestFixture fixture, ITestOutputHe
     [Fact]
     public async Task Threads_The_Session_Id_Into_A_Byok_Session_Inference_Request()
     {
-        var provider = new RecordingInferenceProvider();
+        var provider = new RecordingRequestHandler();
         await using var client = CreateClientWith(provider);
         await client.StartAsync();
 

@@ -17,7 +17,7 @@ namespace GitHub.Copilot;
 /// model-layer request.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public enum LlmInferenceTransport
+public enum CopilotRequestTransport
 {
     /// <summary>
     /// Plain HTTP or a streamed SSE response. Each body chunk is an opaque
@@ -33,12 +33,12 @@ public enum LlmInferenceTransport
 }
 
 /// <summary>
-/// Per-request context handed to every <see cref="LlmRequestHandler"/> hook.
+/// Per-request context handed to every <see cref="CopilotRequestHandler"/> hook.
 /// Exposes the routing and cancellation details of a single intercepted request
 /// so overrides can observe or rewrite it.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class LlmRequestContext
+public sealed class CopilotRequestContext
 {
     /// <summary>Opaque runtime-minted id, stable across the request lifecycle.</summary>
     public required string RequestId { get; init; }
@@ -47,7 +47,7 @@ public sealed class LlmRequestContext
     public string? SessionId { get; init; }
 
     /// <summary>Transport the runtime would otherwise use.</summary>
-    public LlmInferenceTransport Transport { get; init; }
+    public CopilotRequestTransport Transport { get; init; }
 
     /// <summary>Original request URL.</summary>
     public required string Url { get; init; }
@@ -65,9 +65,9 @@ public sealed class LlmRequestContext
     internal LlmWebSocketResponseBridge? WebSocketResponse { get; set; }
 }
 
-/// <summary>A single WebSocket message exchanged through a <see cref="LlmRequestHandler"/> hook.</summary>
+/// <summary>A single WebSocket message exchanged through a <see cref="CopilotRequestHandler"/> hook.</summary>
 [Experimental(Diagnostics.Experimental)]
-public readonly struct LlmWebSocketMessage(ReadOnlyMemory<byte> data, bool isBinary)
+public readonly struct CopilotWebSocketMessage(ReadOnlyMemory<byte> data, bool isBinary)
 {
     /// <summary>The message payload bytes.</summary>
     public ReadOnlyMemory<byte> Data { get; } = data;
@@ -79,17 +79,17 @@ public readonly struct LlmWebSocketMessage(ReadOnlyMemory<byte> data, bool isBin
     public string GetText() => Encoding.UTF8.GetString(Data.ToArray());
 
     /// <summary>Creates a text message from a UTF-8 string.</summary>
-    public static LlmWebSocketMessage Text(string text) => new(Encoding.UTF8.GetBytes(text), isBinary: false);
+    public static CopilotWebSocketMessage Text(string text) => new(Encoding.UTF8.GetBytes(text), isBinary: false);
 
     /// <summary>Creates a binary message from raw bytes.</summary>
-    public static LlmWebSocketMessage Binary(ReadOnlyMemory<byte> data) => new(data, isBinary: true);
+    public static CopilotWebSocketMessage Binary(ReadOnlyMemory<byte> data) => new(data, isBinary: true);
 }
 
 /// <summary>
 /// Terminal status for a callback-owned WebSocket connection.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class LlmWebSocketCloseStatus
+public sealed class CopilotWebSocketCloseStatus
 {
     /// <summary>The close description, if any.</summary>
     public string? Description { get; init; }
@@ -104,30 +104,30 @@ public sealed class LlmWebSocketCloseStatus
     public Exception? Error { get; init; }
 
     /// <summary>Shared normal-closure instance.</summary>
-    public static LlmWebSocketCloseStatus NormalClosure { get; } = new();
+    public static CopilotWebSocketCloseStatus NormalClosure { get; } = new();
 }
 
 /// <summary>
 /// Per-connection WebSocket handler returned by
-/// <see cref="LlmRequestHandler.OpenWebSocketAsync"/>.
+/// <see cref="CopilotRequestHandler.OpenWebSocketAsync"/>.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
 public abstract class CopilotWebSocketHandler : IAsyncDisposable
 {
-    private readonly TaskCompletionSource<LlmWebSocketCloseStatus> _completion =
+    private readonly TaskCompletionSource<CopilotWebSocketCloseStatus> _completion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _closed;
     private bool _suppressCloseOnDispose;
 
     /// <summary>Request context for this WebSocket connection.</summary>
-    protected LlmRequestContext Context { get; }
+    protected CopilotRequestContext Context { get; }
 
-    internal Task<LlmWebSocketCloseStatus> Completion => _completion.Task;
+    internal Task<CopilotWebSocketCloseStatus> Completion => _completion.Task;
 
     /// <summary>
     /// Initializes a per-connection handler for the supplied request context.
     /// </summary>
-    protected CopilotWebSocketHandler(LlmRequestContext context)
+    protected CopilotWebSocketHandler(CopilotRequestContext context)
     {
         Context = context;
         _ = context.WebSocketResponse ?? throw new InvalidOperationException("WebSocket response bridge is not attached.");
@@ -136,19 +136,19 @@ public abstract class CopilotWebSocketHandler : IAsyncDisposable
     /// <summary>
     /// Send a message from the runtime to the upstream connection.
     /// </summary>
-    public abstract Task SendRequestMessageAsync(LlmWebSocketMessage message);
+    public abstract Task SendRequestMessageAsync(CopilotWebSocketMessage message);
 
     /// <summary>
     /// Send a message from the upstream connection back to the runtime.
     /// Override to mutate or duplicate messages; call <c>base</c> to emit.
     /// </summary>
-    public virtual Task SendResponseMessageAsync(LlmWebSocketMessage message) =>
+    public virtual Task SendResponseMessageAsync(CopilotWebSocketMessage message) =>
         Context.WebSocketResponse!.WriteAsync(message);
 
     /// <summary>
     /// Close the connection and finalise the runtime-facing response.
     /// </summary>
-    public virtual async Task CloseAsync(LlmWebSocketCloseStatus status)
+    public virtual async Task CloseAsync(CopilotWebSocketCloseStatus status)
     {
         if (Interlocked.Exchange(ref _closed, 1) != 0)
         {
@@ -179,7 +179,7 @@ public abstract class CopilotWebSocketHandler : IAsyncDisposable
         GC.SuppressFinalize(this);
         if (!_suppressCloseOnDispose && Volatile.Read(ref _closed) == 0)
         {
-            await CloseAsync(LlmWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
+            await CloseAsync(CopilotWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
         }
     }
 }
@@ -189,7 +189,7 @@ public abstract class CopilotWebSocketHandler : IAsyncDisposable
 /// relays messages unchanged unless a subclass overrides the send methods.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public class ForwardingWebSocketHandler : CopilotWebSocketHandler
+public class ForwardingCopilotWebSocketHandler : CopilotWebSocketHandler
 {
     private readonly string _url;
     private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _headers;
@@ -202,8 +202,8 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
     /// demand using the supplied URL/headers (or the values from
     /// <paramref name="context"/> when omitted).
     /// </summary>
-    public ForwardingWebSocketHandler(
-        LlmRequestContext context,
+    public ForwardingCopilotWebSocketHandler(
+        CopilotRequestContext context,
         string? url = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
         : base(context)
@@ -251,7 +251,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
     /// </summary>
     /// <param name="message">The message to send.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public override Task SendRequestMessageAsync(LlmWebSocketMessage message)
+    public override Task SendRequestMessageAsync(CopilotWebSocketMessage message)
     {
         if (_upstream?.State != WebSocketState.Open)
         {
@@ -267,7 +267,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
     }
 
     /// <inheritdoc />
-    public override async Task CloseAsync(LlmWebSocketCloseStatus status)
+    public override async Task CloseAsync(CopilotWebSocketCloseStatus status)
     {
         _pumpCts?.Cancel();
         if (_upstream is not null)
@@ -317,7 +317,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
                 await SendResponseMessageAsync(message.Value).ConfigureAwait(false);
             }
 
-            await CloseAsync(LlmWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
+            await CloseAsync(CopilotWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (Context.CancellationToken.IsCancellationRequested)
         {
@@ -326,7 +326,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
         }
         catch (Exception ex)
         {
-            await CloseAsync(new LlmWebSocketCloseStatus
+            await CloseAsync(new CopilotWebSocketCloseStatus
             {
                 Description = ex.Message,
                 Error = ex,
@@ -334,7 +334,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
         }
     }
 
-    private static async Task<LlmWebSocketMessage?> ReceiveMessageAsync(WebSocket socket, CancellationToken cancellationToken)
+    private static async Task<CopilotWebSocketMessage?> ReceiveMessageAsync(WebSocket socket, CancellationToken cancellationToken)
     {
         var buffer = new byte[16 * 1024];
         using var assembled = new MemoryStream();
@@ -363,7 +363,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
         }
         while (!result.EndOfMessage);
 
-        return new LlmWebSocketMessage(assembled.ToArray(), result.MessageType == WebSocketMessageType.Binary);
+        return new CopilotWebSocketMessage(assembled.ToArray(), result.MessageType == WebSocketMessageType.Binary);
     }
 
     private static async Task CloseWebSocketQuietlyAsync(WebSocket socket)
@@ -416,7 +416,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
 /// override <see cref="SendRequestAsync"/> or <see cref="OpenWebSocketAsync"/>.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-public class LlmRequestHandler
+public class CopilotRequestHandler
 {
     private static readonly HttpClient s_sharedHttpClient = new();
 
@@ -425,23 +425,23 @@ public class LlmRequestHandler
     /// calling <c>base</c>, mutate the returned response after, or replace the
     /// call entirely.
     /// </summary>
-    protected virtual Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, LlmRequestContext ctx) =>
+    protected virtual Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CopilotRequestContext ctx) =>
         s_sharedHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ctx.CancellationToken);
 
     /// <summary>
     /// Open the upstream WebSocket connection. Override to return a custom
     /// <see cref="CopilotWebSocketHandler"/> or to construct a
-    /// <see cref="ForwardingWebSocketHandler"/> against a rewritten URL.
+    /// <see cref="ForwardingCopilotWebSocketHandler"/> against a rewritten URL.
     /// </summary>
-    protected virtual Task<CopilotWebSocketHandler> OpenWebSocketAsync(LlmRequestContext ctx) =>
-        Task.FromResult<CopilotWebSocketHandler>(new ForwardingWebSocketHandler(ctx));
+    protected virtual Task<CopilotWebSocketHandler> OpenWebSocketAsync(CopilotRequestContext ctx) =>
+        Task.FromResult<CopilotWebSocketHandler>(new ForwardingCopilotWebSocketHandler(ctx));
 
     /// <summary>
     /// Entry point invoked by the adapter once per intercepted request. Routes to
     /// the HTTP or WebSocket flow and drives the consumer's overridable hooks.
     /// </summary>
     internal Task HandleAsync(LlmInferenceExchange exchange) =>
-        exchange.Context.Transport == LlmInferenceTransport.WebSocket
+        exchange.Context.Transport == CopilotRequestTransport.WebSocket
             ? HandleWebSocketAsync(exchange)
             : HandleHttpAsync(exchange);
 
@@ -523,7 +523,7 @@ public class LlmRequestHandler
             {
                 await foreach (var chunk in exchange.RequestBody.WithCancellation(ctx.CancellationToken).ConfigureAwait(false))
                 {
-                    await handler.SendRequestMessageAsync(new LlmWebSocketMessage(chunk, isBinary: false)).ConfigureAwait(false);
+                    await handler.SendRequestMessageAsync(new CopilotWebSocketMessage(chunk, isBinary: false)).ConfigureAwait(false);
                 }
             }, ctx.CancellationToken);
 
@@ -536,7 +536,7 @@ public class LlmRequestHandler
                     await clientPump.ConfigureAwait(false);
                 }
 
-                await handler.CloseAsync(LlmWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
+                await handler.CloseAsync(CopilotWebSocketCloseStatus.NormalClosure).ConfigureAwait(false);
                 await handler.Completion.ConfigureAwait(false);
                 return;
             }
@@ -616,7 +616,7 @@ internal sealed class LlmInferenceExchange
 
     internal string Method { get; }
 
-    internal LlmRequestContext Context { get; set; } = null!;
+    internal CopilotRequestContext Context { get; set; } = null!;
 
     internal CancellationTokenSource Abort { get; } = new();
 
@@ -789,13 +789,13 @@ internal sealed class LlmInferenceExchange
 
 /// <summary>
 /// Adapts the generated <see cref="ILlmInferenceHandler"/> RPC entry points onto
-/// a consumer's <see cref="LlmRequestHandler"/>. Each <c>httpRequestStart</c>
+/// a consumer's <see cref="CopilotRequestHandler"/>. Each <c>httpRequestStart</c>
 /// allocates an <see cref="LlmInferenceExchange"/> and runs the handler in the
 /// background; subsequent <c>httpRequestChunk</c> frames feed its body stream.
 /// </summary>
-internal sealed class LlmInferenceAdapter(LlmRequestHandler handler, Func<ServerRpc?> getServerRpc) : ILlmInferenceHandler
+internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<ServerRpc?> getServerRpc) : ILlmInferenceHandler
 {
-    private readonly LlmRequestHandler _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+    private readonly CopilotRequestHandler _handler = handler ?? throw new ArgumentNullException(nameof(handler));
     private readonly Func<ServerRpc?> _getServerRpc = getServerRpc ?? throw new ArgumentNullException(nameof(getServerRpc));
     private readonly ConcurrentDictionary<string, LlmInferenceExchange> _pending = new(StringComparer.Ordinal);
 
@@ -804,11 +804,11 @@ internal sealed class LlmInferenceAdapter(LlmRequestHandler handler, Func<Server
         ArgumentNullException.ThrowIfNull(request);
 
         var transport = request.Transport == LlmInferenceHttpRequestStartTransport.Websocket
-            ? LlmInferenceTransport.WebSocket
-            : LlmInferenceTransport.Http;
+            ? CopilotRequestTransport.WebSocket
+            : CopilotRequestTransport.Http;
 
         var exchange = new LlmInferenceExchange(request.RequestId, request.Method, _getServerRpc);
-        exchange.Context = new LlmRequestContext
+        exchange.Context = new CopilotRequestContext
         {
             RequestId = request.RequestId,
             SessionId = request.SessionId,
@@ -935,7 +935,7 @@ internal sealed class LlmWebSocketResponseBridge(LlmInferenceExchange exchange)
     private bool _started;
     private bool _completed;
 
-    internal Task WriteAsync(LlmWebSocketMessage message) => RunAsync(terminal: false, () =>
+    internal Task WriteAsync(CopilotWebSocketMessage message) => RunAsync(terminal: false, () =>
         message.IsBinary
             ? exchange.WriteResponseAsync(message.Data)
             : exchange.WriteResponseAsync(message.GetText()));

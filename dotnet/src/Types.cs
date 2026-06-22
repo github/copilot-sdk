@@ -278,7 +278,7 @@ public sealed class CopilotClientOptions
         UseLoggedInUser = other.UseLoggedInUser;
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
-        LlmInferenceHandler = other.LlmInferenceHandler;
+        RequestHandler = other.RequestHandler;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
         Mode = other.Mode;
@@ -370,11 +370,11 @@ public sealed class CopilotClientOptions
     /// otherwise issue itself (for both CAPI and BYOK providers). When set, the
     /// client registers a client-global LLM inference handler on connect, so
     /// every model-layer HTTP / WebSocket request is routed to this
-    /// <see cref="LlmRequestHandler"/> subclass instead of the runtime's own
+    /// <see cref="CopilotRequestHandler"/> subclass instead of the runtime's own
     /// outbound call.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
-    public LlmRequestHandler? LlmInferenceHandler { get; set; }
+    public CopilotRequestHandler? RequestHandler { get; set; }
 
     /// <summary>
     /// OpenTelemetry configuration for the runtime.

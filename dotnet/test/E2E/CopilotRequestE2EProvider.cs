@@ -13,7 +13,7 @@ namespace GitHub.Copilot.Test.E2E;
 #pragma warning disable GHCP001 // The LLM inference surface is intentionally experimental.
 
 /// <summary>
-/// A <see cref="LlmRequestHandler"/> subclass for e2e tests that records every
+/// A <see cref="CopilotRequestHandler"/> subclass for e2e tests that records every
 /// intercepted request (url + threaded session id) and fully replaces the
 /// upstream call with a fabricated, well-formed response for every model-layer
 /// endpoint, so an agent turn completes entirely off-network — no upstream
@@ -22,7 +22,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// <remarks>
 /// <para>
 /// This exercises the public extension surface end to end: a consumer subclasses
-/// <see cref="LlmRequestHandler"/> and overrides <see cref="SendRequestAsync"/> to
+/// <see cref="CopilotRequestHandler"/> and overrides <see cref="SendRequestAsync"/> to
 /// short-circuit the upstream HTTP call with any <see cref="HttpResponseMessage"/>
 /// it likes. The base class streams that response back to the runtime.
 /// </para>
@@ -33,7 +33,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// serializing anonymous types would throw at runtime.
 /// </para>
 /// </remarks>
-internal sealed class RecordingInferenceProvider : LlmRequestHandler
+internal sealed class RecordingRequestHandler : CopilotRequestHandler
 {
     internal const string SyntheticText = "OK from the synthetic stream.";
 
@@ -46,7 +46,7 @@ internal sealed class RecordingInferenceProvider : LlmRequestHandler
     public IReadOnlyList<InterceptedRequest> InferenceRequests =>
         [.. _records.Where(r => IsInferenceUrl(r.Url))];
 
-    protected override async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, LlmRequestContext ctx)
+    protected override async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CopilotRequestContext ctx)
     {
         var url = request.RequestUri!.ToString();
         _records.Enqueue(new InterceptedRequest(url, ctx.SessionId));
