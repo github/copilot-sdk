@@ -146,13 +146,13 @@ func TestCopilotRequestHandler(t *testing.T) {
 			parsed.Scheme = wsBase.Scheme
 			parsed.Host = wsBase.Host
 			fwd := copilot.NewForwardingCopilotWebSocketHandler(parsed.String(), rctx.Headers)
-			fwd.OnSendRequestMessage = func(data []byte) []byte {
+			fwd.OnSendRequestMessage = func(msg copilot.CopilotWebSocketMessage) *copilot.CopilotWebSocketMessage {
 				counters.wsRequestMessages.Add(1)
-				return data
+				return &msg
 			}
-			fwd.OnSendResponseMessage = func(data []byte) []byte {
+			fwd.OnSendResponseMessage = func(msg copilot.CopilotWebSocketMessage) *copilot.CopilotWebSocketMessage {
 				counters.wsResponseMessages.Add(1)
-				return data
+				return &msg
 			}
 			return fwd, nil
 		},

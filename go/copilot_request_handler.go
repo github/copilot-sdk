@@ -81,6 +81,19 @@ type CopilotWebSocketMessage struct {
 	Binary bool
 }
 
+// Text decodes the frame payload as a UTF-8 string.
+func (m CopilotWebSocketMessage) Text() string { return string(m.Data) }
+
+// NewTextMessage creates a text-frame message from a UTF-8 string.
+func NewTextMessage(text string) CopilotWebSocketMessage {
+	return CopilotWebSocketMessage{Data: []byte(text), Binary: false}
+}
+
+// NewBinaryMessage creates a binary-frame message from raw bytes.
+func NewBinaryMessage(data []byte) CopilotWebSocketMessage {
+	return CopilotWebSocketMessage{Data: data, Binary: true}
+}
+
 // CopilotRequestHandler is the idiomatic handler for intercepting or replacing
 // LLM inference requests. HTTP requests are forwarded through Transport (an
 // [http.RoundTripper]); supply a custom RoundTripper to mutate the request,
@@ -360,11 +373,15 @@ type ForwardingCopilotWebSocketHandler struct {
 	URL     string
 	Headers http.Header
 	// OnSendRequestMessage observes or transforms each runtime→upstream frame.
-	// Return nil to drop the frame.
-	OnSendRequestMessage func(data []byte) []byte
+	// The frame type (text vs binary) is available via the message's Binary
+	// field and may be changed in the returned message. Return nil to drop the
+	// frame.
+	OnSendRequestMessage func(msg CopilotWebSocketMessage) *CopilotWebSocketMessage
 	// OnSendResponseMessage observes or transforms each upstream→runtime frame.
-	// Return nil to drop the frame.
-	OnSendResponseMessage func(data []byte) []byte
+	// The frame type (text vs binary) is available via the message's Binary
+	// field and may be changed in the returned message. Return nil to drop the
+	// frame.
+	OnSendResponseMessage func(msg CopilotWebSocketMessage) *CopilotWebSocketMessage
 
 	conn      *websocket.Conn
 	resp      WebSocketResponseWriter
@@ -422,37 +439,39 @@ func (f *ForwardingCopilotWebSocketHandler) receiveLoop(ctx context.Context) {
 			}
 			return
 		}
-		out := data
+		out := CopilotWebSocketMessage{Data: data, Binary: typ == websocket.MessageBinary}
 		if f.OnSendResponseMessage != nil {
-			out = f.OnSendResponseMessage(data)
-			if out == nil {
+			transformed := f.OnSendResponseMessage(out)
+			if transformed == nil {
 				continue
 			}
+			out = *transformed
 		}
-		if typ == websocket.MessageBinary {
-			_ = f.resp.SendBinary(out)
+		if out.Binary {
+			_ = f.resp.SendBinary(out.Data)
 		} else {
-			_ = f.resp.SendText(out)
+			_ = f.resp.SendText(out.Data)
 		}
 	}
 }
 
 func (f *ForwardingCopilotWebSocketHandler) SendRequestMessage(ctx context.Context, msg CopilotWebSocketMessage) error {
-	out := msg.Data
+	out := msg
 	if f.OnSendRequestMessage != nil {
-		out = f.OnSendRequestMessage(msg.Data)
-		if out == nil {
+		transformed := f.OnSendRequestMessage(msg)
+		if transformed == nil {
 			return nil
 		}
+		out = *transformed
 	}
 	if f.conn == nil {
 		return nil
 	}
 	msgType := websocket.MessageText
-	if msg.Binary {
+	if out.Binary {
 		msgType = websocket.MessageBinary
 	}
-	return f.conn.Write(ctx, msgType, out)
+	return f.conn.Write(ctx, msgType, out.Data)
 }
 
 func (f *ForwardingCopilotWebSocketHandler) Done() <-chan struct{} { return f.done }
