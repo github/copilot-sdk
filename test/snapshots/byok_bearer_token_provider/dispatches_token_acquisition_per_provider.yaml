@@ -1,0 +1,17 @@
+models:
+  - byok-gpt-4o
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 3+3?
+      - role: assistant
+        content: 3 + 3 = 6
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 4+4?
+      - role: assistant
+        content: 4 + 4 = 8

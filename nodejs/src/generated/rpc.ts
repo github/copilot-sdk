@@ -6516,6 +6516,14 @@ export interface NamedProviderConfig {
   headers?: {
     [k: string]: string | undefined;
   };
+  /**
+   * When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.acquire` callback (with this provider's `name`) before each request and uses the returned token as the Authorization header. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. Mutually exclusive with `apiKey`/`bearerToken`.
+   */
+  bearerTokenProvider?: boolean;
+  /**
+   * Token scope forwarded to the `providerToken.acquire` callback when `bearerTokenProvider` is set. Optional and provider-agnostic: when omitted, an empty scope is forwarded and the callback is responsible for supplying the correct scope to its identity library.
+   */
+  bearerTokenScope?: string;
 }
 /**
  * Azure-specific provider options.
@@ -8422,6 +8430,14 @@ export interface ProviderConfig {
   headers?: {
     [k: string]: string | undefined;
   };
+  /**
+   * When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.acquire` callback before each request and uses the returned token as the Authorization header. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. Mutually exclusive with `apiKey`/`bearerToken`.
+   */
+  bearerTokenProvider?: boolean;
+  /**
+   * Token scope forwarded to the `providerToken.acquire` callback when `bearerTokenProvider` is set. Optional and provider-agnostic: when omitted, an empty scope is forwarded and the callback is responsible for supplying the correct scope to its identity library.
+   */
+  bearerTokenScope?: string;
 }
 /**
  * A snapshot of the provider endpoint the session is currently configured to talk to.
@@ -8486,6 +8502,44 @@ export interface ProviderGetEndpointRequest {
    * Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
    */
   modelId?: string;
+}
+/**
+ * Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `bearerTokenProvider: true`. Issued by the runtime before an outbound model request when no fresh cached token is available.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderTokenAcquireRequest".
+ */
+/** @experimental */
+export interface ProviderTokenAcquireRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Name of the BYOK provider needing a token. For the legacy whole-session `provider` this is the implicit provider name; for named providers it is `NamedProviderConfig.name`.
+   */
+  providerName: string;
+  /**
+   * Token scope to request, mirroring the provider's `bearerTokenScope`. Empty when the provider configured no scope, in which case the callback is responsible for supplying its own scope. Provider-agnostic: no default scope is assumed.
+   */
+  scope: string;
+}
+/**
+ * A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` and caches it until shortly before `expiresOnTimestamp`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderTokenAcquireResult".
+ */
+/** @experimental */
+export interface ProviderTokenAcquireResult {
+  /**
+   * The bearer token value (without the `Bearer ` prefix).
+   */
+  token: string;
+  /**
+   * Unix epoch time in milliseconds at which the token expires. When omitted, the runtime treats the token as single-use and re-acquires on the next request.
+   */
+  expiresOnTimestamp?: number;
 }
 /**
  * A BYOK model definition referencing a named provider.
@@ -15632,6 +15686,19 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
     };
 }
 
+/** Handler for `providerToken` client session API methods. */
+/** @experimental */
+export interface ProviderTokenHandler {
+    /**
+     * Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `bearerTokenProvider: true`. Session-scoped: the runtime calls it back on the connection that created the session, passing the provider name and scope, and uses the returned token as the Authorization header for outbound model requests (cached until shortly before its expiry).
+     *
+     * @param params Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `bearerTokenProvider: true`. Issued by the runtime before an outbound model request when no fresh cached token is available.
+     *
+     * @returns A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` and caches it until shortly before `expiresOnTimestamp`.
+     */
+    acquire(params: ProviderTokenAcquireRequest): Promise<ProviderTokenAcquireResult>;
+}
+
 /** Handler for `sessionFs` client session API methods. */
 /** @experimental */
 export interface SessionFsHandler {
@@ -15762,6 +15829,7 @@ export interface CanvasHandler {
 
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
+    providerToken?: ProviderTokenHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
 }
@@ -15776,6 +15844,11 @@ export function registerClientSessionApiHandlers(
     connection: MessageConnection,
     getHandlers: (sessionId: string) => ClientSessionApiHandlers,
 ): void {
+    connection.onRequest("providerToken.acquire", async (params: ProviderTokenAcquireRequest) => {
+        const handler = getHandlers(params.sessionId).providerToken;
+        if (!handler) throw new Error(`No providerToken handler registered for session: ${params.sessionId}`);
+        return handler.acquire(params);
+    });
     connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);

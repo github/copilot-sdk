@@ -47,11 +47,14 @@ import type {
     ExitPlanModeResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
+    GetBearerToken,
     GetStatusResponse,
     InternalRuntimeConnection,
     LargeToolOutputConfig,
     MCPServerConfig,
     ModelInfo,
+    NamedProviderConfig,
+    ProviderConfig,
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
@@ -148,6 +151,62 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
         return parameters.toJSONSchema();
     }
     return parameters;
+}
+
+/** Implicit provider name for the singular, whole-session {@link ProviderConfig}. */
+const DEFAULT_PROVIDER_NAME = "default";
+
+/** Wire-safe singular provider config carrying the `bearerTokenProvider` flag. */
+type WireProviderConfig = Omit<ProviderConfig, "getBearerToken"> & { bearerTokenProvider?: boolean };
+
+/** Wire-safe named provider config carrying the `bearerTokenProvider` flag. */
+type WireNamedProviderConfig = Omit<NamedProviderConfig, "getBearerToken"> & {
+    bearerTokenProvider?: boolean;
+};
+
+/**
+ * Strips the non-serializable {@link GetBearerToken} callbacks from the singular
+ * and named provider configs before they cross the RPC boundary, replacing each
+ * with a `bearerTokenProvider: true` wire flag. Any configured
+ * {@link ProviderConfig.bearerTokenScope} is forwarded verbatim (the bearer-token
+ * surface is provider-agnostic, so the SDK never substitutes a default scope).
+ * Returns wire-safe provider configs alongside a map of provider name → callback
+ * for session-side registration.
+ */
+function extractBearerTokenProviders(
+    provider: ProviderConfig | undefined,
+    providers: NamedProviderConfig[] | undefined
+): {
+    wireProvider: WireProviderConfig | undefined;
+    wireProviders: WireNamedProviderConfig[] | undefined;
+    callbacks: Map<string, GetBearerToken>;
+} {
+    const callbacks = new Map<string, GetBearerToken>();
+
+    let wireProvider: WireProviderConfig | undefined = provider;
+    if (provider?.getBearerToken) {
+        const { getBearerToken, ...rest } = provider;
+        callbacks.set(DEFAULT_PROVIDER_NAME, getBearerToken);
+        wireProvider = {
+            ...rest,
+            bearerTokenProvider: true,
+        };
+    }
+
+    let wireProviders: WireNamedProviderConfig[] | undefined = providers;
+    if (providers?.some((p) => p.getBearerToken)) {
+        wireProviders = providers.map((p) => {
+            if (!p.getBearerToken) return p;
+            const { getBearerToken, ...rest } = p;
+            callbacks.set(p.name, getBearerToken);
+            return {
+                ...rest,
+                bearerTokenProvider: true,
+            };
+        });
+    }
+
+    return { wireProvider, wireProviders, callbacks };
 }
 
 /**
@@ -1161,6 +1220,15 @@ export class CopilotClient {
         const useServerGeneratedId = config.cloud != null && callerSessionId == null;
         const localSessionId = useServerGeneratedId ? undefined : (callerSessionId ?? randomUUID());
 
+        // Strip non-serializable getBearerToken callbacks from provider configs,
+        // replacing them with a wire flag; keep the callbacks for session-side
+        // registration so the runtime can call back to acquire tokens.
+        const {
+            wireProvider: bearerWireProvider,
+            wireProviders: bearerWireProviders,
+            callbacks: bearerTokenCallbacks,
+        } = extractBearerTokenProviders(config.provider, config.providers);
+
         // Extract transform callbacks from system message config before serialization.
         const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
             config.systemMessage
@@ -1178,6 +1246,9 @@ export class CopilotClient {
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
             s.registerCommands(config.commands);
+            if (bearerTokenCallbacks.size > 0) {
+                s.registerBearerTokenProviders(bearerTokenCallbacks);
+            }
             s.registerPermissionHandler(config.onPermissionRequest);
             if (config.onUserInputRequest) {
                 s.registerUserInputHandler(config.onUserInputRequest);
@@ -1249,8 +1320,8 @@ export class CopilotClient {
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
                 toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
-                provider: config.provider,
-                providers: config.providers,
+                provider: bearerWireProvider,
+                providers: bearerWireProviders,
                 models: config.models,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
@@ -1369,6 +1440,14 @@ export class CopilotClient {
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
+        const {
+            wireProvider: bearerWireProvider,
+            wireProviders: bearerWireProviders,
+            callbacks: bearerTokenCallbacks,
+        } = extractBearerTokenProviders(config.provider, config.providers);
+        if (bearerTokenCallbacks.size > 0) {
+            session.registerBearerTokenProviders(bearerTokenCallbacks);
+        }
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
@@ -1435,8 +1514,8 @@ export class CopilotClient {
                     name: cmd.name,
                     description: cmd.description,
                 })),
-                provider: config.provider,
-                providers: config.providers,
+                provider: bearerWireProvider,
+                providers: bearerWireProviders,
                 models: config.models,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),

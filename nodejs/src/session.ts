@@ -26,6 +26,7 @@ import type {
     ExitPlanModeHandler,
     ExitPlanModeRequest,
     ExitPlanModeResult,
+    GetBearerToken,
     UiInputOptions,
     MessageOptions,
     PermissionHandler,
@@ -122,6 +123,7 @@ export class CopilotSession {
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
     private canvases: Map<string, Canvas> = new Map();
+    private bearerTokenProviders: Map<string, GetBearerToken> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
@@ -755,6 +757,52 @@ export class CopilotSession {
                 } catch (error) {
                     throw toCanvasRpcError(error);
                 }
+            },
+        };
+    }
+
+    /**
+     * Registers per-provider {@link GetBearerToken} callbacks for BYOK providers
+     * configured with managed-identity / on-demand bearer-token auth.
+     *
+     * The runtime never receives the callback itself; the SDK strips it from the
+     * provider config and instead sends `bearerTokenProvider: true`. When the
+     * runtime needs a token it issues a session-scoped `providerToken.acquire`
+     * request, which this handler routes to the matching per-provider callback.
+     *
+     * @param providers - Map of provider name → callback, or undefined/empty to clear.
+     * @internal This method is called internally when creating/resuming a session.
+     */
+    registerBearerTokenProviders(providers?: Map<string, GetBearerToken>): void {
+        this.bearerTokenProviders.clear();
+        if (!providers || providers.size === 0) {
+            delete this.clientSessionApis.providerToken;
+            return;
+        }
+        for (const [name, callback] of providers) {
+            this.bearerTokenProviders.set(name, callback);
+        }
+
+        const self = this;
+        this.clientSessionApis.providerToken = {
+            async acquire(params) {
+                const callback = self.bearerTokenProviders.get(params.providerName);
+                if (!callback) {
+                    throw new Error(
+                        `No bearer-token provider registered for provider "${params.providerName}"`
+                    );
+                }
+                const result = await callback({
+                    providerName: params.providerName,
+                    scope: params.scope,
+                });
+                if (typeof result === "string") {
+                    return { token: result };
+                }
+                return {
+                    token: result.token,
+                    expiresOnTimestamp: result.expiresOnTimestamp,
+                };
             },
         };
     }

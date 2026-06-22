@@ -2128,6 +2128,70 @@ export interface ResumeSessionConfig extends SessionConfigBase {
 }
 
 /**
+ * Arguments passed to a {@link GetBearerToken} callback when the runtime needs a
+ * fresh bearer token for a BYOK provider.
+ *
+ * @experimental Part of the experimental managed-identity / bearer-token-provider
+ * surface and may change or be removed in future SDK or CLI releases.
+ */
+export interface ProviderTokenArgs {
+    /**
+     * Name of the BYOK provider needing a token. For the singular, whole-session
+     * {@link ProviderConfig} this is the implicit provider name (`"default"`); for
+     * {@link NamedProviderConfig} entries it is {@link NamedProviderConfig.name}.
+     */
+    providerName: string;
+
+    /**
+     * Token scope to request, exactly as configured in the provider's
+     * {@link ProviderConfig.bearerTokenScope}. Empty when the provider did not
+     * configure a scope — in that case the callback is responsible for supplying
+     * the correct scope to its identity library. The bearer-token surface is
+     * provider-agnostic; no scope default is assumed.
+     */
+    scope: string;
+}
+
+/**
+ * A bearer token (and optional expiry) returned from a {@link GetBearerToken}
+ * callback. The shape mirrors the Azure Identity `AccessToken` so the result of
+ * `credential.getToken(scope)` can be returned directly.
+ *
+ * @experimental Part of the experimental managed-identity / bearer-token-provider
+ * surface and may change or be removed in future SDK or CLI releases.
+ */
+export interface ProviderBearerToken {
+    /**
+     * The bearer token value (without the `Bearer ` prefix).
+     */
+    token: string;
+
+    /**
+     * Unix epoch time in milliseconds at which the token expires. When provided,
+     * the runtime caches the token and only re-invokes the callback shortly
+     * before expiry. When omitted, the runtime re-invokes the callback on every
+     * request.
+     */
+    expiresOnTimestamp?: number;
+}
+
+/**
+ * Per-provider callback that resolves a bearer token on demand. The Copilot SDK
+ * itself takes no Azure dependency: the consumer supplies this callback backed by
+ * their own identity library (for example `@azure/identity`'s
+ * `DefaultAzureCredential.getToken(scope)`), and the runtime calls it before
+ * outbound model requests, caching and refreshing automatically based on the
+ * returned {@link ProviderBearerToken.expiresOnTimestamp}.
+ *
+ * Returning a bare string is equivalent to returning `{ token }` with no expiry
+ * (re-invoked every request).
+ *
+ * @experimental Part of the experimental managed-identity / bearer-token-provider
+ * surface and may change or be removed in future SDK or CLI releases.
+ */
+export type GetBearerToken = (args: ProviderTokenArgs) => Promise<ProviderBearerToken | string>;
+
+/**
  * Configuration for a custom API provider.
  */
 export interface ProviderConfig {
@@ -2157,6 +2221,27 @@ export interface ProviderConfig {
      * Takes precedence over apiKey when both are set.
      */
     bearerToken?: string;
+
+    /**
+     * Per-request bearer-token provider for managed-identity / on-demand auth.
+     * When set, the SDK keeps this function client-side (it is never serialized)
+     * and the runtime calls back into this client to acquire a token before each
+     * outbound request, caching and refreshing automatically. Mutually exclusive
+     * with {@link apiKey} / {@link bearerToken}.
+     *
+     * @experimental
+     */
+    getBearerToken?: GetBearerToken;
+
+    /**
+     * Token scope forwarded to {@link getBearerToken} as
+     * {@link ProviderTokenArgs.scope}. Optional and provider-agnostic: when
+     * omitted, the callback receives an empty scope and is responsible for
+     * supplying the correct scope to its identity library.
+     *
+     * @experimental
+     */
+    bearerTokenScope?: string;
 
     /**
      * Azure-specific options
@@ -2248,6 +2333,27 @@ export interface NamedProviderConfig {
      * Takes precedence over {@link apiKey} when both are set.
      */
     bearerToken?: string;
+
+    /**
+     * Per-request bearer-token provider for managed-identity / on-demand auth.
+     * When set, the SDK keeps this function client-side (it is never serialized)
+     * and the runtime calls back into this client to acquire a token before each
+     * outbound request, caching and refreshing automatically. Mutually exclusive
+     * with {@link apiKey} / {@link bearerToken}.
+     *
+     * @experimental
+     */
+    getBearerToken?: GetBearerToken;
+
+    /**
+     * Token scope forwarded to {@link getBearerToken} as
+     * {@link ProviderTokenArgs.scope}. Optional and provider-agnostic: when
+     * omitted, the callback receives an empty scope and is responsible for
+     * supplying the correct scope to its identity library.
+     *
+     * @experimental
+     */
+    bearerTokenScope?: string;
 
     /**
      * Azure-specific options.
