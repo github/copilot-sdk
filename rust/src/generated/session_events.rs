@@ -1602,6 +1602,27 @@ pub struct AssistantUsageData {
     pub time_to_first_token_ms: Option<i64>,
 }
 
+/// Content-free structural summary of the failing request for diagnosing malformed 4xx calls
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCallFailureRequestFingerprint {
+    /// Total number of image content parts
+    pub image_part_count: i64,
+    /// Image parts whose media type cannot be determined (rejected by strict providers)
+    pub image_parts_missing_media_type: i64,
+    /// Role of the final message in the request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_message_role: Option<String>,
+    /// Total number of messages in the request
+    pub message_count: i64,
+    /// Tool calls whose name is missing or empty (rejected by strict providers)
+    pub nameless_tool_call_count: i64,
+    /// Total number of tool calls across assistant messages
+    pub tool_call_count: i64,
+    /// Number of "tool" result messages in the request
+    pub tool_result_message_count: i64,
+}
+
 /// Session event "model.call_failure". Failed LLM API call metadata for telemetry
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1633,6 +1654,9 @@ pub struct ModelCallFailureData {
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
+    /// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_fingerprint: Option<ModelCallFailureRequestFingerprint>,
     /// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
@@ -3369,6 +3393,9 @@ pub struct SessionBackgroundTasksChangedData {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsLoadedSkill {
+    /// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub argument_hint: Option<String>,
     /// Description of what the skill does
     pub description: String,
     /// Whether the skill is currently enabled

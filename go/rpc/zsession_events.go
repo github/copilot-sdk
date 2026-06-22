@@ -543,6 +543,8 @@ type ModelCallFailureData struct {
 	Model *string `json:"model,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
+	RequestFingerprint *ModelCallFailureRequestFingerprint `json:"requestFingerprint,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Where the failed model call originated
@@ -2081,6 +2083,24 @@ type MCPServersLoadedServer struct {
 	Transport *MCPServerTransport `json:"transport,omitempty"`
 }
 
+// Content-free structural summary of the failing request for diagnosing malformed 4xx calls
+type ModelCallFailureRequestFingerprint struct {
+	// Total number of image content parts
+	ImagePartCount int64 `json:"imagePartCount"`
+	// Image parts whose media type cannot be determined (rejected by strict providers)
+	ImagePartsMissingMediaType int64 `json:"imagePartsMissingMediaType"`
+	// Role of the final message in the request
+	LastMessageRole *string `json:"lastMessageRole,omitempty"`
+	// Total number of messages in the request
+	MessageCount int64 `json:"messageCount"`
+	// Tool calls whose name is missing or empty (rejected by strict providers)
+	NamelessToolCallCount int64 `json:"namelessToolCallCount"`
+	// Total number of tool calls across assistant messages
+	ToolCallCount int64 `json:"toolCallCount"`
+	// Number of "tool" result messages in the request
+	ToolResultMessageCount int64 `json:"toolResultMessageCount"`
+}
+
 // Derived user-facing permission prompt details for UI consumers
 type PermissionPromptRequest interface {
 	permissionPromptRequest()
@@ -2770,6 +2790,8 @@ type ShutdownTokenDetail struct {
 
 // Schema for the `SkillsLoadedSkill` type.
 type SkillsLoadedSkill struct {
+	// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+	ArgumentHint *string `json:"argumentHint,omitempty"`
 	// Description of what the skill does
 	Description string `json:"description"`
 	// Whether the skill is currently enabled

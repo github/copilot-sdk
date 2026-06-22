@@ -32,6 +32,8 @@ public record SkillsLoadedSkill(
     /** Whether the skill is currently enabled */
     @JsonProperty("enabled") Boolean enabled,
     /** Absolute path to the skill file, if available */
-    @JsonProperty("path") String path
+    @JsonProperty("path") String path,
+    /** Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field */
+    @JsonProperty("argumentHint") String argumentHint
 ) {
 }

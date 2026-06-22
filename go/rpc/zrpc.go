@@ -28,6 +28,25 @@ type AbortResult struct {
 	Success bool `json:"success"`
 }
 
+// Schema for the `AccountAllUsers` type.
+type AccountAllUsers struct {
+	// Authentication information for this user
+	AuthInfo AuthInfo `json:"authInfo"`
+	// Associated token, if available
+	Token *string `json:"token,omitempty"`
+}
+
+// List of all authenticated users
+type AccountGetAllUsersResult []AccountAllUsers
+
+// Current authentication state
+type AccountGetCurrentAuthResult struct {
+	// Authentication errors from the last auth attempt, if any
+	AuthErrors []string `json:"authErrors,omitzero"`
+	// Current authentication information, if authenticated
+	AuthInfo AuthInfo `json:"authInfo,omitempty"`
+}
+
 type AccountGetQuotaRequest struct {
 	// GitHub token for per-user quota lookup. When provided, resolves this token to determine
 	// the user's quota instead of using the global auth.
@@ -38,6 +57,36 @@ type AccountGetQuotaRequest struct {
 type AccountGetQuotaResult struct {
 	// Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
 	QuotaSnapshots map[string]AccountQuotaSnapshot `json:"quotaSnapshots"`
+}
+
+// Credentials to store after successful authentication
+type AccountLoginRequest struct {
+	// GitHub host URL
+	Host string `json:"host"`
+	// User login/username
+	Login string `json:"login"`
+	// GitHub authentication token
+	Token string `json:"token"`
+}
+
+// Result of a successful login; throws on failure
+type AccountLoginResult struct {
+	// Whether the credential was persisted to a secure store (system keychain, or the config
+	// file when plaintext storage is enabled). False when no secure store was available and the
+	// token was not saved, so the consumer can decide how to proceed.
+	StoredInVault bool `json:"storedInVault"`
+}
+
+// User to log out
+type AccountLogoutRequest struct {
+	// Authentication information for the user to log out
+	AuthInfo AuthInfo `json:"authInfo"`
+}
+
+// Logout result indicating if more users remain
+type AccountLogoutResult struct {
+	// Whether other authenticated users remain after logout
+	HasMoreUsers bool `json:"hasMoreUsers"`
 }
 
 // Schema for the `AccountQuotaSnapshot` type.
@@ -567,7 +616,6 @@ type AttachmentSelectionDetailsStart struct {
 }
 
 // Initial authentication info for the session.
-// Experimental: AuthInfo is part of an experimental API and may change or be removed.
 type AuthInfo interface {
 	authInfo()
 	Type() AuthInfoType
@@ -584,7 +632,6 @@ func (r RawAuthInfoData) Type() AuthInfoType {
 }
 
 // Schema for the `ApiKeyAuthInfo` type.
-// Experimental: APIKeyAuthInfo is part of an experimental API and may change or be removed.
 type APIKeyAuthInfo struct {
 	// The API key. Treat as a secret.
 	APIKey string `json:"apiKey"`
@@ -602,8 +649,6 @@ func (APIKeyAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `CopilotApiTokenAuthInfo` type.
-// Experimental: CopilotAPITokenAuthInfo is part of an experimental API and may change or be
-// removed.
 type CopilotAPITokenAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -619,7 +664,6 @@ func (CopilotAPITokenAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `EnvAuthInfo` type.
-// Experimental: EnvAuthInfo is part of an experimental API and may change or be removed.
 type EnvAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -642,7 +686,6 @@ func (EnvAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `GhCliAuthInfo` type.
-// Experimental: GhCLIAuthInfo is part of an experimental API and may change or be removed.
 type GhCLIAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -662,7 +705,6 @@ func (GhCLIAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `HMACAuthInfo` type.
-// Experimental: HMACAuthInfo is part of an experimental API and may change or be removed.
 type HMACAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -680,7 +722,6 @@ func (HMACAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `TokenAuthInfo` type.
-// Experimental: TokenAuthInfo is part of an experimental API and may change or be removed.
 type TokenAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -698,7 +739,6 @@ func (TokenAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `UserAuthInfo` type.
-// Experimental: UserAuthInfo is part of an experimental API and may change or be removed.
 type UserAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -1051,8 +1091,6 @@ type ConnectResult struct {
 // Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 // GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
 // verbatim and does not re-fetch when set.
-// Experimental: CopilotUserResponse is part of an experimental API and may change or be
-// removed.
 type CopilotUserResponse struct {
 	AccessTypeSku              *string `json:"access_type_sku,omitempty"`
 	AnalyticsTrackingID        *string `json:"analytics_tracking_id,omitempty"`
@@ -1084,8 +1122,6 @@ type CopilotUserResponse struct {
 }
 
 // Schema for the `CopilotUserResponseEndpoints` type.
-// Experimental: CopilotUserResponseEndpoints is part of an experimental API and may change
-// or be removed.
 type CopilotUserResponseEndpoints struct {
 	API           *string `json:"api,omitempty"`
 	OriginTracker *string `json:"origin-tracker,omitempty"`
@@ -1099,8 +1135,6 @@ type CopilotUserResponseOrganizationListItem struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshots` type.
-// Experimental: CopilotUserResponseQuotaSnapshots is part of an experimental API and may
-// change or be removed.
 type CopilotUserResponseQuotaSnapshots struct {
 	// Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
 	Chat *CopilotUserResponseQuotaSnapshotsChat `json:"chat,omitempty"`
@@ -1111,8 +1145,6 @@ type CopilotUserResponseQuotaSnapshots struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
-// Experimental: CopilotUserResponseQuotaSnapshotsChat is part of an experimental API and
-// may change or be removed.
 type CopilotUserResponseQuotaSnapshotsChat struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -1129,8 +1161,6 @@ type CopilotUserResponseQuotaSnapshotsChat struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
-// Experimental: CopilotUserResponseQuotaSnapshotsCompletions is part of an experimental API
-// and may change or be removed.
 type CopilotUserResponseQuotaSnapshotsCompletions struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -1147,8 +1177,6 @@ type CopilotUserResponseQuotaSnapshotsCompletions struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
-// Experimental: CopilotUserResponseQuotaSnapshotsPremiumInteractions is part of an
-// experimental API and may change or be removed.
 type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -3182,14 +3210,16 @@ type ModelBilling struct {
 type ModelBillingTokenPrices struct {
 	// Number of tokens per standard billing batch
 	BatchSize *int64 `json:"batchSize,omitempty"`
-	// Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
+	// Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
+	// Deprecated: CachePrice is deprecated.
 	CachePrice *float64 `json:"cachePrice,omitempty"`
 	// AI Credits cost per billing batch of cached (read) tokens
 	CacheReadPrice *float64 `json:"cacheReadPrice,omitempty"`
 	// AI Credits cost per billing batch of cache-write (cache creation) tokens.
 	CacheWritePrice *float64 `json:"cacheWritePrice,omitempty"`
-	// Deprecated: use maxPromptTokens. Prompt token budget for the default tier. The total
-	// context window is this value plus the model's max_output_tokens.
+	// Use maxPromptTokens instead. Prompt token budget for the default tier. The total context
+	// window is this value plus the model's max_output_tokens.
+	// Deprecated: ContextMax is deprecated.
 	ContextMax *int64 `json:"contextMax,omitempty"`
 	// AI Credits cost per billing batch of input tokens
 	InputPrice *float64 `json:"inputPrice,omitempty"`
@@ -3204,14 +3234,16 @@ type ModelBillingTokenPrices struct {
 
 // Long context tier pricing (available for models with extended context windows)
 type ModelBillingTokenPricesLongContext struct {
-	// Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
+	// Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
+	// Deprecated: CachePrice is deprecated.
 	CachePrice *float64 `json:"cachePrice,omitempty"`
 	// AI Credits cost per billing batch of cached (read) tokens
 	CacheReadPrice *float64 `json:"cacheReadPrice,omitempty"`
 	// AI Credits cost per billing batch of cache-write (cache creation) tokens.
 	CacheWritePrice *float64 `json:"cacheWritePrice,omitempty"`
-	// Deprecated: use maxPromptTokens. Prompt token budget for the long context tier. The total
+	// Use maxPromptTokens instead. Prompt token budget for the long context tier. The total
 	// context window is this value plus the model's max_output_tokens.
+	// Deprecated: ContextMax is deprecated.
 	ContextMax *int64 `json:"contextMax,omitempty"`
 	// AI Credits cost per billing batch of input tokens
 	InputPrice *float64 `json:"inputPrice,omitempty"`
@@ -4882,6 +4914,29 @@ type PollSpawnedSessionsResult struct {
 	Events []SessionsPollSpawnedSessionsEvent `json:"events"`
 }
 
+// BYOK providers and/or models to add to the session's registry at runtime. Both fields are
+// optional; provide providers, models, or both.
+// Experimental: ProviderAddRequest is part of an experimental API and may change or be
+// removed.
+type ProviderAddRequest struct {
+	// BYOK model definitions to register. Each must reference a provider that is already
+	// registered or included in this same call. Selection ids (`provider/id`) must be unique
+	// across the registry.
+	Models []ProviderModelConfig `json:"models,omitzero"`
+	// Named BYOK provider connections to register, additive to any providers already in the
+	// registry. Each name must be unique across the registry and must not contain '/'.
+	Providers []NamedProviderConfig `json:"providers,omitzero"`
+}
+
+// The selectable model entries synthesized for the models added by this call.
+// Experimental: ProviderAddResult is part of an experimental API and may change or be
+// removed.
+type ProviderAddResult struct {
+	// Synthesized selectable model entries for the newly added BYOK models, each under its
+	// provider-qualified selection id (`provider/id`). Empty when only providers were added.
+	Models []any `json:"models"`
+}
+
 // Custom model-provider configuration (BYOK).
 // Experimental: ProviderConfig is part of an experimental API and may change or be removed.
 type ProviderConfig struct {
@@ -5719,6 +5774,9 @@ type ServerInstructionSourceList struct {
 
 // Schema for the `ServerSkill` type.
 type ServerSkill struct {
+	// Optional freeform hint describing the skill's expected arguments, from the
+	// `argument-hint` frontmatter field
+	ArgumentHint *string `json:"argumentHint,omitempty"`
 	// Description of what the skill does
 	Description string `json:"description"`
 	// Whether the skill is currently enabled (based on global config)
@@ -7452,6 +7510,9 @@ type ShutdownRequest struct {
 // Schema for the `Skill` type.
 // Experimental: Skill is part of an experimental API and may change or be removed.
 type Skill struct {
+	// Optional freeform hint describing the skill's expected arguments, from the
+	// `argument-hint` frontmatter field
+	ArgumentHint *string `json:"argumentHint,omitempty"`
 	// Description of what the skill does
 	Description string `json:"description"`
 	// Whether the skill is currently enabled
@@ -10789,6 +10850,41 @@ type serverAPI struct {
 
 type ServerAccountAPI serverAPI
 
+// GetAllUsers gets all authenticated users available for account switching.
+//
+// RPC method: account.getAllUsers.
+//
+// Returns: List of all authenticated users
+func (a *ServerAccountAPI) GetAllUsers(ctx context.Context) (*AccountGetAllUsersResult, error) {
+	raw, err := a.client.Request(ctx, "account.getAllUsers", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountGetAllUsersResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetCurrentAuth gets the currently active authentication credentials from the global auth
+// manager.
+//
+// RPC method: account.getCurrentAuth.
+//
+// Returns: Current authentication state
+func (a *ServerAccountAPI) GetCurrentAuth(ctx context.Context) (*AccountGetCurrentAuthResult, error) {
+	raw, err := a.client.Request(ctx, "account.getCurrentAuth", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountGetCurrentAuthResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetQuota gets Copilot quota usage for the authenticated user or supplied GitHub token.
 //
 // RPC method: account.getQuota.
@@ -10803,6 +10899,44 @@ func (a *ServerAccountAPI) GetQuota(ctx context.Context, params *AccountGetQuota
 		return nil, err
 	}
 	var result AccountGetQuotaResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Login stores authentication credentials after successful login (e.g., device code flow).
+//
+// RPC method: account.login.
+//
+// Parameters: Credentials to store after successful authentication
+//
+// Returns: Result of a successful login; throws on failure
+func (a *ServerAccountAPI) Login(ctx context.Context, params *AccountLoginRequest) (*AccountLoginResult, error) {
+	raw, err := a.client.Request(ctx, "account.login", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountLoginResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Logout removes user authentication from keychain and persisted state.
+//
+// RPC method: account.logout.
+//
+// Parameters: User to log out
+//
+// Returns: Logout result indicating if more users remain
+func (a *ServerAccountAPI) Logout(ctx context.Context, params *AccountLogoutRequest) (*AccountLogoutResult, error) {
+	raw, err := a.client.Request(ctx, "account.logout", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountLogoutResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -14918,6 +15052,42 @@ func (a *PluginsAPI) Reload(ctx context.Context, params ...*PluginsReloadRequest
 
 // Experimental: ProviderAPI contains experimental APIs that may change or be removed.
 type ProviderAPI sessionAPI
+
+// Adds BYOK providers and/or models to the session's registry at runtime, extending the
+// additive registry built from the session's `providers`/`models` options. Both fields are
+// optional, so a call may add providers only, models only, or both. Within a single call
+// providers are registered before models, so a model may reference a provider added in the
+// same call; across calls a model may reference any provider already registered (from
+// session creation or a prior add). A model whose referenced provider is not registered by
+// the end of the call is rejected. Newly added models become selectable via `model.list` /
+// `model.switchTo` and are inherited by sub-agents spawned afterwards.
+//
+// RPC method: session.provider.add.
+//
+// Parameters: BYOK providers and/or models to add to the session's registry at runtime.
+// Both fields are optional; provide providers, models, or both.
+//
+// Returns: The selectable model entries synthesized for the models added by this call.
+func (a *ProviderAPI) Add(ctx context.Context, params *ProviderAddRequest) (*ProviderAddResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Models != nil {
+			req["models"] = params.Models
+		}
+		if params.Providers != nil {
+			req["providers"] = params.Providers
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.provider.add", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ProviderAddResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // GetEndpoint returns the provider endpoint and credentials the session is currently
 // configured to talk to, so the caller can make inference calls directly against the same

@@ -8,6 +8,20 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
 
 /**
+ * Initial authentication info for the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthInfo".
+ */
+export type AuthInfo =
+  | HMACAuthInfo
+  | EnvAuthInfo
+  | TokenAuthInfo
+  | CopilotApiTokenAuthInfo
+  | UserAuthInfo
+  | GhCliAuthInfo
+  | ApiKeyAuthInfo;
+/**
  * Which tier this directory belongs to
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -173,21 +187,6 @@ export type AgentRegistrySpawnValidationErrorField =
   | "model"
   /** The permissionMode parameter */
   | "permissionMode";
-/**
- * Initial authentication info for the session.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AuthInfo".
- */
-/** @experimental */
-export type AuthInfo =
-  | HMACAuthInfo
-  | EnvAuthInfo
-  | TokenAuthInfo
-  | CopilotApiTokenAuthInfo
-  | UserAuthInfo
-  | GhCliAuthInfo
-  | ApiKeyAuthInfo;
 /**
  * Authentication type
  *
@@ -1796,6 +1795,13 @@ export type WorkspacesWorkspaceDetailsHostType =
   | "github"
   /** Workspace repository is hosted on Azure DevOps. */
   | "ado";
+/**
+ * List of all authenticated users
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountGetAllUsersResult".
+ */
+export type AccountGetAllUsersResult = AccountAllUsers[];
 
 /**
  * Parameters for aborting the current turn
@@ -1823,6 +1829,361 @@ export interface AbortResult {
    * Error message if the abort failed
    */
   error?: string;
+}
+/**
+ * Schema for the `AccountAllUsers` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountAllUsers".
+ */
+export interface AccountAllUsers {
+  authInfo: AuthInfo;
+  /**
+   * Associated token, if available
+   */
+  token?: string;
+}
+/**
+ * Schema for the `HMACAuthInfo` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HMACAuthInfo".
+ */
+export interface HMACAuthInfo {
+  /**
+   * HMAC-based authentication used by GitHub-internal services.
+   */
+  type: "hmac";
+  /**
+   * Authentication host. HMAC auth always targets the public GitHub host.
+   */
+  host: "https://github.com";
+  /**
+   * HMAC secret used to sign requests.
+   */
+  hmac: string;
+  copilotUser?: CopilotUserResponse;
+}
+/**
+ * Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CopilotUserResponse".
+ */
+export interface CopilotUserResponse {
+  login?: string;
+  access_type_sku?: string;
+  analytics_tracking_id?: string;
+  assigned_date?:
+    | (
+        | {
+            [k: string]: unknown | undefined;
+          }
+        | string
+      )
+    | null;
+  can_signup_for_limited?: boolean;
+  chat_enabled?: boolean;
+  copilot_plan?: string;
+  copilotignore_enabled?: boolean;
+  endpoints?: CopilotUserResponseEndpoints;
+  organization_login_list?: string[];
+  organization_list?:
+    | (
+        | {
+            [k: string]: unknown | undefined;
+          }
+        | ({
+            login?:
+              | (
+                  | {
+                      [k: string]: unknown | undefined;
+                    }
+                  | string
+                )
+              | null;
+            name?:
+              | (
+                  | {
+                      [k: string]: unknown | undefined;
+                    }
+                  | string
+                )
+              | null;
+          } | null)[]
+      )
+    | null;
+  codex_agent_enabled?: boolean;
+  is_mcp_enabled?:
+    | (
+        | {
+            [k: string]: unknown | undefined;
+          }
+        | boolean
+      )
+    | null;
+  quota_reset_date?: string;
+  quota_snapshots?: CopilotUserResponseQuotaSnapshots;
+  restricted_telemetry?: boolean;
+  is_staff?: boolean;
+  token_based_billing?: boolean;
+  can_upgrade_plan?: boolean;
+  quota_reset_date_utc?: string;
+  limited_user_quotas?: {
+    [k: string]: number | undefined;
+  };
+  limited_user_reset_date?: string;
+  monthly_quotas?: {
+    [k: string]: number | undefined;
+  };
+  cloud_session_storage_enabled?: boolean;
+  cli_remote_control_enabled?: boolean;
+}
+/**
+ * Schema for the `CopilotUserResponseEndpoints` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CopilotUserResponseEndpoints".
+ */
+export interface CopilotUserResponseEndpoints {
+  api?: string;
+  "origin-tracker"?: string;
+  proxy?: string;
+  telemetry?: string;
+}
+/**
+ * Schema for the `CopilotUserResponseQuotaSnapshots` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CopilotUserResponseQuotaSnapshots".
+ */
+export interface CopilotUserResponseQuotaSnapshots {
+  chat?: CopilotUserResponseQuotaSnapshotsChat;
+  completions?: CopilotUserResponseQuotaSnapshotsCompletions;
+  premium_interactions?: CopilotUserResponseQuotaSnapshotsPremiumInteractions;
+  [k: string]:
+    | ({
+        entitlement?: number;
+        overage_count?: number;
+        overage_permitted?: boolean;
+        percent_remaining?: number;
+        quota_id?: string;
+        quota_remaining?: number;
+        remaining?: number;
+        unlimited?: boolean;
+        timestamp_utc?: string;
+        has_quota?: boolean;
+        quota_reset_at?: number;
+        token_based_billing?: boolean;
+      } | null)
+    | undefined;
+}
+/**
+ * Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CopilotUserResponseQuotaSnapshotsChat".
+ */
+export interface CopilotUserResponseQuotaSnapshotsChat {
+  entitlement?: number;
+  overage_count?: number;
+  overage_permitted?: boolean;
+  percent_remaining?: number;
+  quota_id?: string;
+  quota_remaining?: number;
+  remaining?: number;
+  unlimited?: boolean;
+  timestamp_utc?: string;
+  has_quota?: boolean;
+  quota_reset_at?: number;
+  token_based_billing?: boolean;
+}
+/**
+ * Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CopilotUserResponseQuotaSnapshotsCompletions".
+ */
+export interface CopilotUserResponseQuotaSnapshotsCompletions {
+  entitlement?: number;
+  overage_count?: number;
+  overage_permitted?: boolean;
+  percent_remaining?: number;
+  quota_id?: string;
+  quota_remaining?: number;
+  remaining?: number;
+  unlimited?: boolean;
+  timestamp_utc?: string;
+  has_quota?: boolean;
+  quota_reset_at?: number;
+  token_based_billing?: boolean;
+}
+/**
+ * Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CopilotUserResponseQuotaSnapshotsPremiumInteractions".
+ */
+export interface CopilotUserResponseQuotaSnapshotsPremiumInteractions {
+  entitlement?: number;
+  overage_count?: number;
+  overage_permitted?: boolean;
+  percent_remaining?: number;
+  quota_id?: string;
+  quota_remaining?: number;
+  remaining?: number;
+  unlimited?: boolean;
+  timestamp_utc?: string;
+  has_quota?: boolean;
+  quota_reset_at?: number;
+  token_based_billing?: boolean;
+}
+/**
+ * Schema for the `EnvAuthInfo` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "EnvAuthInfo".
+ */
+export interface EnvAuthInfo {
+  /**
+   * Personal access token (PAT) or server-to-server token sourced from an environment variable.
+   */
+  type: "env";
+  /**
+   * Authentication host (e.g. https://github.com or a GHES host).
+   */
+  host: string;
+  /**
+   * User login associated with the token. Undefined for server-to-server tokens (those starting with `ghs_`).
+   */
+  login?: string;
+  /**
+   * The token value itself. Treat as a secret.
+   */
+  token: string;
+  /**
+   * Name of the environment variable the token was sourced from.
+   */
+  envVar: string;
+  copilotUser?: CopilotUserResponse;
+}
+/**
+ * Schema for the `TokenAuthInfo` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TokenAuthInfo".
+ */
+export interface TokenAuthInfo {
+  /**
+   * SDK-side token authentication; the host configured the token directly via the SDK.
+   */
+  type: "token";
+  /**
+   * Authentication host.
+   */
+  host: string;
+  /**
+   * The token value itself. Treat as a secret.
+   */
+  token: string;
+  copilotUser?: CopilotUserResponse;
+}
+/**
+ * Schema for the `CopilotApiTokenAuthInfo` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CopilotApiTokenAuthInfo".
+ */
+export interface CopilotApiTokenAuthInfo {
+  /**
+   * Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL` environment-variable pair. The token itself is read from the environment by the runtime, not carried in this struct.
+   */
+  type: "copilot-api-token";
+  /**
+   * Authentication host (always the public GitHub host).
+   */
+  host: "https://github.com";
+  copilotUser?: CopilotUserResponse;
+}
+/**
+ * Schema for the `UserAuthInfo` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UserAuthInfo".
+ */
+export interface UserAuthInfo {
+  /**
+   * OAuth user authentication. The token itself is held in the runtime's secret token store (keyed by host+login) and is NOT carried in this struct.
+   */
+  type: "user";
+  /**
+   * Authentication host.
+   */
+  host: string;
+  /**
+   * OAuth user login.
+   */
+  login: string;
+  copilotUser?: CopilotUserResponse;
+}
+/**
+ * Schema for the `GhCliAuthInfo` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GhCliAuthInfo".
+ */
+export interface GhCliAuthInfo {
+  /**
+   * Authentication via the `gh` CLI's saved credentials.
+   */
+  type: "gh-cli";
+  /**
+   * Authentication host.
+   */
+  host: string;
+  /**
+   * User login as reported by `gh auth status`.
+   */
+  login: string;
+  /**
+   * The token returned by `gh auth token`. Treat as a secret.
+   */
+  token: string;
+  copilotUser?: CopilotUserResponse;
+}
+/**
+ * Schema for the `ApiKeyAuthInfo` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ApiKeyAuthInfo".
+ */
+export interface ApiKeyAuthInfo {
+  /**
+   * API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
+   */
+  type: "api-key";
+  /**
+   * The API key. Treat as a secret.
+   */
+  apiKey: string;
+  /**
+   * Authentication host.
+   */
+  host: string;
+  copilotUser?: CopilotUserResponse;
+}
+/**
+ * Current authentication state
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountGetCurrentAuthResult".
+ */
+export interface AccountGetCurrentAuthResult {
+  authInfo?: AuthInfo;
+  /**
+   * Authentication errors from the last auth attempt, if any
+   */
+  authErrors?: string[];
 }
 
 export interface AccountGetQuotaRequest {
@@ -1884,6 +2245,59 @@ export interface AccountQuotaSnapshot {
    * Date when the quota resets (ISO 8601 string)
    */
   resetDate?: string;
+}
+/**
+ * Credentials to store after successful authentication
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountLoginRequest".
+ */
+export interface AccountLoginRequest {
+  /**
+   * GitHub host URL
+   */
+  host: string;
+  /**
+   * User login/username
+   */
+  login: string;
+  /**
+   * GitHub authentication token
+   */
+  token: string;
+}
+/**
+ * Result of a successful login; throws on failure
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountLoginResult".
+ */
+export interface AccountLoginResult {
+  /**
+   * Whether the credential was persisted to a secure store (system keychain, or the config file when plaintext storage is enabled). False when no secure store was available and the token was not saved, so the consumer can decide how to proceed.
+   */
+  storedInVault: boolean;
+}
+/**
+ * User to log out
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountLogoutRequest".
+ */
+export interface AccountLogoutRequest {
+  authInfo: AuthInfo;
+}
+/**
+ * Logout result indicating if more users remain
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountLogoutResult".
+ */
+export interface AccountLogoutResult {
+  /**
+   * Whether other authenticated users remain after logout
+   */
+  hasMoreUsers: boolean;
 }
 /**
  * Schema for the `AgentDiscoveryPath` type.
@@ -2303,348 +2717,6 @@ export interface AllowAllPermissionState {
    * Whether full allow-all permissions are currently active
    */
   enabled: boolean;
-}
-/**
- * Schema for the `ApiKeyAuthInfo` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ApiKeyAuthInfo".
- */
-/** @experimental */
-export interface ApiKeyAuthInfo {
-  /**
-   * API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
-   */
-  type: "api-key";
-  /**
-   * The API key. Treat as a secret.
-   */
-  apiKey: string;
-  /**
-   * Authentication host.
-   */
-  host: string;
-  copilotUser?: CopilotUserResponse;
-}
-/**
- * Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CopilotUserResponse".
- */
-/** @experimental */
-export interface CopilotUserResponse {
-  login?: string;
-  access_type_sku?: string;
-  analytics_tracking_id?: string;
-  assigned_date?:
-    | (
-        | {
-            [k: string]: unknown | undefined;
-          }
-        | string
-      )
-    | null;
-  can_signup_for_limited?: boolean;
-  chat_enabled?: boolean;
-  copilot_plan?: string;
-  copilotignore_enabled?: boolean;
-  endpoints?: CopilotUserResponseEndpoints;
-  organization_login_list?: string[];
-  organization_list?:
-    | (
-        | {
-            [k: string]: unknown | undefined;
-          }
-        | ({
-            login?:
-              | (
-                  | {
-                      [k: string]: unknown | undefined;
-                    }
-                  | string
-                )
-              | null;
-            name?:
-              | (
-                  | {
-                      [k: string]: unknown | undefined;
-                    }
-                  | string
-                )
-              | null;
-          } | null)[]
-      )
-    | null;
-  codex_agent_enabled?: boolean;
-  is_mcp_enabled?:
-    | (
-        | {
-            [k: string]: unknown | undefined;
-          }
-        | boolean
-      )
-    | null;
-  quota_reset_date?: string;
-  quota_snapshots?: CopilotUserResponseQuotaSnapshots;
-  restricted_telemetry?: boolean;
-  is_staff?: boolean;
-  token_based_billing?: boolean;
-  can_upgrade_plan?: boolean;
-  quota_reset_date_utc?: string;
-  limited_user_quotas?: {
-    [k: string]: number | undefined;
-  };
-  limited_user_reset_date?: string;
-  monthly_quotas?: {
-    [k: string]: number | undefined;
-  };
-  cloud_session_storage_enabled?: boolean;
-  cli_remote_control_enabled?: boolean;
-}
-/**
- * Schema for the `CopilotUserResponseEndpoints` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CopilotUserResponseEndpoints".
- */
-/** @experimental */
-export interface CopilotUserResponseEndpoints {
-  api?: string;
-  "origin-tracker"?: string;
-  proxy?: string;
-  telemetry?: string;
-}
-/**
- * Schema for the `CopilotUserResponseQuotaSnapshots` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CopilotUserResponseQuotaSnapshots".
- */
-/** @experimental */
-export interface CopilotUserResponseQuotaSnapshots {
-  chat?: CopilotUserResponseQuotaSnapshotsChat;
-  completions?: CopilotUserResponseQuotaSnapshotsCompletions;
-  premium_interactions?: CopilotUserResponseQuotaSnapshotsPremiumInteractions;
-  [k: string]:
-    | ({
-        entitlement?: number;
-        overage_count?: number;
-        overage_permitted?: boolean;
-        percent_remaining?: number;
-        quota_id?: string;
-        quota_remaining?: number;
-        remaining?: number;
-        unlimited?: boolean;
-        timestamp_utc?: string;
-        has_quota?: boolean;
-        quota_reset_at?: number;
-        token_based_billing?: boolean;
-      } | null)
-    | undefined;
-}
-/**
- * Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CopilotUserResponseQuotaSnapshotsChat".
- */
-/** @experimental */
-export interface CopilotUserResponseQuotaSnapshotsChat {
-  entitlement?: number;
-  overage_count?: number;
-  overage_permitted?: boolean;
-  percent_remaining?: number;
-  quota_id?: string;
-  quota_remaining?: number;
-  remaining?: number;
-  unlimited?: boolean;
-  timestamp_utc?: string;
-  has_quota?: boolean;
-  quota_reset_at?: number;
-  token_based_billing?: boolean;
-}
-/**
- * Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CopilotUserResponseQuotaSnapshotsCompletions".
- */
-/** @experimental */
-export interface CopilotUserResponseQuotaSnapshotsCompletions {
-  entitlement?: number;
-  overage_count?: number;
-  overage_permitted?: boolean;
-  percent_remaining?: number;
-  quota_id?: string;
-  quota_remaining?: number;
-  remaining?: number;
-  unlimited?: boolean;
-  timestamp_utc?: string;
-  has_quota?: boolean;
-  quota_reset_at?: number;
-  token_based_billing?: boolean;
-}
-/**
- * Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CopilotUserResponseQuotaSnapshotsPremiumInteractions".
- */
-/** @experimental */
-export interface CopilotUserResponseQuotaSnapshotsPremiumInteractions {
-  entitlement?: number;
-  overage_count?: number;
-  overage_permitted?: boolean;
-  percent_remaining?: number;
-  quota_id?: string;
-  quota_remaining?: number;
-  remaining?: number;
-  unlimited?: boolean;
-  timestamp_utc?: string;
-  has_quota?: boolean;
-  quota_reset_at?: number;
-  token_based_billing?: boolean;
-}
-/**
- * Schema for the `HMACAuthInfo` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HMACAuthInfo".
- */
-/** @experimental */
-export interface HMACAuthInfo {
-  /**
-   * HMAC-based authentication used by GitHub-internal services.
-   */
-  type: "hmac";
-  /**
-   * Authentication host. HMAC auth always targets the public GitHub host.
-   */
-  host: "https://github.com";
-  /**
-   * HMAC secret used to sign requests.
-   */
-  hmac: string;
-  copilotUser?: CopilotUserResponse;
-}
-/**
- * Schema for the `EnvAuthInfo` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "EnvAuthInfo".
- */
-/** @experimental */
-export interface EnvAuthInfo {
-  /**
-   * Personal access token (PAT) or server-to-server token sourced from an environment variable.
-   */
-  type: "env";
-  /**
-   * Authentication host (e.g. https://github.com or a GHES host).
-   */
-  host: string;
-  /**
-   * User login associated with the token. Undefined for server-to-server tokens (those starting with `ghs_`).
-   */
-  login?: string;
-  /**
-   * The token value itself. Treat as a secret.
-   */
-  token: string;
-  /**
-   * Name of the environment variable the token was sourced from.
-   */
-  envVar: string;
-  copilotUser?: CopilotUserResponse;
-}
-/**
- * Schema for the `TokenAuthInfo` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "TokenAuthInfo".
- */
-/** @experimental */
-export interface TokenAuthInfo {
-  /**
-   * SDK-side token authentication; the host configured the token directly via the SDK.
-   */
-  type: "token";
-  /**
-   * Authentication host.
-   */
-  host: string;
-  /**
-   * The token value itself. Treat as a secret.
-   */
-  token: string;
-  copilotUser?: CopilotUserResponse;
-}
-/**
- * Schema for the `CopilotApiTokenAuthInfo` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CopilotApiTokenAuthInfo".
- */
-/** @experimental */
-export interface CopilotApiTokenAuthInfo {
-  /**
-   * Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL` environment-variable pair. The token itself is read from the environment by the runtime, not carried in this struct.
-   */
-  type: "copilot-api-token";
-  /**
-   * Authentication host (always the public GitHub host).
-   */
-  host: "https://github.com";
-  copilotUser?: CopilotUserResponse;
-}
-/**
- * Schema for the `UserAuthInfo` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UserAuthInfo".
- */
-/** @experimental */
-export interface UserAuthInfo {
-  /**
-   * OAuth user authentication. The token itself is held in the runtime's secret token store (keyed by host+login) and is NOT carried in this struct.
-   */
-  type: "user";
-  /**
-   * Authentication host.
-   */
-  host: string;
-  /**
-   * OAuth user login.
-   */
-  login: string;
-  copilotUser?: CopilotUserResponse;
-}
-/**
- * Schema for the `GhCliAuthInfo` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GhCliAuthInfo".
- */
-/** @experimental */
-export interface GhCliAuthInfo {
-  /**
-   * Authentication via the `gh` CLI's saved credentials.
-   */
-  type: "gh-cli";
-  /**
-   * Authentication host.
-   */
-  host: string;
-  /**
-   * User login as reported by `gh auth status`.
-   */
-  login: string;
-  /**
-   * The token returned by `gh auth token`. Treat as a secret.
-   */
-  token: string;
-  copilotUser?: CopilotUserResponse;
 }
 /**
  * Cancellation result for a user-requested shell command.
@@ -6250,7 +6322,8 @@ export interface ModelBillingTokenPrices {
    */
   outputPrice?: number;
   /**
-   * Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
+   * @deprecated
+   * Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
    */
   cachePrice?: number;
   /**
@@ -6266,7 +6339,8 @@ export interface ModelBillingTokenPrices {
    */
   batchSize?: number;
   /**
-   * Deprecated: use maxPromptTokens. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.
+   * @deprecated
+   * Use maxPromptTokens instead. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.
    */
   contextMax?: number;
   /**
@@ -6291,7 +6365,8 @@ export interface ModelBillingTokenPricesLongContext {
    */
   outputPrice?: number;
   /**
-   * Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
+   * @deprecated
+   * Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
    */
   cachePrice?: number;
   /**
@@ -6303,7 +6378,8 @@ export interface ModelBillingTokenPricesLongContext {
    */
   cacheWritePrice?: number;
   /**
-   * Deprecated: use maxPromptTokens. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
+   * @deprecated
+   * Use maxPromptTokens instead. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
    */
   contextMax?: number;
   /**
@@ -8374,6 +8450,78 @@ export interface SessionsPollSpawnedSessionsEvent {
   sessionId: string;
 }
 /**
+ * BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderAddRequest".
+ */
+/** @experimental */
+export interface ProviderAddRequest {
+  /**
+   * Named BYOK provider connections to register, additive to any providers already in the registry. Each name must be unique across the registry and must not contain '/'.
+   */
+  providers?: NamedProviderConfig[];
+  /**
+   * BYOK model definitions to register. Each must reference a provider that is already registered or included in this same call. Selection ids (`provider/id`) must be unique across the registry.
+   */
+  models?: ProviderModelConfig[];
+}
+/**
+ * A BYOK model definition referencing a named provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderModelConfig".
+ */
+/** @experimental */
+export interface ProviderModelConfig {
+  /**
+   * Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+   */
+  id: string;
+  /**
+   * Name of the NamedProviderConfig that serves this model.
+   */
+  provider: string;
+  /**
+   * The model name sent to the provider API for inference. Defaults to `id`.
+   */
+  wireModel?: string;
+  /**
+   * Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+   */
+  modelId?: string;
+  /**
+   * Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
+   */
+  name?: string;
+  /**
+   * Maximum prompt/input tokens for the model.
+   */
+  maxPromptTokens?: number;
+  /**
+   * Maximum context window tokens for the model.
+   */
+  maxContextWindowTokens?: number;
+  /**
+   * Maximum output tokens for the model.
+   */
+  maxOutputTokens?: number;
+  capabilities?: ModelCapabilitiesOverride;
+}
+/**
+ * The selectable model entries synthesized for the models added by this call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderAddResult".
+ */
+/** @experimental */
+export interface ProviderAddResult {
+  /**
+   * Synthesized selectable model entries for the newly added BYOK models, each under its provider-qualified selection id (`provider/id`). Empty when only providers were added.
+   */
+  models: unknown[];
+}
+/**
  * Custom model-provider configuration (BYOK).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -8486,48 +8634,6 @@ export interface ProviderGetEndpointRequest {
    * Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
    */
   modelId?: string;
-}
-/**
- * A BYOK model definition referencing a named provider.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderModelConfig".
- */
-/** @experimental */
-export interface ProviderModelConfig {
-  /**
-   * Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
-   */
-  id: string;
-  /**
-   * Name of the NamedProviderConfig that serves this model.
-   */
-  provider: string;
-  /**
-   * The model name sent to the provider API for inference. Defaults to `id`.
-   */
-  wireModel?: string;
-  /**
-   * Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
-   */
-  modelId?: string;
-  /**
-   * Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
-   */
-  name?: string;
-  /**
-   * Maximum prompt/input tokens for the model.
-   */
-  maxPromptTokens?: number;
-  /**
-   * Maximum context window tokens for the model.
-   */
-  maxContextWindowTokens?: number;
-  /**
-   * Maximum output tokens for the model.
-   */
-  maxOutputTokens?: number;
-  capabilities?: ModelCapabilitiesOverride;
 }
 /**
  * File attachment
@@ -9550,6 +9656,10 @@ export interface ServerSkill {
    * The project path this skill belongs to (only for project/inherited skills)
    */
   projectPath?: string;
+  /**
+   * Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+   */
+  argumentHint?: string;
 }
 /**
  * Skills discovered across global and project sources.
@@ -11630,6 +11740,10 @@ export interface Skill {
    * Name of the plugin that provides the skill, when source is 'plugin'
    */
   pluginName?: string;
+  /**
+   * Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+   */
+  argumentHint?: string;
 }
 /**
  * Schema for the `SkillDiscoveryPath` type.
@@ -13576,6 +13690,38 @@ export function createServerRpc(connection: MessageConnection) {
              */
             getQuota: async (params: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", params),
+            /**
+             * Gets the currently active authentication credentials from the global auth manager.
+             *
+             * @returns Current authentication state
+             */
+            getCurrentAuth: async (): Promise<AccountGetCurrentAuthResult> =>
+                connection.sendRequest("account.getCurrentAuth", {}),
+            /**
+             * Gets all authenticated users available for account switching.
+             *
+             * @returns List of all authenticated users
+             */
+            getAllUsers: async (): Promise<AccountGetAllUsersResult> =>
+                connection.sendRequest("account.getAllUsers", {}),
+            /**
+             * Stores authentication credentials after successful login (e.g., device code flow).
+             *
+             * @param params Credentials to store after successful authentication
+             *
+             * @returns Result of a successful login; throws on failure
+             */
+            login: async (params: AccountLoginRequest): Promise<AccountLoginResult> =>
+                connection.sendRequest("account.login", params),
+            /**
+             * Removes user authentication from keychain and persisted state.
+             *
+             * @param params User to log out
+             *
+             * @returns Logout result indicating if more users remain
+             */
+            logout: async (params: AccountLogoutRequest): Promise<AccountLogoutResult> =>
+                connection.sendRequest("account.logout", params),
         },
         secrets: {
             /**
@@ -14846,6 +14992,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getEndpoint: async (params?: ProviderGetEndpointRequest): Promise<ProviderEndpoint> =>
                 connection.sendRequest("session.provider.getEndpoint", { sessionId, ...params }),
+            /**
+             * Adds BYOK providers and/or models to the session's registry at runtime, extending the additive registry built from the session's `providers`/`models` options. Both fields are optional, so a call may add providers only, models only, or both. Within a single call providers are registered before models, so a model may reference a provider added in the same call; across calls a model may reference any provider already registered (from session creation or a prior add). A model whose referenced provider is not registered by the end of the call is rejected. Newly added models become selectable via `model.list` / `model.switchTo` and are inherited by sub-agents spawned afterwards.
+             *
+             * @param params BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
+             *
+             * @returns The selectable model entries synthesized for the models added by this call.
+             */
+            add: async (params: ProviderAddRequest): Promise<ProviderAddResult> =>
+                connection.sendRequest("session.provider.add", { sessionId, ...params }),
         },
         /** @experimental */
         options: {

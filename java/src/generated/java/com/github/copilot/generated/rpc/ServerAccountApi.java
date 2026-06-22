@@ -33,4 +33,36 @@ public final class ServerAccountApi {
         return caller.invoke("account.getQuota", java.util.Map.of(), AccountGetQuotaResult.class);
     }
 
+    /**
+     * Current authentication state
+     * @since 1.0.0
+     */
+    public CompletableFuture<AccountGetCurrentAuthResult> getCurrentAuth() {
+        return caller.invoke("account.getCurrentAuth", java.util.Map.of(), AccountGetCurrentAuthResult.class);
+    }
+
+    /**
+     * List of all authenticated users
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> getAllUsers() {
+        return caller.invoke("account.getAllUsers", java.util.Map.of(), Void.class);
+    }
+
+    /**
+     * Credentials to store after successful authentication
+     * @since 1.0.0
+     */
+    public CompletableFuture<AccountLoginResult> login(AccountLoginParams params) {
+        return caller.invoke("account.login", params, AccountLoginResult.class);
+    }
+
+    /**
+     * User to log out
+     * @since 1.0.0
+     */
+    public CompletableFuture<AccountLogoutResult> logout(AccountLogoutParams params) {
+        return caller.invoke("account.logout", params, AccountLogoutResult.class);
+    }
+
 }

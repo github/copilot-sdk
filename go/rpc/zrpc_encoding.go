@@ -8,6 +8,212 @@ import (
 	"errors"
 )
 
+func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type AuthInfoType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case AuthInfoTypeAPIKey:
+		var d APIKeyAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthInfoTypeCopilotAPIToken:
+		var d CopilotAPITokenAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthInfoTypeEnv:
+		var d EnvAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthInfoTypeGhCLI:
+		var d GhCLIAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthInfoTypeHMAC:
+		var d HMACAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthInfoTypeToken:
+		var d TokenAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AuthInfoTypeUser:
+		var d UserAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAuthInfoData{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawAuthInfoData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r APIKeyAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias APIKeyAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r CopilotAPITokenAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias CopilotAPITokenAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r EnvAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias EnvAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r GhCLIAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias GhCLIAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r HMACAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias HMACAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r TokenAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias TokenAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r UserAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias UserAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r *AccountAllUsers) UnmarshalJSON(data []byte) error {
+	type rawAccountAllUsers struct {
+		AuthInfo json.RawMessage `json:"authInfo"`
+		Token    *string         `json:"token,omitempty"`
+	}
+	var raw rawAccountAllUsers
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.AuthInfo != nil {
+		value, err := unmarshalAuthInfo(raw.AuthInfo)
+		if err != nil {
+			return err
+		}
+		r.AuthInfo = value
+	}
+	r.Token = raw.Token
+	return nil
+}
+
+func (r *AccountGetCurrentAuthResult) UnmarshalJSON(data []byte) error {
+	type rawAccountGetCurrentAuthResult struct {
+		AuthErrors []string        `json:"authErrors,omitzero"`
+		AuthInfo   json.RawMessage `json:"authInfo,omitempty"`
+	}
+	var raw rawAccountGetCurrentAuthResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AuthErrors = raw.AuthErrors
+	if raw.AuthInfo != nil {
+		value, err := unmarshalAuthInfo(raw.AuthInfo)
+		if err != nil {
+			return err
+		}
+		r.AuthInfo = value
+	}
+	return nil
+}
+
+func (r *AccountLogoutRequest) UnmarshalJSON(data []byte) error {
+	type rawAccountLogoutRequest struct {
+		AuthInfo json.RawMessage `json:"authInfo"`
+	}
+	var raw rawAccountLogoutRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.AuthInfo != nil {
+		value, err := unmarshalAuthInfo(raw.AuthInfo)
+		if err != nil {
+			return err
+		}
+		r.AuthInfo = value
+	}
+	return nil
+}
+
 func unmarshalAgentRegistrySpawnResult(data []byte) (AgentRegistrySpawnResult, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -229,154 +435,6 @@ func (r AttachmentSelection) MarshalJSON() ([]byte, error) {
 	type alias AttachmentSelection
 	return json.Marshal(struct {
 		Type AttachmentType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Type AuthInfoType `json:"type"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Type {
-	case AuthInfoTypeAPIKey:
-		var d APIKeyAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case AuthInfoTypeCopilotAPIToken:
-		var d CopilotAPITokenAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case AuthInfoTypeEnv:
-		var d EnvAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case AuthInfoTypeGhCLI:
-		var d GhCLIAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case AuthInfoTypeHMAC:
-		var d HMACAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case AuthInfoTypeToken:
-		var d TokenAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case AuthInfoTypeUser:
-		var d UserAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawAuthInfoData{Discriminator: raw.Type, Raw: data}, nil
-	}
-}
-
-func (r RawAuthInfoData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
-	}{
-		Type: r.Discriminator,
-	})
-}
-
-func (r APIKeyAuthInfo) MarshalJSON() ([]byte, error) {
-	type alias APIKeyAuthInfo
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r CopilotAPITokenAuthInfo) MarshalJSON() ([]byte, error) {
-	type alias CopilotAPITokenAuthInfo
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r EnvAuthInfo) MarshalJSON() ([]byte, error) {
-	type alias EnvAuthInfo
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r GhCLIAuthInfo) MarshalJSON() ([]byte, error) {
-	type alias GhCLIAuthInfo
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r HMACAuthInfo) MarshalJSON() ([]byte, error) {
-	type alias HMACAuthInfo
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r TokenAuthInfo) MarshalJSON() ([]byte, error) {
-	type alias TokenAuthInfo
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r UserAuthInfo) MarshalJSON() ([]byte, error) {
-	type alias UserAuthInfo
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
 		alias
 	}{
 		Type:  r.Type(),

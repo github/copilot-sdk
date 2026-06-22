@@ -212,6 +212,78 @@ impl<'a> ClientRpcAccount<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Gets the currently active authentication credentials from the global auth manager.
+    ///
+    /// Wire method: `account.getCurrentAuth`.
+    ///
+    /// # Returns
+    ///
+    /// Current authentication state
+    pub async fn get_current_auth(&self) -> Result<AccountGetCurrentAuthResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_GETCURRENTAUTH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Gets all authenticated users available for account switching.
+    ///
+    /// Wire method: `account.getAllUsers`.
+    ///
+    /// # Returns
+    ///
+    /// List of all authenticated users
+    pub async fn get_all_users(&self) -> Result<AccountGetAllUsersResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_GETALLUSERS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Stores authentication credentials after successful login (e.g., device code flow).
+    ///
+    /// Wire method: `account.login`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Credentials to store after successful authentication
+    ///
+    /// # Returns
+    ///
+    /// Result of a successful login; throws on failure
+    pub async fn login(&self, params: AccountLoginRequest) -> Result<AccountLoginResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_LOGIN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Removes user authentication from keychain and persisted state.
+    ///
+    /// Wire method: `account.logout`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - User to log out
+    ///
+    /// # Returns
+    ///
+    /// Logout result indicating if more users remain
+    pub async fn logout(&self, params: AccountLogoutRequest) -> Result<AccountLogoutResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_LOGOUT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `agentRegistry.*` RPCs.
@@ -6281,6 +6353,36 @@ impl<'a> SessionRpcProvider<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_PROVIDER_GETENDPOINT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Adds BYOK providers and/or models to the session's registry at runtime, extending the additive registry built from the session's `providers`/`models` options. Both fields are optional, so a call may add providers only, models only, or both. Within a single call providers are registered before models, so a model may reference a provider added in the same call; across calls a model may reference any provider already registered (from session creation or a prior add). A model whose referenced provider is not registered by the end of the call is rejected. Newly added models become selectable via `model.list` / `model.switchTo` and are inherited by sub-agents spawned afterwards.
+    ///
+    /// Wire method: `session.provider.add`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
+    ///
+    /// # Returns
+    ///
+    /// The selectable model entries synthesized for the models added by this call.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn add(&self, params: ProviderAddRequest) -> Result<ProviderAddResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PROVIDER_ADD, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

@@ -2798,6 +2798,7 @@ class ModelCallFailureData:
     initiator: str | None = None
     model: str | None = None
     provider_call_id: str | None = None
+    request_fingerprint: ModelCallFailureRequestFingerprint | None = None
     service_request_id: str | None = None
     status_code: int | None = None
 
@@ -2814,6 +2815,7 @@ class ModelCallFailureData:
         initiator = from_union([from_none, from_str], obj.get("initiator"))
         model = from_union([from_none, from_str], obj.get("model"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
+        request_fingerprint = from_union([from_none, ModelCallFailureRequestFingerprint.from_dict], obj.get("requestFingerprint"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         return ModelCallFailureData(
@@ -2827,6 +2829,7 @@ class ModelCallFailureData:
             initiator=initiator,
             model=model,
             provider_call_id=provider_call_id,
+            request_fingerprint=request_fingerprint,
             service_request_id=service_request_id,
             status_code=status_code,
         )
@@ -2852,10 +2855,56 @@ class ModelCallFailureData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
+        if self.request_fingerprint is not None:
+            result["requestFingerprint"] = from_union([from_none, lambda x: to_class(ModelCallFailureRequestFingerprint, x)], self.request_fingerprint)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
             result["statusCode"] = from_union([from_none, to_int], self.status_code)
+        return result
+
+
+@dataclass
+class ModelCallFailureRequestFingerprint:
+    "Content-free structural summary of the failing request for diagnosing malformed 4xx calls"
+    image_part_count: int
+    image_parts_missing_media_type: int
+    message_count: int
+    nameless_tool_call_count: int
+    tool_call_count: int
+    tool_result_message_count: int
+    last_message_role: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ModelCallFailureRequestFingerprint":
+        assert isinstance(obj, dict)
+        image_part_count = from_int(obj.get("imagePartCount"))
+        image_parts_missing_media_type = from_int(obj.get("imagePartsMissingMediaType"))
+        message_count = from_int(obj.get("messageCount"))
+        nameless_tool_call_count = from_int(obj.get("namelessToolCallCount"))
+        tool_call_count = from_int(obj.get("toolCallCount"))
+        tool_result_message_count = from_int(obj.get("toolResultMessageCount"))
+        last_message_role = from_union([from_none, from_str], obj.get("lastMessageRole"))
+        return ModelCallFailureRequestFingerprint(
+            image_part_count=image_part_count,
+            image_parts_missing_media_type=image_parts_missing_media_type,
+            message_count=message_count,
+            nameless_tool_call_count=nameless_tool_call_count,
+            tool_call_count=tool_call_count,
+            tool_result_message_count=tool_result_message_count,
+            last_message_role=last_message_role,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["imagePartCount"] = to_int(self.image_part_count)
+        result["imagePartsMissingMediaType"] = to_int(self.image_parts_missing_media_type)
+        result["messageCount"] = to_int(self.message_count)
+        result["namelessToolCallCount"] = to_int(self.nameless_tool_call_count)
+        result["toolCallCount"] = to_int(self.tool_call_count)
+        result["toolResultMessageCount"] = to_int(self.tool_result_message_count)
+        if self.last_message_role is not None:
+            result["lastMessageRole"] = from_union([from_none, from_str], self.last_message_role)
         return result
 
 
@@ -5681,6 +5730,7 @@ class SkillsLoadedSkill:
     name: str
     source: SkillSource
     user_invocable: bool
+    argument_hint: str | None = None
     path: str | None = None
 
     @staticmethod
@@ -5691,6 +5741,7 @@ class SkillsLoadedSkill:
         name = from_str(obj.get("name"))
         source = parse_enum(SkillSource, obj.get("source"))
         user_invocable = from_bool(obj.get("userInvocable"))
+        argument_hint = from_union([from_none, from_str], obj.get("argumentHint"))
         path = from_union([from_none, from_str], obj.get("path"))
         return SkillsLoadedSkill(
             description=description,
@@ -5698,6 +5749,7 @@ class SkillsLoadedSkill:
             name=name,
             source=source,
             user_invocable=user_invocable,
+            argument_hint=argument_hint,
             path=path,
         )
 
@@ -5708,6 +5760,8 @@ class SkillsLoadedSkill:
         result["name"] = from_str(self.name)
         result["source"] = to_enum(SkillSource, self.source)
         result["userInvocable"] = from_bool(self.user_invocable)
+        if self.argument_hint is not None:
+            result["argumentHint"] = from_union([from_none, from_str], self.argument_hint)
         if self.path is not None:
             result["path"] = from_union([from_none, from_str], self.path)
         return result
@@ -8191,6 +8245,7 @@ __all__ = [
     "McpServersLoadedServer",
     "ModelCallFailureBadRequestKind",
     "ModelCallFailureData",
+    "ModelCallFailureRequestFingerprint",
     "ModelCallFailureSource",
     "OmittedBinaryOmittedReason",
     "OmittedBinaryResult",

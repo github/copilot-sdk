@@ -2506,6 +2506,11 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
 
+    /// <summary>Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestFingerprint")]
+    public ModelCallFailureRequestFingerprint? RequestFingerprint { get; set; }
+
     /// <summary>Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("serviceRequestId")]
@@ -4412,6 +4417,40 @@ internal sealed partial class AssistantUsageQuotaSnapshot
     [JsonInclude]
     [JsonPropertyName("usedRequests")]
     internal required long UsedRequests { get; set; }
+}
+
+/// <summary>Content-free structural summary of the failing request for diagnosing malformed 4xx calls.</summary>
+/// <remarks>Nested data type for <c>ModelCallFailureRequestFingerprint</c>.</remarks>
+public sealed partial class ModelCallFailureRequestFingerprint
+{
+    /// <summary>Total number of image content parts.</summary>
+    [JsonPropertyName("imagePartCount")]
+    public required long ImagePartCount { get; set; }
+
+    /// <summary>Image parts whose media type cannot be determined (rejected by strict providers).</summary>
+    [JsonPropertyName("imagePartsMissingMediaType")]
+    public required long ImagePartsMissingMediaType { get; set; }
+
+    /// <summary>Role of the final message in the request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("lastMessageRole")]
+    public string? LastMessageRole { get; set; }
+
+    /// <summary>Total number of messages in the request.</summary>
+    [JsonPropertyName("messageCount")]
+    public required long MessageCount { get; set; }
+
+    /// <summary>Tool calls whose name is missing or empty (rejected by strict providers).</summary>
+    [JsonPropertyName("namelessToolCallCount")]
+    public required long NamelessToolCallCount { get; set; }
+
+    /// <summary>Total number of tool calls across assistant messages.</summary>
+    [JsonPropertyName("toolCallCount")]
+    public required long ToolCallCount { get; set; }
+
+    /// <summary>Number of "tool" result messages in the request.</summary>
+    [JsonPropertyName("toolResultMessageCount")]
+    public required long ToolResultMessageCount { get; set; }
 }
 
 /// <summary>Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.</summary>
@@ -6459,6 +6498,11 @@ public sealed partial class CapabilitiesChangedUI
 /// <remarks>Nested data type for <c>SkillsLoadedSkill</c>.</remarks>
 public sealed partial class SkillsLoadedSkill
 {
+    /// <summary>Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("argumentHint")]
+    public string? ArgumentHint { get; set; }
+
     /// <summary>Description of what the skill does.</summary>
     [JsonPropertyName("description")]
     public required string Description { get; set; }
@@ -9582,6 +9626,7 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(McpServersLoadedServer))]
 [JsonSerializable(typeof(ModelCallFailureData))]
 [JsonSerializable(typeof(ModelCallFailureEvent))]
+[JsonSerializable(typeof(ModelCallFailureRequestFingerprint))]
 [JsonSerializable(typeof(OmittedBinaryResult))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
