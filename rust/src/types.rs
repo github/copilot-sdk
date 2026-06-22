@@ -13,6 +13,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
+pub use crate::copilot_request_handler::{
+    CopilotHttpRequest, CopilotHttpResponse, CopilotHttpResponseBody, CopilotRequestContext,
+    CopilotRequestError, CopilotRequestHandler, CopilotRequestTransport, CopilotWebSocketHandler,
+    CopilotWebSocketMessage, CopilotWebSocketResponse, ForwardingCopilotWebSocketHandler,
+    ForwardingCopilotWebSocketHandlerBuilder, WebSocketTransform, forward_http,
+};
 use crate::generated::api_types::OpenCanvasInstance;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::ContextTier;
@@ -22,15 +28,6 @@ use crate::handler::{
     UserInputHandler,
 };
 use crate::hooks::SessionHooks;
-pub use crate::llm_inference::{
-    LlmInferenceConfig, LlmInferenceError, LlmInferenceProvider, LlmInferenceRequest,
-    LlmRequestBody, LlmResponseInit, LlmResponseSink, LlmTransport,
-};
-pub use crate::llm_request_handler::{
-    CopilotWebSocketHandler, ForwardingWebSocketHandler, ForwardingWebSocketHandlerBuilder,
-    LlmHttpRequest, LlmHttpResponse, LlmHttpResponseBody, LlmRequestContext, LlmRequestHandler,
-    LlmWebSocketMessage, LlmWebSocketResponse, WebSocketTransform, forward_http,
-};
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
     SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,

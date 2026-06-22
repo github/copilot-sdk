@@ -12,8 +12,8 @@ use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::subscription::{EventSubscription, LifecycleSubscription};
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, LlmInferenceConfig, SessionConfig, SessionEvent, SessionId,
-    SessionLifecycleEvent, Transport,
+    CliProgram, Client, ClientOptions, CopilotRequestHandler, SessionConfig, SessionEvent,
+    SessionId, SessionLifecycleEvent, Transport,
 };
 use serde_json::json;
 use tokio::sync::Semaphore;
@@ -175,14 +175,13 @@ impl E2eContext {
             .expect("start E2E client")
     }
 
-    /// Start a client wired to an LLM inference provider, appending `extra_env`
+    /// Start a client wired to a Copilot request handler, appending `extra_env`
     /// to the spawned runtime's environment (used to flip the WebSocket ExP
     /// flag for the WS transport tests).
-    pub async fn start_llm_client(
-        &self,
-        config: LlmInferenceConfig,
-        extra_env: &[(&str, &str)],
-    ) -> Client {
+    pub async fn start_llm_client<H>(&self, handler: H, extra_env: &[(&str, &str)]) -> Client
+    where
+        H: CopilotRequestHandler,
+    {
         let mut env = self.environment();
         env.extend(
             extra_env
@@ -195,7 +194,7 @@ impl E2eContext {
             .with_cwd(self.work_dir.path())
             .with_env(env)
             .with_use_logged_in_user(false)
-            .with_llm_inference(config);
+            .with_request_handler(handler);
         Client::start(options).await.expect("start E2E LLM client")
     }
 

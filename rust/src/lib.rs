@@ -11,18 +11,15 @@ mod canvas_dispatch;
 pub(crate) mod embeddedcli;
 mod errors;
 pub use errors::*;
+/// Connection-level Copilot request handler — intercept and replace the
+/// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
+/// BYOK sessions.
+pub mod copilot_request_handler;
 /// Event handler traits for session lifecycle.
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
 pub mod hooks;
 mod jsonrpc;
-/// Connection-level LLM inference callback — intercept and replace model-layer
-/// HTTP and WebSocket traffic for both CAPI and BYOK sessions.
-pub mod llm_inference;
-mod llm_inference_dispatch;
-/// Idiomatic HTTP/WebSocket forwarding handler built on top of
-/// [`llm_inference::LlmInferenceProvider`].
-pub mod llm_request_handler;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
 /// GitHub Copilot CLI binary resolution (env var, embedded, dev cache).
@@ -245,15 +242,15 @@ pub struct ClientOptions {
     /// [`SessionFsProvider`] via
     /// [`SessionConfig::with_session_fs_provider`](crate::SessionConfig::with_session_fs_provider).
     pub session_fs: Option<SessionFsConfig>,
-    /// Connection-level LLM inference callback configuration.
+    /// Connection-level Copilot request handler configuration.
     ///
-    /// When set, the SDK registers itself as the runtime's LLM inference
-    /// provider during [`Client::start`], so the runtime routes its
-    /// model-layer HTTP and WebSocket traffic — for both CAPI and BYOK
-    /// sessions — through the configured
-    /// [`LlmInferenceProvider`](crate::llm_inference::LlmInferenceProvider)
+    /// When set, the SDK registers itself as the runtime's request handler
+    /// during [`Client::start`], so the runtime routes its model-layer HTTP and
+    /// WebSocket traffic — for both CAPI and BYOK sessions — through the
+    /// configured
+    /// [`CopilotRequestHandler`](crate::copilot_request_handler::CopilotRequestHandler)
     /// instead of issuing the calls itself.
-    pub llm_inference: Option<crate::llm_inference::LlmInferenceConfig>,
+    pub request_handler: Option<Arc<dyn crate::copilot_request_handler::CopilotRequestHandler>>,
     /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers (`traceparent` / `tracestate`) on outbound `session.create`,
     /// `session.resume`, and `session.send` requests.
@@ -329,7 +326,10 @@ impl std::fmt::Debug for ClientOptions {
                 &self.on_list_models.as_ref().map(|_| "<set>"),
             )
             .field("session_fs", &self.session_fs)
-            .field("llm_inference", &self.llm_inference)
+            .field(
+                "request_handler",
+                &self.request_handler.as_ref().map(|_| "<set>"),
+            )
             .field(
                 "on_get_trace_context",
                 &self.on_get_trace_context.as_ref().map(|_| "<set>"),
@@ -577,7 +577,7 @@ impl Default for ClientOptions {
             session_idle_timeout_seconds: None,
             on_list_models: None,
             session_fs: None,
-            llm_inference: None,
+            request_handler: None,
             on_get_trace_context: None,
             telemetry: None,
             base_directory: None,
@@ -710,11 +710,15 @@ impl ClientOptions {
         self
     }
 
-    /// Register a connection-level LLM inference callback. The runtime will
-    /// route its model-layer HTTP and WebSocket traffic through the provider
-    /// configured here instead of issuing the calls itself.
-    pub fn with_llm_inference(mut self, config: crate::llm_inference::LlmInferenceConfig) -> Self {
-        self.llm_inference = Some(config);
+    /// Register a connection-level Copilot request handler. The runtime will
+    /// route its model-layer HTTP and WebSocket traffic through the handler
+    /// configured here instead of issuing the calls itself. The handler is
+    /// wrapped in `Arc` internally.
+    pub fn with_request_handler<H>(mut self, handler: H) -> Self
+    where
+        H: crate::copilot_request_handler::CopilotRequestHandler,
+    {
+        self.request_handler = Some(Arc::new(handler));
         self
     }
 
@@ -841,8 +845,8 @@ struct ClientInner {
     session_fs_configured: bool,
     session_fs_sqlite_declared: bool,
     /// Inbound `llmInference.*` dispatcher, installed when
-    /// [`ClientOptions::llm_inference`] is set.
-    llm_inference: OnceLock<Arc<llm_inference_dispatch::LlmInferenceDispatcher>>,
+    /// [`ClientOptions::request_handler`] is set.
+    llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
     on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
     /// Token sent in the `connect` handshake. Auto-generated when the
     /// SDK spawns its own CLI in TCP mode and no explicit token is set;
@@ -938,7 +942,7 @@ impl Client {
             } => connection_token.clone(),
         };
         let session_fs_config = options.session_fs.clone();
-        let llm_inference_config = options.llm_inference.clone();
+        let request_handler = options.request_handler.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
@@ -1074,15 +1078,15 @@ impl Client {
                 "Client::start session filesystem setup complete"
             );
         }
-        if let Some(cfg) = llm_inference_config {
+        if let Some(handler) = request_handler {
             let llm_inference_start = Instant::now();
-            let dispatcher = Arc::new(llm_inference_dispatch::LlmInferenceDispatcher::new(
-                cfg.provider,
+            let dispatcher = Arc::new(copilot_request_handler::CopilotRequestDispatcher::new(
+                handler,
             ));
             dispatcher.set_client(Arc::downgrade(&client.inner));
             let _ = client.inner.llm_inference.set(dispatcher.clone());
             // Start the router early (before any session is registered) so the
-            // startup model catalog request is dispatched to the provider.
+            // startup model catalog request is dispatched to the handler.
             client.inner.router.ensure_started(
                 &client.inner.notification_tx,
                 &client.inner.request_rx,
@@ -1091,7 +1095,7 @@ impl Client {
             client.rpc().llm_inference().set_provider().await?;
             debug!(
                 elapsed_ms = llm_inference_start.elapsed().as_millis(),
-                "Client::start LLM inference provider registration complete"
+                "Client::start Copilot request handler registration complete"
             );
         }
         debug!(

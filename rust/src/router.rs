@@ -85,7 +85,7 @@ impl SessionRouter {
         &self,
         notification_tx: &broadcast::Sender<JsonRpcNotification>,
         request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
-        llm_inference: Option<Arc<crate::llm_inference_dispatch::LlmInferenceDispatcher>>,
+        llm_inference: Option<Arc<crate::copilot_request_handler::CopilotRequestDispatcher>>,
     ) {
         let mut started = self.started.lock();
         if *started {

@@ -53,7 +53,7 @@ regex = "1"
 getrandom = "0.2"
 uuid = { version = "1", default-features = false, features = ["v4"] }
 # LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
-# `LlmRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
+# `CopilotRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
 base64 = "0.22"
 bytes = "1"
 http = "1"

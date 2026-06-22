@@ -21,6 +21,8 @@ mod client_options;
 mod commands;
 #[path = "e2e/compaction.rs"]
 mod compaction;
+#[path = "e2e/copilot_request_handler.rs"]
+mod copilot_request_handler;
 #[path = "e2e/elicitation.rs"]
 mod elicitation;
 #[path = "e2e/error_resilience.rs"]
@@ -31,8 +33,6 @@ mod event_fidelity;
 mod hooks;
 #[path = "e2e/hooks_extended.rs"]
 mod hooks_extended;
-#[path = "e2e/llm_inference.rs"]
-mod llm_inference;
 #[path = "e2e/mcp_and_agents.rs"]
 mod mcp_and_agents;
 #[path = "e2e/mode_empty.rs"]
