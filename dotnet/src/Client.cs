@@ -437,7 +437,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
-        var runtimeShutdownCompleted = false;
         if (gracefulRuntimeShutdown && ctx.CliProcess is not null)
         {
             var runtimeShutdownTimestamp = Stopwatch.GetTimestamp();
@@ -445,7 +444,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 using var cancellation = new CancellationTokenSource(s_runtimeShutdownTimeout);
                 await ctx.Server.Runtime.ShutdownAsync(cancellation.Token);
-                runtimeShutdownCompleted = true;
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StopAsync runtime shutdown complete. Elapsed={Elapsed}",
                     runtimeShutdownTimestamp);
@@ -477,11 +475,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (ctx.CliProcess is { } childProcess)
         {
-            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger, runtimeShutdownCompleted);
+            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger);
         }
     }
 
-    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger, bool waitForGracefulExit = false)
+    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger)
     {
         stderrPump?.Cancel();
 
@@ -489,30 +487,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             if (!childProcess.HasExited)
             {
-                if (waitForGracefulExit)
-                {
-                    var shutdownWaitTimestamp = Stopwatch.GetTimestamp();
-                    try
-                    {
-                        await childProcess.WaitForExitAsync().WaitAsync(s_runtimeShutdownTimeout);
-                    }
-                    catch (TimeoutException ex)
-                    {
-                        if (logger is not null)
-                        {
-                            LoggingHelpers.LogTiming(logger, LogLevel.Debug, ex,
-                                "Timed out waiting for runtime process to exit after graceful shutdown. Elapsed={Elapsed}, Timeout={Timeout}",
-                                shutdownWaitTimestamp,
-                                s_runtimeShutdownTimeout);
-                        }
-                    }
-                }
-
-                if (childProcess.HasExited)
-                {
-                    return;
-                }
-
+                // The runtime completes all cleanup before responding to
+                // runtime.shutdown and then leaves termination to us; it
+                // deliberately keeps its JSON-RPC server alive to send the
+                // response and never self-exits. Waiting for a self-exit that
+                // will never come just wastes time, so terminate the child
+                // immediately and only wait to reap it.
                 childProcess.Kill(entireProcessTree: true);
                 // Kill is asynchronous; wait for the root CLI process to exit so cleanup callers
                 // do not observe StopAsync/DisposeAsync completion while it is still tearing down.

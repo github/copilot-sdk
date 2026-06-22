@@ -1973,14 +1973,12 @@ impl Client {
         }
 
         let should_shutdown_runtime = self.inner.child.lock().is_some();
-        let mut runtime_shutdown_completed = false;
         if should_shutdown_runtime {
             let runtime_shutdown_start = Instant::now();
             match tokio::time::timeout(RUNTIME_SHUTDOWN_TIMEOUT, self.rpc().runtime().shutdown())
                 .await
             {
                 Ok(Ok(())) => {
-                    runtime_shutdown_completed = true;
                     debug!(
                         elapsed_ms = runtime_shutdown_start.elapsed().as_millis(),
                         "Client::stop runtime shutdown complete"
@@ -2017,17 +2015,13 @@ impl Client {
             match child.try_wait() {
                 Ok(Some(_status)) => {}
                 Ok(None) => {
-                    if runtime_shutdown_completed {
-                        match tokio::time::timeout(RUNTIME_SHUTDOWN_TIMEOUT, child.wait()).await {
-                            Ok(Ok(_status)) => {}
-                            Ok(Err(e)) => errors.push(e.into()),
-                            Err(_) => {
-                                if let Err(e) = child.kill().await {
-                                    errors.push(e.into());
-                                }
-                            }
-                        }
-                    } else if let Err(e) = child.kill().await {
+                    // The runtime completes all cleanup before responding to
+                    // runtime.shutdown and then leaves termination to us; it
+                    // deliberately keeps its JSON-RPC server alive to send the
+                    // response and never self-exits. Waiting for a self-exit
+                    // that will never come just wastes time, so terminate the
+                    // child immediately.
+                    if let Err(e) = child.kill().await {
                         errors.push(e.into());
                     }
                 }

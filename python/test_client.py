@@ -51,7 +51,12 @@ class TestClientShutdown:
         await client.stop()
 
         assert calls == ["runtime.shutdown"]
-        process.terminate.assert_not_called()
+        # The runtime never self-exits after runtime.shutdown (it keeps its
+        # JSON-RPC server alive to send the response and leaves termination to
+        # the caller), so stop() terminates the owned process. The mocked
+        # process exits on terminate() (wait returns immediately), so we never
+        # escalate to kill().
+        process.terminate.assert_called_once()
         process.kill.assert_not_called()
 
     @pytest.mark.asyncio

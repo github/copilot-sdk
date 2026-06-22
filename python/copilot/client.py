@@ -1458,12 +1458,10 @@ class CopilotClient:
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
 
-        runtime_shutdown_completed = False
         if self._rpc is not None and self._cli_process is not None and not self._is_external_server:
             runtime_shutdown_start = time.perf_counter()
             try:
                 await self._rpc.runtime.shutdown(timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS)
-                runtime_shutdown_completed = True
                 log_timing(
                     logger,
                     logging.DEBUG,
@@ -1498,62 +1496,40 @@ class CopilotClient:
                 logger.debug("Error while closing Copilot runtime transport", exc_info=True)
             self._process = None
 
-        # Terminate CLI process (only if we spawned it)
+        # Terminate CLI process (only if we spawned it).
+        #
+        # Per the runtime.shutdown contract, the runtime completes all cleanup
+        # *before* responding and then leaves termination to the caller ("callers
+        # may then terminate the owned runtime process"). It deliberately keeps
+        # its JSON-RPC server alive to send the response and does not self-exit,
+        # so there is no point waiting a grace window for a self-exit that will
+        # never come. Once shutdown has completed (or failed) we terminate the
+        # child immediately and only wait to reap it.
         if self._cli_process and not self._is_external_server:
             poll = getattr(self._cli_process, "poll", None)
             is_running = poll is None or poll() is None
             if is_running:
-                if runtime_shutdown_completed:
-                    try:
-                        await asyncio.to_thread(
-                            self._cli_process.wait,
-                            timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS,
-                        )
-                    except subprocess.TimeoutExpired:
-                        self._cli_process.terminate()
-                        try:
-                            await asyncio.to_thread(
-                                self._cli_process.wait,
-                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                            )
-                        except subprocess.TimeoutExpired:
-                            self._cli_process.kill()
-                            try:
-                                await asyncio.to_thread(
-                                    self._cli_process.wait,
-                                    timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                                )
-                            except subprocess.TimeoutExpired as e:
-                                errors.append(
-                                    StopError(
-                                        message=(
-                                            "Timed out waiting for CLI process to exit after kill: "
-                                            f"{e}"
-                                        )
-                                    )
-                                )
-                else:
-                    self._cli_process.terminate()
+                self._cli_process.terminate()
+                try:
+                    await asyncio.to_thread(
+                        self._cli_process.wait,
+                        timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                    )
+                except subprocess.TimeoutExpired:
+                    self._cli_process.kill()
                     try:
                         await asyncio.to_thread(
                             self._cli_process.wait,
                             timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
                         )
-                    except subprocess.TimeoutExpired:
-                        self._cli_process.kill()
-                        try:
-                            await asyncio.to_thread(
-                                self._cli_process.wait,
-                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                            )
-                        except subprocess.TimeoutExpired as e:
-                            errors.append(
-                                StopError(
-                                    message=(
-                                        f"Timed out waiting for CLI process to exit after kill: {e}"
-                                    )
+                    except subprocess.TimeoutExpired as e:
+                        errors.append(
+                            StopError(
+                                message=(
+                                    f"Timed out waiting for CLI process to exit after kill: {e}"
                                 )
                             )
+                        )
             if self._process is self._cli_process:
                 self._process = None
             self._cli_process = None

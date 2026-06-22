@@ -790,7 +790,6 @@ export class CopilotClient {
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
         // close our connection to them.
-        let runtimeShutdownCompleted = false;
         if (this.connection && this.cliProcess && !this.isExternalServer) {
             const runtimeShutdownStart = Date.now();
             const shutdownPromise = this.rpc.runtime.shutdown();
@@ -801,7 +800,6 @@ export class CopilotClient {
                     RUNTIME_SHUTDOWN_TIMEOUT_MS,
                     `runtime.shutdown timed out after ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
                 );
-                runtimeShutdownCompleted = true;
                 this.logDebugTiming(
                     "CopilotClient.stop runtime shutdown complete",
                     runtimeShutdownStart
@@ -858,25 +856,24 @@ export class CopilotClient {
             }
         }
 
-        // Give runtime.shutdown a bounded window to let the child exit on its
-        // own before falling back to SIGTERM.
+        // The runtime completes all cleanup before responding to
+        // runtime.shutdown and then leaves termination to us; it deliberately
+        // keeps its JSON-RPC server alive to send the response and never
+        // self-exits. Waiting a grace window for a self-exit that will never
+        // come just wastes time, so terminate the child immediately and only
+        // wait to reap it.
         if (this.cliProcess && !this.isExternalServer) {
             const child = this.cliProcess;
             this.cliProcess = null;
             try {
                 if (child.exitCode == null && child.signalCode == null) {
-                    const exitedGracefully = runtimeShutdownCompleted
-                        ? await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS)
-                        : false;
-                    if (!exitedGracefully) {
-                        child.kill();
-                        if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
-                            errors.push(
-                                new Error(
-                                    `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
-                                )
-                            );
-                        }
+                    child.kill();
+                    if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
+                        errors.push(
+                            new Error(
+                                `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
+                            )
+                        );
                     }
                 }
             } catch (error) {
