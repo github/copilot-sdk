@@ -5,6 +5,7 @@
 package e2e
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"sync"
@@ -47,7 +48,7 @@ func (tr *throwingTransport) RoundTrip(req *http.Request) (*http.Response, error
 		tr.mu.Lock()
 		tr.callsBeforeError++
 		tr.mu.Unlock()
-		return nil, &http.ProtocolError{ErrorString: "synthetic-callback-transport-failure"}
+		return nil, errors.New("synthetic-callback-transport-failure")
 	}
 	return buildNonInferenceResponse(req.URL.String()), nil
 }
