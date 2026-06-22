@@ -326,6 +326,20 @@ export function createCopilotRequestAdapter(
 ): LlmInferenceHandler {
     const pending = new Map<string, CopilotRequestExchange>();
 
+    function getOrCreate(requestId: string): CopilotRequestExchange {
+        // The runtime dispatches httpRequestStart and httpRequestChunk frames
+        // independently. get-or-create keeps the adapter correct regardless of
+        // arrival order: a body chunk (including the terminal end frame) that
+        // races ahead of its start frame is buffered into the same exchange
+        // rather than dropped, which would otherwise hang the body drain.
+        let exchange = pending.get(requestId);
+        if (!exchange) {
+            exchange = new CopilotRequestExchange(requestId, getServerRpc);
+            pending.set(requestId, exchange);
+        }
+        return exchange;
+    }
+
     async function run(exchange: CopilotRequestExchange): Promise<void> {
         try {
             await handler[kHandle](exchange);
@@ -354,18 +368,19 @@ export function createCopilotRequestAdapter(
         async httpRequestStart(
             params: LlmInferenceHttpRequestStartRequest
         ): Promise<LlmInferenceHttpRequestStartResult> {
-            const exchange = new CopilotRequestExchange(params, getServerRpc);
-            pending.set(params.requestId, exchange);
+            // Adopt any exchange a racing chunk already created — with its
+            // buffered body — rather than dropping those frames.
+            const exchange = getOrCreate(params.requestId);
+            exchange.setContext(params);
             void run(exchange);
             return {};
         },
         async httpRequestChunk(
             params: LlmInferenceHttpRequestChunkRequest
         ): Promise<LlmInferenceHttpRequestChunkResult> {
-            const exchange = pending.get(params.requestId);
-            if (exchange) {
-                routeChunk(exchange, params);
-            }
+            // May arrive before the matching start frame; get-or-create so the
+            // body is buffered, never lost.
+            routeChunk(getOrCreate(params.requestId), params);
             return {};
         },
     };
@@ -428,11 +443,11 @@ interface BodyQueueItem {
  */
 class CopilotRequestExchange {
     readonly requestId: string;
-    readonly sessionId?: string;
-    readonly method: string;
-    readonly url: string;
-    readonly headers: LlmInferenceHeaders;
-    readonly transport: "http" | "websocket";
+    sessionId?: string;
+    method = "GET";
+    url = "";
+    headers: LlmInferenceHeaders = {};
+    transport: "http" | "websocket" = "http";
 
     readonly #getServerRpc: () => ServerRpc | undefined;
     readonly #abort = new AbortController();
@@ -443,17 +458,18 @@ class CopilotRequestExchange {
     #finished = false;
     #cancelled = false;
 
-    constructor(
-        params: LlmInferenceHttpRequestStartRequest,
-        getServerRpc: () => ServerRpc | undefined
-    ) {
-        this.requestId = params.requestId;
+    constructor(requestId: string, getServerRpc: () => ServerRpc | undefined) {
+        this.requestId = requestId;
+        this.#getServerRpc = getServerRpc;
+    }
+
+    /** Fill in the request context once the matching start frame arrives. */
+    setContext(params: LlmInferenceHttpRequestStartRequest): void {
         this.sessionId = params.sessionId;
         this.method = params.method;
         this.url = params.url;
         this.headers = params.headers;
         this.transport = params.transport ?? "http";
-        this.#getServerRpc = getServerRpc;
     }
 
     get signal(): AbortSignal {
