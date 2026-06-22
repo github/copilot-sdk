@@ -20,11 +20,15 @@ import (
 )
 
 const (
-	llmHandlerHTTPText = "OK from synthetic HTTP upstream."
-	llmHandlerWSText   = "OK from synthetic WS upstream."
+	handlerHTTPText = "OK from synthetic HTTP upstream."
+	handlerWSText   = "OK from synthetic WS upstream."
 )
 
-type llmHandlerCounters struct {
+// wsSupportedEndpoints advertises both HTTP /responses and WS /responses so
+// the runtime picks the WebSocket path when the ExP flag is set.
+var wsSupportedEndpoints = []string{"/responses", "ws:/responses"}
+
+type handlerCounters struct {
 	httpRequests       atomic.Int32
 	httpResponses      atomic.Int32
 	wsRequestMessages  atomic.Int32
@@ -32,18 +36,14 @@ type llmHandlerCounters struct {
 	upstreamWSRequests atomic.Int32
 }
 
-func llmSSEBody(text, respID string) string {
-	var sb strings.Builder
-	for _, event := range llmResponsesEvents(text, respID) {
-		sb.WriteString(llmSSE(event["type"].(string), event))
-	}
-	return sb.String()
+func sseBody(text, respID string) string {
+	return buildResponsesSSEBody(text, respID)
 }
 
-// startFakeUpstream brings up a real HTTP upstream (catalog / policy /
-// responses-SSE) and a real WebSocket upstream that echoes the ordered
-// /responses events per inbound message.
-func startFakeUpstream(t *testing.T, counters *llmHandlerCounters) (httpURL, wsURL string) {
+// startFakeUpstreams brings up a real HTTP upstream (catalog / policy /
+// responses-SSE) and a real WebSocket upstream that echoes /responses events
+// per inbound message.
+func startFakeUpstreams(t *testing.T, counters *handlerCounters) (httpURL, wsURL string) {
 	t.Helper()
 
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +52,7 @@ func startFakeUpstream(t *testing.T, counters *llmHandlerCounters) (httpURL, wsU
 		switch {
 		case strings.HasSuffix(path, "/models"):
 			w.Header().Set("content-type", "application/json")
-			_, _ = w.Write([]byte(llmModelCatalog(llmWSSupportedEndpoints)))
+			_, _ = w.Write([]byte(modelCatalogJSON(wsSupportedEndpoints)))
 		case strings.HasSuffix(path, "/models/session"):
 			w.Header().Set("content-type", "application/json")
 			_, _ = w.Write([]byte("{}"))
@@ -61,7 +61,7 @@ func startFakeUpstream(t *testing.T, counters *llmHandlerCounters) (httpURL, wsU
 			_, _ = w.Write([]byte(`{"state":"enabled"}`))
 		case strings.HasSuffix(path, "/responses"):
 			w.Header().Set("content-type", "text/event-stream")
-			_, _ = w.Write([]byte(llmSSEBody(llmHandlerHTTPText, "resp_stub_http")))
+			_, _ = w.Write([]byte(sseBody(handlerHTTPText, "resp_stub_http")))
 		default:
 			w.Header().Set("content-type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
@@ -84,7 +84,7 @@ func startFakeUpstream(t *testing.T, counters *llmHandlerCounters) (httpURL, wsU
 				return
 			}
 			counters.upstreamWSRequests.Add(1)
-			for _, event := range llmResponsesEvents(llmHandlerWSText, "resp_stub_ws") {
+			for _, event := range responsesEvents(handlerWSText, "resp_stub_ws") {
 				raw, _ := json.Marshal(event)
 				if err := c.Write(bg, websocket.MessageText, raw); err != nil {
 					return
@@ -97,13 +97,13 @@ func startFakeUpstream(t *testing.T, counters *llmHandlerCounters) (httpURL, wsU
 	return httpSrv.URL, "ws://" + strings.TrimPrefix(wsSrv.URL, "http://")
 }
 
-type llmRewritingRoundTripper struct {
+type rewritingRoundTripper struct {
 	base     *url.URL
-	counters *llmHandlerCounters
+	counters *handlerCounters
 	inner    http.RoundTripper
 }
 
-func (rt *llmRewritingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rt *rewritingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	rt.counters.httpRequests.Add(1)
 	req.URL.Scheme = rt.base.Scheme
 	req.URL.Host = rt.base.Host
@@ -118,10 +118,10 @@ func (rt *llmRewritingRoundTripper) RoundTrip(req *http.Request) (*http.Response
 	return resp, nil
 }
 
-func TestLlmInferenceHandler(t *testing.T) {
+func TestCopilotRequestHandler(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
-	counters := &llmHandlerCounters{}
-	httpURL, wsURL := startFakeUpstream(t, counters)
+	counters := &handlerCounters{}
+	httpURL, wsURL := startFakeUpstreams(t, counters)
 
 	httpBase, err := url.Parse(httpURL)
 	if err != nil {
@@ -132,20 +132,20 @@ func TestLlmInferenceHandler(t *testing.T) {
 		t.Fatalf("Failed to parse upstream ws URL: %v", err)
 	}
 
-	handler := &copilot.LlmRequestHandler{
-		Transport: &llmRewritingRoundTripper{
+	handler := &copilot.CopilotRequestHandler{
+		Transport: &rewritingRoundTripper{
 			base:     httpBase,
 			counters: counters,
 			inner:    http.DefaultTransport.(*http.Transport).Clone(),
 		},
-		OpenWebSocket: func(rctx *copilot.LlmRequestContext) (copilot.CopilotWebSocketHandler, error) {
+		OpenWebSocket: func(rctx *copilot.CopilotRequestContext) (copilot.CopilotWebSocketHandler, error) {
 			parsed, perr := url.Parse(rctx.URL)
 			if perr != nil {
 				return nil, perr
 			}
 			parsed.Scheme = wsBase.Scheme
 			parsed.Host = wsBase.Host
-			fwd := copilot.NewForwardingWebSocketHandler(parsed.String(), rctx.Headers)
+			fwd := copilot.NewForwardingCopilotWebSocketHandler(parsed.String(), rctx.Headers)
 			fwd.OnSendRequestMessage = func(data []byte) []byte {
 				counters.wsRequestMessages.Add(1)
 				return data
@@ -158,7 +158,7 @@ func TestLlmInferenceHandler(t *testing.T) {
 		},
 	}
 
-	client := newLlmClient(ctx, handler, "COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES=true")
+	client := newCopilotRequestClient(ctx, handler, "COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES=true")
 	t.Cleanup(func() { client.ForceStop() })
 
 	if err := client.Start(t.Context()); err != nil {

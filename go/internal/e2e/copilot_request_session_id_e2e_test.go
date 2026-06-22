@@ -5,12 +5,14 @@
 package e2e
 
 import (
+	"io"
 	"strings"
 	"sync"
 	"testing"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"net/http"
 )
 
 type interceptedRequest struct {
@@ -18,37 +20,53 @@ type interceptedRequest struct {
 	sessionID string
 }
 
-type llmSessionIDHandler struct {
+// recordingTransport intercepts every model-layer request, records its URL and
+// session ID (extracted from the CopilotRequestContext attached to the
+// http.Request), and synthesizes a well-formed response so turns complete.
+type recordingTransport struct {
 	mu      sync.Mutex
 	records []interceptedRequest
 }
 
-func (h *llmSessionIDHandler) OnLlmRequest(req *copilot.LlmInferenceRequest) error {
-	h.mu.Lock()
-	h.records = append(h.records, interceptedRequest{url: req.URL, sessionID: req.SessionID})
-	h.mu.Unlock()
-	if llmIsInferenceURL(req.URL) {
-		return llmHandleInference(req, llmSyntheticText)
+func (rt *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rctx := copilot.RequestContextFrom(req)
+	sessionID := ""
+	if rctx != nil {
+		sessionID = rctx.SessionID
 	}
-	return llmHandleNonInferenceModelTraffic(req, nil)
+	rt.mu.Lock()
+	rt.records = append(rt.records, interceptedRequest{url: req.URL.String(), sessionID: sessionID})
+	rt.mu.Unlock()
+
+	bodyBytes := []byte(nil)
+	if req.Body != nil {
+		bodyBytes, _ = io.ReadAll(req.Body)
+	}
+	bodyText := string(bodyBytes)
+
+	if isInferenceURL(req.URL.String()) {
+		return buildInferenceResponse(req.URL.String(), bodyText), nil
+	}
+	return buildNonInferenceResponse(req.URL.String()), nil
 }
 
-func (h *llmSessionIDHandler) inferenceRecords() []interceptedRequest {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (rt *recordingTransport) inferenceRecords() []interceptedRequest {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
 	var out []interceptedRequest
-	for _, r := range h.records {
-		if llmIsInferenceURL(r.url) {
+	for _, r := range rt.records {
+		if isInferenceURL(r.url) {
 			out = append(out, r)
 		}
 	}
 	return out
 }
 
-func TestLlmInferenceSessionID(t *testing.T) {
+func TestCopilotRequestSessionID(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
-	handler := &llmSessionIDHandler{}
-	client := newLlmClient(ctx, handler)
+	transport := &recordingTransport{}
+	handler := &copilot.CopilotRequestHandler{Transport: transport}
+	client := newCopilotRequestClient(ctx, handler)
 	t.Cleanup(func() { client.ForceStop() })
 
 	if err := client.Start(t.Context()); err != nil {
@@ -72,7 +90,7 @@ func TestLlmInferenceSessionID(t *testing.T) {
 		}
 		_ = session.Disconnect()
 
-		inference := handler.inferenceRecords()
+		inference := transport.inferenceRecords()
 		if len(inference) == 0 {
 			t.Fatal("Expected at least one intercepted inference request")
 		}
@@ -89,7 +107,7 @@ func TestLlmInferenceSessionID(t *testing.T) {
 	})
 
 	t.Run("threads session id into a BYOK session", func(t *testing.T) {
-		before := len(handler.inferenceRecords())
+		before := len(transport.inferenceRecords())
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Model:               "claude-sonnet-4.5",
@@ -113,7 +131,7 @@ func TestLlmInferenceSessionID(t *testing.T) {
 		}
 		_ = session.Disconnect()
 
-		inference := handler.inferenceRecords()
+		inference := transport.inferenceRecords()
 		if len(inference) <= before {
 			t.Fatal("Expected at least one intercepted BYOK inference request")
 		}

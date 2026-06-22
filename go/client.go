@@ -371,8 +371,8 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 	}
 
-	// If an LLM inference callback was configured, register as the provider.
-	if c.options.LlmInference != nil && c.options.LlmInference.Handler != nil {
+	// If a request handler was configured, register as the inference provider.
+	if c.options.RequestHandler != nil {
 		if _, err := c.RPC.LlmInference.SetProvider(ctx); err != nil {
 			killErr := c.killProcess()
 			c.state = stateError
@@ -2012,8 +2012,8 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
-	if c.options.LlmInference != nil && c.options.LlmInference.Handler != nil {
-		adapter := newLlmInferenceAdapter(c.options.LlmInference.Handler, func() *rpc.ServerLlmInferenceAPI {
+	if c.options.RequestHandler != nil {
+		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
 			if c.RPC == nil {
 				return nil
 			}

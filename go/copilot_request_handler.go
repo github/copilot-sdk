@@ -1,0 +1,804 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package copilot
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/coder/websocket"
+	"github.com/github/copilot-sdk/go/rpc"
+)
+
+// Hop-by-hop and length headers the transport recomputes; forwarding them
+// verbatim corrupts the request.
+var forbiddenRequestHeaders = map[string]struct{}{
+	"host":              {},
+	"connection":        {},
+	"content-length":    {},
+	"transfer-encoding": {},
+	"keep-alive":        {},
+	"upgrade":           {},
+	"proxy-connection":  {},
+	"te":                {},
+	"trailer":           {},
+}
+
+func isForbiddenRequestHeader(name string) bool {
+	lower := strings.ToLower(name)
+	if _, ok := forbiddenRequestHeaders[lower]; ok {
+		return true
+	}
+	return strings.HasPrefix(lower, "sec-websocket-")
+}
+
+var sharedHTTPTransport = func() http.RoundTripper {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.DisableCompression = true
+	return t
+}()
+
+// CopilotRequestContext is the per-request context handed to every
+// [CopilotRequestHandler] seam.
+type CopilotRequestContext struct {
+	RequestID string
+	SessionID string
+	// Transport is "http" (covering plain HTTP and SSE) or "websocket".
+	Transport string
+	Method    string
+	URL       string
+	Headers   http.Header
+	// Body yields request body frames as they arrive from the runtime. The
+	// channel is closed when the body ends or the request is cancelled.
+	Body <-chan []byte
+	// Context is cancelled when the runtime cancels this in-flight request.
+	Context context.Context
+}
+
+// CopilotWebSocketCloseStatus is the terminal status for a callback-owned
+// WebSocket connection.
+type CopilotWebSocketCloseStatus struct {
+	Description string
+	Code        string
+	Err         error
+}
+
+// CopilotRequestHandler is the idiomatic handler for intercepting or replacing
+// LLM inference requests. HTTP requests are forwarded through Transport (an
+// [http.RoundTripper]); supply a custom RoundTripper to mutate the request,
+// post-process the response, or replace the call entirely. WebSocket requests
+// are serviced by OpenWebSocket; supply one to return a custom handler.
+//
+// The default behaviour (both fields nil) transparently forwards HTTP through a
+// shared transport and opens a forwarding WebSocket connection to the runtime's
+// original URL.
+type CopilotRequestHandler struct {
+	// Transport forwards HTTP requests. When nil a shared default transport is
+	// used. RoundTrip is called directly, so redirects are not followed.
+	Transport http.RoundTripper
+	// OpenWebSocket returns a per-connection WebSocket handler. When nil a
+	// transparent [ForwardingCopilotWebSocketHandler] to the request URL is opened.
+	OpenWebSocket func(ctx *CopilotRequestContext) (CopilotWebSocketHandler, error)
+}
+
+// WebSocketResponseWriter forwards upstream→runtime WebSocket messages back
+// into the runtime response. A [CopilotWebSocketHandler] receives one in
+// [CopilotWebSocketHandler.Open].
+type WebSocketResponseWriter interface {
+	// SendText forwards an upstream text message to the runtime.
+	SendText(data []byte) error
+	// SendBinary forwards an upstream binary message to the runtime.
+	SendBinary(data []byte) error
+}
+
+// CopilotWebSocketHandler is a per-connection WebSocket handler returned by
+// [CopilotRequestHandler.OpenWebSocket]. The default implementation is
+// [ForwardingCopilotWebSocketHandler]; a full transport replacement implements
+// this interface directly.
+type CopilotWebSocketHandler interface {
+	// Open establishes the connection and starts forwarding upstream→runtime
+	// messages into resp. It must not block. ctx is cancelled on teardown.
+	Open(ctx context.Context, resp WebSocketResponseWriter) error
+	// SendRequestMessage forwards one runtime→upstream message.
+	SendRequestMessage(ctx context.Context, data []byte) error
+	// Done is closed when the upstream connection completes (closed or errored).
+	Done() <-chan struct{}
+	// Err returns the terminal error after Done is closed, or nil on clean close.
+	Err() error
+	// Close tears down the connection.
+	Close() error
+}
+
+// copilotContextKey is used to attach [CopilotRequestContext] to an
+// [http.Request] so custom [http.RoundTripper] implementations can access
+// metadata (e.g. SessionID) without additional parameters.
+type copilotContextKey struct{}
+
+// RequestContextFrom returns the [CopilotRequestContext] attached to an
+// http.Request by the adapter, or nil if not present. Call this from a custom
+// [http.RoundTripper] to access metadata such as SessionID.
+func RequestContextFrom(r *http.Request) *CopilotRequestContext {
+	v, _ := r.Context().Value(copilotContextKey{}).(*CopilotRequestContext)
+	return v
+}
+
+func (h *CopilotRequestHandler) handle(rctx *CopilotRequestContext, sink *responseSink) error {
+	if rctx.Transport == "websocket" {
+		return h.handleWebSocket(rctx, sink)
+	}
+	return h.handleHTTP(rctx, sink)
+}
+
+func (h *CopilotRequestHandler) roundTripper() http.RoundTripper {
+	if h.Transport != nil {
+		return h.Transport
+	}
+	return sharedHTTPTransport
+}
+
+func (h *CopilotRequestHandler) handleHTTP(rctx *CopilotRequestContext, sink *responseSink) error {
+	httpReq, err := buildHTTPRequest(rctx)
+	if err != nil {
+		return err
+	}
+	resp, err := h.roundTripper().RoundTrip(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return streamResponseToSink(resp, sink)
+}
+
+func buildHTTPRequest(rctx *CopilotRequestContext) (*http.Request, error) {
+	body := drainBody(rctx.Body)
+	method := strings.ToUpper(rctx.Method)
+	var bodyReader io.Reader
+	if len(body) > 0 && method != http.MethodGet && method != http.MethodHead {
+		bodyReader = bytes.NewReader(body)
+	}
+	httpReq, err := http.NewRequestWithContext(rctx.Context, method, rctx.URL, bodyReader)
+	if err != nil {
+		return nil, err
+	}
+	// Attach rctx so custom RoundTripper implementations can read metadata
+	// (e.g. SessionID) via [RequestContextFrom].
+	httpReq = httpReq.WithContext(context.WithValue(httpReq.Context(), copilotContextKey{}, rctx))
+	for name, values := range rctx.Headers {
+		if isForbiddenRequestHeader(name) {
+			continue
+		}
+		for _, v := range values {
+			httpReq.Header.Add(name, v)
+		}
+	}
+	return httpReq, nil
+}
+
+func drainBody(ch <-chan []byte) []byte {
+	var buf bytes.Buffer
+	for frame := range ch {
+		buf.Write(frame)
+	}
+	return buf.Bytes()
+}
+
+func streamResponseToSink(resp *http.Response, sink *responseSink) error {
+	if err := sink.start(resp.StatusCode, statusText(resp), cloneHeader(resp.Header)); err != nil {
+		return err
+	}
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			frame := make([]byte, n)
+			copy(frame, buf[:n])
+			if err := sink.writeText(frame); err != nil {
+				return err
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return sink.sinkError(readErr.Error(), "")
+		}
+	}
+	return sink.end()
+}
+
+func statusText(resp *http.Response) string {
+	return strings.TrimSpace(strings.TrimPrefix(resp.Status, strconv.Itoa(resp.StatusCode)))
+}
+
+func cloneHeader(h http.Header) http.Header {
+	out := http.Header{}
+	for k, vs := range h {
+		out[k] = append([]string(nil), vs...)
+	}
+	return out
+}
+
+func (h *CopilotRequestHandler) handleWebSocket(rctx *CopilotRequestContext, sink *responseSink) error {
+	var handler CopilotWebSocketHandler
+	var err error
+	if h.OpenWebSocket != nil {
+		handler, err = h.OpenWebSocket(rctx)
+	} else {
+		handler = NewForwardingCopilotWebSocketHandler(rctx.URL, rctx.Headers)
+	}
+	if err != nil {
+		return err
+	}
+
+	writer := &wsResponseWriter{sink: sink}
+	// Emit the 101 upgrade head eagerly — the runtime gates connect_via_callback
+	// on receiving httpResponseStart/101 before sending request chunks; a lazy
+	// first-write start deadlocks until timeout.
+	if err := writer.start(); err != nil {
+		return err
+	}
+	if err := handler.Open(rctx.Context, writer); err != nil {
+		return writer.fail(err.Error(), "")
+	}
+	defer func() { _ = handler.Close() }()
+
+	clientDone := make(chan struct{})
+	go func() {
+		defer close(clientDone)
+		for {
+			select {
+			case frame, ok := <-rctx.Body:
+				if !ok {
+					return
+				}
+				if err := handler.SendRequestMessage(rctx.Context, frame); err != nil {
+					return
+				}
+			case <-rctx.Context.Done():
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-handler.Done():
+		if e := handler.Err(); e != nil {
+			return writer.fail(e.Error(), "")
+		}
+		return writer.end()
+	case <-clientDone:
+		_ = handler.Close()
+		<-handler.Done()
+		if e := handler.Err(); e != nil {
+			return writer.fail(e.Error(), "")
+		}
+		return writer.end()
+	case <-rctx.Context.Done():
+		return writer.fail("Request cancelled by runtime", "cancelled")
+	}
+}
+
+// wsResponseWriter serialises WebSocket response writes into the sink.
+type wsResponseWriter struct {
+	mu        sync.Mutex
+	sink      *responseSink
+	started   bool
+	completed bool
+}
+
+func (w *wsResponseWriter) start() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.started {
+		return nil
+	}
+	w.started = true
+	return w.sink.start(101, "", http.Header{})
+}
+
+func (w *wsResponseWriter) SendText(data []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.completed {
+		return nil
+	}
+	return w.sink.writeText(data)
+}
+
+func (w *wsResponseWriter) SendBinary(data []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.completed {
+		return nil
+	}
+	return w.sink.writeBinary(data)
+}
+
+func (w *wsResponseWriter) end() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.completed {
+		return nil
+	}
+	w.completed = true
+	return w.sink.end()
+}
+
+func (w *wsResponseWriter) fail(message string, code string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.completed {
+		return nil
+	}
+	w.completed = true
+	return w.sink.sinkError(message, code)
+}
+
+// ForwardingCopilotWebSocketHandler is the default [CopilotWebSocketHandler]:
+// it dials the real upstream and runs a receive loop forwarding upstream→runtime
+// messages. Set OnSendRequestMessage / OnSendResponseMessage to observe,
+// transform, or drop messages in either direction.
+type ForwardingCopilotWebSocketHandler struct {
+	URL     string
+	Headers http.Header
+	// OnSendRequestMessage observes or transforms each runtime→upstream frame.
+	// Return nil to drop the frame.
+	OnSendRequestMessage func(data []byte) []byte
+	// OnSendResponseMessage observes or transforms each upstream→runtime frame.
+	// Return nil to drop the frame.
+	OnSendResponseMessage func(data []byte) []byte
+
+	conn      *websocket.Conn
+	resp      WebSocketResponseWriter
+	done      chan struct{}
+	err       error
+	closeOnce sync.Once
+}
+
+// NewForwardingCopilotWebSocketHandler creates a forwarding handler targeting
+// url with the given handshake headers.
+func NewForwardingCopilotWebSocketHandler(url string, headers http.Header) *ForwardingCopilotWebSocketHandler {
+	return &ForwardingCopilotWebSocketHandler{URL: url, Headers: headers, done: make(chan struct{})}
+}
+
+func (f *ForwardingCopilotWebSocketHandler) Open(ctx context.Context, resp WebSocketResponseWriter) error {
+	f.resp = resp
+	if f.done == nil {
+		f.done = make(chan struct{})
+	}
+	opts := &websocket.DialOptions{HTTPHeader: f.dialHeaders()}
+	conn, _, err := websocket.Dial(ctx, f.URL, opts)
+	if err != nil {
+		return err
+	}
+	conn.SetReadLimit(-1)
+	f.conn = conn
+	go f.receiveLoop(ctx)
+	return nil
+}
+
+func (f *ForwardingCopilotWebSocketHandler) dialHeaders() http.Header {
+	out := http.Header{}
+	for name, values := range f.Headers {
+		if isForbiddenRequestHeader(name) {
+			continue
+		}
+		for _, v := range values {
+			out.Add(name, v)
+		}
+	}
+	return out
+}
+
+func (f *ForwardingCopilotWebSocketHandler) receiveLoop(ctx context.Context) {
+	defer close(f.done)
+	for {
+		typ, data, err := f.conn.Read(ctx)
+		if err != nil {
+			if websocket.CloseStatus(err) == websocket.StatusNormalClosure || websocket.CloseStatus(err) == websocket.StatusGoingAway {
+				f.err = nil
+			} else if ctx.Err() != nil {
+				f.err = nil
+			} else {
+				f.err = err
+			}
+			return
+		}
+		out := data
+		if f.OnSendResponseMessage != nil {
+			out = f.OnSendResponseMessage(data)
+			if out == nil {
+				continue
+			}
+		}
+		if typ == websocket.MessageBinary {
+			_ = f.resp.SendBinary(out)
+		} else {
+			_ = f.resp.SendText(out)
+		}
+	}
+}
+
+func (f *ForwardingCopilotWebSocketHandler) SendRequestMessage(ctx context.Context, data []byte) error {
+	out := data
+	if f.OnSendRequestMessage != nil {
+		out = f.OnSendRequestMessage(data)
+		if out == nil {
+			return nil
+		}
+	}
+	if f.conn == nil {
+		return nil
+	}
+	return f.conn.Write(ctx, websocket.MessageText, out)
+}
+
+func (f *ForwardingCopilotWebSocketHandler) Done() <-chan struct{} { return f.done }
+func (f *ForwardingCopilotWebSocketHandler) Err() error            { return f.err }
+
+func (f *ForwardingCopilotWebSocketHandler) Close() error {
+	f.closeOnce.Do(func() {
+		if f.conn != nil {
+			_ = f.conn.Close(websocket.StatusNormalClosure, "")
+		}
+	})
+	return nil
+}
+
+// --- Internal adapter ---
+
+// frameQueue is an unbounded FIFO of body frames, decoupling the RPC dispatch
+// goroutine (which only pushes) from the consumer goroutine (which pops).
+type frameQueue struct {
+	mu    sync.Mutex
+	cond  *sync.Cond
+	items [][]byte
+	done  bool
+}
+
+func newFrameQueue() *frameQueue {
+	q := &frameQueue{}
+	q.cond = sync.NewCond(&q.mu)
+	return q
+}
+
+func (q *frameQueue) push(b []byte) {
+	q.mu.Lock()
+	if !q.done {
+		q.items = append(q.items, b)
+	}
+	q.cond.Signal()
+	q.mu.Unlock()
+}
+
+func (q *frameQueue) close() {
+	q.mu.Lock()
+	q.done = true
+	q.cond.Broadcast()
+	q.mu.Unlock()
+}
+
+func (q *frameQueue) pop() ([]byte, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for len(q.items) == 0 && !q.done {
+		q.cond.Wait()
+	}
+	if len(q.items) > 0 {
+		b := q.items[0]
+		q.items = q.items[1:]
+		return b, true
+	}
+	return nil, false
+}
+
+type pendingExchange struct {
+	mu       sync.Mutex
+	queue    *frameQueue
+	ctx      context.Context
+	cancel   context.CancelFunc
+	started  bool
+	finished bool
+}
+
+type copilotRequestAdapter struct {
+	handler *CopilotRequestHandler
+	getRPC  func() *rpc.ServerLlmInferenceAPI
+
+	mu      sync.Mutex
+	pending map[string]*pendingExchange
+}
+
+func newCopilotRequestAdapter(handler *CopilotRequestHandler, getRPC func() *rpc.ServerLlmInferenceAPI) rpc.LlmInferenceHandler {
+	return &copilotRequestAdapter{
+		handler: handler,
+		getRPC:  getRPC,
+		pending: make(map[string]*pendingExchange),
+	}
+}
+
+func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPRequestStartRequest) (*rpc.LlmInferenceHTTPRequestStartResult, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	queue := newFrameQueue()
+	bodyCh := make(chan []byte)
+	exchange := &pendingExchange{queue: queue, ctx: ctx, cancel: cancel}
+
+	go func() {
+		defer close(bodyCh)
+		for {
+			b, ok := queue.pop()
+			if !ok {
+				return
+			}
+			select {
+			case bodyCh <- b:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	a.mu.Lock()
+	a.pending[params.RequestID] = exchange
+	a.mu.Unlock()
+
+	transport := "http"
+	if params.Transport != nil {
+		transport = string(*params.Transport)
+	}
+	sessionID := ""
+	if params.SessionID != nil {
+		sessionID = *params.SessionID
+	}
+	headers := http.Header{}
+	for k, v := range params.Headers {
+		headers[k] = append([]string(nil), v...)
+	}
+
+	rctx := &CopilotRequestContext{
+		RequestID: params.RequestID,
+		SessionID: sessionID,
+		Method:    params.Method,
+		URL:       params.URL,
+		Headers:   headers,
+		Transport: transport,
+		Body:      bodyCh,
+		Context:   ctx,
+	}
+	sink := &responseSink{requestID: params.RequestID, adapter: a, exchange: exchange}
+	go a.runHandler(rctx, sink, exchange)
+	return &rpc.LlmInferenceHTTPRequestStartResult{}, nil
+}
+
+func (a *copilotRequestAdapter) HttpRequestChunk(params *rpc.LlmInferenceHTTPRequestChunkRequest) (*rpc.LlmInferenceHTTPRequestChunkResult, error) {
+	a.mu.Lock()
+	exchange := a.pending[params.RequestID]
+	a.mu.Unlock()
+	if exchange == nil {
+		// Chunk arrived with no matching start; drop it.
+		return &rpc.LlmInferenceHTTPRequestChunkResult{}, nil
+	}
+	a.routeChunk(exchange, params)
+	return &rpc.LlmInferenceHTTPRequestChunkResult{}, nil
+}
+
+func (a *copilotRequestAdapter) routeChunk(exchange *pendingExchange, params *rpc.LlmInferenceHTTPRequestChunkRequest) {
+	if params.Cancel != nil && *params.Cancel {
+		exchange.cancel()
+		exchange.queue.close()
+		return
+	}
+	if params.Data != "" {
+		binary := params.Binary != nil && *params.Binary
+		if data, err := decodeChunkData(params.Data, binary); err == nil {
+			exchange.queue.push(data)
+		}
+	}
+	if params.End != nil && *params.End {
+		exchange.queue.close()
+	}
+}
+
+func (a *copilotRequestAdapter) runHandler(rctx *CopilotRequestContext, sink *responseSink, exchange *pendingExchange) {
+	err := a.handler.handle(rctx, sink)
+	if err != nil {
+		if exchange.ctx.Err() != nil {
+			a.finishCancelled(sink, exchange)
+			return
+		}
+		a.failViaSink(sink, exchange, err.Error())
+		return
+	}
+	exchange.mu.Lock()
+	finished := exchange.finished
+	exchange.mu.Unlock()
+	if !finished {
+		a.failViaSink(sink, exchange, "CopilotRequestHandler returned without finalising the response")
+	}
+}
+
+func (a *copilotRequestAdapter) failViaSink(sink *responseSink, exchange *pendingExchange, message string) {
+	exchange.mu.Lock()
+	finished := exchange.finished
+	started := exchange.started
+	exchange.mu.Unlock()
+	if finished {
+		return
+	}
+	if !started {
+		_ = sink.start(502, "", http.Header{})
+	}
+	_ = sink.sinkError(message, "")
+}
+
+func (a *copilotRequestAdapter) finishCancelled(sink *responseSink, exchange *pendingExchange) {
+	exchange.mu.Lock()
+	finished := exchange.finished
+	started := exchange.started
+	exchange.mu.Unlock()
+	if finished {
+		return
+	}
+	if !started {
+		_ = sink.start(499, "", http.Header{})
+	}
+	_ = sink.sinkError("Request cancelled by runtime", "cancelled")
+}
+
+func (a *copilotRequestAdapter) removePending(requestID string) {
+	a.mu.Lock()
+	delete(a.pending, requestID)
+	a.mu.Unlock()
+}
+
+func decodeChunkData(data string, binary bool) ([]byte, error) {
+	if binary {
+		return base64.StdEncoding.DecodeString(data)
+	}
+	return []byte(data), nil
+}
+
+// responseSink writes response frames to the runtime via RPC.
+type responseSink struct {
+	requestID string
+	adapter   *copilotRequestAdapter
+	exchange  *pendingExchange
+}
+
+func (s *responseSink) rpcAPI() (*rpc.ServerLlmInferenceAPI, error) {
+	r := s.adapter.getRPC()
+	if r == nil {
+		return nil, fmt.Errorf("CopilotRequestHandler response sink used after RPC connection closed")
+	}
+	return r, nil
+}
+
+func (s *responseSink) start(status int, statusTxt string, headers http.Header) error {
+	s.exchange.mu.Lock()
+	if s.exchange.started {
+		s.exchange.mu.Unlock()
+		return fmt.Errorf("CopilotRequestHandler response sink Start() called twice")
+	}
+	if s.exchange.finished {
+		s.exchange.mu.Unlock()
+		return fmt.Errorf("CopilotRequestHandler response sink already finished")
+	}
+	s.exchange.started = true
+	s.exchange.mu.Unlock()
+
+	api, err := s.rpcAPI()
+	if err != nil {
+		return err
+	}
+	var st *string
+	if statusTxt != "" {
+		st = &statusTxt
+	}
+	h := map[string][]string(headers)
+	if h == nil {
+		h = map[string][]string{}
+	}
+	_, err = api.HttpResponseStart(context.Background(), &rpc.LlmInferenceHTTPResponseStartRequest{
+		RequestID:  s.requestID,
+		Status:     int64(status),
+		StatusText: st,
+		Headers:    h,
+	})
+	return err
+}
+
+func (s *responseSink) writeText(data []byte) error {
+	return s.writeRaw(string(data), false)
+}
+
+func (s *responseSink) writeBinary(data []byte) error {
+	return s.writeRaw(base64.StdEncoding.EncodeToString(data), true)
+}
+
+func (s *responseSink) writeRaw(data string, binary bool) error {
+	s.exchange.mu.Lock()
+	started := s.exchange.started
+	finished := s.exchange.finished
+	s.exchange.mu.Unlock()
+	if !started {
+		return fmt.Errorf("CopilotRequestHandler response sink Write() called before Start()")
+	}
+	if finished {
+		return fmt.Errorf("CopilotRequestHandler response sink Write() called after End()/Error()")
+	}
+	api, err := s.rpcAPI()
+	if err != nil {
+		return err
+	}
+	end := false
+	chunk := &rpc.LlmInferenceHTTPResponseChunkRequest{
+		RequestID: s.requestID,
+		Data:      data,
+		End:       &end,
+	}
+	if binary {
+		b := true
+		chunk.Binary = &b
+	}
+	_, err = api.HttpResponseChunk(context.Background(), chunk)
+	return err
+}
+
+func (s *responseSink) end() error {
+	s.exchange.mu.Lock()
+	if s.exchange.finished {
+		s.exchange.mu.Unlock()
+		return nil
+	}
+	s.exchange.finished = true
+	s.exchange.mu.Unlock()
+	s.adapter.removePending(s.requestID)
+	api, err := s.rpcAPI()
+	if err != nil {
+		return err
+	}
+	end := true
+	_, err = api.HttpResponseChunk(context.Background(), &rpc.LlmInferenceHTTPResponseChunkRequest{
+		RequestID: s.requestID,
+		Data:      "",
+		End:       &end,
+	})
+	return err
+}
+
+func (s *responseSink) sinkError(message string, code string) error {
+	s.exchange.mu.Lock()
+	if s.exchange.finished {
+		s.exchange.mu.Unlock()
+		return nil
+	}
+	s.exchange.finished = true
+	s.exchange.mu.Unlock()
+	s.adapter.removePending(s.requestID)
+	api, err := s.rpcAPI()
+	if err != nil {
+		return err
+	}
+	end := true
+	chunkErr := &rpc.LlmInferenceHTTPResponseChunkError{Message: message}
+	if code != "" {
+		c := code
+		chunkErr.Code = &c
+	}
+	_, err = api.HttpResponseChunk(context.Background(), &rpc.LlmInferenceHTTPResponseChunkRequest{
+		RequestID: s.requestID,
+		Data:      "",
+		End:       &end,
+		Error:     chunkErr,
+	})
+	return err
+}
