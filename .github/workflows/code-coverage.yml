@@ -1,1 +1,272 @@
+# Création d’une action composite
 
+Dans ce tutoriel, vous apprendrez à créer une action composite.
+
+## Introduction
+
+Dans ce guide, vous allez découvrir les composants de base qui sont nécessaires pour créer et utiliser une action composite empaquetée. Afin de nous concentrer sur les composants nécessaires à l’empaquetage de l’action, nous avons réduit la fonctionnalité du code de l’action à son strict minimum. L’action affiche « Hello World », puis « Goodbye ». Si vous fournissez un nom personnalisé, elle affichera « Hello \[who-to-greet] », puis « Goodbye ». L’action mappe également un nombre aléatoire à la variable de sortie `random-number` et exécute un script nommé `goodbye.sh`.
+
+Une fois que vous aurez terminé ce projet, vous saurez comment créer votre propre action composite et la tester dans un workflow.
+
+> \[!WARNING]
+> Lors de la création de flux de travail et d’actions, vous devez toujours déterminer si votre code pourrait exécuter des entrées non fiables provenant de personnes malveillantes potentielles. Certains contextes doivent être traités comme des entrées non fiables, car un attaquant peut insérer son propre contenu malveillant. Pour plus d’informations, consultez « [Informations de référence sur l’utilisation sécurisée](/fr/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections) ».
+
+### Actions composites et flux de travail réutilisables
+
+Les actions composites vous permettent de collecter une série d’étapes de tâche de flux de travail en une seule action que vous pouvez ensuite exécuter en tant qu’étape de tâche unique dans plusieurs flux de travail. Les flux de travail réutilisables offrent un autre moyen d’éviter la duplication, en vous permettant d’exécuter un flux de travail complet à partir d’autres flux de travail. Pour plus d’informations, consultez « [Réutilisation des configurations de flux de travail](/fr/actions/using-workflows/avoiding-duplication) ».
+
+## Prérequis
+
+> \[!NOTE]
+> Cet exemple explique comment créer une action composite dans un référentiel distinct. Toutefois, il est possible de créer une action composite dans le même référentiel. Pour plus d’informations, consultez « [Création d’une action composite](/fr/actions/creating-actions/creating-a-composite-action#creating-a-composite-action-within-the-same-repository) ».
+
+Avant de commencer, vous allez créer un dépôt sur GitHub.
+
+1. Créez un dépôt public sur GitHub. Vous pouvez choisir n’importe quel nom de dépôt ou utiliser l’exemple `hello-world-composite-action` suivant. Vous pouvez ajouter ces fichiers une fois que votre projet a été envoyé (push) vers GitHub. Pour plus d’informations, consultez « [Création d’un dépôt](/fr/repositories/creating-and-managing-repositories/creating-a-new-repository) ».
+
+2. Clonez votre dépôt sur votre ordinateur. Pour plus d’informations, consultez « [Clonage d’un dépôt](/fr/repositories/creating-and-managing-repositories/cloning-a-repository) ».
+
+3. À partir de votre terminal, remplacez les répertoires par votre nouveau dépôt.
+
+   ```shell copy
+   cd hello-world-composite-action
+   ```
+
+4. Dans le dépôt `hello-world-composite-action`, créez un fichier nommé `goodbye.sh` avec l’exemple de code :
+
+   ```shell copy
+   echo "echo Goodbye" > goodbye.sh
+   ```
+
+5. À partir de votre terminal, rendez `goodbye.sh` exécutable.
+
+   <div class="ghd-tool linux">
+
+   ```shell copy
+   chmod +x goodbye.sh
+   ```
+
+   </div>
+
+   <div class="ghd-tool mac">
+
+   ```shell copy
+   chmod +x goodbye.sh
+   ```
+
+   </div>
+
+   <div class="ghd-tool windows">
+
+   ```shell copy
+   git add --chmod=+x -- goodbye.sh
+   ```
+
+   </div>
+
+6. À partir de votre terminal, validez votre fichier `goodbye.sh`.
+
+   <div class="ghd-tool linux">
+
+   ```shell copy
+   git add goodbye.sh
+   git commit -m "Add goodbye script"
+   git push
+   ```
+
+   </div>
+
+   <div class="ghd-tool mac">
+
+   ```shell copy
+   git add goodbye.sh
+   git commit -m "Add goodbye script"
+   git push
+   ```
+
+   </div>
+
+   <div class="ghd-tool windows">
+
+   ```shell copy
+   git commit -m "Add goodbye script"
+   git push
+   ```
+
+   </div>
+
+## Création d’un fichier de métadonnées d’action
+
+1. Dans le dépôt `hello-world-composite-action`, créez un fichier nommé `action.yml` et ajoutez l’exemple de code suivant. Pour plus d’informations sur cette syntaxe, consultez « [Référence syntaxique des métadonnées](/fr/actions/creating-actions/metadata-syntax-for-github-actions#runs-for-composite-actions) ».
+
+   ```yaml copy
+   name: 'Hello World'
+   description: 'Greet someone'
+   inputs:
+     who-to-greet:  # id of input
+       description: 'Who to greet'
+       required: true
+       default: 'World'
+   outputs:
+     random-number:
+       description: "Random number"
+       value: ${{ steps.random-number-generator.outputs.random-number }}
+   runs:
+     using: "composite"
+     steps:
+       - name: Set Greeting
+         run: echo "Hello $INPUT_WHO_TO_GREET."
+         shell: bash
+         env:
+           INPUT_WHO_TO_GREET: ${{ inputs.who-to-greet }}
+
+       - name: Random Number Generator
+         id: random-number-generator
+         run: echo "random-number=$(echo $RANDOM)" >> $GITHUB_OUTPUT
+         shell: bash
+
+       - name: Set GitHub Path
+         run: echo "$GITHUB_ACTION_PATH" >> $GITHUB_PATH
+         shell: bash
+         env:
+           GITHUB_ACTION_PATH: ${{ github.action_path }}
+
+       - name: Run goodbye.sh
+         run: goodbye.sh
+         shell: bash
+
+   ```
+
+   Ce fichier définit l’entrée `who-to-greet`, mappe le nombre généré aléatoirement à la variable de sortie `random-number`, ajoute le chemin d’accès de l’action au chemin d’accès du système de l’exécuteur (pour localiser le script `goodbye.sh` pendant l’exécution ) et exécute le script `goodbye.sh`.
+
+   Pour plus d’informations sur la gestion des sorties, consultez « [Référence syntaxique des métadonnées](/fr/actions/creating-actions/metadata-syntax-for-github-actions#outputs-for-composite-actions) ».
+
+   Pour plus d’informations sur l’utilisation de `github.action_path`, consultez « [Référence des contextes](/fr/actions/learn-github-actions/contexts#github-context) ».
+
+2. À partir de votre terminal, validez votre fichier `action.yml`.
+
+   ```shell copy
+   git add action.yml
+   git commit -m "Add action"
+   git push
+   ```
+
+3. À partir de votre terminal, ajoutez une étiquette. Cet exemple utilise une étiquette nommée `v1`. Pour plus d’informations, consultez « [À propos des actions personnalisées](/fr/actions/creating-actions/about-custom-actions#using-release-management-for-actions) ».
+
+   ```shell copy
+   git tag -a -m "Description of this release" v1
+   git push --follow-tags
+   ```
+
+## Tester votre action dans un workflow
+
+Le code de workflow suivant utilise l’action Hello World terminée que vous avez effectuée dans « [Création d’une action composite](/fr/actions/creating-actions/creating-a-composite-action#creating-an-action-metadata-file) ».
+
+Copiez le code du flux de travail dans un fichier `.github/workflows/main.yml` dans un autre référentiel, en remplaçant `OWNER` et `SHA` par le propriétaire du référentiel et le SHA du commit que vous voulez utiliser, respectivement. Vous pouvez également remplacer l’entrée `who-to-greet` par votre nom.
+
+```yaml copy
+on: [push]
+
+jobs:
+  hello_world_job:
+    runs-on: ubuntu-latest
+    name: A job to say hello
+    steps:
+      - uses: actions/checkout@v6
+      - id: foo
+        uses: OWNER/hello-world-composite-action@SHA
+        with:
+          who-to-greet: 'Mona the Octocat'
+      - run: echo random-number "$RANDOM_NUMBER"
+        shell: bash
+        env:
+          RANDOM_NUMBER: ${{ steps.foo.outputs.random-number }}
+```
+
+Dans votre dépôt, cliquez sur l’onglet **Actions**, puis sélectionnez la dernière exécution du workflow. La sortie doit inclure : « Hello Mona the Octocat », le résultat de l’exécution du script « Goodbye » et un nombre aléatoire.
+
+## Création d’une action composite dans le même référentiel
+
+1. Créez un sous-dossier appelé `hello-world-composite-action`, il peut être placé dans n’importe quel sous-dossier dans le référentiel. Toutefois, il est recommandé de le placer dans le sous-dossier `.github/actions` pour faciliter l’organisation.
+
+2. Dans le dossier `hello-world-composite-action`, effectuez les mêmes étapes pour créer le script `goodbye.sh`
+
+   ```shell copy
+   echo "echo Goodbye" > goodbye.sh
+   ```
+
+   <div class="ghd-tool linux">
+
+   ```shell copy
+   chmod +x goodbye.sh
+   ```
+
+   </div>
+
+   <div class="ghd-tool mac">
+
+   ```shell copy
+   chmod +x goodbye.sh
+   ```
+
+   </div>
+
+   <div class="ghd-tool windows">
+
+   ```shell copy
+   git add --chmod=+x -- goodbye.sh
+   ```
+
+   </div>
+
+   <div class="ghd-tool linux">
+
+   ```shell copy
+   git add goodbye.sh
+   git commit -m "Add goodbye script"
+   git push
+   ```
+
+   </div>
+
+   <div class="ghd-tool mac">
+
+   ```shell copy
+   git add goodbye.sh
+   git commit -m "Add goodbye script"
+   git push
+   ```
+
+   </div>
+
+   <div class="ghd-tool windows">
+
+   ```shell copy
+   git commit -m "Add goodbye script"
+   git push
+   ```
+
+   </div>
+
+3. Dans le dossier `hello-world-composite-action`, créez le fichier `action.yml` en fonction des étapes décrites dans [Création d’une action composite](/fr/actions/creating-actions/creating-a-composite-action#creating-an-action-metadata-file).
+
+4. Lorsque vous utilisez l’action, utilisez le chemin d’accès relatif au dossier où se trouve le fichier `action.yml` de l’action composite dans la clé `uses`. L’exemple ci-dessous suppose qu’il se trouve dans le dossier `.github/actions/hello-world-composite-action`.
+
+```yaml copy
+on: [push]
+
+jobs:
+  hello_world_job:
+    runs-on: ubuntu-latest
+    name: A job to say hello
+    steps:
+      - uses: actions/checkout@v6
+      - id: foo
+        uses: ./.github/actions/hello-world-composite-action
+        with:
+          who-to-greet: 'Mona the Octocat'
+      - run: echo random-number "$RANDOM_NUMBER"
+        shell: bash
+        env:
+          RANDOM_NUMBER: ${{ steps.foo.outputs.random-number }}
+```

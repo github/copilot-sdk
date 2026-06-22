@@ -45,7 +45,7 @@ jobs:
         shell: bash
         working-directory: ./rust
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6
 
       - uses: ./.github/actions/setup-copilot
         id: setup-copilot
@@ -85,7 +85,7 @@ jobs:
       # now downloads in both modes (embed for `bundle`, extract-to-cache
       # for this `test` job's `--no-default-features` build).
       - name: Cache bundled CLI tarball
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
@@ -151,7 +151,7 @@ jobs:
         shell: bash
         working-directory: ./rust
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -181,7 +181,7 @@ jobs:
       # archives drop out when the pinned version bumps, keeping the
       # cache bounded.
       - name: Cache bundled CLI tarball
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
