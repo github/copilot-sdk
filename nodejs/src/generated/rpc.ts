@@ -507,6 +507,7 @@ export type InstructionSourceLocation =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "LlmInferenceHttpRequestStartTransport".
  */
+/** @experimental */
 export type LlmInferenceHttpRequestStartTransport =
   /** Plain HTTP or SSE response. Each body chunk is an opaque byte range; the response is a status line, headers, and a (possibly streamed) body. */
   | "http"
@@ -4359,6 +4360,7 @@ export interface LlmInferenceHeaders {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "LlmInferenceHttpRequestChunkRequest".
  */
+/** @experimental */
 export interface LlmInferenceHttpRequestChunkRequest {
   /**
    * Matches the requestId from the originating httpRequestStart frame.
@@ -4391,6 +4393,7 @@ export interface LlmInferenceHttpRequestChunkRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "LlmInferenceHttpRequestChunkResult".
  */
+/** @experimental */
 export interface LlmInferenceHttpRequestChunkResult {}
 /**
  * The head of an outbound model-layer HTTP request.
@@ -4398,6 +4401,7 @@ export interface LlmInferenceHttpRequestChunkResult {}
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "LlmInferenceHttpRequestStartRequest".
  */
+/** @experimental */
 export interface LlmInferenceHttpRequestStartRequest {
   /**
    * Opaque runtime-minted id, unique per in-flight request. The SDK uses this to correlate httpRequestChunk frames and to address its httpResponseStart / httpResponseChunk replies back to the runtime.
@@ -4424,6 +4428,7 @@ export interface LlmInferenceHttpRequestStartRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "LlmInferenceHttpRequestStartResult".
  */
+/** @experimental */
 export interface LlmInferenceHttpRequestStartResult {}
 /**
  * Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored.
@@ -15850,5 +15855,54 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).canvas;
         if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
         return handler.invoke(params);
+    });
+}
+
+/** Handler for `llmInference` client global API methods. */
+/** @experimental */
+export interface LlmInferenceHandler {
+    /**
+     * Announces an outbound model-layer HTTP request the runtime wants the SDK client to service. Carries the request head only; the body always follows as one or more httpRequestChunk frames keyed by the same requestId, even when the body is empty (a single chunk with end=true).
+     *
+     * @param params The head of an outbound model-layer HTTP request.
+     *
+     * @returns Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
+     */
+    httpRequestStart(params: LlmInferenceHttpRequestStartRequest): Promise<LlmInferenceHttpRequestStartResult>;
+    /**
+     * Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.
+     *
+     * @param params A request body chunk or cancellation signal.
+     *
+     * @returns Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
+     */
+    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
+}
+
+/** All client global API handler groups. */
+export interface ClientGlobalApiHandlers {
+    llmInference?: LlmInferenceHandler;
+}
+
+/**
+ * Register client global API handlers on a JSON-RPC connection.
+ * The server calls these methods to delegate work to the client.
+ * Unlike session-scoped client APIs, these methods carry no implicit
+ * `sessionId` dispatch key — a single set of handlers serves the entire
+ * connection.
+ */
+export function registerClientGlobalApiHandlers(
+    connection: MessageConnection,
+    handlers: ClientGlobalApiHandlers,
+): void {
+    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
+        const handler = handlers.llmInference;
+        if (!handler) throw new Error("No llmInference client-global handler registered");
+        return handler.httpRequestStart(params);
+    });
+    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest) => {
+        const handler = handlers.llmInference;
+        if (!handler) throw new Error("No llmInference client-global handler registered");
+        return handler.httpRequestChunk(params);
     });
 }
