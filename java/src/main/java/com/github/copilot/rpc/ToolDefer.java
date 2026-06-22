@@ -22,8 +22,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum ToolDefer {
 
     /**
-     * No deferral preference set. Used as the default for annotation-based
-     * tool definitions where the user has not explicitly chosen a mode.
+     * No deferral preference set. Used as the default for annotation-based tool
+     * definitions where the user has not explicitly chosen a mode.
      */
     NONE(""),
 
