@@ -56,7 +56,7 @@ final class LlmInferenceExchange {
     }
 
     private final String requestId;
-    private final String method;
+    private String method;
     private final Supplier<ServerLlmInferenceApi> rpcSupplier;
 
     private final BlockingQueue<BodyItem> body = new LinkedBlockingQueue<>();
@@ -69,9 +69,8 @@ final class LlmInferenceExchange {
 
     private CopilotRequestContext context;
 
-    LlmInferenceExchange(String requestId, String method, Supplier<ServerLlmInferenceApi> rpcSupplier) {
+    LlmInferenceExchange(String requestId, Supplier<ServerLlmInferenceApi> rpcSupplier) {
         this.requestId = requestId;
-        this.method = method;
         this.rpcSupplier = rpcSupplier;
     }
 
@@ -81,6 +80,10 @@ final class LlmInferenceExchange {
 
     String method() {
         return method;
+    }
+
+    void setMethod(String method) {
+        this.method = method;
     }
 
     CompletableFuture<Void> cancellation() {

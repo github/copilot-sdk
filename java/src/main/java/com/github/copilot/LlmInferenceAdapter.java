@@ -52,6 +52,16 @@ final class LlmInferenceAdapter {
                 (rpcId, params) -> handleRequestChunk(rpc, rpcId, params));
     }
 
+    private LlmInferenceExchange getOrCreateExchange(String requestId) {
+        // The runtime dispatches httpRequestStart and httpRequestChunk frames
+        // independently. Even though the current reader dispatches them in
+        // order, get-or-create keeps the adapter correct regardless: a body
+        // chunk (including the terminal end frame) that races ahead of its
+        // start frame is buffered into the same exchange rather than dropped,
+        // which would otherwise hang the body drain forever.
+        return pending.computeIfAbsent(requestId, id -> new LlmInferenceExchange(id, rpcSupplier));
+    }
+
     private void handleRequestStart(JsonRpcClient rpc, String rpcId, JsonNode params) {
         String requestId = params.get("requestId").asText();
         String sessionId = textOrNull(params, "sessionId");
@@ -60,10 +70,12 @@ final class LlmInferenceAdapter {
         CopilotRequestTransport transport = CopilotRequestTransport.fromWire(textOrNull(params, "transport"));
         Map<String, List<String>> headers = parseHeaders(params.get("headers"));
 
-        LlmInferenceExchange exchange = new LlmInferenceExchange(requestId, method, rpcSupplier);
+        // Adopt any exchange a racing chunk already created — with its buffered
+        // body — rather than dropping those frames.
+        LlmInferenceExchange exchange = getOrCreateExchange(requestId);
+        exchange.setMethod(method);
         exchange.setContext(
                 new CopilotRequestContext(requestId, sessionId, transport, url, headers, exchange.cancellation()));
-        pending.put(requestId, exchange);
 
         // Return from httpRequestStart immediately (after registering state) so the
         // runtime's RPC reply is not gated on the consumer's I/O. The actual handler
@@ -75,10 +87,10 @@ final class LlmInferenceAdapter {
 
     private void handleRequestChunk(JsonRpcClient rpc, String rpcId, JsonNode params) {
         String requestId = params.get("requestId").asText();
-        LlmInferenceExchange exchange = pending.get(requestId);
-        if (exchange != null) {
-            routeChunk(exchange, params);
-        }
+        // May arrive before the matching start frame; get-or-create so the body
+        // is buffered, never lost.
+        LlmInferenceExchange exchange = getOrCreateExchange(requestId);
+        routeChunk(exchange, params);
         ack(rpc, rpcId);
     }
 
