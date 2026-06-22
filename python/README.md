@@ -20,6 +20,33 @@ To include OpenTelemetry support:
 pip install "github-copilot-sdk[telemetry]"
 ```
 
+## Runtime
+
+Published wheels include a pinned runtime version. After installing, download the
+runtime:
+
+```bash
+python -m copilot download-runtime
+```
+
+This caches the runtime binary locally. If you skip this step, the SDK will
+attempt to download it automatically on first use as a fallback.
+
+| Platform | Cache path |
+|----------|-----------|
+| Linux | `~/.cache/github-copilot-sdk/cli/<version>/copilot` |
+| macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/copilot` |
+| Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\copilot.exe` |
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
+| `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
+| `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
+| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL |
+
 ## Run the Sample
 
 Try the interactive chat sample (from the repo root):
