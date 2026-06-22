@@ -519,6 +519,15 @@ public class CopilotRequestHandler
         {
             await handler.OpenAsync().ConfigureAwait(false);
 
+            // The runtime blocks the WebSocket connect until it receives the
+            // 101 response head (the upgrade acknowledgement) and only then
+            // begins forwarding inbound messages as request-body chunks. Emit
+            // it eagerly here — waiting for the first upstream message would
+            // deadlock, since the upstream stays silent until it receives a
+            // request message the runtime won't send before the upgrade
+            // completes.
+            await bridge.StartAsync().ConfigureAwait(false);
+
             var clientPump = Task.Run(async () =>
             {
                 await foreach (var chunk in exchange.RequestBody.WithCancellation(ctx.CancellationToken).ConfigureAwait(false))
@@ -925,15 +934,19 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
 
 /// <summary>
 /// Forwards upstream WebSocket messages back to the owning
-/// <see cref="LlmInferenceExchange"/>. Emits the runtime-facing response start
-/// frame on first use and serialises access so start always precedes any body
-/// or terminal frame.
+/// <see cref="LlmInferenceExchange"/>. The 101 upgrade head is emitted eagerly
+/// via <see cref="StartAsync"/> (the runtime gates the connect on it);
+/// thereafter writes are serialised so the head always precedes any body or
+/// terminal frame.
 /// </summary>
 internal sealed class LlmWebSocketResponseBridge(LlmInferenceExchange exchange)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _started;
     private bool _completed;
+
+    /// <summary>Emit the 101 upgrade head now, acknowledging the WebSocket connect.</summary>
+    internal Task StartAsync() => RunAsync(terminal: false, () => Task.CompletedTask);
 
     internal Task WriteAsync(CopilotWebSocketMessage message) => RunAsync(terminal: false, () =>
         message.IsBinary
