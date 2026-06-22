@@ -34,7 +34,6 @@ from ._copilot_request_helpers import (
     is_inference_url,
     isolated_client_fixture,
 )
-from .testharness import E2ETestContext  # noqa: F401  (ctx fixture dependency)
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -98,7 +97,9 @@ class TestCopilotRequestHandlerError:
             # The callback throws on inference; the turn surfaces an error (or
             # completes without an assistant message) rather than hanging.
             await session.send_and_wait("Say OK.")
-        except BaseException:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
+            # Any turn-level error is expected here; we only assert the callback
+            # was reached below.
             pass
         finally:
             await session.disconnect()

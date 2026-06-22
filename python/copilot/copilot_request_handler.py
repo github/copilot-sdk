@@ -227,6 +227,7 @@ class ForwardingCopilotWebSocketHandler(CopilotWebSocketHandler):
                 try:
                     await self._upstream.close()
                 except Exception:
+                    # Best-effort teardown: the upstream may already be closed.
                     pass
 
 
@@ -662,6 +663,8 @@ async def _run_cancellable(coro: Any, cancel_event: asyncio.Event) -> None:
         try:
             await task
         except (asyncio.CancelledError, Exception):
+            # The awaited task was cancelled; its unwind exception is expected
+            # and irrelevant — we raise the cancellation result below.
             pass
         raise RuntimeError("Request cancelled by runtime")
     finally:

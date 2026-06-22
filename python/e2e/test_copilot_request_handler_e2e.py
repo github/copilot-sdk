@@ -248,6 +248,7 @@ async def handler_fixture(ctx: E2ETestContext):
         try:
             await client.stop()
         except Exception:
+            # Best-effort teardown during fixture cleanup.
             pass
         await handler.aclose()
         await upstream.close()

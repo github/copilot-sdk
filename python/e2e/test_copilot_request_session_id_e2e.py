@@ -28,7 +28,6 @@ from ._copilot_request_helpers import (
     is_inference_url,
     isolated_client_fixture,
 )
-from .testharness import E2ETestContext  # noqa: F401  (ctx fixture dependency)
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 

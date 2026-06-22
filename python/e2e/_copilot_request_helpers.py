@@ -285,6 +285,7 @@ def isolated_client_fixture(make_handler, extra_env: dict[str, str] | None = Non
             try:
                 await client.stop()
             except Exception:
+                # Best-effort teardown during fixture cleanup.
                 pass
 
     return _fixture
