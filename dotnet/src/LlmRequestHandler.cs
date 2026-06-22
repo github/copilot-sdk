@@ -240,7 +240,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
             }
         }
 
-        await socket.ConnectAsync(LlmWebSocketHelpers.ToWebSocketUri(_url), Context.CancellationToken).ConfigureAwait(false);
+        await socket.ConnectAsync(ToWebSocketUri(_url), Context.CancellationToken).ConfigureAwait(false);
         _upstream = socket;
         _pumpCts = CancellationTokenSource.CreateLinkedTokenSource(Context.CancellationToken);
         _responsePump = Task.Run(() => PumpResponsesAsync(_pumpCts.Token), _pumpCts.Token);
@@ -272,7 +272,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
         _pumpCts?.Cancel();
         if (_upstream is not null)
         {
-            await LlmWebSocketHelpers.CloseWebSocketQuietlyAsync(_upstream).ConfigureAwait(false);
+            await CloseWebSocketQuietlyAsync(_upstream).ConfigureAwait(false);
         }
         await base.CloseAsync(status).ConfigureAwait(false);
     }
@@ -292,7 +292,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
             _upstream?.Dispose();
             if (_responsePump is not null)
             {
-                await LlmWebSocketHelpers.ObserveQuietlyAsync(_responsePump).ConfigureAwait(false);
+                await ObserveQuietlyAsync(_responsePump).ConfigureAwait(false);
             }
         }
     }
@@ -308,7 +308,7 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
         {
             while (_upstream.State == WebSocketState.Open)
             {
-                var message = await LlmWebSocketHelpers.ReceiveMessageAsync(_upstream, cancellationToken).ConfigureAwait(false);
+                var message = await ReceiveMessageAsync(_upstream, cancellationToken).ConfigureAwait(false);
                 if (message is null)
                 {
                     break;
@@ -332,6 +332,81 @@ public class ForwardingWebSocketHandler : CopilotWebSocketHandler
                 Error = ex,
             }).ConfigureAwait(false);
         }
+    }
+
+    private static async Task<LlmWebSocketMessage?> ReceiveMessageAsync(WebSocket socket, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[16 * 1024];
+        using var assembled = new MemoryStream();
+        WebSocketReceiveResult result;
+        do
+        {
+            try
+            {
+                result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+            catch (WebSocketException)
+            {
+                return null;
+            }
+
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                return null;
+            }
+
+            assembled.Write(buffer, 0, result.Count);
+        }
+        while (!result.EndOfMessage);
+
+        return new LlmWebSocketMessage(assembled.ToArray(), result.MessageType == WebSocketMessageType.Binary);
+    }
+
+    private static async Task CloseWebSocketQuietlyAsync(WebSocket socket)
+    {
+        try
+        {
+            if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+            {
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, statusDescription: null, CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Best-effort; the socket may already be closed.
+        }
+    }
+
+    [SuppressMessage("Usage", "CA1031:Do not catch general exception types", Justification = "Best-effort teardown of the losing pump.")]
+    private static async Task ObserveQuietlyAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch
+        {
+            // Best-effort teardown only.
+        }
+    }
+
+    private static Uri ToWebSocketUri(string url)
+    {
+        var builder = new UriBuilder(url);
+        if (builder.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.Scheme = "wss";
+        }
+        else if (builder.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.Scheme = "ws";
+        }
+
+        return builder.Uri;
     }
 }
 
@@ -443,7 +518,6 @@ public class LlmRequestHandler
         try
         {
             await handler.OpenAsync().ConfigureAwait(false);
-            await bridge.StartAsync().ConfigureAwait(false);
 
             var clientPump = Task.Run(async () =>
             {
@@ -619,13 +693,9 @@ internal sealed class LlmInferenceExchange
         }
 
         _started = true;
-        var result = await ServerRpc()
+        await ServerRpc()
             .LlmInference.HttpResponseStartAsync(RequestId, status, ToWireHeaders(headers), statusText)
             .ConfigureAwait(false);
-        if (!result.Accepted)
-        {
-            RejectedByRuntime();
-        }
     }
 
     internal Task WriteResponseAsync(ReadOnlyMemory<byte> data) =>
@@ -684,32 +754,13 @@ internal sealed class LlmInferenceExchange
             throw new InvalidOperationException("LLM inference response WriteAsync() called after EndAsync()/ErrorAsync().");
         }
 
-        var result = await ServerRpc()
+        await ServerRpc()
             .LlmInference.HttpResponseChunkAsync(RequestId, data, binary: binary, end: false)
             .ConfigureAwait(false);
-        if (!result.Accepted)
-        {
-            RejectedByRuntime();
-        }
     }
 
     private ServerRpc ServerRpc() =>
         _getServerRpc() ?? throw new InvalidOperationException("LLM inference response used after RPC connection closed.");
-
-    // The runtime acknowledges every response frame with accepted; accepted:
-    // false means it has dropped the request (e.g. it cancelled), so we abort the
-    // consumer's upstream work and stop emitting.
-    private void RejectedByRuntime()
-    {
-        if (!_cancelled)
-        {
-            _cancelled = true;
-            Abort.Cancel();
-        }
-
-        _finished = true;
-        throw new InvalidOperationException("LLM inference response was rejected by the runtime (request no longer active).");
-    }
 
     private static Dictionary<string, IList<string>> ToWireHeaders(IReadOnlyDictionary<string, IReadOnlyList<string>>? headers)
     {
@@ -873,132 +924,54 @@ internal sealed class LlmInferenceAdapter(LlmRequestHandler handler, Func<Server
 }
 
 /// <summary>
-/// Buffers WebSocket response messages until the runtime-facing response is
-/// started, then forwards each message (and the terminal end/error) to the
-/// owning <see cref="LlmInferenceExchange"/>. Serialises access so the start
-/// frame is always emitted before any body message.
+/// Forwards upstream WebSocket messages back to the owning
+/// <see cref="LlmInferenceExchange"/>. Emits the runtime-facing response start
+/// frame on first use and serialises access so start always precedes any body
+/// or terminal frame.
 /// </summary>
 internal sealed class LlmWebSocketResponseBridge(LlmInferenceExchange exchange)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly Queue<PendingAction> _pending = new();
     private bool _started;
     private bool _completed;
 
-    internal async Task StartAsync()
+    internal Task WriteAsync(LlmWebSocketMessage message) => RunAsync(terminal: false, () =>
+        message.IsBinary
+            ? exchange.WriteResponseAsync(message.Data)
+            : exchange.WriteResponseAsync(message.GetText()));
+
+    internal Task EndAsync() => RunAsync(terminal: true, () => exchange.EndResponseAsync());
+
+    internal Task ErrorAsync(string message, string? code) =>
+        RunAsync(terminal: true, () => exchange.ErrorResponseAsync(message, code));
+
+    private async Task RunAsync(bool terminal, Func<Task> action)
     {
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_started)
-            {
-                return;
-            }
-
-            _started = true;
-            await exchange.StartResponseAsync(101, statusText: null, headers: null).ConfigureAwait(false);
-            while (_pending.Count > 0)
-            {
-                await ApplyAsync(_pending.Dequeue()).ConfigureAwait(false);
-            }
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    internal Task WriteAsync(LlmWebSocketMessage message) => EnqueueOrApplyAsync(PendingAction.Write(message));
-
-    internal Task EndAsync() => EnqueueOrApplyAsync(PendingAction.End());
-
-    internal Task ErrorAsync(string message, string? code) => EnqueueOrApplyAsync(PendingAction.Error(message, code));
-
-    private async Task EnqueueOrApplyAsync(PendingAction action)
-    {
-        await _gate.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (_completed && action.Kind == PendingActionKind.Write)
+            if (_completed)
             {
                 return;
             }
 
             if (!_started)
             {
-                _pending.Enqueue(action);
-                if (action.Kind is PendingActionKind.End or PendingActionKind.Error)
-                {
-                    _completed = true;
-                }
-
-                return;
+                _started = true;
+                await exchange.StartResponseAsync(101, statusText: null, headers: null).ConfigureAwait(false);
             }
 
-            await ApplyAsync(action).ConfigureAwait(false);
+            if (terminal)
+            {
+                _completed = true;
+            }
+
+            await action().ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
         }
-    }
-
-    private async Task ApplyAsync(PendingAction action)
-    {
-        if (_completed && action.Kind == PendingActionKind.Write)
-        {
-            return;
-        }
-
-        switch (action.Kind)
-        {
-            case PendingActionKind.Write:
-                if (action.Message!.Value.IsBinary)
-                {
-                    await exchange.WriteResponseAsync(action.Message.Value.Data).ConfigureAwait(false);
-                }
-                else
-                {
-                    await exchange.WriteResponseAsync(action.Message.Value.GetText()).ConfigureAwait(false);
-                }
-                break;
-            case PendingActionKind.End:
-                if (_completed)
-                {
-                    return;
-                }
-
-                _completed = true;
-                await exchange.EndResponseAsync().ConfigureAwait(false);
-                break;
-            case PendingActionKind.Error:
-                if (_completed)
-                {
-                    return;
-                }
-
-                _completed = true;
-                await exchange.ErrorResponseAsync(action.ErrorMessage!, action.ErrorCode).ConfigureAwait(false);
-                break;
-        }
-    }
-
-    private readonly record struct PendingAction(
-        PendingActionKind Kind,
-        LlmWebSocketMessage? Message = null,
-        string? ErrorMessage = null,
-        string? ErrorCode = null)
-    {
-        internal static PendingAction Write(LlmWebSocketMessage message) => new(PendingActionKind.Write, message);
-        internal static PendingAction End() => new(PendingActionKind.End);
-        internal static PendingAction Error(string message, string? code) => new(PendingActionKind.Error, null, message, code);
-    }
-
-    private enum PendingActionKind
-    {
-        Write,
-        End,
-        Error,
     }
 }
 
@@ -1018,82 +991,4 @@ internal static class LlmInferenceHeaders
         "te",
         "trailer",
     };
-}
-
-internal static class LlmWebSocketHelpers
-{
-    internal static async Task<LlmWebSocketMessage?> ReceiveMessageAsync(WebSocket socket, CancellationToken cancellationToken)
-    {
-        var buffer = new byte[16 * 1024];
-        using var assembled = new MemoryStream();
-        WebSocketReceiveResult result;
-        do
-        {
-            try
-            {
-                result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                return null;
-            }
-            catch (WebSocketException)
-            {
-                return null;
-            }
-
-            if (result.MessageType == WebSocketMessageType.Close)
-            {
-                return null;
-            }
-
-            assembled.Write(buffer, 0, result.Count);
-        }
-        while (!result.EndOfMessage);
-
-        return new LlmWebSocketMessage(assembled.ToArray(), result.MessageType == WebSocketMessageType.Binary);
-    }
-
-    internal static async Task CloseWebSocketQuietlyAsync(WebSocket socket)
-    {
-        try
-        {
-            if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
-            {
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, statusDescription: null, CancellationToken.None).ConfigureAwait(false);
-            }
-        }
-        catch
-        {
-            // Best-effort; the socket may already be closed.
-        }
-    }
-
-    [SuppressMessage("Usage", "CA1031:Do not catch general exception types", Justification = "Best-effort teardown of the losing pump.")]
-    internal static async Task ObserveQuietlyAsync(Task task)
-    {
-        try
-        {
-            await task.ConfigureAwait(false);
-        }
-        catch
-        {
-            // Best-effort teardown only.
-        }
-    }
-
-    internal static Uri ToWebSocketUri(string url)
-    {
-        var builder = new UriBuilder(url);
-        if (builder.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
-        {
-            builder.Scheme = "wss";
-        }
-        else if (builder.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
-        {
-            builder.Scheme = "ws";
-        }
-
-        return builder.Uri;
-    }
 }
