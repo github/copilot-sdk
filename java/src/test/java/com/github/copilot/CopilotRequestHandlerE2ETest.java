@@ -4,15 +4,19 @@
 
 package com.github.copilot;
 
-import static com.github.copilot.LlmInferenceTestSupport.assistantText;
-import static com.github.copilot.LlmInferenceTestSupport.newLlmClient;
-import static com.github.copilot.LlmInferenceTestSupport.setupCapiAuth;
+import static com.github.copilot.CopilotRequestTestSupport.SYNTHETIC_TEXT;
+import static com.github.copilot.CopilotRequestTestSupport.assistantText;
+import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
+import static com.github.copilot.CopilotRequestTestSupport.setupCapiAuth;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,18 +24,19 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.CopilotRequestTestSupport.InterceptedRequest;
+import com.github.copilot.CopilotRequestTestSupport.RecordingRequestHandler;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
 
 /**
- * Verifies that the runtime's model-layer traffic can be forwarded through the
- * idiomatic {@link LlmRequestHandler} seams to a real upstream: an HTTP send
- * override that mutates the request/response and a forwarding
- * {@link CopilotWebSocketHandler} that observes messages in both directions.
+ * End-to-end coverage for {@link CopilotRequestHandler}: a synthetic HTTP turn
+ * that the handler fully fabricates off-network, and a forwarding turn that
+ * relays both the HTTP and WebSocket transports to a real in-process upstream.
  */
-public class LlmInferenceHandlerE2ETest {
+public class CopilotRequestHandlerE2ETest {
 
     private static E2ETestContext ctx;
 
@@ -47,14 +52,37 @@ public class LlmInferenceHandlerE2ETest {
         }
     }
 
-    private static String rewriteHost(String base, URI original) {
-        String path = original.getRawPath() == null ? "" : original.getRawPath();
-        String query = original.getRawQuery();
-        return base + path + (query != null ? "?" + query : "");
+    @Test
+    void streamsSyntheticHttpInference() throws Exception {
+        setupCapiAuth(ctx);
+        RecordingRequestHandler handler = new RecordingRequestHandler(SYNTHETIC_TEXT);
+
+        try (CopilotClient client = newLlmClient(ctx, handler)) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+
+            AssistantMessageEvent result = session.sendAndWait(new MessageOptions().setPrompt("Say OK.")).get(60,
+                    TimeUnit.SECONDS);
+            session.close();
+
+            // The handler intercepted the startup catalog and at least one inference
+            // request, fully replacing the runtime's outbound model-layer calls.
+            List<InterceptedRequest> records = handler.records();
+            assertFalse(records.isEmpty(), "Expected the runtime to invoke the request handler");
+            assertTrue(records.stream().anyMatch(r -> r.url().toLowerCase(Locale.ROOT).endsWith("/models")),
+                    "Expected to intercept the /models catalog request");
+            assertFalse(handler.inferenceRequests().isEmpty(),
+                    "Expected at least one inference request via the handler");
+
+            // Validate the final assistant response arrived (guards against truncated
+            // captures)
+            assertTrue(assistantText(result).contains("OK from the synthetic"),
+                    "Expected synthetic content in assistant reply, got " + assistantText(result));
+        }
     }
 
     @Test
-    void forwardsThroughIdiomaticHandler() throws Exception {
+    void forwardsHttpAndWebSocketToUpstream() throws Exception {
         setupCapiAuth(ctx);
 
         AtomicInteger httpRequests = new AtomicInteger();
@@ -68,9 +96,9 @@ public class LlmInferenceHandlerE2ETest {
             String httpBase = upstream.httpUrl();
             String wsBase = upstream.wsUrl();
 
-            LlmRequestHandler handler = new LlmRequestHandler() {
+            CopilotRequestHandler handler = new CopilotRequestHandler() {
                 @Override
-                protected HttpResponse<InputStream> sendHttp(HttpRequest request, LlmRequestContext rctx)
+                protected HttpResponse<InputStream> sendHttp(HttpRequest request, CopilotRequestContext rctx)
                         throws Exception {
                     httpRequests.incrementAndGet();
                     URI rewritten = URI.create(rewriteHost(httpBase, request.uri()));
@@ -94,19 +122,19 @@ public class LlmInferenceHandlerE2ETest {
                 }
 
                 @Override
-                protected CopilotWebSocketHandler openWebSocket(LlmRequestContext rctx) {
+                protected CopilotWebSocketHandler openWebSocket(CopilotRequestContext rctx) {
                     String rewritten = rewriteHost(wsBase, URI.create(rctx.url()));
-                    return new ForwardingWebSocketHandler(rewritten, rctx.headers()) {
+                    return new ForwardingCopilotWebSocketHandler(rctx, rewritten) {
                         @Override
-                        protected byte[] onSendRequestMessage(byte[] data, boolean binary) {
+                        public void sendRequestMessage(CopilotWebSocketMessage message) throws Exception {
                             wsRequestMessages.incrementAndGet();
-                            return data;
+                            super.sendRequestMessage(message);
                         }
 
                         @Override
-                        protected byte[] onSendResponseMessage(byte[] data, boolean binary) {
+                        public void sendResponseMessage(CopilotWebSocketMessage message) throws Exception {
                             wsResponseMessages.incrementAndGet();
-                            return data;
+                            super.sendResponseMessage(message);
                         }
                     };
                 }
@@ -121,13 +149,13 @@ public class LlmInferenceHandlerE2ETest {
                         TimeUnit.SECONDS);
                 session.close();
 
-                // The HTTP seam fired — the runtime issued model-layer GETs (catalog,
+                // The HTTP override fired — the runtime issued model-layer GETs (catalog,
                 // policy) and possibly a single-shot inference through the send override.
                 assertTrue(httpRequests.get() > 0, "Expected the HTTP send override to fire");
                 assertTrue(httpResponses.get() > 0, "Expected the HTTP response mutation to fire");
 
-                // The WebSocket seam fired — the main agent turn went over the WS path and
-                // we observed messages in both directions.
+                // The WebSocket override fired — the main agent turn went over the WS path
+                // and we observed messages in both directions.
                 assertTrue(wsRequestMessages.get() > 0, "Expected runtime -> upstream ws messages");
                 assertTrue(wsResponseMessages.get() > 0, "Expected upstream -> runtime ws messages");
                 assertTrue(upstream.upstreamWsRequests() > 0, "Expected the upstream WS to receive request messages");
@@ -139,5 +167,11 @@ public class LlmInferenceHandlerE2ETest {
                         "Expected synthetic upstream content in assistant reply, got " + text);
             }
         }
+    }
+
+    private static String rewriteHost(String base, URI original) {
+        String path = original.getRawPath() == null ? "" : original.getRawPath();
+        String query = original.getRawQuery();
+        return base + path + (query != null ? "?" + query : "");
     }
 }

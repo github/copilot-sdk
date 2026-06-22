@@ -4,56 +4,116 @@
 
 package com.github.copilot;
 
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A per-connection WebSocket handler returned by
- * {@link LlmRequestHandler#openWebSocket}.
+ * {@link CopilotRequestHandler#openWebSocket}.
  * <p>
- * The default implementation is {@link ForwardingWebSocketHandler}, which dials
- * the real upstream and transparently forwards messages in both directions. A
- * full transport replacement implements this interface directly and brings its
- * own transport and receive loop.
+ * The default implementation is {@link ForwardingCopilotWebSocketHandler},
+ * which dials the real upstream and transparently relays messages in both
+ * directions. A full transport replacement subclasses this type directly and
+ * brings its own transport and receive loop, forwarding upstream-to-runtime
+ * messages by calling {@link #sendResponseMessage} and finishing with
+ * {@link #close(CopilotWebSocketCloseStatus)}.
  *
  * @since 1.0.0
  */
-public interface CopilotWebSocketHandler extends AutoCloseable {
+public abstract class CopilotWebSocketHandler implements AutoCloseable {
+
+    private final LlmWebSocketResponseBridge response;
+    private final CompletableFuture<CopilotWebSocketCloseStatus> completion = new CompletableFuture<>();
+    private final AtomicBoolean closed = new AtomicBoolean();
+    private volatile boolean suppressCloseOnDispose;
+
+    /** The request context for this WebSocket connection. */
+    protected final CopilotRequestContext context;
 
     /**
-     * Establishes the connection and starts forwarding upstream-to-runtime messages
-     * into {@code responseWriter}. Must not block until the connection completes;
-     * it returns once the connection is established.
+     * Initializes a per-connection handler for the supplied request context.
      *
-     * @param responseWriter
-     *            the sink for upstream-to-runtime messages
-     * @throws Exception
-     *             if the connection could not be established
+     * @param context
+     *            the per-request context
      */
-    void open(WebSocketResponseWriter responseWriter) throws Exception;
+    protected CopilotWebSocketHandler(CopilotRequestContext context) {
+        this.context = context;
+        this.response = Objects.requireNonNull(context.webSocketResponse(),
+                "WebSocket response bridge is not attached");
+    }
 
     /**
-     * Forwards one runtime-to-upstream message.
+     * Sends a message from the runtime to the upstream connection.
      *
-     * @param data
-     *            the message bytes
-     * @param binary
-     *            {@code true} when the runtime delivered the message as binary
+     * @param message
+     *            the message to forward upstream
      * @throws Exception
      *             if the message could not be forwarded
      */
-    void sendRequestMessage(byte[] data, boolean binary) throws Exception;
+    public abstract void sendRequestMessage(CopilotWebSocketMessage message) throws Exception;
 
     /**
-     * A future that completes when the upstream connection finishes. It completes
-     * normally on a clean close and exceptionally on a transport error.
+     * Sends a message from the upstream connection back to the runtime. Override to
+     * mutate or duplicate messages; call {@code super} to emit.
      *
-     * @return the completion future
+     * @param message
+     *            the upstream-to-runtime message
+     * @throws Exception
+     *             if the message could not be delivered
      */
-    CompletableFuture<Void> completion();
+    public void sendResponseMessage(CopilotWebSocketMessage message) throws Exception {
+        response.write(message);
+    }
 
     /**
-     * Tears down the connection. Idempotent.
+     * Closes the connection and finalises the runtime-facing response. Idempotent.
+     *
+     * @param status
+     *            the terminal status; a non-null
+     *            {@link CopilotWebSocketCloseStatus#error()} surfaces a transport
+     *            failure, otherwise a clean end-of-stream
+     * @throws Exception
+     *             if the terminal frame could not be delivered
+     */
+    public void close(CopilotWebSocketCloseStatus status) throws Exception {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        if (status.error() != null) {
+            response.error(status.description() != null ? status.description() : status.error().getMessage(),
+                    status.errorCode());
+        } else {
+            response.end();
+        }
+        completion.complete(status);
+    }
+
+    /**
+     * Tears down the connection, finalising with a normal closure unless the
+     * connection has already been closed or close-on-dispose was suppressed.
      */
     @Override
-    void close();
+    public void close() {
+        if (!suppressCloseOnDispose && !closed.get()) {
+            try {
+                close(CopilotWebSocketCloseStatus.NORMAL_CLOSURE);
+            } catch (Exception ignored) {
+                // Best-effort teardown; the connection may already be gone.
+            }
+        }
+    }
+
+    CompletableFuture<CopilotWebSocketCloseStatus> completion() {
+        return completion;
+    }
+
+    void suppressCloseOnDispose() {
+        suppressCloseOnDispose = true;
+    }
+
+    void open() throws Exception {
+        // Default: nothing to establish. ForwardingCopilotWebSocketHandler dials
+        // the upstream here.
+    }
 }

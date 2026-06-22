@@ -20,32 +20,26 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkError;
-import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkParams;
-import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkResult;
-import com.github.copilot.generated.rpc.LlmInferenceHttpResponseStartParams;
-import com.github.copilot.generated.rpc.LlmInferenceHttpResponseStartResult;
 import com.github.copilot.generated.rpc.ServerLlmInferenceApi;
 
 /**
- * Bridges the {@code llmInference.*} reverse-RPC protocol onto an
- * {@link LlmInferenceProvider}. Inbound {@code httpRequestStart} /
- * {@code httpRequestChunk} calls are translated into provider invocations and a
- * per-{@code requestId} {@link LlmInferenceResponseSink} that emits outbound
- * {@code httpResponseStart} / {@code httpResponseChunk} frames.
+ * Adapts the generated {@code llmInference.*} reverse-RPC entry points onto a
+ * consumer's {@link CopilotRequestHandler}. Each {@code httpRequestStart}
+ * allocates an {@link LlmInferenceExchange} and runs the handler in the
+ * background; subsequent {@code httpRequestChunk} frames feed its request body
+ * stream.
  */
 final class LlmInferenceAdapter {
 
     private static final Logger LOG = Logger.getLogger(LlmInferenceAdapter.class.getName());
 
-    private final LlmInferenceProvider handler;
+    private final CopilotRequestHandler handler;
     private final Supplier<ServerLlmInferenceApi> rpcSupplier;
     private final Executor executor;
 
-    private final Map<String, PendingState> pending = new ConcurrentHashMap<>();
-    private final Map<String, List<ChunkFrame>> staged = new ConcurrentHashMap<>();
+    private final Map<String, LlmInferenceExchange> pending = new ConcurrentHashMap<>();
 
-    LlmInferenceAdapter(LlmInferenceProvider handler, Supplier<ServerLlmInferenceApi> rpcSupplier, Executor executor) {
+    LlmInferenceAdapter(CopilotRequestHandler handler, Supplier<ServerLlmInferenceApi> rpcSupplier, Executor executor) {
         this.handler = handler;
         this.rpcSupplier = rpcSupplier;
         this.executor = executor;
@@ -53,9 +47,9 @@ final class LlmInferenceAdapter {
 
     void registerHandlers(JsonRpcClient rpc) {
         rpc.registerMethodHandler("llmInference.httpRequestStart",
-                (requestId, params) -> handleRequestStart(rpc, requestId, params));
+                (rpcId, params) -> handleRequestStart(rpc, rpcId, params));
         rpc.registerMethodHandler("llmInference.httpRequestChunk",
-                (requestId, params) -> handleRequestChunk(rpc, requestId, params));
+                (rpcId, params) -> handleRequestChunk(rpc, rpcId, params));
     }
 
     private void handleRequestStart(JsonRpcClient rpc, String rpcId, JsonNode params) {
@@ -63,128 +57,79 @@ final class LlmInferenceAdapter {
         String sessionId = textOrNull(params, "sessionId");
         String method = textOrNull(params, "method");
         String url = textOrNull(params, "url");
-        String transport = params.has("transport") && !params.get("transport").isNull()
-                ? params.get("transport").asText()
-                : LlmInferenceRequest.TRANSPORT_HTTP;
+        CopilotRequestTransport transport = CopilotRequestTransport.fromWire(textOrNull(params, "transport"));
         Map<String, List<String>> headers = parseHeaders(params.get("headers"));
 
-        PendingState state = new PendingState();
-        ResponseSink sink = new ResponseSink(requestId, state);
+        LlmInferenceExchange exchange = new LlmInferenceExchange(requestId, method, rpcSupplier);
+        exchange.setContext(
+                new CopilotRequestContext(requestId, sessionId, transport, url, headers, exchange.cancellation()));
+        pending.put(requestId, exchange);
 
-        pending.put(requestId, state);
-        List<ChunkFrame> stagedFrames = staged.remove(requestId);
-        if (stagedFrames != null) {
-            for (ChunkFrame frame : stagedFrames) {
-                routeChunk(state, frame);
-            }
-        }
-
-        LlmInferenceRequest request = new LlmInferenceRequest(requestId, sessionId, method, url, headers, transport,
-                state.body, sink, state.cancellation);
-        runAsync(() -> runHandler(request, sink, state));
+        // Return from httpRequestStart immediately (after registering state) so the
+        // runtime's RPC reply is not gated on the consumer's I/O. The actual handler
+        // work runs asynchronously.
+        runAsync(() -> runHandler(exchange));
 
         ack(rpc, rpcId);
     }
 
     private void handleRequestChunk(JsonRpcClient rpc, String rpcId, JsonNode params) {
         String requestId = params.get("requestId").asText();
-        ChunkFrame frame = new ChunkFrame(textOr(params, "data", ""), boolOr(params, "binary"), boolOr(params, "end"),
-                boolOr(params, "cancel"));
-
-        PendingState state = pending.get(requestId);
-        if (state == null) {
-            staged.computeIfAbsent(requestId, k -> new ArrayList<>()).add(frame);
-            ack(rpc, rpcId);
-            return;
+        LlmInferenceExchange exchange = pending.get(requestId);
+        if (exchange != null) {
+            routeChunk(exchange, params);
         }
-        routeChunk(state, frame);
         ack(rpc, rpcId);
     }
 
-    private void routeChunk(PendingState state, ChunkFrame frame) {
-        if (frame.cancel()) {
-            synchronized (state.lock) {
-                state.cancelled = true;
-            }
-            if (!state.cancellation.isDone()) {
-                state.cancellation.complete(null);
-            }
-            state.body.close();
+    private static void routeChunk(LlmInferenceExchange exchange, JsonNode params) {
+        if (boolOr(params, "cancel")) {
+            exchange.pushCancel();
             return;
         }
-        if (!frame.data().isEmpty()) {
-            byte[] bytes = frame.binary()
-                    ? Base64.getDecoder().decode(frame.data())
-                    : frame.data().getBytes(StandardCharsets.UTF_8);
-            state.body.push(bytes, frame.binary());
+        String data = textOr(params, "data", "");
+        boolean binary = boolOr(params, "binary");
+        if (!data.isEmpty()) {
+            byte[] bytes = binary ? Base64.getDecoder().decode(data) : data.getBytes(StandardCharsets.UTF_8);
+            exchange.pushChunk(bytes, binary);
         }
-        if (frame.end()) {
-            state.body.close();
+        if (boolOr(params, "end")) {
+            exchange.pushEnd();
         }
     }
 
-    private void runHandler(LlmInferenceRequest request, ResponseSink sink, PendingState state) {
+    private void runHandler(LlmInferenceExchange exchange) {
         try {
-            handler.onLlmRequest(request);
-            boolean finished;
-            synchronized (state.lock) {
-                finished = state.finished;
-            }
-            if (!finished) {
-                failViaSink(sink, state, "LLM inference provider returned without finalising the response "
-                        + "(call ResponseBody.end() or .error())");
+            handler.handle(exchange);
+            if (!exchange.finished()) {
+                finalizeError(exchange, 502, "LLM inference handler returned without finalising the response "
+                        + "(call endResponse() or errorResponse())", null);
             }
         } catch (Exception e) {
-            boolean cancelled;
-            synchronized (state.lock) {
-                cancelled = state.cancelled;
-            }
-            if (cancelled || state.cancellation.isDone()) {
-                finishCancelled(sink, state);
+            if (exchange.cancelled() || exchange.cancellation().isDone()) {
+                // The runtime already cancelled this request; the handler's throw is
+                // just the abort propagating out of its upstream call.
+                finalizeError(exchange, 499, "Request cancelled by runtime", "cancelled");
             } else {
                 String message = e.getMessage() != null ? e.getMessage() : e.toString();
-                failViaSink(sink, state, message);
+                finalizeError(exchange, 502, message, null);
             }
+        } finally {
+            pending.remove(exchange.requestId());
         }
     }
 
-    private void failViaSink(ResponseSink sink, PendingState state, String message) {
-        boolean finished;
-        boolean started;
-        synchronized (state.lock) {
-            finished = state.finished;
-            started = state.started;
-        }
-        if (finished) {
+    private static void finalizeError(LlmInferenceExchange exchange, int status, String message, String code) {
+        if (exchange.finished()) {
             return;
         }
         try {
-            if (!started) {
-                sink.start(new LlmInferenceResponseInit(502));
+            if (!exchange.started()) {
+                exchange.startResponse(status, null, null);
             }
-            sink.error(message, null);
+            exchange.errorResponse(message, code);
         } catch (IOException e) {
             LOG.log(Level.FINE, "Failed to deliver LLM inference failure", e);
-        }
-    }
-
-    private void finishCancelled(ResponseSink sink, PendingState state) {
-        boolean finished;
-        boolean started;
-        synchronized (state.lock) {
-            finished = state.finished;
-            started = state.started;
-        }
-        if (finished) {
-            return;
-        }
-        try {
-            if (!started) {
-                sink.start(new LlmInferenceResponseInit(499));
-            }
-            sink.error("Request cancelled by runtime", "cancelled");
-        } catch (IOException e) {
-            LOG.log(Level.FINE, "Failed to deliver LLM inference cancellation", e);
         }
     }
 
@@ -200,14 +145,6 @@ final class LlmInferenceAdapter {
         } catch (IOException e) {
             LOG.log(Level.FINE, "Failed to acknowledge LLM inference frame", e);
         }
-    }
-
-    private ServerLlmInferenceApi requireApi() throws IOException {
-        ServerLlmInferenceApi api = rpcSupplier.get();
-        if (api == null) {
-            throw new IOException("LLM inference response sink used after RPC connection closed");
-        }
-        return api;
     }
 
     private void runAsync(Runnable task) {
@@ -250,132 +187,5 @@ final class LlmInferenceAdapter {
             });
         }
         return result;
-    }
-
-    private record ChunkFrame(String data, boolean binary, boolean end, boolean cancel) {
-    }
-
-    private static final class PendingState {
-
-        private final LlmRequestBody body = new LlmRequestBody();
-        private final CompletableFuture<Void> cancellation = new CompletableFuture<>();
-        private final Object lock = new Object();
-        private boolean started;
-        private boolean finished;
-        private boolean cancelled;
-    }
-
-    private final class ResponseSink implements LlmInferenceResponseSink {
-
-        private final String requestId;
-        private final PendingState state;
-
-        ResponseSink(String requestId, PendingState state) {
-            this.requestId = requestId;
-            this.state = state;
-        }
-
-        @Override
-        public void start(LlmInferenceResponseInit init) throws IOException {
-            synchronized (state.lock) {
-                if (state.started) {
-                    throw new IOException("LLM inference response sink start() called twice");
-                }
-                if (state.finished) {
-                    throw new IOException("LLM inference response sink already finished");
-                }
-                state.started = true;
-            }
-            var params = new LlmInferenceHttpResponseStartParams(requestId, (long) init.getStatus(),
-                    init.getStatusText(), init.getHeaders());
-            LlmInferenceHttpResponseStartResult result = join(requireApi().httpResponseStart(params));
-            if (result != null && Boolean.FALSE.equals(result.accepted())) {
-                rejectedByRuntime();
-            }
-        }
-
-        @Override
-        public void write(byte[] data) throws IOException {
-            sendChunk(new String(data, StandardCharsets.UTF_8), false);
-        }
-
-        @Override
-        public void writeBinary(byte[] data) throws IOException {
-            sendChunk(Base64.getEncoder().encodeToString(data), true);
-        }
-
-        private void sendChunk(String data, boolean binary) throws IOException {
-            synchronized (state.lock) {
-                if (state.cancelled) {
-                    throw new IOException("LLM inference request was cancelled by the runtime");
-                }
-                if (!state.started) {
-                    throw new IOException("LLM inference response sink write() called before start()");
-                }
-                if (state.finished) {
-                    throw new IOException("LLM inference response sink write() called after end()/error()");
-                }
-            }
-            var params = new LlmInferenceHttpResponseChunkParams(requestId, data, binary ? Boolean.TRUE : null,
-                    Boolean.FALSE, null);
-            LlmInferenceHttpResponseChunkResult result = join(requireApi().httpResponseChunk(params));
-            if (result != null && Boolean.FALSE.equals(result.accepted())) {
-                rejectedByRuntime();
-            }
-        }
-
-        @Override
-        public void end() throws IOException {
-            synchronized (state.lock) {
-                if (state.finished) {
-                    return;
-                }
-                state.finished = true;
-            }
-            removePending();
-            var params = new LlmInferenceHttpResponseChunkParams(requestId, "", null, Boolean.TRUE, null);
-            join(requireApi().httpResponseChunk(params));
-        }
-
-        @Override
-        public void error(String message, String code) throws IOException {
-            synchronized (state.lock) {
-                if (state.finished) {
-                    return;
-                }
-                state.finished = true;
-            }
-            removePending();
-            var error = new LlmInferenceHttpResponseChunkError(message, code);
-            var params = new LlmInferenceHttpResponseChunkParams(requestId, "", null, Boolean.TRUE, error);
-            join(requireApi().httpResponseChunk(params));
-        }
-
-        private void rejectedByRuntime() throws IOException {
-            synchronized (state.lock) {
-                if (!state.cancelled) {
-                    state.cancelled = true;
-                }
-                state.finished = true;
-            }
-            if (!state.cancellation.isDone()) {
-                state.cancellation.complete(null);
-            }
-            removePending();
-            throw new IOException("LLM inference response was rejected by the runtime (request no longer active)");
-        }
-
-        private void removePending() {
-            pending.remove(requestId);
-        }
-
-        private <T> T join(CompletableFuture<T> future) throws IOException {
-            try {
-                return future.join();
-            } catch (RuntimeException e) {
-                Throwable cause = e.getCause() != null ? e.getCause() : e;
-                throw new IOException(cause.getMessage(), cause);
-            }
-        }
     }
 }

@@ -134,14 +134,14 @@ final class FakeUpstreamServer implements AutoCloseable {
         String body;
         int status = 200;
         if (lower.endsWith("/models")) {
-            body = LlmInferenceTestSupport.modelCatalog(List.of("/responses", "ws:/responses"));
+            body = CopilotRequestTestSupport.modelCatalog(List.of("/responses", "ws:/responses"));
         } else if (lower.contains("/models/session")) {
             body = "{}";
         } else if (lower.contains("/policy")) {
             body = "{\"state\":\"enabled\"}";
         } else if (lower.endsWith("/responses")) {
             contentType = "text/event-stream";
-            body = LlmInferenceTestSupport.sseBody(httpText, "resp_stub_http");
+            body = CopilotRequestTestSupport.sseBody(httpText, "resp_stub_http");
         } else {
             status = 404;
             body = "{\"error\":\"not_found\"}";
@@ -218,8 +218,8 @@ final class FakeUpstreamServer implements AutoCloseable {
                 }
                 message.reset();
                 upstreamWsRequests.incrementAndGet();
-                for (Map<String, Object> event : LlmInferenceTestSupport.responsesEvents(wsText, "resp_stub_ws")) {
-                    byte[] raw = LlmInferenceTestSupport.json(event).getBytes(StandardCharsets.UTF_8);
+                for (Map<String, Object> event : CopilotRequestTestSupport.responsesEvents(wsText, "resp_stub_ws")) {
+                    byte[] raw = CopilotRequestTestSupport.json(event).getBytes(StandardCharsets.UTF_8);
                     writeFrame(out, 0x1, raw);
                 }
                 out.flush();

@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.github.copilot.LlmInferenceConfig;
+import com.github.copilot.CopilotRequestHandler;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -56,7 +56,7 @@ public class CopilotClientOptions {
     private String logLevel = "info";
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
-    private LlmInferenceConfig llmInference;
+    private CopilotRequestHandler requestHandler;
     private int port;
     private TelemetryConfig telemetry;
     private Integer sessionIdleTimeoutSeconds;
@@ -457,31 +457,30 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the connection-level LLM inference callback configuration.
+     * Gets the connection-level LLM inference request handler.
      *
-     * @return the configuration, or {@code null} if not set
+     * @return the request handler, or {@code null} if not set
      */
     @JsonIgnore
-    public LlmInferenceConfig getLlmInference() {
-        return llmInference;
+    public CopilotRequestHandler getRequestHandler() {
+        return requestHandler;
     }
 
     /**
-     * Sets a connection-level LLM inference callback.
+     * Sets a connection-level LLM inference request handler.
      * <p>
      * When provided, the client registers as the runtime's LLM inference provider
      * on connect, and the runtime routes its model-layer HTTP and WebSocket traffic
-     * (both BYOK and CAPI) through the configured handler instead of issuing the
-     * calls itself.
+     * (both BYOK and CAPI) through the handler instead of issuing the calls itself.
      *
-     * @param llmInference
-     *            the configuration (must not be {@code null})
+     * @param requestHandler
+     *            the request handler (must not be {@code null})
      * @return this options instance for method chaining
      * @throws IllegalArgumentException
-     *             if {@code llmInference} is {@code null}
+     *             if {@code requestHandler} is {@code null}
      */
-    public CopilotClientOptions setLlmInference(LlmInferenceConfig llmInference) {
-        this.llmInference = Objects.requireNonNull(llmInference, "llmInference must not be null");
+    public CopilotClientOptions setRequestHandler(CopilotRequestHandler requestHandler) {
+        this.requestHandler = Objects.requireNonNull(requestHandler, "requestHandler must not be null");
         return this;
     }
 
@@ -720,7 +719,7 @@ public class CopilotClientOptions {
         copy.gitHubToken = this.gitHubToken;
         copy.logLevel = this.logLevel;
         copy.onListModels = this.onListModels;
-        copy.llmInference = this.llmInference;
+        copy.requestHandler = this.requestHandler;
         copy.port = this.port;
         copy.remote = this.remote;
         copy.sessionIdleTimeoutSeconds = this.sessionIdleTimeoutSeconds;

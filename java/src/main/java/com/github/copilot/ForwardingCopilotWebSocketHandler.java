@@ -12,78 +12,77 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 /**
- * The default {@link CopilotWebSocketHandler}: it dials the real upstream using
- * {@link java.net.http.WebSocket} and forwards upstream-to-runtime messages
- * into the response writer.
+ * The default pass-through {@link CopilotWebSocketHandler}: it dials the real
+ * upstream using {@link java.net.http.WebSocket} and relays upstream-to-runtime
+ * messages into the runtime response unchanged.
  * <p>
- * Subclass and override {@link #onSendRequestMessage} or
- * {@link #onSendResponseMessage} to observe, transform, or drop messages in
- * either direction.
+ * Subclass and override {@link #sendRequestMessage} or
+ * {@link #sendResponseMessage} (calling {@code super}) to observe, transform,
+ * or drop messages in either direction.
  *
  * @since 1.0.0
  */
-public class ForwardingWebSocketHandler implements CopilotWebSocketHandler {
+public class ForwardingCopilotWebSocketHandler extends CopilotWebSocketHandler {
 
     private final String url;
     private final Map<String, List<String>> headers;
-    private final CompletableFuture<Void> completion = new CompletableFuture<>();
 
     private volatile WebSocket webSocket;
-    private volatile WebSocketResponseWriter responseWriter;
+
+    /**
+     * Creates a forwarding handler targeting the request URL and headers from
+     * {@code context}.
+     *
+     * @param context
+     *            the per-request context
+     */
+    public ForwardingCopilotWebSocketHandler(CopilotRequestContext context) {
+        this(context, context.url(), context.headers());
+    }
+
+    /**
+     * Creates a forwarding handler targeting {@code url} with the handshake headers
+     * from {@code context}.
+     *
+     * @param context
+     *            the per-request context
+     * @param url
+     *            the upstream WebSocket URL
+     */
+    public ForwardingCopilotWebSocketHandler(CopilotRequestContext context, String url) {
+        this(context, url, context.headers());
+    }
 
     /**
      * Creates a forwarding handler targeting {@code url} with the given handshake
      * headers.
      *
+     * @param context
+     *            the per-request context
      * @param url
      *            the upstream WebSocket URL
      * @param headers
      *            the handshake headers, multi-valued
      */
-    public ForwardingWebSocketHandler(String url, Map<String, List<String>> headers) {
+    public ForwardingCopilotWebSocketHandler(CopilotRequestContext context, String url,
+            Map<String, List<String>> headers) {
+        super(context);
         this.url = url;
         this.headers = headers;
     }
 
-    /**
-     * Observes or transforms each runtime-to-upstream message. The default returns
-     * the data unchanged. Return {@code null} to drop the message.
-     *
-     * @param data
-     *            the message bytes
-     * @param binary
-     *            whether the message was delivered as binary
-     * @return the bytes to forward upstream, or {@code null} to drop
-     */
-    protected byte[] onSendRequestMessage(byte[] data, boolean binary) {
-        return data;
-    }
-
-    /**
-     * Observes or transforms each upstream-to-runtime message. The default returns
-     * the data unchanged. Return {@code null} to drop the message.
-     *
-     * @param data
-     *            the message bytes
-     * @param binary
-     *            whether the message was received as binary
-     * @return the bytes to forward to the runtime, or {@code null} to drop
-     */
-    protected byte[] onSendResponseMessage(byte[] data, boolean binary) {
-        return data;
-    }
-
     @Override
-    public void open(WebSocketResponseWriter responseWriter) throws Exception {
-        this.responseWriter = responseWriter;
+    void open() throws Exception {
+        if (webSocket != null) {
+            return;
+        }
         WebSocket.Builder builder = HttpClient.newHttpClient().newWebSocketBuilder();
         if (headers != null) {
             for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-                if (LlmRequestHandler.isForbiddenRequestHeader(entry.getKey()) || entry.getValue() == null) {
+                if (CopilotRequestHandler.isForbiddenRequestHeader(entry.getKey()) || entry.getValue() == null) {
                     continue;
                 }
                 for (String value : entry.getValue()) {
@@ -100,32 +99,32 @@ public class ForwardingWebSocketHandler implements CopilotWebSocketHandler {
     }
 
     @Override
-    public void sendRequestMessage(byte[] data, boolean binary) throws Exception {
-        byte[] out = onSendRequestMessage(data, binary);
-        if (out == null) {
-            return;
-        }
+    public void sendRequestMessage(CopilotWebSocketMessage message) throws Exception {
         WebSocket ws = this.webSocket;
         if (ws == null) {
             return;
         }
-        if (binary) {
-            ws.sendBinary(ByteBuffer.wrap(out), true).join();
+        if (message.binary()) {
+            ws.sendBinary(ByteBuffer.wrap(message.data()), true).join();
         } else {
-            ws.sendText(new String(out, StandardCharsets.UTF_8), true).join();
+            ws.sendText(message.text(), true).join();
         }
     }
 
     @Override
-    public CompletableFuture<Void> completion() {
-        return completion;
-    }
-
-    @Override
-    public void close() {
+    public void close(CopilotWebSocketCloseStatus status) throws Exception {
         WebSocket ws = this.webSocket;
         if (ws != null && !ws.isOutputClosed()) {
             ws.sendClose(WebSocket.NORMAL_CLOSURE, "").exceptionally(ex -> null);
+        }
+        super.close(status);
+    }
+
+    private void forward(byte[] data, boolean binary) {
+        try {
+            sendResponseMessage(new CopilotWebSocketMessage(data, binary));
+        } catch (Exception e) {
+            completion().completeExceptionally(e);
         }
     }
 
@@ -145,26 +144,6 @@ public class ForwardingWebSocketHandler implements CopilotWebSocketHandler {
             return ex;
         }
         return e;
-    }
-
-    private void forward(byte[] data, boolean binary) {
-        byte[] out = onSendResponseMessage(data, binary);
-        if (out == null) {
-            return;
-        }
-        WebSocketResponseWriter writer = this.responseWriter;
-        if (writer == null) {
-            return;
-        }
-        try {
-            if (binary) {
-                writer.sendBinary(out);
-            } else {
-                writer.sendText(out);
-            }
-        } catch (Exception e) {
-            completion.completeExceptionally(e);
-        }
     }
 
     private final class ForwardingListener implements WebSocket.Listener {
@@ -203,13 +182,17 @@ public class ForwardingWebSocketHandler implements CopilotWebSocketHandler {
 
         @Override
         public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            completion.complete(null);
+            close();
             return null;
         }
 
         @Override
         public void onError(WebSocket webSocket, Throwable error) {
-            completion.completeExceptionally(error);
+            try {
+                close(new CopilotWebSocketCloseStatus(error.getMessage(), null, error));
+            } catch (Exception e) {
+                completion().completeExceptionally(e);
+            }
         }
     }
 }

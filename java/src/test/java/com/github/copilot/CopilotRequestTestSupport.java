@@ -4,15 +4,30 @@
 
 package com.github.copilot;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
 import java.util.regex.Pattern;
+import javax.net.ssl.SSLSession;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,35 +35,36 @@ import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.CopilotClientOptions;
 
 /**
- * Shared synthetic-upstream helpers for the LLM inference callback e2e tests.
+ * Shared synthetic-upstream helpers for the {@link CopilotRequestHandler} e2e
+ * tests.
  *
  * <p>
- * These tests have no recorded snapshots: the registered callback fabricates
- * well-formed model responses and the runtime routes all of its model-layer
- * HTTP/WebSocket traffic through that callback instead of the CAPI proxy. The
- * helpers centralise the synthetic CAPI shapes (model catalog, policy,
- * {@code /responses} SSE, {@code /chat/completions}) so each test focuses on
- * the behaviour it is exercising.
+ * These tests have no recorded snapshots: a {@link CopilotRequestHandler}
+ * subclass fabricates well-formed model responses and the runtime routes all of
+ * its model-layer HTTP/WebSocket traffic through that handler instead of the
+ * CAPI proxy. The helpers centralise the synthetic CAPI shapes (model catalog,
+ * policy, {@code /responses} SSE, {@code /chat/completions}) so each test
+ * focuses on the behaviour it is exercising.
  * </p>
  */
-final class LlmInferenceTestSupport {
+final class CopilotRequestTestSupport {
 
     static final String SYNTHETIC_TEXT = "OK from the synthetic stream.";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Pattern STREAM_TRUE = Pattern.compile("\"stream\"\\s*:\\s*true");
 
-    private LlmInferenceTestSupport() {
+    private CopilotRequestTestSupport() {
     }
 
     /**
-     * Builds a client wired to {@code handler} via {@link LlmInferenceConfig}. The
-     * shared context client has no inference callback, so each inference test owns
-     * an isolated client carrying its own handler. {@code extraEnv} entries
-     * (formatted {@code KEY=value}) are added to the spawned runtime's environment,
-     * e.g. to flip an ExP flag for the WebSocket transport.
+     * Builds a client wired to {@code handler} via the {@code requestHandler}
+     * option. The shared context client has no request handler, so each inference
+     * test owns an isolated client carrying its own handler. {@code extraEnv}
+     * entries (formatted {@code KEY=value}) are added to the spawned runtime's
+     * environment, e.g. to flip an ExP flag for the WebSocket transport.
      */
-    static CopilotClient newLlmClient(E2ETestContext ctx, LlmInferenceProvider handler, String... extraEnv) {
+    static CopilotClient newLlmClient(E2ETestContext ctx, CopilotRequestHandler handler, String... extraEnv) {
         Map<String, String> env = new HashMap<>(ctx.getEnvironment());
         for (String entry : extraEnv) {
             int eq = entry.indexOf('=');
@@ -56,14 +72,13 @@ final class LlmInferenceTestSupport {
                 env.put(entry.substring(0, eq), entry.substring(eq + 1));
             }
         }
-        return ctx.createClient(new CopilotClientOptions().setEnvironment(env)
-                .setLlmInference(new LlmInferenceConfig().setHandler(handler)));
+        return ctx.createClient(new CopilotClientOptions().setEnvironment(env).setRequestHandler(handler));
     }
 
     /**
      * Initializes the proxy state and registers a synthetic CAPI user so the
      * runtime can resolve auth for sessions that route their model-layer traffic
-     * through the callback instead of the proxy.
+     * through the handler instead of the proxy.
      */
     static void setupCapiAuth(E2ETestContext ctx) throws IOException, InterruptedException {
         ctx.initializeProxy();
@@ -75,10 +90,6 @@ final class LlmInferenceTestSupport {
         Map<String, List<String>> headers = new LinkedHashMap<>();
         headers.put(name, List.of(value));
         return headers;
-    }
-
-    static Map<String, List<String>> emptyHeaders() {
-        return new LinkedHashMap<>();
     }
 
     static String json(Object value) {
@@ -109,6 +120,103 @@ final class LlmInferenceTestSupport {
             sb.append(sse((String) event.get("type"), event));
         }
         return sb.toString();
+    }
+
+    // --- Synthetic response builders for the CopilotRequestHandler send override
+    // ---
+
+    /**
+     * Drains the body of an outbound {@link HttpRequest} to a UTF-8 string. Mirrors
+     * the .NET {@code request.Content.ReadAsStringAsync()} the recording handler
+     * uses to inspect the request the runtime built.
+     */
+    static String requestBodyText(HttpRequest request) {
+        return request.bodyPublisher().map(CopilotRequestTestSupport::drain).orElse("");
+    }
+
+    private static String drain(HttpRequest.BodyPublisher publisher) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        publisher.subscribe(new Flow.Subscriber<>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(ByteBuffer item) {
+                byte[] chunk = new byte[item.remaining()];
+                item.get(chunk);
+                out.writeBytes(chunk);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                done.completeExceptionally(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                done.complete(null);
+            }
+        });
+        done.join();
+        return out.toString(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Synthesizes a well-formed inference response, dispatching by URL and the
+     * request body's stream flag exactly as a real reverse proxy would.
+     */
+    static HttpResponse<InputStream> buildInferenceResponse(String url, String bodyText, String text) {
+        boolean stream = wantsStream(bodyText);
+        String u = url.toLowerCase(Locale.ROOT);
+
+        if (u.contains("/responses")) {
+            if (!stream) {
+                List<Map<String, Object>> events = responsesEvents(text, "resp_stub_1");
+                Object last = events.get(events.size() - 1).get("response");
+                return jsonResponse(json(last));
+            }
+            return sseResponse(sseBody(text, "resp_stub_1"));
+        }
+
+        if (u.contains("/chat/completions") && stream) {
+            StringBuilder sb = new StringBuilder();
+            for (Map<String, Object> chunk : chatCompletionChunks(text)) {
+                sb.append("data: ").append(json(chunk)).append("\n\n");
+            }
+            sb.append("data: [DONE]\n\n");
+            return sseResponse(sb.toString());
+        }
+
+        return jsonResponse(json(chatCompletion(text)));
+    }
+
+    /**
+     * Serves the non-inference model-layer requests the runtime issues (catalog,
+     * model session, policy), with an empty-JSON fallback for anything else.
+     */
+    static HttpResponse<InputStream> buildNonInferenceResponse(String url) {
+        String u = url.toLowerCase(Locale.ROOT);
+        if (u.endsWith("/models")) {
+            return jsonResponse(modelCatalog(null));
+        }
+        if (u.contains("/models/session")) {
+            return jsonResponse("{}");
+        }
+        if (u.contains("/policy")) {
+            return jsonResponse("{\"state\":\"enabled\"}");
+        }
+        return jsonResponse("{}");
+    }
+
+    static HttpResponse<InputStream> jsonResponse(String body) {
+        return new StubHttpResponse(200, "application/json", body);
+    }
+
+    static HttpResponse<InputStream> sseResponse(String body) {
+        return new StubHttpResponse(200, "text/event-stream", body);
     }
 
     static String modelCatalog(List<String> supportedEndpoints) {
@@ -223,105 +331,6 @@ final class LlmInferenceTestSupport {
         return usage;
     }
 
-    static String drainRequest(LlmInferenceRequest req) throws InterruptedException {
-        return new String(req.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-    }
-
-    static void respondBuffered(LlmInferenceRequest req, int status, Map<String, List<String>> headers, String body)
-            throws IOException, InterruptedException {
-        drainRequest(req);
-        req.getResponseBody().start(new LlmInferenceResponseInit(status).setHeaders(headers));
-        if (body != null && !body.isEmpty()) {
-            req.getResponseBody().write(body.getBytes(StandardCharsets.UTF_8));
-        }
-        req.getResponseBody().end();
-    }
-
-    /**
-     * Serves the model catalog, model session and policy endpoints. Returns
-     * {@code true} when the request was one of those (and answered).
-     */
-    static boolean serviceNonInference(LlmInferenceRequest req) throws IOException, InterruptedException {
-        String url = req.getUrl().toLowerCase(Locale.ROOT);
-        if (url.endsWith("/models")) {
-            respondBuffered(req, 200, headers("content-type", "application/json"), modelCatalog(null));
-            return true;
-        }
-        if (url.contains("/models/session")) {
-            respondBuffered(req, 200, emptyHeaders(), "{}");
-            return true;
-        }
-        if (url.contains("/policy")) {
-            respondBuffered(req, 200, emptyHeaders(), "{\"state\":\"enabled\"}");
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Serves every non-inference model-layer request, including an empty-JSON
-     * fallback for anything unrecognised.
-     */
-    static void handleNonInferenceModelTraffic(LlmInferenceRequest req, List<String> supportedEndpoints)
-            throws IOException, InterruptedException {
-        String url = req.getUrl().toLowerCase(Locale.ROOT);
-        if (url.endsWith("/models")) {
-            respondBuffered(req, 200, headers("content-type", "application/json"), modelCatalog(supportedEndpoints));
-            return;
-        }
-        if (url.contains("/models/session")) {
-            respondBuffered(req, 200, emptyHeaders(), "{}");
-            return;
-        }
-        if (url.contains("/policy")) {
-            respondBuffered(req, 200, emptyHeaders(), "{\"state\":\"enabled\"}");
-            return;
-        }
-        respondBuffered(req, 200, headers("content-type", "application/json"), "{}");
-    }
-
-    /**
-     * Synthesizes a well-formed inference response, dispatching by URL and the
-     * request body's stream flag exactly as a real reverse proxy would.
-     */
-    static void handleInference(LlmInferenceRequest req, String text) throws IOException, InterruptedException {
-        String body = drainRequest(req);
-        boolean stream = wantsStream(body);
-        String url = req.getUrl().toLowerCase(Locale.ROOT);
-        LlmInferenceResponseSink sink = req.getResponseBody();
-
-        if (url.contains("/responses")) {
-            List<Map<String, Object>> events = responsesEvents(text, "resp_stub_1");
-            if (!stream) {
-                sink.start(new LlmInferenceResponseInit(200).setHeaders(headers("content-type", "application/json")));
-                Object last = events.get(events.size() - 1).get("response");
-                sink.write(json(last).getBytes(StandardCharsets.UTF_8));
-                sink.end();
-                return;
-            }
-            sink.start(new LlmInferenceResponseInit(200).setHeaders(headers("content-type", "text/event-stream")));
-            for (Map<String, Object> event : events) {
-                sink.write(sse((String) event.get("type"), event).getBytes(StandardCharsets.UTF_8));
-            }
-            sink.end();
-            return;
-        }
-
-        if (url.contains("/chat/completions") && stream) {
-            sink.start(new LlmInferenceResponseInit(200).setHeaders(headers("content-type", "text/event-stream")));
-            for (Map<String, Object> chunk : chatCompletionChunks(text)) {
-                sink.write(("data: " + json(chunk) + "\n\n").getBytes(StandardCharsets.UTF_8));
-            }
-            sink.write("data: [DONE]\n\n".getBytes(StandardCharsets.UTF_8));
-            sink.end();
-            return;
-        }
-
-        sink.start(new LlmInferenceResponseInit(200).setHeaders(headers("content-type", "application/json")));
-        sink.write(json(chatCompletion(text)).getBytes(StandardCharsets.UTF_8));
-        sink.end();
-    }
-
     private static List<Map<String, Object>> chatCompletionChunks(String text) {
         Map<String, Object> c1 = chatChunkBase();
         c1.put("choices", List.of(choice(0, delta("assistant", ""), null)));
@@ -393,5 +402,104 @@ final class LlmInferenceTestSupport {
         }
         String content = event.getData().content();
         return content != null ? content : "";
+    }
+
+    /** A single request the handler intercepted. */
+    record InterceptedRequest(String url, String sessionId) {
+    }
+
+    /**
+     * A {@link CopilotRequestHandler} that records every intercepted request and
+     * fully replaces the upstream call with a fabricated, well-formed response for
+     * every model-layer endpoint, so an agent turn completes entirely off-network.
+     */
+    static class RecordingRequestHandler extends CopilotRequestHandler {
+
+        private final ConcurrentLinkedQueue<InterceptedRequest> records = new ConcurrentLinkedQueue<>();
+        private final String text;
+
+        RecordingRequestHandler(String text) {
+            this.text = text;
+        }
+
+        List<InterceptedRequest> records() {
+            return new ArrayList<>(records);
+        }
+
+        List<InterceptedRequest> inferenceRequests() {
+            List<InterceptedRequest> out = new ArrayList<>();
+            for (InterceptedRequest r : records) {
+                if (isInferenceUrl(r.url())) {
+                    out.add(r);
+                }
+            }
+            return out;
+        }
+
+        @Override
+        protected HttpResponse<InputStream> sendHttp(HttpRequest request, CopilotRequestContext ctx) throws Exception {
+            String url = request.uri().toString();
+            records.add(new InterceptedRequest(url, ctx.sessionId()));
+            if (isInferenceUrl(url)) {
+                return buildInferenceResponse(url, requestBodyText(request), text);
+            }
+            return buildNonInferenceResponse(url);
+        }
+    }
+
+    /**
+     * A minimal {@link HttpResponse} over an in-memory body for the send override.
+     */
+    private static final class StubHttpResponse implements HttpResponse<InputStream> {
+
+        private final int status;
+        private final HttpHeaders headers;
+        private final byte[] body;
+
+        StubHttpResponse(int status, String contentType, String body) {
+            this.status = status;
+            this.body = body.getBytes(StandardCharsets.UTF_8);
+            this.headers = HttpHeaders.of(Map.of("content-type", List.of(contentType)), (k, v) -> true);
+        }
+
+        @Override
+        public int statusCode() {
+            return status;
+        }
+
+        @Override
+        public HttpRequest request() {
+            return null;
+        }
+
+        @Override
+        public Optional<HttpResponse<InputStream>> previousResponse() {
+            return Optional.empty();
+        }
+
+        @Override
+        public HttpHeaders headers() {
+            return headers;
+        }
+
+        @Override
+        public InputStream body() {
+            return new ByteArrayInputStream(body);
+        }
+
+        @Override
+        public Optional<SSLSession> sslSession() {
+            return Optional.empty();
+        }
+
+        @Override
+        public URI uri() {
+            return null;
+        }
+
+        @Override
+        public HttpClient.Version version() {
+            return HttpClient.Version.HTTP_1_1;
+        }
     }
 }
