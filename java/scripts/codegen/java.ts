@@ -1393,6 +1393,14 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
                         generatedClasses.set(resultRefName, true);
                         allFiles.push(await generateRpcDataClass(resultRefName, resultSchema, packageName, packageDir, method.rpcMethod, "result"));
                     }
+                } else if (resultRefName && resultSchema.type === "array") {
+                    // Named array aliases (e.g. AccountGetAllUsersResult) are returned
+                    // as List<T> by wrappers, but resolving them here discovers any
+                    // referenced item records that need standalone generation.
+                    schemaTypeToJava(resultSchema, false, resultRefName, "item", new Map());
+                } else if (resultSchema.type === "array") {
+                    // Inline arrays also need their referenced item records generated.
+                    schemaTypeToJava(resultSchema, false, `${className}Result`, "item", new Map());
                 }
             }
         }
@@ -1521,8 +1529,8 @@ function apiClassName(prefix: string, path: string[]): string {
 }
 
 /**
- * Derive the result class name for an RPC method.
- * Handles $ref to named definitions (enums, anyOf unions, objects with properties).
+ * Derive the Java result type for an RPC method.
+ * Handles $ref to named definitions (enums, anyOf unions, objects with properties, arrays).
  * Falls back to Void for null results or schemas with no meaningful type.
  */
 function wrapperResultClassName(method: RpcMethodNode): string {
@@ -1553,6 +1561,11 @@ function wrapperResultClassName(method: RpcMethodNode): string {
             if (resolved.type === "object" && !resolved.properties) {
                 return refName;
             }
+            // Named array aliases → use the underlying List<T> Java type.
+            if (resolved.type === "array") {
+                const result = schemaTypeToJava(resolved, false, refName, "item", new Map());
+                return result.javaType;
+            }
         }
     }
 
@@ -1568,6 +1581,11 @@ function wrapperResultClassName(method: RpcMethodNode): string {
         return rpcMethodToClassName(method.rpcMethod) + "Result";
     }
 
+    if (result && typeof result === "object" && result.type === "array") {
+        const javaResult = schemaTypeToJava(result, false, `${rpcMethodToClassName(method.rpcMethod)}Result`, "item", new Map());
+        return javaResult.javaType;
+    }
+
     // Free-form object with additionalProperties (e.g., x-opaque-json) → JsonNode
     if (
         result &&
@@ -1580,6 +1598,41 @@ function wrapperResultClassName(method: RpcMethodNode): string {
     }
 
     return "Void";
+}
+
+function wrapperResultTypeExpression(resultType: string): string {
+    const listMatch = resultType.match(/^List<([^<>]+)>$/);
+    if (listMatch) {
+        return `RpcMapper.INSTANCE.getTypeFactory().constructCollectionType(List.class, ${javaClassLiteral(listMatch[1])})`;
+    }
+
+    return javaClassLiteral(resultType);
+}
+
+function javaClassLiteral(javaType: string): string {
+    return javaType === "Void" ? "Void.class" : `${javaType}.class`;
+}
+
+function addWrapperResultImports(resultType: string, allImports: Set<string>, packageName: string): void {
+    if (resultType === "Void") {
+        return;
+    }
+
+    if (resultType === "JsonNode") {
+        allImports.add("com.fasterxml.jackson.databind.JsonNode");
+        return;
+    }
+
+    if (resultType.startsWith("List<")) {
+        allImports.add("java.util.List");
+    }
+
+    const builtInTypes = new Set(["Boolean", "Double", "Long", "List", "Object", "String", "Void"]);
+    for (const typeName of resultType.match(/\b[A-Z][A-Za-z0-9_]*\b/g) ?? []) {
+        if (!builtInTypes.has(typeName)) {
+            allImports.add(`${packageName}.${typeName}`);
+        }
+    }
 }
 
 /**
@@ -1659,18 +1712,18 @@ function generateApiMethod(
             needsMapper = true;
             lines.push(`        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);`);
             lines.push(`        _p.put("sessionId", ${sessionIdExpr});`);
-            lines.push(`        return caller.invoke("${method.rpcMethod}", _p, ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", _p, ${wrapperResultTypeExpression(resultClass)});`);
         } else if (hasSessionId) {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of("sessionId", ${sessionIdExpr}), ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of("sessionId", ${sessionIdExpr}), ${wrapperResultTypeExpression(resultClass)});`);
         } else {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${wrapperResultTypeExpression(resultClass)});`);
         }
     } else {
         // Server-side: pass params directly (or empty map if no params)
         if (hasExtraParams) {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", params, ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", params, ${wrapperResultTypeExpression(resultClass)});`);
         } else {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${wrapperResultTypeExpression(resultClass)});`);
         }
     }
 
@@ -1723,13 +1776,7 @@ async function generateNamespaceApiFile(
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
         const paramsClass = wrapperParamsClassName(method);
-        if (resultClass !== "Void") {
-            if (resultClass === "JsonNode") {
-                allImports.add("com.fasterxml.jackson.databind.JsonNode");
-            } else {
-                allImports.add(`${packageName}.${resultClass}`);
-            }
-        }
+        addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
         const { lines, needsMapper: nm, needsExperimentalImport } = generateApiMethod(key, method, isSession, sessionIdExpr);
@@ -1849,13 +1896,7 @@ async function generateRpcRootFile(
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
         const paramsClass = wrapperParamsClassName(method);
-        if (resultClass !== "Void") {
-            if (resultClass === "JsonNode") {
-                allImports.add("com.fasterxml.jackson.databind.JsonNode");
-            } else {
-                allImports.add(`${packageName}.${resultClass}`);
-            }
-        }
+        addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
         const { lines, needsMapper: nm, needsExperimentalImport } = generateApiMethod(key, method, isSession, sessionIdExpr);
@@ -1959,7 +2000,10 @@ async function generateRpcCallerInterface(packageName: string, packageDir: strin
     lines.push(``);
     lines.push(`package ${packageName};`);
     lines.push(``);
+    lines.push(`import com.fasterxml.jackson.databind.JavaType;`);
+    lines.push(`import com.fasterxml.jackson.databind.JsonNode;`);
     lines.push(`import java.util.concurrent.CompletableFuture;`);
+    lines.push(`import java.util.concurrent.CompletionException;`);
     lines.push(`import javax.annotation.processing.Generated;`);
     lines.push(``);
     lines.push(`/**`);
@@ -1987,6 +2031,28 @@ async function generateRpcCallerInterface(packageName: string, packageDir: strin
     lines.push(`     * @return a {@link CompletableFuture} that completes with the deserialized result`);
     lines.push(`     */`);
     lines.push(`    <T> CompletableFuture<T> invoke(String method, Object params, Class<T> resultType);`);
+    lines.push(``);
+    lines.push(`    /**`);
+    lines.push(`     * Invokes a JSON-RPC method and returns a future for the typed response.`);
+    lines.push(`     *`);
+    lines.push(`     * @param <T>        the expected response type`);
+    lines.push(`     * @param method     the JSON-RPC method name`);
+    lines.push(`     * @param params     the request parameters (may be a {@code Map}, DTO record, or {@code JsonNode})`);
+    lines.push(`     * @param resultType the Jackson {@link JavaType} of the expected response type`);
+    lines.push(`     * @return a {@link CompletableFuture} that completes with the deserialized result`);
+    lines.push(`     */`);
+    lines.push(`    default <T> CompletableFuture<T> invoke(String method, Object params, JavaType resultType) {`);
+    lines.push(`        if (resultType.hasRawClass(Void.class) || resultType.hasRawClass(Void.TYPE)) {`);
+    lines.push(`            return invoke(method, params, Void.class).thenApply(ignored -> null);`);
+    lines.push(`        }`);
+    lines.push(`        return invoke(method, params, JsonNode.class).thenApply(result -> {`);
+    lines.push(`            try {`);
+    lines.push(`                return RpcMapper.INSTANCE.readerFor(resultType).readValue(result);`);
+    lines.push(`            } catch (java.io.IOException e) {`);
+    lines.push(`                throw new CompletionException(e);`);
+    lines.push(`            }`);
+    lines.push(`        });`);
+    lines.push(`    }`);
     lines.push(`}`);
     lines.push(``);
 

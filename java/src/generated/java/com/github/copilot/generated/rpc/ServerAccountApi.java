@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -45,8 +46,8 @@ public final class ServerAccountApi {
      * List of all authenticated users
      * @since 1.0.0
      */
-    public CompletableFuture<Void> getAllUsers() {
-        return caller.invoke("account.getAllUsers", java.util.Map.of(), Void.class);
+    public CompletableFuture<List<AccountAllUsers>> getAllUsers() {
+        return caller.invoke("account.getAllUsers", java.util.Map.of(), RpcMapper.INSTANCE.getTypeFactory().constructCollectionType(List.class, AccountAllUsers.class));
     }
 
     /**
