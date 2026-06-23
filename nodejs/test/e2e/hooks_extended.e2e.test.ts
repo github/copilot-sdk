@@ -7,6 +7,7 @@ import { z } from "zod";
 import { approveAll, defineTool } from "../../src/index.js";
 import type {
     ErrorOccurredHookInput,
+    PostUserPromptSubmittedHookInput,
     PostToolUseFailureHookInput,
     PostToolUseHookInput,
     PreToolUseHookInput,
@@ -145,6 +146,42 @@ describe("Extended session hooks", async () => {
         expect(inputs.length).toBeGreaterThan(0);
         expect(inputs[0].prompt).toContain("Say something else");
         expect(response?.data.content ?? "").toContain("HOOKED_PROMPT");
+
+        await session.disconnect();
+    });
+
+    it("should invoke postUserPromptSubmitted hook and modify transformed prompt", async () => {
+        const inputs: PostUserPromptSubmittedHookInput[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onPostUserPromptSubmitted: async (input, invocation) => {
+                    inputs.push(input);
+                    expect(invocation.sessionId).toBeTruthy();
+                    expect(input.prompt).toContain("Say something after prompt transformation");
+                    expect(input.transformedPrompt).toContain(
+                        "Say something after prompt transformation"
+                    );
+                    expect(input.transformedPrompt).toContain("<current_datetime>");
+
+                    return {
+                        modifiedTransformedPrompt: input.transformedPrompt.replace(
+                            /<current_datetime>.*?<\/current_datetime>\n*/s,
+                            "POST_USER_PROMPT_SUBMITTED_HOOK\n"
+                        ),
+                    };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Say something after prompt transformation",
+        });
+
+        expect(inputs.length).toBeGreaterThan(0);
+        expect(inputs[0].timestamp).toBeInstanceOf(Date);
+        expect(inputs[0].workingDirectory).toBeDefined();
+        expect(response?.data.content ?? "").toContain("POST_USER_PROMPT_SUBMITTED_HOOK");
 
         await session.disconnect();
     });

@@ -1,0 +1,12 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          POST_USER_PROMPT_SUBMITTED_HOOK
+          Say something after prompt transformation
+      - role: assistant
+        content: POST_USER_PROMPT_SUBMITTED_HOOK

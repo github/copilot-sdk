@@ -1273,6 +1273,34 @@ export type UserPromptSubmittedHandler = (
 ) => Promise<UserPromptSubmittedHookOutput | void> | UserPromptSubmittedHookOutput | void;
 
 /**
+ * Input for post-user-prompt-submitted hook.
+ *
+ * This hook runs after the runtime has transformed the submitted prompt with
+ * generated context such as `<current_datetime>`, but before the transformed
+ * prompt is persisted to session history or sent to the model.
+ */
+export interface PostUserPromptSubmittedHookInput extends BaseHookInput {
+    prompt: string;
+    transformedPrompt: string;
+}
+
+/**
+ * Output for post-user-prompt-submitted hook.
+ */
+export interface PostUserPromptSubmittedHookOutput {
+    modifiedTransformedPrompt?: string;
+    suppressOutput?: boolean;
+}
+
+/**
+ * Handler for post-user-prompt-submitted hook.
+ */
+export type PostUserPromptSubmittedHandler = (
+    input: PostUserPromptSubmittedHookInput,
+    invocation: { sessionId: string }
+) => Promise<PostUserPromptSubmittedHookOutput | void> | PostUserPromptSubmittedHookOutput | void;
+
+/**
  * Input for session-start hook
  */
 export interface SessionStartHookInput extends BaseHookInput {
@@ -1384,6 +1412,11 @@ export interface SessionHooks {
      * Called when the user submits a prompt
      */
     onUserPromptSubmitted?: UserPromptSubmittedHandler;
+
+    /**
+     * Called after the runtime transforms a submitted prompt and before it is stored.
+     */
+    onPostUserPromptSubmitted?: PostUserPromptSubmittedHandler;
 
     /**
      * Called when a session starts
