@@ -65,7 +65,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
             // Validate @Param conflicts
             for (VariableElement param : method.getParameters()) {
                 Param paramAnnotation = param.getAnnotation(Param.class);
-                if (paramAnnotation != null && paramAnnotation.required() && !paramAnnotation.defaultValue().isEmpty()) {
+                if (paramAnnotation != null && paramAnnotation.required()
+                        && !paramAnnotation.defaultValue().isEmpty()) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
                             "@Param cannot have both required=true and a non-empty defaultValue", param);
                 }
@@ -168,8 +169,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
         for (ExecutableElement method : methods) {
             for (VariableElement param : method.getParameters()) {
                 Param paramAnnotation = param.getAnnotation(Param.class);
-                if (paramAnnotation != null && (!paramAnnotation.value().isEmpty()
-                        || !paramAnnotation.defaultValue().isEmpty())) {
+                if (paramAnnotation != null
+                        && (!paramAnnotation.value().isEmpty() || !paramAnnotation.defaultValue().isEmpty())) {
                     return true;
                 }
             }
@@ -179,7 +180,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
     private void writeToolDefinition(PrintWriter out, ExecutableElement method) {
         CopilotTool annotation = method.getAnnotation(CopilotTool.class);
-        String toolName = annotation.name().isEmpty() ? toSnakeCase(method.getSimpleName().toString())
+        String toolName = annotation.name().isEmpty()
+                ? toSnakeCase(method.getSimpleName().toString())
                 : annotation.name();
         String description = annotation.value();
         boolean overridesBuiltIn = annotation.overridesBuiltInTool();
@@ -574,7 +576,10 @@ public class CopilotToolProcessor extends AbstractProcessor {
         if (s == null) {
             return "";
         }
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t",
-                "\\t");
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }

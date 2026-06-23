@@ -13,7 +13,6 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import javax.tools.Diagnostic;
@@ -446,6 +445,12 @@ class CopilotToolProcessorTest {
     }
 
     private static String resolveClasspath() {
+        // Use the full system classpath so generated code can resolve all
+        // dependencies (e.g. Jackson ObjectMapper) during test compilation.
+        String systemCp = System.getProperty("java.class.path", "");
+        if (!systemCp.isEmpty()) {
+            return systemCp;
+        }
         CodeSource cs = CopilotTool.class.getProtectionDomain().getCodeSource();
         if (cs != null) {
             URL location = cs.getLocation();
@@ -453,11 +458,11 @@ class CopilotToolProcessorTest {
                 try {
                     return Path.of(location.toURI()).toString();
                 } catch (Exception e) {
-                    // fall through to system classpath
+                    return ".";
                 }
             }
         }
-        return System.getProperty("java.class.path", ".");
+        return ".";
     }
 
     private static JavaFileObject inMemorySource(String className, String code) {
@@ -477,8 +482,8 @@ class CopilotToolProcessorTest {
     }
 
     private static boolean hasErrorContaining(CompilationResult result, String substring) {
-        return result.diagnostics.stream().anyMatch(
-                d -> d.getKind() == Diagnostic.Kind.ERROR && d.getMessage(null).contains(substring));
+        return result.diagnostics.stream()
+                .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR && d.getMessage(null).contains(substring));
     }
 
     private static class CompilationResult {
