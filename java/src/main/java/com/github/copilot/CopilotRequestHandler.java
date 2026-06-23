@@ -143,9 +143,7 @@ public class CopilotRequestHandler {
             int n;
             while ((n = body.read(buffer)) != -1) {
                 if (n > 0) {
-                    byte[] frame = new byte[n];
-                    System.arraycopy(buffer, 0, frame, 0, n);
-                    exchange.writeResponseBinary(frame);
+                    exchange.writeResponseBinary(buffer, 0, n);
                 }
             }
         } catch (IOException e) {

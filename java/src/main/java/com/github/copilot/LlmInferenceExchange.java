@@ -6,6 +6,8 @@ package com.github.copilot;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -194,6 +196,11 @@ final class LlmInferenceExchange {
 
     void writeResponseBinary(byte[] data) throws IOException {
         writeChunk(Base64.getEncoder().encodeToString(data), true);
+    }
+
+    void writeResponseBinary(byte[] data, int offset, int length) throws IOException {
+        ByteBuffer encoded = Base64.getEncoder().encode(ByteBuffer.wrap(data, offset, length));
+        writeChunk(new String(encoded.array(), 0, encoded.limit(), StandardCharsets.ISO_8859_1), true);
     }
 
     void endResponse() throws IOException {

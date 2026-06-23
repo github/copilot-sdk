@@ -538,7 +538,11 @@ impl CopilotWebSocketHandler for CopilotWebSocketForwarder {
         let ws_message = if message.binary {
             Message::Binary(message.data)
         } else {
-            Message::Text(String::from_utf8_lossy(&message.data).into_owned())
+            let text = match String::from_utf8(message.data) {
+                Ok(text) => text,
+                Err(err) => String::from_utf8_lossy(err.as_bytes()).into_owned(),
+            };
+            Message::Text(text)
         };
         let mut guard = self.write.lock().await;
         if let Some(write) = guard.as_mut() {
