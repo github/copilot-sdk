@@ -200,6 +200,9 @@ public class SchemaGenerator {
         if ("java.util.OptionalDouble".equals(qualifiedName)) {
             return "Map.of(\"type\", \"number\")";
         }
+        if ("java.util.OptionalLong".equals(qualifiedName)) {
+            return "Map.of(\"type\", \"integer\")";
+        }
 
         // List / Collection
         if (isCollectionType(qualifiedName)) {

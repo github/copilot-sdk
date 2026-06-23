@@ -455,6 +455,42 @@ public class SchemaGeneratorTest {
     }
 
     @Test
+    void optionalIntType() {
+        String source = """
+                import java.util.OptionalInt;
+                public class TestOptionalIntHolder {
+                    public OptionalInt schemaTargetOptionalInt() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetOptionalInt", "Map.of(\"type\", \"integer\")");
+    }
+
+    @Test
+    void optionalLongType() {
+        String source = """
+                import java.util.OptionalLong;
+                public class TestOptionalLongHolder {
+                    public OptionalLong schemaTargetOptionalLong() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetOptionalLong", "Map.of(\"type\", \"integer\")");
+    }
+
+    @Test
+    void optionalDoubleType() {
+        String source = """
+                import java.util.OptionalDouble;
+                public class TestOptionalDoubleHolder {
+                    public OptionalDouble schemaTargetOptionalDouble() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetOptionalDouble", "Map.of(\"type\", \"number\")");
+    }
+
+    @Test
     void uuidType() {
         String source = """
                 import java.util.UUID;
