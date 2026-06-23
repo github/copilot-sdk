@@ -42,7 +42,7 @@ public class SchemaGenerator {
      * @return a Java source code string representing the JSON Schema
      */
     public String generateSchemaSource(TypeMirror type, Types typeUtils, Elements elementUtils) {
-        return generateSchema(type, typeUtils, elementUtils, false);
+        return generateSchema(type, typeUtils, elementUtils);
     }
 
     /**
@@ -70,10 +70,9 @@ public class SchemaGenerator {
             boolean isOptional = isOptionalType(paramType, typeUtils, elementUtils);
             String schema;
             if (isOptional) {
-                schema = generateSchema(unwrapOptional(paramType, typeUtils, elementUtils), typeUtils, elementUtils,
-                        false);
+                schema = generateSchema(unwrapOptional(paramType, typeUtils, elementUtils), typeUtils, elementUtils);
             } else {
-                schema = generateSchema(paramType, typeUtils, elementUtils, false);
+                schema = generateSchema(paramType, typeUtils, elementUtils);
             }
 
             propertyEntries.add("\"" + paramName + "\", " + schema);
@@ -92,7 +91,7 @@ public class SchemaGenerator {
         return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
     }
 
-    private String generateSchema(TypeMirror type, Types typeUtils, Elements elementUtils, boolean nested) {
+    private String generateSchema(TypeMirror type, Types typeUtils, Elements elementUtils) {
         // Handle primitive types
         if (type.getKind().isPrimitive()) {
             return generatePrimitiveSchema(type.getKind());
@@ -102,7 +101,7 @@ public class SchemaGenerator {
         if (type.getKind() == TypeKind.ARRAY) {
             ArrayType arrayType = (ArrayType) type;
             TypeMirror componentType = arrayType.getComponentType();
-            String itemsSchema = generateSchema(componentType, typeUtils, elementUtils, true);
+            String itemsSchema = generateSchema(componentType, typeUtils, elementUtils);
             return "Map.of(\"type\", \"array\", \"items\", " + itemsSchema + ")";
         }
 
@@ -119,12 +118,16 @@ public class SchemaGenerator {
         switch (kind) {
             case INT:
             case LONG:
+            case BYTE:
+            case SHORT:
                 return "Map.of(\"type\", \"integer\")";
             case DOUBLE:
             case FLOAT:
                 return "Map.of(\"type\", \"number\")";
             case BOOLEAN:
                 return "Map.of(\"type\", \"boolean\")";
+            case CHAR:
+                return "Map.of(\"type\", \"string\")";
             default:
                 return "Map.of()";
         }
@@ -174,7 +177,7 @@ public class SchemaGenerator {
         if ("java.util.Optional".equals(qualifiedName)) {
             List<? extends TypeMirror> typeArgs = type.getTypeArguments();
             if (!typeArgs.isEmpty()) {
-                return generateSchema(typeArgs.get(0), typeUtils, elementUtils, true);
+                return generateSchema(typeArgs.get(0), typeUtils, elementUtils);
             }
             return "Map.of()";
         }
@@ -189,7 +192,7 @@ public class SchemaGenerator {
         if (isCollectionType(qualifiedName)) {
             List<? extends TypeMirror> typeArgs = type.getTypeArguments();
             if (!typeArgs.isEmpty()) {
-                String itemsSchema = generateSchema(typeArgs.get(0), typeUtils, elementUtils, true);
+                String itemsSchema = generateSchema(typeArgs.get(0), typeUtils, elementUtils);
                 return "Map.of(\"type\", \"array\", \"items\", " + itemsSchema + ")";
             }
             return "Map.of(\"type\", \"array\")";
@@ -207,7 +210,7 @@ public class SchemaGenerator {
                         return "Map.of(\"type\", \"object\")";
                     }
                 }
-                String valueSchema = generateSchema(valueType, typeUtils, elementUtils, true);
+                String valueSchema = generateSchema(valueType, typeUtils, elementUtils);
                 return "Map.of(\"type\", \"object\", \"additionalProperties\", " + valueSchema + ")";
             }
             return "Map.of(\"type\", \"object\")";
@@ -254,9 +257,9 @@ public class SchemaGenerator {
                 String schema;
                 if (isOptional) {
                     schema = generateSchema(
-                            unwrapOptional(componentType, typeUtils, elementUtils), typeUtils, elementUtils, true);
+                            unwrapOptional(componentType, typeUtils, elementUtils), typeUtils, elementUtils);
                 } else {
-                    schema = generateSchema(componentType, typeUtils, elementUtils, true);
+                    schema = generateSchema(componentType, typeUtils, elementUtils);
                     requiredNames.add("\"" + name + "\"");
                 }
 
@@ -288,9 +291,9 @@ public class SchemaGenerator {
                 String schema;
                 if (isOptional) {
                     schema = generateSchema(
-                            unwrapOptional(fieldType, typeUtils, elementUtils), typeUtils, elementUtils, true);
+                            unwrapOptional(fieldType, typeUtils, elementUtils), typeUtils, elementUtils);
                 } else {
-                    schema = generateSchema(fieldType, typeUtils, elementUtils, true);
+                    schema = generateSchema(fieldType, typeUtils, elementUtils);
                     requiredNames.add("\"" + name + "\"");
                 }
 
@@ -312,7 +315,7 @@ public class SchemaGenerator {
         List<? extends TypeMirror> permittedSubclasses = typeElement.getPermittedSubclasses();
         if (permittedSubclasses != null && !permittedSubclasses.isEmpty()) {
             List<String> schemas = permittedSubclasses.stream()
-                    .map(sub -> generateSchema(sub, typeUtils, elementUtils, true))
+                    .map(sub -> generateSchema(sub, typeUtils, elementUtils))
                     .collect(Collectors.toList());
             return "Map.of(\"oneOf\", List.of(" + String.join(", ", schemas) + "))";
         }
