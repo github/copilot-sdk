@@ -57,7 +57,9 @@ public final class ModelCallFailureEvent extends SessionEvent {
         /** For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures. */
         @JsonProperty("errorCode") String errorCode,
         /** For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures. */
-        @JsonProperty("errorType") String errorType
+        @JsonProperty("errorType") String errorType,
+        /** Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures. */
+        @JsonProperty("requestFingerprint") ModelCallFailureRequestFingerprint requestFingerprint
     ) {
     }
 }

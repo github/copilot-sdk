@@ -69,7 +69,9 @@ internal sealed class ConnectRequest
 /// <summary>Long context tier pricing (available for models with extended context windows).</summary>
 public sealed class ModelBillingTokenPricesLongContext
 {
-    /// <summary>Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens.</summary>
+    /// <summary>Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
@@ -81,7 +83,9 @@ public sealed class ModelBillingTokenPricesLongContext
     [JsonPropertyName("cacheWritePrice")]
     public double? CacheWritePrice { get; set; }
 
-    /// <summary>Deprecated: use maxPromptTokens. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.</summary>
+    /// <summary>Use maxPromptTokens instead. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
@@ -105,7 +109,9 @@ public sealed class ModelBillingTokenPrices
     [JsonPropertyName("batchSize")]
     public long? BatchSize { get; set; }
 
-    /// <summary>Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens.</summary>
+    /// <summary>Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
@@ -117,7 +123,9 @@ public sealed class ModelBillingTokenPrices
     [JsonPropertyName("cacheWritePrice")]
     public double? CacheWritePrice { get; set; }
 
-    /// <summary>Deprecated: use maxPromptTokens. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.</summary>
+    /// <summary>Use maxPromptTokens instead. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
@@ -368,6 +376,561 @@ internal sealed class AccountGetQuotaRequest
     /// <summary>GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.</summary>
     [JsonPropertyName("gitHubToken")]
     public string? GitHubToken { get; set; }
+}
+
+/// <summary>Initial authentication info for the session.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(AuthInfoHmac), "hmac")]
+[JsonDerivedType(typeof(AuthInfoEnv), "env")]
+[JsonDerivedType(typeof(AuthInfoToken), "token")]
+[JsonDerivedType(typeof(AuthInfoCopilotApiToken), "copilot-api-token")]
+[JsonDerivedType(typeof(AuthInfoUser), "user")]
+[JsonDerivedType(typeof(AuthInfoGhCli), "gh-cli")]
+[JsonDerivedType(typeof(AuthInfoApiKey), "api-key")]
+public partial class AuthInfo
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
+/// <summary>Schema for the `CopilotUserResponseEndpoints` type.</summary>
+public sealed class CopilotUserResponseEndpoints
+{
+    /// <summary>Gets or sets the <c>api</c> value.</summary>
+    [JsonPropertyName("api")]
+    public string? Api { get; set; }
+
+    /// <summary>Gets or sets the <c>origin-tracker</c> value.</summary>
+    [JsonPropertyName("origin-tracker")]
+    public string? OriginTracker { get; set; }
+
+    /// <summary>Gets or sets the <c>proxy</c> value.</summary>
+    [JsonPropertyName("proxy")]
+    public string? Proxy { get; set; }
+
+    /// <summary>Gets or sets the <c>telemetry</c> value.</summary>
+    [JsonPropertyName("telemetry")]
+    public string? Telemetry { get; set; }
+}
+
+/// <summary>RPC data type for CopilotUserResponseOrganizationListItem operations.</summary>
+public sealed class CopilotUserResponseOrganizationListItem
+{
+    /// <summary>Gets or sets the <c>login</c> value.</summary>
+    [JsonPropertyName("login")]
+    public string? Login { get; set; }
+
+    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+}
+
+/// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
+public sealed class CopilotUserResponseQuotaSnapshotsChat
+{
+    /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
+    [JsonPropertyName("entitlement")]
+    public double? Entitlement { get; set; }
+
+    /// <summary>Gets or sets the <c>has_quota</c> value.</summary>
+    [JsonPropertyName("has_quota")]
+    public bool? HasQuota { get; set; }
+
+    /// <summary>Gets or sets the <c>overage_count</c> value.</summary>
+    [JsonPropertyName("overage_count")]
+    public double? OverageCount { get; set; }
+
+    /// <summary>Gets or sets the <c>overage_permitted</c> value.</summary>
+    [JsonPropertyName("overage_permitted")]
+    public bool? OveragePermitted { get; set; }
+
+    /// <summary>Gets or sets the <c>percent_remaining</c> value.</summary>
+    [JsonPropertyName("percent_remaining")]
+    public double? PercentRemaining { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_id</c> value.</summary>
+    [JsonPropertyName("quota_id")]
+    public string? QuotaId { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_remaining</c> value.</summary>
+    [JsonPropertyName("quota_remaining")]
+    public double? QuotaRemaining { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_reset_at</c> value.</summary>
+    [JsonPropertyName("quota_reset_at")]
+    public double? QuotaResetAt { get; set; }
+
+    /// <summary>Gets or sets the <c>remaining</c> value.</summary>
+    [JsonPropertyName("remaining")]
+    public double? Remaining { get; set; }
+
+    /// <summary>Gets or sets the <c>timestamp_utc</c> value.</summary>
+    [JsonPropertyName("timestamp_utc")]
+    public string? TimestampUtc { get; set; }
+
+    /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
+    [JsonPropertyName("token_based_billing")]
+    public bool? TokenBasedBilling { get; set; }
+
+    /// <summary>Gets or sets the <c>unlimited</c> value.</summary>
+    [JsonPropertyName("unlimited")]
+    public bool? Unlimited { get; set; }
+}
+
+/// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.</summary>
+public sealed class CopilotUserResponseQuotaSnapshotsCompletions
+{
+    /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
+    [JsonPropertyName("entitlement")]
+    public double? Entitlement { get; set; }
+
+    /// <summary>Gets or sets the <c>has_quota</c> value.</summary>
+    [JsonPropertyName("has_quota")]
+    public bool? HasQuota { get; set; }
+
+    /// <summary>Gets or sets the <c>overage_count</c> value.</summary>
+    [JsonPropertyName("overage_count")]
+    public double? OverageCount { get; set; }
+
+    /// <summary>Gets or sets the <c>overage_permitted</c> value.</summary>
+    [JsonPropertyName("overage_permitted")]
+    public bool? OveragePermitted { get; set; }
+
+    /// <summary>Gets or sets the <c>percent_remaining</c> value.</summary>
+    [JsonPropertyName("percent_remaining")]
+    public double? PercentRemaining { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_id</c> value.</summary>
+    [JsonPropertyName("quota_id")]
+    public string? QuotaId { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_remaining</c> value.</summary>
+    [JsonPropertyName("quota_remaining")]
+    public double? QuotaRemaining { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_reset_at</c> value.</summary>
+    [JsonPropertyName("quota_reset_at")]
+    public double? QuotaResetAt { get; set; }
+
+    /// <summary>Gets or sets the <c>remaining</c> value.</summary>
+    [JsonPropertyName("remaining")]
+    public double? Remaining { get; set; }
+
+    /// <summary>Gets or sets the <c>timestamp_utc</c> value.</summary>
+    [JsonPropertyName("timestamp_utc")]
+    public string? TimestampUtc { get; set; }
+
+    /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
+    [JsonPropertyName("token_based_billing")]
+    public bool? TokenBasedBilling { get; set; }
+
+    /// <summary>Gets or sets the <c>unlimited</c> value.</summary>
+    [JsonPropertyName("unlimited")]
+    public bool? Unlimited { get; set; }
+}
+
+/// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.</summary>
+public sealed class CopilotUserResponseQuotaSnapshotsPremiumInteractions
+{
+    /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
+    [JsonPropertyName("entitlement")]
+    public double? Entitlement { get; set; }
+
+    /// <summary>Gets or sets the <c>has_quota</c> value.</summary>
+    [JsonPropertyName("has_quota")]
+    public bool? HasQuota { get; set; }
+
+    /// <summary>Gets or sets the <c>overage_count</c> value.</summary>
+    [JsonPropertyName("overage_count")]
+    public double? OverageCount { get; set; }
+
+    /// <summary>Gets or sets the <c>overage_permitted</c> value.</summary>
+    [JsonPropertyName("overage_permitted")]
+    public bool? OveragePermitted { get; set; }
+
+    /// <summary>Gets or sets the <c>percent_remaining</c> value.</summary>
+    [JsonPropertyName("percent_remaining")]
+    public double? PercentRemaining { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_id</c> value.</summary>
+    [JsonPropertyName("quota_id")]
+    public string? QuotaId { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_remaining</c> value.</summary>
+    [JsonPropertyName("quota_remaining")]
+    public double? QuotaRemaining { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_reset_at</c> value.</summary>
+    [JsonPropertyName("quota_reset_at")]
+    public double? QuotaResetAt { get; set; }
+
+    /// <summary>Gets or sets the <c>remaining</c> value.</summary>
+    [JsonPropertyName("remaining")]
+    public double? Remaining { get; set; }
+
+    /// <summary>Gets or sets the <c>timestamp_utc</c> value.</summary>
+    [JsonPropertyName("timestamp_utc")]
+    public string? TimestampUtc { get; set; }
+
+    /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
+    [JsonPropertyName("token_based_billing")]
+    public bool? TokenBasedBilling { get; set; }
+
+    /// <summary>Gets or sets the <c>unlimited</c> value.</summary>
+    [JsonPropertyName("unlimited")]
+    public bool? Unlimited { get; set; }
+}
+
+/// <summary>Schema for the `CopilotUserResponseQuotaSnapshots` type.</summary>
+public sealed class CopilotUserResponseQuotaSnapshots
+{
+    /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
+    [JsonPropertyName("chat")]
+    public CopilotUserResponseQuotaSnapshotsChat? Chat { get; set; }
+
+    /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.</summary>
+    [JsonPropertyName("completions")]
+    public CopilotUserResponseQuotaSnapshotsCompletions? Completions { get; set; }
+
+    /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.</summary>
+    [JsonPropertyName("premium_interactions")]
+    public CopilotUserResponseQuotaSnapshotsPremiumInteractions? PremiumInteractions { get; set; }
+}
+
+/// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+public sealed class CopilotUserResponse
+{
+    /// <summary>Gets or sets the <c>access_type_sku</c> value.</summary>
+    [JsonPropertyName("access_type_sku")]
+    public string? AccessTypeSku { get; set; }
+
+    /// <summary>Gets or sets the <c>analytics_tracking_id</c> value.</summary>
+    [JsonPropertyName("analytics_tracking_id")]
+    public string? AnalyticsTrackingId { get; set; }
+
+    /// <summary>Gets or sets the <c>assigned_date</c> value.</summary>
+    [JsonPropertyName("assigned_date")]
+    public string? AssignedDate { get; set; }
+
+    /// <summary>Gets or sets the <c>can_signup_for_limited</c> value.</summary>
+    [JsonPropertyName("can_signup_for_limited")]
+    public bool? CanSignupForLimited { get; set; }
+
+    /// <summary>Gets or sets the <c>can_upgrade_plan</c> value.</summary>
+    [JsonPropertyName("can_upgrade_plan")]
+    public bool? CanUpgradePlan { get; set; }
+
+    /// <summary>Gets or sets the <c>chat_enabled</c> value.</summary>
+    [JsonPropertyName("chat_enabled")]
+    public bool? ChatEnabled { get; set; }
+
+    /// <summary>Gets or sets the <c>cli_remote_control_enabled</c> value.</summary>
+    [JsonPropertyName("cli_remote_control_enabled")]
+    public bool? CliRemoteControlEnabled { get; set; }
+
+    /// <summary>Gets or sets the <c>cloud_session_storage_enabled</c> value.</summary>
+    [JsonPropertyName("cloud_session_storage_enabled")]
+    public bool? CloudSessionStorageEnabled { get; set; }
+
+    /// <summary>Gets or sets the <c>codex_agent_enabled</c> value.</summary>
+    [JsonPropertyName("codex_agent_enabled")]
+    public bool? CodexAgentEnabled { get; set; }
+
+    /// <summary>Gets or sets the <c>copilot_plan</c> value.</summary>
+    [JsonPropertyName("copilot_plan")]
+    public string? CopilotPlan { get; set; }
+
+    /// <summary>Gets or sets the <c>copilotignore_enabled</c> value.</summary>
+    [JsonPropertyName("copilotignore_enabled")]
+    public bool? CopilotignoreEnabled { get; set; }
+
+    /// <summary>Schema for the `CopilotUserResponseEndpoints` type.</summary>
+    [JsonPropertyName("endpoints")]
+    public CopilotUserResponseEndpoints? Endpoints { get; set; }
+
+    /// <summary>Gets or sets the <c>is_mcp_enabled</c> value.</summary>
+    [JsonPropertyName("is_mcp_enabled")]
+    public bool? IsMcpEnabled { get; set; }
+
+    /// <summary>Gets or sets the <c>is_staff</c> value.</summary>
+    [JsonPropertyName("is_staff")]
+    public bool? IsStaff { get; set; }
+
+    /// <summary>Gets or sets the <c>limited_user_quotas</c> value.</summary>
+    [JsonPropertyName("limited_user_quotas")]
+    public IDictionary<string, double>? LimitedUserQuotas { get; set; }
+
+    /// <summary>Gets or sets the <c>limited_user_reset_date</c> value.</summary>
+    [JsonPropertyName("limited_user_reset_date")]
+    public string? LimitedUserResetDate { get; set; }
+
+    /// <summary>Gets or sets the <c>login</c> value.</summary>
+    [JsonPropertyName("login")]
+    public string? Login { get; set; }
+
+    /// <summary>Gets or sets the <c>monthly_quotas</c> value.</summary>
+    [JsonPropertyName("monthly_quotas")]
+    public IDictionary<string, double>? MonthlyQuotas { get; set; }
+
+    /// <summary>Gets or sets the <c>organization_list</c> value.</summary>
+    [JsonPropertyName("organization_list")]
+    public IList<CopilotUserResponseOrganizationListItem?>? OrganizationList { get; set; }
+
+    /// <summary>Gets or sets the <c>organization_login_list</c> value.</summary>
+    [JsonPropertyName("organization_login_list")]
+    public IList<string>? OrganizationLoginList { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_reset_date</c> value.</summary>
+    [JsonPropertyName("quota_reset_date")]
+    public string? QuotaResetDate { get; set; }
+
+    /// <summary>Gets or sets the <c>quota_reset_date_utc</c> value.</summary>
+    [JsonPropertyName("quota_reset_date_utc")]
+    public string? QuotaResetDateUtc { get; set; }
+
+    /// <summary>Schema for the `CopilotUserResponseQuotaSnapshots` type.</summary>
+    [JsonPropertyName("quota_snapshots")]
+    public CopilotUserResponseQuotaSnapshots? QuotaSnapshots { get; set; }
+
+    /// <summary>Gets or sets the <c>restricted_telemetry</c> value.</summary>
+    [JsonPropertyName("restricted_telemetry")]
+    public bool? RestrictedTelemetry { get; set; }
+
+    /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
+    [JsonPropertyName("token_based_billing")]
+    public bool? TokenBasedBilling { get; set; }
+}
+
+/// <summary>Schema for the `HMACAuthInfo` type.</summary>
+/// <remarks>The <c>hmac</c> variant of <see cref="AuthInfo"/>.</remarks>
+public partial class AuthInfoHmac : AuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "hmac";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>HMAC secret used to sign requests.</summary>
+    [JsonPropertyName("hmac")]
+    public required string Hmac { get; set; }
+
+    /// <summary>Authentication host. HMAC auth always targets the public GitHub host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+}
+
+/// <summary>Schema for the `EnvAuthInfo` type.</summary>
+/// <remarks>The <c>env</c> variant of <see cref="AuthInfo"/>.</remarks>
+public partial class AuthInfoEnv : AuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "env";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Name of the environment variable the token was sourced from.</summary>
+    [JsonPropertyName("envVar")]
+    public required string EnvVar { get; set; }
+
+    /// <summary>Authentication host (e.g. https://github.com or a GHES host).</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>User login associated with the token. Undefined for server-to-server tokens (those starting with `ghs_`).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("login")]
+    public string? Login { get; set; }
+
+    /// <summary>The token value itself. Treat as a secret.</summary>
+    [JsonPropertyName("token")]
+    public required string Token { get; set; }
+}
+
+/// <summary>Schema for the `TokenAuthInfo` type.</summary>
+/// <remarks>The <c>token</c> variant of <see cref="AuthInfo"/>.</remarks>
+public partial class AuthInfoToken : AuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "token";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>The token value itself. Treat as a secret.</summary>
+    [JsonPropertyName("token")]
+    public required string Token { get; set; }
+}
+
+/// <summary>Schema for the `CopilotApiTokenAuthInfo` type.</summary>
+/// <remarks>The <c>copilot-api-token</c> variant of <see cref="AuthInfo"/>.</remarks>
+public partial class AuthInfoCopilotApiToken : AuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "copilot-api-token";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host (always the public GitHub host).</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+}
+
+/// <summary>Schema for the `UserAuthInfo` type.</summary>
+/// <remarks>The <c>user</c> variant of <see cref="AuthInfo"/>.</remarks>
+public partial class AuthInfoUser : AuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "user";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>OAuth user login.</summary>
+    [JsonPropertyName("login")]
+    public required string Login { get; set; }
+}
+
+/// <summary>Schema for the `GhCliAuthInfo` type.</summary>
+/// <remarks>The <c>gh-cli</c> variant of <see cref="AuthInfo"/>.</remarks>
+public partial class AuthInfoGhCli : AuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "gh-cli";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>User login as reported by `gh auth status`.</summary>
+    [JsonPropertyName("login")]
+    public required string Login { get; set; }
+
+    /// <summary>The token returned by `gh auth token`. Treat as a secret.</summary>
+    [JsonPropertyName("token")]
+    public required string Token { get; set; }
+}
+
+/// <summary>Schema for the `ApiKeyAuthInfo` type.</summary>
+/// <remarks>The <c>api-key</c> variant of <see cref="AuthInfo"/>.</remarks>
+public partial class AuthInfoApiKey : AuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "api-key";
+
+    /// <summary>The API key. Treat as a secret.</summary>
+    [JsonPropertyName("apiKey")]
+    public required string ApiKey { get; set; }
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+}
+
+/// <summary>Current authentication state.</summary>
+public sealed class AccountGetCurrentAuthResult
+{
+    /// <summary>Authentication errors from the last auth attempt, if any.</summary>
+    [JsonPropertyName("authErrors")]
+    public IList<string>? AuthErrors { get; set; }
+
+    /// <summary>Current authentication information, if authenticated.</summary>
+    [JsonPropertyName("authInfo")]
+    public AuthInfo? AuthInfo { get; set; }
+}
+
+/// <summary>Schema for the `AccountAllUsers` type.</summary>
+public sealed class AccountAllUsers
+{
+    /// <summary>Authentication information for this user.</summary>
+    [JsonPropertyName("authInfo")]
+    public AuthInfo AuthInfo { get => field ??= new(); set; }
+
+    /// <summary>Associated token, if available.</summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+}
+
+/// <summary>Result of a successful login; throws on failure.</summary>
+public sealed class AccountLoginResult
+{
+    /// <summary>Whether the credential was persisted to a secure store (system keychain, or the config file when plaintext storage is enabled). False when no secure store was available and the token was not saved, so the consumer can decide how to proceed.</summary>
+    [JsonPropertyName("storedInVault")]
+    public bool StoredInVault { get; set; }
+}
+
+/// <summary>Credentials to store after successful authentication.</summary>
+internal sealed class AccountLoginRequest
+{
+    /// <summary>GitHub host URL.</summary>
+    [JsonPropertyName("host")]
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>User login/username.</summary>
+    [JsonPropertyName("login")]
+    public string Login { get; set; } = string.Empty;
+
+    /// <summary>GitHub authentication token.</summary>
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = string.Empty;
+}
+
+/// <summary>Logout result indicating if more users remain.</summary>
+public sealed class AccountLogoutResult
+{
+    /// <summary>Whether other authenticated users remain after logout.</summary>
+    [JsonPropertyName("hasMoreUsers")]
+    public bool HasMoreUsers { get; set; }
+}
+
+/// <summary>User to log out.</summary>
+internal sealed class AccountLogoutRequest
+{
+    /// <summary>Authentication information for the user to log out.</summary>
+    [JsonPropertyName("authInfo")]
+    public AuthInfo AuthInfo { get => field ??= new(); set; }
 }
 
 /// <summary>Confirmation that the secret values were registered.</summary>
@@ -796,6 +1359,10 @@ internal sealed class PluginsMarketplacesRefreshRequest
 /// <summary>Schema for the `ServerSkill` type.</summary>
 public sealed class ServerSkill
 {
+    /// <summary>Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field.</summary>
+    [JsonPropertyName("argumentHint")]
+    public string? ArgumentHint { get; set; }
+
     /// <summary>Description of what the skill does.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
@@ -2817,511 +3384,6 @@ public sealed class SessionSetCredentialsResult
     public bool Success { get; set; }
 }
 
-/// <summary>Initial authentication info for the session.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(AuthInfoHmac), "hmac")]
-[JsonDerivedType(typeof(AuthInfoEnv), "env")]
-[JsonDerivedType(typeof(AuthInfoToken), "token")]
-[JsonDerivedType(typeof(AuthInfoCopilotApiToken), "copilot-api-token")]
-[JsonDerivedType(typeof(AuthInfoUser), "user")]
-[JsonDerivedType(typeof(AuthInfoGhCli), "gh-cli")]
-[JsonDerivedType(typeof(AuthInfoApiKey), "api-key")]
-public partial class AuthInfo
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("type")]
-    public virtual string Type { get; set; } = string.Empty;
-}
-
-
-/// <summary>Schema for the `CopilotUserResponseEndpoints` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CopilotUserResponseEndpoints
-{
-    /// <summary>Gets or sets the <c>api</c> value.</summary>
-    [JsonPropertyName("api")]
-    public string? Api { get; set; }
-
-    /// <summary>Gets or sets the <c>origin-tracker</c> value.</summary>
-    [JsonPropertyName("origin-tracker")]
-    public string? OriginTracker { get; set; }
-
-    /// <summary>Gets or sets the <c>proxy</c> value.</summary>
-    [JsonPropertyName("proxy")]
-    public string? Proxy { get; set; }
-
-    /// <summary>Gets or sets the <c>telemetry</c> value.</summary>
-    [JsonPropertyName("telemetry")]
-    public string? Telemetry { get; set; }
-}
-
-/// <summary>RPC data type for CopilotUserResponseOrganizationListItem operations.</summary>
-public sealed class CopilotUserResponseOrganizationListItem
-{
-    /// <summary>Gets or sets the <c>login</c> value.</summary>
-    [JsonPropertyName("login")]
-    public string? Login { get; set; }
-
-    /// <summary>Gets or sets the <c>name</c> value.</summary>
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
-}
-
-/// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CopilotUserResponseQuotaSnapshotsChat
-{
-    /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
-    [JsonPropertyName("entitlement")]
-    public double? Entitlement { get; set; }
-
-    /// <summary>Gets or sets the <c>has_quota</c> value.</summary>
-    [JsonPropertyName("has_quota")]
-    public bool? HasQuota { get; set; }
-
-    /// <summary>Gets or sets the <c>overage_count</c> value.</summary>
-    [JsonPropertyName("overage_count")]
-    public double? OverageCount { get; set; }
-
-    /// <summary>Gets or sets the <c>overage_permitted</c> value.</summary>
-    [JsonPropertyName("overage_permitted")]
-    public bool? OveragePermitted { get; set; }
-
-    /// <summary>Gets or sets the <c>percent_remaining</c> value.</summary>
-    [JsonPropertyName("percent_remaining")]
-    public double? PercentRemaining { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_id</c> value.</summary>
-    [JsonPropertyName("quota_id")]
-    public string? QuotaId { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_remaining</c> value.</summary>
-    [JsonPropertyName("quota_remaining")]
-    public double? QuotaRemaining { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_reset_at</c> value.</summary>
-    [JsonPropertyName("quota_reset_at")]
-    public double? QuotaResetAt { get; set; }
-
-    /// <summary>Gets or sets the <c>remaining</c> value.</summary>
-    [JsonPropertyName("remaining")]
-    public double? Remaining { get; set; }
-
-    /// <summary>Gets or sets the <c>timestamp_utc</c> value.</summary>
-    [JsonPropertyName("timestamp_utc")]
-    public string? TimestampUtc { get; set; }
-
-    /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
-    [JsonPropertyName("token_based_billing")]
-    public bool? TokenBasedBilling { get; set; }
-
-    /// <summary>Gets or sets the <c>unlimited</c> value.</summary>
-    [JsonPropertyName("unlimited")]
-    public bool? Unlimited { get; set; }
-}
-
-/// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CopilotUserResponseQuotaSnapshotsCompletions
-{
-    /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
-    [JsonPropertyName("entitlement")]
-    public double? Entitlement { get; set; }
-
-    /// <summary>Gets or sets the <c>has_quota</c> value.</summary>
-    [JsonPropertyName("has_quota")]
-    public bool? HasQuota { get; set; }
-
-    /// <summary>Gets or sets the <c>overage_count</c> value.</summary>
-    [JsonPropertyName("overage_count")]
-    public double? OverageCount { get; set; }
-
-    /// <summary>Gets or sets the <c>overage_permitted</c> value.</summary>
-    [JsonPropertyName("overage_permitted")]
-    public bool? OveragePermitted { get; set; }
-
-    /// <summary>Gets or sets the <c>percent_remaining</c> value.</summary>
-    [JsonPropertyName("percent_remaining")]
-    public double? PercentRemaining { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_id</c> value.</summary>
-    [JsonPropertyName("quota_id")]
-    public string? QuotaId { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_remaining</c> value.</summary>
-    [JsonPropertyName("quota_remaining")]
-    public double? QuotaRemaining { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_reset_at</c> value.</summary>
-    [JsonPropertyName("quota_reset_at")]
-    public double? QuotaResetAt { get; set; }
-
-    /// <summary>Gets or sets the <c>remaining</c> value.</summary>
-    [JsonPropertyName("remaining")]
-    public double? Remaining { get; set; }
-
-    /// <summary>Gets or sets the <c>timestamp_utc</c> value.</summary>
-    [JsonPropertyName("timestamp_utc")]
-    public string? TimestampUtc { get; set; }
-
-    /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
-    [JsonPropertyName("token_based_billing")]
-    public bool? TokenBasedBilling { get; set; }
-
-    /// <summary>Gets or sets the <c>unlimited</c> value.</summary>
-    [JsonPropertyName("unlimited")]
-    public bool? Unlimited { get; set; }
-}
-
-/// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CopilotUserResponseQuotaSnapshotsPremiumInteractions
-{
-    /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
-    [JsonPropertyName("entitlement")]
-    public double? Entitlement { get; set; }
-
-    /// <summary>Gets or sets the <c>has_quota</c> value.</summary>
-    [JsonPropertyName("has_quota")]
-    public bool? HasQuota { get; set; }
-
-    /// <summary>Gets or sets the <c>overage_count</c> value.</summary>
-    [JsonPropertyName("overage_count")]
-    public double? OverageCount { get; set; }
-
-    /// <summary>Gets or sets the <c>overage_permitted</c> value.</summary>
-    [JsonPropertyName("overage_permitted")]
-    public bool? OveragePermitted { get; set; }
-
-    /// <summary>Gets or sets the <c>percent_remaining</c> value.</summary>
-    [JsonPropertyName("percent_remaining")]
-    public double? PercentRemaining { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_id</c> value.</summary>
-    [JsonPropertyName("quota_id")]
-    public string? QuotaId { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_remaining</c> value.</summary>
-    [JsonPropertyName("quota_remaining")]
-    public double? QuotaRemaining { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_reset_at</c> value.</summary>
-    [JsonPropertyName("quota_reset_at")]
-    public double? QuotaResetAt { get; set; }
-
-    /// <summary>Gets or sets the <c>remaining</c> value.</summary>
-    [JsonPropertyName("remaining")]
-    public double? Remaining { get; set; }
-
-    /// <summary>Gets or sets the <c>timestamp_utc</c> value.</summary>
-    [JsonPropertyName("timestamp_utc")]
-    public string? TimestampUtc { get; set; }
-
-    /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
-    [JsonPropertyName("token_based_billing")]
-    public bool? TokenBasedBilling { get; set; }
-
-    /// <summary>Gets or sets the <c>unlimited</c> value.</summary>
-    [JsonPropertyName("unlimited")]
-    public bool? Unlimited { get; set; }
-}
-
-/// <summary>Schema for the `CopilotUserResponseQuotaSnapshots` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CopilotUserResponseQuotaSnapshots
-{
-    /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
-    [JsonPropertyName("chat")]
-    public CopilotUserResponseQuotaSnapshotsChat? Chat { get; set; }
-
-    /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.</summary>
-    [JsonPropertyName("completions")]
-    public CopilotUserResponseQuotaSnapshotsCompletions? Completions { get; set; }
-
-    /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.</summary>
-    [JsonPropertyName("premium_interactions")]
-    public CopilotUserResponseQuotaSnapshotsPremiumInteractions? PremiumInteractions { get; set; }
-}
-
-/// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CopilotUserResponse
-{
-    /// <summary>Gets or sets the <c>access_type_sku</c> value.</summary>
-    [JsonPropertyName("access_type_sku")]
-    public string? AccessTypeSku { get; set; }
-
-    /// <summary>Gets or sets the <c>analytics_tracking_id</c> value.</summary>
-    [JsonPropertyName("analytics_tracking_id")]
-    public string? AnalyticsTrackingId { get; set; }
-
-    /// <summary>Gets or sets the <c>assigned_date</c> value.</summary>
-    [JsonPropertyName("assigned_date")]
-    public string? AssignedDate { get; set; }
-
-    /// <summary>Gets or sets the <c>can_signup_for_limited</c> value.</summary>
-    [JsonPropertyName("can_signup_for_limited")]
-    public bool? CanSignupForLimited { get; set; }
-
-    /// <summary>Gets or sets the <c>can_upgrade_plan</c> value.</summary>
-    [JsonPropertyName("can_upgrade_plan")]
-    public bool? CanUpgradePlan { get; set; }
-
-    /// <summary>Gets or sets the <c>chat_enabled</c> value.</summary>
-    [JsonPropertyName("chat_enabled")]
-    public bool? ChatEnabled { get; set; }
-
-    /// <summary>Gets or sets the <c>cli_remote_control_enabled</c> value.</summary>
-    [JsonPropertyName("cli_remote_control_enabled")]
-    public bool? CliRemoteControlEnabled { get; set; }
-
-    /// <summary>Gets or sets the <c>cloud_session_storage_enabled</c> value.</summary>
-    [JsonPropertyName("cloud_session_storage_enabled")]
-    public bool? CloudSessionStorageEnabled { get; set; }
-
-    /// <summary>Gets or sets the <c>codex_agent_enabled</c> value.</summary>
-    [JsonPropertyName("codex_agent_enabled")]
-    public bool? CodexAgentEnabled { get; set; }
-
-    /// <summary>Gets or sets the <c>copilot_plan</c> value.</summary>
-    [JsonPropertyName("copilot_plan")]
-    public string? CopilotPlan { get; set; }
-
-    /// <summary>Gets or sets the <c>copilotignore_enabled</c> value.</summary>
-    [JsonPropertyName("copilotignore_enabled")]
-    public bool? CopilotignoreEnabled { get; set; }
-
-    /// <summary>Schema for the `CopilotUserResponseEndpoints` type.</summary>
-    [JsonPropertyName("endpoints")]
-    public CopilotUserResponseEndpoints? Endpoints { get; set; }
-
-    /// <summary>Gets or sets the <c>is_mcp_enabled</c> value.</summary>
-    [JsonPropertyName("is_mcp_enabled")]
-    public bool? IsMcpEnabled { get; set; }
-
-    /// <summary>Gets or sets the <c>is_staff</c> value.</summary>
-    [JsonPropertyName("is_staff")]
-    public bool? IsStaff { get; set; }
-
-    /// <summary>Gets or sets the <c>limited_user_quotas</c> value.</summary>
-    [JsonPropertyName("limited_user_quotas")]
-    public IDictionary<string, double>? LimitedUserQuotas { get; set; }
-
-    /// <summary>Gets or sets the <c>limited_user_reset_date</c> value.</summary>
-    [JsonPropertyName("limited_user_reset_date")]
-    public string? LimitedUserResetDate { get; set; }
-
-    /// <summary>Gets or sets the <c>login</c> value.</summary>
-    [JsonPropertyName("login")]
-    public string? Login { get; set; }
-
-    /// <summary>Gets or sets the <c>monthly_quotas</c> value.</summary>
-    [JsonPropertyName("monthly_quotas")]
-    public IDictionary<string, double>? MonthlyQuotas { get; set; }
-
-    /// <summary>Gets or sets the <c>organization_list</c> value.</summary>
-    [JsonPropertyName("organization_list")]
-    public IList<CopilotUserResponseOrganizationListItem?>? OrganizationList { get; set; }
-
-    /// <summary>Gets or sets the <c>organization_login_list</c> value.</summary>
-    [JsonPropertyName("organization_login_list")]
-    public IList<string>? OrganizationLoginList { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_reset_date</c> value.</summary>
-    [JsonPropertyName("quota_reset_date")]
-    public string? QuotaResetDate { get; set; }
-
-    /// <summary>Gets or sets the <c>quota_reset_date_utc</c> value.</summary>
-    [JsonPropertyName("quota_reset_date_utc")]
-    public string? QuotaResetDateUtc { get; set; }
-
-    /// <summary>Schema for the `CopilotUserResponseQuotaSnapshots` type.</summary>
-    [JsonPropertyName("quota_snapshots")]
-    public CopilotUserResponseQuotaSnapshots? QuotaSnapshots { get; set; }
-
-    /// <summary>Gets or sets the <c>restricted_telemetry</c> value.</summary>
-    [JsonPropertyName("restricted_telemetry")]
-    public bool? RestrictedTelemetry { get; set; }
-
-    /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
-    [JsonPropertyName("token_based_billing")]
-    public bool? TokenBasedBilling { get; set; }
-}
-
-/// <summary>Schema for the `HMACAuthInfo` type.</summary>
-/// <remarks>The <c>hmac</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class AuthInfoHmac : AuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "hmac";
-
-    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("copilotUser")]
-    public CopilotUserResponse? CopilotUser { get; set; }
-
-    /// <summary>HMAC secret used to sign requests.</summary>
-    [JsonPropertyName("hmac")]
-    public required string Hmac { get; set; }
-
-    /// <summary>Authentication host. HMAC auth always targets the public GitHub host.</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-}
-
-/// <summary>Schema for the `EnvAuthInfo` type.</summary>
-/// <remarks>The <c>env</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class AuthInfoEnv : AuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "env";
-
-    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("copilotUser")]
-    public CopilotUserResponse? CopilotUser { get; set; }
-
-    /// <summary>Name of the environment variable the token was sourced from.</summary>
-    [JsonPropertyName("envVar")]
-    public required string EnvVar { get; set; }
-
-    /// <summary>Authentication host (e.g. https://github.com or a GHES host).</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-
-    /// <summary>User login associated with the token. Undefined for server-to-server tokens (those starting with `ghs_`).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("login")]
-    public string? Login { get; set; }
-
-    /// <summary>The token value itself. Treat as a secret.</summary>
-    [JsonPropertyName("token")]
-    public required string Token { get; set; }
-}
-
-/// <summary>Schema for the `TokenAuthInfo` type.</summary>
-/// <remarks>The <c>token</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class AuthInfoToken : AuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "token";
-
-    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("copilotUser")]
-    public CopilotUserResponse? CopilotUser { get; set; }
-
-    /// <summary>Authentication host.</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-
-    /// <summary>The token value itself. Treat as a secret.</summary>
-    [JsonPropertyName("token")]
-    public required string Token { get; set; }
-}
-
-/// <summary>Schema for the `CopilotApiTokenAuthInfo` type.</summary>
-/// <remarks>The <c>copilot-api-token</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class AuthInfoCopilotApiToken : AuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "copilot-api-token";
-
-    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("copilotUser")]
-    public CopilotUserResponse? CopilotUser { get; set; }
-
-    /// <summary>Authentication host (always the public GitHub host).</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-}
-
-/// <summary>Schema for the `UserAuthInfo` type.</summary>
-/// <remarks>The <c>user</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class AuthInfoUser : AuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "user";
-
-    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("copilotUser")]
-    public CopilotUserResponse? CopilotUser { get; set; }
-
-    /// <summary>Authentication host.</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-
-    /// <summary>OAuth user login.</summary>
-    [JsonPropertyName("login")]
-    public required string Login { get; set; }
-}
-
-/// <summary>Schema for the `GhCliAuthInfo` type.</summary>
-/// <remarks>The <c>gh-cli</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class AuthInfoGhCli : AuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "gh-cli";
-
-    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("copilotUser")]
-    public CopilotUserResponse? CopilotUser { get; set; }
-
-    /// <summary>Authentication host.</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-
-    /// <summary>User login as reported by `gh auth status`.</summary>
-    [JsonPropertyName("login")]
-    public required string Login { get; set; }
-
-    /// <summary>The token returned by `gh auth token`. Treat as a secret.</summary>
-    [JsonPropertyName("token")]
-    public required string Token { get; set; }
-}
-
-/// <summary>Schema for the `ApiKeyAuthInfo` type.</summary>
-/// <remarks>The <c>api-key</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class AuthInfoApiKey : AuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "api-key";
-
-    /// <summary>The API key. Treat as a secret.</summary>
-    [JsonPropertyName("apiKey")]
-    public required string ApiKey { get; set; }
-
-    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("copilotUser")]
-    public CopilotUserResponse? CopilotUser { get; set; }
-
-    /// <summary>Authentication host.</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-}
-
 /// <summary>New auth credentials to install on the session. Omit to leave credentials unchanged.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSetCredentialsParams
@@ -4841,6 +4903,10 @@ internal sealed class TasksSendMessageRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class Skill
 {
+    /// <summary>Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field.</summary>
+    [JsonPropertyName("argumentHint")]
+    public string? ArgumentHint { get; set; }
+
     /// <summary>Description of what the skill does.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
@@ -6070,6 +6136,119 @@ internal sealed class ProviderGetEndpointRequestWithSession
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>The selectable model entries synthesized for the models added by this call.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProviderAddResult
+{
+    /// <summary>Synthesized selectable model entries for the newly added BYOK models, each under its provider-qualified selection id (`provider/id`). Empty when only providers were added.</summary>
+    [JsonPropertyName("models")]
+    public IList<JsonElement> Models { get => field ??= []; set; }
+}
+
+/// <summary>A BYOK model definition referencing a named provider.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProviderModelConfig
+{
+    /// <summary>Optional capability overrides (vision, tool_calls, reasoning, etc.).</summary>
+    [JsonPropertyName("capabilities")]
+    public ModelCapabilitiesOverride? Capabilities { get; set; }
+
+    /// <summary>Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Maximum context window tokens for the model.</summary>
+    [JsonPropertyName("maxContextWindowTokens")]
+    public double? MaxContextWindowTokens { get; set; }
+
+    /// <summary>Maximum output tokens for the model.</summary>
+    [JsonPropertyName("maxOutputTokens")]
+    public double? MaxOutputTokens { get; set; }
+
+    /// <summary>Maximum prompt/input tokens for the model.</summary>
+    [JsonPropertyName("maxPromptTokens")]
+    public double? MaxPromptTokens { get; set; }
+
+    /// <summary>Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.</summary>
+    [JsonPropertyName("modelId")]
+    public string? ModelId { get; set; }
+
+    /// <summary>Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>Name of the NamedProviderConfig that serves this model.</summary>
+    [JsonPropertyName("provider")]
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>The model name sent to the provider API for inference. Defaults to `id`.</summary>
+    [JsonPropertyName("wireModel")]
+    public string? WireModel { get; set; }
+}
+
+/// <summary>Azure-specific provider options.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProviderConfigAzure
+{
+    /// <summary>API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.</summary>
+    [JsonPropertyName("apiVersion")]
+    public string? ApiVersion { get; set; }
+}
+
+/// <summary>A named BYOK provider connection (transport + credentials).</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class NamedProviderConfig
+{
+    /// <summary>API key. Optional for local providers like Ollama.</summary>
+    [JsonPropertyName("apiKey")]
+    public string? ApiKey { get; set; }
+
+    /// <summary>Azure-specific provider options.</summary>
+    [JsonPropertyName("azure")]
+    public ProviderConfigAzure? Azure { get; set; }
+
+    /// <summary>API endpoint URL.</summary>
+    [JsonPropertyName("baseUrl")]
+    public string BaseUrl { get; set; } = string.Empty;
+
+    /// <summary>Bearer token for authentication. Sets the Authorization header directly. Takes precedence over apiKey when both are set.</summary>
+    [JsonPropertyName("bearerToken")]
+    public string? BearerToken { get; set; }
+
+    /// <summary>Custom HTTP headers to include in all outbound requests to the provider.</summary>
+    [JsonPropertyName("headers")]
+    public IDictionary<string, string>? Headers { get; set; }
+
+    /// <summary>Stable identifier referenced by BYOK model definitions. Must not contain '/'.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.</summary>
+    [JsonPropertyName("type")]
+    public ProviderConfigType? Type { get; set; }
+
+    /// <summary>Wire API format (openai/azure only). Defaults to "completions".</summary>
+    [JsonPropertyName("wireApi")]
+    public ProviderConfigWireApi? WireApi { get; set; }
+}
+
+/// <summary>BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ProviderAddRequest
+{
+    /// <summary>BYOK model definitions to register. Each must reference a provider that is already registered or included in this same call. Selection ids (`provider/id`) must be unique across the registry.</summary>
+    [JsonPropertyName("models")]
+    public IList<ProviderModelConfig>? Models { get; set; }
+
+    /// <summary>Named BYOK provider connections to register, additive to any providers already in the registry. Each name must be unique across the registry and must not contain '/'.</summary>
+    [JsonPropertyName("providers")]
+    public IList<NamedProviderConfig>? Providers { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Indicates whether the session options patch was applied successfully.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionUpdateOptionsResult
@@ -6161,15 +6340,6 @@ public sealed class SessionInstalledPlugin
     /// <summary>Installed version, if known.</summary>
     [JsonPropertyName("version")]
     public string? Version { get; set; }
-}
-
-/// <summary>Azure-specific provider options.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class ProviderConfigAzure
-{
-    /// <summary>API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.</summary>
-    [JsonPropertyName("apiVersion")]
-    public string? ApiVersion { get; set; }
 }
 
 /// <summary>Custom model-provider configuration (BYOK).</summary>
@@ -13907,6 +14077,135 @@ public readonly struct ProviderEndpointWireApi : IEquatable<ProviderEndpointWire
 }
 
 
+/// <summary>Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderConfigType : IEquatable<ProviderConfigType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderConfigType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderConfigType"/>.</param>
+    [JsonConstructor]
+    public ProviderConfigType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderConfigType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Generic OpenAI-compatible API.</summary>
+    public static ProviderConfigType Openai { get; } = new("openai");
+
+    /// <summary>Azure OpenAI Service endpoint.</summary>
+    public static ProviderConfigType Azure { get; } = new("azure");
+
+    /// <summary>Anthropic API endpoint.</summary>
+    public static ProviderConfigType Anthropic { get; } = new("anthropic");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigType"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderConfigType left, ProviderConfigType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigType"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderConfigType left, ProviderConfigType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderConfigType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderConfigType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigType}"/> for serializing <see cref="ProviderConfigType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderConfigType>
+    {
+        /// <inheritdoc />
+        public override ProviderConfigType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderConfigType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigType));
+        }
+    }
+}
+
+
+/// <summary>Wire API format (openai/azure only). Defaults to "completions".</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderConfigWireApi : IEquatable<ProviderConfigWireApi>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderConfigWireApi"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderConfigWireApi"/>.</param>
+    [JsonConstructor]
+    public ProviderConfigWireApi(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderConfigWireApi"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>OpenAI Chat Completions wire format.</summary>
+    public static ProviderConfigWireApi Completions { get; } = new("completions");
+
+    /// <summary>OpenAI Responses API wire format.</summary>
+    public static ProviderConfigWireApi Responses { get; } = new("responses");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigWireApi"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderConfigWireApi left, ProviderConfigWireApi right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigWireApi"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderConfigWireApi left, ProviderConfigWireApi right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderConfigWireApi other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderConfigWireApi other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigWireApi}"/> for serializing <see cref="ProviderConfigWireApi"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderConfigWireApi>
+    {
+        /// <inheritdoc />
+        public override ProviderConfigWireApi Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderConfigWireApi value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigWireApi));
+        }
+    }
+}
+
+
 /// <summary>Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -14091,135 +14390,6 @@ public readonly struct OptionsUpdateEnvValueMode : IEquatable<OptionsUpdateEnvVa
         public override void Write(Utf8JsonWriter writer, OptionsUpdateEnvValueMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OptionsUpdateEnvValueMode));
-        }
-    }
-}
-
-
-/// <summary>Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProviderConfigType : IEquatable<ProviderConfigType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProviderConfigType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProviderConfigType"/>.</param>
-    [JsonConstructor]
-    public ProviderConfigType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProviderConfigType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Generic OpenAI-compatible API.</summary>
-    public static ProviderConfigType Openai { get; } = new("openai");
-
-    /// <summary>Azure OpenAI Service endpoint.</summary>
-    public static ProviderConfigType Azure { get; } = new("azure");
-
-    /// <summary>Anthropic API endpoint.</summary>
-    public static ProviderConfigType Anthropic { get; } = new("anthropic");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigType"/> instances are equivalent.</summary>
-    public static bool operator ==(ProviderConfigType left, ProviderConfigType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigType"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProviderConfigType left, ProviderConfigType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProviderConfigType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProviderConfigType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigType}"/> for serializing <see cref="ProviderConfigType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProviderConfigType>
-    {
-        /// <inheritdoc />
-        public override ProviderConfigType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProviderConfigType value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigType));
-        }
-    }
-}
-
-
-/// <summary>Wire API format (openai/azure only). Defaults to "completions".</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProviderConfigWireApi : IEquatable<ProviderConfigWireApi>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProviderConfigWireApi"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProviderConfigWireApi"/>.</param>
-    [JsonConstructor]
-    public ProviderConfigWireApi(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProviderConfigWireApi"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>OpenAI Chat Completions wire format.</summary>
-    public static ProviderConfigWireApi Completions { get; } = new("completions");
-
-    /// <summary>OpenAI Responses API wire format.</summary>
-    public static ProviderConfigWireApi Responses { get; } = new("responses");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigWireApi"/> instances are equivalent.</summary>
-    public static bool operator ==(ProviderConfigWireApi left, ProviderConfigWireApi right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigWireApi"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProviderConfigWireApi left, ProviderConfigWireApi right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProviderConfigWireApi other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProviderConfigWireApi other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigWireApi}"/> for serializing <see cref="ProviderConfigWireApi"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProviderConfigWireApi>
-    {
-        /// <inheritdoc />
-        public override ProviderConfigWireApi Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProviderConfigWireApi value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigWireApi));
         }
     }
 }
@@ -16317,6 +16487,50 @@ public sealed class ServerAccountApi
     {
         var request = new AccountGetQuotaRequest { GitHubToken = gitHubToken };
         return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [request], cancellationToken);
+    }
+
+    /// <summary>Gets the currently active authentication credentials from the global auth manager.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Current authentication state.</returns>
+    public async Task<AccountGetCurrentAuthResult> GetCurrentAuthAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<AccountGetCurrentAuthResult>(_rpc, "account.getCurrentAuth", [], cancellationToken);
+    }
+
+    /// <summary>Gets all authenticated users available for account switching.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>List of all authenticated users.</returns>
+    public async Task<IList<AccountAllUsers>> GetAllUsersAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<IList<AccountAllUsers>>(_rpc, "account.getAllUsers", [], cancellationToken);
+    }
+
+    /// <summary>Stores authentication credentials after successful login (e.g., device code flow).</summary>
+    /// <param name="host">GitHub host URL.</param>
+    /// <param name="login">User login/username.</param>
+    /// <param name="token">GitHub authentication token.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of a successful login; throws on failure.</returns>
+    public async Task<AccountLoginResult> LoginAsync(string host, string login, string token, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(login);
+        ArgumentNullException.ThrowIfNull(token);
+
+        var request = new AccountLoginRequest { Host = host, Login = login, Token = token };
+        return await CopilotClient.InvokeRpcAsync<AccountLoginResult>(_rpc, "account.login", [request], cancellationToken);
+    }
+
+    /// <summary>Removes user authentication from keychain and persisted state.</summary>
+    /// <param name="authInfo">Authentication information for the user to log out.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Logout result indicating if more users remain.</returns>
+    public async Task<AccountLogoutResult> LogoutAsync(AuthInfo authInfo, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(authInfo);
+
+        var request = new AccountLogoutRequest { AuthInfo = authInfo };
+        return await CopilotClient.InvokeRpcAsync<AccountLogoutResult>(_rpc, "account.logout", [request], cancellationToken);
     }
 }
 
@@ -18801,6 +19015,19 @@ public sealed class ProviderApi
         var rpcRequest = new ProviderGetEndpointRequestWithSession { SessionId = _session.SessionId, ModelId = request?.ModelId };
         return await CopilotClient.InvokeRpcAsync<ProviderEndpoint>(_session.Rpc, "session.provider.getEndpoint", [rpcRequest], cancellationToken);
     }
+
+    /// <summary>Adds BYOK providers and/or models to the session's registry at runtime, extending the additive registry built from the session's `providers`/`models` options. Both fields are optional, so a call may add providers only, models only, or both. Within a single call providers are registered before models, so a model may reference a provider added in the same call; across calls a model may reference any provider already registered (from session creation or a prior add). A model whose referenced provider is not registered by the end of the call is rejected. Newly added models become selectable via `model.list` / `model.switchTo` and are inherited by sub-agents spawned afterwards.</summary>
+    /// <param name="providers">Named BYOK provider connections to register, additive to any providers already in the registry. Each name must be unique across the registry and must not contain '/'.</param>
+    /// <param name="models">BYOK model definitions to register. Each must reference a provider that is already registered or included in this same call. Selection ids (`provider/id`) must be unique across the registry.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The selectable model entries synthesized for the models added by this call.</returns>
+    public async Task<ProviderAddResult> AddAsync(IList<NamedProviderConfig>? providers = null, IList<ProviderModelConfig>? models = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new ProviderAddRequest { SessionId = _session.SessionId, Providers = providers, Models = models };
+        return await CopilotClient.InvokeRpcAsync<ProviderAddResult>(_session.Rpc, "session.provider.add", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Options APIs.</summary>
@@ -20444,6 +20671,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureBadRequestKind), TypeInfoPropertyName = "SessionEventsModelCallFailureBadRequestKind")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureRequestFingerprint), TypeInfoPropertyName = "SessionEventsModelCallFailureRequestFingerprint")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryOmittedReason), TypeInfoPropertyName = "SessionEventsOmittedBinaryOmittedReason")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryResult), TypeInfoPropertyName = "SessionEventsOmittedBinaryResult")]
@@ -20590,8 +20818,14 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]
 [JsonSerializable(typeof(AbortRequest))]
 [JsonSerializable(typeof(AbortResult))]
+[JsonSerializable(typeof(AccountAllUsers))]
+[JsonSerializable(typeof(AccountGetCurrentAuthResult))]
 [JsonSerializable(typeof(AccountGetQuotaRequest))]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
+[JsonSerializable(typeof(AccountLoginRequest))]
+[JsonSerializable(typeof(AccountLoginResult))]
+[JsonSerializable(typeof(AccountLogoutRequest))]
+[JsonSerializable(typeof(AccountLogoutResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]
 [JsonSerializable(typeof(AgentDiscoveryPath))]
 [JsonSerializable(typeof(AgentDiscoveryPathList))]
@@ -20803,6 +21037,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(NameSetAutoRequest))]
 [JsonSerializable(typeof(NameSetAutoResult))]
 [JsonSerializable(typeof(NameSetRequest))]
+[JsonSerializable(typeof(NamedProviderConfig))]
 [JsonSerializable(typeof(OpenCanvasInstance))]
 [JsonSerializable(typeof(OptionsUpdateAdditionalContentExclusionPolicy))]
 [JsonSerializable(typeof(OptionsUpdateAdditionalContentExclusionPolicyRule))]
@@ -20882,11 +21117,14 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PluginsUninstallRequest))]
 [JsonSerializable(typeof(PluginsUpdateRequest))]
 [JsonSerializable(typeof(PollSpawnedSessionsResult))]
+[JsonSerializable(typeof(ProviderAddRequest))]
+[JsonSerializable(typeof(ProviderAddResult))]
 [JsonSerializable(typeof(ProviderConfig))]
 [JsonSerializable(typeof(ProviderConfigAzure))]
 [JsonSerializable(typeof(ProviderEndpoint))]
 [JsonSerializable(typeof(ProviderGetEndpointRequest))]
 [JsonSerializable(typeof(ProviderGetEndpointRequestWithSession))]
+[JsonSerializable(typeof(ProviderModelConfig))]
 [JsonSerializable(typeof(ProviderSessionToken))]
 [JsonSerializable(typeof(PushAttachment))]
 [JsonSerializable(typeof(PushAttachmentFileLineRange))]

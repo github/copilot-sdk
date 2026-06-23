@@ -27,6 +27,14 @@ pub mod rpc_methods {
     pub const TOOLS_LIST: &str = "tools.list";
     /// `account.getQuota`
     pub const ACCOUNT_GETQUOTA: &str = "account.getQuota";
+    /// `account.getCurrentAuth`
+    pub const ACCOUNT_GETCURRENTAUTH: &str = "account.getCurrentAuth";
+    /// `account.getAllUsers`
+    pub const ACCOUNT_GETALLUSERS: &str = "account.getAllUsers";
+    /// `account.login`
+    pub const ACCOUNT_LOGIN: &str = "account.login";
+    /// `account.logout`
+    pub const ACCOUNT_LOGOUT: &str = "account.logout";
     /// `secrets.addFilterValues`
     pub const SECRETS_ADDFILTERVALUES: &str = "secrets.addFilterValues";
     /// `mcp.config.list`
@@ -331,6 +339,8 @@ pub mod rpc_methods {
     pub const SESSION_PLUGINS_RELOAD: &str = "session.plugins.reload";
     /// `session.provider.getEndpoint`
     pub const SESSION_PROVIDER_GETENDPOINT: &str = "session.provider.getEndpoint";
+    /// `session.provider.add`
+    pub const SESSION_PROVIDER_ADD: &str = "session.provider.add";
     /// `session.options.update`
     pub const SESSION_OPTIONS_UPDATE: &str = "session.options.update";
     /// `session.lsp.initialize`
@@ -571,6 +581,29 @@ pub struct AbortResult {
     pub success: bool,
 }
 
+/// Schema for the `AccountAllUsers` type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountAllUsers {
+    /// Authentication information for this user
+    pub auth_info: serde_json::Value,
+    /// Associated token, if available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+}
+
+/// Current authentication state
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountGetCurrentAuthResult {
+    /// Authentication errors from the last auth attempt, if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_errors: Option<Vec<String>>,
+    /// Current authentication information, if authenticated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_info: Option<serde_json::Value>,
+}
+
 /// Optional GitHub token used to look up quota for a specific user instead of the global auth context.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -609,6 +642,42 @@ pub struct AccountQuotaSnapshot {
 pub struct AccountGetQuotaResult {
     /// Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
     pub quota_snapshots: HashMap<String, AccountQuotaSnapshot>,
+}
+
+/// Credentials to store after successful authentication
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountLoginRequest {
+    /// GitHub host URL
+    pub host: String,
+    /// User login/username
+    pub login: String,
+    /// GitHub authentication token
+    pub token: String,
+}
+
+/// Result of a successful login; throws on failure
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountLoginResult {
+    /// Whether the credential was persisted to a secure store (system keychain, or the config file when plaintext storage is enabled). False when no secure store was available and the token was not saved, so the consumer can decide how to proceed.
+    pub stored_in_vault: bool,
+}
+
+/// User to log out
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountLogoutRequest {
+    /// Authentication information for the user to log out
+    pub auth_info: serde_json::Value,
+}
+
+/// Logout result indicating if more users remain
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountLogoutResult {
+    /// Whether other authenticated users remain after logout
+    pub has_more_users: bool,
 }
 
 /// Schema for the `AgentDiscoveryPath` type.
@@ -1045,13 +1114,6 @@ pub struct AllowAllPermissionState {
 }
 
 /// Schema for the `CopilotUserResponseEndpoints` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseEndpoints {
@@ -1066,13 +1128,6 @@ pub struct CopilotUserResponseEndpoints {
 }
 
 /// Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseQuotaSnapshotsChat {
@@ -1106,13 +1161,6 @@ pub struct CopilotUserResponseQuotaSnapshotsChat {
 }
 
 /// Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseQuotaSnapshotsCompletions {
@@ -1146,13 +1194,6 @@ pub struct CopilotUserResponseQuotaSnapshotsCompletions {
 }
 
 /// Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseQuotaSnapshotsPremiumInteractions {
@@ -1186,13 +1227,6 @@ pub struct CopilotUserResponseQuotaSnapshotsPremiumInteractions {
 }
 
 /// Schema for the `CopilotUserResponseQuotaSnapshots` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseQuotaSnapshots {
@@ -1211,13 +1245,6 @@ pub struct CopilotUserResponseQuotaSnapshots {
 }
 
 /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponse {
@@ -1312,13 +1339,6 @@ pub struct CopilotUserResponse {
 }
 
 /// Schema for the `ApiKeyAuthInfo` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiKeyAuthInfo {
@@ -2224,13 +2244,6 @@ pub(crate) struct ConnectResult {
 }
 
 /// Schema for the `CopilotApiTokenAuthInfo` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotApiTokenAuthInfo {
@@ -2349,13 +2362,6 @@ pub struct EnqueueCommandResult {
 }
 
 /// Schema for the `EnvAuthInfo` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvAuthInfo {
@@ -2863,13 +2869,6 @@ pub struct FolderTrustCheckResult {
 }
 
 /// Schema for the `GhCliAuthInfo` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GhCliAuthInfo {
@@ -3067,13 +3066,6 @@ pub struct HistoryTruncateResult {
 }
 
 /// Schema for the `HMACAuthInfo` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HMACAuthInfo {
@@ -5129,7 +5121,9 @@ pub struct MetadataSnapshotRemoteMetadata {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelBillingTokenPricesLongContext {
-    /// Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
+    /// Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
+    #[doc(hidden)]
+    #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_price: Option<f64>,
     /// AI Credits cost per billing batch of cached (read) tokens
@@ -5138,7 +5132,9 @@ pub struct ModelBillingTokenPricesLongContext {
     /// AI Credits cost per billing batch of cache-write (cache creation) tokens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write_price: Option<f64>,
-    /// Deprecated: use maxPromptTokens. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
+    /// Use maxPromptTokens instead. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
+    #[doc(hidden)]
+    #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_max: Option<i64>,
     /// AI Credits cost per billing batch of input tokens
@@ -5159,7 +5155,9 @@ pub struct ModelBillingTokenPrices {
     /// Number of tokens per standard billing batch
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_size: Option<i64>,
-    /// Deprecated: use cacheReadPrice. AI Credits cost per billing batch of cached tokens
+    /// Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
+    #[doc(hidden)]
+    #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_price: Option<f64>,
     /// AI Credits cost per billing batch of cached (read) tokens
@@ -5168,7 +5166,9 @@ pub struct ModelBillingTokenPrices {
     /// AI Credits cost per billing batch of cache-write (cache creation) tokens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write_price: Option<f64>,
-    /// Deprecated: use maxPromptTokens. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.
+    /// Use maxPromptTokens instead. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.
+    #[doc(hidden)]
+    #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_max: Option<i64>,
     /// AI Credits cost per billing batch of input tokens
@@ -7588,6 +7588,78 @@ pub struct PollSpawnedSessionsResult {
     pub events: Vec<SessionsPollSpawnedSessionsEvent>,
 }
 
+/// A BYOK model definition referencing a named provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelConfig {
+    /// Optional capability overrides (vision, tool_calls, reasoning, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ModelCapabilitiesOverride>,
+    /// Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+    pub id: String,
+    /// Maximum context window tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_context_window_tokens: Option<f64>,
+    /// Maximum output tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<f64>,
+    /// Maximum prompt/input tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<f64>,
+    /// Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    /// Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Name of the NamedProviderConfig that serves this model.
+    pub provider: String,
+    /// The model name sent to the provider API for inference. Defaults to `id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_model: Option<String>,
+}
+
+/// BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderAddRequest {
+    /// BYOK model definitions to register. Each must reference a provider that is already registered or included in this same call. Selection ids (`provider/id`) must be unique across the registry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<ProviderModelConfig>>,
+    /// Named BYOK provider connections to register, additive to any providers already in the registry. Each name must be unique across the registry and must not contain '/'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub providers: Option<Vec<NamedProviderConfig>>,
+}
+
+/// The selectable model entries synthesized for the models added by this call.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderAddResult {
+    /// Synthesized selectable model entries for the newly added BYOK models, each under its provider-qualified selection id (`provider/id`). Empty when only providers were added.
+    pub models: Vec<serde_json::Value>,
+}
+
 /// Custom model-provider configuration (BYOK).
 ///
 /// <div class="warning">
@@ -7701,44 +7773,6 @@ pub struct ProviderGetEndpointRequest {
     /// Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
-}
-
-/// A BYOK model definition referencing a named provider.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProviderModelConfig {
-    /// Optional capability overrides (vision, tool_calls, reasoning, etc.).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub capabilities: Option<ModelCapabilitiesOverride>,
-    /// Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
-    pub id: String,
-    /// Maximum context window tokens for the model.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_context_window_tokens: Option<f64>,
-    /// Maximum output tokens for the model.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_output_tokens: Option<f64>,
-    /// Maximum prompt/input tokens for the model.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_prompt_tokens: Option<f64>,
-    /// Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model_id: Option<String>,
-    /// Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    /// Name of the NamedProviderConfig that serves this model.
-    pub provider: String,
-    /// The model name sent to the provider API for inference. Defaults to `id`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wire_model: Option<String>,
 }
 
 /// Blob attachment with inline base64-encoded data
@@ -8783,6 +8817,9 @@ pub struct ServerInstructionSourceList {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerSkill {
+    /// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub argument_hint: Option<String>,
     /// Description of what the skill does
     pub description: String,
     /// Whether the skill is currently enabled (based on global config)
@@ -11035,6 +11072,9 @@ pub struct ShutdownRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Skill {
+    /// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub argument_hint: Option<String>,
     /// Description of what the skill does
     pub description: String,
     /// Whether the skill is currently enabled
@@ -11836,13 +11876,6 @@ pub struct TelemetrySetFeatureOverridesRequest {
 }
 
 /// Schema for the `TokenAuthInfo` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenAuthInfo {
@@ -12692,13 +12725,6 @@ pub struct UsageGetMetricsResult {
 }
 
 /// Schema for the `UserAuthInfo` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserAuthInfo {
@@ -15187,6 +15213,21 @@ pub struct SessionProviderGetEndpointResult {
     pub wire_api: Option<ProviderEndpointWireApi>,
 }
 
+/// The selectable model entries synthesized for the models added by this call.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProviderAddResult {
+    /// Synthesized selectable model entries for the newly added BYOK models, each under its provider-qualified selection id (`provider/id`). Empty when only providers were added.
+    pub models: Vec<serde_json::Value>,
+}
+
 /// Indicates whether the session options patch was applied successfully.
 ///
 /// <div class="warning">
@@ -16750,6 +16791,9 @@ pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
 ///
 /// </div>
 pub type UIElicitationResponseContent = HashMap<String, serde_json::Value>;
+
+/// List of all authenticated users
+pub type AccountGetAllUsersResult = Vec<AccountAllUsers>;
 
 /// Standard MCP CallToolResult
 ///

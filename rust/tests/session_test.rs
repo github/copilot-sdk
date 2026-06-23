@@ -1213,12 +1213,12 @@ async fn list_models_returns_typed_model_info() {
                             "outputPrice": 8.0,
                             "cachePrice": 0.5,
                             "batchSize": 1000000,
-                            "contextMax": 128000,
+                            "maxPromptTokens": 128000,
                             "longContext": {
                                 "inputPrice": 4.0,
                                 "outputPrice": 16.0,
                                 "cachePrice": 1.0,
-                                "contextMax": 1000000
+                                "maxPromptTokens": 1000000
                             }
                         }
                     }
@@ -1244,11 +1244,11 @@ async fn list_models_returns_typed_model_info() {
         .expect("token prices");
     assert_eq!(token_prices.input_price, Some(2.0));
     assert_eq!(token_prices.batch_size, Some(1000000));
-    assert_eq!(token_prices.context_max, Some(128000));
+    assert_eq!(token_prices.max_prompt_tokens, Some(128000));
     let long_context: &github_copilot_sdk::types::ModelBillingTokenPricesLongContext =
         token_prices.long_context.as_ref().expect("long context");
     assert_eq!(long_context.output_price, Some(16.0));
-    assert_eq!(long_context.context_max, Some(1000000));
+    assert_eq!(long_context.max_prompt_tokens, Some(1000000));
 }
 
 #[tokio::test]

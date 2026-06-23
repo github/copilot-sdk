@@ -109,6 +109,7 @@ type (
 	MCPServerTransport                                             = rpc.MCPServerTransport
 	ModelCallFailureBadRequestKind                                 = rpc.ModelCallFailureBadRequestKind
 	ModelCallFailureData                                           = rpc.ModelCallFailureData
+	ModelCallFailureRequestFingerprint                             = rpc.ModelCallFailureRequestFingerprint
 	ModelCallFailureSource                                         = rpc.ModelCallFailureSource
 	OmittedBinaryOmittedReason                                     = rpc.OmittedBinaryOmittedReason
 	OmittedBinaryResult                                            = rpc.OmittedBinaryResult

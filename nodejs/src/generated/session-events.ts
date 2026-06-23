@@ -3441,6 +3441,7 @@ export interface ModelCallFailureData {
    * GitHub request tracing ID (x-github-request-id header) for server-side log correlation
    */
   providerCallId?: string;
+  requestFingerprint?: ModelCallFailureRequestFingerprint;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
    */
@@ -3450,6 +3451,39 @@ export interface ModelCallFailureData {
    * HTTP status code from the failed request
    */
   statusCode?: number;
+}
+/**
+ * Content-free structural summary of the failing request for diagnosing malformed 4xx calls
+ */
+export interface ModelCallFailureRequestFingerprint {
+  /**
+   * Total number of image content parts
+   */
+  imagePartCount: number;
+  /**
+   * Image parts whose media type cannot be determined (rejected by strict providers)
+   */
+  imagePartsMissingMediaType: number;
+  /**
+   * Role of the final message in the request
+   */
+  lastMessageRole?: string;
+  /**
+   * Total number of messages in the request
+   */
+  messageCount: number;
+  /**
+   * Tool calls whose name is missing or empty (rejected by strict providers)
+   */
+  namelessToolCallCount: number;
+  /**
+   * Total number of tool calls across assistant messages
+   */
+  toolCallCount: number;
+  /**
+   * Number of "tool" result messages in the request
+   */
+  toolResultMessageCount: number;
 }
 /**
  * Session event "abort". Turn abort information including the reason for termination
@@ -7091,6 +7125,10 @@ export interface SkillsLoadedData {
  * Schema for the `SkillsLoadedSkill` type.
  */
 export interface SkillsLoadedSkill {
+  /**
+   * Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+   */
+  argumentHint?: string;
   /**
    * Description of what the skill does
    */

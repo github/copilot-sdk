@@ -727,7 +727,8 @@ export class CopilotClient {
         const errors: Error[] = [];
 
         // Disconnect all active sessions with retry logic
-        for (const session of this.sessions.values()) {
+        const activeSessions = [...this.sessions.values()];
+        for (const session of activeSessions) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
 
@@ -755,6 +756,9 @@ export class CopilotClient {
                     )
                 );
             }
+        }
+        for (const session of activeSessions) {
+            session._markDisconnected();
         }
         this.sessions.clear();
 
@@ -916,6 +920,9 @@ export class CopilotClient {
         this.forceStopping = true;
 
         // Clear sessions immediately without trying to destroy them
+        for (const session of this.sessions.values()) {
+            session._markDisconnected();
+        }
         this.sessions.clear();
 
         // Force close connection

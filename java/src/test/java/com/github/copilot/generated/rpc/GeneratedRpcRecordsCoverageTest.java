@@ -696,7 +696,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsListResult_nested() {
-        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md", null);
+        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md", null,
+                null);
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
