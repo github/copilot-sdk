@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
     ErrorCodes,
+    type Message,
     MessageConnection,
     ResponseError,
     StreamMessageReader,
@@ -375,10 +376,40 @@ function getBundledCliPath(): string {
  * await client.stop();
  * ```
  */
+/**
+ * A {@link StreamMessageWriter} that suppresses write failures while the client
+ * is tearing down its transport.
+ *
+ * During `stop()`/`forceStop()` the runtime's end of the pipe can close while
+ * vscode-jsonrpc still has an in-flight write — most commonly the
+ * auto-generated response to a server→client request (tool/hook/userInput/LLM
+ * inference handler) that resolved just before teardown. That write rejects
+ * with `ERR_STREAM_DESTROYED`, and because the response write is internal to
+ * vscode-jsonrpc and awaited by nobody, the rejection surfaces as an unhandled
+ * rejection. The writer still fires its `error` event (forwarded to
+ * {@link MessageConnection.onError}), so swallowing the rejected promise during
+ * teardown loses no signal. Outside teardown the flag stays `false`, so write
+ * failures propagate normally and in-flight requests still fail fast.
+ */
+class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
+    public suppressWriteErrors = false;
+
+    public override async write(msg: Message): Promise<void> {
+        try {
+            await super.write(msg);
+        } catch (error) {
+            if (!this.suppressWriteErrors) {
+                throw error;
+            }
+        }
+    }
+}
+
 export class CopilotClient {
     private cliStartTimeout: ReturnType<typeof setTimeout> | null = null;
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;
+    private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private socket: Socket | null = null;
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
@@ -817,7 +848,13 @@ export class CopilotClient {
             }
         }
 
-        // Close connection
+        // Close connection. Suppress writer failures first: tearing down the
+        // transport can reject an in-flight server→client response write with
+        // ERR_STREAM_DESTROYED, which would otherwise surface as an unhandled
+        // rejection. dispose() still rejects any pending requests.
+        if (this.messageWriter) {
+            this.messageWriter.suppressWriteErrors = true;
+        }
         if (this.connection) {
             try {
                 this.connection.dispose();
@@ -829,6 +866,7 @@ export class CopilotClient {
                 );
             }
             this.connection = null;
+            this.messageWriter = null;
             this._rpc = null;
             this._internalRpc = null;
         }
@@ -944,7 +982,11 @@ export class CopilotClient {
         // Clear sessions immediately without trying to destroy them
         this.sessions.clear();
 
-        // Force close connection
+        // Force close connection. Suppress writer failures first so teardown
+        // write rejections don't surface as unhandled rejections.
+        if (this.messageWriter) {
+            this.messageWriter.suppressWriteErrors = true;
+        }
         if (this.connection) {
             try {
                 this.connection.dispose();
@@ -952,6 +994,7 @@ export class CopilotClient {
                 // Ignore errors during force stop
             }
             this.connection = null;
+            this.messageWriter = null;
             this._rpc = null;
             this._internalRpc = null;
         }
@@ -2260,9 +2303,10 @@ export class CopilotClient {
         });
 
         // Create JSON-RPC connection over stdin/stdout
+        this.messageWriter = new TeardownResilientStreamMessageWriter(this.cliProcess.stdin!);
         this.connection = createMessageConnection(
             new StreamMessageReader(this.cliProcess.stdout!),
-            new StreamMessageWriter(this.cliProcess.stdin!)
+            this.messageWriter
         );
 
         this.attachConnectionHandlers();
@@ -2278,9 +2322,10 @@ export class CopilotClient {
         }
 
         // Create JSON-RPC connection over stdin/stdout
+        this.messageWriter = new TeardownResilientStreamMessageWriter(process.stdout);
         this.connection = createMessageConnection(
             new StreamMessageReader(process.stdin),
-            new StreamMessageWriter(process.stdout)
+            this.messageWriter
         );
 
         this.attachConnectionHandlers();
@@ -2306,9 +2351,10 @@ export class CopilotClient {
             this.socket.connect(this.runtimePort!, this.actualHost, () => {
                 clearTimeout(connectionTimeout);
                 // Create JSON-RPC connection
+                this.messageWriter = new TeardownResilientStreamMessageWriter(this.socket!);
                 this.connection = createMessageConnection(
                     new StreamMessageReader(this.socket!),
-                    new StreamMessageWriter(this.socket!)
+                    this.messageWriter
                 );
 
                 this.attachConnectionHandlers();
