@@ -463,6 +463,8 @@ class CopilotToolProcessorTest {
 
         // Also resolve CodeSource paths for key classes (SDK + Jackson + RPC types)
         Class<?>[] keyClasses = {CopilotTool.class, com.fasterxml.jackson.databind.ObjectMapper.class,
+                com.fasterxml.jackson.core.JsonFactory.class,
+                com.fasterxml.jackson.annotation.JsonProperty.class,
                 com.github.copilot.rpc.ToolDefinition.class};
         for (Class<?> cls : keyClasses) {
             try {
