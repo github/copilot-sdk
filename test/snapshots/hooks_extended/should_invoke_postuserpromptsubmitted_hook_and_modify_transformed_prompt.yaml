@@ -6,7 +6,7 @@ conversations:
         content: ${system}
       - role: user
         content: |-
-          POST_USER_PROMPT_SUBMITTED_HOOK
-          Say something after prompt transformation
+          What is 19 + 23? Reply with just the number.
+          Answer the arithmetic question above.
       - role: assistant
-        content: POST_USER_PROMPT_SUBMITTED_HOOK
+        content: "42"

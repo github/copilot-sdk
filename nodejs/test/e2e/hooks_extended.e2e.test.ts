@@ -158,16 +158,14 @@ describe("Extended session hooks", async () => {
                 onPostUserPromptSubmitted: async (input, invocation) => {
                     inputs.push(input);
                     expect(invocation.sessionId).toBeTruthy();
-                    expect(input.prompt).toContain("Say something after prompt transformation");
-                    expect(input.transformedPrompt).toContain(
-                        "Say something after prompt transformation"
-                    );
+                    expect(input.prompt).toContain("Answer the arithmetic question above");
+                    expect(input.transformedPrompt).toContain("Answer the arithmetic question above");
                     expect(input.transformedPrompt).toContain("<current_datetime>");
 
                     return {
                         modifiedTransformedPrompt: input.transformedPrompt.replace(
                             /<current_datetime>.*?<\/current_datetime>\n*/s,
-                            "POST_USER_PROMPT_SUBMITTED_HOOK\n"
+                            "What is 19 + 23? Reply with just the number.\n"
                         ),
                     };
                 },
@@ -175,13 +173,13 @@ describe("Extended session hooks", async () => {
         });
 
         const response = await session.sendAndWait({
-            prompt: "Say something after prompt transformation",
+            prompt: "Answer the arithmetic question above.",
         });
 
         expect(inputs.length).toBeGreaterThan(0);
         expect(inputs[0].timestamp).toBeInstanceOf(Date);
         expect(inputs[0].workingDirectory).toBeDefined();
-        expect(response?.data.content ?? "").toContain("POST_USER_PROMPT_SUBMITTED_HOOK");
+        expect(response?.data.content ?? "").toContain("42");
 
         await session.disconnect();
     });
