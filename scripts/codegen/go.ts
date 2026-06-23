@@ -3952,7 +3952,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     if (generatedTypeCode.includes("time.Time")) {
         imports.push(`"time"`);
     }
-    if (schema.clientSession) {
+    if (schema.clientSession || schema.clientGlobal) {
         imports.push(`"errors"`, `"fmt"`);
     }
     imports.push(`"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
@@ -3985,6 +3985,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     if (schema.clientSession) {
         emitClientSessionApiRegistration(lines, schema.clientSession, resolveType, generatedRpcCode.discriminatedUnions);
+    }
+
+    if (schema.clientGlobal) {
+        emitClientGlobalApiRegistration(lines, schema.clientGlobal, resolveType, generatedRpcCode.discriminatedUnions);
     }
 
     const outPath = await writeGeneratedFile("go/rpc/zrpc.go", wrapGeneratedGoComments(lines.join("\n")));
@@ -4348,7 +4352,106 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
     lines.push(``);
 }
 
-// ── Main ────────────────────────────────────────────────────────────────────
+function emitClientGlobalApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string, unionInfos: Map<string, GoDiscriminatedUnionInfo>): void {
+    const groups = collectClientGroups(clientSchema);
+
+    for (const { groupName, groupNode, methods } of groups) {
+        const interfaceName = clientHandlerInterfaceName(groupName);
+        const groupExperimental = isNodeFullyExperimental(groupNode);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode);
+        if (groupDeprecated) {
+            pushGoComment(lines, `Deprecated: ${interfaceName} contains deprecated APIs that will be removed in a future version.`);
+        }
+        if (groupExperimental) {
+            pushGoExperimentalApiComment(lines, interfaceName);
+        }
+        lines.push(`type ${interfaceName} interface {`);
+        for (const method of methods) {
+            const resultSchema = getMethodResultSchema(method);
+            pushGoRpcMethodComment(
+                lines,
+                clientHandlerMethodName(method.rpcMethod),
+                method,
+                resultSchema,
+                goRpcParamsDescription(method, getMethodParamsSchema(method)),
+                "\t",
+                "handles"
+            );
+            if (method.deprecated && !groupDeprecated) {
+                pushGoComment(lines, `Deprecated: ${clientHandlerMethodName(method.rpcMethod)} is deprecated and will be removed in a future version.`, "\t");
+            }
+            if (method.stability === "experimental" && !groupExperimental) {
+                pushGoExperimentalMethodComment(lines, clientHandlerMethodName(method.rpcMethod), "\t");
+            }
+            const paramsType = resolveType(goParamsTypeName(method));
+            const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+            let returnType: string;
+            if (isOpaqueJson(resultSchema)) {
+                returnType = "any";
+            } else {
+                const resultType = nullableInner
+                    ? resolveType(goNullableResultTypeName(method, nullableInner))
+                    : resolveType(goResultTypeName(method));
+                returnType = unionInfos.has(resultType) ? resultType : `*${resultType}`;
+            }
+            lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (${returnType}, error)`);
+        }
+        lines.push(`}`);
+        lines.push(``);
+    }
+
+    lines.push(`// ClientGlobalAPIHandlers provides all client-global API handler groups.`);
+    lines.push(`//`);
+    lines.push(`// Unlike client-session handlers these carry no implicit session id dispatch`);
+    lines.push(`// key; a single set of handlers serves the entire connection.`);
+    lines.push(`type ClientGlobalAPIHandlers struct {`);
+    for (const { groupName } of groups) {
+        lines.push(`\t${toGoFieldName(groupName)} ${clientHandlerInterfaceName(groupName)}`);
+    }
+    lines.push(`}`);
+    lines.push(``);
+
+    lines.push(`func clientGlobalHandlerError(err error) *jsonrpc2.Error {`);
+    lines.push(`\tif err == nil {`);
+    lines.push(`\t\treturn nil`);
+    lines.push(`\t}`);
+    lines.push(`\tvar rpcErr *jsonrpc2.Error`);
+    lines.push(`\tif errors.As(err, &rpcErr) {`);
+    lines.push(`\t\treturn rpcErr`);
+    lines.push(`\t}`);
+    lines.push(`\treturn &jsonrpc2.Error{Code: -32603, Message: err.Error()}`);
+    lines.push(`}`);
+    lines.push(``);
+
+    lines.push(`// RegisterClientGlobalAPIHandlers registers handlers for server-to-client client-global API calls.`);
+    lines.push(`func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGlobalAPIHandlers) {`);
+    for (const { groupName, methods } of groups) {
+        const handlerField = toGoFieldName(groupName);
+        for (const method of methods) {
+            const paramsType = resolveType(goParamsTypeName(method));
+            lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);
+            lines.push(`\t\tvar request ${paramsType}`);
+            lines.push(`\t\tif err := json.Unmarshal(params, &request); err != nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\tif handlers == nil || handlers.${handlerField} == nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: "No ${groupName} client-global handler registered"}`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\tresult, err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request)`);
+            lines.push(`\t\tif err != nil {`);
+            lines.push(`\t\t\treturn nil, clientGlobalHandlerError(err)`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\traw, err := json.Marshal(result)`);
+            lines.push(`\t\tif err != nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\treturn raw, nil`);
+            lines.push(`\t})`);
+        }
+    }
+    lines.push(`}`);
+    lines.push(``);
+}
 
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     let apiSchemaForSharing: ApiSchema | undefined;

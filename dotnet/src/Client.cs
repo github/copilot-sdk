@@ -85,6 +85,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private List<ModelInfo>? _modelsCache;
     private ServerRpc? _serverRpc;
 
+    /// <summary>
+    /// Client-global RPC handlers (e.g. the LLM inference provider adapter),
+    /// built once at construction when the corresponding option is configured and
+    /// registered on every connection. Null when no client-global API is enabled.
+    /// </summary>
+    private readonly ClientGlobalApiHandlers? _clientGlobalApis;
+
     private sealed record LifecycleSubscription(Type EventType, Action<SessionLifecycleEvent> Handler);
 
     /// <summary>
@@ -164,6 +171,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
+
+        _clientGlobalApis = BuildClientGlobalApis();
 
         // Empty mode: validate at construction time that the app supplied a
         // per-session persistence location. The runtime is mode-agnostic, so
@@ -275,6 +284,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         "CopilotClient.StartAsync session filesystem setup complete. Elapsed={Elapsed}",
                         sessionFsTimestamp);
                 }
+
+                await ConfigureLlmInferenceAsync(ct);
 
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StartAsync complete. Elapsed={Elapsed}",
@@ -426,7 +437,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
-        var runtimeShutdownCompleted = false;
         if (gracefulRuntimeShutdown && ctx.CliProcess is not null)
         {
             var runtimeShutdownTimestamp = Stopwatch.GetTimestamp();
@@ -434,7 +444,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 using var cancellation = new CancellationTokenSource(s_runtimeShutdownTimeout);
                 await ctx.Server.Runtime.ShutdownAsync(cancellation.Token);
-                runtimeShutdownCompleted = true;
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StopAsync runtime shutdown complete. Elapsed={Elapsed}",
                     runtimeShutdownTimestamp);
@@ -466,11 +475,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (ctx.CliProcess is { } childProcess)
         {
-            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger, runtimeShutdownCompleted);
+            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger);
         }
     }
 
-    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger, bool waitForGracefulExit = false)
+    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger)
     {
         stderrPump?.Cancel();
 
@@ -478,30 +487,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             if (!childProcess.HasExited)
             {
-                if (waitForGracefulExit)
-                {
-                    var shutdownWaitTimestamp = Stopwatch.GetTimestamp();
-                    try
-                    {
-                        await childProcess.WaitForExitAsync().WaitAsync(s_runtimeShutdownTimeout);
-                    }
-                    catch (TimeoutException ex)
-                    {
-                        if (logger is not null)
-                        {
-                            LoggingHelpers.LogTiming(logger, LogLevel.Debug, ex,
-                                "Timed out waiting for runtime process to exit after graceful shutdown. Elapsed={Elapsed}, Timeout={Timeout}",
-                                shutdownWaitTimestamp,
-                                s_runtimeShutdownTimeout);
-                        }
-                    }
-                }
-
-                if (childProcess.HasExited)
-                {
-                    return;
-                }
-
+                // The runtime completes all cleanup before responding to
+                // runtime.shutdown and then leaves termination to us; it
+                // deliberately keeps its JSON-RPC server alive to send the
+                // response and never self-exits. Waiting for a self-exit that
+                // will never come just wastes time, so terminate the child
+                // immediately and only wait to reap it.
                 childProcess.Kill(entireProcessTree: true);
                 // Kill is asynchronous; wait for the root CLI process to exit so cleanup callers
                 // do not observe StopAsync/DisposeAsync completion while it is still tearing down.
@@ -1685,6 +1676,39 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             cancellationToken: cancellationToken);
     }
 
+    /// <summary>
+    /// Builds the client-global RPC handler bag at construction time. Currently
+    /// only the LLM inference provider adapter is registered; returns null when no
+    /// client-global API is configured so the registration is skipped entirely.
+    /// </summary>
+    private ClientGlobalApiHandlers? BuildClientGlobalApis()
+    {
+        var handler = _options.RequestHandler;
+        if (handler is null)
+        {
+            return null;
+        }
+
+        return new ClientGlobalApiHandlers
+        {
+            LlmInference = new LlmInferenceAdapter(handler, () => _serverRpc),
+        };
+    }
+
+    /// <summary>
+    /// Tells the runtime to route its outbound model-layer requests through this
+    /// client's LLM inference provider. No-op when interception is not configured.
+    /// </summary>
+    private async Task ConfigureLlmInferenceAsync(CancellationToken cancellationToken)
+    {
+        if (_clientGlobalApis?.LlmInference is null)
+        {
+            return;
+        }
+
+        await Rpc.LlmInference.SetProviderAsync(cancellationToken);
+    }
+
     private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, SessionFsProvider>? createSessionFsHandler)
     {
         if (_options.SessionFs is null)
@@ -2079,6 +2103,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
                 return session.ClientSessionApis;
             });
+            if (_clientGlobalApis is not null)
+            {
+                ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, _clientGlobalApis);
+            }
             rpc.StartListening();
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",

@@ -3190,6 +3190,9 @@ def _patch_model_capabilities(data: dict) -> dict:
     if (schema.clientSession) {
         emitClientSessionApiRegistration(lines, schema.clientSession, resolveType);
     }
+    if (schema.clientGlobal) {
+        emitClientGlobalApiRegistration(lines, schema.clientGlobal, resolveType);
+    }
 
     // Patch models.list to normalize capabilities before deserialization
     let finalCode = lines.join("\n");
@@ -3712,7 +3715,107 @@ function emitClientSessionRegistrationMethod(
     lines.push(`    client.set_request_handler("${method.rpcMethod}", ${handlerVariableName})`);
 }
 
-// ── Main ────────────────────────────────────────────────────────────────────
+function emitClientGlobalApiRegistration(
+    lines: string[],
+    node: Record<string, unknown>,
+    resolveType: (name: string) => string
+): void {
+    const groups = Object.entries(node).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
+
+    for (const [groupName, groupNode] of groups) {
+        const handlerName = `${toPascalCase(groupName)}Handler`;
+        const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
+        if (groupDeprecated) {
+            lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
+        }
+        if (groupExperimental) {
+            pushPyExperimentalApiGroupComment(lines);
+        }
+        lines.push(`class ${handlerName}(Protocol):`);
+        const methods = collectRpcMethods(groupNode as Record<string, unknown>);
+        for (const method of methods) {
+            // Client-global handler methods reuse the session handler shape; the
+            // only difference is dispatch (no implicit session_id key).
+            emitClientSessionHandlerMethod(lines, method, resolveType, groupExperimental, groupDeprecated);
+        }
+        lines.push(``);
+    }
+
+    lines.push(`@dataclass`);
+    lines.push(`class ClientGlobalApiHandlers:`);
+    if (groups.length === 0) {
+        lines.push(`    pass`);
+    } else {
+        for (const [groupName] of groups) {
+            lines.push(`    ${toSnakeCase(groupName)}: ${toPascalCase(groupName)}Handler | None = None`);
+        }
+    }
+    lines.push(``);
+
+    lines.push(`def register_client_global_api_handlers(`);
+    lines.push(`    client: "JsonRpcClient",`);
+    lines.push(`    handlers: ClientGlobalApiHandlers,`);
+    lines.push(`) -> None:`);
+    lines.push(`    """Register client-global request handlers on a JSON-RPC connection.`);
+    lines.push(``);
+    lines.push(`    Unlike client-session handlers these methods carry no implicit`);
+    lines.push(`    session_id dispatch key; a single set of handlers serves the entire`);
+    lines.push(`    connection.`);
+    lines.push(`    """`);
+    if (groups.length === 0) {
+        lines.push(`    return`);
+    } else {
+        for (const [groupName, groupNode] of groups) {
+            const methods = collectRpcMethods(groupNode as Record<string, unknown>);
+            for (const method of methods) {
+                emitClientGlobalRegistrationMethod(lines, groupName, method, resolveType);
+            }
+        }
+    }
+    lines.push(``);
+}
+
+function emitClientGlobalRegistrationMethod(
+    lines: string[],
+    groupName: string,
+    method: RpcMethod,
+    resolveType: (name: string) => string
+): void {
+    const rpcSegments = method.rpcMethod.split(".");
+    const handlerVariableName = `handle_${rpcSegments.map(toSnakeCase).join("_")}`;
+    const paramsType = resolveType(pythonParamsTypeName(method));
+    const resultSchema = getMethodResultSchema(method);
+    const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+    const hasResult = !isVoidSchema(resultSchema) && !nullableInner;
+    const handlerField = toSnakeCase(groupName);
+    const handlerMethod = clientSessionHandlerMethodName(method.rpcMethod);
+
+    lines.push(`    async def ${handlerVariableName}(params: dict) -> dict | None:`);
+    lines.push(`        request = ${paramsType}.from_dict(params)`);
+    lines.push(`        handler = handlers.${handlerField}`);
+    lines.push(`        if handler is None: raise RuntimeError("No ${handlerField} client-global handler registered")`);
+    if (hasResult) {
+        lines.push(`        result = await handler.${handlerMethod}(request)`);
+        if (isObjectSchema(resultSchema)) {
+            lines.push(`        return result.to_dict()`);
+        } else {
+            lines.push(`        return result.value if hasattr(result, 'value') else result`);
+        }
+    } else if (nullableInner) {
+        lines.push(`        result = await handler.${handlerMethod}(request)`);
+        const resolvedInner = resolveSchema(nullableInner, rpcDefinitions) ?? nullableInner;
+        if (isObjectSchema(resolvedInner) || nullableInner.$ref) {
+            lines.push(`        return result.to_dict() if result is not None else None`);
+        } else {
+            lines.push(`        return result`);
+        }
+    } else {
+        lines.push(`        await handler.${handlerMethod}(request)`);
+        lines.push(`        return None`);
+    }
+    lines.push(`    client.set_request_handler("${method.rpcMethod}", ${handlerVariableName})`);
+}
 
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     await generateSessionEvents(sessionSchemaPath);

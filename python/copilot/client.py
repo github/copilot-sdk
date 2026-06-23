@@ -60,7 +60,9 @@ from .canvas import (
     CanvasHandler,
     ExtensionInfo,
 )
+from .copilot_request_handler import CopilotRequestHandler, create_copilot_request_adapter
 from .generated.rpc import (
+    ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
@@ -70,6 +72,7 @@ from .generated.rpc import (
     _ConnectRequest,
     _InternalServerRpc,
     from_datetime,
+    register_client_global_api_handlers,
     register_client_session_api_handlers,
 )
 from .generated.session_events import (
@@ -372,6 +375,7 @@ class _CopilotClientOptions:
     use_logged_in_user: bool | None = None
     telemetry: TelemetryConfig | None = None
     session_fs: SessionFsConfig | None = None
+    request_handler: CopilotRequestHandler | None = None
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
@@ -1060,6 +1064,7 @@ class CopilotClient:
         use_logged_in_user: bool | None = None,
         telemetry: TelemetryConfig | None = None,
         session_fs: SessionFsConfig | None = None,
+        request_handler: CopilotRequestHandler | None = None,
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
@@ -1094,6 +1099,9 @@ class CopilotClient:
                 telemetry.
             session_fs: Connection-level session filesystem provider
                 configuration.
+            request_handler: Connection-level request handler. When set, the
+                supplied handler services every model-layer HTTP/WebSocket
+                request the runtime would otherwise issue (both BYOK and CAPI).
             session_idle_timeout_seconds: Server-wide session idle timeout in
                 seconds. Sessions without activity for this duration are
                 automatically cleaned up. Set to ``None`` or ``0`` to disable.
@@ -1130,6 +1138,7 @@ class CopilotClient:
             use_logged_in_user=use_logged_in_user,
             telemetry=telemetry,
             session_fs=session_fs,
+            request_handler=request_handler,
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
             on_list_models=on_list_models,
@@ -1221,6 +1230,7 @@ class CopilotClient:
         if options.session_fs is not None:
             _validate_session_fs_config(options.session_fs)
         self._session_fs_config = options.session_fs
+        self._request_handler = options.request_handler
 
     @property
     def rpc(self) -> ServerRpc:
@@ -1373,6 +1383,9 @@ class CopilotClient:
                     session_fs_start,
                 )
 
+            if self._request_handler is not None:
+                await self._set_llm_inference_provider()
+
             self._state = "connected"
             log_timing(
                 logger,
@@ -1457,12 +1470,10 @@ class CopilotClient:
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
 
-        runtime_shutdown_completed = False
         if self._rpc is not None and self._cli_process is not None and not self._is_external_server:
             runtime_shutdown_start = time.perf_counter()
             try:
                 await self._rpc.runtime.shutdown(timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS)
-                runtime_shutdown_completed = True
                 log_timing(
                     logger,
                     logging.DEBUG,
@@ -1497,62 +1508,40 @@ class CopilotClient:
                 logger.debug("Error while closing Copilot runtime transport", exc_info=True)
             self._process = None
 
-        # Terminate CLI process (only if we spawned it)
+        # Terminate CLI process (only if we spawned it).
+        #
+        # Per the runtime.shutdown contract, the runtime completes all cleanup
+        # *before* responding and then leaves termination to the caller ("callers
+        # may then terminate the owned runtime process"). It deliberately keeps
+        # its JSON-RPC server alive to send the response and does not self-exit,
+        # so there is no point waiting a grace window for a self-exit that will
+        # never come. Once shutdown has completed (or failed) we terminate the
+        # child immediately and only wait to reap it.
         if self._cli_process and not self._is_external_server:
             poll = getattr(self._cli_process, "poll", None)
             is_running = poll is None or poll() is None
             if is_running:
-                if runtime_shutdown_completed:
-                    try:
-                        await asyncio.to_thread(
-                            self._cli_process.wait,
-                            timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS,
-                        )
-                    except subprocess.TimeoutExpired:
-                        self._cli_process.terminate()
-                        try:
-                            await asyncio.to_thread(
-                                self._cli_process.wait,
-                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                            )
-                        except subprocess.TimeoutExpired:
-                            self._cli_process.kill()
-                            try:
-                                await asyncio.to_thread(
-                                    self._cli_process.wait,
-                                    timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                                )
-                            except subprocess.TimeoutExpired as e:
-                                errors.append(
-                                    StopError(
-                                        message=(
-                                            "Timed out waiting for CLI process to exit after kill: "
-                                            f"{e}"
-                                        )
-                                    )
-                                )
-                else:
-                    self._cli_process.terminate()
+                self._cli_process.terminate()
+                try:
+                    await asyncio.to_thread(
+                        self._cli_process.wait,
+                        timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                    )
+                except subprocess.TimeoutExpired:
+                    self._cli_process.kill()
                     try:
                         await asyncio.to_thread(
                             self._cli_process.wait,
                             timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
                         )
-                    except subprocess.TimeoutExpired:
-                        self._cli_process.kill()
-                        try:
-                            await asyncio.to_thread(
-                                self._cli_process.wait,
-                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                            )
-                        except subprocess.TimeoutExpired as e:
-                            errors.append(
-                                StopError(
-                                    message=(
-                                        f"Timed out waiting for CLI process to exit after kill: {e}"
-                                    )
+                    except subprocess.TimeoutExpired as e:
+                        errors.append(
+                            StopError(
+                                message=(
+                                    f"Timed out waiting for CLI process to exit after kill: {e}"
                                 )
                             )
+                        )
             if self._process is self._cli_process:
                 self._process = None
             self._cli_process = None
@@ -3572,6 +3561,7 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
+        self._register_llm_inference_handlers()
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -3691,6 +3681,7 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
+        self._register_llm_inference_handlers()
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -3762,6 +3753,22 @@ class CopilotClient:
             params["capabilities"] = self._session_fs_config["capabilities"]
 
         await self._client.request("sessionFs.setProvider", params)
+
+    def _register_llm_inference_handlers(self) -> None:
+        if self._request_handler is None or not self._client:
+            return
+        adapter = create_copilot_request_adapter(
+            self._request_handler,
+            lambda: self._rpc.llm_inference if self._rpc is not None else None,
+        )
+        register_client_global_api_handlers(
+            self._client, ClientGlobalApiHandlers(llm_inference=adapter)
+        )
+
+    async def _set_llm_inference_provider(self) -> None:
+        if self._request_handler is None or self._rpc is None:
+            return
+        await self._rpc.llm_inference.set_provider()
 
     def _get_client_session_handlers(self, session_id: str) -> ClientSessionApiHandlers:
         with self._sessions_lock:

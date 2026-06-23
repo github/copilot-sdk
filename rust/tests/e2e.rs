@@ -21,6 +21,8 @@ mod client_options;
 mod commands;
 #[path = "e2e/compaction.rs"]
 mod compaction;
+#[path = "e2e/copilot_request_handler.rs"]
+mod copilot_request_handler;
 #[path = "e2e/elicitation.rs"]
 mod elicitation;
 #[path = "e2e/error_resilience.rs"]

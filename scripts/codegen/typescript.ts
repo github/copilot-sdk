@@ -516,7 +516,8 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});
-    const rpcMethods = [...allMethods, ...clientSessionMethods];
+    const clientGlobalMethods = collectRpcMethods(schema.clientGlobal || {});
+    const rpcMethods = [...allMethods, ...clientSessionMethods, ...clientGlobalMethods];
     const seenBlocks = new Map<string, string>();
 
     // Build a single combined schema with shared definitions and all method types.
@@ -717,6 +718,13 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
         lines.push(...emitClientSessionApiRegistration(schema.clientSession));
     }
 
+    // Generate client *global* API handler interfaces and registration function.
+    // Unlike client-session APIs, these methods do not carry a `sessionId` dispatch
+    // key — the SDK consumer registers a single process-wide handler per group.
+    if (schema.clientGlobal) {
+        lines.push(...emitClientGlobalApiRegistration(schema.clientGlobal));
+    }
+
     const outPath = await writeGeneratedFile("nodejs/src/generated/rpc.ts", lines.join("\n"));
     console.log(`  ✓ ${outPath}`);
 }
@@ -915,6 +923,105 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
             } else {
                 lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);
                 lines.push(`        throw new Error("No params provided for ${method.rpcMethod}");`);
+                lines.push(`    });`);
+            }
+        }
+    }
+
+    lines.push(`}`);
+    lines.push("");
+
+    return lines;
+}
+
+/**
+ * Generate handler interfaces and a registration function for client *global*
+ * API groups.
+ *
+ * Unlike client-session APIs, these methods carry no implicit `sessionId`
+ * dispatch key. The SDK consumer registers a single process-wide handler set
+ * via `registerClientGlobalApiHandlers`; the runtime dispatcher routes each
+ * incoming call to the registered handler regardless of which (if any)
+ * runtime session triggered it.
+ */
+function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>): string[] {
+    const lines: string[] = [];
+    const groups = collectClientGroups(clientSchema);
+
+    for (const [groupName, methods] of groups) {
+        const interfaceName = toPascalCase(groupName) + "Handler";
+        const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
+        const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
+        if (groupDeprecated) {
+            lines.push(`/** @deprecated Handler for \`${groupName}\` client global API methods. */`);
+        } else if (groupExperimental) {
+            lines.push(`/** Handler for \`${groupName}\` client global API methods. */`);
+            lines.push(TS_EXPERIMENTAL_JSDOC);
+        } else {
+            lines.push(`/** Handler for \`${groupName}\` client global API methods. */`);
+        }
+        lines.push(`export interface ${interfaceName} {`);
+        for (const method of methods) {
+            const name = handlerMethodName(method.rpcMethod);
+            const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
+            const pType = hasParams ? paramsTypeName(method) : "";
+            const rType = tsResultType(method);
+
+            pushTsRpcMethodJsDoc(lines, "    ", method, {
+                summaryFallback: `Handles \`${method.rpcMethod}\`.`,
+                paramsName: hasParams ? "params" : undefined,
+                paramsDescription: rpcParamsDescription(method, getMethodParamsSchema(method)),
+                includeDeprecated: method.deprecated && !groupDeprecated,
+                includeExperimental: method.stability === "experimental" && !groupExperimental,
+            });
+            if (hasParams) {
+                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
+            } else {
+                lines.push(`    ${name}(): Promise<${rType}>;`);
+            }
+        }
+        lines.push(`}`);
+        lines.push("");
+    }
+
+    lines.push(`/** All client global API handler groups. */`);
+    lines.push(`export interface ClientGlobalApiHandlers {`);
+    for (const [groupName] of groups) {
+        const interfaceName = toPascalCase(groupName) + "Handler";
+        lines.push(`    ${groupName}?: ${interfaceName};`);
+    }
+    lines.push(`}`);
+    lines.push("");
+
+    lines.push(`/**`);
+    lines.push(` * Register client global API handlers on a JSON-RPC connection.`);
+    lines.push(` * The server calls these methods to delegate work to the client.`);
+    lines.push(` * Unlike session-scoped client APIs, these methods carry no implicit`);
+    lines.push(` * \`sessionId\` dispatch key — a single set of handlers serves the entire`);
+    lines.push(` * connection.`);
+    lines.push(` */`);
+    lines.push(`export function registerClientGlobalApiHandlers(`);
+    lines.push(`    connection: MessageConnection,`);
+    lines.push(`    handlers: ClientGlobalApiHandlers,`);
+    lines.push(`): void {`);
+
+    for (const [groupName, methods] of groups) {
+        for (const method of methods) {
+            const name = handlerMethodName(method.rpcMethod);
+            const pType = paramsTypeName(method);
+            const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
+
+            if (hasParams) {
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
+                lines.push(`        const handler = handlers.${groupName};`);
+                lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
+                lines.push(`        return handler.${name}(params);`);
+                lines.push(`    });`);
+            } else {
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);
+                lines.push(`        const handler = handlers.${groupName};`);
+                lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
+                lines.push(`        return handler.${name}();`);
                 lines.push(`    });`);
             }
         }

@@ -13,6 +13,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
+pub use crate::copilot_request_handler::{
+    CopilotHttpRequest, CopilotHttpResponse, CopilotHttpResponseBody, CopilotRequestContext,
+    CopilotRequestError, CopilotRequestHandler, CopilotRequestTransport, CopilotWebSocketForwarder,
+    CopilotWebSocketForwarderBuilder, CopilotWebSocketHandler, CopilotWebSocketMessage,
+    CopilotWebSocketResponse, WebSocketTransform, forward_http,
+};
 use crate::generated::api_types::OpenCanvasInstance;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::ContextTier;

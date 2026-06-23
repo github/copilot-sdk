@@ -371,6 +371,15 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 	}
 
+	// If a request handler was configured, register as the inference provider.
+	if c.options.RequestHandler != nil {
+		if _, err := c.RPC.LlmInference.SetProvider(ctx); err != nil {
+			killErr := c.killProcess()
+			c.state = stateError
+			return errors.Join(err, killErr)
+		}
+	}
+
 	c.state = stateConnected
 	return nil
 }
@@ -418,7 +427,6 @@ func (c *Client) Stop() error {
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
 
-	runtimeShutdownCompleted := false
 	if c.process != nil && !c.isExternalServer && c.RPC != nil {
 		rpcClient := c.RPC
 		runtimeShutdownStart := time.Now()
@@ -434,7 +442,6 @@ func (c *Client) Stop() error {
 				c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown failed")
 				errs = append(errs, fmt.Errorf("failed to gracefully shut down runtime: %w", err))
 			} else {
-				runtimeShutdownCompleted = true
 				c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown complete")
 			}
 		case <-time.After(runtimeShutdownTimeout):
@@ -443,29 +450,14 @@ func (c *Client) Stop() error {
 		}
 	}
 
-	// Give runtime.shutdown a bounded window to let the child exit on its own
-	// before falling back to killing it.
+	// The runtime completes all cleanup before responding to runtime.shutdown
+	// and then leaves termination to us; it deliberately keeps its JSON-RPC
+	// server alive to send the response and never self-exits. Waiting for a
+	// self-exit that will never come just wastes time, so terminate the child
+	// immediately and only wait to reap it.
 	if c.process != nil && !c.isExternalServer {
-		if c.processDone != nil {
-			if runtimeShutdownCompleted {
-				select {
-				case <-c.processDone:
-					c.osProcess.Swap(nil)
-					c.process = nil
-				case <-time.After(runtimeShutdownTimeout):
-					if err := c.killProcessAndWait(); err != nil {
-						errs = append(errs, err)
-					}
-				}
-			} else {
-				if err := c.killProcessAndWait(); err != nil {
-					errs = append(errs, err)
-				}
-			}
-		} else {
-			if err := c.killProcessAndWait(); err != nil {
-				errs = append(errs, err)
-			}
+		if err := c.killProcessAndWait(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	c.process = nil
@@ -2005,6 +1997,15 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
+	if c.options.RequestHandler != nil {
+		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+			if c.RPC == nil {
+				return nil
+			}
+			return c.RPC.LlmInference
+		})
+		rpc.RegisterClientGlobalAPIHandlers(c.client, &rpc.ClientGlobalAPIHandlers{LlmInference: adapter})
+	}
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

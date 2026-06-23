@@ -2297,6 +2297,142 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
     return lines;
 }
 
+/**
+ * Emit C# handler interfaces + a process-wide registration for client
+ * *global* API groups.
+ *
+ * Unlike client-session APIs, these methods carry no implicit `sessionId`
+ * dispatch key. The SDK consumer registers a single process-wide handler set
+ * via `RegisterClientGlobalApiHandlers`; the runtime dispatcher routes each
+ * incoming call to the registered handler regardless of which (if any)
+ * runtime session triggered it.
+ */
+function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>, classes: string[]): string[] {
+    const lines: string[] = [];
+    const groups = collectClientGroups(clientSchema);
+
+    for (const { methods } of groups) {
+        for (const method of methods) {
+            const resultSchema = getMethodResultSchema(method);
+            if (!isVoidSchema(resultSchema) && !isOpaqueJson(resultSchema)) {
+                emitRpcResultType(resultTypeName(method), resultSchema!, "public", classes);
+            }
+
+            const effectiveParams = resolveMethodParamsSchema(method);
+            if (effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0) {
+                const paramsClass = emitRpcClass(paramsTypeName(method), effectiveParams, "public", classes);
+                if (paramsClass) classes.push(paramsClass);
+            }
+        }
+    }
+
+    for (const { groupName, groupNode, methods } of groups) {
+        const interfaceName = clientHandlerInterfaceName(groupName);
+        const groupExperimental = isNodeFullyExperimental(groupNode);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode);
+        lines.push(`/// <summary>Handles \`${groupName}\` client global API methods.</summary>`);
+        if (groupExperimental) {
+            pushExperimentalAttribute(lines);
+        }
+        if (groupDeprecated) {
+            pushObsoleteAttributes(lines);
+        }
+        lines.push(`public interface ${interfaceName}`);
+        lines.push(`{`);
+        for (const method of methods) {
+            const effectiveParams = resolveMethodParamsSchema(method);
+            const hasParams = !!effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0;
+            const resultSchema = getMethodResultSchema(method);
+            const taskType = resultTaskType(method);
+            pushRpcMethodXmlDocs(
+                lines,
+                method,
+                "    ",
+                [
+                    ...(hasParams ? [{ name: "request", description: rpcParamsDescription(method, effectiveParams) }] : []),
+                    { name: "cancellationToken", description: CANCELLATION_TOKEN_DESCRIPTION, escapeDescription: false },
+                ],
+                resultSchema,
+                `Handles "${method.rpcMethod}".`
+            );
+            if (method.stability === "experimental" && !groupExperimental) {
+                pushExperimentalAttribute(lines, "    ");
+            }
+            if (method.deprecated && !groupDeprecated) {
+                pushObsoleteAttributes(lines, "    ");
+            }
+            if (hasParams) {
+                lines.push(`    ${taskType} ${clientHandlerMethodName(method.rpcMethod)}(${paramsTypeName(method)} request, CancellationToken cancellationToken = default);`);
+            } else {
+                lines.push(`    ${taskType} ${clientHandlerMethodName(method.rpcMethod)}(CancellationToken cancellationToken = default);`);
+            }
+        }
+        lines.push(`}`);
+        lines.push("");
+    }
+
+    lines.push(`/// <summary>Provides all client global API handler groups for a connection.</summary>`);
+    lines.push(`public sealed class ClientGlobalApiHandlers`);
+    lines.push(`{`);
+    for (const { groupName } of groups) {
+        lines.push(`    /// <summary>Optional handler for ${toPascalCase(groupName)} client global API methods.</summary>`);
+        lines.push(`    public ${clientHandlerInterfaceName(groupName)}? ${toPascalCase(groupName)} { get; set; }`);
+        lines.push("");
+    }
+    if (lines[lines.length - 1] === "") lines.pop();
+    lines.push(`}`);
+    lines.push("");
+
+    lines.push(`/// <summary>Registers client global API handlers on a JSON-RPC connection.</summary>`);
+    lines.push(`internal static class ClientGlobalApiRegistration`);
+    lines.push(`{`);
+    lines.push(`    /// <summary>`);
+    lines.push(`    /// Registers handlers for server-to-client global API calls.`);
+    lines.push(`    /// Unlike client session APIs, these methods carry no implicit`);
+    lines.push(`    /// <c>sessionId</c> dispatch key — a single set of handlers serves the`);
+    lines.push(`    /// entire connection.`);
+    lines.push(`    /// </summary>`);
+    lines.push(`    public static void RegisterClientGlobalApiHandlers(JsonRpc rpc, ClientGlobalApiHandlers handlers)`);
+    lines.push(`    {`);
+    for (const { groupName, methods } of groups) {
+        for (const method of methods) {
+            const handlerProperty = toPascalCase(groupName);
+            const handlerMethod = clientHandlerMethodName(method.rpcMethod);
+            const effectiveParams = resolveMethodParamsSchema(method);
+            const hasParams = !!effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0;
+            const resultSchema = getMethodResultSchema(method);
+            const paramsClass = paramsTypeName(method);
+            const taskType = handlerTaskType(method);
+
+            if (hasParams) {
+                lines.push(`        rpc.SetLocalRpcMethod("${method.rpcMethod}", (Func<${paramsClass}, CancellationToken, ${taskType}>)(async (request, cancellationToken) =>`);
+                lines.push(`        {`);
+                lines.push(`            var handler = handlers.${handlerProperty} ?? throw new InvalidOperationException("No ${groupName} client-global handler registered");`);
+                if (!isVoidSchema(resultSchema)) {
+                    lines.push(`            return await handler.${handlerMethod}(request, cancellationToken);`);
+                } else {
+                    lines.push(`            await handler.${handlerMethod}(request, cancellationToken);`);
+                }
+                lines.push(`        }), singleObjectParam: true);`);
+            } else {
+                lines.push(`        rpc.SetLocalRpcMethod("${method.rpcMethod}", (Func<CancellationToken, ${taskType}>)(async cancellationToken =>`);
+                lines.push(`        {`);
+                lines.push(`            var handler = handlers.${handlerProperty} ?? throw new InvalidOperationException("No ${groupName} client-global handler registered");`);
+                if (!isVoidSchema(resultSchema)) {
+                    lines.push(`            return await handler.${handlerMethod}(cancellationToken);`);
+                } else {
+                    lines.push(`            await handler.${handlerMethod}(cancellationToken);`);
+                }
+                lines.push(`        }));`);
+            }
+        }
+    }
+    lines.push(`    }`);
+    lines.push(`}`);
+
+    return lines;
+}
+
 function generateRpcCode(
     schema: ApiSchema,
     externalJsonSerializableRefs: Map<string, Set<string>> = new Map(),
@@ -2315,6 +2451,7 @@ function generateRpcCode(
         ...collectRpcMethods(schema.server || {}),
         ...collectRpcMethods(schema.session || {}),
         ...collectRpcMethods(schema.clientSession || {}),
+        ...collectRpcMethods(schema.clientGlobal || {}),
     ];
     for (const name of collectRpcMethodReferencedDefinitionNames(
         allMethods.filter((method) => method.stability !== "experimental"),
@@ -2343,6 +2480,9 @@ function generateRpcCode(
     let clientSessionParts: string[] = [];
     if (schema.clientSession) clientSessionParts = emitClientSessionApiRegistration(schema.clientSession, classes);
 
+    let clientGlobalParts: string[] = [];
+    if (schema.clientGlobal) clientGlobalParts = emitClientGlobalApiRegistration(schema.clientGlobal, classes);
+
     const lines: string[] = [];
     lines.push(`${COPYRIGHT}
 
@@ -2368,6 +2508,7 @@ namespace GitHub.Copilot.Rpc;
     for (const part of serverRpcParts) lines.push(part, "");
     for (const part of sessionRpcParts) lines.push(part, "");
     if (clientSessionParts.length > 0) lines.push(...clientSessionParts, "");
+    if (clientGlobalParts.length > 0) lines.push(...clientGlobalParts, "");
 
     // Add JsonSerializerContext for AOT/trimming support
     const typeNames = [...emittedRpcClassSchemas.keys(), ...emittedRpcEnumResultTypes].sort();

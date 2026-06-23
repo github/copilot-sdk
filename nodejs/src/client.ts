@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
     ErrorCodes,
+    type Message,
     MessageConnection,
     ResponseError,
     StreamMessageReader,
@@ -29,12 +30,15 @@ import {
 import {
     createServerRpc,
     createInternalServerRpc,
+    registerClientGlobalApiHandlers,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
 import type { OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
+import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
+import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { ToolSet } from "./toolSet.js";
 import type {
@@ -372,10 +376,40 @@ function getBundledCliPath(): string {
  * await client.stop();
  * ```
  */
+/**
+ * A {@link StreamMessageWriter} that suppresses write failures while the client
+ * is tearing down its transport.
+ *
+ * During `stop()`/`forceStop()` the runtime's end of the pipe can close while
+ * vscode-jsonrpc still has an in-flight write — most commonly the
+ * auto-generated response to a server→client request (tool/hook/userInput/LLM
+ * inference handler) that resolved just before teardown. That write rejects
+ * with `ERR_STREAM_DESTROYED`, and because the response write is internal to
+ * vscode-jsonrpc and awaited by nobody, the rejection surfaces as an unhandled
+ * rejection. The writer still fires its `error` event (forwarded to
+ * {@link MessageConnection.onError}), so swallowing the rejected promise during
+ * teardown loses no signal. Outside teardown the flag stays `false`, so write
+ * failures propagate normally and in-flight requests still fail fast.
+ */
+class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
+    public suppressWriteErrors = false;
+
+    public override async write(msg: Message): Promise<void> {
+        try {
+            await super.write(msg);
+        } catch (error) {
+            if (!this.suppressWriteErrors) {
+                throw error;
+            }
+        }
+    }
+}
+
 export class CopilotClient {
     private cliStartTimeout: ReturnType<typeof setTimeout> | null = null;
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;
+    private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private socket: Socket | null = null;
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
@@ -418,6 +452,8 @@ export class CopilotClient {
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
+    private requestHandler: CopilotRequestHandler | null = null;
+    private llmInferenceHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
 
     /**
      * Typed server-scoped RPC methods.
@@ -529,6 +565,8 @@ export class CopilotClient {
         this.onListModels = options.onListModels;
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
+        this.requestHandler = options.requestHandler ?? null;
+        this.setupLlmInference();
 
         const effectiveEnv = options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
@@ -645,6 +683,21 @@ export class CopilotClient {
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
     }
 
+    private setupLlmInference(): void {
+        if (!this.requestHandler) {
+            return;
+        }
+        this.llmInferenceHandlers = {
+            llmInference: createCopilotRequestAdapter(this.requestHandler, () => {
+                if (!this.connection) {
+                    return undefined;
+                }
+                this._rpc ??= createServerRpc(this.connection);
+                return this._rpc;
+            }),
+        };
+    }
+
     /**
      * Starts the CLI server and establishes a connection.
      *
@@ -690,6 +743,13 @@ export class CopilotClient {
                     conventions: this.sessionFsConfig.conventions,
                     capabilities: this.sessionFsConfig.capabilities,
                 });
+            }
+
+            // If a request handler was configured, register it. The runtime
+            // will then route outbound model HTTP requests through the
+            // registered handler for the duration of each session.
+            if (this.requestHandler) {
+                await this.connection!.sendRequest("llmInference.setProvider", {});
             }
 
             this.state = "connected";
@@ -765,7 +825,6 @@ export class CopilotClient {
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
         // close our connection to them.
-        let runtimeShutdownCompleted = false;
         if (this.connection && this.cliProcess && !this.isExternalServer) {
             const runtimeShutdownStart = Date.now();
             const shutdownPromise = this.rpc.runtime.shutdown();
@@ -776,7 +835,6 @@ export class CopilotClient {
                     RUNTIME_SHUTDOWN_TIMEOUT_MS,
                     `runtime.shutdown timed out after ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
                 );
-                runtimeShutdownCompleted = true;
                 this.logDebugTiming(
                     "CopilotClient.stop runtime shutdown complete",
                     runtimeShutdownStart
@@ -794,7 +852,13 @@ export class CopilotClient {
             }
         }
 
-        // Close connection
+        // Close connection. Suppress writer failures first: tearing down the
+        // transport can reject an in-flight server→client response write with
+        // ERR_STREAM_DESTROYED, which would otherwise surface as an unhandled
+        // rejection. dispose() still rejects any pending requests.
+        if (this.messageWriter) {
+            this.messageWriter.suppressWriteErrors = true;
+        }
         if (this.connection) {
             try {
                 this.connection.dispose();
@@ -806,6 +870,7 @@ export class CopilotClient {
                 );
             }
             this.connection = null;
+            this.messageWriter = null;
             this._rpc = null;
             this._internalRpc = null;
         }
@@ -833,25 +898,24 @@ export class CopilotClient {
             }
         }
 
-        // Give runtime.shutdown a bounded window to let the child exit on its
-        // own before falling back to SIGTERM.
+        // The runtime completes all cleanup before responding to
+        // runtime.shutdown and then leaves termination to us; it deliberately
+        // keeps its JSON-RPC server alive to send the response and never
+        // self-exits. Waiting a grace window for a self-exit that will never
+        // come just wastes time, so terminate the child immediately and only
+        // wait to reap it.
         if (this.cliProcess && !this.isExternalServer) {
             const child = this.cliProcess;
             this.cliProcess = null;
             try {
                 if (child.exitCode == null && child.signalCode == null) {
-                    const exitedGracefully = runtimeShutdownCompleted
-                        ? await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS)
-                        : false;
-                    if (!exitedGracefully) {
-                        child.kill();
-                        if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
-                            errors.push(
-                                new Error(
-                                    `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
-                                )
-                            );
-                        }
+                    child.kill();
+                    if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
+                        errors.push(
+                            new Error(
+                                `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
+                            )
+                        );
                     }
                 }
             } catch (error) {
@@ -925,7 +989,11 @@ export class CopilotClient {
         }
         this.sessions.clear();
 
-        // Force close connection
+        // Force close connection. Suppress writer failures first so teardown
+        // write rejections don't surface as unhandled rejections.
+        if (this.messageWriter) {
+            this.messageWriter.suppressWriteErrors = true;
+        }
         if (this.connection) {
             try {
                 this.connection.dispose();
@@ -933,6 +1001,7 @@ export class CopilotClient {
                 // Ignore errors during force stop
             }
             this.connection = null;
+            this.messageWriter = null;
             this._rpc = null;
             this._internalRpc = null;
         }
@@ -2243,9 +2312,10 @@ export class CopilotClient {
         });
 
         // Create JSON-RPC connection over stdin/stdout
+        this.messageWriter = new TeardownResilientStreamMessageWriter(this.cliProcess.stdin!);
         this.connection = createMessageConnection(
             new StreamMessageReader(this.cliProcess.stdout!),
-            new StreamMessageWriter(this.cliProcess.stdin!)
+            this.messageWriter
         );
 
         this.attachConnectionHandlers();
@@ -2261,9 +2331,10 @@ export class CopilotClient {
         }
 
         // Create JSON-RPC connection over stdin/stdout
+        this.messageWriter = new TeardownResilientStreamMessageWriter(process.stdout);
         this.connection = createMessageConnection(
             new StreamMessageReader(process.stdin),
-            new StreamMessageWriter(process.stdout)
+            this.messageWriter
         );
 
         this.attachConnectionHandlers();
@@ -2289,9 +2360,10 @@ export class CopilotClient {
             this.socket.connect(this.runtimePort!, this.actualHost, () => {
                 clearTimeout(connectionTimeout);
                 // Create JSON-RPC connection
+                this.messageWriter = new TeardownResilientStreamMessageWriter(this.socket!);
                 this.connection = createMessageConnection(
                     new StreamMessageReader(this.socket!),
-                    new StreamMessageWriter(this.socket!)
+                    this.messageWriter
                 );
 
                 this.attachConnectionHandlers();
@@ -2370,6 +2442,11 @@ export class CopilotClient {
             if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
             return session.clientSessionApis;
         });
+
+        // Register client *global* API handlers (e.g. LLM inference) on the
+        // same connection. These methods carry no implicit sessionId dispatch
+        // — the runtime calls into a single handler for the whole connection.
+        registerClientGlobalApiHandlers(this.connection, this.llmInferenceHandlers);
 
         this.connection.onClose(() => {
             this.state = "disconnected";
