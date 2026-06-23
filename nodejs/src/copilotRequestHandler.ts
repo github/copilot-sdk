@@ -61,12 +61,12 @@ export class CopilotWebSocketCloseStatus {
  * or forward to any upstream server on its own — subclass it directly only when
  * you want to service a fully synthetic connection yourself (e.g. answer the
  * runtime without any real backend). For the common case of mutating and
- * forwarding traffic to the real upstream, subclass {@link CopilotWebSocketHandler}
+ * forwarding traffic to the real upstream, subclass {@link CopilotWebSocketForwarder}
  * instead, which connects upstream and forwards by default.
  *
  * @experimental
  */
-export abstract class CopilotWebSocketHandlerBase implements AsyncDisposable {
+export abstract class CopilotWebSocketHandler implements AsyncDisposable {
     readonly #response: CopilotWebSocketResponseBridge;
     readonly #completion: Promise<CopilotWebSocketCloseStatus>;
     #resolveCompletion!: (status: CopilotWebSocketCloseStatus) => void;
@@ -133,12 +133,12 @@ export abstract class CopilotWebSocketHandlerBase implements AsyncDisposable {
  *
  * Override nothing to get full pass-through. To mutate traffic, subclass this
  * type and override a message hook, then call `super` to keep forwarding to the
- * upstream. (Subclassing {@link CopilotWebSocketHandlerBase} instead would drop
+ * upstream. (Subclassing {@link CopilotWebSocketHandler} instead would drop
  * forwarding entirely.)
  *
  * @experimental
  */
-export class CopilotWebSocketHandler extends CopilotWebSocketHandlerBase {
+export class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
     readonly #url: string;
     #upstream: WebSocket | null = null;
 
@@ -241,8 +241,8 @@ export class CopilotRequestHandler {
         return fetch(request, { signal: ctx.signal });
     }
 
-    protected openWebSocket(ctx: CopilotRequestContext): Promise<CopilotWebSocketHandlerBase> {
-        return Promise.resolve(new CopilotWebSocketHandler(ctx));
+    protected openWebSocket(ctx: CopilotRequestContext): Promise<CopilotWebSocketHandler> {
+        return Promise.resolve(new CopilotWebSocketForwarder(ctx));
     }
 
     /** @internal */

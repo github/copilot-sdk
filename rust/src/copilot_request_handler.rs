@@ -60,13 +60,13 @@ pub enum CopilotRequestTransport {
     Http,
     /// Full-duplex WebSocket. Each request/response body frame maps to exactly
     /// one WebSocket message.
-    Websocket,
+    WebSocket,
 }
 
 impl CopilotRequestTransport {
     fn from_wire(value: Option<LlmInferenceHttpRequestStartTransport>) -> Self {
         match value {
-            Some(LlmInferenceHttpRequestStartTransport::Websocket) => Self::Websocket,
+            Some(LlmInferenceHttpRequestStartTransport::Websocket) => Self::WebSocket,
             _ => Self::Http,
         }
     }
@@ -264,7 +264,7 @@ impl CopilotWebSocketResponse {
 }
 
 /// A per-connection WebSocket handler. The default implementation
-/// ([`ForwardingCopilotWebSocketHandler`]) bridges to the real upstream;
+/// ([`CopilotWebSocketForwarder`]) bridges to the real upstream;
 /// override [`CopilotRequestHandler::open_websocket`] to supply a custom one.
 #[async_trait]
 pub trait CopilotWebSocketHandler: Send + Sync {
@@ -297,7 +297,7 @@ pub trait CopilotRequestHandler: Send + Sync + 'static {
     }
 
     /// Open a per-connection WebSocket handler. Default: a
-    /// [`ForwardingCopilotWebSocketHandler`] wired to the real upstream.
+    /// [`CopilotWebSocketForwarder`] wired to the real upstream.
     /// Override to mutate the handshake (URL / headers via `ctx`) or return a
     /// custom handler.
     ///
@@ -312,10 +312,9 @@ pub trait CopilotRequestHandler: Send + Sync + 'static {
         ctx: &CopilotRequestContext,
         response: CopilotWebSocketResponse,
     ) -> Result<Box<dyn CopilotWebSocketHandler>, CopilotRequestError> {
-        let handler =
-            ForwardingCopilotWebSocketHandler::builder(ctx.url.clone(), ctx.headers.clone())
-                .connect(response)
-                .await?;
+        let handler = CopilotWebSocketForwarder::builder(ctx.url.clone(), ctx.headers.clone())
+            .connect(response)
+            .await?;
         Ok(Box::new(handler))
     }
 }
@@ -426,15 +425,15 @@ type UpstreamWrite =
 pub type WebSocketTransform =
     Arc<dyn Fn(CopilotWebSocketMessage) -> Option<CopilotWebSocketMessage> + Send + Sync>;
 
-/// Builder for a [`ForwardingCopilotWebSocketHandler`].
-pub struct ForwardingCopilotWebSocketHandlerBuilder {
+/// Builder for a [`CopilotWebSocketForwarder`].
+pub struct CopilotWebSocketForwarderBuilder {
     url: String,
     headers: HeaderMap,
     on_send_request_message: Option<WebSocketTransform>,
     on_send_response_message: Option<WebSocketTransform>,
 }
 
-impl ForwardingCopilotWebSocketHandlerBuilder {
+impl CopilotWebSocketForwarderBuilder {
     /// Hook runtime→upstream messages (mutate or drop before forwarding).
     pub fn on_send_request_message(mut self, transform: WebSocketTransform) -> Self {
         self.on_send_request_message = Some(transform);
@@ -452,7 +451,7 @@ impl ForwardingCopilotWebSocketHandlerBuilder {
     pub async fn connect(
         self,
         response: CopilotWebSocketResponse,
-    ) -> Result<ForwardingCopilotWebSocketHandler, CopilotRequestError> {
+    ) -> Result<CopilotWebSocketForwarder, CopilotRequestError> {
         let mut request =
             self.url.as_str().into_client_request().map_err(|e| {
                 CopilotRequestError::Upstream(format!("invalid websocket url: {e}"))
@@ -501,7 +500,7 @@ impl ForwardingCopilotWebSocketHandlerBuilder {
             let _ = response.close().await;
         });
 
-        Ok(ForwardingCopilotWebSocketHandler {
+        Ok(CopilotWebSocketForwarder {
             write: AsyncMutex::new(Some(write)),
             on_send_request_message: self.on_send_request_message,
             cancel,
@@ -511,18 +510,18 @@ impl ForwardingCopilotWebSocketHandlerBuilder {
 
 /// The default WebSocket handler: forwards each runtime message to the real
 /// upstream and each upstream message back to the runtime. Mutate by supplying
-/// transforms on the [builder](ForwardingCopilotWebSocketHandler::builder).
-pub struct ForwardingCopilotWebSocketHandler {
+/// transforms on the [builder](CopilotWebSocketForwarder::builder).
+pub struct CopilotWebSocketForwarder {
     write: AsyncMutex<Option<UpstreamWrite>>,
     on_send_request_message: Option<WebSocketTransform>,
     cancel: CancellationToken,
 }
 
-impl ForwardingCopilotWebSocketHandler {
+impl CopilotWebSocketForwarder {
     /// Start building a forwarding handler for `url` with the given upstream
     /// handshake headers.
-    pub fn builder(url: String, headers: HeaderMap) -> ForwardingCopilotWebSocketHandlerBuilder {
-        ForwardingCopilotWebSocketHandlerBuilder {
+    pub fn builder(url: String, headers: HeaderMap) -> CopilotWebSocketForwarderBuilder {
+        CopilotWebSocketForwarderBuilder {
             url,
             headers,
             on_send_request_message: None,
@@ -532,7 +531,7 @@ impl ForwardingCopilotWebSocketHandler {
 }
 
 #[async_trait]
-impl CopilotWebSocketHandler for ForwardingCopilotWebSocketHandler {
+impl CopilotWebSocketHandler for CopilotWebSocketForwarder {
     async fn send_request_message(
         &self,
         message: CopilotWebSocketMessage,
@@ -866,7 +865,7 @@ async fn drive_exchange(
             let response = handler.send_request(request, &ctx).await?;
             stream_http_response(response, exchange, &ctx.cancel).await
         }
-        CopilotRequestTransport::Websocket => {
+        CopilotRequestTransport::WebSocket => {
             // The runtime blocks the WebSocket connect until it receives the 101
             // response head (the upgrade acknowledgement) and only then forwards
             // inbound messages as request-body chunks. Emit it eagerly here —

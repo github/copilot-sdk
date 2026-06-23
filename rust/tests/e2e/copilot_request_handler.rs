@@ -27,8 +27,8 @@ use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::session_events::AssistantMessageData;
 use github_copilot_sdk::{
     CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext, CopilotRequestError,
-    CopilotRequestHandler, CopilotWebSocketHandler, CopilotWebSocketResponse,
-    ForwardingCopilotWebSocketHandler, MessageOptions, ProviderConfig, SessionConfig, SessionEvent,
+    CopilotRequestHandler, CopilotWebSocketForwarder, CopilotWebSocketHandler,
+    CopilotWebSocketResponse, MessageOptions, ProviderConfig, SessionConfig, SessionEvent,
     forward_http,
 };
 use http::header::{HeaderName, HeaderValue};
@@ -347,7 +347,7 @@ impl CopilotRequestHandler for ForwardingHandler {
         let ws_url = rewrite_authority(&ctx.url, "ws", &self.ws_authority)?;
         let request_counter = self.counters.ws_request_messages.clone();
         let response_counter = self.counters.ws_response_messages.clone();
-        let handler = ForwardingCopilotWebSocketHandler::builder(ws_url, ctx.headers.clone())
+        let handler = CopilotWebSocketForwarder::builder(ws_url, ctx.headers.clone())
             .on_send_request_message(Arc::new(move |message| {
                 request_counter.fetch_add(1, Ordering::SeqCst);
                 Some(message)

@@ -26,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
  * model-layer HTTP and WebSocket traffic through this handler instead of
  * issuing the calls itself. Subclass and override {@link #sendRequest} to
  * mutate or replace HTTP calls, or {@link #openWebSocket} to mutate the
- * handshake or return a fully custom {@link CopilotWebSocketHandlerBase}.
+ * handshake or return a fully custom {@link CopilotWebSocketHandler}.
  *
  * @since 1.0.0
  */
@@ -89,8 +89,8 @@ public class CopilotRequestHandler {
      * @throws Exception
      *             if the handler could not be created
      */
-    protected CopilotWebSocketHandlerBase openWebSocket(CopilotRequestContext ctx) throws Exception {
-        return new CopilotWebSocketHandler(ctx);
+    protected CopilotWebSocketHandler openWebSocket(CopilotRequestContext ctx) throws Exception {
+        return new CopilotWebSocketForwarder(ctx);
     }
 
     /**
@@ -160,7 +160,7 @@ public class CopilotRequestHandler {
         LlmWebSocketResponseBridge bridge = new LlmWebSocketResponseBridge(exchange);
         ctx.setWebSocketResponse(bridge);
 
-        CopilotWebSocketHandlerBase handler = openWebSocket(ctx);
+        CopilotWebSocketHandler handler = openWebSocket(ctx);
         try {
             handler.open();
 

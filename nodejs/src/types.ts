@@ -38,9 +38,9 @@ export type { LlmInferenceHeaders } from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
     CopilotRequestHandler,
-    CopilotWebSocketHandlerBase,
-    CopilotWebSocketCloseStatus,
     CopilotWebSocketHandler,
+    CopilotWebSocketCloseStatus,
+    CopilotWebSocketForwarder,
 } from "./copilotRequestHandler.js";
 
 /**

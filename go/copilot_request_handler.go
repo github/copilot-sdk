@@ -108,7 +108,7 @@ type CopilotRequestHandler struct {
 	// used. RoundTrip is called directly, so redirects are not followed.
 	Transport http.RoundTripper
 	// OpenWebSocket returns a per-connection WebSocket handler. When nil a
-	// transparent [ForwardingCopilotWebSocketHandler] to the request URL is opened.
+	// transparent [CopilotWebSocketForwarder] to the request URL is opened.
 	OpenWebSocket func(ctx *CopilotRequestContext) (CopilotWebSocketHandler, error)
 }
 
@@ -124,7 +124,7 @@ type WebSocketResponseWriter interface {
 
 // CopilotWebSocketHandler is a per-connection WebSocket handler returned by
 // [CopilotRequestHandler.OpenWebSocket]. The default implementation is
-// [ForwardingCopilotWebSocketHandler]; a full transport replacement implements
+// [CopilotWebSocketForwarder]; a full transport replacement implements
 // this interface directly.
 type CopilotWebSocketHandler interface {
 	// Open establishes the connection and starts forwarding upstream→runtime
@@ -255,7 +255,7 @@ func (h *CopilotRequestHandler) handleWebSocket(rctx *CopilotRequestContext, sin
 	if h.OpenWebSocket != nil {
 		handler, err = h.OpenWebSocket(rctx)
 	} else {
-		handler = NewForwardingCopilotWebSocketHandler(rctx.URL, rctx.Headers)
+		handler = NewCopilotWebSocketForwarder(rctx.URL, rctx.Headers)
 	}
 	if err != nil {
 		return err
@@ -365,11 +365,11 @@ func (w *wsResponseWriter) fail(message string, code string) error {
 	return w.sink.sinkError(message, code)
 }
 
-// ForwardingCopilotWebSocketHandler is the default [CopilotWebSocketHandler]:
+// CopilotWebSocketForwarder is the default [CopilotWebSocketHandler]:
 // it dials the real upstream and runs a receive loop forwarding upstream→runtime
 // messages. Set OnSendRequestMessage / OnSendResponseMessage to observe,
 // transform, or drop messages in either direction.
-type ForwardingCopilotWebSocketHandler struct {
+type CopilotWebSocketForwarder struct {
 	URL     string
 	Headers http.Header
 	// OnSendRequestMessage observes or transforms each runtime→upstream frame.
@@ -390,13 +390,13 @@ type ForwardingCopilotWebSocketHandler struct {
 	closeOnce sync.Once
 }
 
-// NewForwardingCopilotWebSocketHandler creates a forwarding handler targeting
+// NewCopilotWebSocketForwarder creates a forwarding handler targeting
 // url with the given handshake headers.
-func NewForwardingCopilotWebSocketHandler(url string, headers http.Header) *ForwardingCopilotWebSocketHandler {
-	return &ForwardingCopilotWebSocketHandler{URL: url, Headers: headers, done: make(chan struct{})}
+func NewCopilotWebSocketForwarder(url string, headers http.Header) *CopilotWebSocketForwarder {
+	return &CopilotWebSocketForwarder{URL: url, Headers: headers, done: make(chan struct{})}
 }
 
-func (f *ForwardingCopilotWebSocketHandler) Open(ctx context.Context, resp WebSocketResponseWriter) error {
+func (f *CopilotWebSocketForwarder) Open(ctx context.Context, resp WebSocketResponseWriter) error {
 	f.resp = resp
 	if f.done == nil {
 		f.done = make(chan struct{})
@@ -412,7 +412,7 @@ func (f *ForwardingCopilotWebSocketHandler) Open(ctx context.Context, resp WebSo
 	return nil
 }
 
-func (f *ForwardingCopilotWebSocketHandler) dialHeaders() http.Header {
+func (f *CopilotWebSocketForwarder) dialHeaders() http.Header {
 	out := http.Header{}
 	for name, values := range f.Headers {
 		if isForbiddenRequestHeader(name) {
@@ -425,7 +425,7 @@ func (f *ForwardingCopilotWebSocketHandler) dialHeaders() http.Header {
 	return out
 }
 
-func (f *ForwardingCopilotWebSocketHandler) receiveLoop(ctx context.Context) {
+func (f *CopilotWebSocketForwarder) receiveLoop(ctx context.Context) {
 	defer close(f.done)
 	for {
 		typ, data, err := f.conn.Read(ctx)
@@ -455,7 +455,7 @@ func (f *ForwardingCopilotWebSocketHandler) receiveLoop(ctx context.Context) {
 	}
 }
 
-func (f *ForwardingCopilotWebSocketHandler) SendRequestMessage(ctx context.Context, msg CopilotWebSocketMessage) error {
+func (f *CopilotWebSocketForwarder) SendRequestMessage(ctx context.Context, msg CopilotWebSocketMessage) error {
 	out := msg
 	if f.OnSendRequestMessage != nil {
 		transformed := f.OnSendRequestMessage(msg)
@@ -474,10 +474,10 @@ func (f *ForwardingCopilotWebSocketHandler) SendRequestMessage(ctx context.Conte
 	return f.conn.Write(ctx, msgType, out.Data)
 }
 
-func (f *ForwardingCopilotWebSocketHandler) Done() <-chan struct{} { return f.done }
-func (f *ForwardingCopilotWebSocketHandler) Err() error            { return f.err }
+func (f *CopilotWebSocketForwarder) Done() <-chan struct{} { return f.done }
+func (f *CopilotWebSocketForwarder) Err() error            { return f.err }
 
-func (f *ForwardingCopilotWebSocketHandler) Close() error {
+func (f *CopilotWebSocketForwarder) Close() error {
 	f.closeOnce.Do(func() {
 		if f.conn != nil {
 			_ = f.conn.Close(websocket.StatusNormalClosure, "")

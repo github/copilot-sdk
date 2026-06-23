@@ -11,7 +11,7 @@ both seams:
   :class:`httpx.Request`, post-process the :class:`httpx.Response`, or replace
   the call entirely. The default forwards via a shared :class:`httpx.AsyncClient`.
 * WebSocket — override :meth:`CopilotRequestHandler.open_websocket` to return
-  a per-connection :class:`CopilotWebSocketHandlerBase`. The default opens a
+  a per-connection :class:`CopilotWebSocketHandler`. The default opens a
   transparent forwarding connection via the ``websockets`` library.
 
 :func:`create_copilot_request_adapter` converts a handler into the generated
@@ -112,7 +112,7 @@ class CopilotWebSocketCloseStatus:
         return cls()
 
 
-class CopilotWebSocketHandlerBase:
+class CopilotWebSocketHandler:
     """Per-connection WebSocket handler returned by
     :meth:`CopilotRequestHandler.open_websocket`.
 
@@ -164,7 +164,7 @@ class CopilotWebSocketHandlerBase:
             await self.close(CopilotWebSocketCloseStatus.normal_closure())
 
 
-class CopilotWebSocketHandler(CopilotWebSocketHandlerBase):
+class CopilotWebSocketForwarder(CopilotWebSocketHandler):
     """Default pass-through WebSocket handler backed by the ``websockets`` library."""
 
     def __init__(self, context: CopilotRequestContext, url: str | None = None) -> None:
@@ -245,9 +245,9 @@ class CopilotRequestHandler:
         """Send an HTTP request. Override to mutate request/response or replace the call."""
         return await _get_shared_http_client().send(request, stream=True)
 
-    async def open_websocket(self, ctx: CopilotRequestContext) -> CopilotWebSocketHandlerBase:
+    async def open_websocket(self, ctx: CopilotRequestContext) -> CopilotWebSocketHandler:
         """Open a per-connection WebSocket handler. Override to mutate or replace."""
-        return CopilotWebSocketHandler(ctx)
+        return CopilotWebSocketForwarder(ctx)
 
     async def _dispatch(self, exchange: _CopilotRequestExchange) -> None:
         bridge = _CopilotWebSocketResponseBridge(exchange)

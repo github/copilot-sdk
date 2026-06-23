@@ -145,7 +145,7 @@ func TestCopilotRequestHandler(t *testing.T) {
 			}
 			parsed.Scheme = wsBase.Scheme
 			parsed.Host = wsBase.Host
-			fwd := copilot.NewForwardingCopilotWebSocketHandler(parsed.String(), rctx.Headers)
+			fwd := copilot.NewCopilotWebSocketForwarder(parsed.String(), rctx.Headers)
 			fwd.OnSendRequestMessage = func(msg copilot.CopilotWebSocketMessage) *copilot.CopilotWebSocketMessage {
 				counters.wsRequestMessages.Add(1)
 				return &msg

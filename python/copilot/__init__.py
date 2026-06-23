@@ -68,8 +68,8 @@ from .copilot_request_handler import (
     CopilotRequestContext,
     CopilotRequestHandler,
     CopilotWebSocketCloseStatus,
+    CopilotWebSocketForwarder,
     CopilotWebSocketHandler,
-    CopilotWebSocketHandlerBase,
     LlmInferenceHeaders,
 )
 from .generated.rpc import (
@@ -197,7 +197,7 @@ __all__ = [
     "CopilotRequestContext",
     "CopilotRequestHandler",
     "CopilotWebSocketCloseStatus",
-    "CopilotWebSocketHandlerBase",
+    "CopilotWebSocketHandler",
     "CreateSessionFsHandler",
     "ElicitationContext",
     "ElicitationHandler",
@@ -210,7 +210,7 @@ __all__ = [
     "ExitPlanModeRequest",
     "ExitPlanModeResult",
     "ExtensionInfo",
-    "CopilotWebSocketHandler",
+    "CopilotWebSocketForwarder",
     "GetAuthStatusResponse",
     "GetStatusResponse",
     "InfiniteSessionConfig",

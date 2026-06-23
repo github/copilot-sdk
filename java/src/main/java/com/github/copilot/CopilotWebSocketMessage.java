@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * A single WebSocket message exchanged through a
- * {@link CopilotWebSocketHandlerBase} hook.
+ * {@link CopilotWebSocketHandler} hook.
  *
  * @param data
  *            the message payload bytes
