@@ -55,7 +55,7 @@ public class SchemaGeneratorTest {
         }
 
         @Override
-        public CharSequence getContent() throws IOException {
+        public CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException {
             return code;
         }
     }
