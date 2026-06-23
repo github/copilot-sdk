@@ -8,12 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
 import java.net.URI;
-import java.net.URL;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
@@ -445,24 +447,35 @@ class CopilotToolProcessorTest {
     }
 
     private static String resolveClasspath() {
-        // Use the full system classpath so generated code can resolve all
-        // dependencies (e.g. Jackson ObjectMapper) during test compilation.
+        // Collect classpath entries from CodeSource of key classes needed for
+        // compiling both the source and the generated $$CopilotToolMeta code.
+        Set<String> paths = new LinkedHashSet<>();
+
+        // Add system classpath entries (may include manifest-only jars)
         String systemCp = System.getProperty("java.class.path", "");
         if (!systemCp.isEmpty()) {
-            return systemCp;
-        }
-        CodeSource cs = CopilotTool.class.getProtectionDomain().getCodeSource();
-        if (cs != null) {
-            URL location = cs.getLocation();
-            if (location != null) {
-                try {
-                    return Path.of(location.toURI()).toString();
-                } catch (Exception e) {
-                    return ".";
+            for (String p : systemCp.split(java.util.regex.Pattern.quote(File.pathSeparator))) {
+                if (!p.isEmpty()) {
+                    paths.add(p);
                 }
             }
         }
-        return ".";
+
+        // Also resolve CodeSource paths for key classes (SDK + Jackson + RPC types)
+        Class<?>[] keyClasses = {CopilotTool.class, com.fasterxml.jackson.databind.ObjectMapper.class,
+                com.github.copilot.rpc.ToolDefinition.class};
+        for (Class<?> cls : keyClasses) {
+            try {
+                CodeSource cs = cls.getProtectionDomain().getCodeSource();
+                if (cs != null && cs.getLocation() != null) {
+                    paths.add(Path.of(cs.getLocation().toURI()).toString());
+                }
+            } catch (Exception e) {
+                // skip this class
+            }
+        }
+
+        return paths.isEmpty() ? "." : String.join(File.pathSeparator, paths);
     }
 
     private static JavaFileObject inMemorySource(String className, String code) {

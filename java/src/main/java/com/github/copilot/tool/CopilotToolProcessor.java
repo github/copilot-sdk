@@ -242,8 +242,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
             String propertySchema = buildPropertySchema(typeSchema, paramAnnotation);
 
             // Cast to Map<String, Object> via raw type for consistent Map.ofEntries typing
-            propertyEntries
-                    .add("Map.entry(\"" + paramName + "\", (Map<String, Object>)(Map) " + propertySchema + ")");
+            propertyEntries.add("Map.entry(\"" + paramName + "\", (Map<String, Object>)(Map) " + propertySchema + ")");
 
             // Determine if required
             if (paramAnnotation == null || paramAnnotation.required()) {
@@ -329,8 +328,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
             TypeMirror typeArg = getCompletableFutureTypeArg(returnType);
             if (typeArg != null && isStringType(typeArg)) {
                 // CompletableFuture<String> -> CompletableFuture<Object> via thenApply
-                sb.append("                    return ").append(methodCall)
-                        .append(".thenApply(r -> (Object) r);");
+                sb.append("                    return ").append(methodCall).append(".thenApply(r -> (Object) r);");
             } else {
                 // CompletableFuture<T> -> serialize to JSON
                 sb.append("                    return ").append(methodCall)
@@ -340,9 +338,9 @@ public class CopilotToolProcessor extends AbstractProcessor {
         } else if (isStringType(returnType)) {
             sb.append("                    return CompletableFuture.completedFuture(").append(methodCall).append(");");
         } else {
-            sb.append("                    try { return CompletableFuture.completedFuture(objectMapper.writeValueAsString(")
-                    .append(methodCall)
-                    .append(")); } catch (Exception e) { throw new RuntimeException(e); }");
+            sb.append(
+                    "                    try { return CompletableFuture.completedFuture(objectMapper.writeValueAsString(")
+                    .append(methodCall).append(")); } catch (Exception e) { throw new RuntimeException(e); }");
         }
 
         return sb.toString();
@@ -576,10 +574,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         if (s == null) {
             return "";
         }
-        return s.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t",
+                "\\t");
     }
 }
