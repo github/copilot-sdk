@@ -145,6 +145,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         }
 
         // definitions method
+        out.println("    @SuppressWarnings({\"unchecked\", \"rawtypes\"})");
         out.println("    static List<ToolDefinition> definitions(" + simpleClassName + " instance) {");
         out.println("        return List.of(");
 
@@ -238,7 +239,9 @@ public class CopilotToolProcessor extends AbstractProcessor {
             // Build property schema with description and default if present
             String propertySchema = buildPropertySchema(typeSchema, paramAnnotation);
 
-            propertyEntries.add("Map.entry(\"" + paramName + "\", " + propertySchema + ")");
+            // Cast to Map<String, Object> via raw type for consistent Map.ofEntries typing
+            propertyEntries
+                    .add("Map.entry(\"" + paramName + "\", (Map<String, Object>)(Map) " + propertySchema + ")");
 
             // Determine if required
             if (paramAnnotation == null || paramAnnotation.required()) {
@@ -491,7 +494,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         }
         if (type.getKind() == TypeKind.DECLARED) {
             TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
-            return typeElement.getSimpleName().toString();
+            return typeElement.getQualifiedName().toString();
         }
         return type.toString();
     }

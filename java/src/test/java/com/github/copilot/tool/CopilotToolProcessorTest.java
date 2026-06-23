@@ -432,16 +432,16 @@ class CopilotToolProcessorTest {
     }
 
     private void collectGeneratedFiles(java.nio.file.Path dir, List<String> files) {
-        try {
-            java.nio.file.Files.walk(dir).filter(p -> p.toString().endsWith(".java")).forEach(p -> {
+        try (var stream = java.nio.file.Files.walk(dir)) {
+            stream.filter(p -> p.toString().endsWith(".java")).forEach(p -> {
                 try {
                     files.add(java.nio.file.Files.readString(p));
                 } catch (java.io.IOException e) {
-                    // ignore
+                    // ignore read errors for generated file collection
                 }
             });
         } catch (java.io.IOException e) {
-            // ignore
+            // ignore walk errors
         }
     }
 
@@ -452,8 +452,8 @@ class CopilotToolProcessorTest {
             if (location != null) {
                 try {
                     return Path.of(location.toURI()).toString();
-                } catch (Exception ignored) {
-                    // fall through
+                } catch (Exception e) {
+                    // fall through to system classpath
                 }
             }
         }
