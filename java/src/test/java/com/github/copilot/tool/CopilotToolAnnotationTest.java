@@ -6,12 +6,14 @@ package com.github.copilot.tool;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.InputStream;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
@@ -41,12 +43,7 @@ public class CopilotToolAnnotationTest {
     }
 
     @Test
-    void copilotToolIsAnnotatedWithCopilotExperimental() {
-        // @CopilotExperimental has CLASS retention so it is not visible via
-        // reflection at runtime. However, we can confirm:
-        // 1. The annotation type targets TYPE (which includes @interface declarations).
-        // 2. Compilation succeeded with @CopilotExperimental on @CopilotTool
-        // (the CopilotExperimentalProcessor would reject usage otherwise).
+    void copilotExperimentalTargetsTypeForAnnotationDeclarations() {
         Target expTarget = CopilotExperimental.class.getAnnotation(Target.class);
         assertNotNull(expTarget);
         boolean includesType = false;
@@ -57,6 +54,16 @@ public class CopilotToolAnnotationTest {
             }
         }
         assertTrue(includesType, "@CopilotExperimental must target TYPE to be applicable to annotation declarations");
+    }
+
+    @Test
+    void copilotToolDeclaresCopilotExperimentalInClassFile() throws Exception {
+        String classFileResourcePath = "/" + CopilotTool.class.getName().replace('.', '/') + ".class";
+        try (InputStream classFile = CopilotTool.class.getResourceAsStream(classFileResourcePath)) {
+            assertNotNull(classFile, "CopilotTool class file must be readable as a resource");
+            String classFileText = new String(classFile.readAllBytes(), StandardCharsets.ISO_8859_1);
+            assertTrue(classFileText.contains("com/github/copilot/CopilotExperimental"));
+        }
     }
 
     @Test
