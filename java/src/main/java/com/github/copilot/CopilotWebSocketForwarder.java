@@ -15,9 +15,9 @@ import java.util.Map;
 import java.util.concurrent.CompletionStage;
 
 /**
- * The default pass-through {@link CopilotWebSocketHandler}: it dials the
- * real upstream using {@link java.net.http.WebSocket} and relays
- * upstream-to-runtime messages into the runtime response unchanged.
+ * The default pass-through {@link CopilotWebSocketHandler}: it dials the real
+ * upstream using {@link java.net.http.WebSocket} and relays upstream-to-runtime
+ * messages into the runtime response unchanged.
  * <p>
  * Subclass and override {@link #sendRequestMessage} or
  * {@link #sendResponseMessage} (calling {@code super}) to observe, transform,
