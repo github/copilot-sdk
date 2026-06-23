@@ -876,7 +876,7 @@ public class SessionRequestBuilderTest {
         JsonNode resumeAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-resume\"}]}");
 
         var createConfig = new SessionConfig().setExpAssignments(createAssignments);
-        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(createConfig);
+        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(createConfig, "session-1");
         assertEquals(createAssignments, createRequest.getExpAssignments());
         var createJson = mapper.writeValueAsString(createRequest);
         assertTrue(createJson.contains("\"expAssignments\""));
@@ -894,7 +894,7 @@ public class SessionRequestBuilderTest {
     void testBuildRequestsOmitExpAssignmentsWhenUnset() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
 
-        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-1");
         assertNull(createRequest.getExpAssignments());
         var createJson = mapper.writeValueAsString(createRequest);
         assertFalse(createJson.contains("\"expAssignments\""), "expAssignments should be omitted when null");
@@ -904,5 +904,26 @@ public class SessionRequestBuilderTest {
         assertNull(resumeRequest.getExpAssignments());
         var resumeJson = mapper.writeValueAsString(resumeRequest);
         assertFalse(resumeJson.contains("\"expAssignments\""), "expAssignments should be omitted when null");
+    }
+
+    @Test
+    void testClonePreservesAndForwardsExpAssignments() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        JsonNode createAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-create\"}]}");
+        JsonNode resumeAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-resume\"}]}");
+
+        var createConfig = new SessionConfig().setExpAssignments(createAssignments);
+        SessionConfig createClone = createConfig.clone();
+        assertEquals(createAssignments, createClone.getExpAssignments());
+        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(createClone, "session-1");
+        assertEquals(createAssignments, createRequest.getExpAssignments());
+        assertTrue(mapper.writeValueAsString(createRequest).contains("\"Id\":\"exp-create\""));
+
+        var resumeConfig = new ResumeSessionConfig().setExpAssignments(resumeAssignments);
+        ResumeSessionConfig resumeClone = resumeConfig.clone();
+        assertEquals(resumeAssignments, resumeClone.getExpAssignments());
+        ResumeSessionRequest resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1", resumeClone);
+        assertEquals(resumeAssignments, resumeRequest.getExpAssignments());
+        assertTrue(mapper.writeValueAsString(resumeRequest).contains("\"Id\":\"exp-resume\""));
     }
 }

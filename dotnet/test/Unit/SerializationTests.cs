@@ -497,6 +497,43 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionConfigClone_PreservesExpAssignments()
+    {
+        using var assignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-create"}]}""");
+
+        var config = new SessionConfig
+        {
+            SessionId = "session-id",
+            ExpAssignments = assignments.RootElement.Clone(),
+        };
+
+        var clone = config.Clone();
+
+        Assert.True(clone.ExpAssignments.HasValue);
+        Assert.Equal(
+            "exp-create",
+            clone.ExpAssignments!.Value.GetProperty("Configs")[0].GetProperty("Id").GetString());
+    }
+
+    [Fact]
+    public void ResumeSessionConfigClone_PreservesExpAssignments()
+    {
+        using var assignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-resume"}]}""");
+
+        var config = new ResumeSessionConfig
+        {
+            ExpAssignments = assignments.RootElement.Clone(),
+        };
+
+        var clone = config.Clone();
+
+        Assert.True(clone.ExpAssignments.HasValue);
+        Assert.Equal(
+            "exp-resume",
+            clone.ExpAssignments!.Value.GetProperty("Configs")[0].GetProperty("Id").GetString());
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
     {
         var options = GetSerializerOptions();

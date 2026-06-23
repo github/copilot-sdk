@@ -5031,6 +5031,41 @@ mod tests {
     }
 
     #[test]
+    fn session_config_clone_preserves_exp_assignments() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-clone",
+        });
+        let config = SessionConfig::default().with_exp_assignments(assignments.clone());
+        let cloned = config.clone();
+
+        assert_eq!(cloned.exp_assignments.as_ref(), Some(&assignments));
+
+        let (wire, _runtime) = cloned
+            .into_wire(Some(SessionId::from("exp-clone")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+    }
+
+    #[test]
+    fn resume_session_config_clone_preserves_exp_assignments() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-clone-resume",
+        });
+        let config = ResumeSessionConfig::new(SessionId::from("resume-exp-clone"))
+            .with_exp_assignments(assignments.clone());
+        let cloned = config.clone();
+
+        assert_eq!(cloned.exp_assignments.as_ref(), Some(&assignments));
+
+        let (wire, _runtime) = cloned.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+    }
+
+    #[test]
     #[allow(clippy::field_reassign_with_default)]
     fn session_config_into_wire_serializes_bucket_b_fields() {
         use std::path::PathBuf;
