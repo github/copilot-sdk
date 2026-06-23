@@ -543,6 +543,39 @@ public class SchemaGeneratorTest {
     }
 
     @Test
+    void recordWithMoreThanTenFields() {
+        String source = """
+                public record TestRecordLarge(
+                    String f1, String f2, String f3, String f4, String f5,
+                    String f6, String f7, String f8, String f9, String f10,
+                    String f11) {}
+                """;
+        List<String> schemas = compileAndCapture(source);
+        // Verify the schema contains all 11 fields and uses Map.ofEntries
+        String schema = schemas.stream().filter(s -> s.startsWith("TestRecordLarge=")).findFirst().orElse("");
+        assertFalse(schema.isEmpty(), "Expected schema for TestRecordLarge");
+        assertTrue(schema.contains("Map.ofEntries("), "Should use Map.ofEntries for >10 fields: " + schema);
+        assertTrue(schema.contains("Map.entry(\"f1\""), "Should have f1: " + schema);
+        assertTrue(schema.contains("Map.entry(\"f11\""), "Should have f11: " + schema);
+        // Verify the generated source expression is compilable by re-compiling it
+        String schemaExpr = schema.substring(schema.indexOf('=') + 1);
+        String validationSource = "import java.util.Map;\nimport java.util.List;\n"
+                + "public class LargeRecordValidation {\n" + "    @SuppressWarnings(\"unchecked\")\n"
+                + "    public Object schema() { return " + schemaExpr + "; }\n}\n";
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        List<JavaFileObject> units = List.of(new InMemorySource("LargeRecordValidation", validationSource));
+        try (StandardJavaFileManager fm = createFileManager(compiler, diagnostics)) {
+            JavaCompiler.CompilationTask task = compiler.getTask(null, fm, diagnostics, null, null, units);
+            boolean success = task.call();
+            assertTrue(success, "Generated schema for >10-field record does not compile: "
+                    + diagnostics.getDiagnostics() + "\nSource:\n" + validationSource);
+        } catch (IOException e) {
+            fail("Failed to create file manager: " + e.getMessage());
+        }
+    }
+
+    @Test
     void parametersSchema() {
         String source = """
                 public class TestParamsHolder {
