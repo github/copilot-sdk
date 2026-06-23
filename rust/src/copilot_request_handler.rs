@@ -209,17 +209,13 @@ pub struct CopilotWebSocketMessage {
 }
 
 impl CopilotWebSocketMessage {
-    /// A UTF-8 text message.
-    pub fn text(data: impl Into<String>) -> Self {
+    /// A UTF-8 text message. Binary messages are constructed directly via the
+    /// public `data` / `binary` fields.
+    pub fn from_text(data: impl Into<String>) -> Self {
         Self {
             data: data.into().into_bytes(),
             binary: false,
         }
-    }
-
-    /// A binary message.
-    pub fn binary(data: Vec<u8>) -> Self {
-        Self { data, binary: true }
     }
 }
 
@@ -477,13 +473,13 @@ impl CopilotWebSocketForwarderBuilder {
                     _ = loop_cancel.cancelled() => break,
                     msg = read.next() => match msg {
                         Some(Ok(Message::Text(text))) => {
-                            let message = CopilotWebSocketMessage::text(text);
+                            let message = CopilotWebSocketMessage::from_text(text);
                             if let Some(out) = apply_transform(&on_response, message) {
                                 let _ = response.send_message(out).await;
                             }
                         }
                         Some(Ok(Message::Binary(data))) => {
-                            let message = CopilotWebSocketMessage::binary(data);
+                            let message = CopilotWebSocketMessage { data, binary: true };
                             if let Some(out) = apply_transform(&on_response, message) {
                                 let _ = response.send_message(out).await;
                             }
@@ -542,7 +538,11 @@ impl CopilotWebSocketHandler for CopilotWebSocketForwarder {
         let ws_message = if message.binary {
             Message::Binary(message.data)
         } else {
-            Message::Text(String::from_utf8_lossy(&message.data).into_owned())
+            let text = match String::from_utf8(message.data) {
+                Ok(text) => text,
+                Err(err) => String::from_utf8_lossy(err.as_bytes()).into_owned(),
+            };
+            Message::Text(text)
         };
         let mut guard = self.write.lock().await;
         if let Some(write) = guard.as_mut() {

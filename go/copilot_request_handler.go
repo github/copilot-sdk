@@ -90,14 +90,10 @@ type CopilotWebSocketMessage struct {
 // Text decodes the frame payload as a UTF-8 string.
 func (m CopilotWebSocketMessage) Text() string { return string(m.Data) }
 
-// NewTextMessage creates a text-frame message from a UTF-8 string.
+// NewTextMessage creates a text-frame message from a UTF-8 string. Binary
+// frames are constructed directly with CopilotWebSocketMessage{Data: ..., Binary: true}.
 func NewTextMessage(text string) CopilotWebSocketMessage {
 	return CopilotWebSocketMessage{Data: []byte(text), Binary: false}
-}
-
-// NewBinaryMessage creates a binary-frame message from raw bytes.
-func NewBinaryMessage(data []byte) CopilotWebSocketMessage {
-	return CopilotWebSocketMessage{Data: data, Binary: true}
 }
 
 // CopilotRequestHandler is the idiomatic handler for intercepting or replacing
@@ -227,9 +223,9 @@ func streamResponseToSink(resp *http.Response, sink *responseSink) error {
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
-			frame := make([]byte, n)
-			copy(frame, buf[:n])
-			if err := sink.writeText(frame); err != nil {
+			// writeText copies eagerly via string(...), so the reused read
+			// buffer can be passed directly without an extra per-chunk alloc.
+			if err := sink.writeText(buf[:n]); err != nil {
 				return err
 			}
 		}

@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using GitHub.Copilot.Rpc;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.WebSockets;
@@ -76,13 +77,10 @@ public readonly struct CopilotWebSocketMessage(ReadOnlyMemory<byte> data, bool i
     public bool IsBinary { get; } = isBinary;
 
     /// <summary>Decodes the payload as UTF-8 text.</summary>
-    public string GetText() => Encoding.UTF8.GetString(Data.ToArray());
+    public string GetText() => Encoding.UTF8.GetString(Data.Span);
 
     /// <summary>Creates a text message from a UTF-8 string.</summary>
-    public static CopilotWebSocketMessage Text(string text) => new(Encoding.UTF8.GetBytes(text), isBinary: false);
-
-    /// <summary>Creates a binary message from raw bytes.</summary>
-    public static CopilotWebSocketMessage Binary(ReadOnlyMemory<byte> data) => new(data, isBinary: true);
+    public static CopilotWebSocketMessage FromText(string text) => new(Encoding.UTF8.GetBytes(text), isBinary: false);
 }
 
 /// <summary>
@@ -253,7 +251,12 @@ public class CopilotWebSocketForwarder : CopilotWebSocketHandler
         await socket.ConnectAsync(ToWebSocketUri(_url), Context.CancellationToken).ConfigureAwait(false);
         _upstream = socket;
         _pumpCts = CancellationTokenSource.CreateLinkedTokenSource(Context.CancellationToken);
-        _responsePump = Task.Run(() => PumpResponsesAsync(_pumpCts.Token), _pumpCts.Token);
+
+        // Start the pump without a cancellation token on Task.Run itself: if the
+        // linked token is already cancelled, we still want PumpResponsesAsync to
+        // run so its cleanup (closing the upstream and finalising the response)
+        // executes rather than the task being cancelled before it ever starts.
+        _responsePump = Task.Run(() => PumpResponsesAsync(_pumpCts.Token));
     }
 
     /// <summary>
@@ -270,10 +273,10 @@ public class CopilotWebSocketForwarder : CopilotWebSocketHandler
 
         var type = message.IsBinary ? WebSocketMessageType.Binary : WebSocketMessageType.Text;
         return _upstream.SendAsync(
-            new ArraySegment<byte>(message.Data.ToArray()),
+            message.Data,
             type,
             endOfMessage: true,
-            Context.CancellationToken);
+            Context.CancellationToken).AsTask();
     }
 
     /// <inheritdoc />
@@ -346,34 +349,41 @@ public class CopilotWebSocketForwarder : CopilotWebSocketHandler
 
     private static async Task<CopilotWebSocketMessage?> ReceiveMessageAsync(WebSocket socket, CancellationToken cancellationToken)
     {
-        var buffer = new byte[16 * 1024];
-        using var assembled = new MemoryStream();
-        WebSocketReceiveResult result;
-        do
+        var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+        try
         {
-            try
+            using var assembled = new MemoryStream();
+            ValueWebSocketReceiveResult result;
+            do
             {
-                result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                return null;
-            }
-            catch (WebSocketException)
-            {
-                return null;
-            }
+                try
+                {
+                    result = await socket.ReceiveAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return null;
+                }
+                catch (WebSocketException)
+                {
+                    return null;
+                }
 
-            if (result.MessageType == WebSocketMessageType.Close)
-            {
-                return null;
-            }
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    return null;
+                }
 
-            assembled.Write(buffer, 0, result.Count);
+                assembled.Write(buffer, 0, result.Count);
+            }
+            while (!result.EndOfMessage);
+
+            return new CopilotWebSocketMessage(assembled.ToArray(), result.MessageType == WebSocketMessageType.Binary);
         }
-        while (!result.EndOfMessage);
-
-        return new CopilotWebSocketMessage(assembled.ToArray(), result.MessageType == WebSocketMessageType.Binary);
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 
     private static async Task CloseWebSocketQuietlyAsync(WebSocket socket)
@@ -430,13 +440,34 @@ public class CopilotRequestHandler
 {
     private static readonly HttpClient s_sharedHttpClient = new();
 
+    private readonly HttpClient _httpClient;
+
+    /// <summary>
+    /// Initializes a new instance that issues upstream requests using a shared
+    /// process-wide <see cref="HttpClient"/>.
+    /// </summary>
+    public CopilotRequestHandler()
+        : this(null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance that issues upstream requests using the supplied
+    /// <see cref="HttpClient"/>, or a shared process-wide instance when <paramref name="httpClient"/> is <see langword="null"/>.
+    /// </summary>
+    /// <param name="httpClient">The <see cref="HttpClient"/> to use, or <see langword="null"/> to use the shared instance.</param>
+    public CopilotRequestHandler(HttpClient? httpClient)
+    {
+        _httpClient = httpClient ?? s_sharedHttpClient;
+    }
+
     /// <summary>
     /// Issue the upstream HTTP request. Override to mutate the request before
     /// calling <c>base</c>, mutate the returned response after, or replace the
     /// call entirely.
     /// </summary>
     protected virtual Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CopilotRequestContext ctx) =>
-        s_sharedHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ctx.CancellationToken);
+        _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ctx.CancellationToken);
 
     /// <summary>
     /// Open the upstream WebSocket connection. Override to return a custom
@@ -464,7 +495,7 @@ public class CopilotRequestHandler
 
     private static async Task<HttpRequestMessage> BuildHttpRequestAsync(LlmInferenceExchange exchange)
     {
-        var method = new HttpMethod(exchange.Method.ToUpperInvariant());
+        var method = new HttpMethod(exchange.Method);
         var message = new HttpRequestMessage(method, exchange.Context.Url);
 
         var hasBody = method != HttpMethod.Get && method != HttpMethod.Head;
@@ -499,18 +530,10 @@ public class CopilotRequestHandler
             HeadersToMultiMap(response)).ConfigureAwait(false);
 
         var ct = exchange.Context.CancellationToken;
-#if NETSTANDARD2_0
-        using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-#else
         using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-#endif
         var buffer = new byte[16 * 1024];
         int read;
-#if NETSTANDARD2_0
-        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
-#else
         while ((read = await stream.ReadAsync(buffer.AsMemory(), ct).ConfigureAwait(false)) > 0)
-#endif
         {
             await exchange.WriteResponseAsync(new ReadOnlyMemory<byte>(buffer, 0, read)).ConfigureAwait(false);
         }
@@ -579,7 +602,7 @@ public class CopilotRequestHandler
         {
             if (chunk.Length > 0)
             {
-                buffer.Write(chunk.ToArray(), 0, chunk.Length);
+                buffer.Write(chunk.Span);
             }
         }
 
