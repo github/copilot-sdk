@@ -250,7 +250,7 @@ public class SchemaGenerator {
             return generateClassSchema(typeElement, typeUtils, elementUtils);
         }
 
-        // Sealed interfaces with @JsonSubTypes — oneOf
+        // Sealed interfaces — oneOf via permitted subclasses
         if (typeElement.getKind() == ElementKind.INTERFACE) {
             return generateSealedSchema(typeElement, typeUtils, elementUtils);
         }
