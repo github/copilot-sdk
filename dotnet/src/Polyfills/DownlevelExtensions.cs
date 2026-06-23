@@ -700,8 +700,13 @@ namespace System.Net.Http
     {
         extension(HttpContent content)
         {
-            public Task<IO.Stream> ReadAsStreamAsync(Threading.CancellationToken cancellationToken) =>
-                content.ReadAsStreamAsync();
+            public Task<IO.Stream> ReadAsStreamAsync(Threading.CancellationToken cancellationToken)
+            {
+                // The underlying netstandard2.0 ReadAsStreamAsync() can't be cancelled,
+                // but honour an already-cancelled token to match the BCL overload.
+                cancellationToken.ThrowIfCancellationRequested();
+                return content.ReadAsStreamAsync();
+            }
         }
     }
 }

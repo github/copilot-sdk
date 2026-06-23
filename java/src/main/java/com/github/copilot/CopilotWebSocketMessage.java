@@ -35,18 +35,7 @@ public record CopilotWebSocketMessage(byte[] data, boolean binary) {
      *            the text payload
      * @return a text message
      */
-    public static CopilotWebSocketMessage text(String text) {
+    public static CopilotWebSocketMessage fromText(String text) {
         return new CopilotWebSocketMessage(text.getBytes(StandardCharsets.UTF_8), false);
-    }
-
-    /**
-     * Creates a binary message from raw bytes.
-     *
-     * @param data
-     *            the binary payload
-     * @return a binary message
-     */
-    public static CopilotWebSocketMessage binary(byte[] data) {
-        return new CopilotWebSocketMessage(data, true);
     }
 }
