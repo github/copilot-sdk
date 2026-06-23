@@ -638,6 +638,27 @@ public class SchemaGeneratorTest {
         assertContainsSchema(schemas, "schemaTargetObject", "Map.of()");
     }
 
+    @Test
+    void sealedInterfaceType() {
+        String sealedInterface = """
+                public sealed interface TestSealedShape permits TestSealedCircle, TestSealedRect {}
+                """;
+        String circle = """
+                public record TestSealedCircle(double radius) implements TestSealedShape {}
+                """;
+        String rect = """
+                public record TestSealedRect(double width, double height) implements TestSealedShape {}
+                """;
+        List<String> schemas = compileAndCapture(sealedInterface, circle, rect);
+        String expected = "Map.of(\"oneOf\", List.of(" + "Map.of(\"type\", \"object\", \"properties\", "
+                + "Map.ofEntries(Map.entry(\"radius\", Map.of(\"type\", \"number\"))), "
+                + "\"required\", List.of(\"radius\")), " + "Map.of(\"type\", \"object\", \"properties\", "
+                + "Map.ofEntries(Map.entry(\"width\", Map.of(\"type\", \"number\")), "
+                + "Map.entry(\"height\", Map.of(\"type\", \"number\"))), "
+                + "\"required\", List.of(\"width\", \"height\"))))";
+        assertContainsSchema(schemas, "TestSealedShape", expected);
+    }
+
     private void assertContainsSchema(List<String> schemas, String methodName, String expectedSchema) {
         String expected = methodName + "=" + expectedSchema;
         assertTrue(schemas.stream().anyMatch(s -> s.equals(expected)),
