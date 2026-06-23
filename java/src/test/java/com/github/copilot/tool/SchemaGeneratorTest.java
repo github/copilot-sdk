@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +33,8 @@ import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 
 import org.junit.jupiter.api.Test;
@@ -126,6 +130,20 @@ public class SchemaGeneratorTest {
         }
     }
 
+    private static final Path CLASS_OUTPUT_DIR = Path.of("target", "test-schema-classes");
+
+    /**
+     * Creates a StandardJavaFileManager that writes compiled .class files to
+     * target/test-schema-classes/ instead of the working directory.
+     */
+    private StandardJavaFileManager createFileManager(JavaCompiler compiler,
+            DiagnosticCollector<JavaFileObject> diagnostics) throws IOException {
+        Files.createDirectories(CLASS_OUTPUT_DIR);
+        StandardJavaFileManager fm = compiler.getStandardFileManager(diagnostics, null, null);
+        fm.setLocation(StandardLocation.CLASS_OUTPUT, List.of(CLASS_OUTPUT_DIR.toFile()));
+        return fm;
+    }
+
     private List<String> compileAndCapture(String... sources) {
         return compileAndCapture(Arrays.asList(sources));
     }
@@ -146,26 +164,32 @@ public class SchemaGeneratorTest {
             compilationUnits.add(new InMemorySource(className, sourceText));
         }
 
-        // Compile with the processor on classpath
-        JavaCompiler.CompilationTask task = compiler.getTask(null, // writer
-                null, // file manager
-                diagnostics, // diagnostics
-                List.of("--add-modules", "ALL-MODULE-PATH"), // options
-                null, // annotation classes
-                compilationUnits);
+        try (StandardJavaFileManager fm = createFileManager(compiler, diagnostics)) {
+            // Compile with the processor on classpath
+            JavaCompiler.CompilationTask task = compiler.getTask(null, // writer
+                    fm, // file manager
+                    diagnostics, // diagnostics
+                    List.of("--add-modules", "ALL-MODULE-PATH"), // options
+                    null, // annotation classes
+                    compilationUnits);
 
-        task.setProcessors(List.of(new SchemaCapturingProcessor()));
-        boolean success = task.call();
-
-        if (!success) {
-            // Try without module options for simpler environments
-            diagnostics = new DiagnosticCollector<>();
-            task = compiler.getTask(null, null, diagnostics, null, null, compilationUnits);
             task.setProcessors(List.of(new SchemaCapturingProcessor()));
-            success = task.call();
-        }
+            boolean success = task.call();
 
-        assertTrue(success, "Compilation failed: " + diagnostics.getDiagnostics());
+            if (!success) {
+                // Try without module options for simpler environments
+                diagnostics = new DiagnosticCollector<>();
+                try (StandardJavaFileManager fm2 = createFileManager(compiler, diagnostics)) {
+                    task = compiler.getTask(null, fm2, diagnostics, null, null, compilationUnits);
+                    task.setProcessors(List.of(new SchemaCapturingProcessor()));
+                    success = task.call();
+                }
+            }
+
+            assertTrue(success, "Compilation failed: " + diagnostics.getDiagnostics());
+        } catch (IOException e) {
+            fail("Failed to create file manager: " + e.getMessage());
+        }
         return new ArrayList<>(SchemaCapturingProcessor.capturedSchemas);
     }
 
@@ -181,11 +205,15 @@ public class SchemaGeneratorTest {
         String className = extractClassName(source);
         List<JavaFileObject> compilationUnits = List.of(new InMemorySource(className, source));
 
-        JavaCompiler.CompilationTask task = compiler.getTask(null, null, diagnostics, null, null, compilationUnits);
-        task.setProcessors(List.of(new SchemaCapturingProcessor()));
-        boolean success = task.call();
+        try (StandardJavaFileManager fm = createFileManager(compiler, diagnostics)) {
+            JavaCompiler.CompilationTask task = compiler.getTask(null, fm, diagnostics, null, null, compilationUnits);
+            task.setProcessors(List.of(new SchemaCapturingProcessor()));
+            boolean success = task.call();
 
-        assertTrue(success, "Compilation failed: " + diagnostics.getDiagnostics());
+            assertTrue(success, "Compilation failed: " + diagnostics.getDiagnostics());
+        } catch (IOException e) {
+            fail("Failed to create file manager: " + e.getMessage());
+        }
         return new ArrayList<>(SchemaCapturingProcessor.capturedParameterSchemas);
     }
 
@@ -502,11 +530,15 @@ public class SchemaGeneratorTest {
         List<JavaFileObject> compilationUnits = List
                 .of(new InMemorySource("SchemaValidation", validationSource.toString()));
 
-        JavaCompiler.CompilationTask task = compiler.getTask(null, null, diagnostics, null, null, compilationUnits);
-        boolean success = task.call();
+        try (StandardJavaFileManager fm = createFileManager(compiler, diagnostics)) {
+            JavaCompiler.CompilationTask task = compiler.getTask(null, fm, diagnostics, null, null, compilationUnits);
+            boolean success = task.call();
 
-        assertTrue(success, "Generated schema source code is not valid Java: " + diagnostics.getDiagnostics()
-                + "\nSource:\n" + validationSource);
+            assertTrue(success, "Generated schema source code is not valid Java: " + diagnostics.getDiagnostics()
+                    + "\nSource:\n" + validationSource);
+        } catch (IOException e) {
+            fail("Failed to create file manager: " + e.getMessage());
+        }
     }
 
     @Test
