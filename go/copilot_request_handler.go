@@ -57,11 +57,17 @@ type CopilotRequestContext struct {
 	Method    string
 	URL       string
 	Headers   http.Header
-	// Body yields request body frames as they arrive from the runtime. The
-	// channel is closed when the body ends or the request is cancelled. For
-	// WebSocket requests each frame's Binary flag distinguishes a binary frame
-	// from a UTF-8 text frame; for HTTP it is always a body byte chunk.
-	Body <-chan CopilotWebSocketMessage
+	// body yields request body frames as they arrive from the runtime. It is
+	// unexported framework plumbing: the adapter drains it for HTTP requests
+	// and pumps it to [CopilotWebSocketHandler.SendRequestMessage] for
+	// WebSocket requests. Consumers read the HTTP body via the standard
+	// [http.Request] Body in a custom RoundTripper, or receive WebSocket frames
+	// via SendRequestMessage — never from this channel directly (doing so would
+	// race the adapter's pump goroutine and lose frames). The channel is closed
+	// when the body ends or the request is cancelled. For WebSocket requests
+	// each frame's Binary flag distinguishes a binary frame from a UTF-8 text
+	// frame; for HTTP it is always a body byte chunk.
+	body <-chan CopilotWebSocketMessage
 	// Context is cancelled when the runtime cancels this in-flight request.
 	Context context.Context
 }
@@ -181,7 +187,7 @@ func (h *CopilotRequestHandler) handleHTTP(rctx *CopilotRequestContext, sink *re
 }
 
 func buildHTTPRequest(rctx *CopilotRequestContext) (*http.Request, error) {
-	body := drainBody(rctx.Body)
+	body := drainBody(rctx.body)
 	method := strings.ToUpper(rctx.Method)
 	var bodyReader io.Reader
 	if len(body) > 0 && method != http.MethodGet && method != http.MethodHead {
@@ -278,7 +284,7 @@ func (h *CopilotRequestHandler) handleWebSocket(rctx *CopilotRequestContext, sin
 		defer close(clientDone)
 		for {
 			select {
-			case frame, ok := <-rctx.Body:
+			case frame, ok := <-rctx.body:
 				if !ok {
 					return
 				}
@@ -619,7 +625,7 @@ func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPReq
 		URL:       params.URL,
 		Headers:   headers,
 		Transport: transport,
-		Body:      bodyCh,
+		body:      bodyCh,
 		Context:   ctx,
 	}
 	sink := &responseSink{requestID: params.RequestID, adapter: a, exchange: exchange}
