@@ -152,7 +152,8 @@ public class SchemaGenerator {
         }
 
         // Boxed primitives
-        if ("java.lang.Integer".equals(qualifiedName) || "java.lang.Long".equals(qualifiedName)) {
+        if ("java.lang.Integer".equals(qualifiedName) || "java.lang.Long".equals(qualifiedName)
+                || "java.lang.Byte".equals(qualifiedName) || "java.lang.Short".equals(qualifiedName)) {
             return "Map.of(\"type\", \"integer\")";
         }
         if ("java.lang.Double".equals(qualifiedName) || "java.lang.Float".equals(qualifiedName)) {
@@ -160,6 +161,9 @@ public class SchemaGenerator {
         }
         if ("java.lang.Boolean".equals(qualifiedName)) {
             return "Map.of(\"type\", \"boolean\")";
+        }
+        if ("java.lang.Character".equals(qualifiedName)) {
+            return "Map.of(\"type\", \"string\")";
         }
 
         // UUID

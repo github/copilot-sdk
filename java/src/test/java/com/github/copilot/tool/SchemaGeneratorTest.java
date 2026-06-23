@@ -324,6 +324,39 @@ public class SchemaGeneratorTest {
     }
 
     @Test
+    void byteBoxedType() {
+        String source = """
+                public class TestByteHolder {
+                    public Byte schemaTargetByte() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetByte", "Map.of(\"type\", \"integer\")");
+    }
+
+    @Test
+    void shortBoxedType() {
+        String source = """
+                public class TestShortHolder {
+                    public Short schemaTargetShort() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetShort", "Map.of(\"type\", \"integer\")");
+    }
+
+    @Test
+    void characterBoxedType() {
+        String source = """
+                public class TestCharHolder {
+                    public Character schemaTargetChar() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetChar", "Map.of(\"type\", \"string\")");
+    }
+
+    @Test
     void stringArrayType() {
         String source = """
                 public class TestArrayHolder {
