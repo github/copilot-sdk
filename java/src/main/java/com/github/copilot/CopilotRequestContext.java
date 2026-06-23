@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
+
 /**
  * The per-request context handed to every {@link CopilotRequestHandler} hook.
  * It exposes the routing and cancellation details of a single intercepted
@@ -18,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 public final class CopilotRequestContext {
 
     private final String requestId;
+    @Nullable
     private final String sessionId;
     private final CopilotRequestTransport transport;
     private final String url;
@@ -26,7 +29,7 @@ public final class CopilotRequestContext {
 
     private LlmWebSocketResponseBridge webSocketResponse;
 
-    CopilotRequestContext(String requestId, String sessionId, CopilotRequestTransport transport, String url,
+    CopilotRequestContext(String requestId, @Nullable String sessionId, CopilotRequestTransport transport, String url,
             Map<String, List<String>> headers, CompletableFuture<Void> cancellation) {
         this.requestId = requestId;
         this.sessionId = sessionId;
@@ -53,6 +56,7 @@ public final class CopilotRequestContext {
      *
      * @return the session id, or {@code null}
      */
+    @Nullable
     public String sessionId() {
         return sessionId;
     }
