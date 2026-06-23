@@ -24,7 +24,7 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
-    CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
+    CapiSessionOptions, CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
     InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, MemoryConfiguration,
     NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId, SystemMessageConfig, Tool,
 };
@@ -129,6 +129,8 @@ pub(crate) struct SessionCreateWire {
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capi: Option<CapiSessionOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub providers: Option<Vec<NamedProviderConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -244,6 +246,8 @@ pub(crate) struct SessionResumeWire {
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capi: Option<CapiSessionOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub providers: Option<Vec<NamedProviderConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]

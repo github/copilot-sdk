@@ -12,7 +12,6 @@ description = "Python SDK for GitHub Copilot CLI"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-# license-files is set by scripts/build-wheels.mjs for bundled CLI wheels
 authors = [
     {name = "GitHub", email = "opensource@github.com"}
 ]
@@ -48,8 +47,6 @@ telemetry = [
     "opentelemetry-api>=1.0.0",
 ]
 
-# Use find with a glob so that the copilot.bin subpackage (created dynamically
-# by scripts/build-wheels.mjs during publishing) is included in platform wheels.
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["copilot*"]

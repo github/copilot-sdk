@@ -963,6 +963,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
                 config.Provider,
+                config.Capi,
                 config.EnableSessionTelemetry,
                 config.OnPermissionRequest != null ? true : null,
                 config.OnUserInputRequest != null ? true : null,
@@ -1162,6 +1163,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
                 config.Provider,
+                config.Capi,
                 config.EnableSessionTelemetry,
                 config.OnPermissionRequest != null ? true : null,
                 config.OnUserInputRequest != null ? true : null,
@@ -2361,6 +2363,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
         ProviderConfig? Provider,
+        CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
         bool? RequestPermission,
         bool? RequestUserInput,
@@ -2454,6 +2457,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
         ProviderConfig? Provider,
+        CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
         bool? RequestPermission,
         bool? RequestUserInput,
@@ -2581,6 +2585,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(EmbeddingCacheStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
     [JsonSerializable(typeof(ProviderConfig))]
+    [JsonSerializable(typeof(CapiSessionOptions))]
     [JsonSerializable(typeof(NamedProviderConfig))]
     [JsonSerializable(typeof(ProviderModelConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]

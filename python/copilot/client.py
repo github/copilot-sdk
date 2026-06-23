@@ -28,7 +28,6 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
@@ -135,6 +134,20 @@ class CloudSessionOptions:
     repository: CloudSessionRepository | None = None
 
 
+class CapiSessionOptions(TypedDict, total=False):
+    """Provider-scoped Copilot API (CAPI) session options."""
+
+    enable_web_socket_responses: bool
+    """Whether to use WebSocket transport for the CAPI Responses API.
+
+    Enabled by default when the model advertises ``ws:/responses`` support. Set
+    to ``False`` to force the HTTP Responses transport instead, which is
+    equivalent to the ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+    variable and useful in environments where WebSockets are blocked (e.g.
+    behind a proxy).
+    """
+
+
 def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, Any]:
     result: dict[str, Any] = {}
     if options.repository is not None:
@@ -146,6 +159,13 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
             repository["branch"] = options.repository.branch
         result["repository"] = repository
     return result
+
+
+def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]:
+    wire: dict[str, Any] = {}
+    if "enable_web_socket_responses" in options:
+        wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
+    return wire
 
 
 def _validate_session_fs_config(config: SessionFsConfig) -> None:
@@ -948,24 +968,15 @@ _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
-def _get_bundled_cli_path() -> str | None:
-    """Get the path to the bundled CLI binary, if available."""
-    # The binary is bundled in copilot/bin/ within the package
-    bin_dir = Path(__file__).parent / "bin"
-    if not bin_dir.exists():
-        return None
+def _get_or_download_cli() -> str | None:
+    """Get the cached CLI binary, downloading if necessary.
 
-    # Determine binary name based on platform
-    if sys.platform == "win32":
-        binary_name = "copilot.exe"
-    else:
-        binary_name = "copilot"
+    Returns the path to the CLI binary, or None if unavailable (dev install
+    with no pinned version, or auto-download disabled).
+    """
+    from ._cli_download import get_or_download_cli
 
-    binary_path = bin_dir / binary_name
-    if binary_path.exists():
-        return str(binary_path)
-
-    return None
+    return get_or_download_cli()
 
 
 def _extract_transform_callbacks(
@@ -1166,7 +1177,7 @@ class CopilotClient:
             else:
                 self._effective_connection_token = None
 
-            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary.
+            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > downloaded binary.
             effective_env = options.env if options.env is not None else os.environ
             self._cli_path_source: str | None = "explicit"
             if connection.path is None:
@@ -1175,14 +1186,15 @@ class CopilotClient:
                     connection.path = env_cli_path
                     self._cli_path_source = "environment"
                 else:
-                    bundled_path = _get_bundled_cli_path()
-                    if bundled_path:
-                        connection.path = bundled_path
-                        self._cli_path_source = "bundled"
+                    downloaded_path = _get_or_download_cli()
+                    if downloaded_path:
+                        connection.path = downloaded_path
+                        self._cli_path_source = "downloaded"
                     else:
                         raise RuntimeError(
-                            "Copilot CLI not found. The bundled CLI binary is not available. "
-                            "Ensure you installed a platform-specific wheel, or set "
+                            "Copilot CLI not found. Install a published wheel (which "
+                            "auto-downloads the CLI on first use), set COPILOT_CLI_PATH, "
+                            "or pass an explicit path via "
                             "RuntimeConnection.for_stdio(path=...) / "
                             "RuntimeConnection.for_tcp(path=...)."
                         )
@@ -1629,6 +1641,7 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        capi: CapiSessionOptions | None = None,
         providers: list[NamedProviderConfig] | None = None,
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
@@ -1714,6 +1727,16 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            capi: CAPI provider-scoped options. WebSocket transport is the
+                default for the CAPI Responses API whenever the model advertises
+                the ``ws:/responses`` endpoint. Set
+                ``enable_web_socket_responses=False`` to force the HTTP
+                Responses transport, which is useful behind proxies where
+                WebSockets fail. This is equivalent to setting the
+                ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+                variable. The option is under the ``capi`` namespace because a
+                single session can host multiple providers (CAPI + BYOK), so
+                transport choice is provider-level.
             providers: Named BYOK provider connections. Additive to Copilot API
                 auth (unlike `provider`); combine with `models`. Cannot be
                 combined with `provider`.
@@ -1941,6 +1964,8 @@ class CopilotClient:
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
 
+        if capi is not None:
+            payload["capi"] = _capi_session_options_to_wire(capi)
         # Add additive BYOK provider/model registry if provided
         if providers:
             payload["providers"] = [
@@ -2237,6 +2262,7 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        capi: CapiSessionOptions | None = None,
         providers: list[NamedProviderConfig] | None = None,
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
@@ -2323,6 +2349,16 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            capi: CAPI provider-scoped options. WebSocket transport is the
+                default for the CAPI Responses API whenever the model advertises
+                the ``ws:/responses`` endpoint. Set
+                ``enable_web_socket_responses=False`` to force the HTTP
+                Responses transport, which is useful behind proxies where
+                WebSockets fail. This is equivalent to setting the
+                ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+                variable. The option is under the ``capi`` namespace because a
+                single session can host multiple providers (CAPI + BYOK), so
+                transport choice is provider-level.
             providers: Named BYOK provider connections. Additive to Copilot API
                 auth (unlike `provider`); combine with `models`. Cannot be
                 combined with `provider`.
@@ -2489,6 +2525,8 @@ class CopilotClient:
         payload["toolFilterPrecedence"] = "excluded"
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+        if capi is not None:
+            payload["capi"] = _capi_session_options_to_wire(capi)
         if providers:
             payload["providers"] = [
                 self._convert_named_provider_to_wire_format(p) for p in providers
@@ -3200,6 +3238,8 @@ class CopilotClient:
             wire_provider["apiKey"] = provider["api_key"]
         if "wire_api" in provider:
             wire_provider["wireApi"] = provider["wire_api"]
+        if "transport" in provider:
+            wire_provider["transport"] = provider["transport"]
         if "bearer_token" in provider:
             wire_provider["bearerToken"] = provider["bearer_token"]
         if "headers" in provider:

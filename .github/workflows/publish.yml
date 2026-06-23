@@ -214,8 +214,10 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Set version
         run: sed -i "s/^version = .*/version = \"${{ needs.version.outputs.version }}\"/" pyproject.toml
-      - name: Build platform wheels
-        run: node scripts/build-wheels.mjs --output-dir dist
+      - name: Inject CLI version
+        run: node scripts/inject-cli-version.mjs
+      - name: Build wheel
+        run: uv build --wheel --out-dir dist
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.0
         with:

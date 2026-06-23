@@ -983,6 +983,8 @@ type SessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
+	// Capi configures provider-scoped CAPI (Copilot API) session options.
+	Capi *CapiSessionOptions
 	// Providers configures named BYOK provider connections. Additive to Copilot
 	// API auth (unlike Provider); combine with Models. Cannot be combined with Provider.
 	//
@@ -1340,6 +1342,8 @@ type ResumeSessionConfig struct {
 	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
+	// Capi configures provider-scoped CAPI (Copilot API) session options.
+	Capi *CapiSessionOptions
 	// Providers configures named BYOK provider connections. Additive to Copilot
 	// API auth (unlike Provider); combine with Models. Cannot be combined with Provider.
 	//
@@ -1551,6 +1555,10 @@ type ProviderConfig struct {
 	Type string `json:"type,omitempty"`
 	// WireAPI is the API format (openai/azure only): "completions" or "responses". Defaults to "completions".
 	WireAPI string `json:"wireApi,omitempty"`
+	// Transport for OpenAI Responses requests: "http" or "websockets". Defaults to "http".
+	// Set "websockets" to deliver Responses API requests over a persistent WebSocket
+	// connection instead of HTTP. Applies to OpenAI-compatible providers using WireAPI "responses".
+	Transport string `json:"transport,omitempty"`
 	// BaseURL is the API endpoint URL
 	BaseURL string `json:"baseUrl"`
 	// APIKey is the API key. Optional for local providers like Ollama.
@@ -1582,6 +1590,22 @@ type ProviderConfig struct {
 	// tokens. When hit, the model stops generating and returns a truncated
 	// response.
 	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
+}
+
+// CapiSessionOptions configures provider-scoped Copilot API (CAPI) session behavior.
+//
+// WebSocket transport is the default for the CAPI Responses API whenever the
+// model advertises the ws:/responses endpoint. Set EnableWebSocketResponses to
+// Bool(false) to force the HTTP Responses transport, which is useful behind
+// proxies where WebSockets fail. This is equivalent to setting the
+// COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES environment variable. These options
+// are provider-scoped under the capi namespace because a single session can host
+// multiple providers, such as CAPI and BYOK, so transport choice is provider-level.
+type CapiSessionOptions struct {
+	// EnableWebSocketResponses controls whether the CAPI Responses API uses
+	// WebSocket transport. Enabled by default when the model advertises
+	// ws:/responses support; set to Bool(false) to force HTTP Responses transport.
+	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration
@@ -1824,6 +1848,7 @@ type createSessionRequest struct {
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
+	Capi                               *CapiSessionOptions                    `json:"capi,omitempty"`
 	Providers                          []NamedProviderConfig                  `json:"providers,omitempty"`
 	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
@@ -1906,6 +1931,7 @@ type resumeSessionRequest struct {
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
+	Capi                               *CapiSessionOptions                    `json:"capi,omitempty"`
 	Providers                          []NamedProviderConfig                  `json:"providers,omitempty"`
 	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`

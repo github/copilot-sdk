@@ -51,6 +51,7 @@ public class SessionConfig {
     private List<String> availableTools;
     private List<String> excludedTools;
     private ProviderConfig provider;
+    private CapiSessionOptions capi;
     private List<NamedProviderConfig> providers;
     private List<ProviderModelConfig> models;
     private Boolean enableSessionTelemetry;
@@ -357,6 +358,32 @@ public class SessionConfig {
      */
     public SessionConfig setProvider(ProviderConfig provider) {
         this.provider = provider;
+        return this;
+    }
+
+    /**
+     * Gets the CAPI provider-scoped session options.
+     *
+     * @return the CAPI session options
+     */
+    public CapiSessionOptions getCapi() {
+        return capi;
+    }
+
+    /**
+     * Sets CAPI provider-scoped session options.
+     * <p>
+     * Use {@link CapiSessionOptions#setEnableWebSocketResponses(Boolean)} with
+     * {@code false} to force the HTTP Responses transport instead of the default
+     * CAPI Responses API WebSocket transport.
+     *
+     * @param capi
+     *            the CAPI session options
+     * @return this config instance for method chaining
+     * @see CapiSessionOptions
+     */
+    public SessionConfig setCapi(CapiSessionOptions capi) {
+        this.capi = capi;
         return this;
     }
 
@@ -1761,6 +1788,7 @@ public class SessionConfig {
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
+        copy.capi = this.capi;
         copy.providers = this.providers != null ? new ArrayList<>(this.providers) : null;
         copy.models = this.models != null ? new ArrayList<>(this.models) : null;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
