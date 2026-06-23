@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -359,52 +359,56 @@ fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> P
         std::process::id(),
     ));
 
-    if let Err(e) = std::fs::write(&staging_path, &bytes) {
-        let _ = std::fs::remove_file(&staging_path);
-        panic!(
-            "failed to write staging file {}: {e}",
-            staging_path.display()
-        );
-    }
-
-    #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        if let Err(e) =
-            std::fs::set_permissions(&staging_path, std::fs::Permissions::from_mode(0o755))
-        {
+        let mut f = std::fs::File::create(&staging_path).unwrap_or_else(|e| {
             let _ = std::fs::remove_file(&staging_path);
-            panic!("failed to chmod {}: {e}", staging_path.display());
-        }
-    }
+            panic!(
+                "failed to create staging file {}: {e}",
+                staging_path.display()
+            );
+        });
 
-    // Backdate the staged binary to the Unix epoch before it lands. We emit
-    // `cargo:rerun-if-changed` on `final_path` (see caller) so a *deleted*
-    // cache binary forces a re-extract — but cargo stamps the build-script
-    // `output` reference when the script is spawned, seconds before this
-    // freshly-downloaded binary is written. A current mtime would therefore
-    // be *newer* than that reference, so the next identical `cargo`
-    // invocation would see the watched file as "changed" and pointlessly
-    // rerun build.rs + recompile the crate + relink every downstream crate.
-    // Pinning to the epoch keeps the file unambiguously older than any real
-    // build reference; `rename` preserves mtime (same inode), so it lands
-    // already-backdated and a no-change rebuild stays a true no-op. The
-    // deleted-file recovery contract is untouched: a missing file can't be
-    // stat'd, so cargo still treats it as stale and reruns regardless.
-    //
-    // Best-effort: a filesystem that refuses the epoch (e.g. FAT's 1980 floor
-    // clamps it — still older than any real reference) or rejects the call
-    // just reverts to the pre-fix redundant-rebuild behaviour, never a broken
-    // build.
-    if let Err(e) = std::fs::File::options()
-        .write(true)
-        .open(&staging_path)
-        .and_then(|f| f.set_modified(std::time::SystemTime::UNIX_EPOCH))
-    {
-        println!(
-            "cargo:warning=Could not backdate {} (a redundant rebuild may occur): {e}",
-            staging_path.display()
-        );
+        if let Err(e) = f.write_all(&bytes) {
+            let _ = std::fs::remove_file(&staging_path);
+            panic!(
+                "failed to write staging file {}: {e}",
+                staging_path.display()
+            );
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Err(e) = f.set_permissions(std::fs::Permissions::from_mode(0o755)) {
+                let _ = std::fs::remove_file(&staging_path);
+                panic!("failed to chmod {}: {e}", staging_path.display());
+            }
+        }
+
+        // Backdate the staged binary to the Unix epoch before it lands. We emit
+        // `cargo:rerun-if-changed` on `final_path` (see caller) so a *deleted*
+        // cache binary forces a re-extract — but cargo stamps the build-script
+        // `output` reference when the script is spawned, seconds before this
+        // freshly-downloaded binary is written. A current mtime would therefore
+        // be *newer* than that reference, so the next identical `cargo`
+        // invocation would see the watched file as "changed" and pointlessly
+        // rerun build.rs + recompile the crate + relink every downstream crate.
+        // Pinning to the epoch keeps the file unambiguously older than any real
+        // build reference; `rename` preserves mtime (same inode), so it lands
+        // already-backdated and a no-change rebuild stays a true no-op. The
+        // deleted-file recovery contract is untouched: a missing file can't be
+        // stat'd, so cargo still treats it as stale and reruns regardless.
+        //
+        // Best-effort: a filesystem that refuses the epoch (e.g. FAT's 1980 floor
+        // clamps it — still older than any real reference) or rejects the call
+        // just reverts to the pre-fix redundant-rebuild behaviour, never a broken
+        // build.
+        if let Err(e) = f.set_modified(std::time::SystemTime::UNIX_EPOCH) {
+            println!(
+                "cargo:warning=Could not backdate {} (a redundant rebuild may occur): {e}",
+                staging_path.display()
+            );
+        }
     }
 
     // Atomic file-replace on both Unix and Windows. If a concurrent build
