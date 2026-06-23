@@ -453,8 +453,9 @@ public class SchemaGeneratorTest {
                 """;
         List<String> schemas = compileAndCapture(source);
         String expected = "Map.of(\"type\", \"object\", \"properties\", "
-                + "Map.of(\"name\", Map.of(\"type\", \"string\"), " + "\"age\", Map.of(\"type\", \"integer\"), "
-                + "\"active\", Map.of(\"type\", \"boolean\")), "
+                + "Map.ofEntries(Map.entry(\"name\", Map.of(\"type\", \"string\")), "
+                + "Map.entry(\"age\", Map.of(\"type\", \"integer\")), "
+                + "Map.entry(\"active\", Map.of(\"type\", \"boolean\"))), "
                 + "\"required\", List.of(\"name\", \"age\", \"active\"))";
         assertContainsSchema(schemas, "TestRecordPerson", expected);
     }
@@ -467,8 +468,8 @@ public class SchemaGeneratorTest {
                 """;
         List<String> schemas = compileAndCapture(source);
         String expected = "Map.of(\"type\", \"object\", \"properties\", "
-                + "Map.of(\"name\", Map.of(\"type\", \"string\"), " + "\"nickname\", Map.of(\"type\", \"string\")), "
-                + "\"required\", List.of(\"name\"))";
+                + "Map.ofEntries(Map.entry(\"name\", Map.of(\"type\", \"string\")), "
+                + "Map.entry(\"nickname\", Map.of(\"type\", \"string\"))), " + "\"required\", List.of(\"name\"))";
         assertContainsSchema(schemas, "TestRecordWithOptional", expected);
     }
 
@@ -483,10 +484,11 @@ public class SchemaGeneratorTest {
         assertFalse(paramSchemas.isEmpty(), "Expected parameter schemas");
         String schema = paramSchemas.get(0);
         assertTrue(schema.contains("\"type\", \"object\""), "Should be object type: " + schema);
-        assertTrue(schema.contains("\"query\", Map.of(\"type\", \"string\")"), "Should have query property: " + schema);
-        assertTrue(schema.contains("\"limit\", Map.of(\"type\", \"integer\")"),
+        assertTrue(schema.contains("Map.entry(\"query\", Map.of(\"type\", \"string\"))"),
+                "Should have query property: " + schema);
+        assertTrue(schema.contains("Map.entry(\"limit\", Map.of(\"type\", \"integer\"))"),
                 "Should have limit property: " + schema);
-        assertTrue(schema.contains("\"verbose\", Map.of(\"type\", \"boolean\")"),
+        assertTrue(schema.contains("Map.entry(\"verbose\", Map.of(\"type\", \"boolean\"))"),
                 "Should have verbose property: " + schema);
         assertTrue(schema.contains("\"required\", List.of("), "Should have required list: " + schema);
     }

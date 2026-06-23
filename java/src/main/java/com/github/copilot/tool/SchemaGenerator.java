@@ -84,7 +84,7 @@ public class SchemaGenerator {
                 schema = generateSchema(paramType, typeUtils, elementUtils);
             }
 
-            propertyEntries.add("\"" + paramName + "\", " + schema);
+            propertyEntries.add("Map.entry(\"" + paramName + "\", " + schema + ")");
 
             if (!isOptional) {
                 Param paramAnnotation = param.getAnnotation(Param.class);
@@ -94,7 +94,7 @@ public class SchemaGenerator {
             }
         }
 
-        String properties = "Map.of(" + String.join(", ", propertyEntries) + ")";
+        String properties = "Map.ofEntries(" + String.join(", ", propertyEntries) + ")";
         String required = "List.of(" + String.join(", ", requiredNames) + ")";
 
         return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
@@ -271,11 +271,11 @@ public class SchemaGenerator {
                     requiredNames.add("\"" + name + "\"");
                 }
 
-                propertyEntries.add("\"" + name + "\", " + schema);
+                propertyEntries.add("Map.entry(\"" + name + "\", " + schema + ")");
             }
         }
 
-        String properties = "Map.of(" + String.join(", ", propertyEntries) + ")";
+        String properties = "Map.ofEntries(" + String.join(", ", propertyEntries) + ")";
         String required = "List.of(" + String.join(", ", requiredNames) + ")";
 
         return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
@@ -305,7 +305,7 @@ public class SchemaGenerator {
                     requiredNames.add("\"" + name + "\"");
                 }
 
-                propertyEntries.add("\"" + name + "\", " + schema);
+                propertyEntries.add("Map.entry(\"" + name + "\", " + schema + ")");
             }
         }
 
@@ -313,7 +313,7 @@ public class SchemaGenerator {
             return "Map.of(\"type\", \"object\")";
         }
 
-        String properties = "Map.of(" + String.join(", ", propertyEntries) + ")";
+        String properties = "Map.ofEntries(" + String.join(", ", propertyEntries) + ")";
         String required = "List.of(" + String.join(", ", requiredNames) + ")";
 
         return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
