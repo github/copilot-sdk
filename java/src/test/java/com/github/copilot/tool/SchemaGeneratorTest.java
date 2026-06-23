@@ -36,9 +36,9 @@ import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tests for {@link SchemaGenerator} using the compilation-testing approach.
- * A test annotation processor exercises SchemaGenerator during compilation
- * of small source snippets.
+ * Tests for {@link SchemaGenerator} using the compilation-testing approach. A
+ * test annotation processor exercises SchemaGenerator during compilation of
+ * small source snippets.
  */
 public class SchemaGeneratorTest {
 
@@ -90,7 +90,8 @@ public class SchemaGeneratorTest {
 
             for (Element rootElement : roundEnv.getRootElements()) {
                 if (rootElement.getKind() == ElementKind.CLASS || rootElement.getKind() == ElementKind.RECORD
-                        || rootElement.getKind() == ElementKind.INTERFACE || rootElement.getKind() == ElementKind.ENUM) {
+                        || rootElement.getKind() == ElementKind.INTERFACE
+                        || rootElement.getKind() == ElementKind.ENUM) {
                     // Find methods named "schemaTarget" to capture schemas for their return type
                     for (Element enclosed : rootElement.getEnclosedElements()) {
                         if (enclosed.getKind() == ElementKind.METHOD) {
@@ -103,8 +104,8 @@ public class SchemaGeneratorTest {
                             }
                             if ("parametersTarget".equals(methodName)) {
                                 List<? extends VariableElement> params = method.getParameters();
-                                String schema =
-                                        generator.generateParametersSchemaSource(params, typeUtils, elementUtils);
+                                String schema = generator.generateParametersSchemaSource(params, typeUtils,
+                                        elementUtils);
                                 capturedParameterSchemas.add(schema);
                             }
                         }
@@ -115,8 +116,7 @@ public class SchemaGeneratorTest {
                     String typeName = typeElement.getSimpleName().toString();
                     if (typeName.startsWith("TestRecord") || typeName.startsWith("TestEnum")
                             || typeName.startsWith("TestSealed")) {
-                        String schema =
-                                generator.generateSchemaSource(typeElement.asType(), typeUtils, elementUtils);
+                        String schema = generator.generateSchemaSource(typeElement.asType(), typeUtils, elementUtils);
                         capturedSchemas.add(typeName + "=" + schema);
                     }
                 }
@@ -147,8 +147,7 @@ public class SchemaGeneratorTest {
         }
 
         // Compile with the processor on classpath
-        JavaCompiler.CompilationTask task = compiler.getTask(
-                null, // writer
+        JavaCompiler.CompilationTask task = compiler.getTask(null, // writer
                 null, // file manager
                 diagnostics, // diagnostics
                 List.of("--add-modules", "ALL-MODULE-PATH"), // options
@@ -192,7 +191,7 @@ public class SchemaGeneratorTest {
 
     private String extractClassName(String source) {
         // Simple extraction: find "class X", "record X", "enum X", or "interface X"
-        for (String keyword : new String[] {"class ", "record ", "enum ", "interface "}) {
+        for (String keyword : new String[]{"class ", "record ", "enum ", "interface "}) {
             int idx = source.indexOf(keyword);
             if (idx >= 0) {
                 int start = idx + keyword.length();
@@ -304,8 +303,8 @@ public class SchemaGeneratorTest {
                 }
                 """;
         List<String> schemas = compileAndCapture(source);
-        assertContainsSchema(
-                schemas, "schemaTargetArray", "Map.of(\"type\", \"array\", \"items\", Map.of(\"type\", \"string\"))");
+        assertContainsSchema(schemas, "schemaTargetArray",
+                "Map.of(\"type\", \"array\", \"items\", Map.of(\"type\", \"string\"))");
     }
 
     @Test
@@ -314,9 +313,7 @@ public class SchemaGeneratorTest {
                 public enum TestEnumColor { RED, GREEN, BLUE }
                 """;
         List<String> schemas = compileAndCapture(source);
-        assertContainsSchema(
-                schemas,
-                "TestEnumColor",
+        assertContainsSchema(schemas, "TestEnumColor",
                 "Map.of(\"type\", \"string\", \"enum\", List.of(\"RED\", \"GREEN\", \"BLUE\"))");
     }
 
@@ -329,8 +326,8 @@ public class SchemaGeneratorTest {
                 }
                 """;
         List<String> schemas = compileAndCapture(source);
-        assertContainsSchema(
-                schemas, "schemaTargetList", "Map.of(\"type\", \"array\", \"items\", Map.of(\"type\", \"string\"))");
+        assertContainsSchema(schemas, "schemaTargetList",
+                "Map.of(\"type\", \"array\", \"items\", Map.of(\"type\", \"string\"))");
     }
 
     @Test
@@ -342,9 +339,7 @@ public class SchemaGeneratorTest {
                 }
                 """;
         List<String> schemas = compileAndCapture(source);
-        assertContainsSchema(
-                schemas,
-                "schemaTargetMap",
+        assertContainsSchema(schemas, "schemaTargetMap",
                 "Map.of(\"type\", \"object\", \"additionalProperties\", Map.of(\"type\", \"string\"))");
     }
 
@@ -369,9 +364,7 @@ public class SchemaGeneratorTest {
                 }
                 """;
         List<String> schemas = compileAndCapture(source);
-        assertContainsSchema(
-                schemas,
-                "schemaTargetMapBool",
+        assertContainsSchema(schemas, "schemaTargetMapBool",
                 "Map.of(\"type\", \"object\", \"additionalProperties\", Map.of(\"type\", \"boolean\"))");
     }
 
@@ -384,9 +377,7 @@ public class SchemaGeneratorTest {
                 }
                 """;
         List<String> schemas = compileAndCapture(source);
-        assertContainsSchema(
-                schemas,
-                "schemaTargetMapLong",
+        assertContainsSchema(schemas, "schemaTargetMapLong",
                 "Map.of(\"type\", \"object\", \"additionalProperties\", Map.of(\"type\", \"integer\"))");
     }
 
@@ -423,8 +414,8 @@ public class SchemaGeneratorTest {
                 }
                 """;
         List<String> schemas = compileAndCapture(source);
-        assertContainsSchema(
-                schemas, "schemaTargetDateTime", "Map.of(\"type\", \"string\", \"format\", \"date-time\")");
+        assertContainsSchema(schemas, "schemaTargetDateTime",
+                "Map.of(\"type\", \"string\", \"format\", \"date-time\")");
     }
 
     @Test
@@ -434,8 +425,7 @@ public class SchemaGeneratorTest {
                 """;
         List<String> schemas = compileAndCapture(source);
         String expected = "Map.of(\"type\", \"object\", \"properties\", "
-                + "Map.of(\"name\", Map.of(\"type\", \"string\"), "
-                + "\"age\", Map.of(\"type\", \"integer\"), "
+                + "Map.of(\"name\", Map.of(\"type\", \"string\"), " + "\"age\", Map.of(\"type\", \"integer\"), "
                 + "\"active\", Map.of(\"type\", \"boolean\")), "
                 + "\"required\", List.of(\"name\", \"age\", \"active\"))";
         assertContainsSchema(schemas, "TestRecordPerson", expected);
@@ -449,8 +439,7 @@ public class SchemaGeneratorTest {
                 """;
         List<String> schemas = compileAndCapture(source);
         String expected = "Map.of(\"type\", \"object\", \"properties\", "
-                + "Map.of(\"name\", Map.of(\"type\", \"string\"), "
-                + "\"nickname\", Map.of(\"type\", \"string\")), "
+                + "Map.of(\"name\", Map.of(\"type\", \"string\"), " + "\"nickname\", Map.of(\"type\", \"string\")), "
                 + "\"required\", List.of(\"name\"))";
         assertContainsSchema(schemas, "TestRecordWithOptional", expected);
     }
@@ -467,17 +456,17 @@ public class SchemaGeneratorTest {
         String schema = paramSchemas.get(0);
         assertTrue(schema.contains("\"type\", \"object\""), "Should be object type: " + schema);
         assertTrue(schema.contains("\"query\", Map.of(\"type\", \"string\")"), "Should have query property: " + schema);
-        assertTrue(
-                schema.contains("\"limit\", Map.of(\"type\", \"integer\")"), "Should have limit property: " + schema);
-        assertTrue(
-                schema.contains("\"verbose\", Map.of(\"type\", \"boolean\")"),
+        assertTrue(schema.contains("\"limit\", Map.of(\"type\", \"integer\")"),
+                "Should have limit property: " + schema);
+        assertTrue(schema.contains("\"verbose\", Map.of(\"type\", \"boolean\")"),
                 "Should have verbose property: " + schema);
         assertTrue(schema.contains("\"required\", List.of("), "Should have required list: " + schema);
     }
 
     @Test
     void generatedSourceIsValidJava() {
-        // Verify that generated schema source code compiles when embedded in a method body
+        // Verify that generated schema source code compiles when embedded in a method
+        // body
         String source = """
                 import java.util.List;
                 import java.util.Map;
@@ -510,16 +499,14 @@ public class SchemaGeneratorTest {
         // Compile the validation source to verify syntactic validity
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        List<JavaFileObject> compilationUnits =
-                List.of(new InMemorySource("SchemaValidation", validationSource.toString()));
+        List<JavaFileObject> compilationUnits = List
+                .of(new InMemorySource("SchemaValidation", validationSource.toString()));
 
         JavaCompiler.CompilationTask task = compiler.getTask(null, null, diagnostics, null, null, compilationUnits);
         boolean success = task.call();
 
-        assertTrue(
-                success,
-                "Generated schema source code is not valid Java: "
-                        + diagnostics.getDiagnostics() + "\nSource:\n" + validationSource);
+        assertTrue(success, "Generated schema source code is not valid Java: " + diagnostics.getDiagnostics()
+                + "\nSource:\n" + validationSource);
     }
 
     @Test
@@ -550,8 +537,7 @@ public class SchemaGeneratorTest {
 
     private void assertContainsSchema(List<String> schemas, String methodName, String expectedSchema) {
         String expected = methodName + "=" + expectedSchema;
-        assertTrue(
-                schemas.stream().anyMatch(s -> s.equals(expected)),
+        assertTrue(schemas.stream().anyMatch(s -> s.equals(expected)),
                 "Expected schema '" + expected + "' not found in: " + schemas);
     }
 }

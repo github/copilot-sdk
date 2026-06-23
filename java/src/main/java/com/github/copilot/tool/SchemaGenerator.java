@@ -24,8 +24,10 @@ import javax.lang.model.util.Types;
  * Compile-time utility that maps {@code javax.lang.model} types to JSON Schema
  * represented as Java source code literals ({@code Map.of(...)} expressions).
  *
- * <p>This class is invoked by the annotation processor and operates exclusively
- * with the {@code javax.lang.model} API. It does NOT use {@code java.lang.reflect}.
+ * <p>
+ * This class is invoked by the annotation processor and operates exclusively
+ * with the {@code javax.lang.model} API. It does NOT use
+ * {@code java.lang.reflect}.
  *
  * @since 1.0.2
  */
@@ -33,12 +35,15 @@ public class SchemaGenerator {
 
     /**
      * Given a {@link TypeMirror} from the annotation processing environment,
-     * returns a {@code String} containing Java source code for a {@code Map} literal
-     * representing the JSON Schema of that type.
+     * returns a {@code String} containing Java source code for a {@code Map}
+     * literal representing the JSON Schema of that type.
      *
-     * @param type         the type to generate schema for
-     * @param typeUtils    the {@link Types} utility from the processing environment
-     * @param elementUtils the {@link Elements} utility from the processing environment
+     * @param type
+     *            the type to generate schema for
+     * @param typeUtils
+     *            the {@link Types} utility from the processing environment
+     * @param elementUtils
+     *            the {@link Elements} utility from the processing environment
      * @return a Java source code string representing the JSON Schema
      */
     public String generateSchemaSource(TypeMirror type, Types typeUtils, Elements elementUtils) {
@@ -47,15 +52,19 @@ public class SchemaGenerator {
 
     /**
      * Generates the full "parameters" schema source for a method's parameters.
-     * Produces a {@code Map.of("type", "object", "properties", Map.of(...), "required", List.of(...))}.
+     * Produces a
+     * {@code Map.of("type", "object", "properties", Map.of(...), "required", List.of(...))}.
      *
-     * @param parameters   the method parameters to generate schema for
-     * @param typeUtils    the {@link Types} utility from the processing environment
-     * @param elementUtils the {@link Elements} utility from the processing environment
+     * @param parameters
+     *            the method parameters to generate schema for
+     * @param typeUtils
+     *            the {@link Types} utility from the processing environment
+     * @param elementUtils
+     *            the {@link Elements} utility from the processing environment
      * @return a Java source code string representing the parameters JSON Schema
      */
-    public String generateParametersSchemaSource(
-            List<? extends VariableElement> parameters, Types typeUtils, Elements elementUtils) {
+    public String generateParametersSchemaSource(List<? extends VariableElement> parameters, Types typeUtils,
+            Elements elementUtils) {
         if (parameters.isEmpty()) {
             return "Map.of(\"type\", \"object\", \"properties\", Map.of(), \"required\", List.of())";
         }
@@ -116,19 +125,19 @@ public class SchemaGenerator {
 
     private String generatePrimitiveSchema(TypeKind kind) {
         switch (kind) {
-            case INT:
-            case LONG:
-            case BYTE:
-            case SHORT:
+            case INT :
+            case LONG :
+            case BYTE :
+            case SHORT :
                 return "Map.of(\"type\", \"integer\")";
-            case DOUBLE:
-            case FLOAT:
+            case DOUBLE :
+            case FLOAT :
                 return "Map.of(\"type\", \"number\")";
-            case BOOLEAN:
+            case BOOLEAN :
                 return "Map.of(\"type\", \"boolean\")";
-            case CHAR:
+            case CHAR :
                 return "Map.of(\"type\", \"string\")";
-            default:
+            default :
                 return "Map.of()";
         }
     }
@@ -220,8 +229,7 @@ public class SchemaGenerator {
         if (typeElement.getKind() == ElementKind.ENUM) {
             List<String> constants = typeElement.getEnclosedElements().stream()
                     .filter(e -> e.getKind() == ElementKind.ENUM_CONSTANT)
-                    .map(e -> "\"" + e.getSimpleName().toString() + "\"")
-                    .collect(Collectors.toList());
+                    .map(e -> "\"" + e.getSimpleName().toString() + "\"").collect(Collectors.toList());
             return "Map.of(\"type\", \"string\", \"enum\", List.of(" + String.join(", ", constants) + "))";
         }
 
@@ -256,8 +264,8 @@ public class SchemaGenerator {
                 boolean isOptional = isOptionalType(componentType, typeUtils, elementUtils);
                 String schema;
                 if (isOptional) {
-                    schema = generateSchema(
-                            unwrapOptional(componentType, typeUtils, elementUtils), typeUtils, elementUtils);
+                    schema = generateSchema(unwrapOptional(componentType, typeUtils, elementUtils), typeUtils,
+                            elementUtils);
                 } else {
                     schema = generateSchema(componentType, typeUtils, elementUtils);
                     requiredNames.add("\"" + name + "\"");
@@ -290,8 +298,8 @@ public class SchemaGenerator {
                 boolean isOptional = isOptionalType(fieldType, typeUtils, elementUtils);
                 String schema;
                 if (isOptional) {
-                    schema = generateSchema(
-                            unwrapOptional(fieldType, typeUtils, elementUtils), typeUtils, elementUtils);
+                    schema = generateSchema(unwrapOptional(fieldType, typeUtils, elementUtils), typeUtils,
+                            elementUtils);
                 } else {
                     schema = generateSchema(fieldType, typeUtils, elementUtils);
                     requiredNames.add("\"" + name + "\"");
@@ -314,8 +322,7 @@ public class SchemaGenerator {
     private String generateSealedSchema(TypeElement typeElement, Types typeUtils, Elements elementUtils) {
         List<? extends TypeMirror> permittedSubclasses = typeElement.getPermittedSubclasses();
         if (permittedSubclasses != null && !permittedSubclasses.isEmpty()) {
-            List<String> schemas = permittedSubclasses.stream()
-                    .map(sub -> generateSchema(sub, typeUtils, elementUtils))
+            List<String> schemas = permittedSubclasses.stream().map(sub -> generateSchema(sub, typeUtils, elementUtils))
                     .collect(Collectors.toList());
             return "Map.of(\"oneOf\", List.of(" + String.join(", ", schemas) + "))";
         }
@@ -329,10 +336,8 @@ public class SchemaGenerator {
         DeclaredType declaredType = (DeclaredType) type;
         TypeElement element = (TypeElement) declaredType.asElement();
         String name = element.getQualifiedName().toString();
-        return "java.util.Optional".equals(name)
-                || "java.util.OptionalInt".equals(name)
-                || "java.util.OptionalDouble".equals(name)
-                || "java.util.OptionalLong".equals(name);
+        return "java.util.Optional".equals(name) || "java.util.OptionalInt".equals(name)
+                || "java.util.OptionalDouble".equals(name) || "java.util.OptionalLong".equals(name);
     }
 
     private TypeMirror unwrapOptional(TypeMirror type, Types typeUtils, Elements elementUtils) {
@@ -362,8 +367,7 @@ public class SchemaGenerator {
     }
 
     private boolean isCollectionType(String qualifiedName) {
-        return "java.util.List".equals(qualifiedName)
-                || "java.util.Collection".equals(qualifiedName)
+        return "java.util.List".equals(qualifiedName) || "java.util.Collection".equals(qualifiedName)
                 || "java.util.Set".equals(qualifiedName);
     }
 
