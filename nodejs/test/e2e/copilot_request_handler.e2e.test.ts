@@ -184,7 +184,6 @@ function buildResponsesEvents(text: string, id: string): Array<Record<string, un
     ];
 }
 
-/**
 interface Counters {
     httpRequests: number;
     httpResponses: number;
