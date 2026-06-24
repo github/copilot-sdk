@@ -28,6 +28,12 @@ package com.github.copilot.rpc;
 public abstract sealed class SystemMessageSections permits SystemPromptSections {
 
     /** Agent identity preamble and mode statement. */
+    public static final String PREAMBLE = "preamble";
+
+    /**
+     * Section group covering the identity preamble and its sibling sub-sections
+     * (tone, tool efficiency, etc.).
+     */
     public static final String IDENTITY = "identity";
 
     /** Response style, conciseness rules, output formatting preferences. */

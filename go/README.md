@@ -165,7 +165,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
   - **append** (default): Appends `Content` after the SDK-managed prompt
   - **replace**: Replaces the entire prompt with `Content`
-  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
+  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionPreamble`, `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
@@ -238,14 +238,17 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 })
 ```
 
-Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`.
+Available section constants: `SectionPreamble`, `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`.
 
-Each section override supports four actions:
+`SectionIdentity` and `SectionToolInstructions` are section _groups_ that target a collection of related sub-sections as a unit. Use `SectionPreamble` to target just the identity preamble without affecting its sibling sub-sections.
+
+Each section override supports five actions:
 
 - **`replace`** — Replace the section content entirely
 - **`remove`** — Remove the section from the prompt
 - **`append`** — Add content after the existing section
 - **`prepend`** — Add content before the existing section
+- **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
 
 Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 

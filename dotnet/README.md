@@ -677,9 +677,9 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-Available section IDs are defined as static properties on the `SystemMessageSection` struct: `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `RuntimeInstructions`, `LastInstructions`.
+Available section IDs are defined as static properties on the `SystemMessageSection` struct: `Preamble`, `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `RuntimeInstructions`, `LastInstructions`. `Identity` and `ToolInstructions` are section groups that target a collection of related sub-sections as a unit; use `Preamble` to target just the identity preamble.
 
-Each section override supports four actions: `Replace`, `Remove`, `Append`, and `Prepend`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
+Each section override supports five actions: `Replace`, `Remove`, `Append`, `Prepend`, and `Preserve` (a no-op that opts an individually-addressable section out of a group-level `Remove`). Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
 
 #### Replace Mode
 
