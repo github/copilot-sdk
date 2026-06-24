@@ -490,6 +490,13 @@ export class CopilotClient {
         }
     }
 
+    private logDebug(message: string): void {
+        const level = this.options.logLevel?.toLowerCase();
+        if (level === "debug" || level === "all") {
+            process.stderr.write(`[copilot-sdk] ${message}\n`);
+        }
+    }
+
     /**
      * Creates a new CopilotClient instance.
      *
@@ -2304,10 +2311,19 @@ export class CopilotClient {
             throw new Error("CLI process not started");
         }
 
-        // Add error handler to stdin to prevent unhandled rejections during forceStop
+        // Keep stdin pipe errors inside the normal JSON-RPC teardown path.
+        // Preserve the failure reason via the gated debug log rather than discarding it.
         this.cliProcess.stdin?.on("error", (err) => {
-            if (!this.forceStopping) {
-                throw err;
+            if (this.forceStopping) {
+                return;
+            }
+            this.state = "error";
+            const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+            this.logDebug(`stdin pipe error: ${reason}`);
+            try {
+                this.connection?.dispose();
+            } catch {
+                // The connection may already be closing after the child process exited.
             }
         });
 

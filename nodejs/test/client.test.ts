@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { PassThrough } from "stream";
 import {
     approveAll,
     CopilotClient,
@@ -14,6 +15,22 @@ import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
+    it("disposes the stdio connection when child stdin emits an error", async () => {
+        const client = new CopilotClient();
+        onTestFinished(() => client.forceStop());
+
+        const stdin = new PassThrough();
+        const stdout = new PassThrough();
+        (client as any).cliProcess = { stdin, stdout };
+        await (client as any).connectToChildProcessViaStdio();
+
+        const dispose = vi.spyOn((client as any).connection, "dispose");
+
+        const boom = new Error("broken pipe");
+        expect(() => stdin.emit("error", boom)).not.toThrow();
+        expect(dispose).toHaveBeenCalledOnce();
+    });
+
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
         const session = new CopilotSession("session-1", {} as any);
         session.registerPermissionHandler(() => ({ kind: "no-result" }));
