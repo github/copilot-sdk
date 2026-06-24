@@ -134,7 +134,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         // Helper method for adding description/default to schema maps
         if (needsWithMetaHelper(methods)) {
             out.println(
-                    "    private static Map<String, Object> withMeta(Map<String, Object> base, String description, String defaultValue) {");
+                    "    private static Map<String, Object> withMeta(Map<String, Object> base, String description, Object defaultValue) {");
             out.println("        var result = new LinkedHashMap<String, Object>(base);");
             out.println("        if (description != null) result.put(\"description\", description);");
             out.println("        if (defaultValue != null) result.put(\"default\", defaultValue);");
@@ -238,7 +238,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                     processingEnv.getElementUtils());
 
             // Build property schema with description and default if present
-            String propertySchema = buildPropertySchema(typeSchema, paramAnnotation);
+            String propertySchema = buildPropertySchema(typeSchema, paramAnnotation, paramType);
 
             // Cast to Map<String, Object> via raw type for consistent Map.ofEntries typing
             propertyEntries.add("Map.entry(\"" + paramName + "\", (Map<String, Object>)(Map) " + propertySchema + ")");
@@ -255,7 +255,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
     }
 
-    private String buildPropertySchema(String typeSchema, Param paramAnnotation) {
+    private String buildPropertySchema(String typeSchema, Param paramAnnotation, TypeMirror paramType) {
         if (paramAnnotation == null) {
             return typeSchema;
         }
@@ -272,7 +272,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
         // Use the withMeta helper method in the generated class
         String descArg = hasDescription ? "\"" + escapeJava(desc) + "\"" : "null";
-        String defaultArg = hasDefault ? "\"" + escapeJava(defaultValue) + "\"" : "null";
+        String defaultArg = hasDefault ? generateDefaultLiteral(paramType, defaultValue) : "null";
 
         return "withMeta(" + typeSchema + ", " + descArg + ", " + defaultArg + ")";
     }

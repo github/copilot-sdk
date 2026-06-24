@@ -6,6 +6,7 @@ package com.github.copilot.tool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -286,6 +287,41 @@ class CopilotToolProcessorTest {
         assertTrue(generated.contains("\"properties\""), "Expected properties in schema");
         assertTrue(generated.contains("\"required\""), "Expected required in schema");
         assertTrue(generated.contains("\"query\""), "Expected query property");
+    }
+
+    // ── Test: Typed default values in schema ────────────────────────────────────
+
+    @Test
+    void emitsTypedDefaultValuesInSchema() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class DefaultTools {
+                    @CopilotTool("Tool with defaults")
+                    public String doWork(
+                            @Param(value = "Limit", required = false, defaultValue = "10") int limit,
+                            @Param(value = "Enabled", required = false, defaultValue = "true") boolean enabled,
+                            @Param(value = "Label", required = false, defaultValue = "hello") String label) {
+                        return "done";
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.DefaultTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.DefaultTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for DefaultTools$$CopilotToolMeta");
+
+        // Numeric default should be an unquoted literal, not a string
+        assertTrue(generated.contains("withMeta(") && generated.contains(", 10)"),
+                "Expected numeric default 10 as typed literal, not string. Generated:\n" + generated);
+        // Boolean default should be an unquoted literal
+        assertTrue(generated.contains(", true)"),
+                "Expected boolean default true as typed literal, not string. Generated:\n" + generated);
+        // String default should remain a quoted string
+        assertTrue(generated.contains(", \"hello\")"),
+                "Expected string default \"hello\" as quoted string. Generated:\n" + generated);
     }
 
     // ── Test: package-private methods are allowed ───────────────────────────────
