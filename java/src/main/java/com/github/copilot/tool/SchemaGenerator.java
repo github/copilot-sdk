@@ -76,10 +76,10 @@ public class SchemaGenerator {
             String paramName = param.getSimpleName().toString();
             TypeMirror paramType = param.asType();
 
-            boolean isOptional = isOptionalType(paramType, typeUtils, elementUtils);
+            boolean isOptional = isOptionalType(paramType);
             String schema;
             if (isOptional) {
-                schema = generateSchema(unwrapOptional(paramType, typeUtils, elementUtils), typeUtils, elementUtils);
+                schema = generateSchema(unwrapOptional(paramType, typeUtils), typeUtils, elementUtils);
             } else {
                 schema = generateSchema(paramType, typeUtils, elementUtils);
             }
@@ -268,11 +268,10 @@ public class SchemaGenerator {
                 String name = component.getSimpleName().toString();
                 TypeMirror componentType = component.asType();
 
-                boolean isOptional = isOptionalType(componentType, typeUtils, elementUtils);
+                boolean isOptional = isOptionalType(componentType);
                 String schema;
                 if (isOptional) {
-                    schema = generateSchema(unwrapOptional(componentType, typeUtils, elementUtils), typeUtils,
-                            elementUtils);
+                    schema = generateSchema(unwrapOptional(componentType, typeUtils), typeUtils, elementUtils);
                 } else {
                     schema = generateSchema(componentType, typeUtils, elementUtils);
                     requiredNames.add("\"" + name + "\"");
@@ -302,11 +301,10 @@ public class SchemaGenerator {
                 String name = field.getSimpleName().toString();
                 TypeMirror fieldType = field.asType();
 
-                boolean isOptional = isOptionalType(fieldType, typeUtils, elementUtils);
+                boolean isOptional = isOptionalType(fieldType);
                 String schema;
                 if (isOptional) {
-                    schema = generateSchema(unwrapOptional(fieldType, typeUtils, elementUtils), typeUtils,
-                            elementUtils);
+                    schema = generateSchema(unwrapOptional(fieldType, typeUtils), typeUtils, elementUtils);
                 } else {
                     schema = generateSchema(fieldType, typeUtils, elementUtils);
                     requiredNames.add("\"" + name + "\"");
@@ -336,7 +334,7 @@ public class SchemaGenerator {
         return "Map.of(\"type\", \"object\")";
     }
 
-    private boolean isOptionalType(TypeMirror type, Types typeUtils, Elements elementUtils) {
+    private boolean isOptionalType(TypeMirror type) {
         if (type.getKind() != TypeKind.DECLARED) {
             return false;
         }
@@ -347,7 +345,7 @@ public class SchemaGenerator {
                 || "java.util.OptionalDouble".equals(name) || "java.util.OptionalLong".equals(name);
     }
 
-    private TypeMirror unwrapOptional(TypeMirror type, Types typeUtils, Elements elementUtils) {
+    private TypeMirror unwrapOptional(TypeMirror type, Types typeUtils) {
         if (type.getKind() != TypeKind.DECLARED) {
             return type;
         }

@@ -27,6 +27,6 @@ class ErgonomicTestTools {
 
     @CopilotTool("Search for items by keyword")
     public String searchItems(@Param("Search keyword") String keyword) {
-        return "Found: item_alpha, item_beta";
+        return "Found: " + keyword + " -> item_alpha, item_beta";
     }
 }
