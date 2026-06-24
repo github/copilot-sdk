@@ -1,13 +1,13 @@
-# Error Handling Hook
+# Error handling hook
 
 The `onErrorOccurred` hook is called when errors occur during session execution. Use it to:
 
-- Implement custom error logging
-- Track error patterns
-- Provide user-friendly error messages
-- Trigger alerts for critical errors
+* Implement custom error logging
+* Track error patterns
+* Provide user-friendly error messages
+* Trigger alerts for critical errors
 
-## Hook Signature
+## Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -84,7 +84,7 @@ type ErrorOccurredHandler func(
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
     ErrorOccurredHookInput input,
@@ -102,6 +102,7 @@ public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // Note: Java SDK does not have an onErrorOccurred hook.
 // Use EventErrorPolicy and EventErrorHandler instead:
@@ -139,7 +140,7 @@ Return `null` or `undefined` to use default error handling. Otherwise, return an
 
 ## Examples
 
-### Basic Error Logging
+### Basic error logging
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -226,7 +227,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class ErrorHandlingExample
 {
@@ -271,9 +272,10 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
 
 // Note: Java SDK does not have an onErrorOccurred hook.
 // Use EventErrorPolicy and EventErrorHandler instead:
@@ -292,7 +294,7 @@ session.setEventErrorHandler((event, ex) -> {
 
 </details>
 
-### Send Errors to Monitoring Service
+### Send errors to monitoring service
 
 ```typescript
 import { captureException } from "@sentry/node"; // or your monitoring service
@@ -318,7 +320,7 @@ const session = await client.createSession({
 });
 ```
 
-### User-Friendly Error Messages
+### User-friendly error messages
 
 ```typescript
 const ERROR_MESSAGES: Record<string, string> = {
@@ -345,7 +347,7 @@ const session = await client.createSession({
 });
 ```
 
-### Suppress Non-Critical Errors
+### Suppress non-critical errors
 
 ```typescript
 const session = await client.createSession({
@@ -362,7 +364,7 @@ const session = await client.createSession({
 });
 ```
 
-### Add Recovery Context
+### Add recovery context
 
 ```typescript
 const session = await client.createSession({
@@ -393,7 +395,7 @@ The tool failed. Here are some recovery suggestions:
 });
 ```
 
-### Track Error Patterns
+### Track error patterns
 
 ```typescript
 interface ErrorStats {
@@ -432,7 +434,7 @@ const session = await client.createSession({
 });
 ```
 
-### Alert on Critical Errors
+### Alert on critical errors
 
 ```typescript
 const CRITICAL_CONTEXTS = ["system", "model_call"];
@@ -456,7 +458,7 @@ const session = await client.createSession({
 });
 ```
 
-### Combine with Other Hooks for Context
+### Combine with other hooks for context
 
 ```typescript
 const sessionContext = new Map<string, { lastTool?: string; lastPrompt?: string }>();
@@ -496,22 +498,22 @@ const session = await client.createSession({
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Always log errors** - Even if you suppress them from users, keep logs for debugging.
 
-2. **Categorize errors** - Use `errorType` to handle different errors appropriately.
+1. **Categorize errors** - Use `errorType` to handle different errors appropriately.
 
-3. **Don't swallow critical errors** - Only suppress errors you're certain are non-critical.
+1. **Don't swallow critical errors** - Only suppress errors you're certain are non-critical.
 
-4. **Keep hooks fast** - Error handling shouldn't slow down recovery.
+1. **Keep hooks fast** - Error handling shouldn't slow down recovery.
 
-5. **Provide helpful context** - When errors occur, `additionalContext` can help the model recover.
+1. **Provide helpful context** - When errors occur, `additionalContext` can help the model recover.
 
-6. **Monitor error patterns** - Track recurring errors to identify systemic issues.
+1. **Monitor error patterns** - Track recurring errors to identify systemic issues.
 
-## See Also
+## See also
 
-- [Hooks Overview](./index.md)
-- [Session Lifecycle Hooks](./session-lifecycle.md)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Hooks Overview](./README.md)
+* [Session Lifecycle Hooks](./session-lifecycle.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

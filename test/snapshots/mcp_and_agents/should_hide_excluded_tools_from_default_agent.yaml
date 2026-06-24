@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Do you have access to a tool called secret_tool? Answer yes or no.
+      - role: assistant
+        content: No, I don't have access to a tool called secret_tool.

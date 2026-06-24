@@ -1,6 +1,6 @@
-# Streaming Session Events
+# Streaming session events
 
-Every action the Copilot agent takes — thinking, writing code, running tools — is emitted as a **session event** you can subscribe to. This guide is a field-level reference for each event type so you know exactly what data to expect without reading the SDK source.
+Every action the Copilot agent takes—thinking, writing code, running tools—is emitted as a **session event** you can subscribe to. This guide is a field-level reference for each event type so you know exactly what data to expect without reading the SDK source.
 
 ## Overview
 
@@ -47,7 +47,7 @@ sequenceDiagram
 | **Delta event** | An ephemeral streaming chunk (text or reasoning). Accumulate deltas to build the complete content. |
 | **`parentId` chain** | Each event's `parentId` points to the previous event, forming a linked list you can walk. |
 
-## Event Envelope
+## Event envelope
 
 Every session event, regardless of type, includes these fields:
 
@@ -60,7 +60,7 @@ Every session event, regardless of type, includes these fields:
 | `type` | `string` | Event type discriminator (see tables below) |
 | `data` | `object` | Event-specific payload |
 
-## Subscribing to Events
+## Subscribing to events
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -85,7 +85,7 @@ session.on("assistant.message_delta", (event) => {
 <!-- docs-validate: hidden -->
 ```python
 from copilot import CopilotClient
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 
 client = CopilotClient()
 
@@ -100,7 +100,7 @@ def handle(event):
 <!-- /docs-validate: hidden -->
 
 ```python
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 
 def handle(event):
     if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
@@ -122,6 +122,7 @@ import (
 	"context"
 	"fmt"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -130,9 +131,9 @@ func main() {
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
-		Streaming: true,
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		Streaming: copilot.Bool(true),
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 	})
 
@@ -161,13 +162,13 @@ session.On(func(event copilot.SessionEvent) {
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class StreamingEventsExample
 {
     public static async Task Example(CopilotSession session)
     {
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is AssistantMessageDeltaEvent delta)
             {
@@ -180,7 +181,7 @@ public static class StreamingEventsExample
 <!-- /docs-validate: hidden -->
 
 ```csharp
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     if (evt is AssistantMessageDeltaEvent delta)
     {
@@ -194,6 +195,7 @@ session.On(evt =>
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // All events
 session.on(event -> System.out.println(event.getType()));
@@ -206,17 +208,18 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 
 </details>
 
-> **Tip (Python / Go):** These SDKs use a single `Data` class/struct with all possible fields as optional/nullable. Only the fields listed in the tables below are populated for each event type — the rest will be `None` / `nil`.
+> [!TIP]
+> **(Python / Go)** These SDKs use a single `Data` class/struct with all possible fields as optional/nullable. Only the fields listed in the tables below are populated for each event type—the rest will be `None` / `nil`.
 >
-> **Tip (.NET):** The .NET SDK uses separate, strongly-typed data classes per event (e.g., `AssistantMessageDeltaData`), so only the relevant fields exist on each type.
+> [!TIP]
+> **(.NET)** The .NET SDK uses separate, strongly-typed data classes per event (e.g., `AssistantMessageDeltaData`), so only the relevant fields exist on each type.
 >
-> **Tip (TypeScript):** The TypeScript SDK uses a discriminated union — when you match on `event.type`, the `data` payload is automatically narrowed to the correct shape.
+> [!TIP]
+> **(TypeScript)** The TypeScript SDK uses a discriminated union—when you match on `event.type`, the `data` payload is automatically narrowed to the correct shape.
 
----
+## Assistant events
 
-## Assistant Events
-
-These events track the agent's response lifecycle — from turn start through streaming chunks to the final message.
+These events track the agent's response lifecycle—from turn start through streaming chunks to the final message.
 
 ### `assistant.turn_start`
 
@@ -312,6 +315,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 | `duration` | `number` | | API call duration in milliseconds |
 | `initiator` | `string` | | What triggered this call (e.g., `"sub-agent"`); absent for user-initiated |
 | `apiCallId` | `string` | | Completion ID from the provider (e.g., `chatcmpl-abc123`) |
+| `apiEndpoint` | `"/chat/completions" \| "/v1/messages" \| "/responses" \| "ws:/responses"` | | API endpoint used for the model call; useful for observability and cost attribution. `ws:/responses` is the websocket variant of the responses API |
 | `providerCallId` | `string` | | GitHub request tracing ID (`x-github-request-id`) |
 | `parentToolCallId` | `string` | | Set when usage originates from a sub-agent |
 | `quotaSnapshots` | `Record<string, QuotaSnapshot>` | | Per-quota resource usage, keyed by quota identifier |
@@ -319,17 +323,15 @@ Ephemeral. Token usage and cost information for an individual API call.
 
 ### `assistant.streaming_delta`
 
-Ephemeral. Low-level network progress indicator — total bytes received from the streaming API response.
+Ephemeral. Low-level network progress indicator—total bytes received from the streaming API response.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `totalResponseSizeBytes` | `number` | ✅ | Cumulative bytes received so far |
 
----
+## Tool execution events
 
-## Tool Execution Events
-
-These events track the full lifecycle of each tool invocation — from the model requesting a tool call through execution to completion.
+These events track the full lifecycle of each tool invocation—from the model requesting a tool call through execution to completion.
 
 ### `tool.execution_start`
 
@@ -364,7 +366,7 @@ Ephemeral. Human-readable progress status from a running tool (e.g., MCP server 
 
 ### `tool.execution_complete`
 
-Emitted when a tool finishes executing — successfully or with an error.
+Emitted when a tool finishes executing—successfully or with an error.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
@@ -396,9 +398,7 @@ Emitted when the user explicitly requests a tool invocation (rather than the mod
 | `toolName` | `string` | ✅ | Name of the tool the user wants to invoke |
 | `arguments` | `object` | | Arguments for the invocation |
 
----
-
-## Session Lifecycle Events
+## Session lifecycle events
 
 ### `session.idle`
 
@@ -495,9 +495,7 @@ The session has ended.
 | `modelMetrics` | `Record<string, ModelMetric>` | ✅ | Per-model usage breakdown |
 | `currentModel` | `string` | | Model selected at shutdown time |
 
----
-
-## Permission & User Input Events
+## Permission and user input events
 
 These events are emitted when the agent needs approval or input from the user before continuing.
 
@@ -571,9 +569,7 @@ Ephemeral. An elicitation request was resolved.
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `elicitation.requested` |
 
----
-
-## Sub-Agent & Skill Events
+## Sub-agent and skill events
 
 ### `subagent.started`
 
@@ -634,9 +630,7 @@ A skill was activated for the current conversation.
 | `pluginName` | `string` | | Plugin the skill originated from |
 | `pluginVersion` | `string` | | Plugin version |
 
----
-
-## Other Events
+## Other events
 
 ### `abort`
 
@@ -727,9 +721,7 @@ Ephemeral. A queued command was resolved.
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `command.queued` |
 
----
-
-## Quick Reference: Agentic Turn Flow
+## Quick reference: agentic turn flow
 
 A typical agentic turn emits events in this order:
 
@@ -756,7 +748,7 @@ assistant.turn_end            → Turn complete
 session.idle                  → Ready for next message (ephemeral)
 ```
 
-## All Event Types at a Glance
+## All event types at a glance
 
 | Event Type | Ephemeral | Category | Key Data Fields |
 |------------|-----------|----------|-----------------|
@@ -768,7 +760,7 @@ session.idle                  → Ready for next message (ephemeral)
 | `assistant.message` | | Assistant | `messageId`, `content`, `toolRequests?`, `outputTokens?`, `phase?` |
 | `assistant.message_delta` | ✅ | Assistant | `messageId`, `deltaContent`, `parentToolCallId?` |
 | `assistant.turn_end` | | Assistant | `turnId` |
-| `assistant.usage` | ✅ | Assistant | `model`, `inputTokens?`, `outputTokens?`, `cost?`, `duration?` |
+| `assistant.usage` | ✅ | Assistant | `model`, `apiEndpoint?`, `inputTokens?`, `outputTokens?`, `cost?`, `duration?` |
 | `tool.user_requested` | | Tool | `toolCallId`, `toolName`, `arguments?` |
 | `tool.execution_start` | | Tool | `toolCallId`, `toolName`, `arguments?`, `mcpServerName?` |
 | `tool.execution_partial_result` | ✅ | Tool | `toolCallId`, `partialOutput` |

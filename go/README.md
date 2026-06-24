@@ -2,7 +2,12 @@
 
 A Go SDK for programmatic access to the GitHub Copilot CLI.
 
-> **Note:** This SDK is in public preview and may change in breaking ways.
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Go 1.24 or later
+- GitHub Copilot CLI installed and in `PATH` (or set `COPILOT_CLI_PATH`)
 
 ## Installation
 
@@ -17,6 +22,12 @@ Try the interactive chat sample (from the repo root):
 ```bash
 cd go/samples
 go run chat.go
+```
+
+The manual permission/tool-result resume sample can be run from the same directory:
+
+```bash
+go run ./manual_tool_resume
 ```
 
 ## Quick Start
@@ -44,7 +55,7 @@ func main() {
     }
     defer client.Stop()
 
-    // Create a session (OnPermissionRequest is required)
+    // Create a session (OnPermissionRequest is optional; ApproveAll allows every tool)
     session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Model:               "gpt-5",
         OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -88,7 +99,7 @@ Follow these steps to embed the CLI:
 1. Run `go get -tool github.com/github/copilot-sdk/go/cmd/bundler`. This is a one-time setup step per project.
 2. Run `go tool bundler` in your build environment just before building your application.
 
-That's it! When your application calls `copilot.NewClient` without a `CLIPath` nor the `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
+That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`) and no `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
 
 ## API Reference
 
@@ -98,14 +109,14 @@ That's it! When your application calls `copilot.NewClient` without a `CLIPath` n
 - `Start(ctx context.Context) error` - Start the CLI server
 - `Stop() error` - Stop the CLI server
 - `ForceStop()` - Forcefully stop without graceful cleanup
-- `CreateSession(config *SessionConfig) (*Session, error)` - Create a new session
-- `ResumeSession(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
-- `ResumeSessionWithOptions(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
-- `ListSessions(filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
-- `DeleteSession(sessionID string) error` - Delete a session permanently
+- `CreateSession(ctx context.Context, config *SessionConfig) (*Session, error)` - Create a new session
+- `ResumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
+- `ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
+- `ListSessions(ctx context.Context, filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
+- `DeleteSession(ctx context.Context, sessionID string) error` - Delete a session permanently
 - `GetLastSessionID(ctx context.Context) (*string, error)` - Get the ID of the most recently updated session
-- `GetState() ConnectionState` - Get connection state
-- `Ping(message string) (*PingResponse, error)` - Ping the server
+- `Ping(ctx context.Context, message string) (*PingResponse, error)` - Ping the server
+- `RuntimePort() int` - TCP port the runtime is listening on (0 if stdio)
 - `GetForegroundSessionID(ctx context.Context) (*string, error)` - Get the session ID currently displayed in TUI (TUI+server mode only)
 - `SetForegroundSessionID(ctx context.Context, sessionID string) error` - Request TUI to display a specific session (TUI+server mode only)
 - `On(handler SessionLifecycleHandler) func()` - Subscribe to all lifecycle events; returns unsubscribe function
@@ -130,17 +141,20 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 **ClientOptions:**
 
-- `CLIPath` (string): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
-- `CLIUrl` (string): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `Cwd` (string): Working directory for CLI process
-- `Port` (int): Server port for TCP mode (default: 0 for random)
-- `UseStdio` (bool): Use stdio transport instead of TCP (default: true)
-- `LogLevel` (string): Log level (default: "info")
-- `AutoStart` (\*bool): Auto-start server on first use (default: true). Use `Bool(false)` to disable.
-- `Env` ([]string): Environment variables for CLI process (default: inherits from current process)
+- `Connection` (RuntimeConnection): How the SDK connects to the runtime. Construct via one of:
+  - `StdioConnection{Path, Args}` — spawn a runtime over stdio (the default if `Connection` is nil)
+  - `TCPConnection{Port, ConnectionToken, Path, Args}` — spawn a runtime that listens on TCP
+  - `URIConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
+
+  When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
+- `WorkingDirectory` (string): Working directory for the runtime process
+- `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
+- `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
+- `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CLIUrl`.
-- `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `URIConnection`.
+- `EnableRemoteSessions` (bool): Enable remote session support (Mission Control integration). Ignored with `URIConnection`.
+- `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the runtime. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 
 **SessionConfig:**
 
@@ -151,11 +165,11 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
   - **append** (default): Appends `Content` after the SDK-managed prompt
   - **replace**: Replaces the entire prompt with `Content`
-  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
+  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionPreamble`, `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
-- `Streaming` (bool): Enable streaming delta events
+- `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
-- `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
@@ -163,11 +177,11 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 **ResumeSessionConfig:**
 
-- `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 - `Tools` ([]Tool): Tools to expose when resuming
 - `ReasoningEffort` (string): Reasoning effort level for models that support it
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
-- `Streaming` (bool): Enable streaming delta events
+- `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `Commands` ([]CommandDefinition): Slash-commands. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Elicitation handler. See [Elicitation Requests](#elicitation-requests-serverclient) section.
 
@@ -176,15 +190,14 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Send(ctx context.Context, options MessageOptions) (string, error)` - Send a message
 - `On(handler SessionEventHandler) func()` - Subscribe to events (returns unsubscribe function)
 - `Abort(ctx context.Context) error` - Abort the currently processing message
-- `GetMessages(ctx context.Context) ([]SessionEvent, error)` - Get message history
+- `GetEvents(ctx context.Context) ([]SessionEvent, error)` - Get event history
 - `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
-- `Destroy() error` - _(Deprecated)_ Use `Disconnect()` instead
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
 ### Helper Functions
 
-- `Bool(v bool) *bool` - Helper to create bool pointers for `AutoStart` option
+- `Bool(v bool) *bool` - Helper to create bool pointers (e.g. for `Streaming`)
 - `Int(v int) *int` - Helper to create int pointers for `MinLength`, `MaxLength`
 - `String(v string) *string` - Helper to create string pointers
 - `Float64(v float64) *float64` - Helper to create float64 pointers
@@ -225,14 +238,17 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 })
 ```
 
-Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`.
+Available section constants: `SectionPreamble`, `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`.
 
-Each section override supports four actions:
+`SectionIdentity` and `SectionToolInstructions` are section _groups_ that target a collection of related sub-sections as a unit. Use `SectionPreamble` to target just the identity preamble without affecting its sibling sub-sections.
+
+Each section override supports five actions:
 
 - **`replace`** — Replace the section content entirely
 - **`remove`** — Remove the section from the prompt
 - **`append`** — Add content after the existing section
 - **`prepend`** — Add content before the existing section
+- **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
 
 Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
@@ -245,9 +261,9 @@ The SDK supports image attachments via the `Attachments` field in `MessageOption
 _, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
-        {
-            Type: "file",
-            Path: "/path/to/image.jpg",
+        &copilot.AttachmentFile{
+            DisplayName: "image.jpg",
+            Path:        "/path/to/image.jpg",
         },
     },
 })
@@ -257,10 +273,9 @@ mimeType := "image/png"
 _, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
-        {
-            Type:     copilot.AttachmentTypeBlob,
-            Data:     &base64ImageData,
-            MIMEType: &mimeType,
+        &copilot.AttachmentBlob{
+            Data:     base64ImageData,
+            MIMEType: mimeType,
         },
     },
 })
@@ -367,6 +382,18 @@ safeLookup := copilot.DefineTool("safe_lookup", "A read-only lookup that needs n
 safeLookup.SkipPermission = true
 ```
 
+#### Deferring Tools
+
+Set `Defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `copilot.ToolDeferAuto` to allow the tool to be deferred and surfaced through tool search, or `copilot.ToolDeferNever` to force it to always be pre-loaded. Defaults to `copilot.ToolDeferAuto`.
+
+```go
+lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details",
+    func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
+        // your logic
+    })
+lookupIssue.Defer = copilot.ToolDeferAuto
+```
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:
@@ -392,7 +419,7 @@ func main() {
 
     session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Model:     "gpt-5",
-        Streaming: true,
+        Streaming: copilot.Bool(true),
     })
     if err != nil {
         log.Fatal(err)
@@ -433,7 +460,7 @@ func main() {
 }
 ```
 
-When `Streaming: true`:
+When `Streaming: copilot.Bool(true)`:
 
 - `assistant.message_delta` events are sent with `DeltaContent` containing incremental text
 - `assistant.reasoning_delta` events are sent with `DeltaContent` for reasoning/chain-of-thought (model-dependent)
@@ -480,6 +507,33 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+## Memory
+
+Sessions can opt in to the memory feature, which lets the agent persist and recall
+information across turns. Provide a `MemoryConfiguration` on session create or resume;
+when omitted, the runtime default applies. In the default `ModeCopilotCli` client mode the
+SDK leaves `Memory` unset so the runtime applies its own default, while `ModeEmpty`
+defaults `Memory` to disabled unless you set it explicitly.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
+
+```go
+// Enable memory for a session
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    Memory: &copilot.MemoryConfiguration{
+        Enabled: true,
+    },
+})
+
+// Disable memory for a session
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    Memory: &copilot.MemoryConfiguration{
+        Enabled: false,
+    },
+})
+```
+
 ## Custom Providers
 
 The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `Model` explicitly.
@@ -490,7 +544,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `BaseURL` (string): API endpoint URL (required)
 - `APIKey` (string): API key (optional for local providers like Ollama)
 - `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
-- `WireApi` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
+- `WireAPI` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
 - `Azure.APIVersion` (string): Azure API version (default: "2024-10-21")
 
 **Example with Ollama:**
@@ -556,6 +610,7 @@ client, err := copilot.NewClient(copilot.ClientOptions{
 **TelemetryConfig fields:**
 
 - `OTLPEndpoint` (string): OTLP HTTP endpoint URL
+- `OTLPProtocol` (string): OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
 - `FilePath` (string): File path for JSON-lines trace output
 - `ExporterType` (string): `"otlp-http"` or `"file"`
 - `SourceName` (string): Instrumentation scope name
@@ -569,7 +624,7 @@ Dependency: `go.opentelemetry.io/otel`
 
 ## Permission Handling
 
-An `OnPermissionRequest` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+An `OnPermissionRequest` handler is optional when you create or resume a session. When provided, it is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When nil, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
 
 ### Approve All (simplest)
 
@@ -587,46 +642,43 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic:
 
 ```go
+import (
+    "fmt"
+
+    copilot "github.com/github/copilot-sdk/go"
+    "github.com/github/copilot-sdk/go/rpc"
+)
+
 session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
-    OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-        // request.Kind — what type of operation is being requested:
-        //   copilot.KindShell  — executing a shell command
-        //   copilot.Write      — writing or editing a file
-        //   copilot.Read       — reading a file
-        //   copilot.MCP        — calling an MCP tool
-        //   copilot.CustomTool — calling one of your registered tools
-        //   copilot.URL        — fetching a URL
-        //   copilot.Memory     — accessing or updating Copilot-managed memory
-        //   copilot.Hook       — invoking a registered hook
-        // request.ToolCallID  — pointer to the tool call that triggered this request
-        // request.ToolName    — pointer to the name of the tool (for custom-tool / mcp)
-        // request.FileName    — pointer to the file being written (for write)
-        // request.FullCommandText — pointer to the full shell command (for shell)
-
-        if request.Kind == copilot.KindShell {
-            // Deny shell commands
-            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
+    OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+        // Type-switch on the discriminated PermissionRequest variants to
+        // access per-kind fields:
+        if shell, ok := request.(*copilot.PermissionRequestShell); ok {
+            feedback := fmt.Sprintf("Refusing shell: %s", shell.FullCommandText)
+            return &rpc.PermissionDecisionReject{Feedback: &feedback}, nil
         }
-
-        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+        return &rpc.PermissionDecisionApproveOnce{}, nil
     },
 })
 ```
 
-### Permission Result Kinds
+### Permission Decisions
 
-| Constant                                                   | Meaning                                                                                 |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `PermissionRequestResultKindApproved`                      | Allow the tool to run                                                                   |
-| `PermissionRequestResultKindDeniedInteractivelyByUser`     | User explicitly denied the request                                                      |
-| `PermissionRequestResultKindDeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked                                    |
-| `PermissionRequestResultKindDeniedByRules`                 | Denied by a policy rule                                                                 |
-| `PermissionRequestResultKindNoResult`                      | Leave the permission request unanswered (protocol v1 only; not allowed for protocol v2) |
+The handler returns an `rpc.PermissionDecision` — a sealed interface implemented by every decision variant:
+
+| Variant                                  | Meaning                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `&rpc.PermissionDecisionApproveOnce{}`   | Allow this single request                                                          |
+| `&rpc.PermissionDecisionReject{...}`     | Deny the request (set `Feedback` to forward a message to the LLM)                  |
+| `&rpc.PermissionDecisionUserNotAvailable{}` | Deny because no user is available to confirm                                    |
+| `&rpc.PermissionDecisionNoResult{}`      | Decline to respond, allowing another connected client to answer instead            |
+
+Richer decisions (`PermissionDecisionApproveForSession`, `PermissionDecisionApproveForLocation`, `PermissionDecisionApprovePermanently`) carry per-kind approval payloads — instantiate the variant struct directly.
 
 ### Resuming Sessions
 
-Pass `OnPermissionRequest` when resuming a session too — it is required:
+You may pass `OnPermissionRequest` when resuming a session too:
 
 ```go
 session, err := client.ResumeSession(context.Background(), sessionID, &copilot.ResumeSessionConfig{
@@ -691,6 +743,17 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
             }, nil
         },
 
+        // Called when a tool execution result was a failure. OnPostToolUse only
+        // fires on success, so register OnPostToolUseFailure to observe failed
+        // tool calls. The CLI extracts the failure message and passes it as
+        // input.Error.
+        OnPostToolUseFailure: func(input copilot.PostToolUseFailureHookInput, invocation copilot.HookInvocation) (*copilot.PostToolUseFailureHookOutput, error) {
+            fmt.Printf("Tool %s failed: %s\n", input.ToolName, input.Error)
+            return &copilot.PostToolUseFailureHookOutput{
+                AdditionalContext: fmt.Sprintf("Retry guidance for %s", input.ToolName),
+            }, nil
+        },
+
         // Called when user submits a prompt
         OnUserPromptSubmitted: func(input copilot.UserPromptSubmittedHookInput, invocation copilot.HookInvocation) (*copilot.UserPromptSubmittedHookOutput, error) {
             fmt.Printf("User prompt: %s\n", input.Prompt)
@@ -727,7 +790,8 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 **Available hooks:**
 
 - `OnPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
-- `OnPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `OnPostToolUse` - Process tool results after successful execution. Can modify results or add context.
+- `OnPostToolUseFailure` - Observe failed tool executions and inject extra context to guide the model's next step.
 - `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
@@ -788,7 +852,7 @@ confirmed, err := ui.Confirm(ctx, "Deploy to production?")
 choice, ok, err := ui.Select(ctx, "Pick an environment", []string{"staging", "production"})
 
 // Text input — returns (text, ok bool, error)
-name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.InputOptions{
+name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UIInputOptions{
     Title:       "Release Name",
     Description: "A short name for the release",
     MinLength:   copilot.Int(1),
@@ -796,11 +860,10 @@ name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.InputOptions{
 })
 
 // Full custom elicitation with a schema
-result, err := ui.Elicitation(ctx, "Configure deployment", rpc.RequestedSchema{
-    Type: rpc.RequestedSchemaTypeObject,
-    Properties: map[string]rpc.Property{
-        "target": {Type: rpc.PropertyTypeString, Enum: []string{"staging", "production"}},
-        "force":  {Type: rpc.PropertyTypeBoolean},
+result, err := ui.Elicitation(ctx, "Configure deployment", copilot.ElicitationSchema{
+    Properties: map[string]any{
+        "target": map[string]any{"type": "string", "enum": []string{"staging", "production"}},
+        "force":  map[string]any{"type": "boolean"},
     },
     Required: []string{"target"},
 })
@@ -825,7 +888,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 
         // Return the user's response
         return copilot.ElicitationResult{
-            Action:  "accept",
+            Action:  copilot.ElicitationActionAccept,
             Content: map[string]any{"confirmed": true},
         }, nil
     },

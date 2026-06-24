@@ -1,12 +1,16 @@
 <Project>
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
     <LangVersion>14</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AnalysisLevel>10.0-minimum</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'GitHub.Copilot.SDK'">
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)Open.snk</AssemblyOriginatorKeyFile>
+    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
 
 </Project>

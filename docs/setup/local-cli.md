@@ -1,12 +1,12 @@
-# Local CLI Setup
+# Local CLI setup
 
-Use a specific CLI binary instead of the SDK's bundled CLI. This is an advanced option — you supply the CLI path explicitly, and you are responsible for ensuring version compatibility with the SDK.
+Use a specific CLI binary instead of the SDK's automatic CLI management. This is an advanced option—you supply the CLI path explicitly, and you are responsible for ensuring version compatibility with the SDK.
 
 **Use when:** You need to pin a specific CLI version, or work with the Go SDK (which does not bundle a CLI).
 
-## How It Works
+## How it works
 
-By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this — for example, to use a system-installed CLI — you can use the `cliPath` option.
+By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this—for example, to use a system-installed CLI—you can use the `Connection` option.
 
 ```mermaid
 flowchart LR
@@ -21,10 +21,10 @@ flowchart LR
 ```
 
 **Key characteristics:**
-- You explicitly provide the CLI binary path
-- You are responsible for CLI version compatibility with the SDK
-- Authentication uses the signed-in user's credentials from the system keychain (or env vars)
-- Communication happens over stdio
+* You explicitly provide the CLI binary path
+* You are responsible for CLI version compatibility with the SDK
+* Authentication uses the signed-in user's credentials from the system keychain (or env vars)
+* Communication happens over stdio
 
 ## Configuration
 
@@ -54,6 +54,7 @@ await client.stop();
 
 ```python
 from copilot import CopilotClient
+from copilot.session_events import AssistantMessageData
 from copilot.session import PermissionHandler
 
 client = CopilotClient({
@@ -63,7 +64,10 @@ await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1")
 response = await session.send_and_wait("Hello!")
-print(response.data.content)
+if response:
+    match response.data:
+        case AssistantMessageData() as data:
+            print(data.content)
 
 await client.stop()
 ```
@@ -73,7 +77,8 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
-> **Note:** The Go SDK does not bundle a CLI, so you must always provide `CLIPath`.
+> [!NOTE]
+> The Go SDK does not bundle a CLI, so you must always provide `Connection`.
 
 <!-- docs-validate: hidden -->
 ```go
@@ -90,7 +95,7 @@ func main() {
 	ctx := context.Background()
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIPath: "/usr/local/bin/copilot",
+		Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
 	})
 	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
@@ -99,14 +104,18 @@ func main() {
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
 	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
-	fmt.Println(*response.Data.Content)
+	if response != nil {
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	}
 }
 ```
 <!-- /docs-validate: hidden -->
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIPath: "/usr/local/bin/copilot",
+    Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
 })
 if err := client.Start(ctx); err != nil {
     log.Fatal(err)
@@ -115,7 +124,11 @@ defer client.Stop()
 
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
 response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
-fmt.Println(*response.Data.Content)
+if response != nil {
+    if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+        fmt.Println(d.Content)
+    }
+}
 ```
 
 </details>
@@ -126,7 +139,7 @@ fmt.Println(*response.Data.Content)
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliPath = "/usr/local/bin/copilot",
+    Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot"),
 });
 
 await using var session = await client.CreateSessionAsync(
@@ -139,7 +152,7 @@ Console.WriteLine(response?.Data.Content);
 
 </details>
 
-## Additional Options
+## Additional options
 
 ```typescript
 const client = new CopilotClient({
@@ -156,7 +169,7 @@ const client = new CopilotClient({
 });
 ```
 
-## Using Environment Variables
+## Using environment variables
 
 Instead of the keychain, you can authenticate via environment variables. This is useful for CI or when you don't want interactive login.
 
@@ -167,9 +180,9 @@ export GH_TOKEN="gho_xxxx"               # GitHub CLI compatible
 export GITHUB_TOKEN="gho_xxxx"           # GitHub Actions compatible
 ```
 
-The SDK picks these up automatically — no code changes needed.
+The SDK picks these up automatically—no code changes needed.
 
-## Managing Sessions
+## Managing sessions
 
 Sessions default to ephemeral. To create resumable sessions, provide your own session ID:
 
@@ -195,8 +208,8 @@ Session state is stored locally at `~/.copilot/session-state/{sessionId}/`.
 | **Local only** | The CLI runs on the same machine as your app |
 | **No multi-tenant** | Can't serve multiple users from one CLI instance |
 
-## Next Steps
+## Next steps
 
-- **[Default Setup](./bundled-cli.md)** — Use the SDK's built-in CLI (recommended for most use cases)
-- **[Getting Started tutorial](../getting-started.md)** — Build a complete interactive app
-- **[Authentication docs](../auth/index.md)** — All auth methods in detail
+* **[Default Setup](./bundled-cli.md)**: Use the SDK's built-in CLI (recommended for most use cases)
+* **[Getting Started tutorial](../getting-started.md)**: Build a complete interactive app
+* **[Authentication docs](../auth/authenticate.md)**: All auth methods in detail

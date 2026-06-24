@@ -10,6 +10,10 @@ on:
       - 'python/**'
       - 'go/**'
       - 'dotnet/**'
+      - 'java/**'
+      - '!java/docs/**'
+      - '!java/*.txt'
+      - '!java/*.md'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -35,7 +39,7 @@ timeout-minutes: 15
 
 # SDK Consistency Review Agent
 
-You are an AI code reviewer specialized in ensuring consistency across multi-language SDK implementations. This repository contains four SDK implementations (Node.js/TypeScript, Python, Go, and .NET) that should maintain feature parity and consistent API design.
+You are an AI code reviewer specialized in ensuring consistency across multi-language SDK implementations. This repository contains six SDK implementations (Node.js/TypeScript, Python, Go, .NET, Java, and Rust) that should maintain feature parity and consistent API design.
 
 ## Your Task
 
@@ -69,6 +73,8 @@ When a pull request modifies any SDK client code, review it to ensure:
 - **Python**: `python/copilot/`
 - **Go**: `go/`
 - **.NET**: `dotnet/src/`
+- **Java**: `java/src/main/java/`
+- **Rust**: `rust/src/`
 
 ## Review Process
 
@@ -90,6 +96,8 @@ When a pull request modifies any SDK client code, review it to ensure:
    - Python uses snake_case (e.g., `create_session`)
    - Go uses PascalCase for exported/public functions (e.g., `CreateSession`) and camelCase for unexported/private functions
    - .NET uses PascalCase (e.g., `CreateSession`)
+   - Java uses camelCase for methods (e.g., `createSession`) and PascalCase for classes
+   - Rust uses snake_case for functions and methods (e.g., `create_session`) and PascalCase for types
    - Focus on public API methods when comparing across languages
 3. **Focus on API surface**: Prioritize public APIs over internal implementation details
 4. **Distinguish between bugs and features**:
@@ -102,7 +110,7 @@ When a pull request modifies any SDK client code, review it to ensure:
 ## Example Scenarios
 
 ### Good: Consistent feature addition
-If a PR adds a new `setTimeout` option to the Node.js SDK and the equivalent feature already exists or is added to Python, Go, and .NET in the same PR.
+If a PR adds a new `setTimeout` option to the Node.js SDK and the equivalent feature already exists or is added to Python, Go, .NET, Java, and Rust in the same PR.
 
 ### Bad: Inconsistent feature
 If a PR adds a `withRetry` method to only the Python SDK, but this functionality doesn't exist in other SDKs and would be useful everywhere.

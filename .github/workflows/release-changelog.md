@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to generate changelog for (e.g., v0.1.30)"
+        description: "Release tag to generate changelog for (e.g., v0.1.30, <language>/v1.0.0)"
         required: true
         type: string
 permissions:
@@ -54,8 +54,9 @@ Use the GitHub API to fetch the release corresponding to `${{ github.event.input
 2. The **new version** is the release tag: `${{ github.event.inputs.tag }}`
 3. Fetch the release metadata to determine if this is a **stable** or **prerelease** release.
 4. Determine the **previous version** to diff against:
-   - **For stable releases**: find the previous **stable** release (skip prereleases). Check `CHANGELOG.md` for the most recent version heading (`## [vX.Y.Z](...)`), or fall back to listing releases via the API. This means stable changelogs include ALL changes since the last stable release, even if some were already mentioned in prerelease notes.
-   - **For prerelease releases**: find the most recent release of **any kind** (stable or prerelease) that precedes this one. This way prerelease notes only cover what's new since the last release.
+   - **Scoped tags**: If the tag has a language prefix (e.g., `java/v1.0.0` or `rust/v0.2.0`), the previous tag must use the **same prefix**. List tags matching that prefix (e.g., `java/v*` or `rust/v*`) sorted by version and pick the one immediately before the current tag. Only compare within the same scope.
+   - **For stable releases**: find the previous **stable** release (skip prereleases). Check `CHANGELOG.md` for the most recent version heading matching this scope (`## [vX.Y.Z](...)` for unscoped, `## [java/vX.Y.Z](...)` for Java, `## [rust/vX.Y.Z](...)` for Rust), or fall back to listing releases via the API. This means stable changelogs include ALL changes since the last stable release, even if some were already mentioned in prerelease notes.
+   - **For prerelease releases**: find the most recent release of **any kind** (stable or prerelease) that precedes this one within the same tag scope. This way prerelease notes only cover what's new since the last release.
 5. If no previous release exists at all, use the first commit in the repo as the starting point.
 6. After identifying the range, verify it by listing the commits in `PREVIOUS_TAG..NEW_TAG`. If the local result still looks suspiciously small or inconsistent, do **not** proceed based on local git alone — use the GitHub tools as the source of truth for the commits and PRs in the release.
 
@@ -65,8 +66,9 @@ Use the GitHub API to fetch the release corresponding to `${{ github.event.input
 2. Also list merged pull requests in that range. For each PR, note:
    - PR number and title
    - The PR author
-   - Which SDK(s) were affected (look for prefixes like `[C#]`, `[Python]`, `[Go]`, `[Node]` in the title, or infer from changed files)
-3. Ignore:
+   - Which SDK(s) were affected (look for prefixes like `[C#]`, `[Python]`, `[Go]`, `[Node]`, `[Java]`, `[Rust]` in the title, or infer from changed files)
+3. **For scoped tags** (e.g., `java/v*`, `rust/v*`): only include changes that touch the corresponding language directory (`java/`, `rust/`). Ignore changes to other languages unless they directly affect the scoped SDK.
+4. Ignore:
    - Dependabot/bot PRs that only bump internal dependencies (like `Update @github/copilot to ...`) unless they bring user-facing changes
    - Merge commits with no meaningful content
    - Preview/prerelease-only changes that were already documented
@@ -87,9 +89,9 @@ Additionally, identify **new contributors** — anyone whose first merged PR to 
 **Skip this step entirely for prerelease releases.**
 
 1. Read the current `CHANGELOG.md` file.
-2. Add the new version entry **at the top** of the file, right after the title/header.
+2. Add the new version entry **at the top** of the file, right after the title/header. Use the **full tag** as the version in the heading — e.g., `## [v0.2.3](...)` for unscoped tags, `## [java/v1.0.0](...)` for Java-scoped tags, `## [rust/v0.2.3](...)` for Rust-scoped tags.
 
-**Format for each highlighted feature** — use an `### Feature:` or `### Fix:` heading, a 1-2 sentence description explaining what it does and why it matters, and at least one short code snippet (max 3 lines). Focus on **TypeScript** and **C#** as the primary languages. Only show Go/Python when giving a list of one-liner equivalents across all languages, or when their usage pattern is meaningfully different.
+**Format for each highlighted feature** — use an `### Feature:` or `### Fix:` heading, a 1-2 sentence description explaining what it does and why it matters, and at least one short code snippet (max 3 lines). For unscoped releases, focus on **TypeScript** and **C#** as the primary languages; only show Go/Python when giving a list of one-liner equivalents across all languages, or when their usage pattern is meaningfully different. For **scoped releases** (e.g., `java/v*`), show code snippets in the scoped language only (e.g., Java for `java/v*`, Rust for `rust/v*`).
 
 **Format for other changes** — a single `### Other changes` section with a flat bulleted list. Each bullet has a lowercase prefix (`feature:`, `bugfix:`, `improvement:`) and a one-line description linking to the PR. **However, if there are no highlighted features above it, omit the `### Other changes` heading entirely** — just list the bullets directly under the version heading.
 
@@ -107,12 +109,18 @@ Additionally, identify **new contributors** — anyone whose first merged PR to 
 **Skip this step entirely for prerelease releases.**
 
 Use the `create-pull-request` output to submit your changes. The PR should:
+
 - Have a clear title like "Add changelog for vX.Y.Z"
 - Include a brief body summarizing the number of changes
 
 ### Step 6: Update the GitHub Release
 
 Use the `update-release` output to replace the auto-generated release notes with your nicely formatted changelog. **Do not include the version heading** (`## [vX.Y.Z](...) (date)`) in the release notes — the release already has a title showing the version. Start directly with the feature sections or other changes list.
+
+**IMPORTANT — Preserving the Installation section:**
+The release body may contain an Installation section delimited by `<!-- INSTALLATION_SECTION -->` and `<!-- END_INSTALLATION_SECTION -->` HTML comments. In the case of Java, this section includes Maven/Gradle dependency snippets and a "View on Maven Central" link. You **MUST** preserve this entire section (from the opening comment through the closing comment, inclusive) exactly as it appears in the existing release body. Place your generated changelog content **after** the Installation section.
+
+**URL reconstruction:** If the Maven Central URL in the Installation section appears corrupted or contains the word "redacted", reconstruct it. Extract the version from the release tag (e.g., `java/v1.0.0` → `1.0.0`), and rebuild the URL as: `https://central.sonatype.com/artifact/com.github/copilot-sdk-java/{VERSION}`. The `<!-- maven_central_url -->` HTML comment in the section contains the intended URL pattern.
 
 ## Example Output
 
@@ -160,6 +168,7 @@ While `session.rpc.models.setModel()` already worked, there is now a convenience
 ````
 
 **Key rules visible in the example:**
+
 - Highlighted features get their own `### Feature:` heading, a short description, and code snippets
 - Code snippets are TypeScript and C# primarily; Go/Python only when listing one-liner equivalents or when meaningfully different
 - The `### Other changes` section is a flat bulleted list with lowercase `bugfix:` / `feature:` / `improvement:` prefixes

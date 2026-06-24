@@ -8,9 +8,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
+
+const defaultGitHubToken = "fake-token-for-e2e-tests"
 
 var (
 	cliPath     string
@@ -26,11 +29,17 @@ func CLIPath() string {
 			return
 		}
 
-		// Look for CLI in sibling nodejs directory's node_modules
-		abs, err := filepath.Abs("../../../nodejs/node_modules/@github/copilot/index.js")
-		if err == nil && fileExists(abs) {
-			cliPath = abs
-			return
+		// Look for CLI in sibling nodejs directory's node_modules. As of CLI
+		// 1.0.64-1 the @github/copilot package is a thin loader; the runnable
+		// index.js ships in the installed platform package
+		// (e.g. @github/copilot-linux-x64).
+		base, err := filepath.Abs("../../../nodejs/node_modules/@github")
+		if err == nil {
+			matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
+			if len(matches) > 0 {
+				cliPath = matches[0]
+				return
+			}
 		}
 	})
 	return cliPath
@@ -59,11 +68,19 @@ func NewTestContext(t *testing.T) *TestContext {
 	if err != nil {
 		t.Fatalf("Failed to create temp home dir: %v", err)
 	}
+	if resolved, err := filepath.EvalSymlinks(homeDir); err == nil {
+		homeDir = resolved
+	}
 
 	workDir, err := os.MkdirTemp("", "copilot-test-work-")
 	if err != nil {
 		os.RemoveAll(homeDir)
 		t.Fatalf("Failed to create temp work dir: %v", err)
+	}
+	// Resolve symlinks (e.g., macOS /var -> /private/var) so paths
+	// match what spawned subprocesses see when they resolve their cwd.
+	if resolved, err := filepath.EvalSymlinks(workDir); err == nil {
+		workDir = resolved
 	}
 
 	proxy := NewCapiProxy()
@@ -72,6 +89,20 @@ func NewTestContext(t *testing.T) *TestContext {
 		os.RemoveAll(homeDir)
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to start proxy: %v", err)
+	}
+	if err := proxy.SetCopilotUserByToken(defaultGitHubToken, map[string]interface{}{
+		"login":        "e2e-test-user",
+		"copilot_plan": "individual_pro",
+		"endpoints": map[string]interface{}{
+			"api":       proxyURL,
+			"telemetry": "https://localhost:1/telemetry",
+		},
+		"analytics_tracking_id": "e2e-test-tracking-id",
+	}); err != nil {
+		proxy.StopWithOptions(true)
+		os.RemoveAll(homeDir)
+		os.RemoveAll(workDir)
+		t.Fatalf("Failed to configure default Copilot user: %v", err)
 	}
 
 	ctx := &TestContext{
@@ -103,8 +134,9 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 		t.Fatal("Failed to get caller information")
 	}
 
-	// Extract test file name: ask_user_test.go -> ask_user
+	// Extract test file name: ask_user_test.go -> ask_user, ask_user_e2e_test.go -> ask_user
 	testFile := strings.TrimSuffix(filepath.Base(callerFile), "_test.go")
+	testFile = strings.TrimSuffix(testFile, "_e2e")
 
 	// Extract and sanitize the subtest name from t.Name()
 	// t.Name() returns "TestAskUser/should_handle_freeform_user_input_response"
@@ -144,13 +176,53 @@ func (c *TestContext) GetExchanges() ([]ParsedHttpExchange, error) {
 	return c.proxy.GetExchanges()
 }
 
+// WaitForExchanges waits until the proxy has captured at least the requested exchanges.
+func (c *TestContext) WaitForExchanges(t *testing.T, minimumCount int) []ParsedHttpExchange {
+	t.Helper()
+
+	deadline := time.Now().Add(120 * time.Second)
+	var lastErr error
+	var exchanges []ParsedHttpExchange
+	for time.Now().Before(deadline) {
+		var err error
+		exchanges, err = c.GetExchanges()
+		if err == nil && len(exchanges) >= minimumCount {
+			return exchanges
+		}
+		lastErr = err
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if lastErr != nil {
+		t.Fatalf("Timed out waiting for %d chat completion request(s): %v", minimumCount, lastErr)
+	}
+	t.Fatalf("Timed out waiting for %d chat completion request(s); captured %d", minimumCount, len(exchanges))
+	return nil
+}
+
+// SetCopilotUserByToken registers a per-token user configuration on the proxy.
+func (c *TestContext) SetCopilotUserByToken(token string, response map[string]interface{}) error {
+	return c.proxy.SetCopilotUserByToken(token, response)
+}
+
 // Env returns environment variables configured for isolated testing.
 func (c *TestContext) Env() []string {
 	env := os.Environ()
 
 	// Add overrides (later values take precedence in most systems)
+	env = append(env, c.proxy.ProxyEnv()...)
 	env = append(env,
 		"COPILOT_API_URL="+c.ProxyURL,
+		// Route GitHub API calls (e.g. the MCP registry policy check) to the
+		// replay proxy so MCP enablement stays hermetic. Without this the CLI
+		// reaches the real api.github.com, which is slow/unreachable on macOS
+		// CI runners and makes MCP servers time out before reaching connected.
+		"COPILOT_DEBUG_GITHUB_API_URL="+c.ProxyURL,
+		"COPILOT_HOME="+c.HomeDir,
+		"COPILOT_SDK_AUTH_TOKEN="+defaultGitHubToken,
+		"GH_CONFIG_DIR="+c.HomeDir,
+		"GH_TOKEN="+defaultGitHubToken,
+		"GITHUB_TOKEN="+defaultGitHubToken,
 		"XDG_CONFIG_HOME="+c.HomeDir,
 		"XDG_STATE_HOME="+c.HomeDir,
 	)
@@ -161,18 +233,18 @@ func (c *TestContext) Env() []string {
 // Optional overrides can be applied to the default ClientOptions via the opts function.
 func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.Client {
 	options := &copilot.ClientOptions{
-		CLIPath: c.CLIPath,
-		Cwd:     c.WorkDir,
-		Env:     c.Env(),
+		Connection:       copilot.StdioConnection{Path: c.CLIPath},
+		WorkingDirectory: c.WorkDir,
+		Env:              c.Env(),
 	}
 
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	// Use fake token in CI to allow cached responses without real auth for spawned subprocess clients.
-	if os.Getenv("GITHUB_ACTIONS") == "true" && options.GitHubToken == "" && options.CLIUrl == "" {
-		options.GitHubToken = "fake-token-for-e2e-tests"
+	_, externalRuntime := options.Connection.(copilot.URIConnection)
+	if options.GitHubToken == "" && !externalRuntime {
+		options.GitHubToken = defaultGitHubToken
 	}
 
 	return copilot.NewClient(options)

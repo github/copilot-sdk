@@ -1,0 +1,96 @@
+[package]
+name = "github-copilot-sdk"
+version = "0.0.0-dev"
+edition = "2024"
+rust-version = "1.94.0"
+description = "Rust SDK for programmatic control of the GitHub Copilot CLI via JSON-RPC."
+keywords = ["copilot", "github", "ai", "json-rpc", "sdk"]
+categories = ["api-bindings", "development-tools"]
+repository = "https://github.com/github/copilot-sdk"
+homepage = "https://github.com/github/copilot-sdk"
+documentation = "https://docs.rs/github-copilot-sdk"
+readme = "README.md"
+license = "MIT"
+include = [
+    "src/**/*",
+    "examples/**/*",
+    "tests/**/*",
+    "build.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+    "cli-version.txt",
+]
+
+[lib]
+name = "github_copilot_sdk"
+
+[features]
+default = ["bundled-cli"]
+bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
+derive = ["dep:schemars"]
+test-support = []
+
+# Build docs.rs documentation with all features so feature-gated APIs
+# (e.g. `define_tool`, `schema_for`) appear and intra-doc links resolve.
+# Mirror this locally with: `cargo doc --no-deps --all-features`.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+async-trait = "0.1"
+schemars = { version = "1", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", "time", "macros"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+tokio-util = { version = "0.7", default-features = false }
+tracing = "0.1"
+dirs = "5"
+parking_lot = "0.12"
+regex = "1"
+getrandom = "0.2"
+uuid = { version = "1", default-features = false, features = ["v4"] }
+# LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
+# `CopilotRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
+base64 = "0.22"
+bytes = "1"
+http = "1"
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
+
+[target.'cfg(windows)'.dependencies]
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+
+[target.'cfg(not(windows))'.dependencies]
+flate2 = { version = "1", optional = true }
+tar = { version = "0.4", optional = true }
+
+[dev-dependencies]
+rusqlite = { version = "0.35", features = ["bundled"] }
+schemars = "1"
+serial_test = "3"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+# Integration tests that call test-support-only Client methods (e.g.
+# `from_streams_with_connection_token`, `from_streams_with_trace_provider`)
+# require the `test-support` feature because `cfg(test)` is not set on the
+# library when Cargo compiles it for integration tests.
+[[test]]
+name = "session_test"
+required-features = ["test-support"]
+
+[[test]]
+name = "protocol_version_test"
+required-features = ["test-support"]
+
+[build-dependencies]
+dirs = "5"
+flate2 = "1"
+sha2 = "0.10"
+tar = "0.4"
+ureq = { version = "2", default-features = false, features = ["tls"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }

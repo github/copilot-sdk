@@ -6,14 +6,15 @@
   "scripts": {
     "extract": "tsx extract.ts",
     "validate": "tsx validate.ts",
-    "validate:ts": "tsx validate.ts --lang typescript",
-    "validate:py": "tsx validate.ts --lang python",
-    "validate:go": "tsx validate.ts --lang go",
-    "validate:cs": "tsx validate.ts --lang csharp"
+    "validate:ts": "tsx validate.ts --lang=typescript",
+    "validate:py": "tsx validate.ts --lang=python",
+    "validate:go": "tsx validate.ts --lang=go",
+    "validate:cs": "tsx validate.ts --lang=csharp",
+    "validate:java": "tsx validate.ts --lang=java"
   },
   "dependencies": {
     "glob": "^11.0.0",
-    "tsx": "^4.19.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.7.0"
   }
 }

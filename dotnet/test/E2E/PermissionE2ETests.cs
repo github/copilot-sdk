@@ -1,0 +1,773 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
+using Microsoft.Extensions.AI;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace GitHub.Copilot.Test.E2E;
+
+public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "permissions", output)
+{
+    [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+    [JsonSerializable(typeof(ToolResultAIContent))]
+    [JsonSerializable(typeof(ToolResultObject))]
+    private partial class PermissionJsonContext : JsonSerializerContext;
+
+    [Fact]
+    public async Task Should_Invoke_Permission_Handler_For_Write_Operations()
+    {
+        var permissionRequests = new List<PermissionRequest>();
+        var permissionRequestsLock = new object();
+        var readPermissionRequestReceived = new TaskCompletionSource<PermissionRequestRead>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writePermissionRequestReceived = new TaskCompletionSource<PermissionRequestWrite>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CopilotSession? session = null;
+        session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (request, invocation) =>
+            {
+                lock (permissionRequestsLock)
+                {
+                    permissionRequests.Add(request);
+                }
+                Assert.Equal(session!.SessionId, invocation.SessionId);
+                if (request is PermissionRequestRead readRequest)
+                {
+                    readPermissionRequestReceived.TrySetResult(readRequest);
+                }
+                else if (request is PermissionRequestWrite writeRequest)
+                {
+                    writePermissionRequestReceived.TrySetResult(writeRequest);
+                }
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
+            }
+        });
+
+        await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "test.txt"), "original content");
+
+        var sendTask = session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Edit test.txt and replace 'original' with 'modified'"
+        });
+
+        var readRequest = await readPermissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var writeRequest = await writePermissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await sendTask;
+
+        List<PermissionRequest> observedPermissionRequests;
+        lock (permissionRequestsLock)
+        {
+            observedPermissionRequests = [.. permissionRequests];
+        }
+
+        Assert.NotEmpty(observedPermissionRequests);
+        Assert.EndsWith("test.txt", readRequest.Path, StringComparison.Ordinal);
+        Assert.Contains("test.txt", readRequest.Intention, StringComparison.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(readRequest.ToolCallId));
+
+        Assert.Contains(observedPermissionRequests, request => request is PermissionRequestWrite);
+        Assert.EndsWith("test.txt", writeRequest.FileName, StringComparison.Ordinal);
+        Assert.Contains("original content", writeRequest.Diff, StringComparison.Ordinal);
+        Assert.Contains("modified content", writeRequest.Diff, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(writeRequest.ToolCallId));
+
+        var updatedContent = await File.ReadAllTextAsync(Path.Join(Ctx.WorkDir, "test.txt"));
+        Assert.Equal("modified content", updatedContent);
+    }
+
+    [Fact]
+    public async Task Should_Deny_Permission_When_Handler_Returns_Denied()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (request, invocation) =>
+            {
+                return Task.FromResult<PermissionDecision>(PermissionDecision.Reject());
+            }
+        });
+
+        // Regression check for https://github.com/github/copilot-sdk/issues/1194:
+        // the reject decision must round-trip through the CLI with its discriminator
+        // intact so the agent surfaces the user-rejected error to the model. The
+        // CLI uses a kind-specific error message ("The user rejected this tool call.")
+        // for the reject decision, which lets us assert the decision was honored
+        // — not merely that the operation didn't happen.
+        var userRejectedToolCall = false;
+        session.On<SessionEvent>(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Error?.Message.Contains("user rejected", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                userRejectedToolCall = true;
+            }
+        });
+
+        var testFilePath = Path.Combine(Ctx.WorkDir, "protected.txt");
+        await File.WriteAllTextAsync(testFilePath, "protected content");
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Edit protected.txt and replace 'protected' with 'hacked'."
+        });
+
+        await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.True(
+            userRejectedToolCall,
+            "Expected a tool.execution_complete event whose error indicates the user rejected the call.");
+
+        // Verify the file was NOT modified
+        var content = await File.ReadAllTextAsync(testFilePath);
+        Assert.Equal("protected content", content);
+    }
+
+    [Fact]
+    public async Task Should_Deny_Tool_Operations_When_Handler_Explicitly_Denies()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+                Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
+        });
+        var permissionDenied = false;
+
+        session.On<SessionEvent>(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Error?.Message.Contains("Permission denied") == true)
+            {
+                permissionDenied = true;
+            }
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Run 'node --version'"
+        });
+
+        Assert.True(permissionDenied, "Expected a tool.execution_complete event with Permission denied result");
+    }
+
+    [Fact]
+    public async Task Should_Work_With_Approve_All_Permission_Handler()
+    {
+        var session = await CreateSessionAsync(new SessionConfig());
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "What is 2+2?"
+        });
+
+        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.Contains("4", message?.Data.Content ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Should_Handle_Async_Permission_Handler()
+    {
+        var permissionRequestReceived = false;
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = async (request, invocation) =>
+            {
+                permissionRequestReceived = true;
+                await Task.Yield();
+                return PermissionDecision.ApproveOnce();
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Run 'echo test' and tell me what happens"
+        });
+
+        await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.True(permissionRequestReceived, "Permission request should have been received");
+    }
+
+    [Fact]
+    public async Task Should_Resume_Session_With_Permission_Handler()
+    {
+        var permissionRequestReceived = false;
+
+        // Create session without permission handler
+        var session1 = await CreateSessionAsync();
+        var sessionId = session1.SessionId;
+        await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await session1.DisposeAsync();
+
+        // Resume with permission handler
+        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = (request, invocation) =>
+            {
+                permissionRequestReceived = true;
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
+            }
+        });
+
+        await session2.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Run 'echo resumed' for me"
+        });
+
+        Assert.True(permissionRequestReceived, "Permission request should have been received");
+        await session2.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Handle_Permission_Handler_Errors_Gracefully()
+    {
+        var permissionRequestReceived =
+            new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (request, invocation) =>
+            {
+                permissionRequestReceived.TrySetResult(request);
+                throw new InvalidOperationException("Handler error");
+            }
+        });
+
+        try
+        {
+            var exchanges = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions
+                {
+                    Prompt = "Run 'echo test'. If you can't, say 'failed'."
+                },
+                minimumCount: 2);
+
+            var permissionRequest = await permissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.IsType<PermissionRequestShell>(permissionRequest);
+
+            var toolResultMessage = exchanges
+                .SelectMany(exchange => exchange.Request.Messages)
+                .LastOrDefault(message =>
+                    message.Role == "tool" &&
+                    message.StringContent?.Contains("Permission denied", StringComparison.OrdinalIgnoreCase) == true);
+
+            Assert.NotNull(toolResultMessage);
+            Assert.Contains(
+                "could not request permission",
+                toolResultMessage.StringContent ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Deny_Tool_Operations_When_Handler_Explicitly_Denies_After_Resume()
+    {
+        var session1 = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        var sessionId = session1.SessionId;
+        await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await session1.DisposeAsync();
+
+        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+                Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
+        });
+        var permissionDenied = false;
+
+        session2.On<SessionEvent>(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Error?.Message.Contains("Permission denied") == true)
+            {
+                permissionDenied = true;
+            }
+        });
+
+        await session2.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Run 'node --version'"
+        });
+
+        Assert.True(permissionDenied, "Expected a tool.execution_complete event with Permission denied result");
+        await session2.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Receive_ToolCallId_In_Permission_Requests()
+    {
+        var receivedToolCallId = false;
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (request, invocation) =>
+            {
+                if (request is PermissionRequestShell shell && !string.IsNullOrEmpty(shell.ToolCallId))
+                {
+                    receivedToolCallId = true;
+                }
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Run 'echo test'"
+        });
+
+        await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.True(receivedToolCallId, "Should have received toolCallId in permission request");
+    }
+
+    [Fact]
+    public async Task Should_Wait_For_Slow_Permission_Handler()
+    {
+        var handlerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var targetToolCallId = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lifecycle = new List<(string Phase, string? ToolCallId)>();
+        var lifecycleLock = new object();
+
+        void AddLifecycleEvent(string phase, string? toolCallId)
+        {
+            lock (lifecycleLock)
+            {
+                lifecycle.Add((phase, toolCallId));
+            }
+        }
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = async (request, invocation) =>
+            {
+                var shellRequest = Assert.IsType<PermissionRequestShell>(request);
+                Assert.False(string.IsNullOrWhiteSpace(shellRequest.ToolCallId));
+
+                AddLifecycleEvent("permission-start", shellRequest.ToolCallId);
+                targetToolCallId.TrySetResult(shellRequest.ToolCallId!);
+                handlerEntered.TrySetResult();
+                await releaseHandler.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                AddLifecycleEvent("permission-complete", shellRequest.ToolCallId);
+                return PermissionDecision.ApproveOnce();
+            }
+        });
+
+        using var subscription = session.On<SessionEvent>(evt =>
+        {
+            switch (evt)
+            {
+                case ToolExecutionStartEvent started:
+                    AddLifecycleEvent("tool-start", started.Data.ToolCallId);
+                    break;
+                case ToolExecutionCompleteEvent completed:
+                    AddLifecycleEvent("tool-complete", completed.Data.ToolCallId);
+                    break;
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Run 'echo slow_handler_test'"
+        });
+
+        await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var targetToolId = await targetToolCallId.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        lock (lifecycleLock)
+        {
+            Assert.DoesNotContain(lifecycle, evt => evt.Phase == "tool-complete" && evt.ToolCallId == targetToolId);
+        }
+
+        releaseHandler.SetResult();
+
+        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        List<(string Phase, string? ToolCallId)> orderedLifecycle;
+        lock (lifecycleLock)
+        {
+            orderedLifecycle = [.. lifecycle];
+        }
+
+        var permissionStartIndex = orderedLifecycle.FindIndex(evt => evt.Phase == "permission-start" && evt.ToolCallId == targetToolId);
+        var permissionCompleteIndex = orderedLifecycle.FindIndex(evt => evt.Phase == "permission-complete" && evt.ToolCallId == targetToolId);
+        var toolStartIndex = orderedLifecycle.FindIndex(evt => evt.Phase == "tool-start" && evt.ToolCallId == targetToolId);
+        var toolCompleteIndex = orderedLifecycle.FindIndex(evt => evt.Phase == "tool-complete" && evt.ToolCallId == targetToolId);
+        var observedLifecycle = string.Join(", ", orderedLifecycle.Select(evt => $"{evt.Phase}:{evt.ToolCallId}"));
+
+        Assert.InRange(permissionStartIndex, 0, orderedLifecycle.Count - 1);
+        Assert.InRange(permissionCompleteIndex, 0, orderedLifecycle.Count - 1);
+        Assert.InRange(toolStartIndex, 0, orderedLifecycle.Count - 1);
+        Assert.InRange(toolCompleteIndex, 0, orderedLifecycle.Count - 1);
+        Assert.True(
+            permissionCompleteIndex < toolCompleteIndex,
+            $"Expected permission completion before target tool completion. Observed: {observedLifecycle}");
+        Assert.True(
+            toolStartIndex < toolCompleteIndex,
+            $"Expected target tool start before target tool completion. Observed: {observedLifecycle}");
+
+        // The tool should have actually run after permission was granted
+        Assert.Contains("slow_handler_test", message?.Data.Content ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Should_Handle_Concurrent_Permission_Requests_From_Parallel_Tools()
+    {
+        var permissionRequestCount = 0;
+        var permissionRequests = new List<PermissionRequest>();
+        var permissionRequestsLock = new object();
+        var bothPermissionRequestsStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstToolCompleted = new TaskCompletionSource<ToolExecutionCompleteEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondToolCompleted = new TaskCompletionSource<ToolExecutionCompleteEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstToolCalled = false;
+        var secondToolCalled = false;
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools =
+            [
+                AIFunctionFactory.Create(
+                    FirstPermissionTool,
+                    "first_permission_tool",
+                    "First concurrent permission test tool",
+                    serializerOptions: PermissionJsonContext.Default.Options),
+                AIFunctionFactory.Create(
+                    SecondPermissionTool,
+                    "second_permission_tool",
+                    "Second concurrent permission test tool",
+                    serializerOptions: PermissionJsonContext.Default.Options),
+            ],
+            AvailableTools = ["first_permission_tool", "second_permission_tool"],
+            OnPermissionRequest = async (request, invocation) =>
+            {
+                var count = Interlocked.Increment(ref permissionRequestCount);
+                lock (permissionRequestsLock) { permissionRequests.Add(request); }
+                if (count >= 2)
+                {
+                    bothPermissionRequestsStarted.TrySetResult();
+                }
+
+                await bothPermissionRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                return PermissionDecision.ApproveOnce();
+            }
+        });
+
+        session.On<SessionEvent>(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt)
+            {
+                var errorMessage = toolEvt.Data.Error?.Message ?? string.Empty;
+                if (errorMessage.Contains("first_permission_tool completed", StringComparison.Ordinal))
+                {
+                    firstToolCompleted.TrySetResult(toolEvt);
+                }
+                else if (errorMessage.Contains("second_permission_tool completed", StringComparison.Ordinal))
+                {
+                    secondToolCompleted.TrySetResult(toolEvt);
+                }
+            }
+        });
+        var idle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Call both first_permission_tool and second_permission_tool in the same turn. Do not call any other tools."
+        });
+
+        await bothPermissionRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var completed = await Task.WhenAll(firstToolCompleted.Task, secondToolCompleted.Task).WaitAsync(TimeSpan.FromSeconds(60));
+        await idle;
+
+        // Should have received multiple permission requests (one per tool call)
+        Assert.Equal(2, permissionRequestCount);
+
+        List<PermissionRequest> requests;
+        lock (permissionRequestsLock) { requests = [.. permissionRequests]; }
+        Assert.Contains(requests, request => request is PermissionRequestCustomTool custom && custom.ToolName == "first_permission_tool");
+        Assert.Contains(requests, request => request is PermissionRequestCustomTool custom && custom.ToolName == "second_permission_tool");
+
+        Assert.True(firstToolCalled);
+        Assert.True(secondToolCalled);
+        Assert.All(completed, toolEvt =>
+        {
+            Assert.False(toolEvt.Data.Success);
+            Assert.Equal("rejected", toolEvt.Data.Error?.Code);
+        });
+
+        ToolResultAIContent FirstPermissionTool()
+        {
+            firstToolCalled = true;
+            return new(new ToolResultObject
+            {
+                ResultType = "rejected",
+                TextResultForLlm = "first_permission_tool completed after permission approval",
+            });
+        }
+
+        ToolResultAIContent SecondPermissionTool()
+        {
+            secondToolCalled = true;
+            return new(new ToolResultObject
+            {
+                ResultType = "rejected",
+                TextResultForLlm = "second_permission_tool completed after permission approval",
+            });
+        }
+    }
+
+    [Fact]
+    public async Task Should_Deny_Permission_With_NoResult_Kind()
+    {
+        var permissionCalled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+            {
+                permissionCalled.TrySetResult(true);
+                return Task.FromResult<PermissionDecision>(PermissionDecision.NoResult());
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Run 'node --version'"
+        });
+
+        Assert.True(
+            await permissionCalled.Task.WaitAsync(TimeSpan.FromSeconds(30)),
+            "Expected the no-result permission handler to be called.");
+
+        await session.AbortAsync();
+    }
+
+    [Fact]
+    public async Task Should_Short_Circuit_Permission_Handler_When_Set_Approve_All_Enabled()
+    {
+        var handlerCallCount = 0;
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+            {
+                Interlocked.Increment(ref handlerCallCount);
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
+            },
+        });
+
+        // Runtime contract: when approveAllToolPermissionRequests is true the runtime
+        // short-circuits the permission flow with { kind: "approved" } *before*
+        // invoking the SDK-supplied handler. This RPC sets that runtime flag.
+        var setResult = await session.Rpc.Permissions.SetApproveAllAsync(true);
+        Assert.True(setResult.Success);
+
+        try
+        {
+            var toolCompleted = new TaskCompletionSource<ToolExecutionCompleteEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var subscription = session.On<SessionEvent>(evt =>
+            {
+                if (evt is ToolExecutionCompleteEvent done && done.Data.Success)
+                {
+                    toolCompleted.TrySetResult(done);
+                }
+            });
+
+            await session.SendAndWaitAsync(new MessageOptions
+            {
+                Prompt = "Run 'echo test' and tell me what happens",
+            });
+
+            // A real shell tool must have completed successfully under the runtime-level approval.
+            await toolCompleted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal(0, Volatile.Read(ref handlerCallCount));
+        }
+        finally
+        {
+            await session.Rpc.Permissions.SetApproveAllAsync(false);
+        }
+    }
+
+    [Fact]
+    public async Task Should_Configure_And_Update_Permission_Paths()
+    {
+        var session = await CreateSessionAsync();
+        var configuredAllowedDirectory = CreateUniqueWorkDirectory("configured-allowed");
+        var addedAllowedDirectory = CreateUniqueWorkDirectory("added-allowed");
+        var newPrimaryDirectory = CreateUniqueWorkDirectory("new-primary");
+
+        var configureResult = await session.Rpc.Permissions.ConfigureAsync(
+            approveAllToolPermissionRequests: false,
+            approveAllReadPermissionRequests: true,
+            rules: new PermissionRulesSet
+            {
+                Approved = [new PermissionRule { Kind = "read", Argument = null }],
+                Denied = [new PermissionRule { Kind = "write", Argument = null }],
+            },
+            paths: new PermissionPathsConfig
+            {
+                WorkspacePath = Ctx.WorkDir,
+                AdditionalDirectories = [configuredAllowedDirectory],
+                IncludeTempDirectory = false,
+                Unrestricted = false,
+            },
+            urls: new PermissionUrlsConfig
+            {
+                InitialAllowed = ["https://example.invalid/permissions-configure"],
+                Unrestricted = false,
+            });
+        Assert.True(configureResult.Success);
+
+        var configuredList = await session.Rpc.Permissions.Paths.ListAsync();
+        AssertPathEqual(Ctx.WorkDir, configuredList.Primary);
+        AssertContainsPath(configuredList.Directories, Ctx.WorkDir);
+        AssertContainsPath(configuredList.Directories, configuredAllowedDirectory);
+
+        var addResult = await session.Rpc.Permissions.Paths.AddAsync(addedAllowedDirectory);
+        Assert.True(addResult.Success);
+
+        var allowedCheck = await session.Rpc.Permissions.Paths.IsPathWithinAllowedDirectoriesAsync(
+            Path.Join(addedAllowedDirectory, "child.txt"));
+        Assert.True(allowedCheck.Allowed);
+
+        var updatePrimaryResult = await session.Rpc.Permissions.Paths.UpdatePrimaryAsync(newPrimaryDirectory);
+        Assert.True(updatePrimaryResult.Success);
+
+        var updatedList = await session.Rpc.Permissions.Paths.ListAsync();
+        AssertPathEqual(newPrimaryDirectory, updatedList.Primary);
+        AssertContainsPath(updatedList.Directories, newPrimaryDirectory);
+
+        var newPrimaryWorkspaceCheck = await session.Rpc.Permissions.Paths.IsPathWithinWorkspaceAsync(
+            Path.Join(newPrimaryDirectory, "child.txt"));
+        Assert.True(newPrimaryWorkspaceCheck.Allowed);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_Permission_State_Rpc_Apis()
+    {
+        var session = await CreateSessionAsync();
+
+        var pendingRequests = await session.Rpc.Permissions.PendingRequestsAsync();
+        Assert.Empty(pendingRequests.Items);
+
+        var setRequiredResult = await session.Rpc.Permissions.SetRequiredAsync(true);
+        Assert.True(setRequiredResult.Success);
+
+        var clearRequiredResult = await session.Rpc.Permissions.SetRequiredAsync(false);
+        Assert.True(clearRequiredResult.Success);
+
+        var promptShownResult = await session.Rpc.Permissions.NotifyPromptShownAsync(
+            $"Permission prompt shown from {nameof(Should_Invoke_Permission_State_Rpc_Apis)}");
+        Assert.True(promptShownResult.Success);
+
+        var rule = new PermissionRule
+        {
+            Kind = "commands",
+            Argument = $"dotnet-permission-e2e-{Guid.NewGuid():N}",
+        };
+
+        var addRuleResult = await session.Rpc.Permissions.ModifyRulesAsync(
+            PermissionsModifyRulesScope.Session,
+            add: [rule]);
+        Assert.True(addRuleResult.Success);
+
+        var removeRuleResult = await session.Rpc.Permissions.ModifyRulesAsync(
+            PermissionsModifyRulesScope.Session,
+            remove: [rule]);
+        Assert.True(removeRuleResult.Success);
+
+        var enableUrlsResult = await session.Rpc.Permissions.Urls.SetUnrestrictedModeAsync(true);
+        Assert.True(enableUrlsResult.Success);
+
+        var disableUrlsResult = await session.Rpc.Permissions.Urls.SetUnrestrictedModeAsync(false);
+        Assert.True(disableUrlsResult.Success);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_Permission_Location_And_FolderTrust_Rpc_Apis()
+    {
+        var session = await CreateSessionAsync();
+        var locationDirectory = CreateUniqueWorkDirectory("permission-location");
+        var trustedDirectory = CreateUniqueWorkDirectory("folder-trust");
+        var commandIdentifier = $"dotnet-permission-location-{Guid.NewGuid():N}";
+
+        var resolved = await session.Rpc.Permissions.Locations.ResolveAsync(locationDirectory);
+        Assert.Equal(PermissionLocationType.Dir, resolved.LocationType);
+        AssertPathEqual(locationDirectory, resolved.LocationKey);
+
+        var addToolApprovalResult = await session.Rpc.Permissions.Locations.AddToolApprovalAsync(
+            resolved.LocationKey,
+            new PermissionsLocationsAddToolApprovalDetailsCommands
+            {
+                CommandIdentifiers = [commandIdentifier],
+            });
+        Assert.True(addToolApprovalResult.Success);
+
+        var applied = await session.Rpc.Permissions.Locations.ApplyAsync(locationDirectory);
+        Assert.Equal(resolved.LocationType, applied.LocationType);
+        AssertPathEqual(resolved.LocationKey, applied.LocationKey);
+        Assert.True(applied.AppliedRuleCount >= 1);
+        Assert.Contains(applied.AppliedRules, rule =>
+            string.Equals(rule.Kind, "shell", StringComparison.Ordinal) &&
+            string.Equals(rule.Argument, commandIdentifier, StringComparison.Ordinal));
+
+        var initialTrust = await session.Rpc.Permissions.FolderTrust.IsTrustedAsync(trustedDirectory);
+        Assert.False(initialTrust.Trusted);
+
+        var addTrustedResult = await session.Rpc.Permissions.FolderTrust.AddTrustedAsync(trustedDirectory);
+        Assert.True(addTrustedResult.Success);
+
+        var updatedTrust = await session.Rpc.Permissions.FolderTrust.IsTrustedAsync(trustedDirectory);
+        Assert.True(updatedTrust.Trusted);
+    }
+
+    private string CreateUniqueWorkDirectory(string prefix)
+    {
+        var path = Path.Join(Ctx.WorkDir, $"{prefix}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static void AssertContainsPath(IEnumerable<string> paths, string expected)
+    {
+        Assert.Contains(paths, actual => PathsEqual(expected, actual));
+    }
+
+    private static void AssertPathEqual(string expected, string actual)
+    {
+        Assert.True(
+            PathsEqual(expected, actual),
+            $"Expected path '{expected}' to equal '{actual}'.");
+    }
+
+    private static bool PathsEqual(string expected, string actual)
+    {
+        return string.Equals(
+            NormalizePath(expected),
+            NormalizePath(actual),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    private static string NormalizePath(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var root = Path.GetPathRoot(fullPath) ?? string.Empty;
+        while (fullPath.Length > root.Length &&
+            (fullPath[fullPath.Length - 1] == Path.DirectorySeparatorChar ||
+             fullPath[fullPath.Length - 1] == Path.AltDirectorySeparatorChar))
+        {
+            fullPath = fullPath.Substring(0, fullPath.Length - 1);
+        }
+        return fullPath;
+    }
+}

@@ -8,6 +8,7 @@ on:
     branches:
       - main
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'nodejs/**'
       - 'test/**'
@@ -31,6 +32,7 @@ permissions:
 jobs:
   test:
     name: "Node.js SDK Tests"
+    if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
     strategy:

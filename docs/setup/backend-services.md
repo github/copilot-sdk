@@ -1,12 +1,12 @@
-# Backend Services Setup
+# Backend services setup
 
-Run the Copilot SDK in server-side applications — APIs, web backends, microservices, and background workers. The CLI runs as a headless server that your backend code connects to over the network.
+Run the Copilot SDK in server-side applications—APIs, web backends, microservices, and background workers. The CLI runs as a headless server that your backend code connects to over the network.
 
 **Best for:** Web app backends, API services, internal tools, CI/CD integrations, any server-side workload.
 
-## How It Works
+## How it works
 
-Instead of the SDK spawning a CLI child process, you run the CLI independently in **headless server mode**. Your backend connects to it over TCP using the `cliUrl` option.
+Instead of the SDK spawning a CLI child process, you run the CLI independently in **headless server mode**. Your backend connects to it over TCP using the `Connection` option (`URIConnection`).
 
 ```mermaid
 flowchart TB
@@ -31,12 +31,14 @@ flowchart TB
 ```
 
 **Key characteristics:**
-- CLI runs as a persistent server process (not spawned per request)
-- SDK connects over TCP — CLI and app can run in different containers
-- Multiple SDK clients can share one CLI server
-- Works with any auth method (GitHub tokens, env vars, BYOK)
+* CLI runs as a persistent server process (not spawned per request)
+* SDK connects over TCP—CLI and app can run in different containers
+* Multiple SDK clients can share one CLI server
+* Works with any auth method (GitHub tokens, env vars, BYOK)
 
-## Architecture: Auto-Managed vs. External CLI
+For multi-user server mode, configure SDK clients with `mode: "empty"`, pass user credentials per session, and explicitly allow tools for each session. See [Multi-Tenancy & Server Deployments](./multi-tenancy.md) for the full pattern.
+
+## Architecture: auto-managed vs. external CLI
 
 ```mermaid
 flowchart LR
@@ -54,7 +56,7 @@ flowchart LR
     style External fill:#0d1117,stroke:#3fb950,color:#c9d1d9
 ```
 
-## Step 1: Start the CLI in Headless Mode
+## Step 1: start the CLI in headless mode
 
 Run the CLI as a background server:
 
@@ -67,15 +69,48 @@ copilot --headless
 # Output: Listening on http://localhost:52431
 ```
 
-For production, run it as a system service or in a container:
+By default the headless server only accepts connections from loopback (`127.0.0.1`). To accept connections from other hosts—for example from another machine on your network—bind to a non-loopback address with `--host`:
 
 ```bash
-# Docker
+copilot --headless --host 0.0.0.0 --port 4321
+```
+
+For production, run it as a system service or in a container.
+
+> [!NOTE]
+> There is no official pre-built Docker image for the Copilot CLI. You can build your own from the [GitHub releases](https://github.com/github/copilot-cli/releases):
+
+```dockerfile
+FROM debian:bookworm-slim
+ARG COPILOT_VERSION=1.0.7
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates wget \
+    && ARCH=$(dpkg --print-architecture) \
+    && case "${ARCH}" in amd64) COPILOT_ARCH="x64" ;; arm64) COPILOT_ARCH="arm64" ;; *) echo "Unsupported: ${ARCH}" && exit 1 ;; esac \
+    && wget -q "https://github.com/github/copilot-cli/releases/download/v${COPILOT_VERSION}/copilot-linux-${COPILOT_ARCH}.tar.gz" \
+    && tar -xzf "copilot-linux-${COPILOT_ARCH}.tar.gz" \
+    && mv copilot /usr/local/bin/ \
+    && rm "copilot-linux-${COPILOT_ARCH}.tar.gz" \
+    && apt-get purge -y wget && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+ENTRYPOINT ["copilot"]
+```
+
+```bash
+# Build the image
+docker build --build-arg COPILOT_VERSION=1.0.7 -t copilot-cli:latest .
+
+# For remote deployments (Kubernetes, ACI, etc.), push to your registry
+docker tag copilot-cli:latest your-registry/copilot-cli:latest
+docker push your-registry/copilot-cli:latest
+```
+
+```bash
+# Docker — must bind to 0.0.0.0 so the container's published port is reachable
 docker run -d --name copilot-cli \
     -p 4321:4321 \
     -e COPILOT_GITHUB_TOKEN="$TOKEN" \
-    ghcr.io/github/copilot-cli:latest \
-    --headless --port 4321
+    copilot-cli:latest \
+    --headless --host 0.0.0.0 --port 4321
 
 # systemd
 [Service]
@@ -84,21 +119,24 @@ Environment=COPILOT_GITHUB_TOKEN=your-token
 Restart=always
 ```
 
-## Step 2: Connect the SDK
+## Step 2: connect the SDK
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
-    cliUrl: "localhost:4321",
+    connection: RuntimeConnection.forUri("localhost:4321"),
+    mode: "empty",
 });
 
 const session = await client.createSession({
     sessionId: `user-${userId}-${Date.now()}`,
     model: "gpt-4.1",
+    availableTools: ["custom:*"],
+    gitHubToken: user.githubToken,
 });
 
 const response = await session.sendAndWait({ prompt: req.body.message });
@@ -111,10 +149,12 @@ res.json({ content: response?.data.content });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, ExternalServerConfig
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
-client = CopilotClient(ExternalServerConfig(url="localhost:4321"))
+client = CopilotClient(
+    connection=RuntimeConnection.for_uri("localhost:4321"),
+)
 await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", session_id=f"user-{user_id}-{int(time.time())}")
@@ -143,9 +183,9 @@ func main() {
 	userID := "user1"
 	message := "Hello"
 
-	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: "localhost:4321",
-	})
+    client := copilot.NewClient(&copilot.ClientOptions{
+        Connection: copilot.URIConnection{URL: "localhost:4321"},
+    })
 	client.Start(ctx)
 	defer client.Stop()
 
@@ -162,7 +202,7 @@ func main() {
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIUrl:"localhost:4321",
+    Connection: copilot.URIConnection{URL: "localhost:4321"},
 })
 client.Start(ctx)
 defer client.Stop()
@@ -182,15 +222,14 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var userId = "user1";
 var message = "Hello";
 
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false,
+    Connection = RuntimeConnection.ForUri("localhost:4321"),
 });
 
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -207,8 +246,7 @@ var response = await session.SendAndWaitAsync(
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false,
+    Connection = RuntimeConnection.ForUri("localhost:4321"),
 });
 
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -227,9 +265,8 @@ var response = await session.SendAndWaitAsync(
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var userId = "user1";
 var message = "Hello!";
@@ -256,11 +293,11 @@ try {
 
 </details>
 
-## Authentication for Backend Services
+## Authentication for backend services
 
-### Environment Variable Tokens
+### Environment variable tokens
 
-The simplest approach — set a token on the CLI server:
+The simplest approach—set a token on the CLI server:
 
 ```mermaid
 flowchart LR
@@ -281,22 +318,23 @@ export COPILOT_GITHUB_TOKEN="gho_service_account_token"
 copilot --headless --port 4321
 ```
 
-### Per-User Tokens (OAuth)
+### Per-user tokens (OAuth)
 
 Pass individual user tokens when creating sessions. See [GitHub OAuth](./github-oauth.md) for the full flow.
 
 ```typescript
+const client = new CopilotClient({
+    connection: RuntimeConnection.forUri("localhost:4321"),
+    mode: "empty",
+});
+
 // Your API receives user tokens from your auth layer
 app.post("/chat", authMiddleware, async (req, res) => {
-    const client = new CopilotClient({
-        cliUrl: "localhost:4321",
-        githubToken: req.user.githubToken,
-        useLoggedInUser: false,
-    });
-
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
         model: "gpt-4.1",
+        availableTools: ["custom:*"],
+        gitHubToken: req.user.githubToken,
     });
 
     const response = await session.sendAndWait({
@@ -307,13 +345,13 @@ app.post("/chat", authMiddleware, async (req, res) => {
 });
 ```
 
-### BYOK (No GitHub Auth)
+### BYOK (no GitHub auth)
 
 Use your own API keys for the model provider. See [BYOK](../auth/byok.md) for details.
 
 ```typescript
 const client = new CopilotClient({
-    cliUrl: "localhost:4321",
+    connection: RuntimeConnection.forUri("localhost:4321"),
 });
 
 const session = await client.createSession({
@@ -326,7 +364,7 @@ const session = await client.createSession({
 });
 ```
 
-## Common Backend Patterns
+## Common backend patterns
 
 ### Web API with Express
 
@@ -348,14 +386,15 @@ flowchart TB
 
 ```typescript
 import express from "express";
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
 const app = express();
 app.use(express.json());
 
-// Single shared CLI connection
+// Single shared CLI connection for multi-user server mode
 const client = new CopilotClient({
-    cliUrl: process.env.CLI_URL || "localhost:4321",
+    connection: RuntimeConnection.forUri(process.env.CLI_URL || "localhost:4321"),
+    mode: "empty",
 });
 
 app.post("/api/chat", async (req, res) => {
@@ -369,6 +408,8 @@ app.post("/api/chat", async (req, res) => {
         session = await client.createSession({
             sessionId,
             model: "gpt-4.1",
+            availableTools: ["custom:*"],
+            gitHubToken: req.user.githubToken,
         });
     }
 
@@ -382,13 +423,13 @@ app.post("/api/chat", async (req, res) => {
 app.listen(3000);
 ```
 
-### Background Worker
+### Background worker
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
-    cliUrl: process.env.CLI_URL || "localhost:4321",
+    connection: RuntimeConnection.forUri(process.env.CLI_URL || "localhost:4321"),
 });
 
 // Process jobs from a queue
@@ -407,15 +448,15 @@ async function processJob(job: Job) {
 }
 ```
 
-### Docker Compose Deployment
+### Docker compose deployment
 
 ```yaml
 version: "3.8"
 
 services:
   copilot-cli:
-    image: ghcr.io/github/copilot-cli:latest
-    command: ["--headless", "--port", "4321"]
+    image: copilot-cli:latest  # See "Step 1" above for how to build this image
+    command: ["--headless", "--host", "0.0.0.0", "--port", "4321"]
     environment:
       - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN}
     ports:
@@ -454,7 +495,7 @@ flowchart TB
     style Docker fill:#0d1117,stroke:#58a6ff,color:#c9d1d9
 ```
 
-## Health Checks
+## Health checks
 
 Monitor the CLI server's health:
 
@@ -470,7 +511,7 @@ async function checkCLIHealth(): Promise<boolean> {
 }
 ```
 
-## Session Cleanup
+## Session cleanup
 
 Backend services should actively clean up sessions to avoid resource leaks:
 
@@ -501,16 +542,18 @@ setInterval(() => cleanupSessions(24 * 60 * 60 * 1000), 60 * 60 * 1000);
 | **Session state on local disk** | Mount persistent storage for container restarts |
 | **30-minute idle timeout** | Sessions without activity are auto-cleaned |
 
-## When to Move On
+## When to move on
 
 | Need | Next Guide |
 |------|-----------|
 | Multiple CLI servers / high availability | [Scaling & Multi-Tenancy](./scaling.md) |
+| SDK isolation for concurrent users | [Multi-Tenancy & Server Deployments](./multi-tenancy.md) |
 | GitHub account auth for users | [GitHub OAuth](./github-oauth.md) |
 | Your own model keys | [BYOK](../auth/byok.md) |
 
-## Next Steps
+## Next steps
 
-- **[Scaling & Multi-Tenancy](./scaling.md)** — Handle more users, add redundancy
-- **[Session Persistence](../features/session-persistence.md)** — Resume sessions across restarts
-- **[GitHub OAuth](./github-oauth.md)** — Add user authentication
+* **[Multi-Tenancy & Server Deployments](./multi-tenancy.md)**: Configure SDK isolation for concurrent users
+* **[Scaling & Multi-Tenancy](./scaling.md)**: Handle more users, add redundancy
+* **[Session Persistence](../features/session-persistence.md)**: Resume sessions across restarts
+* **[GitHub OAuth](./github-oauth.md)**: Add user authentication

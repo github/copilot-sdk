@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CopilotClient } from "../src/client.js";
 import { approveAll } from "../src/index.js";
-import { joinSession } from "../src/extension.js";
+import { createCanvas, joinSession } from "../src/extension.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 describe("joinSession", () => {
@@ -31,7 +31,7 @@ describe("joinSession", () => {
             config.onPermissionRequest!({ kind: "write" }, { sessionId: "session-123" })
         );
         expect(result).toEqual({ kind: "no-result" });
-        expect(config.disableResume).toBe(true);
+        expect(config.suppressResumeEvent).toBe(true);
     });
 
     it("preserves an explicit onPermissionRequest handler", async () => {
@@ -40,10 +40,21 @@ describe("joinSession", () => {
             .spyOn(CopilotClient.prototype, "resumeSession")
             .mockResolvedValue({} as any);
 
-        await joinSession({ onPermissionRequest: approveAll, disableResume: false });
+        await joinSession({ onPermissionRequest: approveAll, suppressResumeEvent: false });
 
         const [, config] = resumeSession.mock.calls[0]!;
         expect(config.onPermissionRequest).toBe(approveAll);
-        expect(config.disableResume).toBe(false);
+        expect(config.suppressResumeEvent).toBe(false);
+    });
+
+    it("exports the canvas helper from the extension surface", () => {
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open: () => ({ url: "https://example.test/counter" }),
+        });
+
+        expect(canvas.declaration.id).toBe("counter");
     });
 });

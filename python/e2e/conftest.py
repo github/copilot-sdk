@@ -1,5 +1,7 @@
 """Shared pytest fixtures for e2e tests."""
 
+import os
+
 import pytest
 import pytest_asyncio
 
@@ -24,18 +26,22 @@ async def ctx(request):
     await context.setup()
     yield context
     any_failed = request.session.stash.get("any_test_failed", False)
-    await context.teardown(test_failed=any_failed)
+    skip_writing_cache = any_failed or bool(os.environ.get("GITHUB_ACTIONS"))
+    await context.teardown(test_failed=skip_writing_cache)
 
 
 @pytest_asyncio.fixture(autouse=True, loop_scope="module")
 async def configure_test(request, ctx):
     """Automatically configure the proxy for each test."""
-    # Extract test file name from module (e.g., "test_session" -> "session")
+    # Extract test file name from module
+    # (e.g., "test_session" -> "session", "test_session_e2e" -> "session")
     module_name = request.module.__name__.split(".")[-1]
     if module_name.startswith("test_"):
         test_file = module_name[5:]  # Remove "test_" prefix
     else:
         test_file = module_name
+    if test_file.endswith("_e2e"):
+        test_file = test_file[:-4]  # Remove "_e2e" suffix for snapshot folder compatibility
 
     # Extract test name (e.g., "test_should_create_sessions" -> "should_create_sessions")
     test_name = request.node.name

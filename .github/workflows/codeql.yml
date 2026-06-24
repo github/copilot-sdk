@@ -1,0 +1,159 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # Weekly on Monday at 06:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+      skipped-matrix: ${{ steps.build-matrix.outputs.skipped-matrix }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050 # v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            java:
+              - 'java/**'
+              - '!java/docs/**'
+              - '!java/*.txt'
+              - '!java/*.md'
+            js:
+              - 'nodejs/**'
+              - 'scripts/**'
+              - 'test/harness/**'
+            python:
+              - 'python/**'
+            go:
+              - 'go/**'
+            rust:
+              - 'rust/**'
+            csharp:
+              - 'dotnet/**'
+            actions:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+
+      - name: Build language matrix
+        id: build-matrix
+        run: |
+          ALL_LANGUAGES=("java-kotlin" "javascript-typescript" "python" "go" "rust" "csharp" "actions")
+          ALL_GATES=("java" "js" "python" "go" "rust" "csharp" "actions")
+
+          # On push/schedule, analyse ALL languages; skip none.
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            entries=()
+            for lang in "${ALL_LANGUAGES[@]}"; do
+              entries+=("{\"language\":\"${lang}\"}")
+            done
+            joined=$(IFS=,; echo "${entries[*]}")
+            echo "matrix={\"include\":[${joined}]}" >> "$GITHUB_OUTPUT"
+            echo 'skipped-matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+          else
+            entries=()
+            skipped=()
+            filter_outputs=("${{ steps.filter.outputs.java }}" "${{ steps.filter.outputs.js }}" "${{ steps.filter.outputs.python }}" "${{ steps.filter.outputs.go }}" "${{ steps.filter.outputs.rust }}" "${{ steps.filter.outputs.csharp }}" "${{ steps.filter.outputs.actions }}")
+
+            for i in "${!ALL_LANGUAGES[@]}"; do
+              lang="${ALL_LANGUAGES[$i]}"
+              changed="${filter_outputs[$i]}"
+              if [[ "$changed" == "true" ]]; then
+                entries+=("{\"language\":\"${lang}\"}")
+              else
+                skipped+=("{\"language\":\"${lang}\"}")
+              fi
+            done
+
+            if [[ ${#entries[@]} -eq 0 ]]; then
+              echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            else
+              joined=$(IFS=,; echo "${entries[*]}")
+              echo "matrix={\"include\":[${joined}]}" >> "$GITHUB_OUTPUT"
+            fi
+
+            if [[ ${#skipped[@]} -eq 0 ]]; then
+              echo 'skipped-matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            else
+              joined=$(IFS=,; echo "${skipped[*]}")
+              echo "skipped-matrix={\"include\":[${joined}]}" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    needs: changes
+    if: ${{ fromJson(needs.changes.outputs.matrix).include[0] != null }}
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.changes.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # Upload empty SARIF for languages that were NOT analysed in this PR.
+  # Code scanning branch protection expects results for every category that
+  # has ever been uploaded on the default branch; missing categories block merge.
+  skip-analysis:
+    name: Skip (${{ matrix.language }})
+    needs: changes
+    if: ${{ github.event_name == 'pull_request' && fromJson(needs.changes.outputs.skipped-matrix).include[0] != null }}
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.changes.outputs.skipped-matrix) }}
+    steps:
+      - name: Create empty SARIF
+        run: |
+          cat > "$RUNNER_TEMP/empty.sarif" <<'EOF'
+          {
+            "version": "2.1.0",
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [{
+              "tool": { "driver": { "name": "CodeQL", "version": "0.0.0" } },
+              "results": []
+            }]
+          }
+          EOF
+
+      - name: Upload empty SARIF
+        uses: github/codeql-action/upload-sarif@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4
+        with:
+          sarif_file: ${{ runner.temp }}/empty.sarif
+          category: "/language:${{ matrix.language }}"

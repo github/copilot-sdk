@@ -3,9 +3,17 @@ Test helper functions for E2E tests.
 """
 
 import asyncio
+import inspect
 import os
+import time
+from collections.abc import Awaitable, Callable
 
 from copilot import CopilotSession
+from copilot.session_events import (
+    AssistantMessageData,
+    SessionErrorData,
+    SessionIdleData,
+)
 
 
 async def get_final_assistant_message(
@@ -34,14 +42,15 @@ async def get_final_assistant_message(
         if result_future.done():
             return
 
-        if event.type.value == "assistant.message":
-            final_assistant_message = event
-        elif event.type.value == "session.idle":
-            if final_assistant_message is not None:
-                result_future.set_result(final_assistant_message)
-        elif event.type.value == "session.error":
-            msg = event.data.message if event.data.message else "session error"
-            result_future.set_exception(RuntimeError(msg))
+        match event.data:
+            case AssistantMessageData():
+                final_assistant_message = event
+            case SessionIdleData():
+                if final_assistant_message is not None:
+                    result_future.set_result(final_assistant_message)
+            case SessionErrorData() as data:
+                msg = data.message if data.message else "session error"
+                result_future.set_exception(RuntimeError(msg))
 
     # Subscribe to future events
     unsubscribe = session.on(on_event)
@@ -59,7 +68,7 @@ async def get_final_assistant_message(
 
 async def _get_existing_final_response(session: CopilotSession, already_idle: bool = False):
     """Check existing messages for a final response."""
-    messages = await session.get_messages()
+    messages = await session.get_events()
 
     # Find last user message
     final_user_message_index = -1
@@ -75,9 +84,10 @@ async def _get_existing_final_response(session: CopilotSession, already_idle: bo
 
     # Check for errors
     for msg in current_turn_messages:
-        if msg.type.value == "session.error":
-            err_msg = msg.data.message if msg.data.message else "session error"
-            raise RuntimeError(err_msg)
+        match msg.data:
+            case SessionErrorData() as data:
+                err_msg = data.message if data.message else "session error"
+                raise RuntimeError(err_msg)
 
     # Find session.idle and get last assistant message before it
     if already_idle:
@@ -132,6 +142,31 @@ def read_file(work_dir: str, filename: str) -> str:
         return f.read()
 
 
+async def wait_for_condition(
+    condition: Callable[[], bool | Awaitable[bool]],
+    *,
+    timeout: float = 120.0,
+    poll_interval: float = 0.1,
+    timeout_message: str = "Timed out waiting for condition.",
+) -> None:
+    """Poll until condition returns true, with timeout only as a failsafe."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = condition()
+        if inspect.isawaitable(result):
+            result = await result
+        if result:
+            return
+        await asyncio.sleep(poll_interval)
+
+    result = condition()
+    if inspect.isawaitable(result):
+        result = await result
+    if result:
+        return
+    raise TimeoutError(timeout_message)
+
+
 async def get_next_event_of_type(session: CopilotSession, event_type: str, timeout: float = 30.0):
     """
     Wait for and return the next event of a specific type from a session.
@@ -156,9 +191,11 @@ async def get_next_event_of_type(session: CopilotSession, event_type: str, timeo
 
         if event.type.value == event_type:
             result_future.set_result(event)
-        elif event.type.value == "session.error":
-            msg = event.data.message if event.data.message else "session error"
-            result_future.set_exception(RuntimeError(msg))
+        else:
+            match event.data:
+                case SessionErrorData() as data:
+                    msg = data.message if data.message else "session error"
+                    result_future.set_exception(RuntimeError(msg))
 
     unsubscribe = session.on(on_event)
 

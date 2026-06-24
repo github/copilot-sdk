@@ -1,6 +1,7 @@
 package jsonrpc2
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -62,55 +63,58 @@ type RequestHandler func(params json.RawMessage) (json.RawMessage, *Error)
 
 // Client is a minimal JSON-RPC 2.0 client for stdio transport.
 type Client struct {
-	reader          *headerReader // reads frames from the remote side
-	stdout          io.ReadCloser
-	writer          chan *headerWriter // 1-buffered; holds the writer when not in use
-	mu              sync.Mutex
-	pendingRequests map[string]chan *Response
-	requestHandlers map[string]RequestHandler
-	running         atomic.Bool
-	stopChan        chan struct{}
-	wg              sync.WaitGroup
-	processDone     chan struct{} // closed when the underlying process exits
-	processError    error         // set before processDone is closed
-	processErrorMu  sync.RWMutex  // protects processError
-	onClose         func()        // called when the read loop exits unexpectedly
+	reader                 *headerReader // reads frames from the remote side
+	stdout                 io.ReadCloser
+	writer                 chan *headerWriter // 1-buffered; holds the writer when not in use
+	mu                     sync.Mutex
+	pendingRequests        map[string]chan *Response
+	pendingInlineCallbacks map[string]func(json.RawMessage) error
+	requestHandlers        map[string]RequestHandler
+	running                atomic.Bool
+	stopChan               chan struct{}
+	wg                     sync.WaitGroup
+	processDone            chan struct{} // closed when the underlying process exits
+	processErrorPtr        *error        // points to the process error
+	processErrorMu         sync.RWMutex  // protects processErrorPtr
+	onClose                func()        // called when the read loop exits unexpectedly
 }
 
 // NewClient creates a new JSON-RPC client.
 func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 	c := &Client{
-		reader:          newHeaderReader(stdout),
-		stdout:          stdout,
-		writer:          make(chan *headerWriter, 1),
-		pendingRequests: make(map[string]chan *Response),
-		requestHandlers: make(map[string]RequestHandler),
-		stopChan:        make(chan struct{}),
+		reader:                 newHeaderReader(stdout),
+		stdout:                 stdout,
+		writer:                 make(chan *headerWriter, 1),
+		pendingRequests:        make(map[string]chan *Response),
+		pendingInlineCallbacks: make(map[string]func(json.RawMessage) error),
+		requestHandlers:        make(map[string]RequestHandler),
+		stopChan:               make(chan struct{}),
 	}
 	c.writer <- newHeaderWriter(stdin)
 	return c
 }
 
 // SetProcessDone sets a channel that will be closed when the process exits,
-// and stores the error that should be returned to pending/future requests.
+// and stores the error pointer that should be returned to pending/future requests.
+// The error is read directly from the pointer after the channel closes, avoiding
+// a race between an async goroutine and callers checking the error.
 func (c *Client) SetProcessDone(done chan struct{}, errPtr *error) {
 	c.processDone = done
-	// Monitor the channel and copy the error when it closes
-	go func() {
-		<-done
-		if errPtr != nil {
-			c.processErrorMu.Lock()
-			c.processError = *errPtr
-			c.processErrorMu.Unlock()
-		}
-	}()
+	c.processErrorMu.Lock()
+	c.processErrorPtr = errPtr
+	c.processErrorMu.Unlock()
 }
 
-// getProcessError returns the process exit error if the process has exited
+// getProcessError returns the process exit error if the process has exited.
+// It reads directly from the stored error pointer, which is guaranteed to be
+// set before the processDone channel is closed.
 func (c *Client) getProcessError() error {
 	c.processErrorMu.RLock()
 	defer c.processErrorMu.RUnlock()
-	return c.processError
+	if c.processErrorPtr != nil {
+		return *c.processErrorPtr
+	}
+	return nil
 }
 
 // Start begins listening for messages in a background goroutine
@@ -199,25 +203,49 @@ func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
 }
 
 // Request sends a JSON-RPC request and waits for the response
-func (c *Client) Request(method string, params any) (json.RawMessage, error) {
+func (c *Client) Request(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	return c.RequestWithInlineResponse(ctx, method, params, nil)
+}
+
+// RequestWithInlineResponse sends a JSON-RPC request and waits for the response,
+// invoking an optional callback synchronously from the read loop the instant a
+// successful response is parsed — before the response is delivered to the
+// awaiter and before the read loop dispatches the next message. Use this when
+// client-side state must be visible (for example, a session id assigned by the
+// server in the response) before any subsequent notification on the same
+// connection is dispatched. If the callback returns an error, that error is
+// returned to the awaiter in place of the response.
+func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, params any, onResponseInline func(json.RawMessage) error) (json.RawMessage, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	requestID := generateUUID()
 
 	// Create response channel
 	responseChan := make(chan *Response, 1)
 	c.mu.Lock()
 	c.pendingRequests[requestID] = responseChan
+	if onResponseInline != nil {
+		c.pendingInlineCallbacks[requestID] = onResponseInline
+	}
 	c.mu.Unlock()
 
 	// Clean up on exit
 	defer func() {
 		c.mu.Lock()
 		delete(c.pendingRequests, requestID)
+		delete(c.pendingInlineCallbacks, requestID)
 		c.mu.Unlock()
 	}()
 
 	// Check if process already exited before sending
 	if c.processDone != nil {
 		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-c.processDone:
 			if err := c.getProcessError(); err != nil {
 				return nil, err
@@ -247,13 +275,18 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 		Params:  paramsData,
 	}
 
-	if err := c.sendMessage(request); err != nil {
+	if err := c.sendMessage(ctx, request); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
 	// Wait for response, also checking for process exit
 	if c.processDone != nil {
 		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case response := <-responseChan:
 			if response.Error != nil {
 				return nil, response.Error
@@ -269,6 +302,8 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 		}
 	}
 	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case response := <-responseChan:
 		if response.Error != nil {
 			return nil, response.Error
@@ -282,13 +317,26 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 // sendMessage writes a message to the stream.
 // Write serialization is achieved via a 1-buffered channel that holds the
 // writer when not in use, avoiding the need for a mutex on the write path.
-func (c *Client) sendMessage(message any) error {
+func (c *Client) sendMessage(ctx context.Context, message any) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	w := <-c.writer
+	var w *headerWriter
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.stopChan:
+		return fmt.Errorf("client stopped")
+	case w = <-c.writer:
+	}
 	defer func() { c.writer <- w }()
 	return w.Write(data)
 }
@@ -346,24 +394,52 @@ func (c *Client) handleResponse(response *Response) {
 	}
 	c.mu.Lock()
 	responseChan, ok := c.pendingRequests[id]
+	inlineCb := c.pendingInlineCallbacks[id]
+	delete(c.pendingInlineCallbacks, id)
 	c.mu.Unlock()
 
-	if ok {
-		select {
-		case responseChan <- response:
-		default:
-		}
+	if !ok {
+		return
+	}
+
+	// Run the inline callback synchronously in the read loop so any state it
+	// mutates is visible before the read loop dispatches the next message.
+	// Wrap in a recover so a misbehaving callback can't take down the loop.
+	if inlineCb != nil && response.Error == nil {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					response.Error = &Error{
+						Code:    ErrInternal.Code,
+						Message: fmt.Sprintf("inline response callback panicked: %v", r),
+					}
+				}
+			}()
+			if err := inlineCb(response.Result); err != nil {
+				response.Error = &Error{
+					Code:    ErrInternal.Code,
+					Message: err.Error(),
+				}
+			}
+		}()
+	}
+
+	select {
+	case responseChan <- response:
+	default:
 	}
 }
 
 func (c *Client) handleRequest(request *Request) {
+	ctx := context.Background()
+
 	c.mu.Lock()
 	handler := c.requestHandlers[request.Method]
 	c.mu.Unlock()
 
 	if handler == nil {
 		if request.IsCall() {
-			c.sendErrorResponse(request.ID, &Error{
+			c.sendErrorResponse(ctx, request.ID, &Error{
 				Code:    ErrMethodNotFound.Code,
 				Message: fmt.Sprintf("Method not found: %s", request.Method),
 			})
@@ -380,7 +456,7 @@ func (c *Client) handleRequest(request *Request) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				c.sendErrorResponse(request.ID, &Error{
+				c.sendErrorResponse(ctx, request.ID, &Error{
 					Code:    ErrInternal.Code,
 					Message: fmt.Sprintf("request handler panic: %v", r),
 				})
@@ -389,31 +465,31 @@ func (c *Client) handleRequest(request *Request) {
 
 		result, err := handler(request.Params)
 		if err != nil {
-			c.sendErrorResponse(request.ID, err)
+			c.sendErrorResponse(ctx, request.ID, err)
 			return
 		}
-		c.sendResponse(request.ID, result)
+		c.sendResponse(ctx, request.ID, result)
 	}()
 }
 
-func (c *Client) sendResponse(id json.RawMessage, result json.RawMessage) {
+func (c *Client) sendResponse(ctx context.Context, id json.RawMessage, result json.RawMessage) {
 	response := Response{
 		JSONRPC: version,
 		ID:      id,
 		Result:  result,
 	}
-	if err := c.sendMessage(response); err != nil {
+	if err := c.sendMessage(ctx, response); err != nil {
 		fmt.Printf("Failed to send JSON-RPC response: %v\n", err)
 	}
 }
 
-func (c *Client) sendErrorResponse(id json.RawMessage, rpcErr *Error) {
+func (c *Client) sendErrorResponse(ctx context.Context, id json.RawMessage, rpcErr *Error) {
 	response := Response{
 		JSONRPC: version,
 		ID:      id,
 		Error:   rpcErr,
 	}
-	if err := c.sendMessage(response); err != nil {
+	if err := c.sendMessage(ctx, response); err != nil {
 		fmt.Printf("Failed to send JSON-RPC error response: %v\n", err)
 	}
 }

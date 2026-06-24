@@ -1,0 +1,17 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Who are you?
+      - role: assistant
+        content: >-
+          I'm **Botanica**, your helpful gardening assistant! 🌱 I'm here to answer questions about plants, gardening,
+          horticulture, and everything related to growing and caring for greenery. Whether you need advice on soil,
+          watering, pests, plant identification, or growing tips, I'm here to help!
+
+
+          I'm powered by claude-sonnet-4.5, but I focus specifically on gardening topics. What plant or gardening
+          question can I help you with today?

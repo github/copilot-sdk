@@ -1,4 +1,4 @@
-# SDK and CLI Compatibility
+# SDK and CLI compatibility
 
 This document outlines which Copilot CLI features are available through the SDK and which are CLI-only.
 
@@ -6,7 +6,7 @@ This document outlines which Copilot CLI features are available through the SDK 
 
 The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must be explicitly exposed through this protocol to be available in the SDK. Many interactive CLI features are terminal-specific and not available programmatically.
 
-## Feature Comparison
+## Feature comparison
 
 ### ✅ Available in SDK
 
@@ -29,7 +29,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Queueing (enqueue mode) | `send({ mode: "enqueue" })` | Buffer for sequential processing (default) |
 | File attachments | `send({ attachments: [{ type: "file", path }] })` | Images auto-encoded and resized |
 | Directory attachments | `send({ attachments: [{ type: "directory", path }] })` | Attach directory context |
-| Get history | `getMessages()` | All session events |
+| Get history | `getEvents()` | All session events |
 | Abort | `abort()` | Cancel in-flight request |
 | **Tools** | | |
 | Register custom tools | `registerTools()` | Full JSON Schema support |
@@ -55,7 +55,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Create workspace file | `session.rpc.workspace.createFile()` | Create file in workspace |
 | **Authentication** | | |
 | Get auth status | `getAuthStatus()` | Check login state |
-| Use token | `githubToken` option | Programmatic auth |
+| Use token | `gitHubToken` option | Programmatic auth |
 | **Connectivity** | | |
 | Ping | `client.ping()` | Health check with server timestamp |
 | Get server status | `client.getStatus()` | Protocol version and server info |
@@ -64,7 +64,8 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Remote HTTP/SSE | `mcpServers` config | Connect to services |
 | **Hooks** | | |
 | Pre-tool use | `onPreToolUse` | Permission, modify args |
-| Post-tool use | `onPostToolUse` | Modify results |
+| Post-tool use (success) | `onPostToolUse` | Modify results |
+| Post-tool use (failure) | `onPostToolUseFailure` | Observe failed tool calls, inject retry guidance |
 | User prompt | `onUserPromptSubmitted` | Modify prompts |
 | Session start/end | `onSessionStart`, `onSessionEnd` | Lifecycle with source/reason |
 | Error handling | `onErrorOccurred` | Custom handling |
@@ -85,12 +86,12 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Working directory | `workingDirectory` config | Set session cwd |
 | **Experimental** | | |
 | Agent management | `session.rpc.agent.*` | List, select, deselect, get current agent |
-| Fleet mode | `session.rpc.fleet.start()` | Parallel sub-agent execution |
+| Fleet mode | `session.rpc.fleet.start()` | Parallel sub-agent execution; see [Fleet mode](../features/fleet-mode.md) |
 | Manual compaction | `session.rpc.history.compact()` | Trigger compaction on demand |
 | History truncation | `session.rpc.history.truncate()` | Remove events from a point onward |
 | Session forking | `server.rpc.sessions.fork()` | Fork a session at a point in history |
 
-### ❌ Not Available in SDK (CLI-Only)
+### ❌ Not available in SDK (CLI-only)
 
 | Feature | CLI Command/Option | Reason |
 |---------|-------------------|--------|
@@ -169,7 +170,11 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 
 ## Workarounds
 
-### Session Export
+### Fleet mode
+
+Fleet mode is available through `session.rpc.fleet.start()` for SDK applications that want the runtime to dispatch parallel sub-agents for a larger objective. Use it when independent subtasks can run concurrently and then be summarized by the main session. For a full guide, see [Fleet mode](../features/fleet-mode.md).
+
+### Session export
 
 The `--share` option is not available via SDK. Workarounds:
 
@@ -178,13 +183,13 @@ The `--share` option is not available via SDK. Workarounds:
    const events: SessionEvent[] = [];
    session.on((event) => events.push(event));
    // ... after conversation ...
-   const messages = await session.getMessages();
+   const messages = await session.getEvents();
    // Format as markdown yourself
    ```
 
-2. **Use CLI directly for export** - Run the CLI with `--share` for one-off exports.
+1. **Use CLI directly for export** - Run the CLI with `--share` for one-off exports.
 
-### Permission Control
+### Permission control
 
 The SDK uses a **deny-by-default** permission model. All permission requests (file writes, shell commands, URL fetches, etc.) are denied unless your app provides an `onPermissionRequest` handler.
 
@@ -196,7 +201,7 @@ const session = await client.createSession({
 });
 ```
 
-### Token Usage Tracking
+### Token usage tracking
 
 Instead of `/usage`, subscribe to usage events:
 
@@ -209,7 +214,7 @@ session.on("assistant.usage", (event) => {
 });
 ```
 
-### Context Compaction
+### Context compaction
 
 Instead of `/compact`, configure automatic compaction or trigger it manually:
 
@@ -228,9 +233,10 @@ const result = await session.rpc.history.compact();
 console.log(`Removed ${result.tokensRemoved} tokens, ${result.messagesRemoved} messages`);
 ```
 
-> **Note:** Thresholds are context utilization ratios (0.0-1.0), not absolute token counts.
+> [!NOTE]
+> Thresholds are context utilization ratios (0.0-1.0), not absolute token counts.
 
-### Plan Management
+### Plan management
 
 Read and write session plans programmatically:
 
@@ -248,7 +254,7 @@ await session.rpc.plan.update({ content: "# My Plan\n- Step 1\n- Step 2" });
 await session.rpc.plan.delete();
 ```
 
-### Message Steering
+### Message steering
 
 Inject a message into the current LLM turn without aborting:
 
@@ -260,22 +266,22 @@ await session.send({ prompt: "Focus on error handling first", mode: "immediate" 
 await session.send({ prompt: "Next, add tests" });
 ```
 
-## Protocol Limitations
+## Protocol limitations
 
 The SDK can only access features exposed through the CLI's JSON-RPC protocol. If you need a CLI feature that's not available:
 
 1. **Check for alternatives** - Many features have SDK equivalents (see workarounds above)
-2. **Use the CLI directly** - For one-off operations, invoke the CLI
-3. **Request the feature** - Open an issue to request protocol support
+1. **Use the CLI directly** - For one-off operations, invoke the CLI
+1. **Request the feature** - Open an issue to request protocol support
 
-## Version Compatibility
+## Version compatibility
 
 | SDK Protocol Range | CLI Protocol Version | Compatibility |
 |--------------------|---------------------|---------------|
 | v2–v3 | v3 | Full support |
 | v2–v3 | v2 | Supported with automatic v2 adapters |
 
-The SDK negotiates protocol versions with the CLI at startup. The SDK supports protocol versions 2 through 3. When connecting to a v2 CLI server, the SDK automatically adapts `tool.call` and `permission.request` messages to the v3 event model — no code changes required.
+The SDK negotiates protocol versions with the CLI at startup. The SDK supports protocol versions 2 through 3. When connecting to a v2 CLI server, the SDK automatically adapts `tool.call` and `permission.request` messages to the v3 event model—no code changes required.
 
 Check versions at runtime:
 
@@ -284,9 +290,9 @@ const status = await client.getStatus();
 console.log("Protocol version:", status.protocolVersion);
 ```
 
-## See Also
+## See also
 
-- [Getting Started Guide](../getting-started.md)
-- [Hooks Documentation](../hooks/index.md)
-- [MCP Servers Guide](../features/mcp.md)
-- [Debugging Guide](./debugging.md)
+* [Getting Started Guide](../getting-started.md)
+* [Hooks Documentation](../hooks/hooks-overview.md)
+* [MCP Servers Guide](../features/mcp.md)
+* [Debugging Guide](./debugging.md)

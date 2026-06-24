@@ -39,7 +39,9 @@ conversations:
               arguments: '{"pattern":"^ap","path":"${workdir}/data.txt","output_mode":"content","-n":true}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
       - role: tool
         tool_call_id: toolcall_1
         content: |-
@@ -47,6 +49,6 @@ conversations:
           ${workdir}/data.txt:3:apricot
       - role: assistant
         content: |-
-          Two lines matched:
-          - Line 1: `apple`
-          - Line 3: `apricot`
+          Two lines start with 'ap':
+          - **Line 1:** apple
+          - **Line 3:** apricot

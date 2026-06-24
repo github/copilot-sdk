@@ -1,0 +1,58 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call echo_value with value 'original', then reply with the result.
+      - role: assistant
+        content: I'll call echo_value with 'original' for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Calling echo_value"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: echo_value
+              arguments: '{"value":"original"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call echo_value with value 'original', then reply with the result.
+      - role: assistant
+        content: I'll call echo_value with 'original' for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Calling echo_value"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: echo_value
+              arguments: '{"value":"modified by hook"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task, echo_value.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: modified by hook
+      - role: assistant
+        content: >-
+          The echo_value function returned: **"modified by hook"**
+
+
+          Interestingly, even though I called it with the value 'original', the result shows 'modified by hook',
+          suggesting there may be some interceptor or hook modifying the parameter before it reaches the actual
+          function.

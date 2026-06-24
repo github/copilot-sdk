@@ -1,21 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net8.0;net472</TargetFrameworks>
+    <RootNamespace>GitHub.Copilot.Test</RootNamespace>
     <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
     <NoWarn>$(NoWarn);GHCP001</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>
     <!--
       Disable STJ reflection-based serialization to help validate NativeAOT.
-      If in the future this test project targets multiple TFMs, this should be
-      made conditional for a subset of those TFMs in order to test with both
-      false and the default of true.
       -->
-    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <JsonSerializerIsReflectionEnabledByDefault Condition="'$(TargetFramework)' == 'net8.0'">false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -26,11 +28,17 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="StreamJsonRpc" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../src/GitHub.Copilot.SDK.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <Compile Include="..\src\Polyfills\*.cs" Link="Polyfills\%(Filename)%(Extension)" />
+    <PackageReference Include="Microsoft.Bcl.Memory" />
+    <PackageReference Include="System.Net.Http.Json" />
+    <Reference Include="System.Net.Http" />
   </ItemGroup>
 
 </Project>

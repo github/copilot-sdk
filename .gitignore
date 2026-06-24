@@ -2,3 +2,18 @@
 # Documentation validation output
 docs/.validation/
 .DS_Store
+
+
+# Visual Studio
+.vs/
+
+# C# Dev Kit
+*.csproj.lscache
+
+# Java
+java/target
+java/smoke-test
+java/.classpath
+java/.project
+java/.settings
+java/scripts/codegen/node_modules/

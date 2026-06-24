@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from copilot._telemetry import get_trace_context, trace_context
-from copilot.client import SubprocessConfig, TelemetryConfig
+from copilot.client import TelemetryConfig
 
 
 class TestGetTraceContext:
@@ -73,21 +73,11 @@ class TestTelemetryConfig:
         assert config["otlp_endpoint"] == "http://localhost:4318"
         assert config["capture_content"] is True
 
-    def test_telemetry_config_in_subprocess_config(self):
-        """TelemetryConfig can be used in SubprocessConfig."""
-        config = SubprocessConfig(
-            telemetry={
-                "otlp_endpoint": "http://localhost:4318",
-                "exporter_type": "otlp-http",
-            }
-        )
-        assert config.telemetry is not None
-        assert config.telemetry["otlp_endpoint"] == "http://localhost:4318"
-
     def test_telemetry_env_var_mapping(self):
         """TelemetryConfig fields map to expected environment variable names."""
         config: TelemetryConfig = {
             "otlp_endpoint": "http://localhost:4318",
+            "otlp_protocol": "http/protobuf",
             "file_path": "/tmp/traces.jsonl",
             "exporter_type": "file",
             "source_name": "test-app",
@@ -98,6 +88,8 @@ class TestTelemetryConfig:
         env["COPILOT_OTEL_ENABLED"] = "true"
         if "otlp_endpoint" in config:
             env["OTEL_EXPORTER_OTLP_ENDPOINT"] = config["otlp_endpoint"]
+        if "otlp_protocol" in config:
+            env["OTEL_EXPORTER_OTLP_PROTOCOL"] = config["otlp_protocol"]
         if "file_path" in config:
             env["COPILOT_OTEL_FILE_EXPORTER_PATH"] = config["file_path"]
         if "exporter_type" in config:
@@ -111,6 +103,7 @@ class TestTelemetryConfig:
 
         assert env["COPILOT_OTEL_ENABLED"] == "true"
         assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://localhost:4318"
+        assert env["OTEL_EXPORTER_OTLP_PROTOCOL"] == "http/protobuf"
         assert env["COPILOT_OTEL_FILE_EXPORTER_PATH"] == "/tmp/traces.jsonl"
         assert env["COPILOT_OTEL_EXPORTER_TYPE"] == "file"
         assert env["COPILOT_OTEL_SOURCE_NAME"] == "test-app"

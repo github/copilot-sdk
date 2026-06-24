@@ -2,12 +2,15 @@ name: "Documentation Validation"
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'docs/**'
       - 'nodejs/src/**'
       - 'python/copilot/**'
       - 'go/**/*.go'
       - 'dotnet/src/**'
+      - 'java/src/**'
+      - 'java/pom.xml'
       - 'scripts/docs-validation/**'
       - '.github/workflows/docs-validation.yml'
   workflow_dispatch:
@@ -19,6 +22,7 @@ permissions:
 jobs:
   validate-typescript:
     name: "Validate TypeScript"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -43,6 +47,7 @@ jobs:
 
   validate-python:
     name: "Validate Python"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -75,6 +80,7 @@ jobs:
 
   validate-go:
     name: "Validate Go"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -98,6 +104,7 @@ jobs:
 
   validate-csharp:
     name: "Validate C#"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -121,3 +128,32 @@ jobs:
       - name: Extract and validate C#
         working-directory: scripts/docs-validation
         run: npm run extract && npm run validate:cs
+
+  validate-java:
+    name: "Validate Java"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'microsoft'
+          java-version: '25'
+          cache: 'maven'
+
+      - name: Install SDK to local repo
+        working-directory: java
+        run: mvn install -DskipTests -q
+
+      - name: Install validation dependencies
+        working-directory: scripts/docs-validation
+        run: npm ci
+
+      - name: Extract and validate Java
+        working-directory: scripts/docs-validation
+        run: npm run extract && npm run validate:java

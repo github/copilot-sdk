@@ -1,13 +1,13 @@
-# Pre-Tool Use Hook
+# Pre-tool use hook
 
 The `onPreToolUse` hook is called **before** a tool executes. Use it to:
 
-- Approve or deny tool execution
-- Modify tool arguments
-- Add context for the tool
-- Suppress tool output from the conversation
+* Approve or deny tool execution
+* Modify tool arguments
+* Add context for the tool
+* Suppress tool output from the conversation
 
-## Hook Signature
+## Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -84,7 +84,7 @@ type PreToolUseHandler func(
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,
@@ -102,10 +102,25 @@ public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```java
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
 
-PreToolUseHandler preToolUseHandler;
+public class PreToolUseSignature {
+    PreToolUseHandler handler = (PreToolUseHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+    public static void main(String[] args) {}
+}
+```
+<!-- /docs-validate: hidden -->
+```java
+@FunctionalInterface
+public interface PreToolUseHandler {
+    CompletableFuture<PreToolUseHookOutput> handle(
+        PreToolUseHookInput input,
+        HookInvocation invocation);
+}
 ```
 
 </details>
@@ -131,7 +146,7 @@ Return `null` or `undefined` to allow the tool to execute with no changes. Other
 | `additionalContext` | string | Extra context injected into the conversation |
 | `suppressOutput` | boolean | If true, tool output won't appear in conversation |
 
-### Permission Decisions
+### Permission decisions
 
 | Decision | Behavior |
 |----------|----------|
@@ -139,9 +154,26 @@ Return `null` or `undefined` to allow the tool to execute with no changes. Other
 | `"deny"` | Tool is blocked, reason shown to user |
 | `"ask"` | User is prompted to approve (interactive mode) |
 
+### Skipping permission prompts for trusted custom tools
+
+If you define a custom tool that is safe to run without prompting, set `skipPermission: true` on the tool definition. Use this for trusted, app-owned tools whose inputs are already constrained by your application; use `onPreToolUse` when you need per-call policy checks or argument validation.
+
+```typescript
+const getWeather = defineTool("get_weather", {
+  description: "Get weather for a location.",
+  parameters: {
+    type: "object",
+    properties: { location: { type: "string" } },
+    required: ["location"],
+  },
+  skipPermission: true,
+  handler: async ({ location }) => ({ forecast: `Sunny in ${location}` }),
+});
+```
+
 ## Examples
 
-### Allow All Tools (Logging Only)
+### Allow all tools (logging only)
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -228,7 +260,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class PreToolUseExample
 {
@@ -275,9 +307,10 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 var hooks = new SessionHooks()
@@ -296,7 +329,7 @@ var session = client.createSession(
 
 </details>
 
-### Block Specific Tools
+### Block specific tools
 
 ```typescript
 const BLOCKED_TOOLS = ["shell", "bash", "write_file", "delete_file"];
@@ -316,7 +349,7 @@ const session = await client.createSession({
 });
 ```
 
-### Modify Tool Arguments
+### Modify tool arguments
 
 ```typescript
 const session = await client.createSession({
@@ -339,7 +372,7 @@ const session = await client.createSession({
 });
 ```
 
-### Restrict File Access to Specific Directories
+### Restrict file access to specific directories
 
 ```typescript
 const ALLOWED_DIRECTORIES = ["/home/user/projects", "/tmp"];
@@ -366,7 +399,7 @@ const session = await client.createSession({
 });
 ```
 
-### Suppress Verbose Tool Output
+### Suppress verbose tool output
 
 ```typescript
 const VERBOSE_TOOLS = ["list_directory", "search_files"];
@@ -383,7 +416,7 @@ const session = await client.createSession({
 });
 ```
 
-### Add Context Based on Tool
+### Add context based on tool
 
 ```typescript
 const session = await client.createSession({
@@ -401,11 +434,11 @@ const session = await client.createSession({
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Always return a decision** - Returning `null` allows the tool, but being explicit with `{ permissionDecision: "allow" }` is clearer.
 
-2. **Provide helpful denial reasons** - When denying, explain why so users understand:
+1. **Provide helpful denial reasons** - When denying, explain why so users understand:
    ```typescript
    return {
      permissionDecision: "deny",
@@ -413,14 +446,14 @@ const session = await client.createSession({
    };
    ```
 
-3. **Be careful with argument modification** - Ensure modified args maintain the expected schema for the tool.
+1. **Be careful with argument modification** - Ensure modified args maintain the expected schema for the tool.
 
-4. **Consider performance** - Pre-tool hooks run synchronously before each tool call. Keep them fast.
+1. **Consider performance** - Pre-tool hooks run synchronously before each tool call. Keep them fast.
 
-5. **Use `suppressOutput` judiciously** - Suppressing output means the model won't see the result, which may affect conversation quality.
+1. **Use `suppressOutput` judiciously** - Suppressing output means the model won't see the result, which may affect conversation quality.
 
-## See Also
+## See also
 
-- [Hooks Overview](./index.md)
-- [Post-Tool Use Hook](./post-tool-use.md)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Hooks Overview](./README.md)
+* [Post-Tool Use Hook](./post-tool-use.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

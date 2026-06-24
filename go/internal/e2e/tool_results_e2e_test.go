@@ -1,0 +1,341 @@
+package e2e
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+)
+
+func TestToolResultsE2E(t *testing.T) {
+	ctx := testharness.NewTestContext(t)
+	client := ctx.NewClient()
+	t.Cleanup(func() { client.ForceStop() })
+
+	t.Run("should handle structured toolresultobject from custom tool", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type WeatherParams struct {
+			City string `json:"city" jsonschema:"City name"`
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("get_weather", "Gets weather for a city",
+					func(params WeatherParams, inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+						return copilot.ToolResult{
+							TextResultForLLM: "The weather in " + params.City + " is sunny and 72°F",
+							ResultType:       "success",
+						}, nil
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What's the weather in Paris?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		content := ""
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); ok {
+			content = ad.Content
+		}
+		if !strings.Contains(strings.ToLower(content), "sunny") && !strings.Contains(content, "72") {
+			t.Errorf("Expected answer to mention sunny or 72, got %q", content)
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Errorf("Failed to disconnect session: %v", err)
+		}
+	})
+
+	t.Run("should handle tool result with failure resulttype", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				{
+					Name:        "check_status",
+					Description: "Checks the status of a service",
+					Handler: func(inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+						return copilot.ToolResult{
+							TextResultForLLM: "Service unavailable",
+							ResultType:       "failure",
+							Error:            "API timeout",
+						}, nil
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "Check the status of the service using check_status. If it fails, say 'service is down'.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		content := ""
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); ok {
+			content = ad.Content
+		}
+		if !strings.Contains(strings.ToLower(content), "service is down") {
+			t.Errorf("Expected 'service is down', got %q", content)
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Errorf("Failed to disconnect session: %v", err)
+		}
+	})
+
+	t.Run("should preserve tooltelemetry and not stringify structured results for llm", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type AnalyzeParams struct {
+			File string `json:"file" jsonschema:"File to analyze"`
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("analyze_code", "Analyzes code for issues",
+					func(params AnalyzeParams, inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+						return copilot.ToolResult{
+							TextResultForLLM: "Analysis of " + params.File + ": no issues found",
+							ResultType:       "success",
+							ToolTelemetry: map[string]any{
+								"metrics":    map[string]any{"analysisTimeMs": 150},
+								"properties": map[string]any{"analyzer": "eslint"},
+							},
+						}, nil
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Analyze the file main.ts for issues."})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		content := ""
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); ok {
+			content = ad.Content
+		}
+		if !strings.Contains(strings.ToLower(content), "no issues") {
+			t.Errorf("Expected 'no issues', got %q", content)
+		}
+
+		// Verify the LLM received just textResultForLlm, not stringified JSON
+		traffic, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("Failed to get exchanges: %v", err)
+		}
+
+		lastConversation := traffic[len(traffic)-1]
+		var toolResults []testharness.ChatCompletionMessage
+		for _, msg := range lastConversation.Request.Messages {
+			if msg.Role == "tool" {
+				toolResults = append(toolResults, msg)
+			}
+		}
+
+		if len(toolResults) != 1 {
+			t.Fatalf("Expected 1 tool result, got %d", len(toolResults))
+		}
+		if strings.Contains(toolResults[0].Content, "toolTelemetry") {
+			t.Error("Tool result content should not contain 'toolTelemetry'")
+		}
+		if strings.Contains(toolResults[0].Content, "resultType") {
+			t.Error("Tool result content should not contain 'resultType'")
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Errorf("Failed to disconnect session: %v", err)
+		}
+	})
+
+	t.Run("should handle tool result with rejected resulttype", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		toolHandlerCalled := false
+		toolCompleted := make(chan *copilot.ToolExecutionCompleteData, 1)
+		idle := make(chan struct{}, 1)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				{
+					Name:        "deploy_service",
+					Description: "Deploys a service",
+					Handler: func(inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+						toolHandlerCalled = true
+						return copilot.ToolResult{
+							TextResultForLLM: "Deployment rejected: policy violation - production deployments require approval",
+							ResultType:       "rejected",
+						}, nil
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		session.On(func(event copilot.SessionEvent) {
+			switch d := event.Data.(type) {
+			case *copilot.ToolExecutionCompleteData:
+				select {
+				case toolCompleted <- d:
+				default:
+				}
+			case *copilot.SessionIdleData:
+				select {
+				case idle <- struct{}{}:
+				default:
+				}
+			}
+		})
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "Deploy the service using deploy_service. If it's rejected, tell me it was 'rejected by policy'.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		select {
+		case d := <-toolCompleted:
+			if !toolHandlerCalled {
+				t.Error("Tool handler should have been called")
+			}
+			if d.Success {
+				t.Error("Expected Success=false for rejected tool result")
+			}
+			if d.Error == nil {
+				t.Error("Expected non-nil Error for rejected tool result")
+			} else {
+				if d.Error.Code == nil || *d.Error.Code != "rejected" {
+					t.Errorf("Expected error code 'rejected', got %v", d.Error.Code)
+				}
+				if !strings.Contains(d.Error.Message, "Deployment rejected") {
+					t.Errorf("Expected error message to contain 'Deployment rejected', got %q", d.Error.Message)
+				}
+			}
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for tool execution complete")
+		}
+
+		// Rejected tool results may end the turn without a follow-up assistant message.
+		select {
+		case <-idle:
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for session idle")
+		}
+		_ = session.Disconnect()
+	})
+
+	t.Run("should handle tool result with denied resulttype", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		toolHandlerCalled := false
+		toolCompleted := make(chan *copilot.ToolExecutionCompleteData, 1)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				{
+					Name:        "access_secret",
+					Description: "Accesses a secret",
+					Handler: func(inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+						toolHandlerCalled = true
+						return copilot.ToolResult{
+							TextResultForLLM: "Access denied: insufficient permissions to read secrets",
+							ResultType:       "denied",
+						}, nil
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		session.On(func(event copilot.SessionEvent) {
+			if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok {
+				select {
+				case toolCompleted <- d:
+				default:
+				}
+			}
+		})
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "Use access_secret to get the API key. If access is denied, tell me it was 'access denied'.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		select {
+		case d := <-toolCompleted:
+			if !toolHandlerCalled {
+				t.Error("Tool handler should have been called")
+			}
+			if d.Success {
+				t.Error("Expected Success=false for denied tool result")
+			}
+			if d.Error == nil {
+				t.Error("Expected non-nil Error for denied tool result")
+			} else {
+				if d.Error.Code == nil || *d.Error.Code != "denied" {
+					t.Errorf("Expected error code 'denied', got %v", d.Error.Code)
+				}
+				if !strings.Contains(d.Error.Message, "Access denied") {
+					t.Errorf("Expected error message to contain 'Access denied', got %q", d.Error.Message)
+				}
+			}
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for tool execution complete")
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final assistant message: %v", err)
+		}
+		if answer == nil {
+			t.Error("Expected non-nil final assistant message")
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Errorf("Failed to disconnect session: %v", err)
+		}
+	})
+}

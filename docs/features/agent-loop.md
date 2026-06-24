@@ -1,4 +1,4 @@
-# The Agent Loop
+# The agent loop
 
 How the Copilot CLI processes a user message end-to-end: from prompt to `session.idle`.
 
@@ -14,9 +14,9 @@ graph LR
     SDK -->|events| App
 ```
 
-The **SDK** is a transport layer — it sends your prompt to the **Copilot CLI** over JSON-RPC and surfaces events back to your app. The **CLI** is the orchestrator that runs the agentic tool-use loop, making one or more LLM API calls until the task is done.
+The **SDK** is a transport layer—it sends your prompt to the **Copilot CLI** over JSON-RPC and surfaces events back to your app. The **CLI** is the orchestrator that runs the agentic tool-use loop, making one or more LLM API calls until the task is done.
 
-## The Tool-Use Loop
+## The tool-use loop
 
 When you call `session.send({ prompt })`, the CLI enters a loop:
 
@@ -34,18 +34,18 @@ flowchart TD
     style F fill:#0d1117,stroke:#f0883e,color:#f0883e
 ```
 
-The model sees the **full conversation history** on each call — system prompt, user message, and all prior tool calls and results.
+The model sees the **full conversation history** on each call—system prompt, user message, and all prior tool calls and results.
 
 **Key insight:** Each iteration of this loop is exactly one LLM API call, visible as one `assistant.turn_start` / `assistant.turn_end` pair in the event log. There are no hidden calls.
 
-## Turns — What They Are
+## Turns—what they are
 
 A **turn** is a single LLM API call and its consequences:
 
 1. The CLI sends the conversation history to the LLM
-2. The LLM responds (possibly with tool requests)
-3. If tools were requested, the CLI executes them
-4. `assistant.turn_end` is emitted
+1. The LLM responds (possibly with tool requests)
+1. If tools were requested, the CLI executes them
+1. `assistant.turn_end` is emitted
 
 A single user message typically results in **multiple turns**. For example, a question like "how does X work in this codebase?" might produce:
 
@@ -58,7 +58,7 @@ A single user message typically results in **multiple turns**. For example, a qu
 
 The model decides on each turn whether to request more tools or produce a final answer. Each call sees the **full accumulated context** (all prior tool calls and results), so it can make an informed decision about whether it has enough information.
 
-## Event Flow for a Multi-Turn Interaction
+## Event flow for a multi-turn interaction
 
 ```mermaid
 flowchart TD
@@ -94,12 +94,12 @@ flowchart TD
     send --> Turn1 --> Turn2 --> Turn3 --> idle
 ```
 
-## Who Triggers Each Turn?
+## Who triggers each turn?
 
 | Actor | Responsibility |
 |-------|---------------|
 | **Your app** | Sends the initial prompt via `session.send()` |
-| **Copilot CLI** | Runs the tool-use loop — executes tools and feeds results back to the LLM for the next turn |
+| **Copilot CLI** | Runs the tool-use loop—executes tools and feeds results back to the LLM for the next turn |
 | **LLM** | Decides whether to request tools (continue looping) or produce a final response (stop) |
 | **SDK** | Passes events through; does not control the loop |
 
@@ -111,10 +111,10 @@ These are two different completion signals with very different guarantees:
 
 ### `session.idle`
 
-- **Always emitted** when the tool-use loop ends
-- **Ephemeral** — not persisted to disk, not replayed on session resume
-- Means: "the agent has stopped processing and is ready for the next message"
-- **Use this** as your reliable "done" signal
+* **Always emitted** when the tool-use loop ends
+* **Ephemeral**: not persisted to disk, not replayed on session resume
+* Means: "the agent has stopped processing and is ready for the next message"
+* **Use this** as your reliable "done" signal
 
 The SDK's `sendAndWait()` method waits for this event:
 
@@ -125,10 +125,10 @@ const response = await session.sendAndWait({ prompt: "Fix the bug" });
 
 ### `session.task_complete`
 
-- **Optionally emitted** — requires the model to explicitly signal it
-- **Persisted** — saved to the session event log on disk
-- Means: "the agent considers the overall task fulfilled"
-- Carries an optional `summary` field
+* **Optionally emitted**: requires the model to explicitly signal it
+* **Persisted**: saved to the session event log on disk
+* Means: "the agent considers the overall task fulfilled"
+* Carries an optional `summary` field
 
 ```typescript
 session.on("session.task_complete", (event) => {
@@ -142,23 +142,23 @@ In **autopilot mode** (headless/autonomous operation), the CLI actively tracks w
 
 > *"You have not yet marked the task as complete using the task_complete tool. If you were planning, stop planning and start implementing. You aren't done until you have fully completed the task."*
 
-This effectively restarts the tool-use loop — the model sees the nudge as a new user message and continues working. The nudge also instructs the model **not** to call `task_complete` prematurely:
+This effectively restarts the tool-use loop—the model sees the nudge as a new user message and continues working. The nudge also instructs the model **not** to call `task_complete` prematurely:
 
-- Don't call it if you have open questions — make decisions and keep working
-- Don't call it if you hit an error — try to resolve it
-- Don't call it if there are remaining steps — complete them first
+* Don't call it if you have open questions—make decisions and keep working
+* Don't call it if you hit an error—try to resolve it
+* Don't call it if there are remaining steps—complete them first
 
 This creates a **two-level completion mechanism** in autopilot:
 1. The model calls `task_complete` with a summary → CLI emits `session.task_complete` → done
-2. The model stops without calling it → CLI nudges → model continues or calls `task_complete`
+1. The model stops without calling it → CLI nudges → model continues or calls `task_complete`
 
 ### Why `task_complete` might not appear
 
 In **interactive mode** (normal chat), the CLI does not nudge for `task_complete`. The model may skip it entirely. Common reasons:
 
-- **Conversational Q&A**: The model answers a question and simply stops — there's no discrete "task" to complete
-- **Model discretion**: The model produces a final text response without calling the task-complete signal
-- **Interrupted sessions**: The session ends before the model reaches a completion point
+* **Conversational Q&A**: The model answers a question and simply stops—there's no discrete "task" to complete
+* **Model discretion**: The model produces a final text response without calling the task-complete signal
+* **Interrupted sessions**: The session ends before the model reaches a completion point
 
 The CLI emits `session.idle` regardless, because it's a mechanical signal (the loop ended), not a semantic one (the model thinks it's done).
 
@@ -170,7 +170,7 @@ The CLI emits `session.idle` regardless, because it's a mechanical signal (the l
 | "Know when a coding task is done" | `session.task_complete` (best-effort) |
 | "Timeout/error handling" | `session.idle` + `session.error` ✅ |
 
-## Counting LLM Calls
+## Counting LLM calls
 
 The number of `assistant.turn_start` / `assistant.turn_end` pairs in the event log equals the total number of LLM API calls made. There are no hidden calls for planning, evaluation, or completion checking.
 
@@ -181,8 +181,8 @@ To inspect turn count for a session:
 grep -c "assistant.turn_start" ~/.copilot/session-state/<sessionId>/events.jsonl
 ```
 
-## Further Reading
+## Further reading
 
-- [Streaming Events Reference](./streaming-events.md) — Full field-level reference for every event type
-- [Session Persistence](./session-persistence.md) — How sessions are saved and resumed
-- [Hooks](./hooks.md) — Intercepting events in the loop (permissions, tools)
+* [Streaming Events Reference](./streaming-events.md): Full field-level reference for every event type
+* [Session Persistence](./session-persistence.md): How sessions are saved and resumed
+* [Hooks](./hooks.md): Intercepting events in the loop (permissions, tools)

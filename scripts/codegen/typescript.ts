@@ -9,21 +9,234 @@
 import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
+import path from "path";
+import { fileURLToPath } from "url";
 import {
-    getSessionEventsSchemaPath,
     getApiSchemaPath,
+    fixNullableRequiredRefsInApiSchema,
+    getNullableInner,
+    getRpcSchemaTypeName,
+    getSessionEventsSchemaPath,
     postProcessSchema,
+    propagateInternalVisibility,
     writeGeneratedFile,
+    collectExternalSchemaRefNames,
+    collectDefinitionCollections,
+    collectExperimentalOnlyRpcReferencedDefinitionNames,
+    collectReachableDefinitionNames,
+    collectRpcMethodReferencedDefinitionNames,
+    findSharedSchemaDefinitions,
+    hasSchemaPayload,
+    parseExternalSchemaRef,
+    resolveObjectSchema,
+    resolveSchema,
+    rewriteSharedDefinitionReferences,
+    withSharedDefinitions,
     isRpcMethod,
     isNodeFullyExperimental,
+    isNodeFullyDeprecated,
+    isVoidSchema,
+    isSchemaExperimental,
+    appendPropertyMarkerTagsToDescriptions,
+    getEnumValueDescriptions,
+    stripOpaqueJsonMarker,
+    loadSchemaJson,
+    fixBrandCasing,
     type ApiSchema,
+    type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
 
-// ── Utilities ───────────────────────────────────────────────────────────────
+const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
+const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
+    "session-events.schema.json": "./session-events.js",
+};
+
+function tsExperimentalJSDoc(indent = ""): string {
+    return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
+}
+
+function sanitizeJsDocText(text: string): string {
+    return text.trim().replace(/\*\//g, "* /");
+}
+
+function tsDocCommentText(text: string): string {
+    const lines = sanitizeJsDocText(text).split(/\r?\n/);
+    if (lines.length === 1) return `/** ${lines[0]} */`;
+    return ["/**", ...lines.map((line) => ` * ${line}`), " */"].join("\n");
+}
+
+function pushTsJsDoc(lines: string[], indent: string, entries: string[]): void {
+    const cleaned = entries.map(sanitizeJsDocText).filter((entry) => entry.length > 0);
+    if (cleaned.length === 0) return;
+
+    lines.push(`${indent}/**`);
+    for (const [index, entry] of cleaned.entries()) {
+        if (index > 0) {
+            lines.push(`${indent} *`);
+        }
+        for (const line of entry.split(/\r?\n/)) {
+            lines.push(`${indent} * ${line}`);
+        }
+    }
+    lines.push(`${indent} */`);
+}
+
+function rpcResultDescription(method: RpcMethod): string | undefined {
+    const resultSchema = getMethodResultSchema(method);
+    if (isVoidSchema(resultSchema)) return undefined;
+    return method.result?.description ?? resultSchema?.description;
+}
+
+function rpcParamsDescription(method: RpcMethod, effectiveParams: JSONSchema7 | undefined): string | undefined {
+    return method.params?.description ?? effectiveParams?.description;
+}
+
+function pushTsRpcMethodJsDoc(
+    lines: string[],
+    indent: string,
+    method: RpcMethod,
+    options: {
+        summaryFallback?: string;
+        paramsName?: string;
+        paramsDescription?: string;
+        includeDeprecated?: boolean;
+        includeExperimental?: boolean;
+    } = {}
+): void {
+    const entries: string[] = [];
+    entries.push(method.description ?? options.summaryFallback ?? `Calls \`${method.rpcMethod}\`.`);
+    if (options.paramsName && options.paramsDescription) {
+        entries.push(`@param ${options.paramsName} ${options.paramsDescription}`);
+    }
+    const resultDescription = rpcResultDescription(method);
+    if (resultDescription) {
+        entries.push(`@returns ${resultDescription}`);
+    }
+    if (options.includeDeprecated) {
+        entries.push("@deprecated");
+    }
+    if (options.includeExperimental) {
+        entries.push("@experimental");
+    }
+    pushTsJsDoc(lines, indent, entries);
+}
 
 function toPascalCase(s: string): string {
-    return s.charAt(0).toUpperCase() + s.slice(1);
+    return fixBrandCasing(s.charAt(0).toUpperCase() + s.slice(1));
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function experimentalDefinitionNames(definitions: DefinitionCollections): Set<string> {
+    const names = new Set<string>();
+    for (const defs of [definitions.definitions, definitions.$defs]) {
+        for (const [name, def] of Object.entries(defs ?? {})) {
+            if (typeof def === "object" && def !== null && isSchemaExperimental(def as JSONSchema7)) {
+                names.add(name);
+            }
+        }
+    }
+    return names;
+}
+
+function annotateTypeScriptTypes(code: string, typeNames: Iterable<string>, annotation: string): string {
+    let annotated = code;
+    for (const typeName of typeNames) {
+        annotated = annotated.replace(
+            new RegExp(`(^|\\n)(export (?:interface|type|enum) ${escapeRegExp(typeName)}\\b)`, "m"),
+            `$1${annotation}\n$2`
+        );
+    }
+    return annotated;
+}
+
+function appendUniqueExportBlocks(output: string[], compiled: string, seenBlocks: Map<string, string>): void {
+    for (const block of splitExportBlocks(compiled)) {
+        const nameMatch = /^export\s+(?:interface|type)\s+(\w+)/m.exec(block);
+        if (!nameMatch) {
+            output.push(block);
+            continue;
+        }
+
+        const name = nameMatch[1];
+        const normalizedBlock = normalizeExportBlock(block);
+        const existing = seenBlocks.get(name);
+        if (existing) {
+            if (existing !== normalizedBlock) {
+                throw new Error(`Duplicate generated TypeScript declaration for "${name}" with different content.`);
+            }
+            continue;
+        }
+
+        seenBlocks.set(name, normalizedBlock);
+        output.push(block);
+    }
+}
+
+function splitExportBlocks(compiled: string): string[] {
+    const normalizedCompiled = compiled
+        .trim()
+        .replace(/;(export\s+(?:interface|type)\s+)/g, ";\n$1")
+        .replace(/}(export\s+(?:interface|type)\s+)/g, "}\n$1");
+    const lines = normalizedCompiled.split(/\r?\n/);
+    const blocks: string[] = [];
+    let pending: string[] = [];
+
+    for (let index = 0; index < lines.length;) {
+        const line = lines[index];
+        if (!/^export\s+(?:interface|type)\s+\w+/.test(line)) {
+            pending.push(line);
+            index++;
+            continue;
+        }
+
+        const blockLines = [...pending, line];
+        pending = [];
+        let braceDepth = countBraces(line);
+        index++;
+
+        if (braceDepth === 0 && line.trim().endsWith(";")) {
+            blocks.push(blockLines.join("\n").trim());
+            continue;
+        }
+
+        while (index < lines.length) {
+            const nextLine = lines[index];
+            blockLines.push(nextLine);
+            braceDepth += countBraces(nextLine);
+            index++;
+
+            const trimmed = nextLine.trim();
+            if (braceDepth === 0 && (trimmed === "}" || trimmed.endsWith(";"))) {
+                break;
+            }
+        }
+
+        blocks.push(blockLines.join("\n").trim());
+    }
+
+    return blocks;
+}
+
+function countBraces(line: string): number {
+    let depth = 0;
+    for (const char of line) {
+        if (char === "{") depth++;
+        if (char === "}") depth--;
+    }
+    return depth;
+}
+
+function normalizeExportBlock(block: string): string {
+    return block
+        .replace(/\/\*\*[\s\S]*?\*\//g, "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .join("\n");
 }
 
 function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
@@ -38,43 +251,248 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
+export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
+    const root = structuredClone(schema) as JSONSchema7 & {
+        definitions?: Record<string, unknown>;
+        $defs?: Record<string, unknown>;
+    };
+    const definitions = { ...(root.definitions ?? {}) };
+    const draftDefinitionAliases = new Map<string, string>();
+
+    for (const [key, value] of Object.entries(root.$defs ?? {})) {
+        if (key in definitions) {
+            // The definitions entry is authoritative (it went through the full pipeline).
+            // Drop the $defs duplicate and rewrite any $ref pointing at it to use definitions.
+            draftDefinitionAliases.set(key, key);
+        } else {
+            draftDefinitionAliases.set(key, key);
+            definitions[key] = value;
+        }
+    }
+
+    root.definitions = definitions;
+    delete root.$defs;
+
+    const rewrite = (value: unknown): unknown => {
+        if (Array.isArray(value)) {
+            return value.map(rewrite);
+        }
+        if (!value || typeof value !== "object") {
+            return value;
+        }
+
+        const rewritten = Object.fromEntries(
+            Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
+        ) as Record<string, unknown>;
+
+        // The TypeScript codegen doesn't distinguish opaque JSON from any
+        // other unconstrained value, so drop the marker before feeding the
+        // schema to json-schema-to-typescript. C# codegen reads the marker
+        // from its own (un-normalized) view of the schema and emits
+        // `JsonElement` instead.
+        stripOpaqueJsonMarker(rewritten);
+
+        const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
+        if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
+            rewritten.tsType = (rewritten.enum as string[])
+                .map((entry) => {
+                    const comment = enumValueDescriptions[entry];
+                    const literal = JSON.stringify(entry);
+                    return comment ? `${tsDocCommentText(comment)}\n| ${literal}` : `| ${literal}`;
+                })
+                .join("\n");
+            delete rewritten.type;
+            delete rewritten.enum;
+            delete rewritten["x-enumDescriptions"];
+        }
+
+        if (typeof rewritten.$ref === "string") {
+            const externalRef = parseExternalSchemaRef(rewritten.$ref);
+            if (externalRef && EXTERNAL_SCHEMA_TS_IMPORT[externalRef.schemaFile]) {
+                rewritten.tsType = externalRef.definitionName;
+                for (const key of Object.keys(rewritten)) {
+                    if (key !== "tsType") {
+                        delete rewritten[key];
+                    }
+                }
+            } else if (rewritten.$ref.startsWith("#/$defs/")) {
+                const definitionName = rewritten.$ref.slice("#/$defs/".length);
+                rewritten.$ref = `#/definitions/${draftDefinitionAliases.get(definitionName) ?? definitionName}`;
+            }
+            // json-schema-to-typescript treats sibling keywords alongside $ref as a
+            // new inline type instead of reusing the referenced definition.  Strip
+            // siblings so that $ref-only objects compile to a single shared type.
+            if ("$ref" in rewritten) {
+                for (const key of Object.keys(rewritten)) {
+                    if (key !== "$ref") delete rewritten[key];
+                }
+            }
+        }
+
+        return rewritten;
+    };
+
+    return rewrite(root) as JSONSchema7;
+}
+
 // ── Session Events ──────────────────────────────────────────────────────────
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("TypeScript: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
-    const processed = postProcessSchema(schema);
+    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
+    const processed = propagateInternalVisibility(postProcessSchema(schema));
+    const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
+    const sessionEvent =
+        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
+        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections) ??
+        processed;
+    const schemaForCompile = withSharedDefinitions(sessionEvent, definitionCollections);
+    appendPropertyMarkerTagsToDescriptions(schemaForCompile);
 
-    const ts = await compile(processed, "SessionEvent", {
+    const ts = await compile(normalizeSchemaForTypeScript(schemaForCompile), "SessionEvent", {
         bannerComment: `/**
  * AUTO-GENERATED FILE - DO NOT EDIT
  * Generated from: session-events.schema.json
  */`,
         style: { semi: true, singleQuote: false, trailingComma: "all" },
         additionalProperties: false,
+        strictIndexSignatures: true,
     });
 
-    const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", ts);
+    let annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
+    // Add @internal JSDoc annotations for session-event types marked
+    // `visibility: "internal"` in the schema. The tag drives `stripInternal`
+    // so the whole type is dropped from the published .d.ts.
+    const sessionInternalTypes = new Set<string>();
+    for (const [name, def] of Object.entries(definitionCollections.definitions ?? {})) {
+        if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+            sessionInternalTypes.add(name);
+        }
+    }
+    for (const [name, def] of Object.entries(definitionCollections.$defs ?? {})) {
+        if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+            sessionInternalTypes.add(name);
+        }
+    }
+    for (const intType of sessionInternalTypes) {
+        annotatedTs = annotatedTs.replace(
+            new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
+            `$1/** @internal */\n$2`
+        );
+    }
+    const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", annotatedTs);
     console.log(`  ✓ ${outPath}`);
 }
 
 // ── RPC Types ───────────────────────────────────────────────────────────────
 
-function resultTypeName(rpcMethod: string): string {
-    return rpcMethod.split(".").map(toPascalCase).join("") + "Result";
+let rpcDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
+
+function withRootTitle(schema: JSONSchema7, title: string): JSONSchema7 {
+    return { ...schema, title };
 }
 
-function paramsTypeName(rpcMethod: string): string {
-    return rpcMethod.split(".").map(toPascalCase).join("") + "Params";
+function rpcRequestFallbackName(method: RpcMethod): string {
+    return method.rpcMethod.split(".").map(toPascalCase).join("") + "Request";
 }
 
-async function generateRpc(schemaPath?: string): Promise<void> {
+function schemaSourceForNamedDefinition(
+    schema: JSONSchema7 | null | undefined,
+    resolvedSchema: JSONSchema7 | undefined
+): JSONSchema7 {
+    if (schema?.$ref && resolvedSchema) {
+        return resolvedSchema;
+    }
+    // When the schema is an anyOf/oneOf wrapper (e.g., Zod optional params producing
+    // `anyOf: [{ not: {} }, { $ref }]`), use the resolved object schema to avoid
+    // generating self-referential type aliases.
+    if ((schema?.anyOf || schema?.oneOf) && resolvedSchema?.properties) {
+        return resolvedSchema;
+    }
+    return schema ?? resolvedSchema ?? { type: "object" };
+}
+
+function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
+    return resolveSchema(method.result, rpcDefinitions) ?? method.result ?? undefined;
+}
+
+function getMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
+    return (
+        resolveObjectSchema(method.params, rpcDefinitions) ??
+        resolveSchema(method.params, rpcDefinitions) ??
+        method.params ??
+        undefined
+    );
+}
+
+/** True when the raw params schema uses `anyOf: [{ not: {} }, …]` — Zod's pattern for `.optional()`. */
+function isParamsOptional(method: RpcMethod): boolean {
+    const schema = method.params;
+    if (!schema?.anyOf) return false;
+    return schema.anyOf.some(
+        (item) =>
+            typeof item === "object" &&
+            (item as JSONSchema7).not !== undefined &&
+            typeof (item as JSONSchema7).not === "object" &&
+            Object.keys((item as JSONSchema7).not as object).length === 0
+    );
+}
+
+function resultTypeName(method: RpcMethod): string {
+    const schema = getMethodResultSchema(method);
+    const externalRef = schema?.$ref ? parseExternalSchemaRef(schema.$ref) : undefined;
+    return externalRef?.definitionName ?? getRpcSchemaTypeName(schema, method.rpcMethod.split(".").map(toPascalCase).join("") + "Result");
+}
+
+function tsNullableResultTypeName(method: RpcMethod): string | undefined {
+    const resultSchema = getMethodResultSchema(method);
+    if (!resultSchema) return undefined;
+    const inner = getNullableInner(resultSchema);
+    if (!inner) return undefined;
+    // Resolve $ref to a type name
+    if (inner.$ref) {
+        const refName = inner.$ref.split("/").pop();
+        if (refName) return `${toPascalCase(refName)} | undefined`;
+    }
+    const innerName = getRpcSchemaTypeName(inner, method.rpcMethod.split(".").map(toPascalCase).join("") + "Result");
+    return `${innerName} | undefined`;
+}
+
+function tsResultType(method: RpcMethod): string {
+    if (isVoidSchema(getMethodResultSchema(method))) return "void";
+    return tsNullableResultTypeName(method) ?? resultTypeName(method);
+}
+
+function paramsTypeName(method: RpcMethod): string {
+    const fallback = rpcRequestFallbackName(method);
+    if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
+        return fallback;
+    }
+    const schema = getMethodParamsSchema(method);
+    const externalRef = schema?.$ref ? parseExternalSchemaRef(schema.$ref) : undefined;
+    return externalRef?.definitionName ?? getRpcSchemaTypeName(schema, fallback);
+}
+
+async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("TypeScript: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema;
+    let schema = fixNullableRequiredRefsInApiSchema((await loadSchemaJson(resolvedPath)) as ApiSchema);
+    if (sessionEventsSchema) {
+        const sharedDefinitions = findSharedSchemaDefinitions(
+            schema as unknown as Record<string, unknown>,
+            sessionEventsSchema as unknown as Record<string, unknown>
+        );
+        const reachableDefinitions = collectReachableDefinitionNames(sessionEventsSchema as unknown as Record<string, unknown>);
+        for (const name of [...sharedDefinitions]) {
+            if (!reachableDefinitions.has(name)) {
+                sharedDefinitions.delete(name);
+            }
+        }
+        schema = rewriteSharedDefinitionReferences(schema, sharedDefinitions, "session-events.schema.json");
+    }
 
     const lines: string[] = [];
     lines.push(`/**
@@ -85,54 +503,214 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
+    const externalSchemaRefs = collectExternalSchemaRefNames(schema);
+    for (const [schemaFile, typeNames] of externalSchemaRefs) {
+        const importPath = EXTERNAL_SCHEMA_TS_IMPORT[schemaFile];
+        if (importPath) {
+            lines.push(`import type { ${[...typeNames].sort().join(", ")} } from "${importPath}";`);
+        }
+    }
+    if (externalSchemaRefs.size > 0) {
+        lines.push("");
+    }
+
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});
+    const clientGlobalMethods = collectRpcMethods(schema.clientGlobal || {});
+    const rpcMethods = [...allMethods, ...clientSessionMethods, ...clientGlobalMethods];
+    const seenBlocks = new Map<string, string>();
 
-    for (const method of [...allMethods, ...clientSessionMethods]) {
-        if (method.result) {
-            const compiled = await compile(method.result, resultTypeName(method.rpcMethod), {
-                bannerComment: "",
-                additionalProperties: false,
-            });
-            if (method.stability === "experimental") {
-                lines.push("/** @experimental */");
-            }
-            lines.push(compiled.trim());
-            lines.push("");
-        }
+    // Build a single combined schema with shared definitions and all method types.
+    // This ensures $ref-referenced types are generated exactly once.
+    rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    const combinedSchema = withSharedDefinitions(
+        {
+            $schema: "http://json-schema.org/draft-07/schema#",
+            type: "object",
+        },
+        rpcDefinitions
+    );
 
-        if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
-            const paramsCompiled = await compile(method.params, paramsTypeName(method.rpcMethod), {
-                bannerComment: "",
-                additionalProperties: false,
-            });
-            if (method.stability === "experimental") {
-                lines.push("/** @experimental */");
-            }
-            lines.push(paramsCompiled.trim());
-            lines.push("");
+    // Track which type names come from experimental methods for JSDoc annotations.
+    const experimentalTypes = experimentalDefinitionNames(collectDefinitionCollections(combinedSchema as Record<string, unknown>));
+    for (const name of collectExperimentalOnlyRpcReferencedDefinitionNames(rpcMethods, rpcDefinitions)) {
+        experimentalTypes.add(name);
+    }
+    const nonExperimentalReferencedTypes = collectRpcMethodReferencedDefinitionNames(
+        rpcMethods.filter((method) => method.stability !== "experimental"),
+        rpcDefinitions
+    );
+    // Track which type names come from deprecated methods for JSDoc annotations.
+    const deprecatedTypes = new Set<string>();
+    // Types are tagged @internal directly via `visibility: "internal"` on the JSON Schema
+    // definition (set by `.asInternal()` on the originating Zod schema). The runtime
+    // schema generator enforces that no public method references an internal type, so
+    // there's no transitive propagation to do here.
+    const internalTypes = new Set<string>();
+    for (const [name, def] of Object.entries(combinedSchema.definitions ?? {})) {
+        if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+            internalTypes.add(name);
         }
     }
 
+    for (const method of rpcMethods) {
+        const resultSchema = getMethodResultSchema(method);
+        const resultExternalRef = method.result?.$ref ? parseExternalSchemaRef(method.result.$ref) : undefined;
+        if (!resultExternalRef && !isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
+            const resultSource = schemaSourceForNamedDefinition(method.result, resultSchema);
+            combinedSchema.definitions![resultTypeName(method)] = withRootTitle(
+                resultSource,
+                resultTypeName(method)
+            );
+            if (isSchemaExperimental(resultSource) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(resultTypeName(method)))) {
+                experimentalTypes.add(resultTypeName(method));
+            }
+            if (method.deprecated && !method.result?.$ref) {
+                deprecatedTypes.add(resultTypeName(method));
+            }
+        }
+
+        const resolvedParams = getMethodParamsSchema(method);
+        if (method.params && hasSchemaPayload(resolvedParams)) {
+            const paramsExternalRef = method.params.$ref ? parseExternalSchemaRef(method.params.$ref) : undefined;
+            if (paramsExternalRef) {
+                continue;
+            }
+            if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
+                const filtered: JSONSchema7 = {
+                    ...resolvedParams,
+                    properties: Object.fromEntries(
+                        Object.entries(resolvedParams.properties).filter(([k]) => k !== "sessionId")
+                    ),
+                    required: resolvedParams.required?.filter((r) => r !== "sessionId"),
+                };
+                if (hasSchemaPayload(filtered)) {
+                    combinedSchema.definitions![paramsTypeName(method)] = withRootTitle(
+                        filtered,
+                        paramsTypeName(method)
+                    );
+                    if (isSchemaExperimental(filtered) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(paramsTypeName(method)))) {
+                        experimentalTypes.add(paramsTypeName(method));
+                    }
+                    if (method.deprecated) {
+                        deprecatedTypes.add(paramsTypeName(method));
+                    }
+                }
+            } else {
+                const paramsSource = schemaSourceForNamedDefinition(method.params, resolvedParams);
+                combinedSchema.definitions![paramsTypeName(method)] = withRootTitle(
+                    paramsSource,
+                    paramsTypeName(method)
+                );
+                if (isSchemaExperimental(paramsSource) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(paramsTypeName(method)))) {
+                    experimentalTypes.add(paramsTypeName(method));
+                }
+                if (method.deprecated && !method.params?.$ref) {
+                    deprecatedTypes.add(paramsTypeName(method));
+                }
+            }
+        }
+    }
+
+    const schemaForCompile = combinedSchema;
+    appendPropertyMarkerTagsToDescriptions(schemaForCompile);
+
+    const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile), "_RpcSchemaRoot", {
+        bannerComment: "",
+        additionalProperties: false,
+        strictIndexSignatures: true,
+        unreachableDefinitions: true,
+    });
+
+    // Strip the placeholder root type and keep only the definition-generated types
+    const strippedTs = compiled
+        .replace(
+            /\/\*\*\n \* This (?:interface|type) was referenced by `_RpcSchemaRoot`'s JSON-Schema\n \* via the `definition` "[^"]+"\.\n \*\/\n/g,
+            "\n"
+        )
+        .replace(/export interface _RpcSchemaRoot\s*\{[^}]*\}\s*/g, "")
+        .replace(/export type _RpcSchemaRoot = [^;]+;\s*/g, "")
+        .trim();
+
+    if (strippedTs) {
+        // Add @experimental JSDoc annotations for types from experimental methods or schemas.
+        let annotatedTs = annotateTypeScriptTypes(strippedTs, experimentalTypes, TS_EXPERIMENTAL_JSDOC);
+        // Add @deprecated JSDoc annotations for types from deprecated methods
+        for (const depType of deprecatedTypes) {
+            annotatedTs = annotatedTs.replace(
+                new RegExp(`(^|\\n)(export (?:interface|type) ${depType}\\b)`, "m"),
+                `$1/** @deprecated */\n$2`
+            );
+        }
+        // Add @internal JSDoc annotations for types from internal methods
+        for (const intType of internalTypes) {
+            annotatedTs = annotatedTs.replace(
+                new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
+                `$1/** @internal */\n$2`
+            );
+        }
+        lines.push(annotatedTs);
+        lines.push("");
+    }
+
     // Generate factory functions
+function hasInternalMethods(node: Record<string, unknown>): boolean {
+    for (const value of Object.values(node)) {
+        if (isRpcMethod(value)) {
+            if ((value as RpcMethod).visibility === "internal") return true;
+        } else if (typeof value === "object" && value !== null) {
+            if (hasInternalMethods(value as Record<string, unknown>)) return true;
+        }
+    }
+    return false;
+}
+
     if (schema.server) {
         lines.push(`/** Create typed server-scoped RPC methods (no session required). */`);
         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
         lines.push(`    return {`);
-        lines.push(...emitGroup(schema.server, "        ", false));
+        lines.push(...emitGroup(schema.server, "        ", false, false, false, "public"));
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
+
+        if (hasInternalMethods(schema.server)) {
+            lines.push(`/**`);
+            lines.push(` * Create typed server-scoped RPC methods that are part of the SDK's internal`);
+            lines.push(` * surface (e.g. handshake helpers). Not exported on the public client API.`);
+            lines.push(` * @internal`);
+            lines.push(` */`);
+            lines.push(`export function createInternalServerRpc(connection: MessageConnection) {`);
+            lines.push(`    return {`);
+            lines.push(...emitGroup(schema.server, "        ", false, false, false, "internal"));
+            lines.push(`    };`);
+            lines.push(`}`);
+            lines.push("");
+        }
     }
 
     if (schema.session) {
         lines.push(`/** Create typed session-scoped RPC methods. */`);
         lines.push(`export function createSessionRpc(connection: MessageConnection, sessionId: string) {`);
         lines.push(`    return {`);
-        lines.push(...emitGroup(schema.session, "        ", true));
+        lines.push(...emitGroup(schema.session, "        ", true, false, false, "public"));
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
+
+        if (hasInternalMethods(schema.session)) {
+            lines.push(`/**`);
+            lines.push(` * Create typed session-scoped RPC methods that are part of the SDK's internal`);
+            lines.push(` * surface. Not exported on the public client API.`);
+            lines.push(` * @internal`);
+            lines.push(` */`);
+            lines.push(`export function createInternalSessionRpc(connection: MessageConnection, sessionId: string) {`);
+            lines.push(`    return {`);
+            lines.push(...emitGroup(schema.session, "        ", true, false, false, "internal"));
+            lines.push(`    };`);
+            lines.push(`}`);
+            lines.push("");
+        }
     }
 
     // Generate client session API handler interfaces and registration function
@@ -140,20 +718,40 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         lines.push(...emitClientSessionApiRegistration(schema.clientSession));
     }
 
+    // Generate client *global* API handler interfaces and registration function.
+    // Unlike client-session APIs, these methods do not carry a `sessionId` dispatch
+    // key — the SDK consumer registers a single process-wide handler per group.
+    if (schema.clientGlobal) {
+        lines.push(...emitClientGlobalApiRegistration(schema.clientGlobal));
+    }
+
     const outPath = await writeGeneratedFile("nodejs/src/generated/rpc.ts", lines.join("\n"));
     console.log(`  ✓ ${outPath}`);
 }
 
-function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean, parentExperimental = false): string[] {
+function emitGroup(
+    node: Record<string, unknown>,
+    indent: string,
+    isSession: boolean,
+    parentExperimental = false,
+    parentDeprecated = false,
+    visibilityFilter?: "public" | "internal",
+): string[] {
     const lines: string[] = [];
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
+            const isInternalMethod = (value as RpcMethod).visibility === "internal";
+            if (visibilityFilter === "public" && isInternalMethod) continue;
+            if (visibilityFilter === "internal" && !isInternalMethod) continue;
             const { rpcMethod, params } = value;
-            const resultType = value.result ? resultTypeName(rpcMethod) : "void";
-            const paramsType = paramsTypeName(rpcMethod);
+            const resultType = tsResultType(value);
+            const paramsType = paramsTypeName(value);
+            const effectiveParams = getMethodParamsSchema(value);
 
-            const paramEntries = params?.properties ? Object.entries(params.properties).filter(([k]) => k !== "sessionId") : [];
-            const hasParams = params?.properties && Object.keys(params.properties).length > 0;
+            const paramEntries = effectiveParams?.properties
+                ? Object.entries(effectiveParams.properties).filter(([k]) => k !== "sessionId")
+                : [];
+            const hasParams = hasSchemaPayload(effectiveParams);
             const hasNonSessionParams = paramEntries.length > 0;
 
             const sigParams: string[] = [];
@@ -161,32 +759,53 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
 
             if (isSession) {
                 if (hasNonSessionParams) {
-                    sigParams.push(`params: Omit<${paramsType}, "sessionId">`);
+                    const optMark = isParamsOptional(value) ? "?" : "";
+                    // sessionId is already stripped from the generated type definition,
+                    // so no need for Omit<..., "sessionId">
+                    sigParams.push(`params${optMark}: ${paramsType}`);
                     bodyArg = "{ sessionId, ...params }";
                 } else {
                     bodyArg = "{ sessionId }";
                 }
             } else {
                 if (hasParams) {
-                    sigParams.push(`params: ${paramsType}`);
+                    const optMark = isParamsOptional(value) ? "?" : "";
+                    sigParams.push(`params${optMark}: ${paramsType}`);
                     bodyArg = "params";
                 } else {
                     bodyArg = "{}";
                 }
             }
 
-            if ((value as RpcMethod).stability === "experimental" && !parentExperimental) {
-                lines.push(`${indent}/** @experimental */`);
-            }
+            pushTsRpcMethodJsDoc(lines, indent, value, {
+                paramsName: sigParams.length > 0 ? "params" : undefined,
+                paramsDescription: rpcParamsDescription(value, effectiveParams),
+                includeDeprecated: (value as RpcMethod).deprecated && !parentDeprecated,
+                includeExperimental: (value as RpcMethod).stability === "experimental" && !parentExperimental,
+            });
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
             lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
         } else if (typeof value === "object" && value !== null) {
             const groupExperimental = isNodeFullyExperimental(value as Record<string, unknown>);
+            const groupDeprecated = isNodeFullyDeprecated(value as Record<string, unknown>);
+            const childLines = emitGroup(
+                value as Record<string, unknown>,
+                indent + "    ",
+                isSession,
+                groupExperimental,
+                groupDeprecated,
+                visibilityFilter,
+            );
+            // Skip the wrapper if the visibility filter dropped every method in this subtree.
+            if (childLines.length === 0) continue;
+            if (groupDeprecated) {
+                lines.push(`${indent}/** @deprecated */`);
+            }
             if (groupExperimental) {
-                lines.push(`${indent}/** @experimental */`);
+                lines.push(tsExperimentalJSDoc(indent));
             }
             lines.push(`${indent}${key}: {`);
-            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession, groupExperimental));
+            lines.push(...childLines);
             lines.push(`${indent}},`);
         }
     }
@@ -233,14 +852,30 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
     // Emit a handler interface per group
     for (const [groupName, methods] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
-        lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
+        const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
+        const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
+        if (groupDeprecated) {
+            lines.push(`/** @deprecated Handler for \`${groupName}\` client session API methods. */`);
+        } else if (groupExperimental) {
+            lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
+            lines.push(TS_EXPERIMENTAL_JSDOC);
+        } else {
+            lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
+        }
         lines.push(`export interface ${interfaceName} {`);
         for (const method of methods) {
             const name = handlerMethodName(method.rpcMethod);
-            const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
-            const pType = hasParams ? paramsTypeName(method.rpcMethod) : "";
-            const rType = method.result ? resultTypeName(method.rpcMethod) : "void";
+            const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
+            const pType = hasParams ? paramsTypeName(method) : "";
+            const rType = tsResultType(method);
 
+            pushTsRpcMethodJsDoc(lines, "    ", method, {
+                summaryFallback: `Handles \`${method.rpcMethod}\`.`,
+                paramsName: hasParams ? "params" : undefined,
+                paramsDescription: rpcParamsDescription(method, getMethodParamsSchema(method)),
+                includeDeprecated: method.deprecated && !groupDeprecated,
+                includeExperimental: method.stability === "experimental" && !groupExperimental,
+            });
             if (hasParams) {
                 lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
             } else {
@@ -276,8 +911,8 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
     for (const [groupName, methods] of groups) {
         for (const method of methods) {
             const name = handlerMethodName(method.rpcMethod);
-            const pType = paramsTypeName(method.rpcMethod);
-            const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
+            const pType = paramsTypeName(method);
+            const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
 
             if (hasParams) {
                 lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
@@ -299,12 +934,113 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
     return lines;
 }
 
+/**
+ * Generate handler interfaces and a registration function for client *global*
+ * API groups.
+ *
+ * Unlike client-session APIs, these methods carry no implicit `sessionId`
+ * dispatch key. The SDK consumer registers a single process-wide handler set
+ * via `registerClientGlobalApiHandlers`; the runtime dispatcher routes each
+ * incoming call to the registered handler regardless of which (if any)
+ * runtime session triggered it.
+ */
+function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>): string[] {
+    const lines: string[] = [];
+    const groups = collectClientGroups(clientSchema);
+
+    for (const [groupName, methods] of groups) {
+        const interfaceName = toPascalCase(groupName) + "Handler";
+        const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
+        const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
+        if (groupDeprecated) {
+            lines.push(`/** @deprecated Handler for \`${groupName}\` client global API methods. */`);
+        } else if (groupExperimental) {
+            lines.push(`/** Handler for \`${groupName}\` client global API methods. */`);
+            lines.push(TS_EXPERIMENTAL_JSDOC);
+        } else {
+            lines.push(`/** Handler for \`${groupName}\` client global API methods. */`);
+        }
+        lines.push(`export interface ${interfaceName} {`);
+        for (const method of methods) {
+            const name = handlerMethodName(method.rpcMethod);
+            const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
+            const pType = hasParams ? paramsTypeName(method) : "";
+            const rType = tsResultType(method);
+
+            pushTsRpcMethodJsDoc(lines, "    ", method, {
+                summaryFallback: `Handles \`${method.rpcMethod}\`.`,
+                paramsName: hasParams ? "params" : undefined,
+                paramsDescription: rpcParamsDescription(method, getMethodParamsSchema(method)),
+                includeDeprecated: method.deprecated && !groupDeprecated,
+                includeExperimental: method.stability === "experimental" && !groupExperimental,
+            });
+            if (hasParams) {
+                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
+            } else {
+                lines.push(`    ${name}(): Promise<${rType}>;`);
+            }
+        }
+        lines.push(`}`);
+        lines.push("");
+    }
+
+    lines.push(`/** All client global API handler groups. */`);
+    lines.push(`export interface ClientGlobalApiHandlers {`);
+    for (const [groupName] of groups) {
+        const interfaceName = toPascalCase(groupName) + "Handler";
+        lines.push(`    ${groupName}?: ${interfaceName};`);
+    }
+    lines.push(`}`);
+    lines.push("");
+
+    lines.push(`/**`);
+    lines.push(` * Register client global API handlers on a JSON-RPC connection.`);
+    lines.push(` * The server calls these methods to delegate work to the client.`);
+    lines.push(` * Unlike session-scoped client APIs, these methods carry no implicit`);
+    lines.push(` * \`sessionId\` dispatch key — a single set of handlers serves the entire`);
+    lines.push(` * connection.`);
+    lines.push(` */`);
+    lines.push(`export function registerClientGlobalApiHandlers(`);
+    lines.push(`    connection: MessageConnection,`);
+    lines.push(`    handlers: ClientGlobalApiHandlers,`);
+    lines.push(`): void {`);
+
+    for (const [groupName, methods] of groups) {
+        for (const method of methods) {
+            const name = handlerMethodName(method.rpcMethod);
+            const pType = paramsTypeName(method);
+            const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
+
+            if (hasParams) {
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
+                lines.push(`        const handler = handlers.${groupName};`);
+                lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
+                lines.push(`        return handler.${name}(params);`);
+                lines.push(`    });`);
+            } else {
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);
+                lines.push(`        const handler = handlers.${groupName};`);
+                lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
+                lines.push(`        return handler.${name}();`);
+                lines.push(`    });`);
+            }
+        }
+    }
+
+    lines.push(`}`);
+    lines.push("");
+
+    return lines;
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     await generateSessionEvents(sessionSchemaPath);
     try {
-        await generateRpc(apiSchemaPath);
+        const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
+        const sessionSchema = propagateInternalVisibility(postProcessSchema((await loadSchemaJson(resolvedSessionPath)) as JSONSchema7));
+        await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {
             console.log("TypeScript: skipping RPC (api.schema.json not found)");
@@ -314,9 +1050,13 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     }
 }
 
-const sessionArg = process.argv[2] || undefined;
-const apiArg = process.argv[3] || undefined;
-generate(sessionArg, apiArg).catch((err) => {
-    console.error("TypeScript generation failed:", err);
-    process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    const sessionArg = process.argv[2] || undefined;
+    const apiArg = process.argv[3] || undefined;
+    generate(sessionArg, apiArg).catch((err) => {
+        console.error("TypeScript generation failed:", err);
+        process.exit(1);
+    });
+}

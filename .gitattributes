@@ -4,5 +4,7 @@
 nodejs/src/generated/* eol=lf linguist-generated=true
 dotnet/src/Generated/* eol=lf linguist-generated=true
 python/copilot/generated/* eol=lf linguist-generated=true
-go/generated_session_events.go eol=lf linguist-generated=true
-go/rpc/generated_rpc.go eol=lf linguist-generated=true
+go/zsession_events.go eol=lf linguist-generated=true
+go/zsession_encoding.go eol=lf linguist-generated=true
+go/rpc/zrpc.go eol=lf linguist-generated=true
+go/rpc/zrpc_encoding.go eol=lf linguist-generated=true

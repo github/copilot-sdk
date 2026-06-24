@@ -1,4 +1,4 @@
-# Build Your First Copilot-Powered App
+# Build your first Copilot-powered app
 
 In this tutorial, you'll use the Copilot SDK to build a command-line assistant. You'll start with the basics, add streaming responses, then add custom tools - giving Copilot the ability to call your code.
 
@@ -18,9 +18,9 @@ Copilot: In Tokyo it's 75°F and sunny. Great day to be outside!
 
 Before you begin, make sure you have:
 
-- **GitHub Copilot CLI** installed and authenticated ([Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli))
-- Your preferred language runtime:
-  - **Node.js** 18+ or **Python** 3.11+ or **Go** 1.21+ or **Java** 17+ or **.NET** 8.0+
+* **GitHub Copilot CLI** installed and authenticated (the Node.js, Python, and .NET SDKs provide the CLI automatically—see [Bundled CLI](./setup/bundled-cli.md). Required for Go, Java, and Rust unless using their application-level CLI bundling features.)
+* Your preferred language runtime:
+  * **Node.js** 20+ or **Python** 3.11+ or **Go** 1.24+ or **Rust** 1.94+ or **Java** 17+ or **.NET** 8.0+
 
 Verify the CLI is working:
 
@@ -28,7 +28,7 @@ Verify the CLI is working:
 copilot --version
 ```
 
-## Step 1: Install the SDK
+## Step 1: install the SDK
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -76,6 +76,28 @@ go get github.com/github/copilot-sdk/go
 </details>
 
 <details>
+<summary><strong>Rust</strong></summary>
+
+First, create a new binary crate:
+
+```bash
+cargo new copilot-demo && cd copilot-demo
+```
+
+Then install the SDK and direct dependencies used by the examples:
+
+```bash
+cargo add github-copilot-sdk --features derive
+# Used by #[tokio::main] and tokio::spawn
+cargo add tokio --features rt-multi-thread,macros
+# Used by custom-tool parameter derives later in this guide
+cargo add serde --features derive
+cargo add schemars
+```
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 First, create a new console project:
@@ -97,7 +119,7 @@ dotnet add package GitHub.Copilot.SDK
 
 First, create a new directory and initialize your project.
 
-**Maven** — add to your `pom.xml`:
+**Maven**—add to your `pom.xml`:
 
 ```xml
 <dependency>
@@ -107,7 +129,7 @@ First, create a new directory and initialize your project.
 </dependency>
 ```
 
-**Gradle** — add to your `build.gradle`:
+**Gradle**—add to your `build.gradle`:
 
 ```groovy
 implementation 'com.github:copilot-sdk-java:${copilotSdkVersion}'
@@ -115,7 +137,7 @@ implementation 'com.github:copilot-sdk-java:${copilotSdkVersion}'
 
 </details>
 
-## Step 2: Send Your First Message
+## Step 2: send your first message
 
 Create a new file and add the following code. This is the simplest way to use the SDK—about 5 lines of code.
 
@@ -227,12 +249,57 @@ go run main.go
 </details>
 
 <details>
+<summary><strong>Rust</strong></summary>
+
+Create `src/main.rs`:
+
+```rust
+use std::sync::Arc;
+use std::time::Duration;
+
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::{Client, ClientOptions, MessageOptions, SessionConfig};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::start(ClientOptions::default()).await?;
+    let session = client
+        .create_session(SessionConfig::default().with_permission_handler(Arc::new(ApproveAllHandler)))
+        .await?;
+
+    let response = session
+        .send_and_wait(
+            MessageOptions::new("What is 2 + 2?").with_wait_timeout(Duration::from_secs(120)),
+        )
+        .await?;
+
+    if let Some(event) = response {
+        if let Some(content) = event.data.get("content").and_then(|value| value.as_str()) {
+            println!("{content}");
+        }
+    }
+
+    session.disconnect().await?;
+    client.stop().await?;
+    Ok(())
+}
+```
+
+Run it:
+
+```bash
+cargo run
+```
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 Create a new console project and add this to `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -258,10 +325,10 @@ dotnet run
 
 Create `HelloCopilot.java`:
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 public class HelloCopilot {
     public static void main(String[] args) throws Exception {
@@ -302,7 +369,7 @@ javac -cp copilot-sdk.jar HelloCopilot.java && java -cp .:copilot-sdk.jar HelloC
 
 Congratulations! You just built your first Copilot-powered app.
 
-## Step 3: Add Streaming Responses
+## Step 3: add streaming responses
 
 Right now, you wait for the complete response before seeing anything. Let's make it interactive by streaming the response as it's generated.
 
@@ -346,7 +413,7 @@ import asyncio
 import sys
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 
 async def main():
     client = CopilotClient()
@@ -400,7 +467,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
-		Streaming: true,
+		Streaming: copilot.Bool(true),
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -428,12 +495,69 @@ func main() {
 </details>
 
 <details>
+<summary><strong>Rust</strong></summary>
+
+Update `src/main.rs`:
+
+```rust
+use std::io::{self, Write};
+use std::sync::Arc;
+use std::time::Duration;
+
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::{Client, ClientOptions, MessageOptions, SessionConfig};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::start(ClientOptions::default()).await?;
+
+    let mut config = SessionConfig::default();
+    config.streaming = Some(true);
+    let session = client
+        .create_session(config.with_permission_handler(Arc::new(ApproveAllHandler)))
+        .await?;
+
+    // Listen for response chunks
+    let mut events = session.subscribe();
+    tokio::spawn(async move {
+        while let Ok(event) = events.recv().await {
+            match event.event_type.as_str() {
+                "assistant.message_delta" => {
+                    if let Some(text) =
+                        event.data.get("deltaContent").and_then(|value| value.as_str())
+                    {
+                        print!("{text}");
+                        io::stdout().flush().ok();
+                    }
+                }
+                "assistant.message" => println!(),
+                _ => {}
+            }
+        }
+    });
+
+    session
+        .send_and_wait(
+            MessageOptions::new("Tell me a short joke")
+                .with_wait_timeout(Duration::from_secs(120)),
+        )
+        .await?;
+
+    session.disconnect().await?;
+    client.stop().await?;
+    Ok(())
+}
+```
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 Update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -444,7 +568,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 
 // Listen for response chunks
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -466,10 +590,10 @@ await session.SendAndWaitAsync(new MessageOptions { Prompt = "Tell me a short jo
 
 Update `HelloCopilot.java`:
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 public class HelloCopilot {
     public static void main(String[] args) throws Exception {
@@ -505,7 +629,7 @@ public class HelloCopilot {
 
 Run the code again. You'll see the response appear word by word.
 
-### Event Subscription Methods
+### Event subscription methods
 
 The SDK provides methods for subscribing to session events:
 
@@ -513,6 +637,7 @@ The SDK provides methods for subscribing to session events:
 |--------|-------------|
 | `on(handler)` | Subscribe to all events; returns unsubscribe function |
 | `on(eventType, handler)` | Subscribe to specific event type (Node.js/TypeScript only); returns unsubscribe function |
+| `subscribe()` | Subscribe to all events (Rust); filter by `event_type` |
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -540,13 +665,12 @@ unsubscribeIdle();
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot import CopilotClient
-from copilot.generated.session_events import SessionEvent, SessionEventType
-from copilot.session import PermissionRequestResult
+from copilot import CopilotClient, PermissionDecisionApproveOnce
+from copilot.session_events import SessionEvent, SessionEventType
 
 client = CopilotClient()
 
-session = await client.create_session(on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"))
+session = await client.create_session(on_permission_request=lambda req, inv: PermissionDecisionApproveOnce())
 
 # Subscribe to all events
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
@@ -646,21 +770,46 @@ unsubscribe()
 </details>
 
 <details>
+<summary><strong>Rust</strong></summary>
+
+```rust
+let mut events = session.subscribe();
+
+tokio::spawn(async move {
+    while let Ok(event) = events.recv().await {
+        println!("Event: {}", event.event_type);
+
+        match event.event_type.as_str() {
+            "session.idle" => println!("Session is idle"),
+            "assistant.message" => {
+                if let Some(content) = event.data.get("content").and_then(|value| value.as_str()) {
+                    println!("Message: {content}");
+                }
+            }
+            _ => {}
+        }
+    }
+});
+```
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class EventSubscriptionExample
 {
     public static void Example(CopilotSession session)
     {
         // Subscribe to all events
-        var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+        var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
 
         // Filter by event type using pattern matching
-        session.On(ev =>
+        session.On<SessionEvent>(ev =>
         {
             switch (ev)
             {
@@ -682,10 +831,10 @@ public static class EventSubscriptionExample
 
 ```csharp
 // Subscribe to all events
-var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
 
 // Filter by event type using pattern matching
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     switch (ev)
     {
@@ -707,6 +856,7 @@ unsubscribe.Dispose();
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // Subscribe to all events
 var unsubscribe = session.on(event -> {
@@ -728,7 +878,7 @@ unsubscribe.close();
 
 </details>
 
-## Step 4: Add a Custom Tool
+## Step 4: add a custom tool
 
 Now for the powerful part. Let's give Copilot the ability to call your code by defining a custom tool. We'll create a simple weather lookup tool.
 
@@ -797,7 +947,7 @@ import sys
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
 from copilot.tools import define_tool
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 from pydantic import BaseModel, Field
 
 # Define the parameters for the tool using Pydantic
@@ -896,7 +1046,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
-		Streaming: true,
+		Streaming: copilot.Bool(true),
 		Tools:     []copilot.Tool{getWeather},
 	})
 	if err != nil {
@@ -926,19 +1076,98 @@ func main() {
 </details>
 
 <details>
+<summary><strong>Rust</strong></summary>
+
+Update `src/main.rs`:
+
+```rust
+use std::io::{self, Write};
+use std::sync::Arc;
+use std::time::Duration;
+
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::tool::{define_tool, JsonSchema};
+use github_copilot_sdk::{Client, ClientOptions, MessageOptions, SessionConfig, ToolResult};
+use serde::Deserialize;
+
+#[derive(Deserialize, JsonSchema)]
+struct GetWeatherParams {
+    city: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Define a tool that Copilot can call
+    let tools = vec![define_tool(
+        "get_weather",
+        "Get the current weather for a city",
+        |_inv, params: GetWeatherParams| async move {
+            Ok(ToolResult::Text(format!(
+                "{}: 62°F and sunny",
+                params.city
+            )))
+        },
+    )];
+
+    let client = Client::start(ClientOptions::default()).await?;
+
+    let mut config = SessionConfig::default();
+    config.streaming = Some(true);
+    let session = client
+        .create_session(
+            config
+                .with_tools(tools)
+                .with_permission_handler(Arc::new(ApproveAllHandler)),
+        )
+        .await?;
+
+    let mut events = session.subscribe();
+    tokio::spawn(async move {
+        while let Ok(event) = events.recv().await {
+            match event.event_type.as_str() {
+                "assistant.message_delta" => {
+                    if let Some(text) =
+                        event.data.get("deltaContent").and_then(|value| value.as_str())
+                    {
+                        print!("{text}");
+                        io::stdout().flush().ok();
+                    }
+                }
+                "assistant.message" => println!(),
+                _ => {}
+            }
+        }
+    });
+
+    session
+        .send_and_wait(
+            MessageOptions::new("What's the weather like in Seattle and Tokyo?")
+                .with_wait_timeout(Duration::from_secs(120)),
+        )
+        .await?;
+
+    session.disconnect().await?;
+    client.stop().await?;
+    Ok(())
+}
+```
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 Update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
 await using var client = new CopilotClient();
 
 // Define a tool that Copilot can call
-var getWeather = AIFunctionFactory.Create(
+var getWeather = CopilotTool.DefineTool(
     ([Description("The city name")] string city) =>
     {
         // In a real app, you'd call a weather API here
@@ -947,8 +1176,11 @@ var getWeather = AIFunctionFactory.Create(
         var condition = conditions[Random.Shared.Next(conditions.Length)];
         return new { city, temperature = $"{temp}°F", condition };
     },
-    "get_weather",
-    "Get the current weather for a city"
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "get_weather",
+        Description = "Get the current weather for a city",
+    }
 );
 
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -959,7 +1191,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     Tools = [getWeather],
 });
 
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -984,10 +1216,10 @@ await session.SendAndWaitAsync(new MessageOptions
 
 Update `HelloCopilot.java`:
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 import java.util.List;
 import java.util.Map;
@@ -1054,7 +1286,7 @@ public class HelloCopilot {
 
 Run it and you'll see Copilot call your tool to get weather data, then respond with the results!
 
-## Step 5: Build an Interactive Assistant
+## Step 5: build an interactive assistant
 
 Let's put it all together into a useful interactive assistant:
 
@@ -1139,7 +1371,7 @@ import sys
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
 from copilot.tools import define_tool
-from copilot.generated.session_events import SessionEventType
+from copilot.session_events import SessionEventType
 from pydantic import BaseModel, Field
 
 class GetWeatherParams(BaseModel):
@@ -1251,7 +1483,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
-		Streaming: true,
+		Streaming: copilot.Bool(true),
 		Tools:     []copilot.Tool{getWeather},
 	})
 	if err != nil {
@@ -1305,17 +1537,124 @@ go run weather-assistant.go
 </details>
 
 <details>
+<summary><strong>Rust</strong></summary>
+
+Create `src/main.rs`:
+
+```rust
+use std::io::{self, BufRead, Write};
+use std::sync::Arc;
+use std::time::Duration;
+
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::tool::{define_tool, JsonSchema};
+use github_copilot_sdk::{Client, ClientOptions, MessageOptions, SessionConfig, ToolResult};
+use serde::Deserialize;
+
+#[derive(Deserialize, JsonSchema)]
+struct GetWeatherParams {
+    city: String,
+}
+
+fn read_line() -> Option<String> {
+    let stdin = io::stdin();
+    let mut line = String::new();
+    stdin.lock().read_line(&mut line).ok()?;
+    if line.is_empty() {
+        return None;
+    }
+    Some(line.trim_end_matches(&['\n', '\r'][..]).to_string())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let tools = vec![define_tool(
+        "get_weather",
+        "Get the current weather for a city",
+        |_inv, params: GetWeatherParams| async move {
+            Ok(ToolResult::Text(format!(
+                "{}: 62°F and sunny",
+                params.city
+            )))
+        },
+    )];
+
+    let client = Client::start(ClientOptions::default()).await?;
+
+    let mut config = SessionConfig::default();
+    config.streaming = Some(true);
+    let session = client
+        .create_session(
+            config
+                .with_tools(tools)
+                .with_permission_handler(Arc::new(ApproveAllHandler)),
+        )
+        .await?;
+
+    let mut events = session.subscribe();
+    tokio::spawn(async move {
+        while let Ok(event) = events.recv().await {
+            match event.event_type.as_str() {
+                "assistant.message_delta" => {
+                    if let Some(text) =
+                        event.data.get("deltaContent").and_then(|value| value.as_str())
+                    {
+                        print!("{text}");
+                        io::stdout().flush().ok();
+                    }
+                }
+                "assistant.message" => println!(),
+                _ => {}
+            }
+        }
+    });
+
+    println!("Weather Assistant (type 'exit' to quit)");
+    println!("Try: 'What's the weather in Paris?' or 'Compare weather in NYC and LA'\n");
+
+    loop {
+        print!("You: ");
+        io::stdout().flush().ok();
+
+        let Some(input) = read_line() else { break };
+        if input.eq_ignore_ascii_case("exit") {
+            break;
+        }
+
+        print!("Assistant: ");
+        io::stdout().flush().ok();
+        session
+            .send_and_wait(MessageOptions::new(input).with_wait_timeout(Duration::from_secs(120)))
+            .await?;
+        println!();
+    }
+
+    session.disconnect().await?;
+    client.stop().await?;
+    Ok(())
+}
+```
+
+Run with:
+
+```bash
+cargo run
+```
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 Create a new console project and update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
-// Define the weather tool using AIFunctionFactory
-var getWeather = AIFunctionFactory.Create(
+// Define the weather tool
+var getWeather = CopilotTool.DefineTool(
     ([Description("The city name")] string city) =>
     {
         var conditions = new[] { "sunny", "cloudy", "rainy", "partly cloudy" };
@@ -1323,8 +1662,11 @@ var getWeather = AIFunctionFactory.Create(
         var condition = conditions[Random.Shared.Next(conditions.Length)];
         return new { city, temperature = $"{temp}°F", condition };
     },
-    "get_weather",
-    "Get the current weather for a city");
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "get_weather",
+        Description = "Get the current weather for a city",
+    });
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -1336,7 +1678,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 
 // Listen for response chunks
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -1380,10 +1722,10 @@ dotnet run
 
 Create `WeatherAssistant.java`:
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 import java.util.List;
 import java.util.Map;
@@ -1469,7 +1811,6 @@ javac -cp copilot-sdk.jar WeatherAssistant.java && java -cp .:copilot-sdk.jar We
 
 </details>
 
-
 **Example session:**
 
 ```
@@ -1490,28 +1831,24 @@ You: exit
 
 You've built an assistant with a custom tool that Copilot can call!
 
----
-
-## How Tools Work
+## How tools work
 
 When you define a tool, you're telling Copilot:
 1. **What the tool does** (description)
-2. **What parameters it needs** (schema)
-3. **What code to run** (handler)
+1. **What parameters it needs** (schema)
+1. **What code to run** (handler)
 
 Copilot decides when to call your tool based on the user's question. When it does:
 1. Copilot sends a tool call request with the parameters
-2. The SDK runs your handler function
-3. The result is sent back to Copilot
-4. Copilot incorporates the result into its response
+1. The SDK runs your handler function
+1. The result is sent back to Copilot
+1. Copilot incorporates the result into its response
 
----
-
-## What's Next?
+## What's next?
 
 Now that you've got the basics, here are more powerful features to explore:
 
-### Connect to MCP Servers
+### Connect to MCP servers
 
 MCP (Model Context Protocol) servers provide pre-built tools. Connect to GitHub's MCP server to give Copilot access to repositories, issues, and pull requests:
 
@@ -1528,7 +1865,7 @@ const session = await client.createSession({
 
 📖 **[Full MCP documentation →](./features/mcp.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
 
-### Create Custom Agents
+### Create custom agents
 
 Define specialized AI personas for specific tasks:
 
@@ -1543,9 +1880,10 @@ const session = await client.createSession({
 });
 ```
 
-> **Tip:** You can also set `agent: "pr-reviewer"` in the session config to pre-select this agent from the start. See the [Custom Agents guide](./features/custom-agents.md#selecting-an-agent-at-session-creation) for details.
+> [!TIP]
+> You can also set `agent: "pr-reviewer"` in the session config to pre-select this agent from the start. See the [Custom Agents guide](./features/custom-agents.md#selecting-an-agent-at-session-creation) for details.
 
-### Customize the System Message
+### Customize the system message
 
 Control the AI's behavior and personality by appending instructions:
 
@@ -1573,23 +1911,23 @@ const session = await client.createSession({
 });
 ```
 
-Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `last_instructions`.
+Available section IDs: `preamble`, `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`, `last_instructions`.
 
-Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully — content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
+`identity` and `tool_instructions` are section *groups*: they target a collection of related sub-sections as a unit. Use `preamble` to target just the identity preamble without affecting its sibling sub-sections.
 
-See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), [Java](../java/README.md), and [C#](../dotnet/README.md).
+Each override supports five actions: `replace`, `remove`, `append`, `prepend`, and `preserve`. The `preserve` action is a no-op that opts an individually-addressable section out of a group-level `remove` (for example, keep `tone` when removing the `identity` group). Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
----
+See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), [Rust](../rust/README.md), [Java](../java/README.md), and [C#](../dotnet/README.md).
 
-## Connecting to an External CLI Server
+## Connecting to an external CLI server
 
 By default, the SDK automatically manages the Copilot CLI process lifecycle, starting and stopping the CLI as needed. However, you can also run the CLI in server mode separately and have the SDK connect to it. This can be useful for:
 
-- **Debugging**: Keep the CLI running between SDK restarts to inspect logs
-- **Resource sharing**: Multiple SDK clients can connect to the same CLI server
-- **Development**: Run the CLI with custom settings or in a different environment
+* **Debugging**: Keep the CLI running between SDK restarts to inspect logs
+* **Resource sharing**: Multiple SDK clients can connect to the same CLI server
+* **Development**: Run the CLI with custom settings or in a different environment
 
-### Running the CLI in Server Mode
+### Running the CLI in server mode
 
 Start the CLI in server mode using the `--headless` flag and optionally specify a port:
 
@@ -1599,7 +1937,17 @@ copilot --headless --port 4321
 
 If you don't specify a port, the CLI will choose a random available port.
 
-### Connecting the SDK to the External Server
+By default the headless server only accepts connections from loopback (`127.0.0.1`), so the SDK must run on the same machine. To accept connections from other hosts (for example when running the CLI in a container or on a separate server), bind to a non-loopback address with `--host`:
+
+```bash
+# Listen on all interfaces
+copilot --headless --host 0.0.0.0 --port 4321
+```
+
+> [!WARNING]
+> Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. Pair it with network controls (firewall, private network, reverse proxy) and authentication appropriate for your environment.
+
+### Connecting the SDK to the external server
 
 Once the CLI is running in server mode, configure your SDK client to connect to it using the "cli url" option:
 
@@ -1624,12 +1972,10 @@ const session = await client.createSession({ onPermissionRequest: approveAll });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
-client = CopilotClient({
-    "cli_url": "localhost:4321"
-})
+client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:4321"))
 await client.start()
 
 # Use the client normally
@@ -1656,9 +2002,9 @@ import (
 func main() {
 	ctx := context.Background()
 
-	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: "localhost:4321",
-	})
+    client := copilot.NewClient(&copilot.ClientOptions{
+        Connection: copilot.URIConnection{URL: "localhost:4321"},
+    })
 
 	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
@@ -1677,7 +2023,7 @@ func main() {
 import copilot "github.com/github/copilot-sdk/go"
 
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIUrl: "localhost:4321",
+    Connection: copilot.URIConnection{URL: "localhost:4321"},
 })
 
 if err := client.Start(ctx); err != nil {
@@ -1695,15 +2041,39 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 </details>
 
 <details>
+<summary><strong>Rust</strong></summary>
+
+```rust
+use std::sync::Arc;
+
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::{Client, ClientOptions, SessionConfig, Transport};
+
+let mut options = ClientOptions::default();
+options.transport = Transport::External {
+    host: "localhost".to_string(),
+    port: 4321,
+};
+let client = Client::start(options).await?;
+
+// Use the client normally
+let session = client
+    .create_session(SessionConfig::default().with_permission_handler(Arc::new(ApproveAllHandler)))
+    .await?;
+// ...
+```
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false
+    Connection = RuntimeConnection.ForUri("localhost:4321"),
 });
 
 // Use the client normally
@@ -1720,8 +2090,8 @@ await using var session = await client.CreateSessionAsync(new()
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(
     new CopilotClientOptions().setCliUrl("localhost:4321")
@@ -1737,17 +2107,15 @@ var session = client.createSession(
 
 </details>
 
-**Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
+**Note:** When `cli_url` / `cliUrl` / Go's `URIConnection` is provided, or Rust uses `Transport::External`, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
 
----
-
-## Telemetry & Observability
+## Telemetry and observability
 
 The Copilot SDK supports [OpenTelemetry](https://opentelemetry.io/) for distributed tracing. Provide a `telemetry` configuration to the client to enable trace export from the CLI process and automatic [W3C Trace Context](https://www.w3.org/TR/trace-context/) propagation between the SDK and CLI.
 
-### Enabling Telemetry
+### Enabling telemetry
 
-Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the opt-in — no separate "enabled" flag is needed.
+Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the opt-in—no separate "enabled" flag is needed.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -1772,9 +2140,9 @@ Optional peer dependency: `@opentelemetry/api`
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions
 
-client = CopilotClient(SubprocessConfig(
+client = CopilotClient(CopilotClientOptions(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },
@@ -1802,6 +2170,26 @@ Dependency: `go.opentelemetry.io/otel`
 </details>
 
 <details>
+<summary><strong>Rust</strong></summary>
+
+<!-- docs-validate: skip -->
+```rust
+use github_copilot_sdk::{Client, ClientOptions, OtelExporterType, TelemetryConfig};
+
+let mut options = ClientOptions::default();
+options.telemetry = Some(
+    TelemetryConfig::new()
+        .with_exporter_type(OtelExporterType::OtlpHttp)
+        .with_otlp_endpoint("http://localhost:4318"),
+);
+let client = Client::start(options).await?;
+```
+
+No extra dependencies—the SDK injects telemetry environment variables for the spawned CLI process.
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: skip -->
@@ -1815,7 +2203,7 @@ var client = new CopilotClient(new CopilotClientOptions
 });
 ```
 
-No extra dependencies — uses built-in `System.Diagnostics.Activity`.
+No extra dependencies—uses built-in `System.Diagnostics.Activity`.
 
 </details>
 
@@ -1824,8 +2212,8 @@ No extra dependencies — uses built-in `System.Diagnostics.Activity`.
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setTelemetry(new TelemetryConfig()
@@ -1836,17 +2224,20 @@ Dependency: `io.opentelemetry:opentelemetry-api`
 
 </details>
 
-### TelemetryConfig Options
+### TelemetryConfig options
 
-| Option | Node.js | Python | Go | Java | .NET | Description |
-|---|---|---|---|---|---|---|
-| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `otlpEndpoint` | `OtlpEndpoint` | OTLP HTTP endpoint URL |
-| File path | `filePath` | `file_path` | `FilePath` | `filePath` | `FilePath` | File path for JSON-lines trace output |
-| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `exporterType` | `ExporterType` | `"otlp-http"` or `"file"` |
-| Source name | `sourceName` | `source_name` | `SourceName` | `sourceName` | `SourceName` | Instrumentation scope name |
-| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `captureContent` | `CaptureContent` | Whether to capture message content |
+| Option | Node.js | Python | Go | Rust | Java | .NET | Description |
+|---|---|---|---|---|---|---|---|
+| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `otlp_endpoint` | `otlpEndpoint` | `OtlpEndpoint` | OTLP HTTP endpoint URL |
+| OTLP protocol | `otlpProtocol` | `otlp_protocol` | `OTLPProtocol` | `otlp_protocol` | `otlpProtocol` | `OtlpProtocol` | OTLP HTTP protocol for all signals: `"http/json"` or `"http/protobuf"` |
+| File path | `filePath` | `file_path` | `FilePath` | `file_path` | `filePath` | `FilePath` | File path for JSON-lines trace output |
+| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `exporter_type` | `exporterType` | `ExporterType` | `"otlp-http"` or `"file"` |
+| Source name | `sourceName` | `source_name` | `SourceName` | `source_name` | `sourceName` | `SourceName` | Instrumentation scope name |
+| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `capture_content` | `captureContent` | `CaptureContent` | Whether to capture message content |
 
-### File Export
+The OTLP protocol field configures the CLI's `"otlp-http"` exporter for all signals. Leave it unset to use the CLI default, or set it to `"http/protobuf"` to export protobuf over HTTP.
+
+### File export
 
 To write traces to a local file instead of an OTLP endpoint:
 
@@ -1860,37 +2251,34 @@ const client = new CopilotClient({
 });
 ```
 
-### Trace Context Propagation
+### Trace context propagation
 
-Trace context is propagated automatically — no manual instrumentation is needed:
+Trace context is propagated automatically—no manual instrumentation is needed:
 
-- **SDK → CLI**: `traceparent` and `tracestate` headers from the current span/activity are included in `session.create`, `session.resume`, and `session.send` RPC calls.
-- **CLI → SDK**: When the CLI invokes tool handlers, the trace context from the CLI's span is propagated so your tool code runs under the correct parent span.
+* **SDK → CLI**: `traceparent` and `tracestate` headers from the current span/activity are included in `session.create`, `session.resume`, and `session.send` RPC calls.
+* **CLI → SDK**: When the CLI invokes tool handlers, the trace context from the CLI's span is propagated so your tool code runs under the correct parent span.
 
-📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)** — TelemetryConfig options, trace context propagation, and per-language dependencies.
+📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)**—TelemetryConfig options, trace context propagation, and per-language dependencies.
 
----
+## Learn more
 
-## Learn More
-
-- [Authentication Guide](./auth/index.md) - GitHub OAuth, environment variables, and BYOK
-- [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Azure AI Foundry, OpenAI, etc.
-- [Node.js SDK Reference](../nodejs/README.md)
-- [Python SDK Reference](../python/README.md)
-- [Go SDK Reference](../go/README.md)
-- [.NET SDK Reference](../dotnet/README.md)
-- [Java SDK Reference](../java/README.md)
-- [Using MCP Servers](./features/mcp.md) - Integrate external tools via Model Context Protocol
-- [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
-- [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
-- [OpenTelemetry Instrumentation](./observability/opentelemetry.md) - TelemetryConfig, trace context propagation, and per-language dependencies
-
----
+* [Authentication Guide](./auth/authenticate.md) - GitHub OAuth, environment variables, and BYOK
+* [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Azure AI Foundry, OpenAI, etc.
+* [Node.js SDK Reference](../nodejs/README.md)
+* [Python SDK Reference](../python/README.md)
+* [Go SDK Reference](../go/README.md)
+* [Rust SDK Reference](../rust/README.md)
+* [.NET SDK Reference](../dotnet/README.md)
+* [Java SDK Reference](../java/README.md)
+* [Using MCP Servers](./features/mcp.md) - Integrate external tools via Model Context Protocol
+* [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
+* [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
+* [OpenTelemetry Instrumentation](./observability/opentelemetry.md) - TelemetryConfig, trace context propagation, and per-language dependencies
 
 **You did it!** You've learned the core concepts of the GitHub Copilot SDK:
-- ✅ Creating a client and session
-- ✅ Sending messages and receiving responses
-- ✅ Streaming for real-time output
-- ✅ Defining custom tools that Copilot can call
+* ✅ Creating a client and session
+* ✅ Sending messages and receiving responses
+* ✅ Streaming for real-time output
+* ✅ Defining custom tools that Copilot can call
 
 Now go build something amazing! 🚀

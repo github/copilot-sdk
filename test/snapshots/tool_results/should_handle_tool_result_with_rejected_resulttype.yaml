@@ -1,0 +1,15 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Deploy the service using deploy_service. If it's rejected, tell me it was 'rejected by policy'.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: deploy_service
+              arguments: "{}"

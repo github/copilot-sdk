@@ -1,8 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <TargetFrameworks>net8.0;net10.0;netstandard2.0</TargetFrameworks>
+        <RootNamespace>GitHub.Copilot</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <Version>0.1.0</Version>
+        <Version>0.0.0-dev</Version>
         <Description>SDK for programmatic control of GitHub Copilot CLI</Description>
         <Authors>GitHub</Authors>
         <Company>GitHub</Company>
@@ -13,11 +15,12 @@
         <RepositoryUrl>https://github.com/github/copilot-sdk</RepositoryUrl>
         <PackageIcon>copilot.png</PackageIcon>
         <PackageTags>github;copilot;sdk;jsonrpc;agent</PackageTags>
-        <IsAotCompatible>true</IsAotCompatible>
+        <IsAotCompatible Condition="'$(TargetFramework)' != 'netstandard2.0'">true</IsAotCompatible>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <_CopilotCliVersionTarget>_GetCopilotCliVersion</_CopilotCliVersionTarget>
     </PropertyGroup>
 
   <PropertyGroup>
@@ -37,16 +40,35 @@
         <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
-        <PackageReference Include="StreamJsonRpc" PrivateAssets="compile" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' != '' and !$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))">
         <PackageReference Include="System.Text.Json" />
     </ItemGroup>
 
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+        <PackageReference Include="System.Collections.Immutable" />
+        <PackageReference Include="System.ComponentModel.Annotations" />
+        <PackageReference Include="System.Memory" />
+        <PackageReference Include="System.Threading.Channels" />
+        <PackageReference Include="System.Threading.Tasks.Extensions" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+        <Compile Remove="Polyfills\**\*.cs" />
+        <Compile Include="Polyfills\IsExternalInit.cs" />
+    </ItemGroup>
+
     <!-- Generate version props file at build time (gitignored) -->
-    <Target Name="_GenerateVersionProps" BeforeTargets="BeforeBuild;Pack">
+    <Target Name="_GetCopilotCliVersion" Condition="'$(CopilotCliVersion)' == ''">
         <Exec Command="node -e &quot;console.log(require('./nodejs/package-lock.json').packages['node_modules/@github/copilot'].version)&quot;" WorkingDirectory="$(MSBuildThisFileDirectory)../.." ConsoleToMSBuild="true" StandardOutputImportance="low">
             <Output TaskParameter="ConsoleOutput" PropertyName="CopilotCliVersion" />
         </Exec>
         <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion could not be read from nodejs/package-lock.json" />
+    </Target>
+
+    <Target Name="_GenerateVersionProps" DependsOnTargets="_GetCopilotCliVersion" BeforeTargets="_GetPackageFiles">
         <PropertyGroup>
             <_VersionPropsContent>
                 <![CDATA[<Project>

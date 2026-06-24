@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Target version of @github/copilot (e.g. 0.0.420)'
+        description: "Target version of @github/copilot (e.g. 0.0.420)"
         required: true
         type: string
 
@@ -34,11 +34,27 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.22"
 
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
+
+      # Rust generator runs `cargo fmt` on its output under stable rustfmt;
+      # nightly rustfmt is needed for unstable format options (group_imports,
+      # imports_granularity, reorder_impl_items) pinned in
+      # `rust/.rustfmt.nightly.toml`. See codegen-check.yml for the same step.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt
+
+      - name: Install nightly rustfmt
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
+          components: rustfmt
 
       - name: Update @github/copilot in nodejs
         env:
@@ -68,6 +84,35 @@ jobs:
         run: |
           cd nodejs && npx prettier --write "src/generated/**/*.ts"
           cd ../dotnet && dotnet format src/GitHub.Copilot.SDK.csproj
+          cd ../rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+
+      - name: Update @github/copilot in Java codegen
+        env:
+          VERSION: ${{ inputs.version }}
+        working-directory: ./java/scripts/codegen
+        run: npm install "@github/copilot@$VERSION"
+
+      - name: Update Java POM CLI version property
+        env:
+          VERSION: ${{ inputs.version }}
+        working-directory: ./java
+        run: |
+          PROP="readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync"
+          sed -i -E "s|(<${PROP}>)[^<]*(</${PROP}>)|\1^${VERSION}\2|" pom.xml
+          # Use fixed-string matching (-F) because npm versions contain regex
+          # metacharacters: '^' (caret ranges) and '.' (dots in semver) would
+          # otherwise be interpreted as start-of-line and any-char respectively,
+          # causing false negatives or spurious matches.
+          grep -qF "<${PROP}>^${VERSION}</${PROP}>" pom.xml
+
+      - name: Run Java codegen
+        working-directory: ./java
+        run: mvn generate-sources -Pcodegen
 
       - name: Create pull request
         env:
@@ -78,9 +123,37 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Fetch the PR branch if it exists remotely (shallow clones may not have it)
+          git fetch origin "$BRANCH" 2>/dev/null || true
+
           if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+            # We need to switch to the existing PR branch, but earlier workflow
+            # steps (dependency bumps, codegen) may have left uncommitted changes
+            # in the working tree. We must stash those changes before checkout,
+            # then re-apply them on the PR branch.
+            #
+            # HOWEVER: `git stash` is a no-op when the working tree is clean —
+            # it exits 0 but creates NO refs/stash entry. If we then blindly run
+            # `git stash pop`, it fails with "No stash entries found" and, under
+            # the shell's `set -e` (GitHub Actions default), aborts the entire
+            # step. This happens when the requested version is already current or
+            # earlier steps produced no file changes.
+            #
+            # Fix: only stash/pop when there are actual uncommitted changes.
+            STASHED=false
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+              git stash --include-untracked
+              STASHED=true
+            fi
+
             git checkout "$BRANCH"
-            git reset --hard HEAD
+            git reset --hard "origin/$BRANCH"
+
+            # Re-apply the dependency/codegen changes on top of the PR branch,
+            # but only if we actually stashed something above.
+            if [ "$STASHED" = "true" ]; then
+              git stash pop
+            fi
           else
             git checkout -b "$BRANCH"
           fi
@@ -97,21 +170,62 @@ jobs:
           - Updated nodejs and test harness dependencies
           - Re-ran code generators
           - Formatted generated code"
+
           git push origin "$BRANCH" --force-with-lease
 
-          if gh pr view "$BRANCH" >/dev/null 2>&1; then
-            echo "Pull request for branch '$BRANCH' already exists; updated branch only."
-          else
-            gh pr create \
-              --title "Update @github/copilot to $VERSION" \
-              --body "Automated update of \`@github/copilot\` to version \`$VERSION\`.
+          PR_BODY=$(cat <<'BODY_EOF'
+          Automated update of `@github/copilot` to version `PLACEHOLDER_VERSION`.
 
           ### Changes
-          - Updated \`@github/copilot\` in \`nodejs/package.json\` and \`test/harness/package.json\`
-          - Re-ran all code generators (\`scripts/codegen\`)
+          - Updated `@github/copilot` in `nodejs/package.json` and `test/harness/package.json`
+          - Re-ran all code generators (`scripts/codegen`)
           - Formatted generated output
+          - Updated Java codegen dependency, POM property, and regenerated Java types
 
-          > Created by the **Update @github/copilot Dependency** workflow." \
+          ### Java Handwritten Code Adaptation Plan
+
+          If `java-sdk-tests` CI fails on this PR, follow these steps:
+
+          1. **Identify failures**: Run `mvn clean`, `mvn verify` from `java/` locally or check the `java-sdk-tests` workflow run logs.
+          2. **Categorize errors**:
+             - Constructor signature changes (new fields added to generated records)
+             - Enum value additions/renames in generated types
+             - New event types requiring handler registration
+             - Removed or renamed generated types
+          3. **Fix handwritten source** (`java/src/main/java/com/github/copilot/sdk/`):
+             - Update call sites passing positional constructor args to include new fields (typically `null` for optional new fields).
+             - Update switch/if-else over enum values to handle new cases.
+             - Register handlers for new event types in `CopilotSession.java` if applicable.
+          4. **Fix handwritten tests** (`java/src/test/java/com/github/copilot/sdk/`):
+             - Same constructor/enum fixes as above.
+             - Add new test methods for new functionality if the change adds user-facing API surface.
+          5. **Validate**: `cd java && mvn clean test-compile jar:jar && mvn verify -Dskip.test.harness=true`
+          6. **Format**: `cd java && mvn spotless:apply`
+          7. Push fixes to this PR branch.
+
+          > To automate this, trigger the `java-adapt-handwritten-code-to-accept-upgrade-changes` agentic workflow instead.
+
+          ### Next steps
+          When ready, click **Ready for review** to trigger CI checks.
+
+          > Created by the **Update @github/copilot Dependency** workflow.
+          BODY_EOF
+          )
+          PR_BODY="${PR_BODY//PLACEHOLDER_VERSION/$VERSION}"
+
+          PR_STATE="$(gh pr view "$BRANCH" --json state --jq '.state' 2>/dev/null || echo "")"
+          if [ "$PR_STATE" = "OPEN" ]; then
+            if [ "$(gh pr view "$BRANCH" --json isDraft --jq '.isDraft')" = "false" ]; then
+              gh pr ready "$BRANCH" --undo
+              echo "Pull request for branch '$BRANCH' already existed and was moved back to draft after updating the branch."
+            else
+              echo "Pull request for branch '$BRANCH' already exists and is already a draft; updated branch only."
+            fi
+          else
+            gh pr create \
+              --draft \
+              --title "Update @github/copilot to $VERSION" \
+              --body "$PR_BODY" \
               --base main \
               --head "$BRANCH"
           fi
