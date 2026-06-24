@@ -5,12 +5,11 @@
 import { createServer, IncomingMessage, Server as HttpServer, ServerResponse } from "http";
 import { AddressInfo } from "net";
 import { afterAll, describe, expect, it } from "vitest";
-import { WebSocket as WsClient, WebSocketServer } from "ws";
+import { WebSocketServer } from "ws";
 import {
     approveAll,
     CopilotRequestHandler,
-    CopilotWebSocketHandler,
-    CopilotWebSocketCloseStatus,
+    CopilotWebSocketForwarder,
     type CopilotRequestContext,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
@@ -202,9 +201,9 @@ interface Counters {
  *   `X-Test-Response-Mutated` header on the way back. The test server
  *   echoes the request header into a counter so we can assert it
  *   actually arrived upstream.
- * - WebSocket: rewrites the WS URL similarly, opens with the `ws`
- *   package inside a custom per-connection handler, and observes
- *   message counts in both directions.
+ * - WebSocket: rewrites the WS URL similarly and forwards through the
+ *   default WebSocket forwarder while observing message counts in both
+ *   directions.
  */
 class TestHandler extends CopilotRequestHandler {
     constructor(
@@ -259,70 +258,28 @@ class TestHandler extends CopilotRequestHandler {
 
     protected override async openWebSocket(
         ctx: CopilotRequestContext
-    ): Promise<CopilotWebSocketHandler> {
-        return TestSocketHandler.connect(this.rewriteWsUrl(ctx.url), ctx, this.counters);
+    ): Promise<CopilotWebSocketForwarder> {
+        ctx.url = this.rewriteWsUrl(ctx.url);
+        return new CountingSocketForwarder(ctx, this.counters);
     }
 }
 
-class TestSocketHandler extends CopilotWebSocketHandler {
-    static async connect(
-        url: string,
-        ctx: CopilotRequestContext,
-        counters: Counters
-    ): Promise<TestSocketHandler> {
-        const client = new WsClient(url);
-        await new Promise<void>((resolve, reject) => {
-            client.once("open", () => resolve());
-            client.once("error", (err) => reject(err));
-        });
-        return new TestSocketHandler(client, ctx, counters);
-    }
-
-    private constructor(
-        private readonly client: WsClient,
+class CountingSocketForwarder extends CopilotWebSocketForwarder {
+    constructor(
         ctx: CopilotRequestContext,
         private readonly counters: Counters
     ) {
         super(ctx);
-        this.client.on("message", (data, isBinary) => {
-            this.counters.wsResponseMessages++;
-            void this.sendResponseMessage(isBinary ? (data as Buffer) : data.toString("utf-8"));
-        });
-        this.client.once("close", () => {
-            void this.close();
-        });
-        this.client.once("error", (err) => {
-            void this.close(new CopilotWebSocketCloseStatus(err.message, undefined, err as Error));
-        });
-        const onAbort = (): void => {
-            try {
-                this.client.close();
-            } catch {
-                /* best-effort */
-            }
-        };
-        ctx.signal.addEventListener("abort", onAbort, { once: true });
-        this.client.once("close", () => ctx.signal.removeEventListener("abort", onAbort));
     }
 
     override sendRequestMessage(data: string | Uint8Array): void {
         this.counters.wsRequestMessages++;
-        if (this.client.readyState !== WsClient.OPEN) {
-            return;
-        }
-        this.client.send(data);
+        super.sendRequestMessage(data);
     }
 
-    override async [Symbol.asyncDispose](): Promise<void> {
-        try {
-            await super[Symbol.asyncDispose]();
-        } finally {
-            try {
-                this.client.close();
-            } catch {
-                /* best-effort */
-            }
-        }
+    override async sendResponseMessage(data: string | Uint8Array): Promise<void> {
+        this.counters.wsResponseMessages++;
+        await super.sendResponseMessage(data);
     }
 }
 
