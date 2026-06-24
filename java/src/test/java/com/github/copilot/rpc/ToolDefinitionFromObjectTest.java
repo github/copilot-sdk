@@ -34,8 +34,9 @@ import com.github.copilot.rpc.fixtures.SimpleTools;
 /**
  * End-to-end tests for {@link ToolDefinition#fromObject(Object)}.
  * <p>
- * The annotation processor generates {@code $$CopilotToolMeta} companion
- * classes for the fixture classes during test compilation.
+ * These tests use hand-written {@code $$CopilotToolMeta} companion classes
+ * under {@code com.github.copilot.rpc.fixtures} that mimic
+ * {@link com.github.copilot.tool.CopilotToolProcessor} output.
  */
 @AllowCopilotExperimental
 class ToolDefinitionFromObjectTest {
