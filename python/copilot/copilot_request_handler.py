@@ -167,9 +167,8 @@ class CopilotWebSocketHandler:
 class CopilotWebSocketForwarder(CopilotWebSocketHandler):
     """Default pass-through WebSocket handler backed by the ``websockets`` library."""
 
-    def __init__(self, context: CopilotRequestContext, url: str | None = None) -> None:
+    def __init__(self, context: CopilotRequestContext) -> None:
         super().__init__(context)
-        self._url = url or context.url
         self._upstream: Any | None = None
         self._receive_task: asyncio.Task[None] | None = None
 
@@ -195,7 +194,7 @@ class CopilotWebSocketForwarder(CopilotWebSocketHandler):
             if name.lower() not in _FORBIDDEN_REQUEST_HEADERS
             for value in (values or [])
         ]
-        self._upstream = await websockets.connect(self._url, additional_headers=headers)
+        self._upstream = await websockets.connect(self.context.url, additional_headers=headers)
         self._receive_task = asyncio.create_task(self._receive_loop())
 
     async def _receive_loop(self) -> None:
