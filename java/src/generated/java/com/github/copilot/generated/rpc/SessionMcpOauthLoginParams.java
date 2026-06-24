@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
+ * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -33,6 +33,14 @@ public record SessionMcpOauthLoginParams(
     /** Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees. */
     @JsonProperty("clientName") String clientName,
     /** Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return. */
-    @JsonProperty("callbackSuccessMessage") String callbackSuccessMessage
+    @JsonProperty("callbackSuccessMessage") String callbackSuccessMessage,
+    /** Optional OAuth client ID override for this login. When set, the runtime uses this pre-registered static client instead of dynamic client registration. */
+    @JsonProperty("clientId") String clientId,
+    /** Optional OAuth client secret override for this login. The runtime treats this as an ephemeral host-owned secret, uses it for this authentication attempt and does not persist it. */
+    @JsonProperty("clientSecret") String clientSecret,
+    /** Optional override indicating whether the static OAuth client is public. When false, the runtime treats it as confidential and uses the per-login clientSecret if provided, otherwise retrieving the client secret from the MCP OAuth secret store. */
+    @JsonProperty("publicClient") Boolean publicClient,
+    /** Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified. */
+    @JsonProperty("grantType") McpOauthLoginGrantType grantType
 ) {
 }

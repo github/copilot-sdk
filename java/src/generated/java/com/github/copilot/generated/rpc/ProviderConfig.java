@@ -26,6 +26,8 @@ public record ProviderConfig(
     @JsonProperty("type") ProviderConfigType type,
     /** Wire API format (openai/azure only). Defaults to "completions". */
     @JsonProperty("wireApi") ProviderConfigWireApi wireApi,
+    /** Provider transport. Defaults to "http". */
+    @JsonProperty("transport") ProviderConfigTransport transport,
     /** API endpoint URL. */
     @JsonProperty("baseUrl") String baseUrl,
     /** API key. Optional for local providers like Ollama. */

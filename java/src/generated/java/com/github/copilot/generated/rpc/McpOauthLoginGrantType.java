@@ -10,28 +10,26 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Diff mode requested by the client.
+ * OAuth grant type override for this login.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum WorkspaceDiffMode {
-    /** The {@code unstaged} variant. */
-    UNSTAGED("unstaged"),
-    /** The {@code branch} variant. */
-    BRANCH("branch"),
-    /** The {@code session} variant. */
-    SESSION("session");
+public enum McpOauthLoginGrantType {
+    /** The {@code authorization_code} variant. */
+    AUTHORIZATION_CODE("authorization_code"),
+    /** The {@code client_credentials} variant. */
+    CLIENT_CREDENTIALS("client_credentials");
 
     private final String value;
-    WorkspaceDiffMode(String value) { this.value = value; }
+    McpOauthLoginGrantType(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static WorkspaceDiffMode fromValue(String value) {
-        for (WorkspaceDiffMode v : values()) {
+    public static McpOauthLoginGrantType fromValue(String value) {
+        for (McpOauthLoginGrantType v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown WorkspaceDiffMode value: " + value);
+        throw new IllegalArgumentException("Unknown McpOauthLoginGrantType value: " + value);
     }
 }
