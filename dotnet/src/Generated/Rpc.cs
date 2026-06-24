@@ -3471,10 +3471,6 @@ internal sealed class SessionCanvasListRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class OpenCanvasInstance
 {
-    /// <summary>Runtime-controlled routing state for an open canvas instance.</summary>
-    [JsonPropertyName("availability")]
-    public CanvasInstanceAvailability Availability { get; set; }
-
     /// <summary>Provider-local canvas identifier.</summary>
     [JsonPropertyName("canvasId")]
     public string CanvasId { get; set; } = string.Empty;
@@ -3494,10 +3490,6 @@ public sealed class OpenCanvasInstance
     /// <summary>Stable caller-supplied canvas instance identifier.</summary>
     [JsonPropertyName("instanceId")]
     public string InstanceId { get; set; } = string.Empty;
-
-    /// <summary>Whether this snapshot came from an idempotent reopen.</summary>
-    [JsonPropertyName("reopen")]
-    public bool Reopen { get; set; }
 
     /// <summary>Provider-supplied status text.</summary>
     [JsonPropertyName("status")]
@@ -5668,7 +5660,7 @@ public sealed class McpOauthLoginResult
     public string? AuthorizationUrl { get; set; }
 }
 
-/// <summary>Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.</summary>
+/// <summary>Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpOauthLoginRequest
 {
@@ -5676,13 +5668,29 @@ internal sealed class McpOauthLoginRequest
     [JsonPropertyName("callbackSuccessMessage")]
     public string? CallbackSuccessMessage { get; set; }
 
+    /// <summary>Optional OAuth client ID override for this login. When set, the runtime uses this pre-registered static client instead of dynamic client registration.</summary>
+    [JsonPropertyName("clientId")]
+    public string? ClientId { get; set; }
+
     /// <summary>Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</summary>
     [JsonPropertyName("clientName")]
     public string? ClientName { get; set; }
 
+    /// <summary>Optional OAuth client secret override for this login. The runtime treats this as an ephemeral host-owned secret, uses it for this authentication attempt and does not persist it.</summary>
+    [JsonPropertyName("clientSecret")]
+    public string? ClientSecret { get; set; }
+
     /// <summary>When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</summary>
     [JsonPropertyName("forceReauth")]
     public bool? ForceReauth { get; set; }
+
+    /// <summary>Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified.</summary>
+    [JsonPropertyName("grantType")]
+    public McpOauthLoginGrantType? GrantType { get; set; }
+
+    /// <summary>Optional override indicating whether the static OAuth client is public. When false, the runtime treats it as confidential and uses the per-login clientSecret if provided, otherwise retrieving the client secret from the MCP OAuth secret store.</summary>
+    [JsonPropertyName("publicClient")]
+    public bool? PublicClient { get; set; }
 
     /// <summary>Name of the remote MCP server to authenticate.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
@@ -6105,6 +6113,10 @@ public sealed class ProviderEndpoint
     [JsonPropertyName("sessionToken")]
     public ProviderSessionToken? SessionToken { get; set; }
 
+    /// <summary>Transport to be used for provider requests.</summary>
+    [JsonPropertyName("transport")]
+    public ProviderEndpointTransport? Transport { get; set; }
+
     /// <summary>Provider family. Matches the `type` field of a BYOK provider config.</summary>
     [JsonPropertyName("type")]
     public ProviderEndpointType Type { get; set; }
@@ -6215,6 +6227,10 @@ public sealed class NamedProviderConfig
     [JsonPropertyName("bearerToken")]
     public string? BearerToken { get; set; }
 
+    /// <summary>When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.getToken` callback before each request and applies the returned token as an `Authorization: Bearer &lt;token&gt;` header. This is the bearer/OAuth scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens (including Anthropic's), not a provider-specific API-key header such as Anthropic's `x-api-key`. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`, the callback takes precedence: the runtime applies the token returned by `providerToken.getToken` as the `Authorization: Bearer` header for each request and does not send the static credential.</summary>
+    [JsonPropertyName("hasBearerTokenProvider")]
+    public bool? HasBearerTokenProvider { get; set; }
+
     /// <summary>Custom HTTP headers to include in all outbound requests to the provider.</summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string>? Headers { get; set; }
@@ -6222,6 +6238,10 @@ public sealed class NamedProviderConfig
     /// <summary>Stable identifier referenced by BYOK model definitions. Must not contain '/'.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Provider transport. Defaults to "http".</summary>
+    [JsonPropertyName("transport")]
+    public ProviderConfigTransport? Transport { get; set; }
 
     /// <summary>Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.</summary>
     [JsonPropertyName("type")]
@@ -6309,6 +6329,15 @@ public sealed class OptionsUpdateAdditionalContentExclusionPolicy
     public OptionsUpdateAdditionalContentExclusionPolicyScope Scope { get; set; }
 }
 
+/// <summary>Options scoped to the built-in CAPI (Copilot API) provider.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CapiSessionOptions
+{
+    /// <summary>Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.</summary>
+    [JsonPropertyName("enableWebSocketResponses")]
+    public bool? EnableWebSocketResponses { get; set; }
+}
+
 /// <summary>Schema for the `SessionInstalledPlugin` type.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionInstalledPlugin
@@ -6362,6 +6391,10 @@ public sealed class ProviderConfig
     [JsonPropertyName("bearerToken")]
     public string? BearerToken { get; set; }
 
+    /// <summary>When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.getToken` callback before each request and applies the returned token as an `Authorization: Bearer &lt;token&gt;` header. This is the bearer/OAuth scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens (including Anthropic's), not a provider-specific API-key header such as Anthropic's `x-api-key`. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`, the callback takes precedence: the runtime applies the token returned by `providerToken.getToken` as the `Authorization: Bearer` header for each request and does not send the static credential.</summary>
+    [JsonPropertyName("hasBearerTokenProvider")]
+    public bool? HasBearerTokenProvider { get; set; }
+
     /// <summary>Custom HTTP headers to include in all outbound requests to the provider.</summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string>? Headers { get; set; }
@@ -6381,6 +6414,10 @@ public sealed class ProviderConfig
     /// <summary>Well-known model ID used for capability lookup. When set, agent behavior config and token limits are inferred from this model.</summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
+
+    /// <summary>Provider transport. Defaults to "http".</summary>
+    [JsonPropertyName("transport")]
+    public ProviderConfigTransport? Transport { get; set; }
 
     /// <summary>Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.</summary>
     [JsonPropertyName("type")]
@@ -6455,11 +6492,20 @@ public sealed class SandboxConfigUserPolicyNetwork
     public IList<string>? BlockedHosts { get; set; }
 }
 
+/// <summary>macOS seatbelt-specific options.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SandboxConfigUserPolicySeatbelt
+{
+    /// <summary>Whether the macOS seatbelt profile may access the keychain.</summary>
+    [JsonPropertyName("keychainAccess")]
+    public bool? KeychainAccess { get; set; }
+}
+
 /// <summary>User-managed sandbox policy fragment merged into the auto-discovered base policy.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SandboxConfigUserPolicy
 {
-    /// <summary>Platform-specific experimental policy fields.</summary>
+    /// <summary>Deprecated legacy location for `seatbelt`; read only when the top-level `seatbelt` is absent.</summary>
     [JsonPropertyName("experimental")]
     public SandboxConfigUserPolicyExperimental? Experimental { get; set; }
 
@@ -6470,6 +6516,10 @@ public sealed class SandboxConfigUserPolicy
     /// <summary>Network rules to merge into the base policy.</summary>
     [JsonPropertyName("network")]
     public SandboxConfigUserPolicyNetwork? Network { get; set; }
+
+    /// <summary>macOS seatbelt options to merge into the base policy.</summary>
+    [JsonPropertyName("seatbelt")]
+    public SandboxConfigUserPolicySeatbelt? Seatbelt { get; set; }
 }
 
 /// <summary>Resolved sandbox configuration.</summary>
@@ -6479,10 +6529,6 @@ public sealed class SandboxConfig
     /// <summary>Whether to auto-add the current working directory to readwritePaths. Default: true.</summary>
     [JsonPropertyName("addCurrentWorkingDirectory")]
     public bool? AddCurrentWorkingDirectory { get; set; }
-
-    /// <summary>Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to `spawnSandboxFromConfig`, bypassing policy merging.</summary>
-    [JsonPropertyName("config")]
-    public JsonElement? Config { get; set; }
 
     /// <summary>Whether sandboxing is enabled for the session.</summary>
     [JsonPropertyName("enabled")]
@@ -6513,6 +6559,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Allowlist of tool names available to this session.</summary>
     [JsonPropertyName("availableTools")]
     public IList<string>? AvailableTools { get; set; }
+
+    /// <summary>Options scoped to the built-in CAPI (Copilot API) provider.</summary>
+    [JsonPropertyName("capi")]
+    public CapiSessionOptions? Capi { get; set; }
 
     /// <summary>Identifier of the client driving the session.</summary>
     [JsonPropertyName("clientName")]
@@ -10237,6 +10287,10 @@ public sealed class ScheduleEntry
     [JsonPropertyName("recurring")]
     public bool Recurring { get; set; }
 
+    /// <summary>True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled.</summary>
+    [JsonPropertyName("selfPaced")]
+    public bool? SelfPaced { get; set; }
+
     /// <summary>IANA timezone the `cron` expression is evaluated in.</summary>
     [JsonPropertyName("tz")]
     public string? Tz { get; set; }
@@ -10276,6 +10330,27 @@ internal sealed class ScheduleStopRequest
     /// <summary>Id of the scheduled prompt to remove.</summary>
     [JsonPropertyName("id")]
     public long Id { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer &lt;token&gt;` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProviderTokenAcquireResult
+{
+    /// <summary>The bearer token value (without the `Bearer ` prefix).</summary>
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = string.Empty;
+}
+
+/// <summary>Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request; the runtime does no caching, so this is sent once per request.</summary>
+public sealed class ProviderTokenAcquireRequest
+{
+    /// <summary>Name of the BYOK provider needing a token. For the legacy whole-session `provider` this is the implicit provider name; for named providers it is `NamedProviderConfig.name`.</summary>
+    [JsonPropertyName("providerName")]
+    public string ProviderName { get; set; } = string.Empty;
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -10648,6 +10723,7 @@ public sealed class CanvasSessionContext
 }
 
 /// <summary>Canvas open parameters sent to the provider.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CanvasProviderOpenRequest
 {
     /// <summary>Provider-local canvas identifier.</summary>
@@ -10680,6 +10756,7 @@ public sealed class CanvasProviderOpenRequest
 }
 
 /// <summary>Canvas close parameters sent to the provider.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CanvasProviderCloseRequest
 {
     /// <summary>Provider-local canvas identifier.</summary>
@@ -10708,6 +10785,7 @@ public sealed class CanvasProviderCloseRequest
 }
 
 /// <summary>Canvas action invocation parameters sent to the provider.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CanvasProviderInvokeActionRequest
 {
     /// <summary>Action name to invoke.</summary>
@@ -12911,69 +12989,6 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 }
 
 
-/// <summary>Runtime-controlled routing state for an open canvas instance.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct CanvasInstanceAvailability : IEquatable<CanvasInstanceAvailability>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="CanvasInstanceAvailability"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="CanvasInstanceAvailability"/>.</param>
-    [JsonConstructor]
-    public CanvasInstanceAvailability(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="CanvasInstanceAvailability"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The owning provider is currently connected and routing calls will be dispatched normally.</summary>
-    public static CanvasInstanceAvailability Ready { get; } = new("ready");
-
-    /// <summary>The owning provider is not currently connected. Routing calls fail with canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a fresh canvas.open) or the provider reconnects.</summary>
-    public static CanvasInstanceAvailability Stale { get; } = new("stale");
-
-    /// <summary>Returns a value indicating whether two <see cref="CanvasInstanceAvailability"/> instances are equivalent.</summary>
-    public static bool operator ==(CanvasInstanceAvailability left, CanvasInstanceAvailability right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="CanvasInstanceAvailability"/> instances are not equivalent.</summary>
-    public static bool operator !=(CanvasInstanceAvailability left, CanvasInstanceAvailability right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is CanvasInstanceAvailability other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(CanvasInstanceAvailability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{CanvasInstanceAvailability}"/> for serializing <see cref="CanvasInstanceAvailability"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<CanvasInstanceAvailability>
-    {
-        /// <inheritdoc />
-        public override CanvasInstanceAvailability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, CanvasInstanceAvailability value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CanvasInstanceAvailability));
-        }
-    }
-}
-
-
 /// <summary>Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -13131,6 +13146,9 @@ public readonly struct WorkspaceDiffMode : IEquatable<WorkspaceDiffMode>
 
     /// <summary>Return changes compared with the default branch.</summary>
     public static WorkspaceDiffMode Branch { get; } = new("branch");
+
+    /// <summary>Return the cumulative diff of files Copilot changed this session (used in non-git workspaces).</summary>
+    public static WorkspaceDiffMode Session { get; } = new("session");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkspaceDiffMode"/> instances are equivalent.</summary>
     public static bool operator ==(WorkspaceDiffMode left, WorkspaceDiffMode right) => left.Equals(right);
@@ -13491,6 +13509,69 @@ public readonly struct McpSetEnvValueModeDetails : IEquatable<McpSetEnvValueMode
         public override void Write(Utf8JsonWriter writer, McpSetEnvValueModeDetails value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSetEnvValueModeDetails));
+        }
+    }
+}
+
+
+/// <summary>OAuth grant type override for this login.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpOauthLoginGrantType : IEquatable<McpOauthLoginGrantType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpOauthLoginGrantType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpOauthLoginGrantType"/>.</param>
+    [JsonConstructor]
+    public McpOauthLoginGrantType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpOauthLoginGrantType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Interactive browser-based OAuth flow using an authorization code, typically with PKCE.</summary>
+    public static McpOauthLoginGrantType AuthorizationCode { get; } = new("authorization_code");
+
+    /// <summary>Headless OAuth flow where a confidential client authenticates directly with a client secret.</summary>
+    public static McpOauthLoginGrantType ClientCredentials { get; } = new("client_credentials");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOauthLoginGrantType"/> instances are equivalent.</summary>
+    public static bool operator ==(McpOauthLoginGrantType left, McpOauthLoginGrantType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOauthLoginGrantType"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpOauthLoginGrantType left, McpOauthLoginGrantType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpOauthLoginGrantType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpOauthLoginGrantType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpOauthLoginGrantType}"/> for serializing <see cref="McpOauthLoginGrantType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpOauthLoginGrantType>
+    {
+        /// <inheritdoc />
+        public override McpOauthLoginGrantType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpOauthLoginGrantType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpOauthLoginGrantType));
         }
     }
 }
@@ -14018,6 +14099,69 @@ public readonly struct McpAppsHostContextDetailsTheme : IEquatable<McpAppsHostCo
 }
 
 
+/// <summary>Transport to be used for provider requests.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderEndpointTransport : IEquatable<ProviderEndpointTransport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderEndpointTransport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderEndpointTransport"/>.</param>
+    [JsonConstructor]
+    public ProviderEndpointTransport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderEndpointTransport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>HTTP request/streaming transport.</summary>
+    public static ProviderEndpointTransport Http { get; } = new("http");
+
+    /// <summary>WebSocket transport.</summary>
+    public static ProviderEndpointTransport Websockets { get; } = new("websockets");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderEndpointTransport"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderEndpointTransport left, ProviderEndpointTransport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderEndpointTransport"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderEndpointTransport left, ProviderEndpointTransport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderEndpointTransport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderEndpointTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderEndpointTransport}"/> for serializing <see cref="ProviderEndpointTransport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderEndpointTransport>
+    {
+        /// <inheritdoc />
+        public override ProviderEndpointTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderEndpointTransport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderEndpointTransport));
+        }
+    }
+}
+
+
 /// <summary>Provider family. Matches the `type` field of a BYOK provider config.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -14142,6 +14286,69 @@ public readonly struct ProviderEndpointWireApi : IEquatable<ProviderEndpointWire
         public override void Write(Utf8JsonWriter writer, ProviderEndpointWireApi value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderEndpointWireApi));
+        }
+    }
+}
+
+
+/// <summary>Provider transport. Defaults to "http".</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderConfigTransport : IEquatable<ProviderConfigTransport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderConfigTransport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderConfigTransport"/>.</param>
+    [JsonConstructor]
+    public ProviderConfigTransport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderConfigTransport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>HTTP request/streaming transport.</summary>
+    public static ProviderConfigTransport Http { get; } = new("http");
+
+    /// <summary>WebSocket transport.</summary>
+    public static ProviderConfigTransport Websockets { get; } = new("websockets");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigTransport"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderConfigTransport left, ProviderConfigTransport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigTransport"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderConfigTransport left, ProviderConfigTransport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderConfigTransport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderConfigTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigTransport}"/> for serializing <see cref="ProviderConfigTransport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderConfigTransport>
+    {
+        /// <inheritdoc />
+        public override ProviderConfigTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderConfigTransport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigTransport));
         }
     }
 }
@@ -18984,14 +19191,18 @@ public sealed class McpOauthApi
     /// <param name="forceReauth">When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</param>
     /// <param name="clientName">Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</param>
     /// <param name="callbackSuccessMessage">Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.</param>
+    /// <param name="clientId">Optional OAuth client ID override for this login. When set, the runtime uses this pre-registered static client instead of dynamic client registration.</param>
+    /// <param name="clientSecret">Optional OAuth client secret override for this login. The runtime treats this as an ephemeral host-owned secret, uses it for this authentication attempt and does not persist it.</param>
+    /// <param name="publicClient">Optional override indicating whether the static OAuth client is public. When false, the runtime treats it as confidential and uses the per-login clientSecret if provided, otherwise retrieving the client secret from the MCP OAuth secret store.</param>
+    /// <param name="grantType">Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</returns>
-    public async Task<McpOauthLoginResult> LoginAsync(string serverName, bool? forceReauth = null, string? clientName = null, string? callbackSuccessMessage = null, CancellationToken cancellationToken = default)
+    public async Task<McpOauthLoginResult> LoginAsync(string serverName, bool? forceReauth = null, string? clientName = null, string? callbackSuccessMessage = null, string? clientId = null, string? clientSecret = null, bool? publicClient = null, McpOauthLoginGrantType? grantType = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
         _session.ThrowIfDisposed();
 
-        var request = new McpOauthLoginRequest { SessionId = _session.SessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage };
+        var request = new McpOauthLoginRequest { SessionId = _session.SessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage, ClientId = clientId, ClientSecret = clientSecret, PublicClient = publicClient, GrantType = grantType };
         return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [request], cancellationToken);
     }
 }
@@ -19185,6 +19396,7 @@ public sealed class OptionsApi
     /// <param name="featureFlags">Map of feature-flag IDs to their boolean enabled state.</param>
     /// <param name="isExperimentalMode">Whether experimental capabilities are enabled.</param>
     /// <param name="provider">Custom model-provider configuration (BYOK).</param>
+    /// <param name="capi">Options scoped to the built-in CAPI (Copilot API) provider.</param>
     /// <param name="workingDirectory">Absolute working-directory path for shell tools.</param>
     /// <param name="availableTools">Allowlist of tool names available to this session.</param>
     /// <param name="excludedTools">Denylist of tool names for this session.</param>
@@ -19226,11 +19438,11 @@ public sealed class OptionsApi
     /// <param name="contextTier">Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -20467,6 +20679,17 @@ public sealed class ScheduleApi
     }
 }
 
+/// <summary>Handles `providerToken` client session API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
+public interface IProviderTokenHandler
+{
+    /// <summary>Asks the SDK client to get a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Session-scoped: the runtime calls it back on the connection that most recently supplied that provider's config for the session (the creating connection, or a resuming connection if the session was resumed — distinct providers may be owned by different connections), passing the provider name, and uses the returned token as the Authorization header for the outbound model request. The runtime does no caching — it calls this once per outbound request; the SDK consumer owns token acquisition, caching, and refresh.</summary>
+    /// <param name="request">Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request; the runtime does no caching, so this is sent once per request.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer &lt;token&gt;` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.</returns>
+    Task<ProviderTokenAcquireResult> GetTokenAsync(ProviderTokenAcquireRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handles `sessionFs` client session API methods.</summary>
 [Experimental(Diagnostics.Experimental)]
 public interface ISessionFsHandler
@@ -20556,6 +20779,9 @@ public interface ICanvasHandler
 /// <summary>Provides all client session API handler groups for a session.</summary>
 public sealed class ClientSessionApiHandlers
 {
+    /// <summary>Optional handler for ProviderToken client session API methods.</summary>
+    public IProviderTokenHandler? ProviderToken { get; set; }
+
     /// <summary>Optional handler for SessionFs client session API methods.</summary>
     public ISessionFsHandler? SessionFs { get; set; }
 
@@ -20573,6 +20799,12 @@ internal static class ClientSessionApiRegistration
     /// </summary>
     public static void RegisterClientSessionApiHandlers(JsonRpc rpc, Func<string, ClientSessionApiHandlers> getHandlers)
     {
+        rpc.SetLocalRpcMethod("providerToken.getToken", (Func<ProviderTokenAcquireRequest, CancellationToken, ValueTask<ProviderTokenAcquireResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).ProviderToken;
+            if (handler is null) throw new InvalidOperationException($"No providerToken handler registered for session: {request.SessionId}");
+            return await handler.GetTokenAsync(request, cancellationToken);
+        }), singleObjectParam: true);
         rpc.SetLocalRpcMethod("sessionFs.readFile", (Func<SessionFsReadFileRequest, CancellationToken, ValueTask<SessionFsReadFileResult>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
@@ -20773,7 +21005,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.BinaryAssetReference), TypeInfoPropertyName = "SessionEventsBinaryAssetReference")]
 [JsonSerializable(typeof(GitHub.Copilot.BinaryAssetReferenceType), TypeInfoPropertyName = "SessionEventsBinaryAssetReferenceType")]
 [JsonSerializable(typeof(GitHub.Copilot.BinaryAssetType), TypeInfoPropertyName = "SessionEventsBinaryAssetType")]
-[JsonSerializable(typeof(GitHub.Copilot.CanvasOpenedAvailability), TypeInfoPropertyName = "SessionEventsCanvasOpenedAvailability")]
 [JsonSerializable(typeof(GitHub.Copilot.CanvasRegistryChangedCanvas), TypeInfoPropertyName = "SessionEventsCanvasRegistryChangedCanvas")]
 [JsonSerializable(typeof(GitHub.Copilot.CanvasRegistryChangedCanvasAction), TypeInfoPropertyName = "SessionEventsCanvasRegistryChangedCanvasAction")]
 [JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedData), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedData")]
@@ -21039,6 +21270,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CanvasProviderOpenRequest))]
 [JsonSerializable(typeof(CanvasProviderOpenResult))]
 [JsonSerializable(typeof(CanvasSessionContext))]
+[JsonSerializable(typeof(CapiSessionOptions))]
 [JsonSerializable(typeof(CommandList))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandRequest))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandResult))]
@@ -21310,6 +21542,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ProviderGetEndpointRequestWithSession))]
 [JsonSerializable(typeof(ProviderModelConfig))]
 [JsonSerializable(typeof(ProviderSessionToken))]
+[JsonSerializable(typeof(ProviderTokenAcquireRequest))]
+[JsonSerializable(typeof(ProviderTokenAcquireResult))]
 [JsonSerializable(typeof(PushAttachment))]
 [JsonSerializable(typeof(PushAttachmentFileLineRange))]
 [JsonSerializable(typeof(PushAttachmentSelectionDetails))]
@@ -21343,6 +21577,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SandboxConfigUserPolicyExperimentalSeatbelt))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyFilesystem))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyNetwork))]
+[JsonSerializable(typeof(SandboxConfigUserPolicySeatbelt))]
 [JsonSerializable(typeof(ScheduleEntry))]
 [JsonSerializable(typeof(ScheduleList))]
 [JsonSerializable(typeof(ScheduleStopRequest))]

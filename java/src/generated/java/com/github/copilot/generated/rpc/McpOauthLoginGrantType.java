@@ -10,26 +10,26 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Runtime-controlled routing state for an open canvas instance.
+ * OAuth grant type override for this login.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum CanvasInstanceAvailability {
-    /** The {@code ready} variant. */
-    READY("ready"),
-    /** The {@code stale} variant. */
-    STALE("stale");
+public enum McpOauthLoginGrantType {
+    /** The {@code authorization_code} variant. */
+    AUTHORIZATION_CODE("authorization_code"),
+    /** The {@code client_credentials} variant. */
+    CLIENT_CREDENTIALS("client_credentials");
 
     private final String value;
-    CanvasInstanceAvailability(String value) { this.value = value; }
+    McpOauthLoginGrantType(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static CanvasInstanceAvailability fromValue(String value) {
-        for (CanvasInstanceAvailability v : values()) {
+    public static McpOauthLoginGrantType fromValue(String value) {
+        for (McpOauthLoginGrantType v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown CanvasInstanceAvailability value: " + value);
+        throw new IllegalArgumentException("Unknown McpOauthLoginGrantType value: " + value);
     }
 }

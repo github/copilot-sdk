@@ -13,21 +13,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * User-managed sandbox policy fragment merged into the auto-discovered base policy.
+ * Options scoped to the built-in CAPI (Copilot API) provider.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SandboxConfigUserPolicy(
-    /** Filesystem rules to merge into the base policy. */
-    @JsonProperty("filesystem") SandboxConfigUserPolicyFilesystem filesystem,
-    /** Network rules to merge into the base policy. */
-    @JsonProperty("network") SandboxConfigUserPolicyNetwork network,
-    /** macOS seatbelt options to merge into the base policy. */
-    @JsonProperty("seatbelt") SandboxConfigUserPolicySeatbelt seatbelt,
-    /** Deprecated legacy location for `seatbelt`; read only when the top-level `seatbelt` is absent. */
-    @JsonProperty("experimental") SandboxConfigUserPolicyExperimental experimental
+public record CapiSessionOptions(
+    /** Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable. */
+    @JsonProperty("enableWebSocketResponses") Boolean enableWebSocketResponses
 ) {
 }

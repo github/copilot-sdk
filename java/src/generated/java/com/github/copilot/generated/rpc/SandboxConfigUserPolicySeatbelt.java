@@ -13,21 +13,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * User-managed sandbox policy fragment merged into the auto-discovered base policy.
+ * macOS seatbelt-specific options.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SandboxConfigUserPolicy(
-    /** Filesystem rules to merge into the base policy. */
-    @JsonProperty("filesystem") SandboxConfigUserPolicyFilesystem filesystem,
-    /** Network rules to merge into the base policy. */
-    @JsonProperty("network") SandboxConfigUserPolicyNetwork network,
-    /** macOS seatbelt options to merge into the base policy. */
-    @JsonProperty("seatbelt") SandboxConfigUserPolicySeatbelt seatbelt,
-    /** Deprecated legacy location for `seatbelt`; read only when the top-level `seatbelt` is absent. */
-    @JsonProperty("experimental") SandboxConfigUserPolicyExperimental experimental
+public record SandboxConfigUserPolicySeatbelt(
+    /** Whether the macOS seatbelt profile may access the keychain. */
+    @JsonProperty("keychainAccess") Boolean keychainAccess
 ) {
 }

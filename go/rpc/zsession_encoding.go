@@ -281,8 +281,26 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionCanvasRecorded:
+		var d SessionCanvasRecordedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionCanvasRegistryChanged:
 		var d SessionCanvasRegistryChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCanvasRemoved:
+		var d SessionCanvasRemovedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCanvasUnavailable:
+		var d SessionCanvasUnavailableData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -409,6 +427,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionScheduleCreated:
 		var d SessionScheduleCreatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionScheduleRearmed:
+		var d SessionScheduleRearmedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}

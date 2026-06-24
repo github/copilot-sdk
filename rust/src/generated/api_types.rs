@@ -515,6 +515,8 @@ pub mod rpc_methods {
     pub const SESSION_SCHEDULE_LIST: &str = "session.schedule.list";
     /// `session.schedule.stop`
     pub const SESSION_SCHEDULE_STOP: &str = "session.schedule.stop";
+    /// `providerToken.getToken`
+    pub const PROVIDERTOKEN_GETTOKEN: &str = "providerToken.getToken";
     /// `sessionFs.readFile`
     pub const SESSIONFS_READFILE: &str = "sessionFs.readFile";
     /// `sessionFs.writeFile`
@@ -1400,6 +1402,9 @@ pub struct AttachmentDirectory {
     pub display_name: String,
     /// Absolute directory path
     pub path: String,
+    /// Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g. "* /path (12 items)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tagged_files_entry: Option<String>,
     /// Attachment type discriminator
     pub r#type: AttachmentDirectoryType,
 }
@@ -1481,6 +1486,9 @@ pub struct AttachmentFile {
     pub omitted_reason: Option<OmittedBinaryOmittedReason>,
     /// Absolute file path
     pub path: String,
+    /// Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g. "* /path (123 lines)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes. Present only for attachments routed to <tagged_files> (mutually exclusive with assetId, which marks bytes sent natively).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tagged_files_entry: Option<String>,
     /// Attachment type discriminator
     pub r#type: AttachmentFileType,
 }
@@ -1759,8 +1767,6 @@ pub struct CanvasList {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenCanvasInstance {
-    /// Runtime-controlled routing state for an open canvas instance.
-    pub availability: CanvasInstanceAvailability,
     /// Provider-local canvas identifier
     pub canvas_id: String,
     /// Owning provider identifier
@@ -1773,8 +1779,6 @@ pub struct OpenCanvasInstance {
     pub input: Option<serde_json::Value>,
     /// Stable caller-supplied canvas instance identifier
     pub instance_id: String,
-    /// Whether this snapshot came from an idempotent reopen
-    pub reopen: bool,
     /// Provider-supplied status text
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -1949,6 +1953,22 @@ pub struct CanvasProviderOpenResult {
     /// URL for web-rendered canvases
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+}
+
+/// Options scoped to the built-in CAPI (Copilot API) provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CapiSessionOptions {
+    /// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_web_socket_responses: Option<bool>,
 }
 
 /// Optional unstructured input hint
@@ -4457,7 +4477,7 @@ pub struct McpOauthHandlePendingResult {
     pub success: bool,
 }
 
-/// Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
+/// Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
 ///
 /// <div class="warning">
 ///
@@ -4471,12 +4491,24 @@ pub struct McpOauthLoginRequest {
     /// Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callback_success_message: Option<String>,
+    /// Optional OAuth client ID override for this login. When set, the runtime uses this pre-registered static client instead of dynamic client registration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
     /// Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
+    /// Optional OAuth client secret override for this login. The runtime treats this as an ephemeral host-owned secret, uses it for this authentication attempt and does not persist it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
     /// When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub force_reauth: Option<bool>,
+    /// Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grant_type: Option<McpOauthLoginGrantType>,
+    /// Optional override indicating whether the static OAuth client is public. When false, the runtime treats it as confidential and uses the per-login clientSecret if provided, otherwise retrieving the client secret from the MCP OAuth secret store.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_client: Option<bool>,
     /// Name of the remote MCP server to authenticate
     pub server_name: String,
 }
@@ -5551,11 +5583,17 @@ pub struct NamedProviderConfig {
     /// Bearer token for authentication. Sets the Authorization header directly. Takes precedence over apiKey when both are set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bearer_token: Option<String>,
+    /// When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.getToken` callback before each request and applies the returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens (including Anthropic's), not a provider-specific API-key header such as Anthropic's `x-api-key`. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`, the callback takes precedence: the runtime applies the token returned by `providerToken.getToken` as the `Authorization: Bearer` header for each request and does not send the static credential.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_bearer_token_provider: Option<bool>,
     /// Custom HTTP headers to include in all outbound requests to the provider.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<HashMap<String, String>>,
     /// Stable identifier referenced by BYOK model definitions. Must not contain '/'.
     pub name: String,
+    /// Provider transport. Defaults to "http".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ProviderConfigTransport>,
     /// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<ProviderConfigType>,
@@ -7682,6 +7720,9 @@ pub struct ProviderConfig {
     /// Bearer token for authentication. Sets the Authorization header directly. Takes precedence over apiKey when both are set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bearer_token: Option<String>,
+    /// When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.getToken` callback before each request and applies the returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens (including Anthropic's), not a provider-specific API-key header such as Anthropic's `x-api-key`. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`, the callback takes precedence: the runtime applies the token returned by `providerToken.getToken` as the `Authorization: Bearer` header for each request and does not send the static credential.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_bearer_token_provider: Option<bool>,
     /// Custom HTTP headers to include in all outbound requests to the provider.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<HashMap<String, String>>,
@@ -7697,6 +7738,9 @@ pub struct ProviderConfig {
     /// Well-known model ID used for capability lookup. When set, agent behavior config and token limits are inferred from this model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
+    /// Provider transport. Defaults to "http".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ProviderConfigTransport>,
     /// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<ProviderConfigType>,
@@ -7752,6 +7796,9 @@ pub struct ProviderEndpoint {
     /// Short-lived, rotating credential the caller must send on every request, in addition to `apiKey` if one is present. Omitted when the endpoint does not require one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_token: Option<ProviderSessionToken>,
+    /// Transport to be used for provider requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ProviderEndpointTransport>,
     /// Provider family. Matches the `type` field of a BYOK provider config.
     pub r#type: ProviderEndpointType,
     /// Wire API to be used, when required for the provider type.
@@ -7773,6 +7820,38 @@ pub struct ProviderGetEndpointRequest {
     /// Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
+}
+
+/// Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request; the runtime does no caching, so this is sent once per request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderTokenAcquireRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Name of the BYOK provider needing a token. For the legacy whole-session `provider` this is the implicit provider name; for named providers it is `NamedProviderConfig.name`.
+    pub provider_name: String,
+}
+
+/// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderTokenAcquireResult {
+    /// The bearer token value (without the `Bearer ` prefix).
+    pub token: String,
 }
 
 /// Blob attachment with inline base64-encoded data
@@ -8554,6 +8633,22 @@ pub struct SandboxConfigUserPolicyNetwork {
     pub blocked_hosts: Option<Vec<String>>,
 }
 
+/// macOS seatbelt-specific options.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxConfigUserPolicySeatbelt {
+    /// Whether the macOS seatbelt profile may access the keychain.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keychain_access: Option<bool>,
+}
+
 /// User-managed sandbox policy fragment merged into the auto-discovered base policy.
 ///
 /// <div class="warning">
@@ -8565,7 +8660,7 @@ pub struct SandboxConfigUserPolicyNetwork {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxConfigUserPolicy {
-    /// Platform-specific experimental policy fields.
+    /// Deprecated legacy location for `seatbelt`; read only when the top-level `seatbelt` is absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub experimental: Option<SandboxConfigUserPolicyExperimental>,
     /// Filesystem rules to merge into the base policy.
@@ -8574,6 +8669,9 @@ pub struct SandboxConfigUserPolicy {
     /// Network rules to merge into the base policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub network: Option<SandboxConfigUserPolicyNetwork>,
+    /// macOS seatbelt options to merge into the base policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seatbelt: Option<SandboxConfigUserPolicySeatbelt>,
 }
 
 /// Resolved sandbox configuration.
@@ -8590,9 +8688,6 @@ pub struct SandboxConfig {
     /// Whether to auto-add the current working directory to readwritePaths. Default: true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub add_current_working_directory: Option<bool>,
-    /// Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to `spawnSandboxFromConfig`, bypassing policy merging.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub config: Option<serde_json::Value>,
     /// Whether sandboxing is enabled for the session.
     pub enabled: bool,
     /// User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -8631,6 +8726,9 @@ pub struct ScheduleEntry {
     pub prompt: String,
     /// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`).
     pub recurring: bool,
+    /// True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub self_paced: Option<bool>,
     /// IANA timezone the `cron` expression is evaluated in.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tz: Option<String>,
@@ -9704,6 +9802,9 @@ pub struct SessionOpenOptions {
     /// Allowlist of available tool names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
+    /// Options scoped to the built-in CAPI (Copilot API) provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capi: Option<CapiSessionOptions>,
     /// Structured client kind used for runtime behavior gates.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_kind: Option<String>,
@@ -10789,6 +10890,9 @@ pub struct SessionUpdateOptionsParams {
     /// Allowlist of tool names available to this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
+    /// Options scoped to the built-in CAPI (Copilot API) provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capi: Option<CapiSessionOptions>,
     /// Identifier of the client driving the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
@@ -13817,8 +13921,6 @@ pub struct SessionCanvasListOpenResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCanvasOpenResult {
-    /// Runtime-controlled routing state for an open canvas instance.
-    pub availability: CanvasInstanceAvailability,
     /// Provider-local canvas identifier
     pub canvas_id: String,
     /// Owning provider identifier
@@ -13831,8 +13933,6 @@ pub struct SessionCanvasOpenResult {
     pub input: Option<serde_json::Value>,
     /// Stable caller-supplied canvas instance identifier
     pub instance_id: String,
-    /// Whether this snapshot came from an idempotent reopen
-    pub reopen: bool,
     /// Provider-supplied status text
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -15206,6 +15306,9 @@ pub struct SessionProviderGetEndpointResult {
     /// Short-lived, rotating credential the caller must send on every request, in addition to `apiKey` if one is present. Omitted when the endpoint does not require one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_token: Option<ProviderSessionToken>,
+    /// Transport to be used for provider requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ProviderEndpointTransport>,
     /// Provider family. Matches the `type` field of a BYOK provider config.
     pub r#type: ProviderEndpointType,
     /// Wire API to be used, when required for the provider type.
@@ -16725,6 +16828,21 @@ pub struct SessionScheduleStopResult {
     pub entry: Option<ScheduleEntry>,
 }
 
+/// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderTokenGetTokenResult {
+    /// The bearer token value (without the `Bearer ` prefix).
+    pub token: String,
+}
+
 /// Identifies the target session.
 ///
 /// <div class="warning">
@@ -17251,28 +17369,6 @@ pub enum AuthInfoType {
     /// Authentication from a Copilot API token.
     #[serde(rename = "copilot-api-token")]
     CopilotApiToken,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Runtime-controlled routing state for an open canvas instance.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CanvasInstanceAvailability {
-    /// The owning provider is currently connected and routing calls will be dispatched normally.
-    #[serde(rename = "ready")]
-    Ready,
-    /// The owning provider is not currently connected. Routing calls fail with canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a fresh canvas.open) or the provider reconnects.
-    #[serde(rename = "stale")]
-    Stale,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -18056,6 +18152,28 @@ pub enum McpOauthPendingRequestResponse {
     Cancelled(McpOauthPendingRequestResponseCancelled),
 }
 
+/// OAuth grant type override for this login.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthLoginGrantType {
+    /// Interactive browser-based OAuth flow using an authorization code, typically with PKCE.
+    #[serde(rename = "authorization_code")]
+    AuthorizationCode,
+    /// Headless OAuth flow where a confidential client authenticates directly with a client secret.
+    #[serde(rename = "client_credentials")]
+    ClientCredentials,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
 ///
 /// <div class="warning">
@@ -18268,6 +18386,28 @@ pub enum ModelPolicyState {
     /// No explicit policy is configured for the model.
     #[serde(rename = "unconfigured")]
     Unconfigured,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Provider transport. Defaults to "http".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderConfigTransport {
+    /// HTTP request/streaming transport.
+    #[serde(rename = "http")]
+    Http,
+    /// WebSocket transport.
+    #[serde(rename = "websockets")]
+    Websockets,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -18984,6 +19124,28 @@ pub enum PermissionsSetApproveAllSource {
     /// Allow-all was enabled through an RPC caller.
     #[serde(rename = "rpc")]
     Rpc,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport to be used for provider requests.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderEndpointTransport {
+    /// HTTP request/streaming transport.
+    #[serde(rename = "http")]
+    Http,
+    /// WebSocket transport.
+    #[serde(rename = "websockets")]
+    Websockets,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -20184,6 +20346,9 @@ pub enum WorkspaceDiffMode {
     /// Return changes compared with the default branch.
     #[serde(rename = "branch")]
     Branch,
+    /// Return the cumulative diff of files Copilot changed this session (used in non-git workspaces).
+    #[serde(rename = "session")]
+    Session,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -65,7 +65,10 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionBinaryAssetEvent), "session.binary_asset")]
 [JsonDerivedType(typeof(SessionCanvasClosedEvent), "session.canvas.closed")]
 [JsonDerivedType(typeof(SessionCanvasOpenedEvent), "session.canvas.opened")]
+[JsonDerivedType(typeof(SessionCanvasRecordedEvent), "session.canvas.recorded")]
 [JsonDerivedType(typeof(SessionCanvasRegistryChangedEvent), "session.canvas.registry_changed")]
+[JsonDerivedType(typeof(SessionCanvasRemovedEvent), "session.canvas.removed")]
+[JsonDerivedType(typeof(SessionCanvasUnavailableEvent), "session.canvas.unavailable")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
@@ -87,6 +90,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
 [JsonDerivedType(typeof(SessionScheduleCancelledEvent), "session.schedule_cancelled")]
 [JsonDerivedType(typeof(SessionScheduleCreatedEvent), "session.schedule_created")]
+[JsonDerivedType(typeof(SessionScheduleRearmedEvent), "session.schedule_rearmed")]
 [JsonDerivedType(typeof(SessionShutdownEvent), "session.shutdown")]
 [JsonDerivedType(typeof(SessionSkillsLoadedEvent), "session.skills_loaded")]
 [JsonDerivedType(typeof(SessionSnapshotRewindEvent), "session.snapshot_rewind")]
@@ -259,6 +263,19 @@ public sealed partial class SessionScheduleCancelledEvent : SessionEvent
     /// <summary>The <c>session.schedule_cancelled</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionScheduleCancelledData Data { get; set; }
+}
+
+/// <summary>Self-paced schedule re-armed for its next run.</summary>
+/// <remarks>Represents the <c>session.schedule_rearmed</c> event.</remarks>
+public sealed partial class SessionScheduleRearmedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.schedule_rearmed";
+
+    /// <summary>The <c>session.schedule_rearmed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionScheduleRearmedData Data { get; set; }
 }
 
 /// <summary>Autopilot objective state file operation details indicating what changed.</summary>
@@ -1278,6 +1295,7 @@ public sealed partial class SessionExtensionsLoadedEvent : SessionEvent
 
 /// <summary>Schema for the `CanvasOpenedData` type.</summary>
 /// <remarks>Represents the <c>session.canvas.opened</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasOpenedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1291,6 +1309,7 @@ public sealed partial class SessionCanvasOpenedEvent : SessionEvent
 
 /// <summary>Schema for the `CanvasRegistryChangedData` type.</summary>
 /// <remarks>Represents the <c>session.canvas.registry_changed</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasRegistryChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1304,6 +1323,7 @@ public sealed partial class SessionCanvasRegistryChangedEvent : SessionEvent
 
 /// <summary>Schema for the `CanvasClosedData` type.</summary>
 /// <remarks>Represents the <c>session.canvas.closed</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasClosedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1313,6 +1333,48 @@ public sealed partial class SessionCanvasClosedEvent : SessionEvent
     /// <summary>The <c>session.canvas.closed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionCanvasClosedData Data { get; set; }
+}
+
+/// <summary>Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.</summary>
+/// <remarks>Represents the <c>session.canvas.unavailable</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionCanvasUnavailableEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.canvas.unavailable";
+
+    /// <summary>The <c>session.canvas.unavailable</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCanvasUnavailableData Data { get; set; }
+}
+
+/// <summary>Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.</summary>
+/// <remarks>Represents the <c>session.canvas.recorded</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionCanvasRecordedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.canvas.recorded";
+
+    /// <summary>The <c>session.canvas.recorded</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCanvasRecordedData Data { get; set; }
+}
+
+/// <summary>Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.</summary>
+/// <remarks>Represents the <c>session.canvas.removed</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionCanvasRemovedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.canvas.removed";
+
+    /// <summary>The <c>session.canvas.removed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCanvasRemovedData Data { get; set; }
 }
 
 /// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
@@ -1576,6 +1638,11 @@ public sealed partial class SessionScheduleCreatedData
     [JsonPropertyName("recurring")]
     public bool? Recurring { get; set; }
 
+    /// <summary>True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled rather than auto-computed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("selfPaced")]
+    public bool? SelfPaced { get; set; }
+
     /// <summary>IANA timezone the `cron` expression is evaluated in.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("tz")]
@@ -1588,6 +1655,18 @@ public sealed partial class SessionScheduleCancelledData
     /// <summary>Id of the scheduled prompt that was cancelled.</summary>
     [JsonPropertyName("id")]
     public required long Id { get; set; }
+}
+
+/// <summary>Self-paced schedule re-armed for its next run.</summary>
+public sealed partial class SessionScheduleRearmedData
+{
+    /// <summary>Id of the self-paced schedule that was re-armed.</summary>
+    [JsonPropertyName("id")]
+    public required long Id { get; set; }
+
+    /// <summary>Absolute time (epoch milliseconds) the model armed the next run to fire.</summary>
+    [JsonPropertyName("nextRunAt")]
+    public required long NextRunAt { get; set; }
 }
 
 /// <summary>Autopilot objective state file operation details indicating what changed.</summary>
@@ -2062,6 +2141,11 @@ public sealed partial class SessionCompactionCompleteData
     [JsonPropertyName("serviceRequestId")]
     public string? ServiceRequestId { get; set; }
 
+    /// <summary>For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("statusCode")]
+    public long? StatusCode { get; set; }
+
     /// <summary>Whether compaction completed successfully.</summary>
     [JsonPropertyName("success")]
     public required bool Success { get; set; }
@@ -2505,6 +2589,12 @@ public sealed partial class ModelCallFailureData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
+
+    /// <summary>Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("quotaSnapshots")]
+    internal IDictionary<string, AssistantUsageQuotaSnapshot>? QuotaSnapshots { get; set; }
 
     /// <summary>Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3482,12 +3572,9 @@ public sealed partial class SessionExtensionsLoadedData
 }
 
 /// <summary>Schema for the `CanvasOpenedData` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasOpenedData
 {
-    /// <summary>Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.</summary>
-    [JsonPropertyName("availability")]
-    public required CanvasOpenedAvailability Availability { get; set; }
-
     /// <summary>Provider-local canvas identifier.</summary>
     [JsonPropertyName("canvasId")]
     public required string CanvasId { get; set; }
@@ -3510,10 +3597,6 @@ public sealed partial class SessionCanvasOpenedData
     [JsonPropertyName("instanceId")]
     public required string InstanceId { get; set; }
 
-    /// <summary>Whether this notification represents an idempotent reopen.</summary>
-    [JsonPropertyName("reopen")]
-    public required bool Reopen { get; set; }
-
     /// <summary>Provider-supplied status text.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("status")]
@@ -3531,6 +3614,7 @@ public sealed partial class SessionCanvasOpenedData
 }
 
 /// <summary>Schema for the `CanvasRegistryChangedData` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasRegistryChangedData
 {
     /// <summary>Canvas declarations currently available.</summary>
@@ -3539,7 +3623,75 @@ public sealed partial class SessionCanvasRegistryChangedData
 }
 
 /// <summary>Schema for the `CanvasClosedData` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasClosedData
+{
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public required string CanvasId { get; set; }
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Stable caller-supplied identifier of the canvas instance that was closed.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("instanceId")]
+    public required string InstanceId { get; set; }
+}
+
+/// <summary>Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionCanvasUnavailableData
+{
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public required string CanvasId { get; set; }
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Stable caller-supplied identifier of the canvas instance whose provider became unavailable.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("instanceId")]
+    public required string InstanceId { get; set; }
+}
+
+/// <summary>Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionCanvasRecordedData
+{
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public required string CanvasId { get; set; }
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Input supplied when the instance was opened.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("input")]
+    public JsonElement? Input { get; set; }
+
+    /// <summary>Stable caller-supplied canvas instance identifier.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("instanceId")]
+    public required string InstanceId { get; set; }
+
+    /// <summary>Rendered title.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}
+
+/// <summary>Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionCanvasRemovedData
 {
     /// <summary>Provider-local canvas identifier.</summary>
     [JsonPropertyName("canvasId")]
@@ -3899,6 +4051,11 @@ public sealed partial class AttachmentFile : Attachment
     /// <summary>Absolute file path.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
+
+    /// <summary>Frozen rendered line this attachment contributed to the &lt;tagged_files&gt; prompt block (e.g. "* /path (123 lines)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes. Present only for attachments routed to &lt;tagged_files&gt; (mutually exclusive with assetId, which marks bytes sent natively).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("taggedFilesEntry")]
+    public string? TaggedFilesEntry { get; set; }
 }
 
 /// <summary>Directory attachment.</summary>
@@ -3916,6 +4073,11 @@ public sealed partial class AttachmentDirectory : Attachment
     /// <summary>Absolute directory path.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
+
+    /// <summary>Frozen rendered line this attachment contributed to the &lt;tagged_files&gt; prompt block (e.g. "* /path (12 items)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("taggedFilesEntry")]
+    public string? TaggedFilesEntry { get; set; }
 }
 
 /// <summary>End position of the selection.</summary>
@@ -4382,6 +4544,12 @@ internal sealed partial class AssistantUsageQuotaSnapshot
     [JsonPropertyName("entitlementRequests")]
     internal required long EntitlementRequests { get; set; }
 
+    /// <summary>Whether the user currently has quota available for use.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("hasQuota")]
+    internal bool? HasQuota { get; set; }
+
     /// <summary>Whether the user has an unlimited usage entitlement.</summary>
     [JsonInclude]
     [JsonPropertyName("isUnlimitedEntitlement")]
@@ -4397,6 +4565,12 @@ internal sealed partial class AssistantUsageQuotaSnapshot
     [JsonPropertyName("overageAllowedWithExhaustedQuota")]
     internal required bool OverageAllowedWithExhaustedQuota { get; set; }
 
+    /// <summary>Pay-as-you-go additional-usage budget cap in AI credits (1 credit = $0.01); present only when CAPI emits a finite value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("overageEntitlement")]
+    internal double? OverageEntitlement { get; set; }
+
     /// <summary>Percentage of quota remaining (0 to 100).</summary>
     [JsonInclude]
     [JsonPropertyName("remainingPercentage")]
@@ -4407,6 +4581,12 @@ internal sealed partial class AssistantUsageQuotaSnapshot
     [JsonInclude]
     [JsonPropertyName("resetDate")]
     internal DateTimeOffset? ResetDate { get; set; }
+
+    /// <summary>Whether this snapshot uses token-based billing (AI-credits allocation).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("tokenBasedBilling")]
+    internal bool? TokenBasedBilling { get; set; }
 
     /// <summary>Whether usage is still permitted after quota exhaustion.</summary>
     [JsonInclude]
@@ -5495,6 +5675,16 @@ public sealed partial class PermissionRequestShell : PermissionRequest
     /// <summary>URLs that may be accessed by the command.</summary>
     [JsonPropertyName("possibleUrls")]
     public required PermissionRequestShellPossibleUrl[] PossibleUrls { get; set; }
+
+    /// <summary>True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypass")]
+    public bool? RequestSandboxBypass { get; set; }
+
+    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypassReason")]
+    public string? RequestSandboxBypassReason { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6628,6 +6818,7 @@ public sealed partial class ExtensionsLoadedExtension
 
 /// <summary>Schema for the `CanvasRegistryChangedCanvasAction` type.</summary>
 /// <remarks>Nested data type for <c>CanvasRegistryChangedCanvasAction</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class CanvasRegistryChangedCanvasAction
 {
     /// <summary>Action description.</summary>
@@ -6647,6 +6838,7 @@ public sealed partial class CanvasRegistryChangedCanvasAction
 
 /// <summary>Schema for the `CanvasRegistryChangedCanvas` type.</summary>
 /// <remarks>Nested data type for <c>CanvasRegistryChangedCanvas</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class CanvasRegistryChangedCanvas
 {
     /// <summary>Actions the agent or host may invoke.</summary>
@@ -9452,67 +9644,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
     }
 }
 
-/// <summary>Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailability>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="CanvasOpenedAvailability"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="CanvasOpenedAvailability"/>.</param>
-    [JsonConstructor]
-    public CanvasOpenedAvailability(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="CanvasOpenedAvailability"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Provider connection is live; actions can be invoked.</summary>
-    public static CanvasOpenedAvailability Ready { get; } = new("ready");
-
-    /// <summary>Provider has gone away; the instance is awaiting rebinding.</summary>
-    public static CanvasOpenedAvailability Stale { get; } = new("stale");
-
-    /// <summary>Returns a value indicating whether two <see cref="CanvasOpenedAvailability"/> instances are equivalent.</summary>
-    public static bool operator ==(CanvasOpenedAvailability left, CanvasOpenedAvailability right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="CanvasOpenedAvailability"/> instances are not equivalent.</summary>
-    public static bool operator !=(CanvasOpenedAvailability left, CanvasOpenedAvailability right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is CanvasOpenedAvailability other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(CanvasOpenedAvailability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{CanvasOpenedAvailability}"/> for serializing <see cref="CanvasOpenedAvailability"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<CanvasOpenedAvailability>
-    {
-        /// <inheritdoc />
-        public override CanvasOpenedAvailability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, CanvasOpenedAvailability value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CanvasOpenedAvailability));
-        }
-    }
-}
-
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -9686,8 +9817,14 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(SessionCanvasClosedEvent))]
 [JsonSerializable(typeof(SessionCanvasOpenedData))]
 [JsonSerializable(typeof(SessionCanvasOpenedEvent))]
+[JsonSerializable(typeof(SessionCanvasRecordedData))]
+[JsonSerializable(typeof(SessionCanvasRecordedEvent))]
 [JsonSerializable(typeof(SessionCanvasRegistryChangedData))]
 [JsonSerializable(typeof(SessionCanvasRegistryChangedEvent))]
+[JsonSerializable(typeof(SessionCanvasRemovedData))]
+[JsonSerializable(typeof(SessionCanvasRemovedEvent))]
+[JsonSerializable(typeof(SessionCanvasUnavailableData))]
+[JsonSerializable(typeof(SessionCanvasUnavailableEvent))]
 [JsonSerializable(typeof(SessionCompactionCompleteData))]
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
 [JsonSerializable(typeof(SessionCompactionStartData))]
@@ -9731,6 +9868,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(SessionScheduleCancelledEvent))]
 [JsonSerializable(typeof(SessionScheduleCreatedData))]
 [JsonSerializable(typeof(SessionScheduleCreatedEvent))]
+[JsonSerializable(typeof(SessionScheduleRearmedData))]
+[JsonSerializable(typeof(SessionScheduleRearmedEvent))]
 [JsonSerializable(typeof(SessionShutdownData))]
 [JsonSerializable(typeof(SessionShutdownEvent))]
 [JsonSerializable(typeof(SessionSkillsLoadedData))]

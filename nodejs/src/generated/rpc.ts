@@ -210,18 +210,6 @@ export type AuthInfoType =
   /** Authentication from a Copilot API token. */
   | "copilot-api-token";
 /**
- * Runtime-controlled routing state for an open canvas instance.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CanvasInstanceAvailability".
- */
-/** @experimental */
-export type CanvasInstanceAvailability =
-  /** The owning provider is currently connected and routing calls will be dispatched normally. */
-  | "ready"
-  /** The owning provider is not currently connected. Routing calls fail with canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a fresh canvas.open) or the provider reconnects. */
-  | "stale";
-/**
  * Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -724,6 +712,18 @@ export type McpOauthPendingRequestResponse =
       kind: "cancelled";
     };
 /**
+ * OAuth grant type override for this login.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthLoginGrantType".
+ */
+/** @experimental */
+export type McpOauthLoginGrantType =
+  /** Interactive browser-based OAuth flow using an authorization code, typically with PKCE. */
+  | "authorization_code"
+  /** Headless OAuth flow where a confidential client authenticates directly with a client secret. */
+  | "client_credentials";
+/**
  * Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -903,6 +903,18 @@ export type ProviderConfigWireApi =
   | "completions"
   /** OpenAI Responses API wire format. */
   | "responses";
+/**
+ * Provider transport. Defaults to "http".
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigTransport".
+ */
+/** @experimental */
+export type ProviderConfigTransport =
+  /** HTTP request/streaming transport. */
+  | "http"
+  /** WebSocket transport. */
+  | "websockets";
 /**
  * Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
  *
@@ -1133,6 +1145,18 @@ export type ProviderEndpointWireApi =
   | "completions"
   /** Newer responses request shape. */
   | "responses";
+/**
+ * Transport to be used for provider requests.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderEndpointTransport".
+ */
+/** @experimental */
+export type ProviderEndpointTransport =
+  /** HTTP request/streaming transport. */
+  | "http"
+  /** WebSocket transport. */
+  | "websockets";
 /**
  * Schema for the `PushAttachment` type.
  *
@@ -1783,7 +1807,9 @@ export type WorkspaceDiffMode =
   /** Return staged, unstaged, and untracked working tree changes. */
   | "unstaged"
   /** Return changes compared with the default branch. */
-  | "branch";
+  | "branch"
+  /** Return the cumulative diff of files Copilot changed this session (used in non-git workspaces). */
+  | "session";
 /**
  * Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.
  *
@@ -2931,11 +2957,6 @@ export interface OpenCanvasInstance {
   input?: {
     [k: string]: unknown | undefined;
   };
-  /**
-   * Whether this snapshot came from an idempotent reopen
-   */
-  reopen: boolean;
-  availability: CanvasInstanceAvailability;
 }
 /**
  * Canvas open parameters.
@@ -3094,6 +3115,19 @@ export interface CanvasProviderOpenResult {
    * Provider-supplied status text
    */
   status?: string;
+}
+/**
+ * Options scoped to the built-in CAPI (Copilot API) provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CapiSessionOptions".
+ */
+/** @experimental */
+export interface CapiSessionOptions {
+  /**
+   * Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
+   */
+  enableWebSocketResponses?: boolean;
 }
 /**
  * Slash commands available in the session, after applying any include/exclude filters.
@@ -5673,7 +5707,7 @@ export interface McpOauthHandlePendingResult {
   success: boolean;
 }
 /**
- * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
+ * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpOauthLoginRequest".
@@ -5696,6 +5730,19 @@ export interface McpOauthLoginRequest {
    * Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.
    */
   callbackSuccessMessage?: string;
+  /**
+   * Optional OAuth client ID override for this login. When set, the runtime uses this pre-registered static client instead of dynamic client registration.
+   */
+  clientId?: string;
+  /**
+   * Optional OAuth client secret override for this login. The runtime treats this as an ephemeral host-owned secret, uses it for this authentication attempt and does not persist it.
+   */
+  clientSecret?: string;
+  /**
+   * Optional override indicating whether the static OAuth client is public. When false, the runtime treats it as confidential and uses the per-login clientSecret if provided, otherwise retrieving the client secret from the MCP OAuth secret store.
+   */
+  publicClient?: boolean;
+  grantType?: McpOauthLoginGrantType;
 }
 /**
  * OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.
@@ -6578,6 +6625,7 @@ export interface NamedProviderConfig {
   name: string;
   type?: ProviderConfigType;
   wireApi?: ProviderConfigWireApi;
+  transport?: ProviderConfigTransport;
   /**
    * API endpoint URL.
    */
@@ -6597,6 +6645,10 @@ export interface NamedProviderConfig {
   headers?: {
     [k: string]: string | undefined;
   };
+  /**
+   * When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.getToken` callback before each request and applies the returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens (including Anthropic's), not a provider-specific API-key header such as Anthropic's `x-api-key`. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`, the callback takes precedence: the runtime applies the token returned by `providerToken.getToken` as the `Authorization: Bearer` header for each request and does not send the static credential.
+   */
+  hasBearerTokenProvider?: boolean;
 }
 /**
  * Azure-specific provider options.
@@ -8536,6 +8588,7 @@ export interface ProviderAddResult {
 export interface ProviderConfig {
   type?: ProviderConfigType;
   wireApi?: ProviderConfigWireApi;
+  transport?: ProviderConfigTransport;
   /**
    * API endpoint URL.
    */
@@ -8575,6 +8628,10 @@ export interface ProviderConfig {
   headers?: {
     [k: string]: string | undefined;
   };
+  /**
+   * When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.getToken` callback before each request and applies the returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens (including Anthropic's), not a provider-specific API-key header such as Anthropic's `x-api-key`. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`, the callback takes precedence: the runtime applies the token returned by `providerToken.getToken` as the `Authorization: Bearer` header for each request and does not send the static credential.
+   */
+  hasBearerTokenProvider?: boolean;
 }
 /**
  * A snapshot of the provider endpoint the session is currently configured to talk to.
@@ -8586,6 +8643,7 @@ export interface ProviderConfig {
 export interface ProviderEndpoint {
   type: ProviderEndpointType;
   wireApi?: ProviderEndpointWireApi;
+  transport?: ProviderEndpointTransport;
   /**
    * Base URL to pass to the LLM client library.
    */
@@ -8639,6 +8697,36 @@ export interface ProviderGetEndpointRequest {
    * Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using.
    */
   modelId?: string;
+}
+/**
+ * Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request; the runtime does no caching, so this is sent once per request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderTokenAcquireRequest".
+ */
+/** @experimental */
+export interface ProviderTokenAcquireRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Name of the BYOK provider needing a token. For the legacy whole-session `provider` this is the implicit provider name; for named providers it is `NamedProviderConfig.name`.
+   */
+  providerName: string;
+}
+/**
+ * A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderTokenAcquireResult".
+ */
+/** @experimental */
+export interface ProviderTokenAcquireResult {
+  /**
+   * The bearer token value (without the `Bearer ` prefix).
+   */
+  token: string;
 }
 /**
  * File attachment
@@ -9314,12 +9402,6 @@ export interface SandboxConfig {
   enabled: boolean;
   userPolicy?: SandboxConfigUserPolicy;
   /**
-   * Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to `spawnSandboxFromConfig`, bypassing policy merging.
-   */
-  config?: {
-    [k: string]: unknown | undefined;
-  };
-  /**
    * Whether to auto-add the current working directory to readwritePaths. Default: true.
    */
   addCurrentWorkingDirectory?: boolean;
@@ -9334,6 +9416,7 @@ export interface SandboxConfig {
 export interface SandboxConfigUserPolicy {
   filesystem?: SandboxConfigUserPolicyFilesystem;
   network?: SandboxConfigUserPolicyNetwork;
+  seatbelt?: SandboxConfigUserPolicySeatbelt;
   experimental?: SandboxConfigUserPolicyExperimental;
 }
 /**
@@ -9385,6 +9468,19 @@ export interface SandboxConfigUserPolicyNetwork {
    * Hosts explicitly blocked.
    */
   blockedHosts?: string[];
+}
+/**
+ * macOS seatbelt-specific options.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxConfigUserPolicySeatbelt".
+ */
+/** @experimental */
+export interface SandboxConfigUserPolicySeatbelt {
+  /**
+   * Whether the macOS seatbelt profile may access the keychain.
+   */
+  keychainAccess?: boolean;
 }
 /**
  * Platform-specific experimental policy fields.
@@ -9445,6 +9541,10 @@ export interface ScheduleEntry {
    * Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`).
    */
   recurring: boolean;
+  /**
+   * True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled.
+   */
+  selfPaced?: boolean;
   /**
    * Display-only label for the prompt as shown in the UI (e.g. `/skill-name` for a skill-invocation schedule). The actual enqueued prompt is `prompt`.
    */
@@ -10453,6 +10553,7 @@ export interface SessionOpenOptions {
   isExperimentalMode?: boolean;
   authInfo?: AuthInfo;
   provider?: ProviderConfig;
+  capi?: CapiSessionOptions;
   /**
    * Named BYOK provider connections, additive to CAPI auth. Combining with `provider` is rejected.
    *
@@ -11447,6 +11548,7 @@ export interface SessionUpdateOptionsParams {
    */
   isExperimentalMode?: boolean;
   provider?: ProviderConfig;
+  capi?: CapiSessionOptions;
   /**
    * Absolute working-directory path for shell tools.
    */
@@ -14908,7 +15010,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 /**
                  * Starts OAuth authentication for a remote MCP server.
                  *
-                 * @param params Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
+                 * @param params Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
                  *
                  * @returns OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.
                  */
@@ -15792,6 +15894,19 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
     };
 }
 
+/** Handler for `providerToken` client session API methods. */
+/** @experimental */
+export interface ProviderTokenHandler {
+    /**
+     * Asks the SDK client to get a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Session-scoped: the runtime calls it back on the connection that most recently supplied that provider's config for the session (the creating connection, or a resuming connection if the session was resumed — distinct providers may be owned by different connections), passing the provider name, and uses the returned token as the Authorization header for the outbound model request. The runtime does no caching — it calls this once per outbound request; the SDK consumer owns token acquisition, caching, and refresh.
+     *
+     * @param params Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request; the runtime does no caching, so this is sent once per request.
+     *
+     * @returns A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.
+     */
+    getToken(params: ProviderTokenAcquireRequest): Promise<ProviderTokenAcquireResult>;
+}
+
 /** Handler for `sessionFs` client session API methods. */
 /** @experimental */
 export interface SessionFsHandler {
@@ -15922,6 +16037,7 @@ export interface CanvasHandler {
 
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
+    providerToken?: ProviderTokenHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
 }
@@ -15936,6 +16052,11 @@ export function registerClientSessionApiHandlers(
     connection: MessageConnection,
     getHandlers: (sessionId: string) => ClientSessionApiHandlers,
 ): void {
+    connection.onRequest("providerToken.getToken", async (params: ProviderTokenAcquireRequest) => {
+        const handler = getHandlers(params.sessionId).providerToken;
+        if (!handler) throw new Error(`No providerToken handler registered for session: ${params.sessionId}`);
+        return handler.getToken(params);
+    });
     connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);

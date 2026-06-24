@@ -15,6 +15,7 @@ export type SessionEvent =
   | TitleChangedEvent
   | ScheduleCreatedEvent
   | ScheduleCancelledEvent
+  | ScheduleRearmedEvent
   | AutopilotObjectiveChangedEvent
   | InfoEvent
   | WarningEvent
@@ -96,6 +97,9 @@ export type SessionEvent =
   | CanvasOpenedEvent
   | CanvasRegistryChangedEvent
   | CanvasClosedEvent
+  | CanvasUnavailableEvent
+  | CanvasRecordedEvent
+  | CanvasRemovedEvent
   | ExtensionsAttachmentsPushedEvent
   | McpAppToolCallCompleteEvent;
 /**
@@ -615,14 +619,6 @@ export type ExtensionsLoadedExtensionStatus =
   | "failed"
   /** The extension process is starting. */
   | "starting";
-/**
- * Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
- */
-export type CanvasOpenedAvailability =
-  /** Provider connection is live; actions can be invoked. */
-  | "ready"
-  /** Provider has gone away; the instance is awaiting rebinding. */
-  | "stale";
 
 /**
  * Session event "session.start". Session initialization metadata including context and configuration
@@ -1067,6 +1063,10 @@ export interface ScheduleCreatedData {
    */
   recurring?: boolean;
   /**
+   * True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled rather than auto-computed.
+   */
+  selfPaced?: boolean;
+  /**
    * IANA timezone the `cron` expression is evaluated in
    */
   tz?: string;
@@ -1109,6 +1109,49 @@ export interface ScheduleCancelledData {
    * Id of the scheduled prompt that was cancelled
    */
   id: number;
+}
+/**
+ * Session event "session.schedule_rearmed". Self-paced schedule re-armed for its next run
+ */
+export interface ScheduleRearmedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ScheduleRearmedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.schedule_rearmed".
+   */
+  type: "session.schedule_rearmed";
+}
+/**
+ * Self-paced schedule re-armed for its next run
+ */
+export interface ScheduleRearmedData {
+  /**
+   * Id of the self-paced schedule that was re-armed
+   */
+  id: number;
+  /**
+   * Absolute time (epoch milliseconds) the model armed the next run to fire
+   */
+  nextRunAt: number;
 }
 /**
  * Session event "session.autopilot_objective_changed". Autopilot objective state file operation details indicating what changed
@@ -2097,6 +2140,10 @@ export interface CompactionCompleteData {
    */
   serviceRequestId?: string;
   /**
+   * For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).
+   */
+  statusCode?: number;
+  /**
    * Whether compaction completed successfully
    */
   success: boolean;
@@ -2331,6 +2378,10 @@ export interface AttachmentFile {
    */
   path: string;
   /**
+   * Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g. "* /path (123 lines)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes. Present only for attachments routed to <tagged_files> (mutually exclusive with assetId, which marks bytes sent natively).
+   */
+  taggedFilesEntry?: string;
+  /**
    * Attachment type discriminator
    */
   type: "file";
@@ -2360,6 +2411,10 @@ export interface AttachmentDirectory {
    * Absolute directory path
    */
   path: string;
+  /**
+   * Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g. "* /path (12 items)"). Captured at send time so resumed history reproduces the exact text the model saw, independent of later filesystem changes.
+   */
+  taggedFilesEntry?: string;
   /**
    * Attachment type discriminator
    */
@@ -3332,6 +3387,12 @@ export interface AssistantUsageQuotaSnapshot {
    */
   entitlementRequests: number;
   /**
+   * Whether the user currently has quota available for use
+   *
+   * @internal
+   */
+  hasQuota?: boolean;
+  /**
    * Whether the user has an unlimited usage entitlement
    *
    * @internal
@@ -3350,6 +3411,12 @@ export interface AssistantUsageQuotaSnapshot {
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**
+   * Pay-as-you-go additional-usage budget cap in AI credits (1 credit = $0.01); present only when CAPI emits a finite value
+   *
+   * @internal
+   */
+  overageEntitlement?: number;
+  /**
    * Percentage of quota remaining (0 to 100)
    *
    * @internal
@@ -3361,6 +3428,12 @@ export interface AssistantUsageQuotaSnapshot {
    * @internal
    */
   resetDate?: string;
+  /**
+   * Whether this snapshot uses token-based billing (AI-credits allocation)
+   *
+   * @internal
+   */
+  tokenBasedBilling?: boolean;
   /**
    * Whether usage is still permitted after quota exhaustion
    *
@@ -3441,6 +3514,14 @@ export interface ModelCallFailureData {
    * GitHub request tracing ID (x-github-request-id header) for server-side log correlation
    */
   providerCallId?: string;
+  /**
+   * Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
+   *
+   * @internal
+   */
+  quotaSnapshots?: {
+    [k: string]: AssistantUsageQuotaSnapshot | undefined;
+  };
   requestFingerprint?: ModelCallFailureRequestFingerprint;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -5142,6 +5223,14 @@ export interface PermissionRequestShell {
    * URLs that may be accessed by the command
    */
   possibleUrls: PermissionRequestShellPossibleUrl[];
+  /**
+   * True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -7399,6 +7488,7 @@ export interface ExtensionsLoadedExtension {
 /**
  * Session event "session.canvas.opened".
  */
+/** @experimental */
 export interface CanvasOpenedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -7429,8 +7519,8 @@ export interface CanvasOpenedEvent {
 /**
  * Schema for the `CanvasOpenedData` type.
  */
+/** @experimental */
 export interface CanvasOpenedData {
-  availability: CanvasOpenedAvailability;
   /**
    * Provider-local canvas identifier
    */
@@ -7454,10 +7544,6 @@ export interface CanvasOpenedData {
    */
   instanceId: string;
   /**
-   * Whether this notification represents an idempotent reopen
-   */
-  reopen: boolean;
-  /**
    * Provider-supplied status text
    */
   status?: string;
@@ -7473,6 +7559,7 @@ export interface CanvasOpenedData {
 /**
  * Session event "session.canvas.registry_changed".
  */
+/** @experimental */
 export interface CanvasRegistryChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -7503,6 +7590,7 @@ export interface CanvasRegistryChangedEvent {
 /**
  * Schema for the `CanvasRegistryChangedData` type.
  */
+/** @experimental */
 export interface CanvasRegistryChangedData {
   /**
    * Canvas declarations currently available
@@ -7512,6 +7600,7 @@ export interface CanvasRegistryChangedData {
 /**
  * Schema for the `CanvasRegistryChangedCanvas` type.
  */
+/** @experimental */
 export interface CanvasRegistryChangedCanvas {
   /**
    * Actions the agent or host may invoke
@@ -7547,6 +7636,7 @@ export interface CanvasRegistryChangedCanvas {
 /**
  * Schema for the `CanvasRegistryChangedCanvasAction` type.
  */
+/** @experimental */
 export interface CanvasRegistryChangedCanvasAction {
   /**
    * Action description
@@ -7566,6 +7656,7 @@ export interface CanvasRegistryChangedCanvasAction {
 /**
  * Session event "session.canvas.closed".
  */
+/** @experimental */
 export interface CanvasClosedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -7596,7 +7687,165 @@ export interface CanvasClosedEvent {
 /**
  * Schema for the `CanvasClosedData` type.
  */
+/** @experimental */
 export interface CanvasClosedData {
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Stable caller-supplied identifier of the canvas instance that was closed
+   */
+  instanceId: string;
+}
+/**
+ * Session event "session.canvas.unavailable". Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.
+ */
+/** @experimental */
+export interface CanvasUnavailableEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasUnavailableData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.unavailable".
+   */
+  type: "session.canvas.unavailable";
+}
+/**
+ * Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.
+ */
+/** @experimental */
+export interface CanvasUnavailableData {
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Stable caller-supplied identifier of the canvas instance whose provider became unavailable
+   */
+  instanceId: string;
+}
+/**
+ * Session event "session.canvas.recorded". Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.
+ */
+/** @experimental */
+export interface CanvasRecordedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasRecordedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.recorded".
+   */
+  type: "session.canvas.recorded";
+}
+/**
+ * Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.
+ */
+/** @experimental */
+export interface CanvasRecordedData {
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Input supplied when the instance was opened
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Stable caller-supplied canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Rendered title
+   */
+  title?: string;
+}
+/**
+ * Session event "session.canvas.removed". Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.
+ */
+/** @experimental */
+export interface CanvasRemovedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasRemovedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.removed".
+   */
+  type: "session.canvas.removed";
+}
+/**
+ * Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.
+ */
+/** @experimental */
+export interface CanvasRemovedData {
   /**
    * Provider-local canvas identifier
    */
