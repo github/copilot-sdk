@@ -29,9 +29,4 @@ class ErgonomicTestTools {
     public String searchItems(@Param("Search keyword") String keyword) {
         return "Found: item_alpha, item_beta";
     }
-
-    @CopilotTool(value = "Custom grep override", name = "grep", overridesBuiltInTool = true)
-    public String grepOverride(@Param("Search query") String query) {
-        return "CUSTOM_GREP: " + query;
-    }
 }

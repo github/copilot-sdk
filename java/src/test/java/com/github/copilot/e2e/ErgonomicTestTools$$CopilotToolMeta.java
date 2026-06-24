@@ -44,15 +44,6 @@ public final class ErgonomicTestTools$$CopilotToolMeta implements CopilotToolMet
                             Map<String, Object> args = invocation.getArguments();
                             String keyword = (String) args.get("keyword");
                             return CompletableFuture.completedFuture(instance.searchItems(keyword));
-                        }, null, null, null),
-                new ToolDefinition("grep", "Custom grep override",
-                        Map.of("type", "object", "properties", Map.ofEntries(Map.entry("query",
-                                (Map<String, Object>) (Map) withMeta(Map.of("type", "string"), "Search query", null))),
-                                "required", List.of("query")),
-                        invocation -> {
-                            Map<String, Object> args = invocation.getArguments();
-                            String query = (String) args.get("query");
-                            return CompletableFuture.completedFuture(instance.grepOverride(query));
-                        }, Boolean.TRUE, null, null));
+                        }, null, null, null));
     }
 }
