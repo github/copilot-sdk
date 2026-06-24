@@ -116,8 +116,8 @@ internal sealed class ForwardingUpstreamHandler(string upstreamBaseUrl, HandlerC
 
     protected override Task<CopilotWebSocketHandler> OpenWebSocketAsync(CopilotRequestContext ctx)
     {
-        var wsUrl = Rewrite(new Uri(ctx.Url)).ToString();
-        return Task.FromResult<CopilotWebSocketHandler>(new CountingForwardingWebSocketHandler(ctx, wsUrl, counters));
+        ctx = new CopilotRequestContext(ctx) { Url = Rewrite(new Uri(ctx.Url)).ToString() };
+        return Task.FromResult<CopilotWebSocketHandler>(new CountingForwardingWebSocketHandler(ctx, counters));
     }
 
     private Uri Rewrite(Uri original) => new UriBuilder(original)
@@ -133,9 +133,8 @@ internal sealed class ForwardingUpstreamHandler(string upstreamBaseUrl, HandlerC
 /// </summary>
 internal sealed class CountingForwardingWebSocketHandler(
     CopilotRequestContext context,
-    string url,
     HandlerCounters counters)
-    : CopilotWebSocketForwarder(context, url)
+    : CopilotWebSocketForwarder(context)
 {
     public override Task SendRequestMessageAsync(CopilotWebSocketMessage message)
     {

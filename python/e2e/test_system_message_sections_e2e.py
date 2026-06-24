@@ -42,3 +42,32 @@ class TestSystemMessageSections:
         )
 
         await session.disconnect()
+
+    async def test_should_use_replaced_preamble_section_in_response(self, ctx: E2ETestContext):
+        """Test that replacing only the preamble section changes the assistant persona"""
+        session = await ctx.client.create_session(
+            system_message={
+                "mode": "customize",
+                "sections": {
+                    "preamble": {
+                        "action": "replace",
+                        "content": (
+                            "You are a helpful gardening assistant called Botanica."
+                            " You only answer questions about plants and gardening."
+                        ),
+                    },
+                },
+            },
+            on_permission_request=PermissionHandler.approve_all,
+        )
+
+        response = await session.send_and_wait("Who are you?")
+
+        assert response is not None, "Expected a response from the assistant"
+        content = response.data.content.lower()
+        assert "botanica" in content or "garden" in content or "plant" in content, (
+            f"Expected response to reflect the replaced preamble section,"
+            f" but got: {response.data.content}"
+        )
+
+        await session.disconnect()

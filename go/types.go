@@ -215,7 +215,10 @@ func Int(v int) *int {
 
 // Known system message section identifiers for the "customize" mode.
 const (
-	// SectionIdentity is the agent identity preamble and mode statement.
+	// SectionPreamble is the agent identity preamble and mode statement.
+	SectionPreamble = "preamble"
+	// SectionIdentity is the section group covering the identity preamble and its
+	// sibling sub-sections (tone, tool efficiency, etc.).
 	SectionIdentity = "identity"
 	// SectionTone covers response style, conciseness rules, and output formatting preferences.
 	SectionTone = "tone"
@@ -254,6 +257,10 @@ const (
 	SectionActionAppend SectionOverrideAction = "append"
 	// SectionActionPrepend prepends to existing section content.
 	SectionActionPrepend SectionOverrideAction = "prepend"
+	// SectionActionPreserve is a no-op marker that opts an individually-addressable
+	// section out of a group-level "remove" (e.g. keep "tone" when removing the
+	// "identity" group).
+	SectionActionPreserve SectionOverrideAction = "preserve"
 )
 
 // SectionTransformFn is a callback that receives the current content of a system message section
@@ -1140,6 +1147,18 @@ type SessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// ExpAssignments injects ExP assignment ("flight") data for this session,
+	// in the same JSON shape the Copilot CLI fetches from the experimentation
+	// service (CopilotExpAssignmentResponse). When supplied, the runtime feeds
+	// it into the same feature-flag path as CLI-fetched assignments and stamps
+	// it onto telemetry and the CAPI request header. When absent, the session
+	// does not block on ExP. Malformed payloads are dropped by the runtime
+	// (fail-open).
+	//
+	// Internal: ExpAssignments is part of the SDK's internal API surface,
+	// intended for trusted out-of-process integrators, and is not intended for
+	// general external use.
+	ExpAssignments any
 }
 
 // ToolDefer controls whether a tool may be deferred (loaded lazily via tool
@@ -1535,6 +1554,14 @@ type ResumeSessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// ExpAssignments injects ExP assignment ("flight") data on resume. See
+	// SessionConfig.ExpAssignments. Re-supply on resume so the runtime
+	// re-applies the assignments after a CLI process restart.
+	//
+	// Internal: ExpAssignments is part of the SDK's internal API surface,
+	// intended for trusted out-of-process integrators, and is not intended for
+	// general external use.
+	ExpAssignments any
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -1885,6 +1912,7 @@ type createSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -1969,6 +1997,7 @@ type resumeSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }

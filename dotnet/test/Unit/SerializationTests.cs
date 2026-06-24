@@ -447,6 +447,97 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeExpAssignments_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+
+        using var createAssignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-create"}]}""");
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("ExpAssignments", createAssignments.RootElement.Clone()));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        var createRoot = createDocument.RootElement;
+        Assert.Equal("exp-create", createRoot.GetProperty("expAssignments").GetProperty("Configs")[0].GetProperty("Id").GetString());
+
+        using var resumeAssignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-resume"}]}""");
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("ExpAssignments", resumeAssignments.RootElement.Clone()));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        var resumeRoot = resumeDocument.RootElement;
+        Assert.Equal("exp-resume", resumeRoot.GetProperty("expAssignments").GetProperty("Configs")[0].GetProperty("Id").GetString());
+    }
+
+    [Fact]
+    public void SessionRequests_OmitExpAssignments_WhenUnset()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.False(createDocument.RootElement.TryGetProperty("expAssignments", out _));
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.False(resumeDocument.RootElement.TryGetProperty("expAssignments", out _));
+    }
+
+    [Fact]
+    public void SessionConfigClone_PreservesExpAssignments()
+    {
+        using var assignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-create"}]}""");
+
+        var config = new SessionConfig
+        {
+            SessionId = "session-id",
+            ExpAssignments = assignments.RootElement.Clone(),
+        };
+
+        var clone = config.Clone();
+
+        Assert.True(clone.ExpAssignments.HasValue);
+        Assert.Equal(
+            "exp-create",
+            clone.ExpAssignments!.Value.GetProperty("Configs")[0].GetProperty("Id").GetString());
+    }
+
+    [Fact]
+    public void ResumeSessionConfigClone_PreservesExpAssignments()
+    {
+        using var assignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-resume"}]}""");
+
+        var config = new ResumeSessionConfig
+        {
+            ExpAssignments = assignments.RootElement.Clone(),
+        };
+
+        var clone = config.Clone();
+
+        Assert.True(clone.ExpAssignments.HasValue);
+        Assert.Equal(
+            "exp-resume",
+            clone.ExpAssignments!.Value.GetProperty("Configs")[0].GetProperty("Id").GetString());
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
     {
         var options = GetSerializerOptions();

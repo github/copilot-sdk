@@ -2220,3 +2220,85 @@ func TestStartCLIServer_StderrFieldSet(t *testing.T) {
 		t.Error("expected Stderr to be *truncbuffer.TruncBuffer after assignment")
 	}
 }
+
+func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
+	assignments := map[string]any{
+		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
+		"AssignmentContext": "ctx-123",
+	}
+
+	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{ExpAssignments: assignments}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got, ok := m["expAssignments"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected expAssignments to be an object, got %v", m["expAssignments"])
+		}
+		if got["AssignmentContext"] != "ctx-123" {
+			t.Errorf("Expected AssignmentContext 'ctx-123', got %v", got["AssignmentContext"])
+		}
+	})
+
+	t.Run("omits expAssignments from JSON when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["expAssignments"]; ok {
+			t.Error("Expected expAssignments to be omitted when nil")
+		}
+	})
+}
+
+func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
+	assignments := map[string]any{
+		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
+		"AssignmentContext": "ctx-456",
+	}
+
+	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ExpAssignments: assignments}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got, ok := m["expAssignments"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected expAssignments to be an object, got %v", m["expAssignments"])
+		}
+		if got["AssignmentContext"] != "ctx-456" {
+			t.Errorf("Expected AssignmentContext 'ctx-456', got %v", got["AssignmentContext"])
+		}
+	})
+
+	t.Run("omits expAssignments from JSON when nil", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["expAssignments"]; ok {
+			t.Error("Expected expAssignments to be omitted when nil")
+		}
+	})
+}

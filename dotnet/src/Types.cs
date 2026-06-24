@@ -1840,6 +1840,13 @@ public enum SectionOverrideAction
     /// <summary>Prepend content before the existing section.</summary>
     [JsonStringEnumMemberName("prepend")]
     Prepend,
+    /// <summary>
+    /// No-op marker that opts an individually-addressable section out of a group-level
+    /// remove (e.g. keep <see cref="SystemMessageSection.Tone"/> when removing the
+    /// <see cref="SystemMessageSection.Identity"/> group).
+    /// </summary>
+    [JsonStringEnumMemberName("preserve")]
+    Preserve,
     /// <summary>Transform the section content via a callback.</summary>
     [JsonStringEnumMemberName("transform")]
     Transform
@@ -1878,6 +1885,8 @@ public sealed class SectionOverride
 public readonly struct SystemMessageSection : IEquatable<SystemMessageSection>
 {
     /// <summary>Agent identity preamble and mode statement.</summary>
+    public static SystemMessageSection Preamble { get; } = new("preamble");
+    /// <summary>Section group covering the identity preamble and its sibling sub-sections (tone, tool efficiency, etc.).</summary>
     public static SystemMessageSection Identity { get; } = new("identity");
     /// <summary>Response style, conciseness rules, output formatting preferences.</summary>
     public static SystemMessageSection Tone { get; } = new("tone");
@@ -2679,6 +2688,7 @@ public abstract class SessionConfigBase
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
+        ExpAssignments = other.ExpAssignments;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
@@ -3054,6 +3064,23 @@ public abstract class SessionConfigBase
     /// </list>
     /// </summary>
     public RemoteSessionMode? RemoteSession { get; set; }
+
+    /// <summary>
+    /// ExP assignment ("flight") data injected by a trusted integrator, in the
+    /// same JSON shape the Copilot CLI fetches from the experimentation service
+    /// (<c>CopilotExpAssignmentResponse</c>). When provided, the runtime feeds it
+    /// into the same feature-flag path as CLI-fetched assignments and stamps it
+    /// onto telemetry and the CAPI request header. When unset, the session does
+    /// not block on ExP. Intended for out-of-process integrators that fetch ExP
+    /// data themselves; malformed payloads are dropped by the runtime (fail-open).
+    /// Serialized on the wire as <c>expAssignments</c>.
+    /// </summary>
+    /// <remarks>
+    /// This is an internal/trusted-integrator option and is hidden from editor
+    /// completion. It is not part of the broadly advertised public surface.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public JsonElement? ExpAssignments { get; set; }
 
 #pragma warning disable GHCP001
     /// <summary>

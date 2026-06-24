@@ -29,6 +29,13 @@ public enum SectionOverrideAction {
     PREPEND("prepend"),
 
     /**
+     * No-op marker that opts an individually-addressable section out of a
+     * group-level {@link #REMOVE} (e.g. keep {@link SystemMessageSections#TONE}
+     * when removing the {@link SystemMessageSections#IDENTITY} group).
+     */
+    PRESERVE("preserve"),
+
+    /**
      * Transform the section content via a callback.
      * <p>
      * When this action is used, the {@link SectionOverride#getTransform()} callback

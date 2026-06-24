@@ -132,6 +132,40 @@ Or run it directly from the repository:
 jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
 
+## Memory
+
+Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `createSession` and `resumeSession`.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
+
+```java
+import com.github.copilot.rpc.MemoryConfiguration;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.ResumeSessionConfig;
+import com.github.copilot.rpc.SessionConfig;
+
+// Enable memory for a new session
+var session = client.createSession(new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setModel("gpt-5")
+    .setMemory(new MemoryConfiguration().setEnabled(true))
+).get();
+
+// Disable memory for a new session
+var sessionNoMemory = client.createSession(new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setModel("gpt-5")
+    .setMemory(new MemoryConfiguration().setEnabled(false))
+).get();
+
+// Configure memory while resuming
+var resumed = client.resumeSession(sessionId, new ResumeSessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setMemory(new MemoryConfiguration().setEnabled(true))
+).get();
+```
+
+When `memory` is left unset, no memory configuration is sent and the runtime default applies. In the default `CopilotClientMode.COPILOT_CLI` the SDK leaves `memory` unset so the runtime applies its own default, while `CopilotClientMode.EMPTY` defaults `memory` to disabled unless you set it explicitly.
+
 ## Using experimental APIs
 
 Some SDK APIs are marked as experimental with `@CopilotExperimental`. These APIs may change or be removed in future versions without notice.
@@ -274,4 +308,3 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
-

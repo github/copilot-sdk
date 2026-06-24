@@ -167,8 +167,8 @@ async def _start_fake_upstream() -> _Upstream:
 class _CountingSocketHandler(CopilotWebSocketForwarder):
     """Forwarding WebSocket handler that counts messages in both directions."""
 
-    def __init__(self, ctx: CopilotRequestContext, url: str, counters: _Counters) -> None:
-        super().__init__(ctx, url=url)
+    def __init__(self, ctx: CopilotRequestContext, counters: _Counters) -> None:
+        super().__init__(ctx)
         self._counters = counters
 
     async def send_request_message(self, data: str | bytes) -> None:
@@ -213,7 +213,8 @@ class _TestHandler(CopilotRequestHandler):
         return response
 
     async def open_websocket(self, ctx: CopilotRequestContext):
-        return _CountingSocketHandler(ctx, self._rewrite_ws(ctx.url), self._counters)
+        ctx.url = self._rewrite_ws(ctx.url)
+        return _CountingSocketHandler(ctx, self._counters)
 
     async def aclose(self) -> None:
         await self._client.aclose()

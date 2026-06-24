@@ -27,9 +27,6 @@ import java.util.concurrent.CompletionStage;
  */
 public class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
 
-    private final String url;
-    private final Map<String, List<String>> headers;
-
     private volatile WebSocket webSocket;
 
     /**
@@ -40,37 +37,7 @@ public class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
      *            the per-request context
      */
     public CopilotWebSocketForwarder(CopilotRequestContext context) {
-        this(context, context.url(), context.headers());
-    }
-
-    /**
-     * Creates a forwarding handler targeting {@code url} with the handshake headers
-     * from {@code context}.
-     *
-     * @param context
-     *            the per-request context
-     * @param url
-     *            the upstream WebSocket URL
-     */
-    public CopilotWebSocketForwarder(CopilotRequestContext context, String url) {
-        this(context, url, context.headers());
-    }
-
-    /**
-     * Creates a forwarding handler targeting {@code url} with the given handshake
-     * headers.
-     *
-     * @param context
-     *            the per-request context
-     * @param url
-     *            the upstream WebSocket URL
-     * @param headers
-     *            the handshake headers, multi-valued
-     */
-    public CopilotWebSocketForwarder(CopilotRequestContext context, String url, Map<String, List<String>> headers) {
         super(context);
-        this.url = url;
-        this.headers = headers;
     }
 
     @Override
@@ -79,6 +46,7 @@ public class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
             return;
         }
         WebSocket.Builder builder = HttpClient.newHttpClient().newWebSocketBuilder();
+        Map<String, List<String>> headers = context.headers();
         if (headers != null) {
             for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
                 if (CopilotRequestHandler.isForbiddenRequestHeader(entry.getKey()) || entry.getValue() == null) {
@@ -90,8 +58,8 @@ public class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
             }
         }
         try {
-            this.webSocket = builder.buildAsync(URI.create(normalizeWebSocketScheme(url)), new ForwardingListener())
-                    .join();
+            this.webSocket = builder
+                    .buildAsync(URI.create(normalizeWebSocketScheme(context.url())), new ForwardingListener()).join();
         } catch (Exception e) {
             throw unwrap(e);
         }

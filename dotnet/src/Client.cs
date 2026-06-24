@@ -1003,7 +1003,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExtensionInfo: config.ExtensionInfo,
                 Providers: config.Providers,
                 Models: config.Models,
-                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence);
+                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
+                ExpAssignments: config.ExpAssignments);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1204,7 +1205,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 OpenCanvases: config.OpenCanvases,
                 Providers: config.Providers,
                 Models: config.Models,
-                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence);
+                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
+                ExpAssignments: config.ExpAssignments);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -2444,7 +2446,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ExtensionInfo? ExtensionInfo = null,
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
-        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null);
+        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2539,7 +2542,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<OpenCanvasInstance>? OpenCanvases = null,
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
-        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null);
+        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(
