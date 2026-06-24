@@ -284,7 +284,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 String typeName = getTypeString(params.get(0).asType());
                 String paramName = params.get(0).getSimpleName().toString();
                 sb.append("                    ").append(typeName).append(" ").append(paramName)
-                        .append(" = invocation.getArgumentsAs(").append(typeName).append(".class);\n");
+                        .append(" = mapper.convertValue(args, ").append(typeName).append(".class);\n");
             } else {
                 for (VariableElement param : params) {
                     String paramName = getParamName(param);
