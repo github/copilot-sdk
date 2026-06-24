@@ -286,7 +286,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
             sb.append("Map<String, Object> args = invocation.getArguments();\n");
 
             // Check if single-record-parameter shortcut applies
-            if (params.size() == 1 && isRecordOrPojo(params.get(0).asType())) {
+            if (params.size() == 1 && isRecord(params.get(0).asType())) {
                 String typeName = getTypeString(params.get(0).asType());
                 String paramName = params.get(0).getSimpleName().toString();
                 sb.append("                    ").append(typeName).append(" ").append(paramName)
@@ -497,21 +497,12 @@ public class CopilotToolProcessor extends AbstractProcessor {
         return type.toString();
     }
 
-    private boolean isRecordOrPojo(TypeMirror type) {
+    private boolean isRecord(TypeMirror type) {
         if (type.getKind() != TypeKind.DECLARED) {
             return false;
         }
         TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
-        return typeElement.getKind() == ElementKind.RECORD || (typeElement.getKind() == ElementKind.CLASS
-                && !isSimpleType(typeElement.getQualifiedName().toString()));
-    }
-
-    private boolean isSimpleType(String qualifiedName) {
-        return "java.lang.String".equals(qualifiedName) || "java.lang.Integer".equals(qualifiedName)
-                || "java.lang.Long".equals(qualifiedName) || "java.lang.Double".equals(qualifiedName)
-                || "java.lang.Float".equals(qualifiedName) || "java.lang.Boolean".equals(qualifiedName)
-                || "java.lang.Short".equals(qualifiedName) || "java.lang.Byte".equals(qualifiedName)
-                || "java.lang.Character".equals(qualifiedName) || "java.lang.Object".equals(qualifiedName);
+        return typeElement.getKind() == ElementKind.RECORD;
     }
 
     private boolean isCompletableFuture(TypeMirror type) {
