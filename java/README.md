@@ -126,17 +126,20 @@ Sessions can opt into persistent memory, allowing the agent to read and write me
 
 ```java
 import com.github.copilot.rpc.MemoryConfiguration;
+import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
 
 // Enable memory for a new session
 var session = client.createSession(new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     .setModel("gpt-5")
     .setMemory(new MemoryConfiguration().setEnabled(true))
 ).get();
 
 // Disable memory for a new session
 var sessionNoMemory = client.createSession(new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     .setModel("gpt-5")
     .setMemory(new MemoryConfiguration().setEnabled(false))
 ).get();
