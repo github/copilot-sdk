@@ -237,8 +237,12 @@ public class CopilotToolProcessor extends AbstractProcessor {
             // Cast to Map<String, Object> via raw type for consistent Map.ofEntries typing
             propertyEntries.add("Map.entry(\"" + paramName + "\", (Map<String, Object>)(Map) " + propertySchema + ")");
 
-            // Determine if required
-            if (paramAnnotation == null || paramAnnotation.required()) {
+            // Determine if required (Optional* types are never required)
+            boolean isOptionalType = paramType.getKind() == TypeKind.DECLARED && Set
+                    .of("java.util.Optional", "java.util.OptionalInt", "java.util.OptionalLong",
+                            "java.util.OptionalDouble")
+                    .contains(((TypeElement) ((DeclaredType) paramType).asElement()).getQualifiedName().toString());
+            if (!isOptionalType && (paramAnnotation == null || paramAnnotation.required())) {
                 requiredNames.add("\"" + paramName + "\"");
             }
         }
