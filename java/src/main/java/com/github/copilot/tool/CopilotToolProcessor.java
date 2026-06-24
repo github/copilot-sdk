@@ -130,8 +130,6 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
         out.println("final class " + metaClassName + " {");
         out.println();
-        out.println("    private static final ObjectMapper objectMapper = new ObjectMapper();");
-        out.println();
 
         // Helper method for adding description/default to schema maps
         if (needsWithMetaHelper(methods)) {
@@ -147,7 +145,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
         // definitions method
         out.println("    @SuppressWarnings({\"unchecked\", \"rawtypes\"})");
-        out.println("    static List<ToolDefinition> definitions(" + simpleClassName + " instance) {");
+        out.println(
+                "    static List<ToolDefinition> definitions(" + simpleClassName + " instance, ObjectMapper mapper) {");
         out.println("        return List.of(");
 
         for (int i = 0; i < methods.size(); i++) {
@@ -332,14 +331,13 @@ public class CopilotToolProcessor extends AbstractProcessor {
             } else {
                 // CompletableFuture<T> -> serialize to JSON
                 sb.append("                    return ").append(methodCall)
-                        .append(".thenApply(r -> { try { return (Object) objectMapper.writeValueAsString(r); }")
+                        .append(".thenApply(r -> { try { return (Object) mapper.writeValueAsString(r); }")
                         .append(" catch (Exception e) { throw new RuntimeException(e); } });");
             }
         } else if (isStringType(returnType)) {
             sb.append("                    return CompletableFuture.completedFuture(").append(methodCall).append(");");
         } else {
-            sb.append(
-                    "                    try { return CompletableFuture.completedFuture(objectMapper.writeValueAsString(")
+            sb.append("                    try { return CompletableFuture.completedFuture(mapper.writeValueAsString(")
                     .append(methodCall).append(")); } catch (Exception e) { throw new RuntimeException(e); }");
         }
 
@@ -374,7 +372,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 return "(Boolean) args.get(\"" + paramName + "\")";
             }
             // Complex types: enums, records, POJOs
-            return "objectMapper.convertValue(args.get(\"" + paramName + "\"), " + qualifiedName + ".class)";
+            return "mapper.convertValue(args.get(\"" + paramName + "\"), " + qualifiedName + ".class)";
         }
         return "(Object) args.get(\"" + paramName + "\")";
     }
@@ -395,7 +393,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
             if ("java.lang.Boolean".equals(qualifiedName)) {
                 return "(Boolean) " + varExpr;
             }
-            return "objectMapper.convertValue(" + varExpr + ", " + qualifiedName + ".class)";
+            return "mapper.convertValue(" + varExpr + ", " + qualifiedName + ".class)";
         }
         return "(Object) " + varExpr;
     }

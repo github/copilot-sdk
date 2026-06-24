@@ -202,7 +202,7 @@ class CopilotToolProcessorTest {
         CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.IntReturn", source)));
         assertNoErrors(result);
         String generated = result.getGeneratedSource("test.IntReturn$$CopilotToolMeta");
-        assertTrue(generated.contains("objectMapper.writeValueAsString(instance.doSomething("),
+        assertTrue(generated.contains("mapper.writeValueAsString(instance.doSomething("),
                 "Expected JSON serialization for int return type, got:\n" + generated);
     }
 
