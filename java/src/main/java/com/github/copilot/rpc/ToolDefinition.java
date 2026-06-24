@@ -4,8 +4,12 @@
 
 package com.github.copilot.rpc;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -211,6 +215,14 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     public static List<ToolDefinition> fromClass(Class<?> clazz) {
         if (clazz == null) {
             throw new IllegalArgumentException("clazz must not be null");
+        }
+        List<String> instanceMethods = Arrays.stream(clazz.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(com.github.copilot.tool.CopilotTool.class))
+                .filter(m -> !Modifier.isStatic(m.getModifiers())).map(Method::getName).collect(Collectors.toList());
+        if (!instanceMethods.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "fromClass() requires all @CopilotTool methods to be static, but found instance methods: "
+                            + instanceMethods + ". Use fromObject(new " + clazz.getSimpleName() + "()) instead.");
         }
         return loadDefinitions(clazz, null);
     }

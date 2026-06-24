@@ -155,6 +155,17 @@ class ToolDefinitionFromObjectTest {
         assertTrue(ex.getMessage().contains("CopilotToolProcessor"));
     }
 
+    // ── Test 5b: fromClass rejects instance methods ─────────────────────────────
+
+    @Test
+    void fromClass_throwsOnInstanceMethods() {
+        // SimpleTools has instance (non-static) @CopilotTool methods
+        var ex = assertThrows(IllegalArgumentException.class, () -> ToolDefinition.fromClass(SimpleTools.class));
+        assertTrue(ex.getMessage().contains("fromClass()"));
+        assertTrue(ex.getMessage().contains("static"));
+        assertTrue(ex.getMessage().contains("fromObject"));
+    }
+
     // ── Test 6: java.time argument ──────────────────────────────────────────────
 
     @Test
