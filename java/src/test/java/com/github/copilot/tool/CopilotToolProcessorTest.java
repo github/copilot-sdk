@@ -559,9 +559,9 @@ class CopilotToolProcessorTest {
                 // fall through
             }
             // Also check in collected sources
+            String simpleName = qualifiedName.substring(qualifiedName.lastIndexOf('.') + 1);
             for (String source : generatedSources) {
-                if (source.contains(qualifiedName.substring(qualifiedName.lastIndexOf('.') + 1) + "$$CopilotToolMeta")
-                        || source.contains("class " + qualifiedName.substring(qualifiedName.lastIndexOf('.') + 1))) {
+                if (source.contains("class " + simpleName)) {
                     return source;
                 }
             }
