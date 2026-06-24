@@ -516,6 +516,68 @@ public class SchemaGeneratorTest {
     }
 
     @Test
+    void localDateTimeType() {
+        String source = """
+                import java.time.LocalDateTime;
+                public class TestLocalDateTimeHolder {
+                    public LocalDateTime schemaTargetLocalDateTime() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetLocalDateTime",
+                "Map.of(\"type\", \"string\", \"format\", \"date-time\")");
+    }
+
+    @Test
+    void instantType() {
+        String source = """
+                import java.time.Instant;
+                public class TestInstantHolder {
+                    public Instant schemaTargetInstant() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetInstant", "Map.of(\"type\", \"string\", \"format\", \"date-time\")");
+    }
+
+    @Test
+    void zonedDateTimeType() {
+        String source = """
+                import java.time.ZonedDateTime;
+                public class TestZonedDateTimeHolder {
+                    public ZonedDateTime schemaTargetZonedDateTime() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetZonedDateTime",
+                "Map.of(\"type\", \"string\", \"format\", \"date-time\")");
+    }
+
+    @Test
+    void localDateType() {
+        String source = """
+                import java.time.LocalDate;
+                public class TestLocalDateHolder {
+                    public LocalDate schemaTargetLocalDate() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetLocalDate", "Map.of(\"type\", \"string\", \"format\", \"date\")");
+    }
+
+    @Test
+    void localTimeType() {
+        String source = """
+                import java.time.LocalTime;
+                public class TestLocalTimeHolder {
+                    public LocalTime schemaTargetLocalTime() { return null; }
+                }
+                """;
+        List<String> schemas = compileAndCapture(source);
+        assertContainsSchema(schemas, "schemaTargetLocalTime", "Map.of(\"type\", \"string\", \"format\", \"time\")");
+    }
+
+    @Test
     void recordType() {
         String source = """
                 public record TestRecordPerson(String name, int age, boolean active) {}
