@@ -39,6 +39,13 @@ public final class CopilotRequestContext {
         this.cancellation = cancellation;
     }
 
+    private CopilotRequestContext(String requestId, @Nullable String sessionId, CopilotRequestTransport transport,
+            String url, Map<String, List<String>> headers, CompletableFuture<Void> cancellation,
+            LlmWebSocketResponseBridge webSocketResponse) {
+        this(requestId, sessionId, transport, url, headers, cancellation);
+        this.webSocketResponse = webSocketResponse;
+    }
+
     /**
      * Gets the opaque runtime-minted request id, stable across the request
      * lifecycle.
@@ -86,6 +93,30 @@ public final class CopilotRequestContext {
      */
     public Map<String, List<String>> headers() {
         return headers;
+    }
+
+    /**
+     * Returns a copy of this context with a different request URL.
+     *
+     * @param url
+     *            the replacement request URL
+     * @return the copied context
+     */
+    public CopilotRequestContext withUrl(String url) {
+        return new CopilotRequestContext(requestId, sessionId, transport, url, headers, cancellation,
+                webSocketResponse);
+    }
+
+    /**
+     * Returns a copy of this context with different request headers.
+     *
+     * @param headers
+     *            the replacement request headers
+     * @return the copied context
+     */
+    public CopilotRequestContext withHeaders(Map<String, List<String>> headers) {
+        return new CopilotRequestContext(requestId, sessionId, transport, url, headers, cancellation,
+                webSocketResponse);
     }
 
     /**

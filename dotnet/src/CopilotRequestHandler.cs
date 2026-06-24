@@ -41,8 +41,28 @@ public enum CopilotRequestTransport
 [Experimental(Diagnostics.Experimental)]
 public sealed class CopilotRequestContext
 {
+    /// <summary>
+    /// Creates an instance of <see cref="CopilotRequestContext"/> by copying the values from another instance.
+    /// </summary>
+    /// <param name="original">A <see cref="CopilotRequestContext"/> instance to copy values from.</param>
+    public CopilotRequestContext(CopilotRequestContext original)
+        : this(original.RequestId, original.Url, original.Headers)
+    {
+        SessionId = original.SessionId;
+        Transport = original.Transport;
+        CancellationToken = original.CancellationToken;
+        WebSocketResponse = original.WebSocketResponse;
+    }
+
+    internal CopilotRequestContext(string requestId, string url, IReadOnlyDictionary<string, IReadOnlyList<string>> headers)
+    {
+        RequestId = requestId;
+        Url = url;
+        Headers = headers;
+    }
+
     /// <summary>Opaque runtime-minted id, stable across the request lifecycle.</summary>
-    public required string RequestId { get; init; }
+    public string RequestId { get; init; }
 
     /// <summary>Runtime session id that triggered the request, if any.</summary>
     public string? SessionId { get; init; }
@@ -50,11 +70,11 @@ public sealed class CopilotRequestContext
     /// <summary>Transport the runtime would otherwise use.</summary>
     public CopilotRequestTransport Transport { get; init; }
 
-    /// <summary>Original request URL.</summary>
-    public required string Url { get; init; }
+    /// <summary>Request URL.</summary>
+    public string Url { get; init; }
 
-    /// <summary>Original request headers.</summary>
-    public required IReadOnlyDictionary<string, IReadOnlyList<string>> Headers { get; init; }
+    /// <summary>Request headers.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> Headers { get; init; }
 
     /// <summary>
     /// Cancelled when the runtime aborts this in-flight request. Subclasses that
@@ -199,25 +219,17 @@ public abstract class CopilotWebSocketHandler : IAsyncDisposable
 [Experimental(Diagnostics.Experimental)]
 public class CopilotWebSocketForwarder : CopilotWebSocketHandler
 {
-    private readonly string _url;
-    private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _headers;
     private WebSocket? _upstream;
     private CancellationTokenSource? _pumpCts;
     private Task? _responsePump;
 
     /// <summary>
     /// Initializes a forwarding handler that will open the upstream socket on
-    /// demand using the supplied URL/headers (or the values from
-    /// <paramref name="context"/> when omitted).
+    /// demand using the supplied URL/headers from <paramref name="context"/>.
     /// </summary>
-    public CopilotWebSocketForwarder(
-        CopilotRequestContext context,
-        string? url = null,
-        IReadOnlyDictionary<string, IReadOnlyList<string>>? headers = null)
+    public CopilotWebSocketForwarder(CopilotRequestContext context)
         : base(context)
     {
-        _url = url ?? context.Url;
-        _headers = headers ?? context.Headers;
     }
 
     /// <summary>
@@ -231,7 +243,7 @@ public class CopilotWebSocketForwarder : CopilotWebSocketHandler
         }
 
         var socket = new ClientWebSocket();
-        foreach (var (name, values) in _headers)
+        foreach (var (name, values) in Context.Headers)
         {
             if (LlmInferenceHeaders.Forbidden.Contains(name))
             {
@@ -248,7 +260,7 @@ public class CopilotWebSocketForwarder : CopilotWebSocketHandler
             }
         }
 
-        await socket.ConnectAsync(ToWebSocketUri(_url), Context.CancellationToken).ConfigureAwait(false);
+        await socket.ConnectAsync(ToWebSocketUri(Context.Url), Context.CancellationToken).ConfigureAwait(false);
         _upstream = socket;
         _pumpCts = CancellationTokenSource.CreateLinkedTokenSource(Context.CancellationToken);
 
@@ -855,13 +867,10 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
         // dropping those frames and hanging the body drain.
         var exchange = _pending.GetOrAdd(request.RequestId, id => new LlmInferenceExchange(id, _getServerRpc));
         exchange.Method = request.Method;
-        exchange.Context = new CopilotRequestContext
+        exchange.Context = new CopilotRequestContext(request.RequestId, request.Url, ToReadOnlyHeaders(request.Headers))
         {
-            RequestId = request.RequestId,
             SessionId = request.SessionId,
             Transport = transport,
-            Url = request.Url,
-            Headers = ToReadOnlyHeaders(request.Headers),
             CancellationToken = exchange.Abort.Token,
         };
 

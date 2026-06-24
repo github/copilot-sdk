@@ -34,8 +34,8 @@ export interface CopilotRequestContext {
     readonly requestId: string;
     readonly sessionId?: string;
     readonly transport: "http" | "websocket";
-    readonly url: string;
-    readonly headers: LlmInferenceHeaders;
+    url: string;
+    headers: LlmInferenceHeaders;
     readonly signal: AbortSignal;
 }
 
@@ -139,12 +139,10 @@ export abstract class CopilotWebSocketHandler implements AsyncDisposable {
  * @experimental
  */
 export class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
-    readonly #url: string;
     #upstream: WebSocket | null = null;
 
-    constructor(context: CopilotRequestContext, url = context.url) {
+    constructor(context: CopilotRequestContext) {
         super(context);
-        this.#url = url;
     }
 
     override sendRequestMessage(data: string | Uint8Array): void {
@@ -159,7 +157,7 @@ export class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
         if (this.#upstream) {
             return;
         }
-        const upstream = new WebSocket(this.#url);
+        const upstream = new WebSocket(this.context.url);
         upstream.binaryType = "arraybuffer";
         this.#upstream = upstream;
         upstream.addEventListener("message", (event) => {

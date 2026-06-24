@@ -123,8 +123,7 @@ public class CopilotRequestHandlerE2ETest {
 
                 @Override
                 protected CopilotWebSocketHandler openWebSocket(CopilotRequestContext rctx) {
-                    String rewritten = rewriteHost(wsBase, URI.create(rctx.url()));
-                    return new CopilotWebSocketForwarder(rctx, rewritten) {
+                    return new CopilotWebSocketForwarder(rctx.withUrl(rewriteHost(wsBase, URI.create(rctx.url())))) {
                         @Override
                         public void sendRequestMessage(CopilotWebSocketMessage message) throws Exception {
                             wsRequestMessages.incrementAndGet();
