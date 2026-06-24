@@ -1,13 +1,20 @@
 package copilot
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // newTestSession creates a session with an event channel and starts the consumer goroutine.
@@ -22,6 +29,144 @@ func newTestSession() (*Session, func()) {
 	return s, func() { close(s.eventCh) }
 }
 
+func newTestEvent() SessionEvent {
+	return SessionEvent{Data: &SessionIdleData{}}
+}
+
+func ptr[T any](value T) *T {
+	return &value
+}
+
+func TestSession_SetModelForwardsContextTier(t *testing.T) {
+	tier := ContextTierLongContext
+	params := captureSetModelRequest(t, &SetModelOptions{ContextTier: &tier})
+
+	if params["sessionId"] != "session-1" {
+		t.Fatalf("expected sessionId session-1, got %v", params["sessionId"])
+	}
+	if params["modelId"] != "gpt-4.1" {
+		t.Fatalf("expected modelId gpt-4.1, got %v", params["modelId"])
+	}
+	if params["contextTier"] != "long_context" {
+		t.Fatalf("expected contextTier long_context, got %v", params["contextTier"])
+	}
+}
+
+func TestSession_SetModelOmitsContextTierWhenUnset(t *testing.T) {
+	params := captureSetModelRequest(t, nil)
+
+	if _, ok := params["contextTier"]; ok {
+		t.Fatalf("expected contextTier to be omitted, got %v", params["contextTier"])
+	}
+}
+
+func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any {
+	t.Helper()
+
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	paramsCh := make(chan map[string]any, 1)
+	errCh := make(chan error, 1)
+
+	go func() {
+		frame, err := readTestJSONRPCFrame(stdinR)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params map[string]any  `json:"params"`
+		}
+		if err := json.Unmarshal(frame, &request); err != nil {
+			errCh <- err
+			return
+		}
+		if request.Method != "session.model.switchTo" {
+			errCh <- fmt.Errorf("expected session.model.switchTo, got %s", request.Method)
+			return
+		}
+
+		paramsCh <- request.Params
+
+		response := map[string]any{
+			"jsonrpc": "2.0",
+			"id":      json.RawMessage(request.ID),
+			"result":  map[string]any{},
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+			errCh <- err
+			return
+		}
+	}()
+
+	session := &Session{
+		SessionID: "session-1",
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, "session-1"),
+	}
+	if err := session.SetModel(context.Background(), "gpt-4.1", opts); err != nil {
+		t.Fatalf("SetModel failed: %v", err)
+	}
+
+	select {
+	case params := <-paramsCh:
+		return params
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session.model.switchTo request")
+	}
+	return nil
+}
+
+func readTestJSONRPCFrame(r io.Reader) ([]byte, error) {
+	reader := bufio.NewReader(r)
+	var contentLength int
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+		name, value, ok := strings.Cut(line, ":")
+		if !ok {
+			return nil, fmt.Errorf("invalid header line %q", line)
+		}
+		if name == "Content-Length" {
+			contentLength, err = strconv.Atoi(strings.TrimSpace(value))
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if contentLength == 0 {
+		return nil, fmt.Errorf("missing Content-Length header")
+	}
+	data := make([]byte, contentLength)
+	_, err := io.ReadFull(reader, data)
+	return data, err
+}
+
 func TestSession_On(t *testing.T) {
 	t.Run("multiple handlers all receive events", func(t *testing.T) {
 		session, cleanup := newTestSession()
@@ -34,7 +179,7 @@ func TestSession_On(t *testing.T) {
 		session.On(func(event SessionEvent) { received2 = true; wg.Done() })
 		session.On(func(event SessionEvent) { received3 = true; wg.Done() })
 
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		if !received1 || !received2 || !received3 {
@@ -56,7 +201,7 @@ func TestSession_On(t *testing.T) {
 		session.On(func(event SessionEvent) { count3.Add(1); wg.Done() })
 
 		// First event - all handlers receive it
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		// Unsubscribe handler 2
@@ -64,7 +209,7 @@ func TestSession_On(t *testing.T) {
 
 		// Second event - only handlers 1 and 3 should receive it
 		wg.Add(2)
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		if count1.Load() != 2 {
@@ -88,7 +233,7 @@ func TestSession_On(t *testing.T) {
 		wg.Add(1)
 		unsub := session.On(func(event SessionEvent) { count.Add(1); wg.Done() })
 
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		unsub()
@@ -98,7 +243,7 @@ func TestSession_On(t *testing.T) {
 		// Dispatch again and wait for it to be processed via a sentinel handler
 		wg.Add(1)
 		session.On(func(event SessionEvent) { wg.Done() })
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		if count.Load() != 1 {
@@ -117,7 +262,7 @@ func TestSession_On(t *testing.T) {
 		session.On(func(event SessionEvent) { order = append(order, 2); wg.Done() })
 		session.On(func(event SessionEvent) { order = append(order, 3); wg.Done() })
 
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		if len(order) != 3 || order[0] != 1 || order[1] != 2 || order[2] != 3 {
@@ -172,7 +317,7 @@ func TestSession_On(t *testing.T) {
 		})
 
 		for i := 0; i < totalEvents; i++ {
-			session.dispatchEvent(SessionEvent{Type: "test"})
+			session.dispatchEvent(newTestEvent())
 		}
 
 		done.Wait()
@@ -198,8 +343,8 @@ func TestSession_On(t *testing.T) {
 			}
 		})
 
-		session.dispatchEvent(SessionEvent{Type: "test"})
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
+		session.dispatchEvent(newTestEvent())
 
 		done.Wait()
 
@@ -401,16 +546,17 @@ func TestSession_Capabilities(t *testing.T) {
 		// Dispatch a capabilities.changed event with elicitation=true
 		elicitTrue := true
 		session.dispatchEvent(SessionEvent{
-			Type: SessionEventTypeCapabilitiesChanged,
 			Data: &CapabilitiesChangedData{
 				UI: &CapabilitiesChangedUI{Elicitation: &elicitTrue},
 			},
 		})
 
-		// Give the broadcast handler time to process
-		time.Sleep(50 * time.Millisecond)
-
-		caps = session.Capabilities()
+		// Capabilities are updated by handleBroadcastEvent which runs in a goroutine.
+		// Poll instead of sleep so the test is bound by event processing, not arbitrary
+		// timing — fast machines exit immediately, slow ones still get 2s.
+		caps = waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && c.UI.Elicitation
+		}, 2*time.Second)
 		if caps.UI == nil || !caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be true after capabilities.changed event")
 		}
@@ -418,19 +564,185 @@ func TestSession_Capabilities(t *testing.T) {
 		// Dispatch with elicitation=false
 		elicitFalse := false
 		session.dispatchEvent(SessionEvent{
-			Type: SessionEventTypeCapabilitiesChanged,
 			Data: &CapabilitiesChangedData{
 				UI: &CapabilitiesChangedUI{Elicitation: &elicitFalse},
 			},
 		})
 
-		time.Sleep(50 * time.Millisecond)
-
-		caps = session.Capabilities()
+		caps = waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && !c.UI.Elicitation
+		}, 2*time.Second)
 		if caps.UI == nil || caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be false after second capabilities.changed event")
 		}
 	})
+
+	t.Run("session.canvas.opened event updates open canvas snapshots", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				InstanceID:   "missing-canvas-id",
+				ExtensionID:  "project:counter",
+				Availability: CanvasOpenedAvailabilityReady,
+			},
+		})
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:   "project:counter",
+				ExtensionName: ptr("Counter Provider"),
+				CanvasID:      "counter",
+				InstanceID:    "counter-1",
+				Title:         ptr("Counter"),
+				Status:        ptr("ready"),
+				URL:           ptr("https://example.test/counter"),
+				Input:         map[string]any{"seed": float64(1)},
+				Reopen:        false,
+				Availability:  CanvasOpenedAvailabilityReady,
+			},
+		})
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:  "project:logs",
+				CanvasID:     "logs",
+				InstanceID:   "logs-1",
+				Title:        ptr("Logs"),
+				Reopen:       false,
+				Availability: CanvasOpenedAvailabilityStale,
+			},
+		})
+
+		open := session.OpenCanvases()
+		if len(open) != 2 {
+			t.Fatalf("expected 2 open canvases, got %d", len(open))
+		}
+		if open[0].InstanceID != "counter-1" || open[1].InstanceID != "logs-1" {
+			t.Fatalf("unexpected open canvas order: %+v", open)
+		}
+
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:   "project:counter",
+				ExtensionName: ptr("Counter Provider"),
+				CanvasID:      "counter",
+				InstanceID:    "counter-1",
+				Title:         ptr("Counter Updated"),
+				Status:        ptr("reconnected"),
+				URL:           ptr("https://example.test/counter-updated"),
+				Input:         map[string]any{"seed": float64(2)},
+				Reopen:        true,
+				Availability:  CanvasOpenedAvailabilityStale,
+			},
+		})
+
+		open = session.OpenCanvases()
+		if len(open) != 2 {
+			t.Fatalf("expected 2 open canvases after upsert, got %d", len(open))
+		}
+		if open[0].InstanceID != "counter-1" || open[1].InstanceID != "logs-1" {
+			t.Fatalf("upsert should preserve order, got %+v", open)
+		}
+		if open[0].Title == nil || *open[0].Title != "Counter Updated" {
+			t.Fatalf("expected updated title, got %+v", open[0].Title)
+		}
+		if open[0].Status == nil || *open[0].Status != "reconnected" {
+			t.Fatalf("expected updated status, got %+v", open[0].Status)
+		}
+		if open[0].URL == nil || *open[0].URL != "https://example.test/counter-updated" {
+			t.Fatalf("expected updated URL, got %+v", open[0].URL)
+		}
+		if !open[0].Reopen {
+			t.Fatal("expected reopen to be true")
+		}
+		if string(open[0].Availability) != string(CanvasOpenedAvailabilityStale) {
+			t.Fatalf("expected stale availability, got %q", open[0].Availability)
+		}
+	})
+
+	t.Run("session.canvas.closed event removes open canvas snapshots", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:  "project:counter",
+				CanvasID:     "counter",
+				InstanceID:   "counter-1",
+				Title:        ptr("Counter"),
+				Availability: CanvasOpenedAvailabilityReady,
+			},
+		})
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:  "project:logs",
+				CanvasID:     "logs",
+				InstanceID:   "logs-1",
+				Title:        ptr("Logs"),
+				Availability: CanvasOpenedAvailabilityReady,
+			},
+		})
+
+		if open := session.OpenCanvases(); len(open) != 2 {
+			t.Fatalf("expected 2 open canvases, got %d", len(open))
+		}
+
+		// Closing one instance removes it; the other remains.
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasClosedData{
+				ExtensionID: "project:counter",
+				CanvasID:    "counter",
+				InstanceID:  "counter-1",
+			},
+		})
+		open := session.OpenCanvases()
+		if len(open) != 1 || open[0].InstanceID != "logs-1" {
+			t.Fatalf("expected only logs-1 to remain, got %+v", open)
+		}
+
+		// Closing an absent instance is a no-op (idempotent).
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasClosedData{
+				ExtensionID: "project:counter",
+				CanvasID:    "counter",
+				InstanceID:  "counter-1",
+			},
+		})
+		open = session.OpenCanvases()
+		if len(open) != 1 || open[0].InstanceID != "logs-1" {
+			t.Fatalf("idempotent close should leave logs-1, got %+v", open)
+		}
+
+		// A closed event missing instanceID leaves the snapshot intact.
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasClosedData{
+				ExtensionID: "project:logs",
+				CanvasID:    "logs",
+			},
+		})
+		open = session.OpenCanvases()
+		if len(open) != 1 || open[0].InstanceID != "logs-1" {
+			t.Fatalf("invalid close should leave logs-1, got %+v", open)
+		}
+	})
+}
+
+// waitForCapability polls Session.Capabilities() until predicate matches or timeout.
+// Returns the last observed capabilities. Avoids time.Sleep in tests.
+func waitForCapability(t *testing.T, session *Session, predicate func(SessionCapabilities) bool, timeout time.Duration) SessionCapabilities {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last SessionCapabilities
+	for {
+		last = session.Capabilities()
+		if predicate(last) {
+			return last
+		}
+		if time.Now().After(deadline) {
+			return last
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func TestSession_ElicitationCapabilityGating(t *testing.T) {
@@ -472,7 +784,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		}
 
 		session.registerElicitationHandler(func(ctx ElicitationContext) (ElicitationResult, error) {
-			return ElicitationResult{Action: "accept"}, nil
+			return ElicitationResult{Action: ElicitationActionAccept}, nil
 		})
 
 		if session.getElicitationHandler() == nil {
@@ -510,7 +822,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 
 		session.registerElicitationHandler(func(ctx ElicitationContext) (ElicitationResult, error) {
 			return ElicitationResult{
-				Action:  "accept",
+				Action:  ElicitationActionAccept,
 				Content: map[string]any{"color": "blue"},
 			}, nil
 		})
@@ -522,11 +834,77 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
-		if result.Action != "accept" {
+		if result.Action != ElicitationActionAccept {
 			t.Errorf("Expected action 'accept', got %q", result.Action)
 		}
 		if result.Content["color"] != "blue" {
 			t.Errorf("Expected content color 'blue', got %v", result.Content["color"])
+		}
+	})
+}
+
+func TestSession_PostToolUseFailureHook(t *testing.T) {
+	t.Run("dispatches with parsed input and returns additional context", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		var captured PostToolUseFailureHookInput
+		session.registerHooks(&SessionHooks{
+			OnPostToolUseFailure: func(input PostToolUseFailureHookInput, _ HookInvocation) (*PostToolUseFailureHookOutput, error) {
+				captured = input
+				return &PostToolUseFailureHookOutput{
+					AdditionalContext: "extra-context: " + input.Error,
+				}, nil
+			},
+		})
+
+		raw := json.RawMessage(`{
+			"sessionId": "sess-1",
+			"timestamp": 1700000000,
+			"cwd": "/work",
+			"toolName": "tool-x",
+			"toolArgs": {"foo": "bar"},
+			"error": "boom"
+		}`)
+		output, err := session.handleHooksInvoke("postToolUseFailure", raw)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if captured.SessionID != "sess-1" {
+			t.Errorf("expected sessionId 'sess-1', got %q", captured.SessionID)
+		}
+		if captured.ToolName != "tool-x" {
+			t.Errorf("expected toolName 'tool-x', got %q", captured.ToolName)
+		}
+		if captured.Error != "boom" {
+			t.Errorf("expected error 'boom', got %q", captured.Error)
+		}
+		if !captured.Timestamp.Equal(time.UnixMilli(1700000000)) {
+			t.Errorf("expected timestamp %v, got %v", time.UnixMilli(1700000000), captured.Timestamp)
+		}
+		if captured.WorkingDirectory != "/work" {
+			t.Errorf("expected WorkingDirectory '/work', got %q", captured.WorkingDirectory)
+		}
+		out, ok := output.(*PostToolUseFailureHookOutput)
+		if !ok {
+			t.Fatalf("expected *PostToolUseFailureHookOutput, got %T", output)
+		}
+		if out.AdditionalContext != "extra-context: boom" {
+			t.Errorf("unexpected AdditionalContext: %q", out.AdditionalContext)
+		}
+	})
+
+	t.Run("no handler registered returns nil without error", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+		session.registerHooks(&SessionHooks{})
+
+		output, err := session.handleHooksInvoke("postToolUseFailure", json.RawMessage(`{"sessionId":"sess-1","timestamp":0,"cwd":"","toolName":"t","toolArgs":null,"error":"e"}`))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if output != nil {
+			t.Errorf("expected nil output, got %v", output)
 		}
 	})
 }
@@ -545,9 +923,9 @@ func TestSession_HookForwardCompatibility(t *testing.T) {
 			},
 		})
 
-		// "postToolUseFailure" is an example of a hook type introduced by a newer
-		// CLI version that the SDK does not yet know about.
-		output, err := session.handleHooksInvoke("postToolUseFailure", json.RawMessage(`{}`))
+		// "futureUnknownHookType" stands in for a hook type introduced by a
+		// newer CLI version that the SDK does not yet know about.
+		output, err := session.handleHooksInvoke("futureUnknownHookType", json.RawMessage(`{}`))
 		if err != nil {
 			t.Errorf("Expected no error for unknown hook type, got: %v", err)
 		}
@@ -571,6 +949,16 @@ func TestSession_HookForwardCompatibility(t *testing.T) {
 }
 
 func TestSession_ElicitationRequestSchema(t *testing.T) {
+	t.Run("nil content values are allowed", func(t *testing.T) {
+		value, err := toRPCContent(nil)
+		if err != nil {
+			t.Fatalf("Expected nil content to be accepted, got %v", err)
+		}
+		if value != nil {
+			t.Fatalf("Expected nil RPC content, got %T", value)
+		}
+	})
+
 	t.Run("elicitation.requested passes full schema to handler", func(t *testing.T) {
 		// Verify the schema extraction logic from handleBroadcastEvent
 		// preserves type, properties, and required.
@@ -580,28 +968,20 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 		}
 		required := []string{"name", "age"}
 
-		// Replicate the schema extraction logic from handleBroadcastEvent
-		requestedSchema := map[string]any{
-			"type":       "object",
-			"properties": properties,
-		}
-		if len(required) > 0 {
-			requestedSchema["required"] = required
+		requestedSchema := ElicitationSchema{
+			Properties: properties,
+			Required:   required,
 		}
 
-		if requestedSchema["type"] != "object" {
-			t.Errorf("Expected schema type 'object', got %v", requestedSchema["type"])
-		}
-		props, ok := requestedSchema["properties"].(map[string]any)
-		if !ok || props == nil {
+		props := requestedSchema.Properties
+		if props == nil {
 			t.Fatal("Expected schema properties map")
 		}
 		if len(props) != 2 {
 			t.Errorf("Expected 2 properties, got %d", len(props))
 		}
-		req, ok := requestedSchema["required"].([]string)
-		if !ok || len(req) != 2 {
-			t.Errorf("Expected required [name, age], got %v", requestedSchema["required"])
+		if len(requestedSchema.Required) != 2 {
+			t.Errorf("Expected required [name, age], got %v", requestedSchema.Required)
 		}
 	})
 
@@ -610,18 +990,44 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 			"optional_field": map[string]any{"type": "string"},
 		}
 
-		requestedSchema := map[string]any{
-			"type":       "object",
-			"properties": properties,
-		}
-		// Simulate: if len(schema.Required) > 0 { ... } — with empty required
-		var required []string
-		if len(required) > 0 {
-			requestedSchema["required"] = required
+		requestedSchema := ElicitationSchema{
+			Properties: properties,
 		}
 
-		if _, exists := requestedSchema["required"]; exists {
-			t.Error("Expected no 'required' key when Required is empty")
+		if requestedSchema.Required != nil {
+			t.Error("Expected Required to be nil when omitted")
+		}
+	})
+
+	t.Run("schema conversion adds object type", func(t *testing.T) {
+		requestedSchema := ElicitationSchema{
+			Properties: map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+		}
+
+		rpcSchema, err := toRPCUIElicitationSchema(requestedSchema)
+		if err != nil {
+			t.Fatalf("toRPCUIElicitationSchema failed: %v", err)
+		}
+		if rpcSchema.Type != rpc.UIElicitationSchemaTypeObject {
+			t.Errorf("Expected RPC schema type object, got %q", rpcSchema.Type)
+		}
+		if _, ok := rpcSchema.Properties["name"].(*rpc.UIElicitationSchemaPropertyString); !ok {
+			t.Fatalf("Expected name property to decode as string schema, got %T", rpcSchema.Properties["name"])
+		}
+	})
+
+	t.Run("schema conversion preserves typed properties", func(t *testing.T) {
+		property := &rpc.UIElicitationSchemaPropertyString{}
+		rpcSchema, err := toRPCUIElicitationSchema(ElicitationSchema{
+			Properties: map[string]any{"name": property},
+		})
+		if err != nil {
+			t.Fatalf("toRPCUIElicitationSchema failed: %v", err)
+		}
+		if rpcSchema.Properties["name"] != property {
+			t.Fatalf("Expected typed property to be preserved, got %T", rpcSchema.Properties["name"])
 		}
 	})
 }

@@ -1,0 +1,600 @@
+//! Session filesystem provider — virtualizable filesystem layer over JSON-RPC.
+//!
+//! When [`ClientOptions::session_fs`] is set, the SDK tells the CLI to delegate
+//! all per-session filesystem operations (`readFile`, `writeFile`, `stat`, ...)
+//! to a [`SessionFsProvider`] registered on each session. This lets host
+//! applications sandbox sessions, project files into in-memory or remote
+//! storage, and apply permission policies before bytes move.
+//!
+//! # Concurrency
+//!
+//! Each inbound `sessionFs.*` request is dispatched on its own spawned task,
+//! so provider implementations MUST be safe for concurrent invocation across
+//! distinct paths. Use internal synchronization (e.g. [`tokio::sync::Mutex`]
+//! keyed by path) if your backing store needs ordering.
+//!
+//! # Errors
+//!
+//! Provider methods return [`Result<T, FsError>`]. The SDK adapts these into
+//! the schema's `{ ..., error: Option<SessionFsError> }` payload, mapping
+//! [`FsErrorKind::NotFound`](crate::session_fs::FsErrorKind::NotFound) to
+//! the wire's `ENOENT` and everything else to `UNKNOWN`.
+//! A [`From<std::io::Error>`] conversion is provided so handlers
+//! backed by [`tokio::fs`](https://docs.rs/tokio/latest/tokio/fs/index.html)
+//! can propagate `io::Error` with `?`.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use std::sync::Arc;
+//! use async_trait::async_trait;
+//! use github_copilot_sdk::types::{SessionFsProvider, FsError, FileInfo, DirEntry};
+//!
+//! struct MyProvider;
+//!
+//! #[async_trait]
+//! impl SessionFsProvider for MyProvider {
+//!     async fn read_file(&self, path: &str) -> Result<String, FsError> {
+//!         std::fs::read_to_string(path)
+//!             .map_err(FsError::from)
+//!     }
+//! }
+//! ```
+
+use std::borrow::{Borrow, Cow};
+use std::collections::HashMap;
+use std::fmt;
+
+use async_trait::async_trait;
+
+pub use crate::generated::api_types::SessionFsSqliteQueryType;
+use crate::generated::api_types::{
+    SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
+    SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
+};
+use crate::{Custom, Repr};
+
+/// Optional capabilities declared by a session filesystem provider.
+#[non_exhaustive]
+#[derive(Debug, Clone, Default)]
+pub struct SessionFsCapabilities {
+    /// Whether the provider supports SQLite query/exists operations.
+    pub sqlite: bool,
+}
+
+impl SessionFsCapabilities {
+    /// Create a new capabilities struct with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Enable SQLite support.
+    pub fn with_sqlite(mut self, sqlite: bool) -> Self {
+        self.sqlite = sqlite;
+        self
+    }
+}
+
+/// Configuration for a custom session filesystem provider.
+///
+/// When set on [`ClientOptions::session_fs`](crate::ClientOptions::session_fs),
+/// the SDK calls `sessionFs.setProvider` during [`Client::start`](crate::Client::start)
+/// to tell the CLI to route per-session filesystem operations to the SDK.
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct SessionFsConfig {
+    /// Initial working directory for sessions (the user's project directory).
+    pub initial_cwd: String,
+    /// Path within each session's SessionFs where the runtime stores
+    /// session-scoped files (events, workspace, checkpoints, etc.).
+    pub session_state_path: String,
+    /// Path conventions used by this filesystem provider.
+    pub conventions: SessionFsConventions,
+    /// Optional capabilities such as SQLite support.
+    pub capabilities: Option<SessionFsCapabilities>,
+}
+
+impl SessionFsConfig {
+    /// Build a new config with the required fields.
+    pub fn new(
+        initial_cwd: impl Into<String>,
+        session_state_path: impl Into<String>,
+        conventions: SessionFsConventions,
+    ) -> Self {
+        Self {
+            initial_cwd: initial_cwd.into(),
+            session_state_path: session_state_path.into(),
+            conventions,
+            capabilities: None,
+        }
+    }
+
+    /// Set the capabilities on this config and return it (builder pattern).
+    pub fn with_capabilities(mut self, capabilities: SessionFsCapabilities) -> Self {
+        self.capabilities = Some(capabilities);
+        self
+    }
+}
+
+/// Path conventions used by a session filesystem provider.
+///
+/// Hand-authored consumer-facing enum (rather than reusing
+/// [`SessionFsSetProviderConventions`]) to avoid exposing the generated
+/// catch-all `Unknown` variant on the input side. The SDK rejects unknown
+/// conventions at validation time with a typed error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionFsConventions {
+    /// POSIX-style paths (`/foo/bar`).
+    Posix,
+    /// Windows-style paths (`C:\foo\bar`).
+    Windows,
+}
+
+impl SessionFsConventions {
+    pub(crate) fn into_wire(self) -> SessionFsSetProviderConventions {
+        match self {
+            Self::Posix => SessionFsSetProviderConventions::Posix,
+            Self::Windows => SessionFsSetProviderConventions::Windows,
+        }
+    }
+}
+
+/// Error kind returned by a [`SessionFsProvider`] method.
+///
+/// The SDK maps this onto the wire schema's `SessionFsError`:
+/// [`FsErrorKind::NotFound`] becomes `ENOENT`, everything else becomes `UNKNOWN`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FsErrorKind {
+    /// File or directory does not exist.
+    NotFound(String),
+
+    /// Any other filesystem error (permission denied, I/O error, etc.).
+    Other,
+}
+
+impl fmt::Display for FsErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FsErrorKind::NotFound(path) => write!(f, "not found: {path}"),
+            FsErrorKind::Other => write!(f, "filesystem error"),
+        }
+    }
+}
+
+/// Error returned by a [`crate::session_fs::SessionFsProvider`] method.
+///
+/// The SDK maps this onto the wire schema's `SessionFsError`:
+/// [`FsErrorKind::NotFound`] becomes `ENOENT`, everything else becomes `UNKNOWN`.
+#[derive(Debug)]
+pub struct FsError {
+    repr: Repr<FsErrorKind>,
+}
+
+impl FsError {
+    /// Construct a `FsError` wrapping a source error.
+    pub fn new<E>(kind: FsErrorKind, error: E) -> Self
+    where
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
+        Self {
+            repr: Repr::Custom(Custom {
+                kind,
+                error: error.into(),
+            }),
+        }
+    }
+
+    /// The [`FsErrorKind`] of this error.
+    pub fn kind(&self) -> &FsErrorKind {
+        match &self.repr {
+            Repr::Simple(k) | Repr::SimpleMessage(k, ..) | Repr::Custom(Custom { kind: k, .. }) => {
+                k
+            }
+        }
+    }
+
+    /// The message provided when this error was constructed, or `None`.
+    pub fn message(&self) -> Option<&str> {
+        match &self.repr {
+            Repr::SimpleMessage(_, m) => Some(m.borrow()),
+            _ => None,
+        }
+    }
+
+    /// Create a `FsError` with a custom message.
+    #[must_use]
+    pub fn with_message<C>(kind: FsErrorKind, message: C) -> Self
+    where
+        C: Into<Cow<'static, str>>,
+    {
+        Self {
+            repr: Repr::SimpleMessage(kind, message.into()),
+        }
+    }
+
+    pub(crate) fn into_wire(self) -> SessionFsError {
+        match self.kind() {
+            FsErrorKind::NotFound(message) => SessionFsError {
+                code: SessionFsErrorCode::ENOENT,
+                message: Some(message.clone()),
+            },
+            FsErrorKind::Other => SessionFsError {
+                code: SessionFsErrorCode::UNKNOWN,
+                message: Some(self.to_string()),
+            },
+        }
+    }
+}
+
+impl fmt::Display for FsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.repr {
+            Repr::Simple(k) => write!(f, "{k}"),
+            Repr::SimpleMessage(_, m) => write!(f, "{m}"),
+            Repr::Custom(Custom { error, .. }) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for FsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.repr {
+            Repr::Custom(Custom { error, .. }) => Some(&**error),
+            _ => None,
+        }
+    }
+}
+
+impl From<FsErrorKind> for FsError {
+    fn from(kind: FsErrorKind) -> Self {
+        Self {
+            repr: Repr::Simple(kind),
+        }
+    }
+}
+
+impl From<std::io::Error> for FsError {
+    fn from(err: std::io::Error) -> Self {
+        match err.kind() {
+            std::io::ErrorKind::NotFound => Self::new(FsErrorKind::NotFound(err.to_string()), err),
+            _ => Self::new(FsErrorKind::Other, err),
+        }
+    }
+}
+
+/// File or directory metadata returned by [`SessionFsProvider::stat`].
+///
+/// The SDK adapts this into the wire's [`SessionFsStatResult`].
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct FileInfo {
+    /// Whether the path is a regular file.
+    pub is_file: bool,
+    /// Whether the path is a directory.
+    pub is_directory: bool,
+    /// File size in bytes.
+    pub size: i64,
+    /// ISO 8601 timestamp of last modification.
+    pub mtime: String,
+    /// ISO 8601 timestamp of creation.
+    pub birthtime: String,
+}
+
+impl FileInfo {
+    /// Build a metadata record. The mtime/birthtime arguments are caller-
+    /// supplied ISO 8601 strings — the SDK does not format timestamps for
+    /// you.
+    pub fn new(
+        is_file: bool,
+        is_directory: bool,
+        size: i64,
+        mtime: impl Into<String>,
+        birthtime: impl Into<String>,
+    ) -> Self {
+        Self {
+            is_file,
+            is_directory,
+            size,
+            mtime: mtime.into(),
+            birthtime: birthtime.into(),
+        }
+    }
+
+    pub(crate) fn into_wire(self) -> SessionFsStatResult {
+        SessionFsStatResult {
+            is_file: self.is_file,
+            is_directory: self.is_directory,
+            size: self.size,
+            mtime: self.mtime,
+            birthtime: self.birthtime,
+            error: None,
+        }
+    }
+}
+
+/// Kind of entry returned by [`SessionFsProvider::readdir_with_types`].
+///
+/// The wire schema's `Unknown` forward-compat variant is intentionally absent
+/// from this consumer-facing enum — providers must classify each entry as
+/// either a file or a directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirEntryKind {
+    /// Regular file.
+    File,
+    /// Directory.
+    Directory,
+}
+
+impl DirEntryKind {
+    fn into_wire(self) -> SessionFsReaddirWithTypesEntryType {
+        match self {
+            Self::File => SessionFsReaddirWithTypesEntryType::File,
+            Self::Directory => SessionFsReaddirWithTypesEntryType::Directory,
+        }
+    }
+}
+
+/// Single entry in a directory listing returned by
+/// [`SessionFsProvider::readdir_with_types`].
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct DirEntry {
+    /// Entry name (basename, not full path).
+    pub name: String,
+    /// Whether the entry is a file or a directory.
+    pub kind: DirEntryKind,
+}
+
+impl DirEntry {
+    /// Build a new directory entry.
+    pub fn new(name: impl Into<String>, kind: DirEntryKind) -> Self {
+        Self {
+            name: name.into(),
+            kind,
+        }
+    }
+
+    pub(crate) fn into_wire(self) -> SessionFsReaddirWithTypesEntry {
+        SessionFsReaddirWithTypesEntry {
+            name: self.name,
+            r#type: self.kind.into_wire(),
+        }
+    }
+}
+
+/// Implementor-supplied filesystem backing for a session.
+///
+/// Each method takes a path using the conventions declared in
+/// [`SessionFsConfig::conventions`] and returns the operation's result. The
+/// SDK adapts every `Result<_, FsError>` into the JSON-RPC response shape
+/// expected by the GitHub Copilot CLI.
+///
+/// # Concurrency
+///
+/// Implementations MUST be `Send + Sync` and safe for concurrent invocation
+/// across distinct paths. The SDK dispatches each inbound `sessionFs.*`
+/// request on its own spawned task. Use internal synchronization (e.g.
+/// [`tokio::sync::Mutex`] keyed by path) if your backing store requires
+/// ordering.
+///
+/// # Forward compatibility
+///
+/// Methods on this trait have default implementations that return
+/// `Err(FsError::with_message(FsErrorKind::Other, "operation not supported"))`. When the CLI
+/// schema grows new `sessionFs.*` methods, the SDK adds them to this trait
+/// with default impls so existing implementations continue to compile.
+/// Override only the methods relevant to your backing store.
+#[async_trait]
+pub trait SessionFsProvider: Send + Sync + 'static {
+    /// Read the full contents of a file as UTF-8.
+    async fn read_file(&self, path: &str) -> Result<String, FsError> {
+        let _ = path;
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "read_file not supported",
+        ))
+    }
+
+    /// Write content to a file, creating parent directories if needed.
+    async fn write_file(
+        &self,
+        path: &str,
+        content: &str,
+        mode: Option<i64>,
+    ) -> Result<(), FsError> {
+        let _ = (path, content, mode);
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "write_file not supported",
+        ))
+    }
+
+    /// Append content to a file, creating parent directories if needed.
+    async fn append_file(
+        &self,
+        path: &str,
+        content: &str,
+        mode: Option<i64>,
+    ) -> Result<(), FsError> {
+        let _ = (path, content, mode);
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "append_file not supported",
+        ))
+    }
+
+    /// Check whether a path exists.
+    ///
+    /// Returns `Ok(false)` for non-existent paths, not [`FsErrorKind::NotFound`].
+    async fn exists(&self, path: &str) -> Result<bool, FsError> {
+        let _ = path;
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "exists not supported",
+        ))
+    }
+
+    /// Get metadata about a file or directory.
+    async fn stat(&self, path: &str) -> Result<FileInfo, FsError> {
+        let _ = path;
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "stat not supported",
+        ))
+    }
+
+    /// Create a directory. When `recursive`, missing parents are also created.
+    async fn mkdir(&self, path: &str, recursive: bool, mode: Option<i64>) -> Result<(), FsError> {
+        let _ = (path, recursive, mode);
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "mkdir not supported",
+        ))
+    }
+
+    /// List entry names in a directory.
+    async fn readdir(&self, path: &str) -> Result<Vec<String>, FsError> {
+        let _ = path;
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "readdir not supported",
+        ))
+    }
+
+    /// List directory entries with type information.
+    async fn readdir_with_types(&self, path: &str) -> Result<Vec<DirEntry>, FsError> {
+        let _ = path;
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "readdir_with_types not supported",
+        ))
+    }
+
+    /// Remove a file or directory. When `force`, missing paths are not an
+    /// error. When `recursive`, directory contents are removed as well.
+    async fn rm(&self, path: &str, recursive: bool, force: bool) -> Result<(), FsError> {
+        let _ = (path, recursive, force);
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "rm not supported",
+        ))
+    }
+
+    /// Rename or move a file or directory.
+    async fn rename(&self, src: &str, dest: &str) -> Result<(), FsError> {
+        let _ = (src, dest);
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "rename not supported",
+        ))
+    }
+
+    /// Return a reference to the SQLite provider, if this provider supports
+    /// SQLite operations. The default returns `None`. Providers that support
+    /// SQLite should also implement [`SessionFsSqliteProvider`] and override
+    /// this to return `Some(self)`.
+    fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+        None
+    }
+}
+
+/// Optional trait for providers that support SQLite operations.
+///
+/// Providers are already session-scoped (created per session by the factory),
+/// so these methods do not take a `session_id` parameter.
+///
+/// To opt in, implement this trait on your provider and override
+/// [`SessionFsProvider::sqlite`] to return `Some(self)`:
+///
+/// ```ignore
+/// impl SessionFsSqliteProvider for MyProvider { /* ... */ }
+///
+/// #[async_trait]
+/// impl SessionFsProvider for MyProvider {
+///     fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+///         Some(self)
+///     }
+///     // ... other methods ...
+/// }
+/// ```
+#[async_trait]
+pub trait SessionFsSqliteProvider: Send + Sync {
+    /// Execute a SQLite query against the provider's per-session database.
+    async fn sqlite_query(
+        &self,
+        query_type: SessionFsSqliteQueryType,
+        query: &str,
+        params: Option<&HashMap<String, serde_json::Value>>,
+    ) -> Result<Option<SessionFsSqliteQueryResult>, FsError>;
+
+    /// Check whether the provider has a SQLite database for this session.
+    async fn sqlite_exists(&self) -> Result<bool, FsError>;
+}
+
+/// Result of a SQLite query execution via [`SessionFsSqliteProvider::sqlite_query`].
+///
+/// Same shape as the generated RPC type but without the `error` field,
+/// since providers signal errors by returning `Err`.
+#[derive(Debug, Clone, Default)]
+pub struct SessionFsSqliteQueryResult {
+    /// Column names from the result set.
+    pub columns: Vec<String>,
+    /// For SELECT: array of row objects. For others: empty array.
+    pub rows: Vec<HashMap<String, serde_json::Value>>,
+    /// Number of rows affected (for INSERT/UPDATE/DELETE).
+    pub rows_affected: i64,
+    /// Last inserted row ID (for INSERT).
+    pub last_insert_rowid: Option<i64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fs_error_maps_io_not_found_to_enoent() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing.txt");
+        let fs_err: FsError = io_err.into();
+        assert!(
+            matches!(fs_err.kind(), FsErrorKind::NotFound(message) if message == "missing.txt")
+        );
+        let wire = fs_err.into_wire();
+        assert_eq!(wire.code, SessionFsErrorCode::ENOENT);
+    }
+
+    #[test]
+    fn fs_error_maps_other_io_to_unknown() {
+        let io_err = std::io::Error::other("disk full");
+        let fs_err: FsError = io_err.into();
+        assert!(matches!(fs_err.kind(), FsErrorKind::Other));
+        let wire = fs_err.into_wire();
+        assert_eq!(wire.code, SessionFsErrorCode::UNKNOWN);
+        assert!(wire.message.unwrap().contains("disk full"));
+    }
+
+    #[test]
+    fn conventions_maps_to_wire() {
+        assert_eq!(
+            SessionFsConventions::Posix.into_wire(),
+            SessionFsSetProviderConventions::Posix
+        );
+        assert_eq!(
+            SessionFsConventions::Windows.into_wire(),
+            SessionFsSetProviderConventions::Windows
+        );
+    }
+
+    struct DefaultProvider;
+    #[async_trait]
+    impl SessionFsProvider for DefaultProvider {}
+
+    #[tokio::test]
+    async fn default_impls_return_unsupported() {
+        let p = DefaultProvider;
+        let err = p.read_file("/x").await.unwrap_err();
+        assert!(
+            matches!(err.kind(), FsErrorKind::Other) && err.to_string().contains("not supported")
+        );
+    }
+}

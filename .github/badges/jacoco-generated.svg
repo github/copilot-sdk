@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="189" height="20">
+  <linearGradient id="b" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <mask id="a"><rect width="189" height="20" rx="3" fill="#fff"/></mask>
+  <g mask="url(#a)">
+    <rect width="138" height="20" fill="#555"/>
+    <rect x="138" width="51" height="20" fill="#dfb317"/>
+    <rect width="189" height="20" fill="url(#b)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+    <text x="69" y="15" fill="#010101" fill-opacity=".3">coverage generated</text>
+    <text x="69" y="14">coverage generated</text>
+    <text x="163" y="15" fill="#010101" fill-opacity=".3">72.7%</text>
+    <text x="163" y="14">72.7%</text>
+  </g>
+</svg>

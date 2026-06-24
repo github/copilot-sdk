@@ -152,16 +152,17 @@ Hooks intercept and modify behavior at key lifecycle points. Register them in th
 
 ### Available Hooks
 
-| Hook                    | Fires When                | Can Modify                                  |
-| ----------------------- | ------------------------- | ------------------------------------------- |
-| `onUserPromptSubmitted` | User sends a message      | The prompt text, add context                |
-| `onPreToolUse`          | Before a tool executes    | Tool args, permission decision, add context |
-| `onPostToolUse`         | After a tool executes     | Tool result, add context                    |
-| `onSessionStart`        | Session starts or resumes | Add context, modify config                  |
-| `onSessionEnd`          | Session ends              | Cleanup actions, summary                    |
-| `onErrorOccurred`       | An error occurs           | Error handling strategy (retry/skip/abort)  |
+| Hook                    | Fires When                               | Can Modify                                  |
+| ----------------------- | ---------------------------------------- | ------------------------------------------- |
+| `onUserPromptSubmitted` | User sends a message                     | The prompt text, add context                |
+| `onPreToolUse`          | Before a tool executes                   | Tool args, permission decision, add context |
+| `onPostToolUse`         | After a tool executes successfully       | Tool result, add context                    |
+| `onPostToolUseFailure`  | After a tool execution returns a failure | Add hidden guidance to the model            |
+| `onSessionStart`        | Session starts or resumes                | Add context                                 |
+| `onSessionEnd`          | Session ends                             | Cleanup actions, summary                    |
+| `onErrorOccurred`       | An error occurs                          | Error handling strategy (retry/skip/abort)  |
 
-All hook inputs include `timestamp` (unix ms) and `cwd` (working directory).
+All hook inputs include `timestamp` (`Date`) and `workingDirectory`.
 
 ### Modifying the user's message
 
@@ -267,12 +268,18 @@ hooks: {
 }
 ```
 
-### Augmenting tool results with extra context
+### Reacting when a tool fails
+
+`onPostToolUse` only fires for successful tool executions. To observe or react
+to failures, register `onPostToolUseFailure`. The input includes
+`input.error` (the stringified failure message); only `additionalContext` on
+the return value is consumed by the runtime, and it is appended as hidden
+guidance alongside the failed tool result.
 
 ```js
 hooks: {
-    onPostToolUse: async (input) => {
-        if (input.toolName === "bash" && input.toolResult?.resultType === "failure") {
+    onPostToolUseFailure: async (input) => {
+        if (input.toolName === "bash") {
             return {
                 additionalContext: "The command failed. Try a different approach.",
             };
@@ -408,7 +415,7 @@ session.on("assistant.message", (event) => {
 | Event Type                  | Description                                      | Key Data Fields                                        |
 | --------------------------- | ------------------------------------------------ | ------------------------------------------------------ |
 | `assistant.message`         | Agent's final response                           | `content`, `messageId`, `toolRequests`                 |
-| `assistant.streaming_delta` | Token-by-token streaming (ephemeral)             | `totalResponseSizeBytes`                               |
+| `assistant.message_delta`   | Message content chunks (ephemeral)               | `deltaContent`                                         |
 | `tool.execution_start`      | A tool is about to run                           | `toolCallId`, `toolName`, `arguments`                  |
 | `tool.execution_complete`   | A tool finished running                          | `toolCallId`, `toolName`, `success`, `result`, `error` |
 | `user.message`              | User sent a message                              | `content`, `attachments`, `source`                     |
@@ -561,12 +568,12 @@ const session = await joinSession({
     onPermissionRequest: async (request) => {
         if (request.kind === "shell") {
             // request.fullCommandText has the shell command
-            return { kind: "approved" };
+            return { kind: "approve-once" };
         }
         if (request.kind === "write") {
-            return { kind: "approved" };
+            return { kind: "approve-once" };
         }
-        return { kind: "denied-by-rules" };
+        return { kind: "reject" };
     },
 });
 ```
@@ -622,8 +629,11 @@ const session = await joinSession({
         onPreToolUse: async (input) => {
             if (input.toolName === "bash") {
                 const cmd = String(input.toolArgs?.command || "");
-                if (/rm\\s+-rf\\s+\\/ / i.test(cmd) || /Remove-Item\\s+.*-Recurse/i.test(cmd)) {
-                    return { permissionDecision: "deny" };
+                if (/rm\\s+-rf\\s+\//i.test(cmd) || /Remove-Item\\s+.*-Recurse/i.test(cmd)) {
+                    return {
+                        permissionDecision: "deny",
+                        permissionDecisionReason: "Destructive commands are not allowed.",
+                    };
                 }
             }
         },

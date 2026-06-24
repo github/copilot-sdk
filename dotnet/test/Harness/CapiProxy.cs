@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Diagnostics;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -10,12 +11,15 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
-namespace GitHub.Copilot.SDK.Test.Harness;
+namespace GitHub.Copilot.Test.Harness;
 
 public sealed partial class CapiProxy : IAsyncDisposable
 {
     private Process? _process;
     private Task<string>? _startupTask;
+
+    public string? ConnectProxyUrl { get; private set; }
+    public string? CaFilePath { get; private set; }
 
     public Task<string> StartAsync()
     {
@@ -57,8 +61,41 @@ public sealed partial class CapiProxy : IAsyncDisposable
             _process.OutputDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
-                var match = Regex.Match(e.Data, @"Listening: (http://[^\s]+)");
-                if (match.Success) tcs.TrySetResult(match.Groups[1].Value);
+                var match = Regex.Match(e.Data, @"Listening: (?<url>http://[^\s]+)\s+(?<metadata>\{.*\})$");
+                if (!match.Success)
+                {
+                    if (e.Data.Contains("Listening: ", StringComparison.Ordinal))
+                    {
+                        tcs.TrySetException(
+                            new InvalidOperationException(
+                                $"Proxy startup line missing CONNECT proxy metadata: {e.Data}"));
+                    }
+                    return;
+                }
+                try
+                {
+                    var metadata = JsonSerializer.Deserialize(
+                        match.Groups["metadata"].Value,
+                        CapiProxyJsonContext.Default.ProxyStartupMetadata);
+                    ConnectProxyUrl = metadata?.ConnectProxyUrl;
+                    CaFilePath = metadata?.CaFilePath;
+                }
+                catch (Exception ex) when (ex is JsonException or NotSupportedException)
+                {
+                    tcs.TrySetException(
+                        new InvalidOperationException(
+                            $"Failed to parse proxy startup metadata: {match.Groups["metadata"].Value}",
+                            ex));
+                    return;
+                }
+                if (string.IsNullOrEmpty(ConnectProxyUrl) || string.IsNullOrEmpty(CaFilePath))
+                {
+                    tcs.TrySetException(
+                        new InvalidOperationException(
+                            $"Proxy startup metadata missing CONNECT proxy details: {e.Data}"));
+                    return;
+                }
+                tcs.TrySetResult(match.Groups["url"].Value);
             };
 
             _process.ErrorDataReceived += (_, e) =>
@@ -104,10 +141,11 @@ public sealed partial class CapiProxy : IAsyncDisposable
 
         if (_process is { HasExited: false })
         {
-            try { _process.Kill(); await _process.WaitForExitAsync(); }
+            try { _process.Kill(entireProcessTree: true); await _process.WaitForExitAsync(); }
             catch { /* Ignore */ }
         }
 
+        _process?.Dispose();
         _process = null;
         _startupTask = null;
     }
@@ -123,6 +161,8 @@ public sealed partial class CapiProxy : IAsyncDisposable
 
     private record ConfigureRequest(string FilePath, string WorkDir);
 
+    private record ProxyStartupMetadata(string? ConnectProxyUrl, string? CaFilePath);
+
     public async Task<List<ParsedHttpExchange>> GetExchangesAsync()
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
@@ -130,6 +170,16 @@ public sealed partial class CapiProxy : IAsyncDisposable
         using var client = new HttpClient();
         return await client.GetFromJsonAsync($"{url}/exchanges", CapiProxyJsonContext.Default.ListParsedHttpExchange)
                ?? [];
+    }
+
+    public async Task SetCopilotUserByTokenAsync(string token, CopilotUserConfig response)
+    {
+        var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
+
+        using var client = new HttpClient();
+        var payload = new CopilotUserByTokenRequest(token, response);
+        var resp = await client.PostAsJsonAsync($"{url}/copilot-user-config", payload, CapiProxyJsonContext.Default.CopilotUserByTokenRequest);
+        resp.EnsureSuccessStatusCode();
     }
 
     public async ValueTask DisposeAsync()
@@ -152,10 +202,47 @@ public sealed partial class CapiProxy : IAsyncDisposable
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
     [JsonSerializable(typeof(ConfigureRequest))]
     [JsonSerializable(typeof(List<ParsedHttpExchange>))]
+    [JsonSerializable(typeof(CopilotUserByTokenRequest))]
+    [JsonSerializable(typeof(Dictionary<string, CopilotUserQuotaSnapshot>))]
+    [JsonSerializable(typeof(ProxyStartupMetadata))]
     private partial class CapiProxyJsonContext : JsonSerializerContext;
 }
 
-public record ParsedHttpExchange(ChatCompletionRequest Request, ChatCompletionResponse? Response);
+public record CopilotUserByTokenRequest(string Token, CopilotUserConfig Response);
+
+public record CopilotUserConfig(
+    string Login,
+    [property: JsonPropertyName("copilot_plan")]
+    string CopilotPlan,
+    CopilotUserEndpoints Endpoints,
+    [property: JsonPropertyName("analytics_tracking_id")]
+    string AnalyticsTrackingId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [property: JsonPropertyName("quota_snapshots")]
+    IReadOnlyDictionary<string, CopilotUserQuotaSnapshot>? QuotaSnapshots = null);
+
+public record CopilotUserEndpoints(string Api, string Telemetry);
+
+public record CopilotUserQuotaSnapshot(
+    [property: JsonPropertyName("entitlement")]
+    int Entitlement,
+    [property: JsonPropertyName("overage_count")]
+    int OverageCount,
+    [property: JsonPropertyName("overage_permitted")]
+    bool OveragePermitted,
+    [property: JsonPropertyName("percent_remaining")]
+    double PercentRemaining,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [property: JsonPropertyName("timestamp_utc")]
+    string? TimestampUtc = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [property: JsonPropertyName("unlimited")]
+    bool? Unlimited = null);
+
+public record ParsedHttpExchange(
+    ChatCompletionRequest Request,
+    ChatCompletionResponse? Response,
+    Dictionary<string, JsonElement>? RequestHeaders);
 
 public record ChatCompletionRequest(
     string Model,

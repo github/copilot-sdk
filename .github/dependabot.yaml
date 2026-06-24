@@ -8,6 +8,12 @@ updates:
     directory: '/'
     multi-ecosystem-group: 'all'
     patterns: ['*']
+    ignore:
+      # gh-aw generated files — action SHAs are managed by `gh aw compile`
+      # via .github/aw/actions-lock.json, not by Dependabot.
+      # Dependabot's find-and-replace breaks lockfile metadata headers.
+      - dependency-name: "actions/github-script"
+      - dependency-name: "github/gh-aw-actions"
   - package-ecosystem: 'devcontainers'
     directory: '/'
     multi-ecosystem-group: 'all'
@@ -36,3 +42,26 @@ updates:
     directory: '/dotnet'
     multi-ecosystem-group: 'all'
     patterns: ['*']
+  # Java dependencies
+  - package-ecosystem: 'maven'
+    directory: '/java'
+    schedule:
+      interval: 'weekly'
+    ignore:
+      # Major version bumps often drop Java 17 support or have breaking
+      # API changes. These must be evaluated and applied manually.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      java-maven-deps:
+        patterns:
+          - "*"
+  # Java codegen dependencies
+  - package-ecosystem: 'npm'
+    directory: '/java/scripts/codegen'
+    schedule:
+      interval: 'weekly'
+    groups:
+      java-codegen-deps:
+        patterns:
+          - "*"

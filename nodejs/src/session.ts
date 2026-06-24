@@ -8,22 +8,31 @@
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
-import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
+import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
-import type { ClientSessionApiHandlers } from "./generated/rpc.js";
+import type { ClientSessionApiHandlers, CanvasActionInvokeResult } from "./generated/rpc.js";
+import { type Canvas, CanvasError } from "./canvas.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     CommandHandler,
+    AutoModeSwitchHandler,
+    AutoModeSwitchRequest,
+    AutoModeSwitchResponse,
     ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
     ElicitationContext,
-    InputOptions,
+    ExitPlanModeHandler,
+    ExitPlanModeRequest,
+    ExitPlanModeResult,
+    UiInputOptions,
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
-    PermissionRequestResult,
+    ContextTier,
     ReasoningEffort,
+    ReasoningSummary,
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
@@ -44,8 +53,40 @@ import type {
     UserInputResponse,
 } from "./types.js";
 
-export const NO_RESULT_PERMISSION_V2_ERROR =
-    "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
+/**
+ * Convert a raw hook input received over the wire into its public-facing shape.
+ * This deserializes the numeric Unix-ms `timestamp` field on BaseHookInput
+ * into a Date and maps the wire `cwd` field to `workingDirectory`.
+ */
+function deserializeHookInput(raw: unknown): unknown {
+    if (
+        !raw ||
+        typeof raw !== "object" ||
+        typeof (raw as { timestamp?: unknown }).timestamp !== "number"
+    ) {
+        return raw;
+    }
+    const obj = raw as Record<string, unknown> & { timestamp: number; cwd?: string };
+    const { cwd, ...rest } = obj;
+    return { ...rest, timestamp: new Date(obj.timestamp), workingDirectory: cwd };
+}
+
+function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
+    if (!value || typeof value !== "object") {
+        return false;
+    }
+    const instance = value as Partial<OpenCanvasInstance>;
+    return (
+        typeof instance.instanceId === "string" &&
+        instance.instanceId.length > 0 &&
+        typeof instance.extensionId === "string" &&
+        instance.extensionId.length > 0 &&
+        typeof instance.canvasId === "string" &&
+        instance.canvasId.length > 0 &&
+        typeof instance.reopen === "boolean" &&
+        (instance.availability === "ready" || instance.availability === "stale")
+    );
+}
 
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
@@ -80,15 +121,20 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private canvases: Map<string, Canvas> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
     private elicitationHandler?: ElicitationHandler;
+    private exitPlanModeHandler?: ExitPlanModeHandler;
+    private autoModeSwitchHandler?: AutoModeSwitchHandler;
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
     private _capabilities: SessionCapabilities = {};
+    private openCanvasInstances: OpenCanvasInstance[] = [];
+    private disconnected = false;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -155,7 +201,7 @@ export class CopilotSession {
             elicitation: (params: ElicitationParams) => this._elicitation(params),
             confirm: (message: string) => this._confirm(message),
             select: (message: string, options: string[]) => this._select(message, options),
-            input: (message: string, options?: InputOptions) => this._input(message, options),
+            input: (message: string, options?: UiInputOptions) => this._input(message, options),
         };
     }
 
@@ -177,13 +223,19 @@ export class CopilotSession {
      * });
      * ```
      */
-    async send(options: MessageOptions): Promise<string> {
+    async send(prompt: string): Promise<string>;
+    async send(options: MessageOptions): Promise<string>;
+    async send(optionsOrPrompt: MessageOptions | string): Promise<string> {
+        const options: MessageOptions =
+            typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const response = await this.connection.sendRequest("session.send", {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
+            displayPrompt: options.displayPrompt,
             attachments: options.attachments,
             mode: options.mode,
+            agentMode: options.agentMode,
             requestHeaders: options.requestHeaders,
         });
 
@@ -213,10 +265,17 @@ export class CopilotSession {
      * console.log(response?.data.content); // "4"
      * ```
      */
+    async sendAndWait(prompt: string, timeout?: number): Promise<AssistantMessageEvent | undefined>;
     async sendAndWait(
         options: MessageOptions,
         timeout?: number
+    ): Promise<AssistantMessageEvent | undefined>;
+    async sendAndWait(
+        optionsOrPrompt: MessageOptions | string,
+        timeout?: number
     ): Promise<AssistantMessageEvent | undefined> {
+        const options: MessageOptions =
+            typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const effectiveTimeout = timeout ?? 60_000;
 
         let resolveIdle: () => void;
@@ -266,6 +325,22 @@ export class CopilotSession {
             }
             unsubscribe();
         }
+    }
+
+    /** @internal */
+    _markDisconnected(): void {
+        this.disconnected = true;
+        this.eventHandlers.clear();
+        this.typedEventHandlers.clear();
+        this.toolHandlers.clear();
+        this.permissionHandler = undefined;
+        this.userInputHandler = undefined;
+        this.elicitationHandler = undefined;
+        this.exitPlanModeHandler = undefined;
+        this.autoModeSwitchHandler = undefined;
+        this.commandHandlers.clear();
+        this.canvases.clear();
+        this.transformCallbacks?.clear();
     }
 
     /**
@@ -385,6 +460,9 @@ export class CopilotSession {
      * @internal
      */
     private _handleBroadcastEvent(event: SessionEvent): void {
+        if (this.disconnected) {
+            return;
+        }
         if (event.type === "external_tool.requested") {
             const { requestId, toolName } = event.data as {
                 requestId: string;
@@ -447,6 +525,48 @@ export class CopilotSession {
             }
         } else if (event.type === "capabilities.changed") {
             this._capabilities = { ...this._capabilities, ...event.data };
+        } else if (event.type === "session.canvas.opened") {
+            this.upsertOpenCanvasFromEvent(event.data);
+        } else if (event.type === "session.canvas.closed") {
+            this.removeOpenCanvasFromEvent(event.data);
+        }
+    }
+
+    private upsertOpenCanvasFromEvent(data: unknown): void {
+        if (!isOpenCanvasInstance(data)) {
+            console.warn("failed to deserialize session.canvas.opened payload");
+            return;
+        }
+        this.upsertOpenCanvas(data);
+    }
+
+    private removeOpenCanvasFromEvent(data: unknown): void {
+        if (
+            !data ||
+            typeof data !== "object" ||
+            typeof (data as { instanceId?: unknown }).instanceId !== "string" ||
+            (data as { instanceId: string }).instanceId.length === 0
+        ) {
+            console.warn("failed to deserialize session.canvas.closed payload");
+            return;
+        }
+        this.removeOpenCanvas((data as { instanceId: string }).instanceId);
+    }
+
+    private removeOpenCanvas(instanceId: string): void {
+        this.openCanvasInstances = this.openCanvasInstances.filter(
+            (open) => open.instanceId !== instanceId
+        );
+    }
+
+    private upsertOpenCanvas(instance: OpenCanvasInstance): void {
+        const index = this.openCanvasInstances.findIndex(
+            (open) => open.instanceId === instance.instanceId
+        );
+        if (index >= 0) {
+            this.openCanvasInstances[index] = instance;
+        } else {
+            this.openCanvasInstances.push(instance);
         }
     }
 
@@ -482,8 +602,14 @@ export class CopilotSession {
             } else {
                 result = JSON.stringify(rawResult);
             }
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
+            if (this.disconnected) {
+                return;
+            }
             const message = error instanceof Error ? error.message : String(error);
             try {
                 await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
@@ -511,13 +637,19 @@ export class CopilotSession {
             if (result.kind === "no-result") {
                 return;
             }
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
         } catch (_error) {
+            if (this.disconnected) {
+                return;
+            }
             try {
                 await this.rpc.permissions.handlePendingPermissionRequest({
                     requestId,
                     result: {
-                        kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                        kind: "user-not-available",
                     },
                 });
             } catch (rpcError) {
@@ -556,8 +688,14 @@ export class CopilotSession {
 
         try {
             await handler({ sessionId: this.sessionId, command, commandName, args });
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.commands.handlePendingCommand({ requestId });
         } catch (error) {
+            if (this.disconnected) {
+                return;
+            }
             const message = error instanceof Error ? error.message : String(error);
             try {
                 await this.rpc.commands.handlePendingCommand({ requestId, error: message });
@@ -572,8 +710,8 @@ export class CopilotSession {
     /**
      * Registers custom tool handlers for this session.
      *
-     * Tools allow the assistant to execute custom functions. When the assistant
-     * invokes a tool, the corresponding handler is called with the tool arguments.
+     * Tools with handlers allow the assistant to execute custom functions automatically.
+     * Declaration-only tools are surfaced as events and left pending for the consumer.
      *
      * @param tools - An array of tool definitions with their handlers, or undefined to clear all tools
      * @internal This method is typically called internally when creating a session with tools.
@@ -585,7 +723,9 @@ export class CopilotSession {
         }
 
         for (const tool of tools) {
-            this.toolHandlers.set(tool.name, tool.handler);
+            if (tool.handler) {
+                this.toolHandlers.set(tool.name, tool.handler);
+            }
         }
     }
 
@@ -598,6 +738,63 @@ export class CopilotSession {
      */
     getToolHandler(name: string): ToolHandler | undefined {
         return this.toolHandlers.get(name);
+    }
+
+    /**
+     * Registers canvas declarations and handlers for this session.
+     *
+     * @param canvases - Canvases created via `createCanvas`, or undefined to clear all canvases
+     * @internal Called by the SDK when creating/resuming a session with `canvases`.
+     */
+    registerCanvases(canvases?: Canvas[]): void {
+        this.canvases.clear();
+        if (!canvases || canvases.length === 0) {
+            delete this.clientSessionApis.canvas;
+            return;
+        }
+        for (const canvas of canvases) {
+            this.canvases.set(canvas.declaration.id, canvas);
+        }
+
+        const self = this;
+        this.clientSessionApis.canvas = {
+            async open(params) {
+                const canvas = self.canvases.get(params.canvasId);
+                if (!canvas) throw new Error(`No canvas registered with id "${params.canvasId}"`);
+                try {
+                    return (await canvas.open(params)) ?? {};
+                } catch (error) {
+                    throw toCanvasRpcError(error);
+                }
+            },
+            async close(params) {
+                const canvas = self.canvases.get(params.canvasId);
+                if (!canvas) throw new Error(`No canvas registered with id "${params.canvasId}"`);
+                try {
+                    if (canvas.onClose) {
+                        await canvas.onClose(params);
+                    }
+                } catch (error) {
+                    throw toCanvasRpcError(error);
+                }
+            },
+            async invoke(params) {
+                const canvas = self.canvases.get(params.canvasId);
+                if (!canvas) throw new Error(`No canvas registered with id "${params.canvasId}"`);
+                const handler = canvas.actionHandlers.get(params.actionName);
+                if (!handler) {
+                    throw new CanvasError(
+                        "canvas_action_no_handler",
+                        "No handler implemented for this canvas action"
+                    );
+                }
+                try {
+                    return (await handler(params)) as CanvasActionInvokeResult;
+                } catch (error) {
+                    throw toCanvasRpcError(error);
+                }
+            },
+        };
     }
 
     /**
@@ -624,6 +821,26 @@ export class CopilotSession {
      */
     registerElicitationHandler(handler?: ElicitationHandler): void {
         this.elicitationHandler = handler;
+    }
+
+    /**
+     * Registers the exit-plan-mode handler for this session.
+     *
+     * @param handler - The handler to invoke when the server dispatches an exit-plan-mode request
+     * @internal This method is typically called internally when creating/resuming a session.
+     */
+    registerExitPlanModeHandler(handler?: ExitPlanModeHandler): void {
+        this.exitPlanModeHandler = handler;
+    }
+
+    /**
+     * Registers the auto-mode-switch handler for this session.
+     *
+     * @param handler - The handler to invoke when the server dispatches an auto-mode-switch request
+     * @internal This method is typically called internally when creating/resuming a session.
+     */
+    registerAutoModeSwitchHandler(handler?: AutoModeSwitchHandler): void {
+        this.autoModeSwitchHandler = handler;
     }
 
     /**
@@ -655,6 +872,32 @@ export class CopilotSession {
     }
 
     /**
+     * Handles an exitPlanMode.request callback from the runtime.
+     * @internal
+     */
+    async _handleExitPlanModeRequest(request: ExitPlanModeRequest): Promise<ExitPlanModeResult> {
+        if (!this.exitPlanModeHandler) {
+            return { approved: true };
+        }
+
+        return await this.exitPlanModeHandler(request, { sessionId: this.sessionId });
+    }
+
+    /**
+     * Handles an autoModeSwitch.request callback from the runtime.
+     * @internal
+     */
+    async _handleAutoModeSwitchRequest(
+        request: AutoModeSwitchRequest
+    ): Promise<AutoModeSwitchResponse> {
+        if (!this.autoModeSwitchHandler) {
+            return "no";
+        }
+
+        return await this.autoModeSwitchHandler(request, { sessionId: this.sessionId });
+    }
+
+    /**
      * Sets the host capabilities for this session.
      *
      * @param capabilities - The capabilities object from the create/resume response
@@ -662,6 +905,26 @@ export class CopilotSession {
      */
     setCapabilities(capabilities?: SessionCapabilities): void {
         this._capabilities = capabilities ?? {};
+    }
+
+    /**
+     * Snapshot of canvas instances currently known to be open for this session.
+     * Populated from the `session.resume` response and live `session.canvas.opened`
+     * and `session.canvas.closed` events. Returns a defensive copy — mutating the
+     * returned array has no effect on the session.
+     */
+    get openCanvases(): OpenCanvasInstance[] {
+        return [...this.openCanvasInstances];
+    }
+
+    /**
+     * Sets the open-canvas snapshot for this session.
+     *
+     * @param instances - The `openCanvases` array from the `session.resume` response.
+     * @internal This method is typically called internally when resuming a session.
+     */
+    setOpenCanvases(instances: OpenCanvasInstance[]): void {
+        this.openCanvasInstances = [...instances];
     }
 
     private assertElicitation(): void {
@@ -714,7 +977,7 @@ export class CopilotSession {
         return null;
     }
 
-    private async _input(message: string, options?: InputOptions): Promise<string | null> {
+    private async _input(message: string, options?: UiInputOptions): Promise<string | null> {
         this.assertElicitation();
         const field: Record<string, unknown> = { type: "string" as const };
         if (options?.title) field.title = options.title;
@@ -822,35 +1085,6 @@ export class CopilotSession {
     }
 
     /**
-     * Handles a permission request in the v2 protocol format (synchronous RPC).
-     * Used as a back-compat adapter when connected to a v2 server.
-     *
-     * @param request - The permission request data from the CLI
-     * @returns A promise that resolves with the permission decision
-     * @internal This method is for internal use by the SDK.
-     */
-    async _handlePermissionRequestV2(request: unknown): Promise<PermissionRequestResult> {
-        if (!this.permissionHandler) {
-            return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
-        }
-
-        try {
-            const result = await this.permissionHandler(request as PermissionRequest, {
-                sessionId: this.sessionId,
-            });
-            if (result.kind === "no-result") {
-                throw new Error(NO_RESULT_PERMISSION_V2_ERROR);
-            }
-            return result;
-        } catch (error) {
-            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
-                throw error;
-            }
-            return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
-        }
-    }
-
-    /**
      * Handles a user input request from the Copilot CLI.
      *
      * @param request - The user input request data from the CLI
@@ -887,7 +1121,14 @@ export class CopilotSession {
             return undefined;
         }
 
-        // Type-safe handler lookup with explicit casting
+        // All hook inputs share BaseHookInput, which exposes `timestamp` as a Date.
+        // The wire format sends it as Unix epoch ms (number), so we deserialize
+        // here, at the one place that knows the input is a hook payload. Bad data
+        // is left alone — the user-facing handler types still cast unknown to the
+        // specific HookInput, so a runtime type mismatch surfaces as a normal
+        // TypeError in user code rather than being silently masked.
+        const normalized = deserializeHookInput(input);
+
         type GenericHandler = (
             input: unknown,
             invocation: { sessionId: string }
@@ -895,7 +1136,9 @@ export class CopilotSession {
 
         const handlerMap: Record<string, GenericHandler | undefined> = {
             preToolUse: this.hooks.onPreToolUse as GenericHandler | undefined,
+            preMcpToolCall: this.hooks.onPreMcpToolCall as GenericHandler | undefined,
             postToolUse: this.hooks.onPostToolUse as GenericHandler | undefined,
+            postToolUseFailure: this.hooks.onPostToolUseFailure as GenericHandler | undefined,
             userPromptSubmitted: this.hooks.onUserPromptSubmitted as GenericHandler | undefined,
             sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
@@ -908,7 +1151,7 @@ export class CopilotSession {
         }
 
         try {
-            const result = await handler(input, { sessionId: this.sessionId });
+            const result = await handler(normalized, { sessionId: this.sessionId });
             return result;
         } catch (_error) {
             // Hook failed, return undefined
@@ -927,7 +1170,7 @@ export class CopilotSession {
      *
      * @example
      * ```typescript
-     * const events = await session.getMessages();
+     * const events = await session.getEvents();
      * for (const event of events) {
      *   if (event.type === "assistant.message") {
      *     console.log("Assistant:", event.data.content);
@@ -935,7 +1178,7 @@ export class CopilotSession {
      * }
      * ```
      */
-    async getMessages(): Promise<SessionEvent[]> {
+    async getEvents(): Promise<SessionEvent[]> {
         const response = await this.connection.sendRequest("session.getMessages", {
             sessionId: this.sessionId,
         });
@@ -965,26 +1208,13 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
+        if (this.disconnected) {
+            return;
+        }
         await this.connection.sendRequest("session.destroy", {
             sessionId: this.sessionId,
         });
-        this.eventHandlers.clear();
-        this.typedEventHandlers.clear();
-        this.toolHandlers.clear();
-        this.permissionHandler = undefined;
-    }
-
-    /**
-     * @deprecated Use {@link disconnect} instead. This method will be removed in a future release.
-     *
-     * Disconnects this session and releases all in-memory resources.
-     * Session data on disk is preserved for later resumption.
-     *
-     * @returns A promise that resolves when the session is disconnected
-     * @throws Error if the connection fails
-     */
-    async destroy(): Promise<void> {
-        return this.disconnect();
+        this._markDisconnected();
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */
@@ -1035,6 +1265,8 @@ export class CopilotSession {
         model: string,
         options?: {
             reasoningEffort?: ReasoningEffort;
+            reasoningSummary?: ReasoningSummary;
+            contextTier?: ContextTier;
             modelCapabilities?: ModelCapabilitiesOverride;
         }
     ): Promise<void> {
@@ -1094,4 +1326,12 @@ function isToolResultObject(value: unknown): value is ToolResultObject {
     ];
 
     return allowedResultTypes.includes((value as ToolResultObject).resultType);
+}
+
+/** Convert a canvas handler error into a ResponseError with a structured data envelope. */
+function toCanvasRpcError(error: unknown): ResponseError<unknown> {
+    if (error instanceof ResponseError) return error;
+    const code = error instanceof CanvasError ? error.code : "canvas_handler_error";
+    const message = error instanceof Error ? error.message : String(error);
+    return new ResponseError(ErrorCodes.InternalError, message, { code, message });
 }

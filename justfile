@@ -3,13 +3,13 @@ default:
     @just --list
 
 # Format all code across all languages
-format: format-go format-python format-nodejs format-dotnet
+format: format-go format-python format-nodejs format-dotnet format-rust
 
 # Lint all code across all languages
-lint: lint-go lint-python lint-nodejs lint-dotnet
+lint: lint-go lint-python lint-nodejs lint-dotnet lint-rust
 
 # Run tests for all languages
-test: test-go test-python test-nodejs test-dotnet test-corrections
+test: test-go test-python test-nodejs test-dotnet test-rust test-corrections
 
 # Format Go code
 format-go:
@@ -70,6 +70,27 @@ test-nodejs:
 test-dotnet:
     @echo "=== Testing .NET code ==="
     @cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj
+
+# Format Rust code (uses nightly for unstable formatting options)
+format-rust:
+    @echo "=== Formatting Rust code ==="
+    @cd rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
+
+# Lint Rust code
+lint-rust:
+    @echo "=== Linting Rust code ==="
+    @cd rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+    @cd rust && cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+
+# Test Rust code
+test-rust:
+    @echo "=== Testing Rust code ==="
+    @cd rust && cargo test --features test-support
+
+# Generate Rust types from JSON schemas
+generate-rust:
+    @echo "=== Generating Rust types ==="
+    @cd scripts/codegen && npm run generate:rust
 
 # Test correction collection scripts
 test-corrections:
@@ -148,111 +169,3 @@ validate-docs-cs:
     @echo "=== Validating C# documentation ==="
     @cd scripts/docs-validation && npm run validate:cs
 
-# Build all scenario samples (all languages)
-scenario-build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "=== Building all scenario samples ==="
-    TOTAL=0; PASS=0; FAIL=0
-
-    build_lang() {
-      local lang="$1" find_expr="$2" build_cmd="$3"
-      echo ""
-      echo "── $lang ──"
-      while IFS= read -r target; do
-        [ -z "$target" ] && continue
-        dir=$(dirname "$target")
-        scenario="${dir#test/scenarios/}"
-        TOTAL=$((TOTAL + 1))
-        if (cd "$dir" && eval "$build_cmd" >/dev/null 2>&1); then
-          printf "  ✅ %s\n" "$scenario"
-          PASS=$((PASS + 1))
-        else
-          printf "  ❌ %s\n" "$scenario"
-          FAIL=$((FAIL + 1))
-        fi
-      done < <(find test/scenarios $find_expr | sort)
-    }
-
-    # TypeScript: npm install
-    (cd nodejs && npm ci --ignore-scripts --silent 2>/dev/null) || true
-    build_lang "TypeScript" "-path '*/typescript/package.json'" "npm install --ignore-scripts"
-
-    # Python: syntax check
-    build_lang "Python" "-path '*/python/main.py'" "python3 -c \"import ast; ast.parse(open('main.py').read())\""
-
-    # Go: go build
-    build_lang "Go" "-path '*/go/go.mod'" "go build ./..."
-
-    # C#: dotnet build
-    build_lang "C#" "-name '*.csproj' -path '*/csharp/*'" "dotnet build --nologo -v quiet"
-
-    echo ""
-    echo "══════════════════════════════════════"
-    echo " Scenario build summary: $PASS passed, $FAIL failed (of $TOTAL)"
-    echo "══════════════════════════════════════"
-    [ "$FAIL" -eq 0 ]
-
-# Run the full scenario verify orchestrator (build + E2E, needs real CLI)
-scenario-verify:
-    @echo "=== Running scenario verification ==="
-    @bash test/scenarios/verify.sh
-
-# Build scenarios for a single language (typescript, python, go, csharp)
-scenario-build-lang LANG:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "=== Building {{LANG}} scenarios ==="
-    PASS=0; FAIL=0
-
-    case "{{LANG}}" in
-      typescript)
-        (cd nodejs && npm ci --ignore-scripts --silent 2>/dev/null) || true
-        for target in $(find test/scenarios -path '*/typescript/package.json' | sort); do
-          dir=$(dirname "$target"); scenario="${dir#test/scenarios/}"
-          if (cd "$dir" && npm install --ignore-scripts >/dev/null 2>&1); then
-            printf "  ✅ %s\n" "$scenario"; PASS=$((PASS + 1))
-          else
-            printf "  ❌ %s\n" "$scenario"; FAIL=$((FAIL + 1))
-          fi
-        done
-        ;;
-      python)
-        for target in $(find test/scenarios -path '*/python/main.py' | sort); do
-          dir=$(dirname "$target"); scenario="${dir#test/scenarios/}"
-          if python3 -c "import ast; ast.parse(open('$target').read())" 2>/dev/null; then
-            printf "  ✅ %s\n" "$scenario"; PASS=$((PASS + 1))
-          else
-            printf "  ❌ %s\n" "$scenario"; FAIL=$((FAIL + 1))
-          fi
-        done
-        ;;
-      go)
-        for target in $(find test/scenarios -path '*/go/go.mod' | sort); do
-          dir=$(dirname "$target"); scenario="${dir#test/scenarios/}"
-          if (cd "$dir" && go build ./... >/dev/null 2>&1); then
-            printf "  ✅ %s\n" "$scenario"; PASS=$((PASS + 1))
-          else
-            printf "  ❌ %s\n" "$scenario"; FAIL=$((FAIL + 1))
-          fi
-        done
-        ;;
-      csharp)
-        for target in $(find test/scenarios -name '*.csproj' -path '*/csharp/*' | sort); do
-          dir=$(dirname "$target"); scenario="${dir#test/scenarios/}"
-          if (cd "$dir" && dotnet build --nologo -v quiet >/dev/null 2>&1); then
-            printf "  ✅ %s\n" "$scenario"; PASS=$((PASS + 1))
-          else
-            printf "  ❌ %s\n" "$scenario"; FAIL=$((FAIL + 1))
-          fi
-        done
-        ;;
-      *)
-        echo "Unknown language: {{LANG}}. Use: typescript, python, go, csharp"
-        exit 1
-        ;;
-    esac
-
-    echo ""
-    echo "{{LANG}} scenarios: $PASS passed, $FAIL failed"
-    [ "$FAIL" -eq 0 ]

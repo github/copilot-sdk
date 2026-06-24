@@ -42,11 +42,11 @@ conversations:
               arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":105}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist.
       - role: tool
         tool_call_id: toolcall_1
         content: The execution of this tool, or a previous tool was interrupted.
       - role: user
         content: What is 2+2?
       - role: assistant
-        content: "4"
+        content: 2 + 2 = 4

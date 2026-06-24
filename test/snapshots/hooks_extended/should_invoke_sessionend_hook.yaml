@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say bye
+      - role: assistant
+        content: Goodbye! Feel free to return anytime you need help with your projects. Have a great day! 👋

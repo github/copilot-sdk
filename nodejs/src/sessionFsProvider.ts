@@ -7,7 +7,11 @@ import type {
     SessionFsError,
     SessionFsStatResult,
     SessionFsReaddirWithTypesEntry,
+    SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
+    SessionFsSqliteQueryType,
 } from "./generated/rpc.js";
+
+export type { SessionFsSqliteQueryType };
 
 /**
  * File metadata returned by {@link SessionFsProvider.stat}.
@@ -17,7 +21,38 @@ import type {
 export type SessionFsFileInfo = Omit<SessionFsStatResult, "error">;
 
 /**
- * Interface for session filesystem providers. Implementors use idiomatic
+ * Result of a SQLite query execution via {@link SessionFsSqliteProvider.query}.
+ * Same shape as the generated {@link GeneratedSqliteQueryResult} but without the
+ * `error` field, since providers signal errors by throwing.
+ */
+export type SessionFsSqliteQueryResult = Omit<GeneratedSqliteQueryResult, "error">;
+
+/**
+ * SQLite operations for the per-session database.
+ * Implementers provide query execution and existence checking.
+ */
+export interface SessionFsSqliteProvider {
+    /**
+     * Execute a SQLite query against the per-session database.
+     *
+     * @param queryType - How to execute: `"exec"` for DDL/multi-statement, `"query"` for SELECT, `"run"` for INSERT/UPDATE/DELETE.
+     * @param query - SQL query to execute.
+     * @param params - Optional named bind parameters.
+     */
+    query(
+        queryType: SessionFsSqliteQueryType,
+        query: string,
+        params?: Record<string, string | number | null>
+    ): Promise<SessionFsSqliteQueryResult | undefined>;
+
+    /**
+     * Check whether the per-session database already exists, without creating it.
+     */
+    exists(): Promise<boolean>;
+}
+
+/**
+ * Interface for session filesystem providers. Implementers use idiomatic
  * TypeScript patterns: throw on error, return values directly. Use
  * {@link createSessionFsAdapter} to convert a provider into the
  * {@link SessionFsHandler} expected by the SDK.
@@ -55,6 +90,25 @@ export interface SessionFsProvider {
 
     /** Renames/moves a file or directory. */
     rename(src: string, dest: string): Promise<void>;
+
+    /** Per-session SQLite database operations. Optional — omit if the provider does not support SQLite. */
+    sqlite?: SessionFsSqliteProvider;
+}
+
+function normalizeSqliteParams(
+    params?: Record<string, unknown>
+): Record<string, string | number | null> | undefined {
+    if (!params) {
+        return undefined;
+    }
+
+    const normalized: Record<string, string | number | null> = {};
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) {
+            normalized[key] = value as string | number | null;
+        }
+    }
+    return normalized;
 }
 
 /**
@@ -148,6 +202,28 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
             } catch (err) {
                 return toSessionFsError(err);
             }
+        },
+        // Unlike the FS methods above, SQLite methods let errors propagate to the JSON-RPC layer
+        // rather than catching and mapping via toSessionFsError. The FS error mapping is specifically
+        // for translating Node.js errno codes (e.g., ENOENT) into SessionFsError, which isn't
+        // meaningful for SQL errors. Letting exceptions propagate preserves the original error
+        // message in the JSON-RPC error response.
+        sqliteQuery: async ({ queryType, query, params: bindParams }) => {
+            if (!provider.sqlite) {
+                throw new Error("SQLite is not supported by this provider");
+            }
+            const result = await provider.sqlite.query(
+                queryType,
+                query,
+                normalizeSqliteParams(bindParams)
+            );
+            return result ?? { rows: [], columns: [], rowsAffected: 0 };
+        },
+        sqliteExists: async () => {
+            if (!provider.sqlite) {
+                throw new Error("SQLite is not supported by this provider");
+            }
+            return { exists: await provider.sqlite.exists() };
         },
     };
 }

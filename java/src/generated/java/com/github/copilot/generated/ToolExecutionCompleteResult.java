@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
+import javax.annotation.processing.Generated;
+
+/**
+ * Tool execution result on success
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record ToolExecutionCompleteResult(
+    /** Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency */
+    @JsonProperty("content") String content,
+    /** Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent. */
+    @JsonProperty("detailedContent") String detailedContent,
+    /** Structured content blocks (text, images, audio, resources) returned by the tool in their native format */
+    @JsonProperty("contents") List<Object> contents,
+    /** Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call */
+    @JsonProperty("binaryResultsForLlm") List<Object> binaryResultsForLlm,
+    /** MCP Apps UI resource content for rendering in a sandboxed iframe */
+    @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource,
+    /** Structured content (arbitrary JSON) returned verbatim by the MCP tool */
+    @JsonProperty("structuredContent") Object structuredContent,
+    /** Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental. */
+    @JsonProperty("citableSources") List<CitableSource> citableSources
+) {
+}

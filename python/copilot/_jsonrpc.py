@@ -8,10 +8,16 @@ Much simpler and more reliable than pure asyncio subprocess.
 import asyncio
 import inspect
 import json
+import logging
 import threading
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
+
+from ._diagnostics import elapsed_ms
+
+logger = logging.getLogger(__name__)
 
 
 class JsonRpcError(Exception):
@@ -33,6 +39,29 @@ class ProcessExitedError(Exception):
 RequestHandler = Callable[[dict], dict | Awaitable[dict]]
 
 
+def _log_request_timing(
+    level: int,
+    start: float,
+    method: str,
+    request_id: str,
+    status: str,
+    *,
+    exc_info: bool = False,
+) -> None:
+    if logger.isEnabledFor(level):
+        logger.log(
+            level,
+            "JsonRpcClient.request JSON-RPC request finished",
+            extra={
+                "elapsed_ms": elapsed_ms(start),
+                "method": method,
+                "request_id": request_id,
+                "status": status,
+            },
+            exc_info=exc_info,
+        )
+
+
 class JsonRpcClient:
     """
     Minimal async JSON-RPC 2.0 client for stdio transport
@@ -49,6 +78,7 @@ class JsonRpcClient:
         """
         self.process = process
         self.pending_requests: dict[str, asyncio.Future] = {}
+        self._pending_inline_callbacks: dict[str, Callable[[Any], None]] = {}
         self.notification_handler: Callable[[str, dict], None] | None = None
         self.request_handlers: dict[str, RequestHandler] = {}
         self._running = False
@@ -84,12 +114,12 @@ class JsonRpcClient:
                 line = self.process.stderr.readline()
                 if not line:
                     break
+                stderr_line = line.decode("utf-8") if isinstance(line, bytes) else line
+                logger.warning("[CLI] %s", stderr_line.rstrip())
                 with self._stderr_lock:
-                    self._stderr_output.append(
-                        line.decode("utf-8") if isinstance(line, bytes) else line
-                    )
+                    self._stderr_output.append(stderr_line)
         except Exception:
-            pass  # Ignore errors reading stderr
+            logger.debug("Error reading Copilot CLI stderr", exc_info=True)
 
     def get_stderr_output(self) -> str:
         """Get captured stderr output"""
@@ -105,24 +135,38 @@ class JsonRpcClient:
             self._stderr_thread.join(timeout=1.0)
 
     async def request(
-        self, method: str, params: dict | None = None, timeout: float | None = None
+        self,
+        method: str,
+        params: dict | None = None,
+        timeout: float | None = None,
+        *,
+        on_response_inline: Callable[[Any], None] | None = None,
     ) -> Any:
         """
-        Send a JSON-RPC request and wait for response
+        Send a JSON-RPC request and wait for the response.
 
         Args:
             method: Method name
             params: Optional parameters
             timeout: Optional request timeout in seconds. If None (default),
                 waits indefinitely for the server to respond.
+            on_response_inline: Optional synchronous callback invoked from the
+                reader thread the instant a successful response is parsed,
+                before the awaiter's future is scheduled on the event loop.
+                Use this to perform state mutations (for example, registering
+                a server-assigned session id) that must be visible before any
+                subsequent notification on the same connection is dispatched.
+                The callback receives the parsed JSON result. If the callback
+                raises, the exception is propagated to the awaiter.
 
         Returns:
             The result from the response
 
         Raises:
-            JsonRpcError: If server returns an error
-            asyncio.TimeoutError: If request times out (only when timeout is set)
+            JsonRpcError: If the server returns an error
+            asyncio.TimeoutError: If the request times out (only when timeout is set)
         """
+        request_start = time.perf_counter()
         request_id = str(uuid.uuid4())
 
         # Use the stored loop to ensure consistency with the reader thread
@@ -132,6 +176,8 @@ class JsonRpcClient:
         future = self._loop.create_future()
         with self._pending_lock:
             self.pending_requests[request_id] = future
+            if on_response_inline is not None:
+                self._pending_inline_callbacks[request_id] = on_response_inline
 
         message = {
             "jsonrpc": "2.0",
@@ -140,19 +186,36 @@ class JsonRpcClient:
             "params": params or {},
         }
 
-        await self._send_message(message)
-
         try:
+            await self._send_message(message)
             if timeout is not None:
-                return await asyncio.wait_for(future, timeout=timeout)
-            return await future
+                result = await asyncio.wait_for(future, timeout=timeout)
+            else:
+                result = await future
+        except asyncio.CancelledError:
+            _log_request_timing(logging.DEBUG, request_start, method, request_id, "canceled")
+            raise
+        except Exception:
+            _log_request_timing(
+                logging.WARNING,
+                request_start,
+                method,
+                request_id,
+                "failed",
+                exc_info=True,
+            )
+            raise
+        else:
+            _log_request_timing(logging.DEBUG, request_start, method, request_id, "succeeded")
+            return result
         finally:
             with self._pending_lock:
                 self.pending_requests.pop(request_id, None)
+                self._pending_inline_callbacks.pop(request_id, None)
 
     async def notify(self, method: str, params: dict | None = None):
         """
-        Send a JSON-RPC notification (no response expected)
+        Send a JSON-RPC notification (no response expected).
 
         Args:
             method: Method name
@@ -166,7 +229,7 @@ class JsonRpcClient:
         await self._send_message(message)
 
     def set_notification_handler(self, handler: Callable[[str, dict], None]):
-        """Set handler for incoming notifications from server"""
+        """Set the handler for incoming notifications from the server."""
         self.notification_handler = handler
 
     def set_request_handler(self, method: str, handler: RequestHandler):
@@ -176,7 +239,7 @@ class JsonRpcClient:
             self.request_handlers[method] = handler
 
     async def _send_message(self, message: dict):
-        """Send a JSON-RPC message with Content-Length header"""
+        """Send a JSON-RPC message with a Content-Length header."""
         loop = self._loop or asyncio.get_event_loop()
 
         def write():
@@ -206,11 +269,13 @@ class JsonRpcClient:
             pass
         except Exception as e:
             if self._running:
+                logger.warning("Failed to parse incoming JSON-RPC message", exc_info=True)
                 # Store error for pending requests
                 self._process_exit_error = str(e)
 
         # Process exited or read failed - fail all pending requests
         if self._running:
+            logger.debug("JSON-RPC read loop ended")
             self._fail_pending_requests()
             if self.on_close is not None:
                 self.on_close()
@@ -263,10 +328,10 @@ class JsonRpcClient:
 
     def _read_message(self) -> dict | None:
         """
-        Read a single JSON-RPC message with Content-Length header (blocking)
+        Read a single JSON-RPC message with a Content-Length header (blocking).
 
         Returns:
-            Parsed JSON message or None if connection closed
+            Parsed JSON message, or None if the connection is closed.
         """
         # Read header line
         header_line = self.process.stdout.readline()
@@ -295,6 +360,7 @@ class JsonRpcClient:
         if "id" in message:
             with self._pending_lock:
                 future = self.pending_requests.get(message["id"])
+                inline_cb = self._pending_inline_callbacks.pop(message["id"], None)
 
             if future is not None:
                 loop = future.get_loop()
@@ -308,13 +374,28 @@ class JsonRpcClient:
                     )
                     loop.call_soon_threadsafe(future.set_exception, exc)
                 elif "result" in message:
-                    loop.call_soon_threadsafe(future.set_result, message["result"])
+                    result = message["result"]
+                    # Invoke the inline callback synchronously in the reader
+                    # thread so any state it mutates is visible before the next
+                    # message (e.g. a session.event notification) is dispatched.
+                    if inline_cb is not None:
+                        try:
+                            inline_cb(result)
+                        except Exception as exc:  # pylint: disable=broad-except
+                            logger.warning(
+                                "Inline response callback for request %s raised",
+                                message["id"],
+                                exc_info=True,
+                            )
+                            loop.call_soon_threadsafe(future.set_exception, exc)
+                            return
+                    loop.call_soon_threadsafe(future.set_result, result)
                 else:
                     exc = ValueError("Invalid JSON-RPC response")
                     loop.call_soon_threadsafe(future.set_exception, exc)
                 return
 
-        # Check if it's a notification from server
+        # Check if it's a notification from the server
         if "method" in message and "id" not in message:
             if self.notification_handler and self._loop:
                 method = message["method"]
@@ -352,17 +433,29 @@ class JsonRpcClient:
             outcome = handler(params)
             if inspect.isawaitable(outcome):
                 outcome = await outcome
-            if outcome is not None and not isinstance(outcome, dict):
+            if outcome is not None and not isinstance(
+                outcome, dict | list | str | int | float | bool
+            ):
                 raise ValueError(
-                    f"Request handler must return a dict, got {type(outcome).__name__}"
+                    "Request handler must return a JSON-serializable value, "
+                    f"got {type(outcome).__name__}"
                 )
             await self._send_response(message["id"], outcome)
         except JsonRpcError as exc:
+            logger.debug(
+                "Error handling JSON-RPC method %s: %s", message.get("method", ""), exc.message
+            )
             await self._send_error_response(message["id"], exc.code, exc.message, exc.data)
         except Exception as exc:  # pylint: disable=broad-except
+            logger.debug(
+                "Error handling JSON-RPC method %s: %s",
+                message.get("method", ""),
+                str(exc),
+                exc_info=True,
+            )
             await self._send_error_response(message["id"], -32603, str(exc), None)
 
-    async def _send_response(self, request_id: str, result: dict | None):
+    async def _send_response(self, request_id: str, result: Any):
         response = {
             "jsonrpc": "2.0",
             "id": request_id,

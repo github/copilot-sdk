@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing!
 
-This repository contains the Copilot SDK, a set of multi-language SDKs (Node/TypeScript, Python, Go, .NET) for building applications with the GitHub Copilot agent, maintained by the GitHub Copilot team.
+This repository contains the Copilot SDK, a set of multi-language SDKs (Node/TypeScript, Python, Go, .NET, Java, and Rust) for building applications with the GitHub Copilot agent, maintained by the GitHub Copilot team.
 
 Contributions to this project are [released](https://help.github.com/articles/github-terms-of-service/#6-contributions-under-repository-license) to the public under the [project's open source license](LICENSE).
 
@@ -60,7 +60,7 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 
 ### .NET SDK
 
-1. Install [.NET 8.0+](https://dotnet.microsoft.com/download)
+1. Install [.NET SDK 10+](https://dotnet.microsoft.com/download)
 1. Install .NET dependencies: `cd dotnet && dotnet restore`
 
 ## Submitting a Pull Request

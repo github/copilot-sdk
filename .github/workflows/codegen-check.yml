@@ -13,6 +13,9 @@ on:
       - 'python/copilot/generated/**'
       - 'go/generated_*.go'
       - 'go/rpc/**'
+      - 'rust/src/generated/**'
+      - 'sdk-protocol-version.json'
+      - 'java/src/main/java/com/github/copilot/SdkProtocolVersion.java'
       - '.github/workflows/codegen-check.yml'
   workflow_dispatch:
 
@@ -22,6 +25,7 @@ permissions:
 jobs:
   check:
     name: "Verify generated files are up-to-date"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +37,24 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+
+      # Rust generator runs `cargo fmt` on the output, so we need a toolchain with rustfmt.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt
+
+      # Nightly rustfmt for unstable format options (group_imports,
+      # imports_granularity, reorder_impl_items) — pinned in
+      # `rust/.rustfmt.nightly.toml`. The Rust generator emits unconsolidated
+      # imports under stable rustfmt; nightly fmt consolidates them to match
+      # the canonical committed form.
+      - name: Install nightly rustfmt
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
+          components: rustfmt
 
       - name: Install nodejs SDK dependencies
         working-directory: ./nodejs
@@ -46,12 +68,25 @@ jobs:
         working-directory: ./scripts/codegen
         run: npm run generate
 
+      - name: Apply nightly rustfmt to generated Rust output
+        working-directory: ./rust
+        run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
+
       - name: Check for uncommitted changes
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             echo "::error::Generated files are out of date. Run 'cd scripts/codegen && npm run generate' and commit the changes."
             git diff --stat
             git diff
+            exit 1
+          fi
+
+      - name: Verify Java protocol version matches
+        run: |
+          EXPECTED=$(jq -r '.version' sdk-protocol-version.json)
+          ACTUAL=$(grep -oP 'LATEST\(\K[0-9]+' java/src/main/java/com/github/copilot/SdkProtocolVersion.java)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "::error::Java SDK protocol version ($ACTUAL) does not match sdk-protocol-version.json ($EXPECTED). Java manages its own SdkProtocolVersion.java via java/scripts/codegen/. Update it to match."
             exit 1
           fi
           echo "✅ Generated files are up-to-date"

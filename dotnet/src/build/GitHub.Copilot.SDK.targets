@@ -55,14 +55,33 @@
     <CopilotCliDownloadTimeout Condition="'$(CopilotCliDownloadTimeout)' == ''">600</CopilotCliDownloadTimeout>
   </PropertyGroup>
 
-  <!-- Download and extract CLI binary. Set CopilotSkipCliDownload=true to skip if you install the CLI separately. -->
-  <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
+  <!-- Allow consumers to point the targets at a pre-downloaded Copilot CLI binary
+       (for example, fetched separately using `npm pack` with authentication for a private
+       npm feed, since MSBuild's DownloadFile task does not support credentials).
+       When CopilotCliBinaryPath is set:
+         - The built-in download target is skipped automatically; no need to also set
+           CopilotSkipCliDownload=true.
+         - The copy and register targets still place that binary into the build output
+           and propagate it to referencing projects.
+       Example:
+         <PropertyGroup>
+           <CopilotCliBinaryPath>$(MSBuildProjectDirectory)\copilot-cli\copilot.exe</CopilotCliBinaryPath>
+         </PropertyGroup>
+  -->
+  <PropertyGroup>
+    <_CopilotCliBinaryPath Condition="'$(CopilotCliBinaryPath)' != ''">$(CopilotCliBinaryPath)</_CopilotCliBinaryPath>
+  </PropertyGroup>
+
+  <!-- Download and extract CLI binary.
+       Skipped when CopilotCliBinaryPath is set (consumer supplied the binary)
+       or when CopilotSkipCliDownload=true (consumer opted out entirely). -->
+  <Target Name="_DownloadCopilotCli" DependsOnTargets="$(_CopilotCliVersionTarget)" BeforeTargets="BeforeBuild" Condition="'$(TargetFramework)' != '' And '$(CopilotCliBinaryPath)' == '' And '$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
     <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
 
     <!-- Compute paths using version (now available) -->
     <PropertyGroup>
       <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
-      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
       <_CopilotArchivePath>$(_CopilotCacheDir)\copilot.tgz</_CopilotArchivePath>
       <_CopilotNormalizedRegistryUrl>$([System.String]::Copy('$(CopilotNpmRegistryUrl)').TrimEnd('/'))</_CopilotNormalizedRegistryUrl>
       <_CopilotDownloadUrl>$(_CopilotNormalizedRegistryUrl)/@github/copilot-$(_CopilotPlatform)/-/copilot-$(_CopilotPlatform)-$(CopilotCliVersion).tgz</_CopilotDownloadUrl>
@@ -91,23 +110,29 @@
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Failed to extract Copilot CLI binary to $(_CopilotCliBinaryPath)" />
   </Target>
 
-  <!-- Copy CLI binary to output runtimes folder and register for transitive copy -->
-  <Target Name="_CopyCopilotCliToOutput" AfterTargets="Build" DependsOnTargets="_DownloadCopilotCli" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
+  <!-- Copy CLI binary to output runtimes folder and register for transitive copy.
+       Runs whenever we have a binary to place in the output: either the user provided
+       CopilotCliBinaryPath, or the default download path is in effect. Skipped only
+       when CopilotSkipCliDownload=true and no CopilotCliBinaryPath was supplied. -->
+  <Target Name="_CopyCopilotCliToOutput" AfterTargets="Build" DependsOnTargets="_DownloadCopilotCli" Condition="'$(TargetFramework)' != '' And ('$(CopilotCliBinaryPath)' != '' Or '$(CopilotSkipCliDownload)' != 'true') And '$(_CopilotPlatform)' != ''">
     <PropertyGroup>
-      <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
-      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
+      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
       <_CopilotOutputDir>$(OutDir)runtimes\$(_CopilotRid)\native</_CopilotOutputDir>
     </PropertyGroup>
+    <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
     <MakeDir Directories="$(_CopilotOutputDir)" />
-    <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFolder="$(_CopilotOutputDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotBinary)" SkipUnchangedFiles="true" />
   </Target>
 
-  <!-- Register CLI binary as content so it flows through project references -->
-  <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
+  <!-- Register CLI binary as content so it flows through project references.
+       Same gating semantics as _CopyCopilotCliToOutput. -->
+  <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(TargetFramework)' != '' And ('$(CopilotCliBinaryPath)' != '' Or '$(CopilotSkipCliDownload)' != 'true') And '$(_CopilotPlatform)' != ''">
     <PropertyGroup>
-      <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
-      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
+      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
     </PropertyGroup>
+    <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
     <ItemGroup>
       <ContentWithTargetPath Include="$(_CopilotCliBinaryPath)" 
                              TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotBinary)"

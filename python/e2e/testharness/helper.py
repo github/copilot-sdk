@@ -3,10 +3,13 @@ Test helper functions for E2E tests.
 """
 
 import asyncio
+import inspect
 import os
+import time
+from collections.abc import Awaitable, Callable
 
 from copilot import CopilotSession
-from copilot.generated.session_events import (
+from copilot.session_events import (
     AssistantMessageData,
     SessionErrorData,
     SessionIdleData,
@@ -65,7 +68,7 @@ async def get_final_assistant_message(
 
 async def _get_existing_final_response(session: CopilotSession, already_idle: bool = False):
     """Check existing messages for a final response."""
-    messages = await session.get_messages()
+    messages = await session.get_events()
 
     # Find last user message
     final_user_message_index = -1
@@ -137,6 +140,31 @@ def read_file(work_dir: str, filename: str) -> str:
     filepath = os.path.join(work_dir, filename)
     with open(filepath) as f:
         return f.read()
+
+
+async def wait_for_condition(
+    condition: Callable[[], bool | Awaitable[bool]],
+    *,
+    timeout: float = 120.0,
+    poll_interval: float = 0.1,
+    timeout_message: str = "Timed out waiting for condition.",
+) -> None:
+    """Poll until condition returns true, with timeout only as a failsafe."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = condition()
+        if inspect.isawaitable(result):
+            result = await result
+        if result:
+            return
+        await asyncio.sleep(poll_interval)
+
+    result = condition()
+    if inspect.isawaitable(result):
+        result = await result
+    if result:
+        return
+    raise TimeoutError(timeout_message)
 
 
 async def get_next_event_of_type(session: CopilotSession, event_type: str, timeout: float = 30.0):

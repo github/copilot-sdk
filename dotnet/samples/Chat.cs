@@ -1,4 +1,6 @@
-using GitHub.Copilot.SDK;
+#:project ../src/GitHub.Copilot.SDK.csproj
+
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -6,7 +8,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     OnPermissionRequest = PermissionHandler.ApproveAll
 });
 
-using var _ = session.On(evt =>
+using var _ = session.On<SessionEvent>(evt =>
 {
     Console.ForegroundColor = ConsoleColor.Blue;
     switch (evt)

@@ -1,0 +1,33 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in
+          your reply.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: lookup_city
+              arguments: '{"city":"Paris"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: lookup_country
+              arguments: '{"country":"France"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: CITY_PARIS
+      - role: tool
+        tool_call_id: toolcall_1
+        content: COUNTRY_FRANCE
+      - role: assistant
+        content: |-
+          I've retrieved both results simultaneously:
+
+          **City Information:** CITY_PARIS
+          **Country Information:** COUNTRY_FRANCE

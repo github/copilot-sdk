@@ -84,12 +84,16 @@ func install() (path string) {
 	}
 	installDir := config.Dir
 	if installDir == "" {
-		var err error
-		if installDir, err = os.UserCacheDir(); err != nil {
-			// Fall back to temp dir if UserCacheDir is unavailable
-			installDir = os.TempDir()
+		if copilotHome := os.Getenv("COPILOT_HOME"); copilotHome != "" {
+			installDir = filepath.Join(copilotHome, "cache", "copilot-sdk")
+		} else {
+			var err error
+			if installDir, err = os.UserCacheDir(); err != nil {
+				// Fall back to temp dir if UserCacheDir is unavailable
+				installDir = os.TempDir()
+			}
+			installDir = filepath.Join(installDir, "copilot-sdk")
 		}
-		installDir = filepath.Join(installDir, "copilot-sdk")
 	}
 	path, err := installAt(installDir)
 	if err != nil {

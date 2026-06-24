@@ -1,0 +1,30 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the file marker.txt and tell me what it says
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/client-cwd/marker.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: 1. I am in the client cwd
+      - role: assistant
+        content: 'The file `marker.txt` says: "I am in the client cwd"'
