@@ -466,6 +466,72 @@ class CopilotToolProcessorTest {
         assertTrue(generated.contains("ToolDefer.AUTO"), "Expected ToolDefer.AUTO argument, got:\n" + generated);
     }
 
+    // ── Test: Optional parameter extraction ─────────────────────────────────────
+
+    @Test
+    void generatesCorrectOptionalExtraction() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                import java.util.Optional;
+                import java.util.OptionalInt;
+                import java.util.OptionalLong;
+                import java.util.OptionalDouble;
+                public class OptionalTools {
+                    @CopilotTool("Tool with optional string")
+                    public String withOptionalString(@Param("A name") Optional<String> name) {
+                        return name.orElse("default");
+                    }
+                    @CopilotTool("Tool with optional int")
+                    public String withOptionalInt(@Param("A count") OptionalInt count) {
+                        return String.valueOf(count.orElse(0));
+                    }
+                    @CopilotTool("Tool with optional long")
+                    public String withOptionalLong(@Param("A timestamp") OptionalLong ts) {
+                        return String.valueOf(ts.orElse(0L));
+                    }
+                    @CopilotTool("Tool with optional double")
+                    public String withOptionalDouble(@Param("A ratio") OptionalDouble ratio) {
+                        return String.valueOf(ratio.orElse(0.0));
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.OptionalTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.OptionalTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected $$CopilotToolMeta to be generated");
+
+        // Optional<String> should use null-check + Optional.of wrapping
+        assertTrue(generated.contains("Optional.of(") || generated.contains("java.util.Optional.of("),
+                "Expected Optional.of() wrapping for Optional<String>, got:\n" + generated);
+        assertTrue(generated.contains("Optional.empty()") || generated.contains("java.util.Optional.empty()"),
+                "Expected Optional.empty() fallback, got:\n" + generated);
+
+        // OptionalInt should use OptionalInt.of(((Number)...).intValue())
+        assertTrue(generated.contains("OptionalInt.of(((Number)"),
+                "Expected OptionalInt.of(((Number)...).intValue()), got:\n" + generated);
+        assertTrue(generated.contains("OptionalInt.empty()"),
+                "Expected OptionalInt.empty() fallback, got:\n" + generated);
+
+        // OptionalLong should use OptionalLong.of(((Number)...).longValue())
+        assertTrue(generated.contains("OptionalLong.of(((Number)"),
+                "Expected OptionalLong.of(((Number)...).longValue()), got:\n" + generated);
+        assertTrue(generated.contains("OptionalLong.empty()"),
+                "Expected OptionalLong.empty() fallback, got:\n" + generated);
+
+        // OptionalDouble should use OptionalDouble.of(((Number)...).doubleValue())
+        assertTrue(generated.contains("OptionalDouble.of(((Number)"),
+                "Expected OptionalDouble.of(((Number)...).doubleValue()), got:\n" + generated);
+        assertTrue(generated.contains("OptionalDouble.empty()"),
+                "Expected OptionalDouble.empty() fallback, got:\n" + generated);
+
+        // Should NOT use mapper.convertValue for Optional types
+        assertFalse(generated.contains("mapper.convertValue(args.get(\"name\"), java.util.Optional.class)"),
+                "Should NOT use mapper.convertValue for Optional<String>, got:\n" + generated);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────────
 
     private CompilationResult compileWithProcessor(List<JavaFileObject> sources) {

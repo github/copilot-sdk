@@ -306,6 +306,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
                                 .append(generateDefaultLiteral(paramType, defaultValue)).append(";\n");
                         sb.append("                    ").append(getTypeString(paramType)).append(" ").append(varName)
                                 .append(" = ").append(generateArgExtraction(varName + "Raw", paramType)).append(";\n");
+                    } else if (isOptionalType(paramType)) {
+                        generateOptionalExtraction(sb, paramName, varName, paramType);
                     } else {
                         sb.append("                    ").append(getTypeString(paramType)).append(" ").append(varName)
                                 .append(" = ").append(generateArgExtractionFromMap(paramName, paramType)).append(";\n");
@@ -419,6 +421,57 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 return "((String) " + expr + ").charAt(0)";
             default :
                 return "(" + type + ") " + expr;
+        }
+    }
+
+    private boolean isOptionalType(TypeMirror type) {
+        if (type.getKind() != TypeKind.DECLARED) {
+            return false;
+        }
+        TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
+        String name = typeElement.getQualifiedName().toString();
+        return "java.util.Optional".equals(name) || "java.util.OptionalInt".equals(name)
+                || "java.util.OptionalLong".equals(name) || "java.util.OptionalDouble".equals(name);
+    }
+
+    private void generateOptionalExtraction(StringBuilder sb, String paramName, String varName, TypeMirror paramType) {
+        TypeElement typeElement = (TypeElement) ((DeclaredType) paramType).asElement();
+        String qualifiedName = typeElement.getQualifiedName().toString();
+
+        sb.append("                    Object ").append(varName).append("Raw = args.get(\"").append(paramName)
+                .append("\");\n");
+
+        switch (qualifiedName) {
+            case "java.util.OptionalInt" :
+                sb.append("                    java.util.OptionalInt ").append(varName).append(" = ").append(varName)
+                        .append("Raw != null ? java.util.OptionalInt.of(((Number) ").append(varName)
+                        .append("Raw).intValue()) : java.util.OptionalInt.empty();\n");
+                break;
+            case "java.util.OptionalLong" :
+                sb.append("                    java.util.OptionalLong ").append(varName).append(" = ").append(varName)
+                        .append("Raw != null ? java.util.OptionalLong.of(((Number) ").append(varName)
+                        .append("Raw).longValue()) : java.util.OptionalLong.empty();\n");
+                break;
+            case "java.util.OptionalDouble" :
+                sb.append("                    java.util.OptionalDouble ").append(varName).append(" = ").append(varName)
+                        .append("Raw != null ? java.util.OptionalDouble.of(((Number) ").append(varName)
+                        .append("Raw).doubleValue()) : java.util.OptionalDouble.empty();\n");
+                break;
+            default :
+                // java.util.Optional<T> — unwrap the type argument
+                List<? extends TypeMirror> typeArgs = ((DeclaredType) paramType).getTypeArguments();
+                if (!typeArgs.isEmpty()) {
+                    TypeMirror innerType = typeArgs.get(0);
+                    String innerExtraction = generateArgExtraction(varName + "Raw", innerType);
+                    sb.append("                    java.util.Optional ").append(varName).append(" = ").append(varName)
+                            .append("Raw != null ? java.util.Optional.of(").append(innerExtraction)
+                            .append(") : java.util.Optional.empty();\n");
+                } else {
+                    sb.append("                    java.util.Optional ").append(varName).append(" = ").append(varName)
+                            .append("Raw != null ? java.util.Optional.of(").append(varName)
+                            .append("Raw) : java.util.Optional.empty();\n");
+                }
+                break;
         }
     }
 
