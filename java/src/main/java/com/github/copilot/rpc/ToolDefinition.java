@@ -4,11 +4,18 @@
 
 package com.github.copilot.rpc;
 
+import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.github.copilot.CopilotExperimental;
 
 /**
  * Defines a tool that can be invoked by the AI assistant.
@@ -162,5 +169,94 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     public static ToolDefinition createWithDefer(String name, String description, Map<String, Object> schema,
             ToolHandler handler, ToolDefer defer) {
         return new ToolDefinition(name, description, schema, handler, null, null, defer);
+    }
+
+    /**
+     * Discovers tool definitions from an object whose methods are annotated with
+     * {@code @CopilotTool}. Requires that the {@code CopilotToolProcessor}
+     * annotation processor ran at compile time (generating the
+     * {@code $$CopilotToolMeta} companion class).
+     *
+     * @param instance
+     *            the object containing {@code @CopilotTool}-annotated methods
+     * @return list of tool definitions with working invocation handlers
+     * @throws IllegalStateException
+     *             if the generated {@code $$CopilotToolMeta} class is not found
+     *             (annotation processor did not run)
+     * @since 1.0.2
+     */
+    @CopilotExperimental
+    public static List<ToolDefinition> fromObject(Object instance) {
+        if (instance == null) {
+            throw new IllegalArgumentException("instance must not be null");
+        }
+        Class<?> clazz = instance.getClass();
+        return loadDefinitions(clazz, instance);
+    }
+
+    /**
+     * Discovers tool definitions from a class with static
+     * {@code @CopilotTool}-annotated methods. Requires that the
+     * {@code CopilotToolProcessor} annotation processor ran at compile time
+     * (generating the {@code $$CopilotToolMeta} companion class).
+     *
+     * @param clazz
+     *            the class containing static {@code @CopilotTool}-annotated methods
+     * @return list of tool definitions with working invocation handlers
+     * @throws IllegalStateException
+     *             if the generated {@code $$CopilotToolMeta} class is not found
+     *             (annotation processor did not run)
+     * @since 1.0.2
+     */
+    @CopilotExperimental
+    public static List<ToolDefinition> fromClass(Class<?> clazz) {
+        if (clazz == null) {
+            throw new IllegalArgumentException("clazz must not be null");
+        }
+        return loadDefinitions(clazz, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<ToolDefinition> loadDefinitions(Class<?> clazz, Object instance) {
+        String metaClassName = clazz.getName() + "$$CopilotToolMeta";
+        try {
+            Class<?> metaClass = Class.forName(metaClassName, true, clazz.getClassLoader());
+            Method defs = metaClass.getDeclaredMethod("definitions", clazz, ObjectMapper.class);
+            defs.setAccessible(true);
+            return (List<ToolDefinition>) defs.invoke(null, instance, getConfiguredMapper());
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Generated class " + metaClassName + " not found. "
+                    + "Ensure the CopilotToolProcessor annotation processor ran during compilation. "
+                    + "Add the copilot-sdk-java dependency to your annotation processor path.", e);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Failed to invoke " + metaClassName + ".definitions()", e);
+        }
+    }
+
+    /**
+     * Returns the SDK-configured ObjectMapper for tool argument/result
+     * serialization. Configuration mirrors
+     * {@code JsonRpcClient.createObjectMapper()}.
+     */
+    private static ObjectMapper getConfiguredMapper() {
+        return ConfiguredMapperHolder.INSTANCE;
+    }
+
+    /**
+     * Lazy holder for the configured ObjectMapper (thread-safe, initialized on
+     * first access).
+     */
+    private static final class ConfiguredMapperHolder {
+        static final ObjectMapper INSTANCE = createMapper();
+
+        private static ObjectMapper createMapper() {
+            // Configuration must match JsonRpcClient.createObjectMapper()
+            var mapper = new ObjectMapper();
+            mapper.registerModule(new JavaTimeModule());
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+            mapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
+            return mapper;
+        }
     }
 }
