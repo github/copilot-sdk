@@ -193,30 +193,21 @@ public class CopilotToolProcessor extends AbstractProcessor {
         // Generate invocation lambda
         String lambdaBody = generateLambdaBody(method);
 
-        // Determine factory method and arguments
-        out.print("            ");
-        if (overridesBuiltIn) {
-            out.println("ToolDefinition.createOverride(");
-        } else if (skipPermission) {
-            out.println("ToolDefinition.createSkipPermission(");
-        } else if (defer != com.github.copilot.rpc.ToolDefer.NONE) {
-            out.println("ToolDefinition.createWithDefer(");
-        } else {
-            out.println("ToolDefinition.create(");
-        }
+        // Use the record constructor directly so all flags apply independently
+        String overridesArg = overridesBuiltIn ? "Boolean.TRUE" : "null";
+        String skipPermArg = skipPermission ? "Boolean.TRUE" : "null";
+        String deferArg = defer != com.github.copilot.rpc.ToolDefer.NONE ? "ToolDefer." + defer.name() : "null";
 
+        out.println("            new ToolDefinition(");
         out.println("                \"" + escapeJava(toolName) + "\",");
         out.println("                \"" + escapeJava(description) + "\",");
         out.println("                " + schemaSource + ",");
         out.println("                invocation -> {");
         out.println("                    " + lambdaBody);
-        out.println("                }");
-
-        // Add defer parameter if needed
-        if (defer != com.github.copilot.rpc.ToolDefer.NONE && !overridesBuiltIn && !skipPermission) {
-            out.println("                , ToolDefer." + defer.name());
-        }
-
+        out.println("                },");
+        out.println("                " + overridesArg + ",");
+        out.println("                " + skipPermArg + ",");
+        out.println("                " + deferArg);
         out.print("            )");
     }
 

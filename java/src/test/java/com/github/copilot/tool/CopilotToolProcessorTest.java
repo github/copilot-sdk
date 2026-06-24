@@ -381,8 +381,41 @@ class CopilotToolProcessorTest {
         CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.OverrideTools", source)));
         assertNoErrors(result);
         String generated = result.getGeneratedSource("test.OverrideTools$$CopilotToolMeta");
-        assertTrue(generated.contains("ToolDefinition.createOverride("),
-                "Expected createOverride factory method, got:\n" + generated);
+        assertTrue(generated.contains("new ToolDefinition("), "Expected record constructor, got:\n" + generated);
+        assertTrue(generated.contains("Boolean.TRUE"),
+                "Expected Boolean.TRUE for overridesBuiltInTool, got:\n" + generated);
+    }
+
+    // ── Test: Combined flags all apply independently ────────────────────────────
+
+    @Test
+    void generatesCombinedFlags() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.rpc.ToolDefer;
+                public class CombinedTools {
+                    @CopilotTool(value = "Combined", overridesBuiltInTool = true, skipPermission = true, defer = ToolDefer.AUTO)
+                    public String doAll() {
+                        return "done";
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.CombinedTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.CombinedTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for CombinedTools$$CopilotToolMeta");
+        assertTrue(generated.contains("new ToolDefinition("), "Expected record constructor, got:\n" + generated);
+        // All three flags must be present — not silently dropped
+        assertTrue(generated.contains("Boolean.TRUE"),
+                "Expected Boolean.TRUE for override/skipPermission, got:\n" + generated);
+        assertTrue(generated.contains("ToolDefer.AUTO"), "Expected ToolDefer.AUTO, got:\n" + generated);
+        // Count Boolean.TRUE occurrences — should be 2 (overridesBuiltInTool +
+        // skipPermission)
+        long boolCount = generated.lines().filter(l -> l.contains("Boolean.TRUE")).count();
+        assertEquals(2, boolCount,
+                "Expected 2 Boolean.TRUE lines (overridesBuiltInTool + skipPermission), got:\n" + generated);
     }
 
     // ── Test: ToolDefer.NONE results in regular create ──────────────────────────
@@ -404,10 +437,9 @@ class CopilotToolProcessorTest {
         CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.DeferNoneTools", source)));
         assertNoErrors(result);
         String generated = result.getGeneratedSource("test.DeferNoneTools$$CopilotToolMeta");
-        assertTrue(generated.contains("ToolDefinition.create("),
-                "Expected create (not createWithDefer) for NONE, got:\n" + generated);
-        assertFalse(generated.contains("createWithDefer"),
-                "Should NOT use createWithDefer for NONE, got:\n" + generated);
+        assertTrue(generated.contains("new ToolDefinition("),
+                "Expected record constructor for NONE, got:\n" + generated);
+        assertFalse(generated.contains("ToolDefer."), "Should NOT reference ToolDefer for NONE, got:\n" + generated);
     }
 
     // ── Test: ToolDefer.AUTO results in createWithDefer ──────────────────────────
@@ -429,8 +461,8 @@ class CopilotToolProcessorTest {
         CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.DeferAutoTools", source)));
         assertNoErrors(result);
         String generated = result.getGeneratedSource("test.DeferAutoTools$$CopilotToolMeta");
-        assertTrue(generated.contains("ToolDefinition.createWithDefer("),
-                "Expected createWithDefer for AUTO, got:\n" + generated);
+        assertTrue(generated.contains("new ToolDefinition("),
+                "Expected record constructor for AUTO, got:\n" + generated);
         assertTrue(generated.contains("ToolDefer.AUTO"), "Expected ToolDefer.AUTO argument, got:\n" + generated);
     }
 
