@@ -61,8 +61,7 @@ class ErgonomicToolDefinitionIT {
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setAvailableTools(new ToolSet().addCustom("*").addBuiltIn("web_fetch"))
-                            .setTools(toolDefs))
+                            .setAvailableTools(new ToolSet().addCustom("*").addBuiltIn("web_fetch")).setTools(toolDefs))
                     .get(30, TimeUnit.SECONDS);
 
             try {
