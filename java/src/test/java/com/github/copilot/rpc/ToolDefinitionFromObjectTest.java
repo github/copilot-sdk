@@ -28,6 +28,7 @@ import com.github.copilot.rpc.fixtures.ArgCoercionTools;
 import com.github.copilot.rpc.fixtures.DateTimeTools;
 import com.github.copilot.rpc.fixtures.DefaultValueTools;
 import com.github.copilot.rpc.fixtures.MultiReturnTools;
+import com.github.copilot.rpc.fixtures.OptionalParamTools;
 import com.github.copilot.rpc.fixtures.OverrideTools;
 import com.github.copilot.rpc.fixtures.SimpleTools;
 import com.github.copilot.rpc.fixtures.StaticTools;
@@ -226,6 +227,86 @@ class ToolDefinitionFromObjectTest {
         // This should NOT throw NPE — static methods don't need an instance
         var result = tool.handler().invoke(createInvocation("greet", Map.of("name", "World"))).get();
         assertEquals("Hi, World!", result);
+    }
+
+    // ── Test 10: Optional parameter handling ────────────────────────────────────
+
+    @Test
+    void fromObject_optionalStringPresent() throws Exception {
+        var instance = new OptionalParamTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "greet_with_title");
+        assertNotNull(tool);
+
+        var result = tool.handler()
+                .invoke(createInvocation("greet_with_title", Map.of("name", "Alice", "title", "Dr."))).get();
+        assertEquals("Dr. Alice", result);
+    }
+
+    @Test
+    void fromObject_optionalStringAbsent() throws Exception {
+        var instance = new OptionalParamTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "greet_with_title");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("greet_with_title", Map.of("name", "Alice"))).get();
+        assertEquals("Alice", result);
+    }
+
+    @Test
+    void fromObject_optionalIntPresent() throws Exception {
+        var instance = new OptionalParamTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "multiply");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("multiply", Map.of("base", 5, "factor", 3))).get();
+        assertEquals("15", result);
+    }
+
+    @Test
+    void fromObject_optionalIntAbsent() throws Exception {
+        var instance = new OptionalParamTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "multiply");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("multiply", Map.of("base", 5))).get();
+        assertEquals("5", result);
+    }
+
+    @Test
+    void fromObject_optionalDoublePresent() throws Exception {
+        var instance = new OptionalParamTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "scale");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("scale", Map.of("value", 2.0, "ratio", 3.5))).get();
+        assertEquals("7.0", result);
+    }
+
+    @Test
+    void fromObject_optionalLongPresent() throws Exception {
+        var instance = new OptionalParamTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "offset");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("offset", Map.of("base", 100, "delta", 50))).get();
+        assertEquals("150", result);
+    }
+
+    @Test
+    void fromObject_optionalLongAbsent() throws Exception {
+        var instance = new OptionalParamTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "offset");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("offset", Map.of("base", 100))).get();
+        assertEquals("100", result);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
