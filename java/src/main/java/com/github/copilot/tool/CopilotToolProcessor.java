@@ -316,7 +316,10 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
         // Generate method invocation based on return type
         TypeMirror returnType = method.getReturnType();
-        String methodCall = "instance." + method.getSimpleName() + "(" + generateArgList(params) + ")";
+        String callTarget = method.getModifiers().contains(Modifier.STATIC)
+                ? ((TypeElement) method.getEnclosingElement()).getQualifiedName().toString()
+                : "instance";
+        String methodCall = callTarget + "." + method.getSimpleName() + "(" + generateArgList(params) + ")";
 
         if (returnType.getKind() == TypeKind.VOID) {
             sb.append("                    ").append(methodCall).append(";\n");

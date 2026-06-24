@@ -30,6 +30,7 @@ import com.github.copilot.rpc.fixtures.DefaultValueTools;
 import com.github.copilot.rpc.fixtures.MultiReturnTools;
 import com.github.copilot.rpc.fixtures.OverrideTools;
 import com.github.copilot.rpc.fixtures.SimpleTools;
+import com.github.copilot.rpc.fixtures.StaticTools;
 
 /**
  * End-to-end tests for {@link ToolDefinition#fromObject(Object)}.
@@ -211,6 +212,20 @@ class ToolDefinitionFromObjectTest {
         String json = mapper.writeValueAsString(tool);
         var node = (ObjectNode) mapper.readTree(json);
         assertFalse(node.has("defer"), "defer key should be absent from JSON, got: " + json);
+    }
+
+    // ── Test 9: fromClass with static methods invokes handler without NPE ─────
+
+    @Test
+    void fromClass_staticToolInvocation() throws Exception {
+        var tools = ToolDefinition.fromClass(StaticTools.class);
+        assertEquals(1, tools.size());
+        var tool = findTool(tools, "greet");
+        assertNotNull(tool);
+
+        // This should NOT throw NPE — static methods don't need an instance
+        var result = tool.handler().invoke(createInvocation("greet", Map.of("name", "World"))).get();
+        assertEquals("Hi, World!", result);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
