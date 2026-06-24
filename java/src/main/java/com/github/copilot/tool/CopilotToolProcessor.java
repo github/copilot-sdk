@@ -237,8 +237,12 @@ public class CopilotToolProcessor extends AbstractProcessor {
             // Cast to Map<String, Object> via raw type for consistent Map.ofEntries typing
             propertyEntries.add("Map.entry(\"" + paramName + "\", (Map<String, Object>)(Map) " + propertySchema + ")");
 
-            // Determine if required
-            if (paramAnnotation == null || paramAnnotation.required()) {
+            // Determine if required (Optional* types are never required)
+            boolean isOptionalType = paramType.getKind() == TypeKind.DECLARED && Set
+                    .of("java.util.Optional", "java.util.OptionalInt", "java.util.OptionalLong",
+                            "java.util.OptionalDouble")
+                    .contains(((TypeElement) ((DeclaredType) paramType).asElement()).getQualifiedName().toString());
+            if (!isOptionalType && (paramAnnotation == null || paramAnnotation.required())) {
                 requiredNames.add("\"" + paramName + "\"");
             }
         }
@@ -284,7 +288,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 String typeName = getTypeString(params.get(0).asType());
                 String paramName = params.get(0).getSimpleName().toString();
                 sb.append("                    ").append(typeName).append(" ").append(paramName)
-                        .append(" = invocation.getArgumentsAs(").append(typeName).append(".class);\n");
+                        .append(" = mapper.convertValue(args, ").append(typeName).append(".class);\n");
             } else {
                 for (VariableElement param : params) {
                     String paramName = getParamName(param);
