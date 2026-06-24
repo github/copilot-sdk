@@ -120,6 +120,36 @@ public class CopilotSDK {
 }
 ```
 
+## Memory
+
+Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `createSession` and `resumeSession`.
+
+```java
+import com.github.copilot.rpc.MemoryConfiguration;
+import com.github.copilot.rpc.ResumeSessionConfig;
+import com.github.copilot.rpc.SessionConfig;
+
+// Enable memory for a new session
+var session = client.createSession(new SessionConfig()
+    .setModel("gpt-5")
+    .setMemory(new MemoryConfiguration().setEnabled(true))
+).get();
+
+// Disable memory for a new session
+var sessionNoMemory = client.createSession(new SessionConfig()
+    .setModel("gpt-5")
+    .setMemory(new MemoryConfiguration().setEnabled(false))
+).get();
+
+// Configure memory while resuming
+var resumed = client.resumeSession(sessionId, new ResumeSessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setMemory(new MemoryConfiguration().setEnabled(true))
+).get();
+```
+
+When `memory` is left unset, no memory configuration is sent and the runtime default applies. In the default `CopilotClientMode.COPILOT_CLI` the SDK leaves `memory` unset so the runtime applies its own default, while `CopilotClientMode.EMPTY` defaults `memory` to disabled unless you set it explicitly.
+
 ## Try it with JBang
 
 You can run the SDK without setting up a full Java project, by using [JBang](https://www.jbang.dev/).
@@ -274,4 +304,3 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
-
