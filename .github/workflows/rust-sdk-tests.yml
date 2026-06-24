@@ -107,6 +107,18 @@ jobs:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
         run: cargo doc --no-deps --all-features
 
+      # Simulate the docs.rs build environment: nightly toolchain,
+      # DOCS_RS=1 (skips CLI download), and --cfg docsrs (mirrors
+      # [package.metadata.docs.rs] rustdoc-args).  Treats all rustdoc
+      # warnings as errors to catch broken intra-doc links or missing
+      # feature gates before they appear on docs.rs.
+      - name: cargo doc (docs.rs simulation)
+        if: runner.os == 'Linux'
+        env:
+          DOCS_RS: "1"
+          RUSTDOCFLAGS: "-D warnings --cfg docsrs"
+        run: cargo +nightly-2026-04-14 doc --no-deps --all-features
+
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
