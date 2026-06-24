@@ -574,6 +574,7 @@ The CLI emits `session.compaction_start` / `session.compaction_complete` events 
 ### Memory
 
 Configure the runtime memory feature for a session:
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
 
 ```rust,ignore
 use github_copilot_sdk::types::{MemoryConfiguration, SessionConfig};

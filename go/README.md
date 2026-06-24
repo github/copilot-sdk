@@ -511,6 +511,7 @@ information across turns. Provide a `MemoryConfiguration` on session create or r
 when omitted, the runtime default applies. In the default `ModeCopilotCli` client mode the
 SDK leaves `Memory` unset so the runtime applies its own default, while `ModeEmpty`
 defaults `Memory` to disabled unless you set it explicitly.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
 
 ```go
 // Enable memory for a session

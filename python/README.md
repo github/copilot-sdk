@@ -505,6 +505,7 @@ When enabled, sessions emit compaction events:
 ## Memory
 
 Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `create_session` and `resume_session`.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
 
 ```python
 async with await client.create_session(

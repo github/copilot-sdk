@@ -120,9 +120,22 @@ public class CopilotSDK {
 }
 ```
 
+## Try it with JBang
+
+You can run the SDK without setting up a full Java project, by using [JBang](https://www.jbang.dev/).
+
+See the full source of [`jbang-example.java`](jbang-example.java) for a complete example with more features like session idle handling and usage info events.
+
+Or run it directly from the repository:
+
+```bash
+jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
+```
+
 ## Memory
 
 Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `createSession` and `resumeSession`.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
 
 ```java
 import com.github.copilot.rpc.MemoryConfiguration;
@@ -152,18 +165,6 @@ var resumed = client.resumeSession(sessionId, new ResumeSessionConfig()
 ```
 
 When `memory` is left unset, no memory configuration is sent and the runtime default applies. In the default `CopilotClientMode.COPILOT_CLI` the SDK leaves `memory` unset so the runtime applies its own default, while `CopilotClientMode.EMPTY` defaults `memory` to disabled unless you set it explicitly.
-
-## Try it with JBang
-
-You can run the SDK without setting up a full Java project, by using [JBang](https://www.jbang.dev/).
-
-See the full source of [`jbang-example.java`](jbang-example.java) for a complete example with more features like session idle handling and usage info events.
-
-Or run it directly from the repository:
-
-```bash
-jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
-```
 
 ## Using experimental APIs
 
