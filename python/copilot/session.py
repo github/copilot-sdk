@@ -1700,7 +1700,6 @@ class CopilotSession:
                         not data.instance_id
                         or not data.canvas_id
                         or not data.extension_id
-                        or data.availability is None
                     ):
                         raise ValueError("missing required open canvas fields")
                     self._upsert_open_canvas(OpenCanvasInstance.from_dict(data.to_dict()))

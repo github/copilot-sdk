@@ -82,9 +82,7 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
         typeof instance.extensionId === "string" &&
         instance.extensionId.length > 0 &&
         typeof instance.canvasId === "string" &&
-        instance.canvasId.length > 0 &&
-        typeof instance.reopen === "boolean" &&
-        (instance.availability === "ready" || instance.availability === "stale")
+        instance.canvasId.length > 0
     );
 }
 

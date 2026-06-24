@@ -635,7 +635,6 @@ public class SerializationTests
                 CanvasId = "canvas-id",
                 ExtensionId = "ext-id",
                 InstanceId = "instance-1",
-                Availability = CanvasInstanceAvailability.Ready,
             },
         };
         var request = CreateInternalRequest(
