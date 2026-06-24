@@ -171,9 +171,16 @@ public class SchemaGenerator {
             return "Map.of(\"type\", \"string\", \"format\", \"uuid\")";
         }
 
-        // OffsetDateTime
-        if ("java.time.OffsetDateTime".equals(qualifiedName)) {
+        // Date-time types (ISO-8601 format hints for the model)
+        if ("java.time.OffsetDateTime".equals(qualifiedName) || "java.time.LocalDateTime".equals(qualifiedName)
+                || "java.time.Instant".equals(qualifiedName) || "java.time.ZonedDateTime".equals(qualifiedName)) {
             return "Map.of(\"type\", \"string\", \"format\", \"date-time\")";
+        }
+        if ("java.time.LocalDate".equals(qualifiedName)) {
+            return "Map.of(\"type\", \"string\", \"format\", \"date\")";
+        }
+        if ("java.time.LocalTime".equals(qualifiedName)) {
+            return "Map.of(\"type\", \"string\", \"format\", \"time\")";
         }
 
         // JsonNode (any)
