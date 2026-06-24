@@ -1679,6 +1679,7 @@ class CopilotClient:
         extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
+        exp_assignments: dict[str, Any] | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1791,6 +1792,17 @@ class CopilotClient:
                 override) is on; otherwise the request is silently dropped.
                 Inspect ``capabilities.ui.mcpApps`` on the create response to
                 detect the drop.
+            exp_assignments: ExP assignment ("flight") data injected by a
+                trusted integrator, in the same JSON shape the Copilot CLI
+                fetches from the experimentation service
+                (``CopilotExpAssignmentResponse``). When supplied, the runtime
+                feeds it into the same feature-flag path as CLI-fetched
+                assignments and stamps it onto telemetry and the CAPI request
+                header. When absent, the session does not block on ExP. Intended
+                for out-of-process integrators that fetch ExP data themselves;
+                malformed payloads are dropped by the runtime (fail-open). This
+                is an internal/trusted-integrator option. Sent on the wire as
+                ``expAssignments``.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -1917,6 +1929,10 @@ class CopilotClient:
         # Add cloud session options if provided
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
+
+        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        if exp_assignments is not None:
+            payload["expAssignments"] = exp_assignments
 
         # Add working directory if provided
         if working_directory:
@@ -2285,6 +2301,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
+        exp_assignments: dict[str, Any] | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2398,6 +2415,17 @@ class CopilotClient:
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
                 treats pending work as interrupted on resume.
+            exp_assignments: ExP assignment ("flight") data injected by a
+                trusted integrator, in the same JSON shape the Copilot CLI
+                fetches from the experimentation service
+                (``CopilotExpAssignmentResponse``). When supplied, the runtime
+                feeds it into the same feature-flag path as CLI-fetched
+                assignments and stamps it onto telemetry and the CAPI request
+                header. When absent, the session does not block on ExP. Intended
+                for out-of-process integrators that fetch ExP data themselves;
+                malformed payloads are dropped by the runtime (fail-open). This
+                is an internal/trusted-integrator option. Sent on the wire as
+                ``expAssignments``.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -2537,6 +2565,10 @@ class CopilotClient:
         # Add remote session mode if provided
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
+
+        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        if exp_assignments is not None:
+            payload["expAssignments"] = exp_assignments
 
         if working_directory:
             payload["workingDirectory"] = working_directory

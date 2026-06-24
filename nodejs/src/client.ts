@@ -1374,6 +1374,7 @@ export class CopilotClient {
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
+                expAssignments: config.expAssignments,
             });
 
             const {
@@ -1563,6 +1564,7 @@ export class CopilotClient {
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
                 openCanvases: config.openCanvases,
+                expAssignments: config.expAssignments,
             });
 
             const { workspacePath, capabilities, openCanvases } = response as {

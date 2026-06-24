@@ -12,6 +12,7 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
@@ -862,5 +863,67 @@ public class SessionRequestBuilderTest {
         assertTrue(json.contains("\"owner\":\"acme\""));
         assertTrue(json.contains("\"name\":\"widgets\""));
         assertTrue(json.contains("\"branch\":\"feature-1\""));
+    }
+
+    // =========================================================================
+    // ExP assignment injection wiring
+    // =========================================================================
+
+    @Test
+    void testBuildRequestsPropagateAndSerializeExpAssignments() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        JsonNode createAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-create\"}]}");
+        JsonNode resumeAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-resume\"}]}");
+
+        var createConfig = new SessionConfig().setExpAssignments(createAssignments);
+        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(createConfig, "session-1");
+        assertEquals(createAssignments, createRequest.getExpAssignments());
+        var createJson = mapper.writeValueAsString(createRequest);
+        assertTrue(createJson.contains("\"expAssignments\""));
+        assertTrue(createJson.contains("\"Id\":\"exp-create\""));
+
+        var resumeConfig = new ResumeSessionConfig().setExpAssignments(resumeAssignments);
+        ResumeSessionRequest resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1", resumeConfig);
+        assertEquals(resumeAssignments, resumeRequest.getExpAssignments());
+        var resumeJson = mapper.writeValueAsString(resumeRequest);
+        assertTrue(resumeJson.contains("\"expAssignments\""));
+        assertTrue(resumeJson.contains("\"Id\":\"exp-resume\""));
+    }
+
+    @Test
+    void testBuildRequestsOmitExpAssignmentsWhenUnset() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-1");
+        assertNull(createRequest.getExpAssignments());
+        var createJson = mapper.writeValueAsString(createRequest);
+        assertFalse(createJson.contains("\"expAssignments\""), "expAssignments should be omitted when null");
+
+        ResumeSessionRequest resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1",
+                new ResumeSessionConfig());
+        assertNull(resumeRequest.getExpAssignments());
+        var resumeJson = mapper.writeValueAsString(resumeRequest);
+        assertFalse(resumeJson.contains("\"expAssignments\""), "expAssignments should be omitted when null");
+    }
+
+    @Test
+    void testClonePreservesAndForwardsExpAssignments() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        JsonNode createAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-create\"}]}");
+        JsonNode resumeAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-resume\"}]}");
+
+        var createConfig = new SessionConfig().setExpAssignments(createAssignments);
+        SessionConfig createClone = createConfig.clone();
+        assertEquals(createAssignments, createClone.getExpAssignments());
+        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(createClone, "session-1");
+        assertEquals(createAssignments, createRequest.getExpAssignments());
+        assertTrue(mapper.writeValueAsString(createRequest).contains("\"Id\":\"exp-create\""));
+
+        var resumeConfig = new ResumeSessionConfig().setExpAssignments(resumeAssignments);
+        ResumeSessionConfig resumeClone = resumeConfig.clone();
+        assertEquals(resumeAssignments, resumeClone.getExpAssignments());
+        ResumeSessionRequest resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1", resumeClone);
+        assertEquals(resumeAssignments, resumeRequest.getExpAssignments());
+        assertTrue(mapper.writeValueAsString(resumeRequest).contains("\"Id\":\"exp-resume\""));
     }
 }

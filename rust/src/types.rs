@@ -1650,6 +1650,14 @@ pub struct SessionConfig {
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// ExP assignment ("flight") data injected by a trusted integrator, in
+    /// the same JSON shape the Copilot CLI fetches from the experimentation
+    /// service (`CopilotExpAssignmentResponse`). When supplied, the runtime
+    /// feeds it into the same feature-flag path as CLI-fetched assignments.
+    /// When absent, the session does not block on ExP. Set via
+    /// [`with_exp_assignments`](Self::with_exp_assignments).
+    #[doc(hidden)]
+    pub exp_assignments: Option<Value>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -1778,6 +1786,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("exp_assignments", &self.exp_assignments)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -1875,6 +1884,7 @@ impl Default for SessionConfig {
             cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            exp_assignments: None,
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
@@ -2021,6 +2031,7 @@ impl SessionConfig {
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             commands: wire_commands,
+            exp_assignments: self.exp_assignments,
         };
 
         let runtime = SessionConfigRuntime {
@@ -2544,9 +2555,20 @@ impl SessionConfig {
         self.manage_schedule_enabled = Some(value);
         self
     }
-}
 
-/// Configuration for resuming an existing session via the `session.resume` RPC.
+    /// Inject ExP assignment ("flight") data for this session, in the same
+    /// JSON shape the Copilot CLI fetches from the experimentation service
+    /// (`CopilotExpAssignmentResponse`). The runtime feeds it into the same
+    /// feature-flag path as CLI-fetched assignments and stamps it onto
+    /// telemetry and the CAPI request header. Intended for trusted
+    /// integrators that fetch ExP data out of process; malformed payloads
+    /// are dropped by the runtime (fail-open).
+    #[doc(hidden)]
+    pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
+        self.exp_assignments = Some(assignments);
+        self
+    }
+}
 ///
 /// See [`SessionConfig`] for the construction patterns (chained `with_*`
 /// builder vs. direct field assignment for `Option<T>` pass-through) and
@@ -2695,6 +2717,12 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// ExP assignment ("flight") data injected on resume. See
+    /// [`SessionConfig::exp_assignments`]. Re-supply on resume so the runtime
+    /// re-applies the assignments after a CLI process restart. Set via
+    /// [`with_exp_assignments`](Self::with_exp_assignments).
+    #[doc(hidden)]
+    pub exp_assignments: Option<Value>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -2816,6 +2844,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("exp_assignments", &self.exp_assignments)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -2957,6 +2986,7 @@ impl ResumeSessionConfig {
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             commands: wire_commands,
+            exp_assignments: self.exp_assignments,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
         };
@@ -3037,6 +3067,7 @@ impl ResumeSessionConfig {
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            exp_assignments: None,
             session_fs_provider: None,
             suppress_resume_event: None,
             continue_pending_work: None,
@@ -3540,6 +3571,15 @@ impl ResumeSessionConfig {
     /// Set [`Self::manage_schedule_enabled`].
     pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
         self.manage_schedule_enabled = Some(value);
+        self
+    }
+
+    /// Inject ExP assignment ("flight") data on resume. See
+    /// [`SessionConfig::with_exp_assignments`]. Re-supply the assignments on
+    /// resume so the runtime re-applies them after a CLI process restart.
+    #[doc(hidden)]
+    pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
+        self.exp_assignments = Some(assignments);
         self
     }
 }
@@ -4953,6 +4993,83 @@ mod tests {
             .expect("no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("memory").is_none());
+    }
+
+    #[test]
+    fn session_config_with_exp_assignments_serializes() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-123",
+        });
+        let (wire, _runtime) = SessionConfig::default()
+            .with_exp_assignments(assignments.clone())
+            .into_wire(Some(SessionId::from("exp-on")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+
+        // Unset exp assignments are omitted on the wire.
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("exp-unset")))
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("expAssignments").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_with_exp_assignments_serializes() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-456",
+        });
+        let (wire, _runtime) = ResumeSessionConfig::new(SessionId::from("resume-exp-on"))
+            .with_exp_assignments(assignments.clone())
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+
+        // Unset exp assignments are omitted on the wire.
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-exp-unset"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("expAssignments").is_none());
+    }
+
+    #[test]
+    fn session_config_clone_preserves_exp_assignments() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-clone",
+        });
+        let config = SessionConfig::default().with_exp_assignments(assignments.clone());
+        let cloned = config.clone();
+
+        assert_eq!(cloned.exp_assignments.as_ref(), Some(&assignments));
+
+        let (wire, _runtime) = cloned
+            .into_wire(Some(SessionId::from("exp-clone")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+    }
+
+    #[test]
+    fn resume_session_config_clone_preserves_exp_assignments() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-clone-resume",
+        });
+        let config = ResumeSessionConfig::new(SessionId::from("resume-exp-clone"))
+            .with_exp_assignments(assignments.clone());
+        let cloned = config.clone();
+
+        assert_eq!(cloned.exp_assignments.as_ref(), Some(&assignments));
+
+        let (wire, _runtime) = cloned.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
     }
 
     #[test]
