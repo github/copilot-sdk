@@ -414,7 +414,6 @@ export class CopilotClient {
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
-    private lastError: Error | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
@@ -2313,14 +2312,14 @@ export class CopilotClient {
         }
 
         // Keep stdin pipe errors inside the normal JSON-RPC teardown path.
-        // Preserve the failure reason rather than discarding it.
+        // Preserve the failure reason via the gated debug log rather than discarding it.
         this.cliProcess.stdin?.on("error", (err) => {
             if (this.forceStopping) {
                 return;
             }
             this.state = "error";
-            this.lastError = err instanceof Error ? err : new Error(String(err));
-            this.logDebug(`stdin pipe error: ${this.lastError.stack ?? this.lastError.message}`);
+            const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+            this.logDebug(`stdin pipe error: ${reason}`);
             try {
                 this.connection?.dispose();
             } catch {
