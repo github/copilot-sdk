@@ -26,8 +26,10 @@ describe("CopilotClient", () => {
 
         const dispose = vi.spyOn((client as any).connection, "dispose");
 
-        expect(() => stdin.emit("error", new Error("broken pipe"))).not.toThrow();
+        const boom = new Error("broken pipe");
+        expect(() => stdin.emit("error", boom)).not.toThrow();
         expect(dispose).toHaveBeenCalledOnce();
+        expect((client as any).lastError).toBe(boom);
     });
 
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
