@@ -208,7 +208,8 @@ class ToolDefinitionFromObjectTest {
         mapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
 
         String json = mapper.writeValueAsString(tool);
-        assertFalse(json.contains("\"defer\""), "defer key should be absent from JSON, got: " + json);
+        var node = (ObjectNode) mapper.readTree(json);
+        assertFalse(node.has("defer"), "defer key should be absent from JSON, got: " + json);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
