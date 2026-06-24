@@ -118,6 +118,7 @@ class SystemMessageSectionsIT {
      */
     @Test
     void deprecatedSystemPromptSectionsMatchesSystemMessageSections() {
+        assertEquals(SystemMessageSections.PREAMBLE, SystemPromptSections.PREAMBLE);
         assertEquals(SystemMessageSections.IDENTITY, SystemPromptSections.IDENTITY);
         assertEquals(SystemMessageSections.TONE, SystemPromptSections.TONE);
         assertEquals(SystemMessageSections.TOOL_EFFICIENCY, SystemPromptSections.TOOL_EFFICIENCY);
@@ -143,7 +144,7 @@ class SystemMessageSectionsIT {
                         && Modifier.isFinal(f.getModifiers()) && f.getType() == String.class)
                 .map(Field::getName).collect(Collectors.toSet());
 
-        assertEquals(11, parentConstants.size(), "Expected 11 section constants in SystemMessageSections");
+        assertEquals(12, parentConstants.size(), "Expected 12 section constants in SystemMessageSections");
 
         for (String constantName : parentConstants) {
             Field parentField = SystemMessageSections.class.getDeclaredField(constantName);
@@ -183,6 +184,43 @@ class SystemMessageSectionsIT {
                 String content = response.getData().content().toLowerCase();
                 assertTrue(content.contains("botanica") || content.contains("garden") || content.contains("plant"),
                         "Expected response to reflect the replaced identity section, but got: "
+                                + response.getData().content());
+            } finally {
+                session.close();
+            }
+        }
+    }
+
+    /**
+     * Verifies that replacing the {@link SystemMessageSections#PREAMBLE} section
+     * via {@link SectionOverrideAction#REPLACE} causes the assistant to adopt the
+     * custom identity in its response without affecting sibling sections.
+     *
+     * @see Snapshot:
+     *      system_message_sections/should_use_replaced_preamble_section_in_response
+     */
+    @Test
+    void shouldUseReplacedPreambleSectionInResponse() throws Exception {
+        ctx.configureForTest("system_message_sections", "should_use_replaced_preamble_section_in_response");
+
+        var systemMessage = new SystemMessageConfig().setMode(SystemMessageMode.CUSTOMIZE)
+                .setSections(Map.of(SystemMessageSections.PREAMBLE,
+                        new SectionOverride().setAction(SectionOverrideAction.REPLACE)
+                                .setContent("You are a helpful gardening assistant called Botanica. "
+                                        + "You only answer questions about plants and gardening.")));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setSystemMessage(systemMessage)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
+
+            try {
+                AssistantMessageEvent response = session
+                        .sendAndWait(new MessageOptions().setPrompt("Who are you?"), 60_000).get(90, TimeUnit.SECONDS);
+
+                assertNotNull(response, "Expected a response from the assistant");
+                String content = response.getData().content().toLowerCase();
+                assertTrue(content.contains("botanica") || content.contains("garden") || content.contains("plant"),
+                        "Expected response to reflect the replaced preamble section, but got: "
                                 + response.getData().content());
             } finally {
                 session.close();

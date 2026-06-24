@@ -1840,6 +1840,13 @@ public enum SectionOverrideAction
     /// <summary>Prepend content before the existing section.</summary>
     [JsonStringEnumMemberName("prepend")]
     Prepend,
+    /// <summary>
+    /// No-op marker that opts an individually-addressable section out of a group-level
+    /// remove (e.g. keep <see cref="SystemMessageSection.Tone"/> when removing the
+    /// <see cref="SystemMessageSection.Identity"/> group).
+    /// </summary>
+    [JsonStringEnumMemberName("preserve")]
+    Preserve,
     /// <summary>Transform the section content via a callback.</summary>
     [JsonStringEnumMemberName("transform")]
     Transform
@@ -1878,6 +1885,8 @@ public sealed class SectionOverride
 public readonly struct SystemMessageSection : IEquatable<SystemMessageSection>
 {
     /// <summary>Agent identity preamble and mode statement.</summary>
+    public static SystemMessageSection Preamble { get; } = new("preamble");
+    /// <summary>Section group covering the identity preamble and its sibling sub-sections (tone, tool efficiency, etc.).</summary>
     public static SystemMessageSection Identity { get; } = new("identity");
     /// <summary>Response style, conciseness rules, output formatting preferences.</summary>
     public static SystemMessageSection Tone { get; } = new("tone");

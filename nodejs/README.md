@@ -618,14 +618,17 @@ const session = await client.createSession({
 });
 ```
 
-Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`, `last_instructions`. Use the `SYSTEM_MESSAGE_SECTIONS` constant for descriptions of each section.
+Available section IDs: `preamble`, `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`, `last_instructions`. Use the `SYSTEM_MESSAGE_SECTIONS` constant for descriptions of each section.
 
-Each section override supports four actions:
+`identity` and `tool_instructions` are section _groups_ that target a collection of related sub-sections as a unit. Use `preamble` to target just the identity preamble without affecting its sibling sub-sections.
+
+Each section override supports five actions:
 
 - **`replace`** — Replace the section content entirely
 - **`remove`** — Remove the section from the prompt
 - **`append`** — Add content after the existing section
 - **`prepend`** — Add content before the existing section
+- **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
 
 Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 

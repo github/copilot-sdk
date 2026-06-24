@@ -253,10 +253,17 @@ class SystemMessageReplaceConfig(TypedDict):
 SectionTransformFn = Callable[[str], str | Awaitable[str]]
 """Transform callback: receives current section content, returns new content."""
 
-SectionOverrideAction = Literal["replace", "remove", "append", "prepend"] | SectionTransformFn
-"""Override action: a string literal for static overrides, or a callback for transforms."""
+SectionOverrideAction = (
+    Literal["replace", "remove", "append", "prepend", "preserve"] | SectionTransformFn
+)
+"""Override action: a string literal for static overrides, or a callback for transforms.
+
+``"preserve"`` is a no-op marker that opts an individually-addressable section out of a
+group-level ``"remove"`` (e.g. keep ``tone`` when removing the ``identity`` group).
+"""
 
 SystemMessageSection = Literal[
+    "preamble",
     "identity",
     "tone",
     "tool_efficiency",
@@ -271,7 +278,11 @@ SystemMessageSection = Literal[
 ]
 
 SYSTEM_MESSAGE_SECTIONS: dict[SystemMessageSection, str] = {
-    "identity": "Agent identity preamble and mode statement",
+    "preamble": "Agent identity preamble and mode statement",
+    "identity": (
+        "Section group covering the identity preamble and its sibling sub-sections"
+        " (tone, tool efficiency, etc.)"
+    ),
     "tone": "Response style, conciseness rules, output formatting preferences",
     "tool_efficiency": "Tool usage patterns, parallel calling, batching guidelines",
     "environment_context": "CWD, OS, git root, directory listing, available tools",
