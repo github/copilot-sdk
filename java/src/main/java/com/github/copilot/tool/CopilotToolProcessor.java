@@ -123,12 +123,14 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
         out.println("import com.github.copilot.rpc.ToolDefinition;");
         out.println("import com.github.copilot.rpc.ToolDefer;");
+        out.println("import com.github.copilot.tool.CopilotToolMetadataProvider;");
         out.println("import com.fasterxml.jackson.databind.ObjectMapper;");
         out.println("import java.util.*;");
         out.println("import java.util.concurrent.CompletableFuture;");
         out.println();
 
-        out.println("final class " + metaClassName + " {");
+        out.println("public final class " + metaClassName + " implements CopilotToolMetadataProvider<" + simpleClassName
+                + "> {");
         out.println();
 
         // Helper method for adding description/default to schema maps
@@ -144,9 +146,10 @@ public class CopilotToolProcessor extends AbstractProcessor {
         }
 
         // definitions method
+        out.println("    @Override");
         out.println("    @SuppressWarnings({\"unchecked\", \"rawtypes\"})");
         out.println(
-                "    static List<ToolDefinition> definitions(" + simpleClassName + " instance, ObjectMapper mapper) {");
+                "    public List<ToolDefinition> definitions(" + simpleClassName + " instance, ObjectMapper mapper) {");
         out.println("        return List.of(");
 
         for (int i = 0; i < methods.size(); i++) {
