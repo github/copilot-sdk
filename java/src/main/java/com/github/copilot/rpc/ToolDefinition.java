@@ -4,7 +4,6 @@
 
 package com.github.copilot.rpc;
 
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 
@@ -221,9 +220,9 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         String metaClassName = clazz.getName() + "$$CopilotToolMeta";
         try {
             Class<?> metaClass = Class.forName(metaClassName, true, clazz.getClassLoader());
-            Method defs = metaClass.getDeclaredMethod("definitions", clazz, ObjectMapper.class);
-            defs.setAccessible(true);
-            return (List<ToolDefinition>) defs.invoke(null, instance, getConfiguredMapper());
+            var provider = (com.github.copilot.tool.CopilotToolMetadataProvider<Object>) metaClass
+                    .getDeclaredConstructor().newInstance();
+            return provider.definitions(instance, getConfiguredMapper());
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException("Generated class " + metaClassName + " not found. "
                     + "Ensure the CopilotToolProcessor annotation processor ran during compilation. "
