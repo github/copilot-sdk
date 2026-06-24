@@ -34,14 +34,22 @@ public final class ServerRpc {
     public final ServerSecretsApi secrets;
     /** API methods for the {@code mcp} namespace. */
     public final ServerMcpApi mcp;
+    /** API methods for the {@code plugins} namespace. */
+    public final ServerPluginsApi plugins;
     /** API methods for the {@code skills} namespace. */
     public final ServerSkillsApi skills;
+    /** API methods for the {@code agents} namespace. */
+    public final ServerAgentsApi agents;
+    /** API methods for the {@code instructions} namespace. */
+    public final ServerInstructionsApi instructions;
     /** API methods for the {@code user} namespace. */
     public final ServerUserApi user;
     /** API methods for the {@code runtime} namespace. */
     public final ServerRuntimeApi runtime;
     /** API methods for the {@code sessionFs} namespace. */
     public final ServerSessionFsApi sessionFs;
+    /** API methods for the {@code llmInference} namespace. */
+    public final ServerLlmInferenceApi llmInference;
     /** API methods for the {@code sessions} namespace. */
     public final ServerSessionsApi sessions;
     /** API methods for the {@code agentRegistry} namespace. */
@@ -59,10 +67,14 @@ public final class ServerRpc {
         this.account = new ServerAccountApi(caller);
         this.secrets = new ServerSecretsApi(caller);
         this.mcp = new ServerMcpApi(caller);
+        this.plugins = new ServerPluginsApi(caller);
         this.skills = new ServerSkillsApi(caller);
+        this.agents = new ServerAgentsApi(caller);
+        this.instructions = new ServerInstructionsApi(caller);
         this.user = new ServerUserApi(caller);
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
+        this.llmInference = new ServerLlmInferenceApi(caller);
         this.sessions = new ServerSessionsApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
     }

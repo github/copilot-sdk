@@ -27,7 +27,8 @@ public class SerializationTests
             ModelId = "gpt-4o",
             WireModel = "my-finetune-v3",
             MaxPromptTokens = 100_000,
-            MaxOutputTokens = 4096
+            MaxOutputTokens = 4096,
+            Transport = "websockets"
         };
 
         var json = JsonSerializer.Serialize(original, options);
@@ -39,6 +40,7 @@ public class SerializationTests
         Assert.Equal("my-finetune-v3", root.GetProperty("wireModel").GetString());
         Assert.Equal(100_000, root.GetProperty("maxPromptTokens").GetInt32());
         Assert.Equal(4096, root.GetProperty("maxOutputTokens").GetInt32());
+        Assert.Equal("websockets", root.GetProperty("transport").GetString());
 
         var deserialized = JsonSerializer.Deserialize<ProviderConfig>(json, options);
         Assert.NotNull(deserialized);
@@ -48,6 +50,80 @@ public class SerializationTests
         Assert.Equal("my-finetune-v3", deserialized.WireModel);
         Assert.Equal(100_000, deserialized.MaxPromptTokens);
         Assert.Equal(4096, deserialized.MaxOutputTokens);
+        Assert.Equal("websockets", deserialized.Transport);
+    }
+
+    [Fact]
+    public void CapiSessionOptions_CanSerializeEnableWebSocketResponses_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new CapiSessionOptions
+        {
+            EnableWebSocketResponses = false
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.False(root.GetProperty("enableWebSocketResponses").GetBoolean());
+
+        var deserialized = JsonSerializer.Deserialize<CapiSessionOptions>(json, options);
+        Assert.NotNull(deserialized);
+        Assert.False(deserialized.EnableWebSocketResponses);
+    }
+
+    [Fact]
+    public void ModelBilling_CanSerializeTokenPrices_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new ModelBilling
+        {
+            Multiplier = 1.5,
+            TokenPrices = new GitHub.Copilot.Rpc.ModelBillingTokenPrices
+            {
+                InputPrice = 2.0,
+                OutputPrice = 8.0,
+                CacheReadPrice = 0.5,
+                CacheWritePrice = 0.75,
+                BatchSize = 1_000_000L,
+                MaxPromptTokens = 128_000L,
+                LongContext = new GitHub.Copilot.Rpc.ModelBillingTokenPricesLongContext
+                {
+                    InputPrice = 4.0,
+                    OutputPrice = 16.0,
+                    CacheReadPrice = 1.0,
+                    CacheWritePrice = 1.25,
+                    MaxPromptTokens = 1_000_000L
+                }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal(1.5, root.GetProperty("multiplier").GetDouble());
+        var tokenPrices = root.GetProperty("tokenPrices");
+        Assert.Equal(2.0, tokenPrices.GetProperty("inputPrice").GetDouble());
+        Assert.Equal(8.0, tokenPrices.GetProperty("outputPrice").GetDouble());
+        Assert.Equal(0.5, tokenPrices.GetProperty("cacheReadPrice").GetDouble());
+        Assert.Equal(0.75, tokenPrices.GetProperty("cacheWritePrice").GetDouble());
+        Assert.Equal(1_000_000L, tokenPrices.GetProperty("batchSize").GetInt64());
+        Assert.Equal(128_000L, tokenPrices.GetProperty("maxPromptTokens").GetInt64());
+        var longContext = tokenPrices.GetProperty("longContext");
+        Assert.Equal(4.0, longContext.GetProperty("inputPrice").GetDouble());
+        Assert.Equal(1.25, longContext.GetProperty("cacheWritePrice").GetDouble());
+        Assert.Equal(1_000_000L, longContext.GetProperty("maxPromptTokens").GetInt64());
+
+        var deserialized = JsonSerializer.Deserialize<ModelBilling>(json, options);
+        Assert.NotNull(deserialized);
+        Assert.Equal(1.5, deserialized.Multiplier);
+        Assert.NotNull(deserialized.TokenPrices);
+        Assert.Equal(2.0, deserialized.TokenPrices.InputPrice);
+        Assert.Equal(1_000_000L, deserialized.TokenPrices.BatchSize);
+        Assert.Equal(128_000L, deserialized.TokenPrices.MaxPromptTokens);
+        Assert.NotNull(deserialized.TokenPrices.LongContext);
+        Assert.Equal(16.0, deserialized.TokenPrices.LongContext.OutputPrice);
+        Assert.Equal(1_000_000L, deserialized.TokenPrices.LongContext.MaxPromptTokens);
     }
 
     [Fact]
@@ -172,6 +248,57 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeCapiOptions_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var capi = new CapiSessionOptions { EnableWebSocketResponses = false };
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("Capi", capi));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.False(createDocument.RootElement.GetProperty("capi").GetProperty("enableWebSocketResponses").GetBoolean());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("Capi", capi));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.False(resumeDocument.RootElement.GetProperty("capi").GetProperty("enableWebSocketResponses").GetBoolean());
+    }
+
+    [Fact]
+    public void SessionRequests_OmitCapiOptions_WhenUnset()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.False(createDocument.RootElement.TryGetProperty("capi", out _));
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.False(resumeDocument.RootElement.TryGetProperty("capi", out _));
+    }
+
+    [Fact]
     public void SessionRequests_CanSerializeReasoningSummary_WithSdkOptions()
     {
         var options = GetSerializerOptions();
@@ -265,6 +392,58 @@ public class SerializationTests
         Assert.True(resumeLargeOutput.GetProperty("enabled").GetBoolean());
         Assert.Equal(1024, resumeLargeOutput.GetProperty("maxSizeBytes").GetInt64());
         Assert.Equal("/tmp/large-output", resumeLargeOutput.GetProperty("outputDir").GetString());
+    }
+
+    [Fact]
+    public void SessionRequests_CanSerializeMemory_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("Memory", new MemoryConfiguration { Enabled = true }));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        var createRoot = createDocument.RootElement;
+        Assert.True(createRoot.GetProperty("memory").GetProperty("enabled").GetBoolean());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("Memory", new MemoryConfiguration { Enabled = false }));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        var resumeRoot = resumeDocument.RootElement;
+        Assert.False(resumeRoot.GetProperty("memory").GetProperty("enabled").GetBoolean());
+    }
+
+    [Fact]
+    public void SessionRequests_OmitMemory_WhenUnset()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.False(createDocument.RootElement.TryGetProperty("memory", out _));
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.False(resumeDocument.RootElement.TryGetProperty("memory", out _));
     }
 
     [Fact]

@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "subagent.deselected". Empty payload; the event signals that the custom agent was deselected, returning to the default agent
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

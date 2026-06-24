@@ -22,6 +22,7 @@ import com.github.copilot.rpc.ElicitationResult;
 import com.github.copilot.rpc.ElicitationResultAction;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.LargeToolOutputConfig;
+import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.ResumeSessionRequest;
 import com.github.copilot.rpc.SessionConfig;
@@ -113,6 +114,21 @@ public class SessionRequestBuilderTest {
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
         assertEquals(List.of("/plugins/a"), request.getPluginDirectories());
         assertEquals(largeOutput, request.getLargeOutput());
+    }
+
+    @Test
+    void testBuildCreateRequestSetsMemory() {
+        var memory = new MemoryConfiguration().setEnabled(true);
+        var config = new SessionConfig().setMemory(memory);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "test-session-id");
+        assertEquals(memory, request.getMemory());
+    }
+
+    @Test
+    void testBuildCreateRequestOmitsMemoryWhenNotSet() {
+        var config = new SessionConfig();
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "test-session-id");
+        assertNull(request.getMemory());
     }
 
     @Test
@@ -335,6 +351,21 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-16", config);
         assertEquals(List.of("/plugins/r"), request.getPluginDirectories());
         assertEquals(largeOutput, request.getLargeOutput());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsMemory() {
+        var memory = new MemoryConfiguration().setEnabled(false);
+        var config = new ResumeSessionConfig().setMemory(memory);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-mem", config);
+        assertEquals(memory, request.getMemory());
+    }
+
+    @Test
+    void testBuildResumeRequestOmitsMemoryWhenNotSet() {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-mem", config);
+        assertNull(request.getMemory());
     }
 
     // =========================================================================

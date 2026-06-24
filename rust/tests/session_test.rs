@@ -1202,7 +1202,27 @@ async fn list_models_returns_typed_model_info() {
         "id": id,
         "result": {
             "models": [
-                { "id": "gpt-4", "name": "GPT-4", "capabilities": {} },
+                {
+                    "id": "gpt-4",
+                    "name": "GPT-4",
+                    "capabilities": {},
+                    "billing": {
+                        "multiplier": 1.5,
+                        "tokenPrices": {
+                            "inputPrice": 2.0,
+                            "outputPrice": 8.0,
+                            "cachePrice": 0.5,
+                            "batchSize": 1000000,
+                            "maxPromptTokens": 128000,
+                            "longContext": {
+                                "inputPrice": 4.0,
+                                "outputPrice": 16.0,
+                                "cachePrice": 1.0,
+                                "maxPromptTokens": 1000000
+                            }
+                        }
+                    }
+                },
                 { "id": "claude-sonnet-4", "name": "Claude Sonnet", "capabilities": {} },
             ]
         },
@@ -1213,6 +1233,22 @@ async fn list_models_returns_typed_model_info() {
     assert_eq!(models.len(), 2);
     assert_eq!(models[0].id, "gpt-4");
     assert_eq!(models[1].name, "Claude Sonnet");
+
+    // Token prices are surfaced through the re-exported public types.
+    let token_prices: &github_copilot_sdk::types::ModelBillingTokenPrices = models[0]
+        .billing
+        .as_ref()
+        .expect("billing")
+        .token_prices
+        .as_ref()
+        .expect("token prices");
+    assert_eq!(token_prices.input_price, Some(2.0));
+    assert_eq!(token_prices.batch_size, Some(1000000));
+    assert_eq!(token_prices.max_prompt_tokens, Some(128000));
+    let long_context: &github_copilot_sdk::types::ModelBillingTokenPricesLongContext =
+        token_prices.long_context.as_ref().expect("long context");
+    assert_eq!(long_context.output_price, Some(16.0));
+    assert_eq!(long_context.max_prompt_tokens, Some(1000000));
 }
 
 #[tokio::test]
@@ -2740,6 +2776,109 @@ async fn session_canvas_opened_updates_open_canvas_snapshots() {
     assert!(open[0].reopen);
     assert_eq!(open[0].availability, CanvasInstanceAvailability::Stale);
     assert_eq!(open[1].instance_id, "logs-1");
+}
+
+#[tokio::test]
+async fn session_canvas_closed_removes_open_canvas_snapshot() {
+    let (session, mut server) = create_session_pair().await;
+    assert!(session.open_canvases().is_empty());
+
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "title": "Counter",
+                "reopen": false,
+                "availability": "ready"
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:logs",
+                "canvasId": "logs",
+                "instanceId": "logs-1",
+                "title": "Logs",
+                "reopen": false,
+                "availability": "ready"
+            }),
+        )
+        .await;
+
+    let mut open = Vec::new();
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 2);
+
+    // Closing one instance removes it while the other remains.
+    server
+        .send_event(
+            "session.canvas.closed",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1"
+            }),
+        )
+        .await;
+
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].instance_id, "logs-1");
+
+    // Closing an absent instance is a no-op (idempotent).
+    server
+        .send_event(
+            "session.canvas.closed",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1"
+            }),
+        )
+        .await;
+
+    // Give the event loop time to process; the snapshot must stay unchanged.
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        open = session.open_canvases();
+        assert_eq!(open.len(), 1);
+    }
+    assert_eq!(open[0].instance_id, "logs-1");
+
+    // A closed event with an empty instance_id is ignored and leaves the snapshot intact.
+    server
+        .send_event(
+            "session.canvas.closed",
+            serde_json::json!({
+                "extensionId": "project:logs",
+                "canvasId": "logs",
+                "instanceId": ""
+            }),
+        )
+        .await;
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        open = session.open_canvases();
+        assert_eq!(open.len(), 1);
+    }
+    assert_eq!(open[0].instance_id, "logs-1");
 }
 
 #[tokio::test]

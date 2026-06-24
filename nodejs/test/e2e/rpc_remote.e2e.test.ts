@@ -62,14 +62,6 @@ describe("Session remote RPC", async () => {
                     ),
                 { timeoutMessage: "Timed out waiting for remote steerable=true event." }
             );
-            expect(
-                (
-                    await client.rpc.sessions.getPersistedRemoteSteerable({
-                        sessionId: session.sessionId,
-                    })
-                ).remoteSteerable
-            ).toBe(true);
-
             await session.rpc.remote.notifySteerableChanged({ remoteSteerable: false });
             await waitForCondition(
                 async () =>
@@ -80,13 +72,6 @@ describe("Session remote RPC", async () => {
                     ),
                 { timeoutMessage: "Timed out waiting for remote steerable=false event." }
             );
-            expect(
-                (
-                    await client.rpc.sessions.getPersistedRemoteSteerable({
-                        sessionId: session.sessionId,
-                    })
-                ).remoteSteerable
-            ).toBe(false);
         } finally {
             await session.disconnect();
         }

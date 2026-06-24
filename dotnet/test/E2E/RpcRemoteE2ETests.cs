@@ -48,12 +48,10 @@ public class RpcRemoteE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         await session.Rpc.Remote.NotifySteerableChangedAsync(true);
 
         await WaitForRemoteSteerableEventAsync(session, expected: true);
-        Assert.True((await Client.Rpc.Sessions.GetPersistedRemoteSteerableAsync(session.SessionId)).RemoteSteerable);
 
         await session.Rpc.Remote.NotifySteerableChangedAsync(false);
 
         await WaitForRemoteSteerableEventAsync(session, expected: false);
-        Assert.False((await Client.Rpc.Sessions.GetPersistedRemoteSteerableAsync(session.SessionId)).RemoteSteerable);
     }
 
     private static async Task WaitForRemoteSteerableEventAsync(CopilotSession session, bool expected)

@@ -32,6 +32,9 @@ jobs:
           filters: |
             java:
               - 'java/**'
+              - '!java/docs/**'
+              - '!java/*.txt'
+              - '!java/*.md'
             js:
               - 'nodejs/**'
               - 'scripts/**'

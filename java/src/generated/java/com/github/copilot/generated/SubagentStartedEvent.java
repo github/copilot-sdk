@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -43,7 +42,7 @@ public final class SubagentStartedEvent extends SessionEvent {
         @JsonProperty("agentDisplayName") String agentDisplayName,
         /** Description of what the sub-agent does */
         @JsonProperty("agentDescription") String agentDescription,
-        /** Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck). */
+        /** Model the sub-agent will run with, when known at start. */
         @JsonProperty("model") String model
     ) {
     }

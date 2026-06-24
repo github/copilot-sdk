@@ -2,6 +2,12 @@
 
 Python SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Python 3.11+
+
 ## Installation
 
 ```bash
@@ -13,6 +19,33 @@ To include OpenTelemetry support:
 ```bash
 pip install "github-copilot-sdk[telemetry]"
 ```
+
+## Runtime
+
+Published wheels include a pinned runtime version. After installing, download the
+runtime:
+
+```bash
+python -m copilot download-runtime
+```
+
+This caches the runtime binary locally. If you skip this step, the SDK will
+attempt to download it automatically on first use as a fallback.
+
+| Platform | Cache path |
+|----------|-----------|
+| Linux | `~/.cache/github-copilot-sdk/cli/<version>/copilot` |
+| macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/copilot` |
+| Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\copilot.exe` |
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
+| `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
+| `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
+| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL |
 
 ## Run the Sample
 
@@ -319,6 +352,16 @@ async def safe_lookup(params: LookupParams) -> str:
     # your logic
 ```
 
+#### Deferring Tools
+
+Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
+
+```python
+@define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")
+async def lookup_issue(params: LookupParams) -> str:
+    # your logic
+```
+
 ## Image Support
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
@@ -459,6 +502,22 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+## Memory
+
+Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `create_session` and `resume_session`.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    memory={"enabled": True},
+) as session:
+    ...
+```
+
+When `memory` is omitted, no memory configuration is sent and the runtime default applies. In the default `"copilot-cli"` client mode the SDK leaves `memory` unset so the runtime applies its own default, while `"empty"` mode defaults `memory` to disabled unless you set it explicitly.
+
 ## Custom Providers
 
 The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `model` explicitly.
@@ -547,6 +606,7 @@ client = CopilotClient(
 **TelemetryConfig options:**
 
 - `otlp_endpoint` (str): OTLP HTTP endpoint URL
+- `otlp_protocol` (str): OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
 - `file_path` (str): File path for JSON-lines trace output
 - `exporter_type` (str): `"otlp-http"` or `"file"`
 - `source_name` (str): Instrumentation scope name
@@ -897,8 +957,3 @@ When `on_elicitation_request` is provided, the SDK automatically:
 - Reports the `elicitation` capability on the session
 - Dispatches `elicitation.requested` events to your handler
 - Auto-cancels if your handler throws an error (so the server doesn't hang)
-
-## Requirements
-
-- Python 3.11+
-- GitHub Copilot CLI installed and accessible

@@ -21,6 +21,8 @@ mod client_options;
 mod commands;
 #[path = "e2e/compaction.rs"]
 mod compaction;
+#[path = "e2e/copilot_request_handler.rs"]
+mod copilot_request_handler;
 #[path = "e2e/elicitation.rs"]
 mod elicitation;
 #[path = "e2e/error_resilience.rs"]
@@ -41,6 +43,8 @@ mod mode_handlers;
 mod multi_client;
 #[path = "e2e/multi_client_commands_elicitation.rs"]
 mod multi_client_commands_elicitation;
+#[path = "e2e/multi_provider_registry.rs"]
+mod multi_provider_registry;
 #[path = "e2e/multi_turn.rs"]
 mod multi_turn;
 #[path = "e2e/pending_work_resume.rs"]
@@ -51,6 +55,8 @@ mod per_session_auth;
 mod permissions;
 #[path = "e2e/pre_mcp_tool_call_hook.rs"]
 mod pre_mcp_tool_call_hook;
+#[path = "e2e/provider_endpoint.rs"]
+mod provider_endpoint;
 #[path = "e2e/rpc_additional_edge_cases.rs"]
 mod rpc_additional_edge_cases;
 #[path = "e2e/rpc_agent.rs"]
@@ -63,6 +69,8 @@ mod rpc_event_side_effects;
 mod rpc_mcp_and_skills;
 #[path = "e2e/rpc_mcp_config.rs"]
 mod rpc_mcp_config;
+#[path = "e2e/rpc_mcp_lifecycle.rs"]
+mod rpc_mcp_lifecycle;
 #[path = "e2e/rpc_queue.rs"]
 mod rpc_queue;
 #[path = "e2e/rpc_remote.rs"]
@@ -71,14 +79,26 @@ mod rpc_remote;
 mod rpc_schedule;
 #[path = "e2e/rpc_server.rs"]
 mod rpc_server;
+#[path = "e2e/rpc_server_misc.rs"]
+mod rpc_server_misc;
+#[path = "e2e/rpc_server_plugins.rs"]
+mod rpc_server_plugins;
+#[path = "e2e/rpc_server_remote_control.rs"]
+mod rpc_server_remote_control;
 #[path = "e2e/rpc_session_state.rs"]
 mod rpc_session_state;
+#[path = "e2e/rpc_session_state_extras.rs"]
+mod rpc_session_state_extras;
 #[path = "e2e/rpc_shell_and_fleet.rs"]
 mod rpc_shell_and_fleet;
 #[path = "e2e/rpc_shell_edge_cases.rs"]
 mod rpc_shell_edge_cases;
+#[path = "e2e/rpc_shell_user_requested.rs"]
+mod rpc_shell_user_requested;
 #[path = "e2e/rpc_tasks_and_handlers.rs"]
 mod rpc_tasks_and_handlers;
+#[path = "e2e/rpc_ui_ephemeral_query.rs"]
+mod rpc_ui_ephemeral_query;
 #[path = "e2e/rpc_workspace_checkpoints.rs"]
 mod rpc_workspace_checkpoints;
 #[path = "e2e/session.rs"]
@@ -91,6 +111,8 @@ mod session_fs;
 mod session_fs_sqlite;
 #[path = "e2e/session_lifecycle.rs"]
 mod session_lifecycle;
+#[path = "e2e/session_todos_changed.rs"]
+mod session_todos_changed;
 #[path = "e2e/skills.rs"]
 mod skills;
 #[path = "e2e/streaming_fidelity.rs"]
@@ -101,6 +123,8 @@ mod subagent_hooks;
 mod support;
 #[path = "e2e/suspend.rs"]
 mod suspend;
+#[path = "e2e/system_message_sections.rs"]
+mod system_message_sections;
 #[path = "e2e/system_message_transform.rs"]
 mod system_message_transform;
 #[path = "e2e/telemetry.rs"]

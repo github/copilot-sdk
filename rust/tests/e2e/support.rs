@@ -12,8 +12,8 @@ use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::subscription::{EventSubscription, LifecycleSubscription};
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, SessionConfig, SessionEvent, SessionId,
-    SessionLifecycleEvent, Transport,
+    CliProgram, Client, ClientOptions, CopilotRequestHandler, SessionConfig, SessionEvent,
+    SessionId, SessionLifecycleEvent, Transport,
 };
 use serde_json::json;
 use tokio::sync::Semaphore;
@@ -49,6 +49,35 @@ where
     );
 }
 
+/// Like [`with_e2e_context`] but starts the CapiProxy without loading a
+/// recorded snapshot. Used by the LLM inference callback tests, whose
+/// registered provider fabricates every model-layer response so no CAPI
+/// replay is needed — only the auth/user endpoints are served by the proxy.
+pub async fn with_e2e_context_no_snapshot<F>(test: F)
+where
+    F: for<'a> FnOnce(&'a mut E2eContext) -> TestFuture<'a>,
+{
+    let _permit = E2E_CONCURRENCY
+        .acquire()
+        .await
+        .expect("E2E concurrency semaphore should stay open");
+    let mut ctx = E2eContext::new_no_snapshot()
+        .await
+        .unwrap_or_else(|err| panic!("create E2E context: {err}"));
+
+    let timed_out = tokio::time::timeout(default_test_timeout(), test(&mut ctx))
+        .await
+        .is_err();
+    ctx.cleanup(timed_out)
+        .await
+        .unwrap_or_else(|err| panic!("clean up E2E context: {err}"));
+    assert!(
+        !timed_out,
+        "timed out after {:?} running no-snapshot E2E test",
+        default_test_timeout()
+    );
+}
+
 pub struct E2eContext {
     repo_root: PathBuf,
     cli_path: PathBuf,
@@ -75,6 +104,35 @@ impl E2eContext {
             proxy: Some(proxy),
         };
         ctx.configure(category, snapshot_name)?;
+        Ok(ctx)
+    }
+
+    async fn new_no_snapshot() -> std::io::Result<Self> {
+        let repo_root = repo_root();
+        let cli_path = cli_path(&repo_root)?;
+        let home_dir = tempfile::tempdir()?;
+        let work_dir = tempfile::tempdir()?;
+        let proxy_root = repo_root.clone();
+        let proxy = tokio::task::spawn_blocking(move || CapiProxy::start(&proxy_root))
+            .await
+            .map_err(|err| std::io::Error::other(format!("proxy startup task failed: {err}")))??;
+        let ctx = Self {
+            repo_root,
+            cli_path,
+            home_dir,
+            work_dir,
+            proxy: Some(proxy),
+        };
+        // Initialize proxy state without replaying any recorded exchanges: the
+        // snapshot path intentionally does not exist, so `/copilot_internal/user`
+        // and the default `/models` catalog are served while all model-layer
+        // traffic is fabricated by the registered inference callback.
+        let dummy_snapshot = ctx.work_dir.path().join("__no_snapshot__.yaml");
+        ctx.proxy()
+            .configure(&dummy_snapshot, ctx.work_dir.path())
+            .map_err(|err| {
+                std::io::Error::other(format!("configure proxy without snapshot failed: {err}"))
+            })?;
         Ok(ctx)
     }
 
@@ -115,6 +173,29 @@ impl E2eContext {
         Client::start(self.client_options())
             .await
             .expect("start E2E client")
+    }
+
+    /// Start a client wired to a Copilot request handler, appending `extra_env`
+    /// to the spawned runtime's environment (used to flip the WebSocket ExP
+    /// flag for the WS transport tests).
+    pub async fn start_llm_client<H>(&self, handler: H, extra_env: &[(&str, &str)]) -> Client
+    where
+        H: CopilotRequestHandler,
+    {
+        let mut env = self.environment();
+        env.extend(
+            extra_env
+                .iter()
+                .map(|(key, value)| (OsString::from(*key), OsString::from(*value))),
+        );
+        let options = ClientOptions::new()
+            .with_program(CliProgram::Path(PathBuf::from(node_program())))
+            .with_prefix_args([self.cli_path.as_os_str().to_owned()])
+            .with_cwd(self.work_dir.path())
+            .with_env(env)
+            .with_use_logged_in_user(false)
+            .with_request_handler(handler);
+        Client::start(options).await.expect("start E2E LLM client")
     }
 
     #[expect(dead_code, reason = "used by follow-on E2E ports")]
@@ -517,21 +598,29 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
         }
     }
 
-    let path = repo_root
+    // The `@github/copilot` package is a thin loader; the runnable `index.js`
+    // ships in a platform-specific `@github/copilot-<platform>-<arch>` package,
+    // exactly one of which is installed. Resolve whichever one is present.
+    let github_dir = repo_root
         .join("nodejs")
         .join("node_modules")
-        .join("@github")
-        .join("copilot")
-        .join("index.js");
-    if path.exists() {
-        return Ok(path);
+        .join("@github");
+    if let Ok(entries) = std::fs::read_dir(&github_dir) {
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with("copilot-") {
+                let candidate = entry.path().join("index.js");
+                if candidate.exists() {
+                    return Ok(candidate);
+                }
+            }
+        }
     }
 
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         format!(
-            "CLI not found at {}; run npm install in nodejs first",
-            path.display()
+            "CLI not found under {}; run npm install in nodejs first",
+            github_dir.display()
         ),
     ))
 }

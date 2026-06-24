@@ -111,26 +111,39 @@ class TestRpcSessionState:
         finally:
             await session.disconnect()
 
-    async def test_should_call_session_rpc_model_switch_to(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            model="claude-sonnet-4.5",
-        )
+    async def test_should_call_session_rpc_model_switchto(self, ctx: E2ETestContext):
+        # The runtime caches /models per (auth, base_url) for 30 minutes (see
+        # capi_client.rs LIST_MODELS_CACHE). Tests in this class share one CLI
+        # subprocess and proxy URL via the module-scoped `ctx` fixture, so the
+        # first snapshot's models list is reused by every later test. switch_to
+        # needs gpt-5.4 in the cache; rather than poisoning every other snapshot
+        # we spin up an isolated context with its own subprocess and proxy → its
+        # own (auth, base_url) cache key.
+        isolated_ctx = E2ETestContext()
+        await isolated_ctx.setup()
         try:
-            before = await session.rpc.model.get_current()
-            assert before.model_id
-
-            result = await session.rpc.model.switch_to(
-                ModelSwitchToRequest(model_id="gpt-4.1", reasoning_effort="high")
+            await isolated_ctx.configure_for_test(
+                "rpc_session_state", "should_call_session_rpc_model_switchto"
             )
-            after = await session.rpc.model.get_current()
+            session = await isolated_ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                model="claude-sonnet-4.5",
+            )
+            try:
+                before = await session.rpc.model.get_current()
+                assert before.model_id
 
-            assert result.model_id == "gpt-4.1"
-            # Python's current RPC surface resolves the requested override but does
-            # not mutate the live session model selection.
-            assert after.model_id == before.model_id
+                result = await session.rpc.model.switch_to(
+                    ModelSwitchToRequest(model_id="gpt-5.4", reasoning_effort="high")
+                )
+                assert result.model_id == "gpt-5.4"
+
+                after = await session.rpc.model.get_current()
+                assert after.model_id == "gpt-5.4"
+            finally:
+                await session.disconnect()
         finally:
-            await session.disconnect()
+            await isolated_ctx.teardown()
 
     async def test_should_get_and_set_session_mode(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(

@@ -474,6 +474,21 @@ function isRustMapSchema(schema: JSONSchema7): boolean {
 	);
 }
 
+function isRustArraySchema(schema: JSONSchema7): boolean {
+	return schema.type === "array";
+}
+
+function rustArrayType(
+	schema: JSONSchema7,
+	parentTypeName: string,
+	ctx: RustCodegenCtx,
+): string {
+	const items = schema.items as JSONSchema7 | undefined;
+	if (!items) return "Vec<serde_json::Value>";
+
+	return `Vec<${resolveRustType(items, parentTypeName, "item", true, ctx)}>`;
+}
+
 function rustMapValueType(
 	schema: JSONSchema7,
 	parentTypeName: string,
@@ -526,6 +541,22 @@ function emitRustTypeAlias(
 	const aliasVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
 	lines.push(`${aliasVis} type ${typeName} = ${aliasType};`);
 	ctx.typeAliases.push(lines.join("\n"));
+}
+
+function emitRustArrayAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	emitRustTypeAlias(
+		typeName,
+		schema,
+		rustArrayType(schema, typeName, ctx),
+		ctx,
+		description,
+	);
 }
 
 function emitRustMapAlias(
@@ -1469,6 +1500,8 @@ function generateApiTypesCode(
 				getEnumValueDescriptions(schema),
 				isSchemaExperimental(schema),
 			);
+		} else if (isRustArraySchema(schema)) {
+			emitRustArrayAlias(name, schema, ctx, schema.description);
 		} else if (isRustMapSchema(schema)) {
 			emitRustMapAlias(name, schema, ctx, schema.description);
 		} else if (asGeneratedObjectSchema(schema, defCollections)) {
@@ -1531,6 +1564,8 @@ function generateApiTypesCode(
 			if (resolved) {
 				if (resolved.enum && Array.isArray(resolved.enum)) {
 					// Already generated from definitions
+				} else if (isRustArraySchema(resolved)) {
+					emitRustArrayAlias(resultName, resolved, ctx, resolved.description);
 				} else if (isRustMapSchema(resolved)) {
 					emitRustMapAlias(resultName, resolved, ctx, resolved.description);
 				} else if (isObjectSchema(resolved)) {
@@ -1545,6 +1580,8 @@ function generateApiTypesCode(
 	out.push("//! Auto-generated from api.schema.json — do not edit manually.");
 	out.push("");
 	out.push("#![allow(clippy::large_enum_variant)]");
+	out.push("#![allow(dead_code)]");
+	out.push("#![allow(rustdoc::invalid_html_tags)]");
 	out.push("");
 	out.push("use std::collections::HashMap;");
 	out.push("");
@@ -1776,6 +1813,17 @@ function getResultTypeName(
 	return `${toPascalCase(method.rpcMethod)}Result`;
 }
 
+function methodUsesInternalSchema(
+	schema: JSONSchema7 | null | undefined,
+	defCollections: DefinitionCollections,
+): boolean {
+	if (!schema) return false;
+
+	const nonNullable = getNullableInner(schema) ?? schema;
+	const resolved = resolveSchema(nonNullable, defCollections) ?? nonNullable;
+	return isSchemaInternal(resolved);
+}
+
 function pushNamespaceMethodBody(
 	out: string[],
 	constName: string,
@@ -1884,7 +1932,12 @@ function emitNamespaceMethod(
 	};
 
 	const paramArg = hasParams ? `, params: ${paramsTypeName}` : "";
-	const fnVis = method.visibility === "internal" ? "pub(crate)" : "pub";
+	const fnVis =
+		method.visibility === "internal" ||
+		methodUsesInternalSchema(method.params, defCollections) ||
+		methodUsesInternalSchema(method.result, defCollections)
+			? "pub(crate)"
+			: "pub";
 
 	if (hasParams && paramsInfo.optional) {
 		out.push(...buildDocs(false));
@@ -1949,6 +2002,7 @@ function generateRpcCode(apiSchema: ApiSchema): string {
 	out.push("");
 	out.push("#![allow(missing_docs)]");
 	out.push("#![allow(clippy::too_many_arguments)]");
+	out.push("#![allow(dead_code)]");
 	out.push("");
 	out.push("use super::api_types::{rpc_methods, *};");
 	const externalTypeRefs = new Map<string, Set<string>>();

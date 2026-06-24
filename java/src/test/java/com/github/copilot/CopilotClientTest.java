@@ -16,11 +16,15 @@ import com.github.copilot.rpc.SessionLifecycleEventTypes;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
-import java.util.Optional;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Tests for CopilotClient.
@@ -36,6 +40,75 @@ public class CopilotClientTest {
     @BeforeAll
     static void setup() {
         cliPath = TestUtil.findCliPath();
+    }
+
+    @Test
+    void testStopRequestsRuntimeShutdownForOwnedProcess() throws Exception {
+        var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
+        var rpc = mock(JsonRpcClient.class);
+        when(rpc.invoke(eq("runtime.shutdown"), any(), eq(Void.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        var process = mock(Process.class);
+        when(process.isAlive()).thenReturn(true);
+        when(process.waitFor(anyLong(), any(TimeUnit.class))).thenReturn(true);
+
+        setConnectionFuture(client, rpc, process);
+
+        client.stop().get();
+
+        verify(rpc).invoke(eq("runtime.shutdown"), eq(Map.of()), eq(Void.class));
+        verify(rpc).close();
+        // The runtime never self-exits after runtime.shutdown (it keeps its
+        // JSON-RPC server alive to send the response and leaves termination to
+        // the caller), so stop() terminates the owned process. The mocked
+        // process exits on the first SIGTERM (waitFor returns true), so we
+        // never escalate to destroyForcibly().
+        verify(process).destroy();
+        verify(process, never()).destroyForcibly();
+    }
+
+    @Test
+    void testStopDoesNotThrowWhenRuntimeShutdownFails() throws Exception {
+        var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
+        var rpc = mock(JsonRpcClient.class);
+        when(rpc.invoke(eq("runtime.shutdown"), any(), eq(Void.class)))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("shutdown failed")));
+        var process = mock(Process.class);
+        when(process.isAlive()).thenReturn(true);
+        when(process.destroyForcibly()).thenReturn(process);
+        when(process.waitFor(anyLong(), any(TimeUnit.class))).thenReturn(true);
+
+        setConnectionFuture(client, rpc, process);
+
+        assertDoesNotThrow(() -> client.stop().get());
+
+        verify(rpc).invoke(eq("runtime.shutdown"), eq(Map.of()), eq(Void.class));
+        verify(rpc).close();
+        verify(process).destroyForcibly();
+    }
+
+    @Test
+    void testForceStopAndExternalStopDoNotRequestRuntimeShutdown() throws Exception {
+        var forceClient = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
+        var forceRpc = mock(JsonRpcClient.class);
+        var process = mock(Process.class);
+        when(process.isAlive()).thenReturn(true);
+        when(process.destroyForcibly()).thenReturn(process);
+        when(process.waitFor(anyLong(), any(TimeUnit.class))).thenReturn(true);
+        setConnectionFuture(forceClient, forceRpc, process);
+
+        forceClient.forceStop().get();
+
+        verify(forceRpc, never()).invoke(eq("runtime.shutdown"), any(), eq(Void.class));
+        verify(process).destroyForcibly();
+
+        var externalClient = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
+        var externalRpc = mock(JsonRpcClient.class);
+        setConnectionFuture(externalClient, externalRpc, null);
+
+        externalClient.stop().get();
+
+        verify(externalRpc, never()).invoke(eq("runtime.shutdown"), any(), eq(Void.class));
     }
 
     @Test
@@ -532,5 +605,17 @@ public class CopilotClientTest {
             assertEquals(1, models.size());
             assertEquals("no-start-model", models.get(0).getId());
         }
+    }
+
+    private static void setConnectionFuture(CopilotClient client, JsonRpcClient rpc, Process process) throws Exception {
+        var connectionClass = Class.forName("com.github.copilot.CopilotClient$Connection");
+        var constructor = connectionClass.getDeclaredConstructor(JsonRpcClient.class, Process.class,
+                com.github.copilot.generated.rpc.ServerRpc.class);
+        constructor.setAccessible(true);
+        var connection = constructor.newInstance(rpc, process, null);
+
+        Field field = CopilotClient.class.getDeclaredField("connectionFuture");
+        field.setAccessible(true);
+        field.set(client, CompletableFuture.completedFuture(connection));
     }
 }

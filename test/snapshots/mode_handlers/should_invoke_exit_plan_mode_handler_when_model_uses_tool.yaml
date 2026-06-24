@@ -12,12 +12,15 @@ conversations:
             type: function
             function:
               name: exit_plan_mode
-              arguments: '{"summary":"Greeting file implementation plan","actions":["interactive","autopilot","exit_only"],"recommendedAction":"interactive"}'
+              arguments: '{"summary":"Greeting file implementation
+                plan","actions":["interactive","autopilot","exit_only"],"recommendedAction":"interactive"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: |-
+        content: >-
           Plan approved! Exited plan mode.
 
-          You are now in interactive mode (edits require manual approval). Proceed with implementing the plan.
+
+          You are now in interactive mode. Start implementing the plan now, in this same response. Approving the plan is
+          your go-signal, so do not stop to ask whether to proceed or wait for another message.
       - role: assistant
         content: Plan approved; I will wait for the next instruction before making changes.

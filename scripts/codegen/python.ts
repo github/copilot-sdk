@@ -1177,6 +1177,111 @@ function removeRequiredAnyDefaultsForPython(
     });
 }
 
+/**
+ * Remove locally-emitted Enum class definitions whose name already comes from
+ * a `.session_events` import.
+ *
+ * Quicktype's enum-merging path collapses structurally-identical enums (even
+ * with `combineClasses: false`, which only governs class merging). When the
+ * RPC schema gains sibling enums like `OptionsUpdateReasoningSummary` and
+ * `SessionOpenOptionsReasoningSummary` whose value set matches the shared
+ * `ReasoningSummary` enum, quicktype picks `ReasoningSummary` as the merged
+ * canonical name. That local class then shadows the import we add at the top
+ * of `rpc.py`, breaking `isinstance` checks against the canonical enum used
+ * elsewhere in the SDK.
+ *
+ * The fix: detect such shadowed enum definitions, verify the local values
+ * exactly match the imported enum's values in the session-events schema, and
+ * strip the local class so references resolve to the import.
+ */
+function removeShadowedSessionEventEnumsForPython(
+    code: string,
+    importedFromSessionEvents: Set<string>,
+    sessionEventsSchema: JSONSchema7 | undefined
+): string {
+    if (importedFromSessionEvents.size === 0 || !sessionEventsSchema) return code;
+    const seDefs = collectDefinitionCollections(sessionEventsSchema as Record<string, unknown>);
+    const enumBlockRe =
+        /(?:^|\n)class\s+(\w+)\s*\(Enum\):\s*\r?\n([\s\S]*?)(?=\nclass\s+\w|\n@dataclass\b|\ndef\s+\w|$)/g;
+    return code
+        .replace(enumBlockRe, (match: string, className: string, body: string) => {
+            if (!importedFromSessionEvents.has(className)) return match;
+            const seDef = seDefs.definitions[className] ?? seDefs.$defs[className];
+            const seResolved = seDef ? resolveSchema(seDef, seDefs) ?? seDef : undefined;
+            if (
+                !seResolved?.enum ||
+                !Array.isArray(seResolved.enum) ||
+                !seResolved.enum.every((value) => typeof value === "string")
+            ) {
+                return match;
+            }
+            const localValues = new Set<string>();
+            const valueRe = /^\s+\w+\s*=\s*"([^"]*)"/gm;
+            let vm: RegExpExecArray | null;
+            while ((vm = valueRe.exec(body)) !== null) {
+                localValues.add(vm[1]);
+            }
+            const seValues = new Set(seResolved.enum as string[]);
+            if (localValues.size !== seValues.size) return match;
+            for (const value of localValues) {
+                if (!seValues.has(value)) return match;
+            }
+            return "";
+        })
+        .replace(/\n{3,}/g, "\n\n");
+}
+
+function reorderPythonDataclassFields(code: string): string {
+    const fieldRe =
+        /^    \w+: (?:Any|bool|int|float|str|dict|list|ClassVar|[A-Z_]\w*|['"][A-Z_]\w*)(?:[^=]*)?(?: = .*)?$/;
+    const methodRe = /^    (?:@(?:staticmethod|classmethod|property)|(?:async\s+)?def\s+)/;
+    const classBlockRe = /(@dataclass\r?\nclass\s+\w+:[\s\S]*?)(?=^@dataclass|^class\s+\w|^def\s+\w|\Z)/gm;
+
+    return code.replace(classBlockRe, (block: string) => {
+        const lines = block.split("\n");
+        const bodyStart = 2;
+        const memberStart = lines.findIndex((line, index) => index >= bodyStart && methodRe.test(line));
+        if (memberStart < 0) {
+            return block;
+        }
+
+        const header = lines.slice(0, bodyStart);
+        const fieldsBody = lines.slice(bodyStart, memberStart);
+        const members = lines.slice(memberStart);
+        const preamble: string[] = [];
+        const groups: string[][] = [];
+        let current: string[] | undefined;
+
+        for (const line of fieldsBody) {
+            if (fieldRe.test(line)) {
+                current = [line];
+                groups.push(current);
+                continue;
+            }
+
+            if (current) {
+                current.push(line);
+            } else {
+                preamble.push(line);
+            }
+        }
+
+        if (groups.length < 2) {
+            return block;
+        }
+
+        const required = groups.filter((group) => !group[0].includes(" = "));
+        const optional = groups.filter((group) => group[0].includes(" = "));
+        const reorderedGroups = [...required, ...optional];
+        const changed = reorderedGroups.some((group, index) => group !== groups[index]);
+        if (!changed) {
+            return block;
+        }
+
+        return [...header, ...preamble, ...reorderedGroups.flat(), ...members].join("\n");
+    });
+}
+
 function toPascalCase(s: string): string {
     return fixBrandCasing(
         s
@@ -2433,8 +2538,9 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
             out.push(`def to_timedelta_int(x: timedelta) -> int:`);
             out.push(`    assert isinstance(x, timedelta)`);
             out.push(`    milliseconds = x.total_seconds() * 1000.0`);
-            out.push(`    assert milliseconds.is_integer()`);
-            out.push(`    return int(milliseconds)`);
+            out.push(`    # Durations can carry sub-millisecond precision; round to the nearest whole ms`);
+            out.push(`    # using Python's default banker's rounding (round-half-to-even).`);
+            out.push(`    return round(milliseconds)`);
             out.push(``);
             out.push(``);
         }
@@ -2834,6 +2940,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
         }
     );
     typesCode = removeRequiredAnyDefaultsForPython(typesCode, allDefinitions, allDefinitionCollections);
+    typesCode = reorderPythonDataclassFields(typesCode);
     // Fix bare except: to use Exception (required by ruff/pylint)
     typesCode = typesCode.replace(/except:/g, "except Exception:");
     // Remove unnecessary pass when class has methods (quicktype generates pass for empty schemas)
@@ -2844,6 +2951,11 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
     typesCode = postProcessExternalUnionAliasesForPython(typesCode, externalUnionAliases);
     typesCode = postProcessExternalRefsForPython(typesCode, externalRefs.placeholderNames, externalEnumNames);
+    typesCode = removeShadowedSessionEventEnumsForPython(
+        typesCode,
+        externalRefs.imports.get(".session_events") ?? new Set<string>(),
+        sessionEventsSchema
+    );
     const { code: typesCodeAfterUnions, unions: refBasedUnions } = postProcessRefBasedDiscriminatedUnionsForPython(
         typesCode,
         allDefinitions,
@@ -3077,6 +3189,9 @@ def _patch_model_capabilities(data: dict) -> dict:
     }
     if (schema.clientSession) {
         emitClientSessionApiRegistration(lines, schema.clientSession, resolveType);
+    }
+    if (schema.clientGlobal) {
+        emitClientGlobalApiRegistration(lines, schema.clientGlobal, resolveType);
     }
 
     // Patch models.list to normalize capabilities before deserialization
@@ -3600,7 +3715,107 @@ function emitClientSessionRegistrationMethod(
     lines.push(`    client.set_request_handler("${method.rpcMethod}", ${handlerVariableName})`);
 }
 
-// ── Main ────────────────────────────────────────────────────────────────────
+function emitClientGlobalApiRegistration(
+    lines: string[],
+    node: Record<string, unknown>,
+    resolveType: (name: string) => string
+): void {
+    const groups = Object.entries(node).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
+
+    for (const [groupName, groupNode] of groups) {
+        const handlerName = `${toPascalCase(groupName)}Handler`;
+        const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
+        if (groupDeprecated) {
+            lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
+        }
+        if (groupExperimental) {
+            pushPyExperimentalApiGroupComment(lines);
+        }
+        lines.push(`class ${handlerName}(Protocol):`);
+        const methods = collectRpcMethods(groupNode as Record<string, unknown>);
+        for (const method of methods) {
+            // Client-global handler methods reuse the session handler shape; the
+            // only difference is dispatch (no implicit session_id key).
+            emitClientSessionHandlerMethod(lines, method, resolveType, groupExperimental, groupDeprecated);
+        }
+        lines.push(``);
+    }
+
+    lines.push(`@dataclass`);
+    lines.push(`class ClientGlobalApiHandlers:`);
+    if (groups.length === 0) {
+        lines.push(`    pass`);
+    } else {
+        for (const [groupName] of groups) {
+            lines.push(`    ${toSnakeCase(groupName)}: ${toPascalCase(groupName)}Handler | None = None`);
+        }
+    }
+    lines.push(``);
+
+    lines.push(`def register_client_global_api_handlers(`);
+    lines.push(`    client: "JsonRpcClient",`);
+    lines.push(`    handlers: ClientGlobalApiHandlers,`);
+    lines.push(`) -> None:`);
+    lines.push(`    """Register client-global request handlers on a JSON-RPC connection.`);
+    lines.push(``);
+    lines.push(`    Unlike client-session handlers these methods carry no implicit`);
+    lines.push(`    session_id dispatch key; a single set of handlers serves the entire`);
+    lines.push(`    connection.`);
+    lines.push(`    """`);
+    if (groups.length === 0) {
+        lines.push(`    return`);
+    } else {
+        for (const [groupName, groupNode] of groups) {
+            const methods = collectRpcMethods(groupNode as Record<string, unknown>);
+            for (const method of methods) {
+                emitClientGlobalRegistrationMethod(lines, groupName, method, resolveType);
+            }
+        }
+    }
+    lines.push(``);
+}
+
+function emitClientGlobalRegistrationMethod(
+    lines: string[],
+    groupName: string,
+    method: RpcMethod,
+    resolveType: (name: string) => string
+): void {
+    const rpcSegments = method.rpcMethod.split(".");
+    const handlerVariableName = `handle_${rpcSegments.map(toSnakeCase).join("_")}`;
+    const paramsType = resolveType(pythonParamsTypeName(method));
+    const resultSchema = getMethodResultSchema(method);
+    const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+    const hasResult = !isVoidSchema(resultSchema) && !nullableInner;
+    const handlerField = toSnakeCase(groupName);
+    const handlerMethod = clientSessionHandlerMethodName(method.rpcMethod);
+
+    lines.push(`    async def ${handlerVariableName}(params: dict) -> dict | None:`);
+    lines.push(`        request = ${paramsType}.from_dict(params)`);
+    lines.push(`        handler = handlers.${handlerField}`);
+    lines.push(`        if handler is None: raise RuntimeError("No ${handlerField} client-global handler registered")`);
+    if (hasResult) {
+        lines.push(`        result = await handler.${handlerMethod}(request)`);
+        if (isObjectSchema(resultSchema)) {
+            lines.push(`        return result.to_dict()`);
+        } else {
+            lines.push(`        return result.value if hasattr(result, 'value') else result`);
+        }
+    } else if (nullableInner) {
+        lines.push(`        result = await handler.${handlerMethod}(request)`);
+        const resolvedInner = resolveSchema(nullableInner, rpcDefinitions) ?? nullableInner;
+        if (isObjectSchema(resolvedInner) || nullableInner.$ref) {
+            lines.push(`        return result.to_dict() if result is not None else None`);
+        } else {
+            lines.push(`        return result`);
+        }
+    } else {
+        lines.push(`        await handler.${handlerMethod}(request)`);
+        lines.push(`        return None`);
+    }
+    lines.push(`    client.set_request_handler("${method.rpcMethod}", ${handlerVariableName})`);
+}
 
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     await generateSessionEvents(sessionSchemaPath);

@@ -263,6 +263,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionBinaryAsset:
+		var d SessionBinaryAssetData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCanvasClosed:
+		var d SessionCanvasClosedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionCanvasOpened:
 		var d SessionCanvasOpenedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -433,6 +445,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionTitleChanged:
 		var d SessionTitleChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionTodosChanged:
+		var d SessionTodosChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -637,6 +655,284 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalCitationLocation(data []byte) (CitationLocation, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type CitationLocationType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case CitationLocationTypeBlock:
+		var d CitationLocationBlock
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case CitationLocationTypeChar:
+		var d CitationLocationChar
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case CitationLocationTypePage:
+		var d CitationLocationPage
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawCitationLocation{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawCitationLocation) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type CitationLocationType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r CitationLocationBlock) MarshalJSON() ([]byte, error) {
+	type alias CitationLocationBlock
+	return json.Marshal(struct {
+		Type CitationLocationType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r CitationLocationChar) MarshalJSON() ([]byte, error) {
+	type alias CitationLocationChar
+	return json.Marshal(struct {
+		Type CitationLocationType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r CitationLocationPage) MarshalJSON() ([]byte, error) {
+	type alias CitationLocationPage
+	return json.Marshal(struct {
+		Type CitationLocationType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r *CitationReference) UnmarshalJSON(data []byte) error {
+	type rawCitationReference struct {
+		CitedText        *string         `json:"citedText,omitempty"`
+		Location         json.RawMessage `json:"location,omitempty"`
+		ProviderMetadata any             `json:"providerMetadata,omitempty"`
+		SourceID         string          `json:"sourceId"`
+	}
+	var raw rawCitationReference
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.CitedText = raw.CitedText
+	if raw.Location != nil {
+		value, err := unmarshalCitationLocation(raw.Location)
+		if err != nil {
+			return err
+		}
+		r.Location = value
+	}
+	r.ProviderMetadata = raw.ProviderMetadata
+	r.SourceID = raw.SourceID
+	return nil
+}
+
+func matchesBinaryAssetReference(data []byte) bool {
+	var rawGroup0 struct {
+		AssetID       json.RawMessage `json:"assetId"`
+		ByteLength    json.RawMessage `json:"byteLength"`
+		Data          json.RawMessage `json:"data"`
+		OmittedReason json.RawMessage `json:"omittedReason"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.AssetID == nil {
+		return false
+	}
+	if rawGroup0.ByteLength == nil {
+		return false
+	}
+	if rawGroup0.Data != nil {
+		return false
+	}
+	return rawGroup0.OmittedReason == nil
+}
+
+func matchesOmittedBinaryResult(data []byte) bool {
+	var rawGroup0 struct {
+		AssetID       json.RawMessage `json:"assetId"`
+		ByteLength    json.RawMessage `json:"byteLength"`
+		Data          json.RawMessage `json:"data"`
+		OmittedReason json.RawMessage `json:"omittedReason"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.ByteLength == nil {
+		return false
+	}
+	if rawGroup0.OmittedReason == nil {
+		return false
+	}
+	if rawGroup0.AssetID != nil {
+		return false
+	}
+	return rawGroup0.Data == nil
+}
+
+func matchesPersistedBinaryImage(data []byte) bool {
+	var rawGroup0 struct {
+		AssetID       json.RawMessage `json:"assetId"`
+		ByteLength    json.RawMessage `json:"byteLength"`
+		Data          json.RawMessage `json:"data"`
+		OmittedReason json.RawMessage `json:"omittedReason"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Data == nil {
+		return false
+	}
+	if rawGroup0.AssetID != nil {
+		return false
+	}
+	if rawGroup0.ByteLength != nil {
+		return false
+	}
+	return rawGroup0.OmittedReason == nil
+}
+
+func unmarshalPersistedBinaryResult(data []byte) (PersistedBinaryResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type PersistedBinaryResultType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case PersistedBinaryResultTypeImage:
+		if matchesBinaryAssetReference(data) {
+			var d BinaryAssetReference
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesOmittedBinaryResult(data) {
+			var d OmittedBinaryResult
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesPersistedBinaryImage(data) {
+			var d PersistedBinaryImage
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		return &RawPersistedBinaryResult{Discriminator: raw.Type, Raw: data}, nil
+	case PersistedBinaryResultTypeResource:
+		if matchesBinaryAssetReference(data) {
+			var d BinaryAssetReference
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesOmittedBinaryResult(data) {
+			var d OmittedBinaryResult
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesPersistedBinaryImage(data) {
+			var d PersistedBinaryImage
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		return &RawPersistedBinaryResult{Discriminator: raw.Type, Raw: data}, nil
+	default:
+		return &RawPersistedBinaryResult{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawPersistedBinaryResult) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type PersistedBinaryResultType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r BinaryAssetReference) MarshalJSON() ([]byte, error) {
+	type alias BinaryAssetReference
+	return json.Marshal(struct {
+		Type PersistedBinaryResultType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r OmittedBinaryResult) MarshalJSON() ([]byte, error) {
+	type alias OmittedBinaryResult
+	return json.Marshal(struct {
+		Type PersistedBinaryResultType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PersistedBinaryImage) MarshalJSON() ([]byte, error) {
+	type alias PersistedBinaryImage
+	return json.Marshal(struct {
+		Type PersistedBinaryResultType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func unmarshalToolExecutionCompleteContent(data []byte) (ToolExecutionCompleteContent, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -832,15 +1128,29 @@ func (r ToolExecutionCompleteContentText) MarshalJSON() ([]byte, error) {
 
 func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 	type rawToolExecutionCompleteResult struct {
-		Content         string                           `json:"content"`
-		Contents        []json.RawMessage                `json:"contents,omitzero"`
-		DetailedContent *string                          `json:"detailedContent,omitempty"`
-		UIResource      *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
+		BinaryResultsForLlm []json.RawMessage                `json:"binaryResultsForLlm,omitzero"`
+		CitableSources      []CitableSource                  `json:"citableSources,omitzero"`
+		Content             string                           `json:"content"`
+		Contents            []json.RawMessage                `json:"contents,omitzero"`
+		DetailedContent     *string                          `json:"detailedContent,omitempty"`
+		StructuredContent   any                              `json:"structuredContent,omitempty"`
+		UIResource          *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
 	}
 	var raw rawToolExecutionCompleteResult
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	if raw.BinaryResultsForLlm != nil {
+		r.BinaryResultsForLlm = make([]PersistedBinaryResult, 0, len(raw.BinaryResultsForLlm))
+		for _, rawItem := range raw.BinaryResultsForLlm {
+			value, err := unmarshalPersistedBinaryResult(rawItem)
+			if err != nil {
+				return err
+			}
+			r.BinaryResultsForLlm = append(r.BinaryResultsForLlm, value)
+		}
+	}
+	r.CitableSources = raw.CitableSources
 	r.Content = raw.Content
 	if raw.Contents != nil {
 		r.Contents = make([]ToolExecutionCompleteContent, 0, len(raw.Contents))
@@ -853,6 +1163,7 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.DetailedContent = raw.DetailedContent
+	r.StructuredContent = raw.StructuredContent
 	r.UIResource = raw.UIResource
 	return nil
 }
@@ -1693,124 +2004,6 @@ func (r *PermissionCompletedData) UnmarshalJSON(data []byte) error {
 	}
 	r.ToolCallID = raw.ToolCallID
 	return nil
-}
-
-func unmarshalElicitationCompletedContent(data []byte) (ElicitationCompletedContent, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	{
-		var value string
-		if err := json.Unmarshal(data, &value); err == nil {
-			return ElicitationCompletedStringContent(value), nil
-		}
-	}
-	{
-		var value float64
-		if err := json.Unmarshal(data, &value); err == nil {
-			return ElicitationCompletedNumberContent(value), nil
-		}
-	}
-	{
-		var value bool
-		if err := json.Unmarshal(data, &value); err == nil {
-			return ElicitationCompletedBooleanContent(value), nil
-		}
-	}
-	{
-		var value []string
-		if err := json.Unmarshal(data, &value); err == nil {
-			return ElicitationCompletedStringArrayContent(value), nil
-		}
-	}
-	return nil, errors.New("data did not match any union variant for ElicitationCompletedContent")
-}
-
-func (r *ElicitationCompletedData) UnmarshalJSON(data []byte) error {
-	type rawElicitationCompletedData struct {
-		Action    *ElicitationCompletedAction `json:"action,omitempty"`
-		Content   map[string]json.RawMessage  `json:"content,omitzero"`
-		RequestID string                      `json:"requestId"`
-	}
-	var raw rawElicitationCompletedData
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	r.Action = raw.Action
-	if raw.Content != nil {
-		r.Content = make(map[string]ElicitationCompletedContent, len(raw.Content))
-		for key, rawValue := range raw.Content {
-			value, err := unmarshalElicitationCompletedContent(rawValue)
-			if err != nil {
-				return err
-			}
-			r.Content[key] = value
-		}
-	}
-	r.RequestID = raw.RequestID
-	return nil
-}
-
-func (r CustomNotificationPayload) MarshalJSON() ([]byte, error) {
-	if r.AnyArray != nil {
-		return json.Marshal(r.AnyArray)
-	}
-	if r.AnyMap != nil {
-		return json.Marshal(r.AnyMap)
-	}
-	if r.Bool != nil {
-		return json.Marshal(r.Bool)
-	}
-	if r.Double != nil {
-		return json.Marshal(r.Double)
-	}
-	if r.String != nil {
-		return json.Marshal(r.String)
-	}
-	return []byte("null"), nil
-}
-
-func (r *CustomNotificationPayload) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = CustomNotificationPayload{}
-		return nil
-	}
-	{
-		var value []any
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = CustomNotificationPayload{AnyArray: value}
-			return nil
-		}
-	}
-	{
-		var value map[string]any
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = CustomNotificationPayload{AnyMap: value}
-			return nil
-		}
-	}
-	{
-		var value bool
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = CustomNotificationPayload{Bool: &value}
-			return nil
-		}
-	}
-	{
-		var value float64
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = CustomNotificationPayload{Double: &value}
-			return nil
-		}
-	}
-	{
-		var value string
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = CustomNotificationPayload{String: &value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for CustomNotificationPayload")
 }
 
 func (r *SessionExtensionsAttachmentsPushedData) UnmarshalJSON(data []byte) error {

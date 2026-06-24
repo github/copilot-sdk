@@ -13,8 +13,8 @@ use tracing::{Instrument, warn};
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{LogRequest, ModelSwitchToRequest, OpenCanvasInstance};
 use crate::generated::session_events::{
-    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
-    SessionEventType,
+    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData,
+    SessionCanvasClosedData, SessionErrorData, SessionEventType,
 };
 use crate::handler::{
     AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
@@ -837,6 +837,7 @@ impl Client {
         crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
         config.system_message =
             crate::mode::system_message_for_mode(mode, config.system_message.take());
+        config.memory = crate::mode::memory_for_mode(mode, config.memory.take());
         if mode == crate::ClientMode::Empty {
             if config.enable_session_telemetry.is_none() {
                 config.enable_session_telemetry = Some(false);
@@ -1092,6 +1093,7 @@ impl Client {
         crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
         config.system_message =
             crate::mode::system_message_for_mode(mode, config.system_message.take());
+        config.memory = crate::mode::memory_for_mode(mode, config.memory.take());
         if mode == crate::ClientMode::Empty {
             if config.enable_session_telemetry.is_none() {
                 config.enable_session_telemetry = Some(false);
@@ -1375,6 +1377,10 @@ fn upsert_open_canvas_snapshot(
     }
 }
 
+fn remove_open_canvas_snapshot(snapshots: &mut Vec<OpenCanvasInstance>, instance_id: &str) {
+    snapshots.retain(|open| open.instance_id != instance_id);
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_event_loop(
     session_id: SessionId,
@@ -1570,6 +1576,18 @@ async fn handle_notification(
                 upsert_open_canvas_snapshot(&mut open_canvases.write(), open_canvas);
             }
             Err(e) => warn!(error = %e, "failed to deserialize session.canvas.opened payload"),
+        }
+    }
+    if event_type == SessionEventType::SessionCanvasClosed {
+        match serde_json::from_value::<SessionCanvasClosedData>(notification.event.data.clone()) {
+            Ok(closed) => {
+                if closed.instance_id.is_empty() {
+                    warn!("failed to deserialize session.canvas.closed payload");
+                } else {
+                    remove_open_canvas_snapshot(&mut open_canvases.write(), &closed.instance_id);
+                }
+            }
+            Err(e) => warn!(error = %e, "failed to deserialize session.canvas.closed payload"),
         }
     }
 

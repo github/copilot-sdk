@@ -8,11 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch containing the upgrade PR'
+        description: "Branch containing the upgrade PR"
         required: true
         type: string
       pr_number:
-        description: 'PR number to push fixes to'
+        description: "PR number to push fixes to"
         required: true
         type: string
 
@@ -41,6 +41,7 @@ safe-outputs:
   noop:
     report-as-issue: false
 ---
+
 # Java Handwritten Code Adaptation After CLI Upgrade
 
 You are an automation agent that fixes handwritten Java SDK source and test code after a `@github/copilot` version bump has regenerated the typed schemas.
@@ -50,7 +51,7 @@ You are an automation agent that fixes handwritten Java SDK source and test code
 - The branch `${{ inputs.branch }}` already has:
   - Updated `java/scripts/codegen/package.json` with the new version
   - Regenerated `java/src/generated/java/` code that compiles successfully
-  - Updated `java/.lastmerge` and POM property
+  - Updated the Java POM CLI/version pin property
 - Your job is ONLY to fix **handwritten** code, NOT generated code.
 
 ## Boundaries
@@ -72,6 +73,7 @@ git pull origin "${{ inputs.branch }}"
 ```
 
 Verify Java environment:
+
 ```bash
 java -version
 mvn --version
@@ -100,12 +102,14 @@ Read the build output. Common patterns after a schema bump:
 ### Step 3: Fix compilation errors
 
 Apply minimal targeted fixes:
+
 - Search for compilation errors referencing generated type names.
 - Update constructor calls to match new arity.
 - Update type references if renamed/moved.
 - Do NOT over-engineer — just make it compile.
 
 After each fix round, verify:
+
 ```bash
 cd java && mvn compile -Pskip-test-harness
 ```
@@ -113,11 +117,13 @@ cd java && mvn compile -Pskip-test-harness
 ### Step 4: Fix test failures
 
 Once compilation passes, run tests:
+
 ```bash
 cd java && mvn verify -Dskip.test.harness=true 2>&1 | tee /tmp/mvn-test.log
 ```
 
 Fix failing assertions:
+
 - Update expected constructor arg counts in test utility calls.
 - Update expected enum values in assertions.
 - Add coverage for new public API if introduced (new getters, new config options).
@@ -137,6 +143,7 @@ mvn verify -Dskip.test.harness=true
 ```
 
 If this passes, commit and push:
+
 ```bash
 git add java/src/main/java java/src/test/java
 git commit -m "Fix handwritten Java code for @github/copilot schema changes

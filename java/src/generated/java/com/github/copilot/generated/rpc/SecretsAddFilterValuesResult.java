@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Confirmation that the secret values were registered.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

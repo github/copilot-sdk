@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "auto_mode_switch.requested". Auto mode switch request notification requiring user approval
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

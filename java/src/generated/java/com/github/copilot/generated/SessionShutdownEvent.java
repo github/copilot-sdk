@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.shutdown". Session termination metrics including usage statistics, code changes, and shutdown reason
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -50,6 +49,8 @@ public final class SessionShutdownEvent extends SessionEvent {
         @JsonProperty("totalApiDurationMs") Long totalApiDurationMs,
         /** Unix timestamp (milliseconds) when the session started */
         @JsonProperty("sessionStartTime") Long sessionStartTime,
+        /** On-disk byte size of the session's persisted events.jsonl file at shutdown time; omitted when the file does not exist or cannot be stat'd */
+        @JsonProperty("eventsFileSizeBytes") Long eventsFileSizeBytes,
         /** Aggregate code change metrics for the session */
         @JsonProperty("codeChanges") ShutdownCodeChanges codeChanges,
         /** Per-model usage breakdown, keyed by model identifier */

@@ -9,15 +9,23 @@
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
+import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
     ReasoningSummary,
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { RemoteSessionMode } from "./generated/rpc.js";
-import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type {
+    ModelBillingTokenPrices,
+    OpenCanvasInstance,
+    RemoteSessionMode,
+} from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type {
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
+} from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -26,6 +34,14 @@ export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
+export type { LlmInferenceHeaders } from "./generated/rpc.js";
+export type { CopilotRequestContext } from "./copilotRequestHandler.js";
+export {
+    CopilotRequestHandler,
+    CopilotWebSocketHandler,
+    CopilotWebSocketCloseStatus,
+    CopilotWebSocketForwarder,
+} from "./copilotRequestHandler.js";
 
 /**
  * Options for creating a CopilotClient
@@ -55,6 +71,8 @@ export type TraceContextProvider = () => TraceContext | Promise<TraceContext>;
 export interface TelemetryConfig {
     /** OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT. */
     otlpEndpoint?: string;
+    /** OTLP HTTP protocol for all signals. Sets OTEL_EXPORTER_OTLP_PROTOCOL. */
+    otlpProtocol?: "http/json" | "http/protobuf";
     /** File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH. */
     filePath?: string;
     /** Exporter backend type: "otlp-http" or "file". Sets COPILOT_OTEL_EXPORTER_TYPE. */
@@ -297,6 +315,30 @@ export interface CopilotClientOptions {
     sessionFs?: SessionFsConfig;
 
     /**
+     * Custom handler for outbound model-layer requests (experimental).
+     *
+     * When provided, the client registers as the runtime's request handler
+     * on connection: every outbound model-layer request the runtime would
+     * otherwise have issued itself — plain HTTP, streaming SSE, and
+     * WebSocket — is dispatched back to the handler over JSON-RPC. The
+     * handler returns the response verbatim, exactly as if the runtime had
+     * issued the request itself.
+     *
+     * Subclass {@link CopilotRequestHandler} and override the hooks you need;
+     * an instance that overrides nothing is a transparent pass-through.
+     *
+     * v1 notes:
+     * - HTTP (buffered and streaming SSE) and WebSocket transports are all
+     *   intercepted. The handler receives a `transport` discriminator on the
+     *   {@link CopilotRequestContext} for both.
+     * - The handler is set process-globally on the runtime; the same
+     *   handler is invoked for every session created on this client.
+     *
+     * @experimental
+     */
+    requestHandler?: CopilotRequestHandler;
+
+    /**
      * Server-wide idle timeout for sessions in seconds.
      * Sessions without activity for this duration are automatically cleaned up.
      * Set to 0 or omit to disable (sessions live indefinitely).
@@ -511,6 +553,13 @@ export interface Tool<TArgs = unknown> {
      * When true, the tool can execute without a permission prompt.
      */
     skipPermission?: boolean;
+    /**
+     * Controls whether the tool may be deferred (loaded lazily via tool search)
+     * rather than always pre-loaded. When `"auto"`, the tool can be deferred and
+     * surfaced through tool search. When `"never"`, the tool is always pre-loaded.
+     * Optional; defaults to `"auto"`.
+     */
+    defer?: "auto" | "never";
 }
 
 /**
@@ -525,6 +574,7 @@ export function defineTool<T = unknown>(
         handler?: ToolHandler<T>;
         overridesBuiltInTool?: boolean;
         skipPermission?: boolean;
+        defer?: "auto" | "never";
     }
 ): Tool<T> {
     return { name, ...config };
@@ -1510,6 +1560,17 @@ export interface InfiniteSessionConfig {
 }
 
 /**
+ * Configuration for the memory feature, which lets the agent persist and recall
+ * information across turns.
+ */
+export interface MemoryConfiguration {
+    /**
+     * Whether the memory feature is enabled for this session.
+     */
+    enabled: boolean;
+}
+
+/**
  * Configuration for handling large tool outputs.
  *
  * When a tool produces output exceeding the configured size, the output is
@@ -1554,6 +1615,31 @@ export interface ExtensionInfo {
     source: string;
     /** Stable provider name within the source namespace. */
     name: string;
+}
+
+/**
+ * Provider-scoped options for the Copilot API (CAPI).
+ *
+ * These settings apply to the built-in Copilot API provider only. They live
+ * under their own namespace because a single session can host multiple
+ * providers (CAPI alongside BYOK via {@link ProviderConfig}), so transport and
+ * provider-level choices are conceptually per-provider rather than global.
+ */
+export interface CapiSessionOptions {
+    /**
+     * Whether to use the WebSocket transport for the CAPI Responses API.
+     *
+     * WebSocket transport is enabled by default whenever the selected model
+     * advertises the `ws:/responses` endpoint. Set this to `false` to fall back
+     * to the HTTP Responses transport instead — useful for users behind proxies
+     * where WebSocket connections fail.
+     *
+     * Setting this to `false` is equivalent to setting the
+     * `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
+     *
+     * @default true
+     */
+    enableWebSocketResponses?: boolean;
 }
 
 /**
@@ -1716,6 +1802,39 @@ export interface SessionConfigBase {
      * When specified, uses the provided API endpoint instead of the Copilot API.
      */
     provider?: ProviderConfig;
+
+    /**
+     * Provider-scoped options for the built-in Copilot API (CAPI), such as
+     * opting out of the WebSocket Responses transport. See
+     * {@link CapiSessionOptions}.
+     */
+    capi?: CapiSessionOptions;
+
+    /**
+     * Named BYOK provider connections (transport + credentials), referenced by
+     * {@link models} entries via {@link NamedProviderConfig.name}.
+     *
+     * Unlike the singular {@link provider} — which makes the entire session BYOK
+     * and bypasses Copilot API authentication — named providers are **additive**:
+     * they coexist with Copilot API auth so models from CAPI and one or more BYOK
+     * providers can be mixed within a single session and across sub-agents.
+     * Combining `providers`/`models` with {@link provider} is rejected.
+     *
+     * @experimental This is part of an experimental multi-provider BYOK surface
+     * and may change or be removed in future SDK or CLI releases.
+     */
+    providers?: NamedProviderConfig[];
+
+    /**
+     * BYOK model definitions added to the session's selectable model list, each
+     * referencing a `providers[].name`. Each model surfaces under the
+     * provider-qualified selection id `providerName/id`, so BYOK ids never collide
+     * with — and cannot shadow — bare CAPI ids; duplicate selection ids are rejected.
+     *
+     * @experimental This is part of an experimental multi-provider BYOK surface
+     * and may change or be removed in future SDK or CLI releases.
+     */
+    models?: ProviderModelConfig[];
 
     /**
      * Enables or disables internal session telemetry for this session.
@@ -1929,6 +2048,11 @@ export interface SessionConfigBase {
     infiniteSessions?: InfiniteSessionConfig;
 
     /**
+     * Memory configuration for the session. When omitted, the runtime default applies.
+     */
+    memory?: MemoryConfiguration;
+
+    /**
      * GitHub token for per-session authentication.
      * When provided, the runtime resolves this token into a full GitHub identity
      * (login, Copilot plan, endpoints) and stores it on the session. This enables
@@ -2083,6 +2207,17 @@ export interface ProviderConfig {
     wireApi?: "completions" | "responses";
 
     /**
+     * Transport for OpenAI Responses requests. Defaults to "http".
+     *
+     * Set to "websockets" to deliver Responses API requests over a persistent
+     * WebSocket connection instead of HTTP. Useful for long-running,
+     * tool-call-heavy sessions that benefit from incremental
+     * `previous_response_id` continuations. Applies to OpenAI-compatible
+     * providers using `wireApi: "responses"`.
+     */
+    transport?: "http" | "websockets";
+
+    /**
      * API endpoint URL
      */
     baseUrl: string;
@@ -2146,8 +2281,133 @@ export interface ProviderConfig {
 }
 
 /**
- * Options for sending a message to a session
+ * A named BYOK provider connection (transport + credentials only), referenced by
+ * {@link ProviderModelConfig} entries via {@link NamedProviderConfig.name}.
+ *
+ * Unlike the singular, whole-session {@link ProviderConfig} — which bypasses
+ * Copilot API authentication — named providers are **additive** and coexist with
+ * Copilot API auth, so CAPI and BYOK models can be mixed within one session and
+ * across sub-agents. See {@link SessionConfigBase.providers}.
+ *
+ * @experimental This type is part of an experimental multi-provider BYOK surface
+ * and may change or be removed in future SDK or CLI releases.
  */
+export interface NamedProviderConfig {
+    /**
+     * Stable identifier referenced by {@link ProviderModelConfig.provider}.
+     * Must not contain `/`.
+     */
+    name: string;
+
+    /**
+     * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+     */
+    type?: "openai" | "azure" | "anthropic";
+
+    /**
+     * Wire API format (openai/azure only). Defaults to "completions".
+     */
+    wireApi?: "completions" | "responses";
+
+    /**
+     * API endpoint URL.
+     */
+    baseUrl: string;
+
+    /**
+     * API key. Optional for local providers like Ollama.
+     */
+    apiKey?: string;
+
+    /**
+     * Bearer token for authentication. Sets the Authorization header directly.
+     * Takes precedence over {@link apiKey} when both are set.
+     */
+    bearerToken?: string;
+
+    /**
+     * Azure-specific options.
+     */
+    azure?: {
+        /**
+         * API version. When set, uses the versioned deployment route. When
+         * omitted, uses the GA versionless v1 route.
+         */
+        apiVersion?: string;
+    };
+
+    /**
+     * Custom HTTP headers to include in all outbound requests to the provider.
+     */
+    headers?: Record<string, string>;
+}
+
+/**
+ * A BYOK model definition that references a {@link NamedProviderConfig} by name
+ * and is added to the session's selectable model list.
+ *
+ * Each model has three identities:
+ *  - {@link id}: the provider-local model id, unique within its provider. The
+ *    session-wide selection id (shown in the model list and passed to model
+ *    switching) is the provider-qualified `provider/id`.
+ *  - {@link modelId}: the well-known behavior base model used for
+ *    capability/config lookup. Defaults to {@link id}.
+ *  - {@link wireModel}: the model name actually sent to the provider API for
+ *    inference. Defaults to {@link id}.
+ *
+ * @experimental This type is part of an experimental multi-provider BYOK surface
+ * and may change or be removed in future SDK or CLI releases.
+ */
+export interface ProviderModelConfig {
+    /**
+     * Provider-local model id, unique within its provider. The session-wide
+     * selection id is the provider-qualified `provider/id`.
+     */
+    id: string;
+
+    /**
+     * Name of the {@link NamedProviderConfig} that serves this model.
+     */
+    provider: string;
+
+    /**
+     * The model name sent to the provider API for inference. Defaults to {@link id}.
+     */
+    wireModel?: string;
+
+    /**
+     * Well-known base model id used for behavior/capability/config lookup.
+     * Defaults to {@link id}.
+     */
+    modelId?: string;
+
+    /**
+     * Display name for model pickers. Defaults to the provider-qualified
+     * selection id (`provider/id`).
+     */
+    name?: string;
+
+    /**
+     * Maximum prompt/input tokens for the model.
+     */
+    maxPromptTokens?: number;
+
+    /**
+     * Maximum context window tokens for the model.
+     */
+    maxContextWindowTokens?: number;
+
+    /**
+     * Maximum output tokens for the model.
+     */
+    maxOutputTokens?: number;
+
+    /**
+     * Optional capability overrides (vision, tool_calls, reasoning, etc.) for
+     * the synthesized model.
+     */
+    capabilities?: ModelCapabilitiesOverride;
+}
 export interface MessageOptions {
     /**
      * The prompt/message to send
@@ -2376,7 +2636,10 @@ export interface ModelPolicy {
  * Model billing information
  */
 export interface ModelBilling {
+    /** Billing cost multiplier relative to the base rate */
     multiplier?: number;
+    /** Token-level pricing information for this model */
+    tokenPrices?: ModelBillingTokenPrices;
 }
 
 /**

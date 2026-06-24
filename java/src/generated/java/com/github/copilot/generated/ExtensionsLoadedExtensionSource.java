@@ -19,7 +19,11 @@ public enum ExtensionsLoadedExtensionSource {
     /** The {@code project} variant. */
     PROJECT("project"),
     /** The {@code user} variant. */
-    USER("user");
+    USER("user"),
+    /** The {@code plugin} variant. */
+    PLUGIN("plugin"),
+    /** The {@code session} variant. */
+    SESSION("session");
 
     private final String value;
     ExtensionsLoadedExtensionSource(String value) { this.value = value; }

@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.info". Informational message for timeline display with categorization
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

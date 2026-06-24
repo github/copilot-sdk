@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.usage". LLM API call usage metrics including tokens, costs, quotas, and billing information
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -73,7 +72,11 @@ public final class AssistantUsageEvent extends SessionEvent {
         /** Per-request cost and usage data from the CAPI copilot_usage response field */
         @JsonProperty("copilotUsage") AssistantUsageCopilotUsage copilotUsage,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
-        @JsonProperty("reasoningEffort") String reasoningEffort
+        @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter". */
+        @JsonProperty("finishReason") String finishReason,
+        /** Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason. */
+        @JsonProperty("contentFilterTriggered") Boolean contentFilterTriggered
     ) {
     }
 }

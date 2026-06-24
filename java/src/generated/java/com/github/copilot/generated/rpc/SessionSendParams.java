@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
@@ -17,8 +18,10 @@ import javax.annotation.processing.Generated;
 /**
  * Parameters for sending a user message to the session
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -39,8 +42,8 @@ public record SessionSendParams(
     @JsonProperty("billable") Boolean billable,
     /** If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange */
     @JsonProperty("requiredTool") String requiredTool,
-    /** Optional provenance tag copied to the resulting user.message event. Supported values are `system`, `command-*`, and `schedule-*`. */
-    @JsonProperty("source") Object source,
+    /** Optional provenance tag copied to the resulting user.message event. Must match one of three forms: the literal `system`, `command-<command-id>` for messages originating from a command (e.g. slash command, Mission Control command), or `schedule-<numeric-id>` for messages originating from a scheduled job. */
+    @JsonProperty("source") String source,
     /** The UI mode the agent was in when this message was sent. Defaults to the session's current mode. */
     @JsonProperty("agentMode") SendAgentMode agentMode,
     /** Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key. */

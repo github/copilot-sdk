@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.message". Assistant response containing text content, optional tool requests, and interaction metadata
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -60,14 +59,16 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("requestId") String requestId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
-        /** Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping */
-        @JsonProperty("anthropicAdvisorBlocks") List<Object> anthropicAdvisorBlocks,
-        /** Anthropic advisor model ID used for this response, for timeline display on replay */
-        @JsonProperty("anthropicAdvisorModel") String anthropicAdvisorModel,
+        /** Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances. */
+        @JsonProperty("apiCallId") String apiCallId,
+        /** Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping */
+        @JsonProperty("serverTools") AssistantMessageServerTools serverTools,
         /** Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event */
         @JsonProperty("turnId") String turnId,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
-        @JsonProperty("parentToolCallId") String parentToolCallId
+        @JsonProperty("parentToolCallId") String parentToolCallId,
+        /** Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled. */
+        @JsonProperty("citations") Citations citations
     ) {
     }
 }

@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Optional project paths and additional skill directories to include in discovery.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -25,6 +24,8 @@ public record SkillsDiscoverParams(
     /** Optional list of project directory paths to scan for project-scoped skills */
     @JsonProperty("projectPaths") List<String> projectPaths,
     /** Optional list of additional skill directory paths to include */
-    @JsonProperty("skillDirectories") List<String> skillDirectories
+    @JsonProperty("skillDirectories") List<String> skillDirectories,
+    /** When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments. */
+    @JsonProperty("excludeHostSkills") Boolean excludeHostSkills
 ) {
 }

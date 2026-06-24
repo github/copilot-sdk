@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "system.message". System/developer instruction content with role and optional template metadata
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

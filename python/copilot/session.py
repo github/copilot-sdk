@@ -67,6 +67,7 @@ from .generated.session_events import (
     ExternalToolRequestedData,
     PermissionRequest,
     PermissionRequestedData,
+    SessionCanvasClosedData,
     SessionCanvasOpenedData,
     SessionErrorData,
     SessionEvent,
@@ -82,7 +83,6 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from .client import ModelCapabilitiesOverride
     from .session_fs_provider import SessionFsProvider
 
 # Re-export SessionEvent under an alias used internally
@@ -91,6 +91,67 @@ SessionEventTypeAlias = SessionEvent
 # ============================================================================
 # Reasoning Effort
 # ============================================================================
+
+
+@dataclass
+class ModelVisionLimitsOverride:
+    supported_media_types: list[str] | None = None
+    max_prompt_images: int | None = None
+    max_prompt_image_size: int | None = None
+
+
+@dataclass
+class ModelLimitsOverride:
+    max_prompt_tokens: int | None = None
+    max_output_tokens: int | None = None
+    max_context_window_tokens: int | None = None
+    vision: ModelVisionLimitsOverride | None = None
+
+
+@dataclass
+class ModelSupportsOverride:
+    vision: bool | None = None
+    reasoning_effort: bool | None = None
+
+
+@dataclass
+class ModelCapabilitiesOverride:
+    supports: ModelSupportsOverride | None = None
+    limits: ModelLimitsOverride | None = None
+
+
+def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
+    result: dict = {}
+    if caps.supports is not None:
+        s: dict = {}
+        if caps.supports.vision is not None:
+            s["vision"] = caps.supports.vision
+        if caps.supports.reasoning_effort is not None:
+            s["reasoningEffort"] = caps.supports.reasoning_effort
+        if s:
+            result["supports"] = s
+    if caps.limits is not None:
+        lim: dict = {}
+        if caps.limits.max_prompt_tokens is not None:
+            lim["maxPromptTokens"] = caps.limits.max_prompt_tokens
+        if caps.limits.max_output_tokens is not None:
+            lim["maxOutputTokens"] = caps.limits.max_output_tokens
+        if caps.limits.max_context_window_tokens is not None:
+            lim["maxContextWindowTokens"] = caps.limits.max_context_window_tokens
+        if caps.limits.vision is not None:
+            v: dict = {}
+            if caps.limits.vision.supported_media_types is not None:
+                v["supportedMediaTypes"] = caps.limits.vision.supported_media_types
+            if caps.limits.vision.max_prompt_images is not None:
+                v["maxPromptImages"] = caps.limits.vision.max_prompt_images
+            if caps.limits.vision.max_prompt_image_size is not None:
+                v["maxPromptImageSize"] = caps.limits.vision.max_prompt_image_size
+            if v:
+                lim["vision"] = v
+        if lim:
+            result["limits"] = lim
+    return result
+
 
 ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
@@ -983,6 +1044,17 @@ class LargeToolOutputConfig(TypedDict, total=False):
     output_directory: str
 
 
+class MemoryConfiguration(TypedDict):
+    """
+    Configuration for session memory.
+
+    Controls whether the session can read and write persistent memory.
+    """
+
+    # Whether memory is enabled for the session.
+    enabled: bool
+
+
 # ============================================================================
 # Session Configuration
 # ============================================================================
@@ -999,6 +1071,11 @@ class ProviderConfig(TypedDict, total=False):
 
     type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
+    # Transport for OpenAI Responses requests. Defaults to "http". Set
+    # "websockets" to deliver Responses API requests over a persistent WebSocket
+    # connection instead of HTTP. Applies to OpenAI-compatible providers using
+    # wire_api "responses".
+    transport: Literal["http", "websockets"]
     base_url: str
     api_key: str
     # Bearer token for authentication. Sets the Authorization header directly.
@@ -1025,6 +1102,61 @@ class ProviderConfig(TypedDict, total=False):
     # Overrides the resolved model's default max output tokens. When hit, the
     # model stops generating and returns a truncated response.
     max_output_tokens: int
+
+
+class NamedProviderConfig(TypedDict, total=False):
+    """A named BYOK provider connection (transport + credentials).
+
+    Referenced by :class:`ProviderModelConfig` entries via ``name``. Unlike the
+    singular :class:`ProviderConfig` (which makes the whole session BYOK and
+    bypasses Copilot API authentication), named providers are additive: they
+    coexist with Copilot API auth so models from CAPI and one or more BYOK
+    providers can be mixed within a single session and across sub-agents.
+
+    **Experimental.** Multi-provider BYOK configuration is experimental and may
+    change or be removed in future SDK or CLI releases.
+    """
+
+    # Stable identifier referenced by ProviderModelConfig.provider. Must not contain "/".
+    name: str
+    type: Literal["openai", "azure", "anthropic"]
+    wire_api: Literal["completions", "responses"]
+    base_url: str
+    api_key: str
+    # Bearer token for authentication. Sets the Authorization header directly.
+    # Takes precedence over api_key when both are set.
+    bearer_token: str
+    azure: AzureProviderOptions  # Azure-specific options
+    headers: dict[str, str]
+
+
+class ProviderModelConfig(TypedDict, total=False):
+    """A BYOK model definition that references a :class:`NamedProviderConfig`.
+
+    Added to the session's selectable model list. The session-wide selection id
+    (shown in the model list and passed to model switching) is the
+    provider-qualified ``provider/id``, so BYOK ids never collide with bare CAPI
+    ids.
+
+    **Experimental.** Multi-provider BYOK configuration is experimental and may
+    change or be removed in future SDK or CLI releases.
+    """
+
+    # Provider-local model id, unique within its provider.
+    id: str
+    # Name of the NamedProviderConfig that serves this model.
+    provider: str
+    # Model name sent to the provider API for inference. Defaults to id.
+    wire_model: str
+    # Well-known base model id used for behavior/capability/config lookup. Defaults to id.
+    model_id: str
+    # Display name for model pickers. Defaults to the provider-qualified selection id.
+    name: str
+    max_prompt_tokens: int
+    max_context_window_tokens: int
+    max_output_tokens: int
+    # Optional capability overrides for the synthesized model.
+    capabilities: ModelCapabilitiesOverride
 
 
 SessionEventHandler = Callable[[SessionEvent], None]
@@ -1564,6 +1696,14 @@ class CopilotSession:
                 except Exception as exc:
                     logger.warning("failed to deserialize session.canvas.opened payload: %s", exc)
 
+            case SessionCanvasClosedData() as data:
+                try:
+                    if not data.instance_id:
+                        raise ValueError("missing required closed canvas fields")
+                    self._remove_open_canvas(data.instance_id)
+                except Exception as exc:
+                    logger.warning("failed to deserialize session.canvas.closed payload: %s", exc)
+
     async def _execute_tool_and_respond(
         self,
         request_id: str,
@@ -1915,11 +2055,18 @@ class CopilotSession:
                     return
             self._open_canvases.append(instance)
 
+    def _remove_open_canvas(self, instance_id: str) -> None:
+        with self._open_canvases_lock:
+            self._open_canvases = [
+                canvas for canvas in self._open_canvases if canvas.instance_id != instance_id
+            ]
+
     @property
     def open_canvases(self) -> list[OpenCanvasInstance]:
         """Open canvas instances currently known to be open for this session.
 
-        Populated from ``session.resume`` and live ``session.canvas.opened`` events.
+        Populated from ``session.resume`` and live ``session.canvas.opened`` and
+        ``session.canvas.closed`` events.
         """
         with self._open_canvases_lock:
             return list(self._open_canvases)
@@ -2426,8 +2573,6 @@ class CopilotSession:
         """
         rpc_caps = None
         if model_capabilities is not None:
-            from .client import _capabilities_to_dict
-
             rpc_caps = _RpcModelCapabilitiesOverride.from_dict(
                 _capabilities_to_dict(model_capabilities)
             )

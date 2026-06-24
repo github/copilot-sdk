@@ -11,6 +11,10 @@ mod canvas_dispatch;
 pub(crate) mod embeddedcli;
 mod errors;
 pub use errors::*;
+/// Connection-level Copilot request handler — intercept and replace the
+/// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
+/// BYOK sessions.
+pub mod copilot_request_handler;
 /// Event handler traits for session lifecycle.
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
@@ -59,7 +63,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 // JSON-RPC wire types are internal transport details (like Go SDK's internal/jsonrpc2/).
@@ -91,6 +95,7 @@ pub use subscription::{EventSubscription, LifecycleSubscription};
 
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 3;
+const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// How the SDK communicates with the CLI server.
 #[derive(Debug, Default)]
@@ -155,8 +160,10 @@ pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 /// it directly so callers (health checks, diagnostics, version probes)
 /// can reach the bundled binary without spinning up a full [`Client`].
 ///
-/// Subsequent calls return the cached result. Extraction is skipped
-/// when the target file already exists.
+/// Subsequent calls return the cached result. Extraction is skipped when
+/// an already-published binary passes a cheap integrity re-check; a
+/// truncated, empty, or antivirus-quarantined binary is re-extracted and
+/// re-verified rather than returned.
 ///
 /// Returns `None` when the `bundled-cli` feature is off, the target
 /// platform isn't supported by `build.rs`, or extraction failed (the
@@ -237,6 +244,15 @@ pub struct ClientOptions {
     /// [`SessionFsProvider`] via
     /// [`SessionConfig::with_session_fs_provider`](crate::SessionConfig::with_session_fs_provider).
     pub session_fs: Option<SessionFsConfig>,
+    /// Connection-level Copilot request handler configuration.
+    ///
+    /// When set, the SDK registers itself as the runtime's request handler
+    /// during [`Client::start`], so the runtime routes its model-layer HTTP and
+    /// WebSocket traffic — for both CAPI and BYOK sessions — through the
+    /// configured
+    /// [`CopilotRequestHandler`]
+    /// instead of issuing the calls itself.
+    pub request_handler: Option<Arc<dyn crate::copilot_request_handler::CopilotRequestHandler>>,
     /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers (`traceparent` / `tracestate`) on outbound `session.create`,
     /// `session.resume`, and `session.send` requests.
@@ -312,6 +328,10 @@ impl std::fmt::Debug for ClientOptions {
                 &self.on_list_models.as_ref().map(|_| "<set>"),
             )
             .field("session_fs", &self.session_fs)
+            .field(
+                "request_handler",
+                &self.request_handler.as_ref().map(|_| "<set>"),
+            )
             .field(
                 "on_get_trace_context",
                 &self.on_get_trace_context.as_ref().map(|_| "<set>"),
@@ -402,6 +422,32 @@ impl OtelExporterType {
     }
 }
 
+/// OTLP HTTP protocol used by the CLI's OpenTelemetry OTLP exporter.
+///
+/// Maps to the standard `OTEL_EXPORTER_OTLP_PROTOCOL` environment variable on
+/// the spawned CLI process. Wire values are `"http/json"` and
+/// `"http/protobuf"`.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum OtlpHttpProtocol {
+    /// Export using OTLP/HTTP JSON.
+    #[serde(rename = "http/json")]
+    HttpJson,
+    /// Export using OTLP/HTTP protobuf.
+    #[serde(rename = "http/protobuf")]
+    HttpProtobuf,
+}
+
+impl OtlpHttpProtocol {
+    /// Environment-variable value (`"http/json"` or `"http/protobuf"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::HttpJson => "http/json",
+            Self::HttpProtobuf => "http/protobuf",
+        }
+    }
+}
+
 /// OpenTelemetry configuration forwarded to the spawned GitHub Copilot CLI
 /// process.
 ///
@@ -417,6 +463,7 @@ impl OtelExporterType {
 /// |----------------------|-------------------------------------------------------|
 /// | (any field set)      | `COPILOT_OTEL_ENABLED=true`                           |
 /// | [`otlp_endpoint`]    | `OTEL_EXPORTER_OTLP_ENDPOINT`                         |
+/// | [`otlp_protocol`]    | `OTEL_EXPORTER_OTLP_PROTOCOL`                         |
 /// | [`file_path`]        | `COPILOT_OTEL_FILE_EXPORTER_PATH`                     |
 /// | [`exporter_type`]    | `COPILOT_OTEL_EXPORTER_TYPE`                          |
 /// | [`source_name`]      | `COPILOT_OTEL_SOURCE_NAME`                            |
@@ -430,6 +477,7 @@ impl OtelExporterType {
 /// added without breaking callers.
 ///
 /// [`otlp_endpoint`]: Self::otlp_endpoint
+/// [`otlp_protocol`]: Self::otlp_protocol
 /// [`file_path`]: Self::file_path
 /// [`exporter_type`]: Self::exporter_type
 /// [`source_name`]: Self::source_name
@@ -439,6 +487,8 @@ impl OtelExporterType {
 pub struct TelemetryConfig {
     /// OTLP HTTP endpoint URL for trace/metric export.
     pub otlp_endpoint: Option<String>,
+    /// OTLP HTTP protocol for all signals.
+    pub otlp_protocol: Option<OtlpHttpProtocol>,
     /// File path for JSON-lines trace output.
     pub file_path: Option<PathBuf>,
     /// Exporter backend type. Typically [`OtelExporterType::OtlpHttp`] or
@@ -464,6 +514,12 @@ impl TelemetryConfig {
     /// Set the OTLP HTTP endpoint URL for trace/metric export.
     pub fn with_otlp_endpoint(mut self, endpoint: impl Into<String>) -> Self {
         self.otlp_endpoint = Some(endpoint.into());
+        self
+    }
+
+    /// Set the OTLP HTTP protocol for all signals.
+    pub fn with_otlp_protocol(mut self, protocol: OtlpHttpProtocol) -> Self {
+        self.otlp_protocol = Some(protocol);
         self
     }
 
@@ -499,6 +555,7 @@ impl TelemetryConfig {
     /// to decide whether to set `COPILOT_OTEL_ENABLED`.
     pub fn is_empty(&self) -> bool {
         self.otlp_endpoint.is_none()
+            && self.otlp_protocol.is_none()
             && self.file_path.is_none()
             && self.exporter_type.is_none()
             && self.source_name.is_none()
@@ -522,6 +579,7 @@ impl Default for ClientOptions {
             session_idle_timeout_seconds: None,
             on_list_models: None,
             session_fs: None,
+            request_handler: None,
             on_get_trace_context: None,
             telemetry: None,
             base_directory: None,
@@ -654,6 +712,18 @@ impl ClientOptions {
         self
     }
 
+    /// Register a connection-level Copilot request handler. The runtime will
+    /// route its model-layer HTTP and WebSocket traffic through the handler
+    /// configured here instead of issuing the calls itself. The handler is
+    /// wrapped in `Arc` internally.
+    pub fn with_request_handler<H>(mut self, handler: H) -> Self
+    where
+        H: crate::copilot_request_handler::CopilotRequestHandler,
+    {
+        self.request_handler = Some(Arc::new(handler));
+        self
+    }
+
     /// Set the [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers on outbound `session.create` / `session.resume` /
     /// `session.send` requests. The provider is wrapped in `Arc` internally.
@@ -776,6 +846,9 @@ struct ClientInner {
     models_cache: parking_lot::Mutex<Arc<tokio::sync::OnceCell<Vec<Model>>>>,
     session_fs_configured: bool,
     session_fs_sqlite_declared: bool,
+    /// Inbound `llmInference.*` dispatcher, installed when
+    /// [`ClientOptions::request_handler`] is set.
+    llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
     on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
     /// Token sent in the `connect` handshake. Auto-generated when the
     /// SDK spawns its own CLI in TCP mode and no explicit token is set;
@@ -871,6 +944,7 @@ impl Client {
             } => connection_token.clone(),
         };
         let session_fs_config = options.session_fs.clone();
+        let request_handler = options.request_handler.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
@@ -1006,6 +1080,26 @@ impl Client {
                 "Client::start session filesystem setup complete"
             );
         }
+        if let Some(handler) = request_handler {
+            let llm_inference_start = Instant::now();
+            let dispatcher = Arc::new(copilot_request_handler::CopilotRequestDispatcher::new(
+                handler,
+            ));
+            dispatcher.set_client(Arc::downgrade(&client.inner));
+            let _ = client.inner.llm_inference.set(dispatcher.clone());
+            // Start the router early (before any session is registered) so the
+            // startup model catalog request is dispatched to the handler.
+            client.inner.router.ensure_started(
+                &client.inner.notification_tx,
+                &client.inner.request_rx,
+                Some(dispatcher.clone()),
+            );
+            client.rpc().llm_inference().set_provider().await?;
+            debug!(
+                elapsed_ms = llm_inference_start.elapsed().as_millis(),
+                "Client::start Copilot request handler registration complete"
+            );
+        }
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start complete"
@@ -1138,6 +1232,7 @@ impl Client {
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured,
                 session_fs_sqlite_declared,
+                llm_inference: OnceLock::new(),
                 on_get_trace_context,
                 effective_connection_token,
                 mode,
@@ -1208,6 +1303,9 @@ impl Client {
             command.env("COPILOT_OTEL_ENABLED", "true");
             if let Some(endpoint) = &telemetry.otlp_endpoint {
                 command.env("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
+            }
+            if let Some(protocol) = telemetry.otlp_protocol {
+                command.env("OTEL_EXPORTER_OTLP_PROTOCOL", protocol.as_str());
             }
             if let Some(path) = &telemetry.file_path {
                 command.env("COPILOT_OTEL_FILE_EXPORTER_PATH", path);
@@ -1516,6 +1614,11 @@ impl Client {
         self.inner.rpc.write(response).await
     }
 
+    /// Reconstruct a [`Client`] handle from a shared inner pointer.
+    pub(crate) fn from_inner(inner: Arc<ClientInner>) -> Self {
+        Self { inner }
+    }
+
     /// Take the receiver for incoming JSON-RPC requests from the CLI.
     ///
     /// Can only be called once — subsequent calls return `None`.
@@ -1535,9 +1638,11 @@ impl Client {
         &self,
         session_id: &SessionId,
     ) -> crate::router::SessionChannels {
-        self.inner
-            .router
-            .ensure_started(&self.inner.notification_tx, &self.inner.request_rx);
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            self.inner.llm_inference.get().cloned(),
+        );
         self.inner.router.register(session_id)
     }
 
@@ -1818,8 +1923,9 @@ impl Client {
     /// Cooperatively shut down the client and the CLI child process.
     ///
     /// Walks every still-registered session and sends `session.destroy`
-    /// for each one, then kills the CLI child. Errors from per-session
-    /// destroys and the final child-kill are collected into
+    /// for each one, asks SDK-owned runtimes to shut down, then kills the
+    /// CLI child. Errors from per-session destroys, runtime shutdown, and
+    /// the final child-kill are collected into
     /// [`StopErrors`] rather than short-circuiting on the first failure
     /// — so callers see the full picture of teardown.
     ///
@@ -1868,13 +1974,61 @@ impl Client {
             self.inner.router.unregister(&session_id);
         }
 
+        let should_shutdown_runtime = self.inner.child.lock().is_some();
+        if should_shutdown_runtime {
+            let runtime_shutdown_start = Instant::now();
+            match tokio::time::timeout(RUNTIME_SHUTDOWN_TIMEOUT, self.rpc().runtime().shutdown())
+                .await
+            {
+                Ok(Ok(())) => {
+                    debug!(
+                        elapsed_ms = runtime_shutdown_start.elapsed().as_millis(),
+                        "Client::stop runtime shutdown complete"
+                    );
+                }
+                Ok(Err(e)) => {
+                    warn!(
+                        elapsed_ms = runtime_shutdown_start.elapsed().as_millis(),
+                        error = %e,
+                        "runtime.shutdown failed during Client::stop",
+                    );
+                    errors.push(e);
+                }
+                Err(_) => {
+                    let e = std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "runtime.shutdown timed out during Client::stop",
+                    );
+                    warn!(
+                        elapsed_ms = runtime_shutdown_start.elapsed().as_millis(),
+                        timeout = ?RUNTIME_SHUTDOWN_TIMEOUT,
+                        error = %e,
+                        "runtime.shutdown timed out during Client::stop",
+                    );
+                    errors.push(e.into());
+                }
+            }
+        }
+
         let child = self.inner.child.lock().take();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
-        if let Some(mut child) = child
-            && let Err(e) = child.kill().await
-        {
-            errors.push(e.into());
+        if let Some(mut child) = child {
+            match child.try_wait() {
+                Ok(Some(_status)) => {}
+                Ok(None) => {
+                    // The runtime completes all cleanup before responding to
+                    // runtime.shutdown and then leaves termination to us; it
+                    // deliberately keeps its JSON-RPC server alive to send the
+                    // response and never self-exits. Waiting for a self-exit
+                    // that will never come just wastes time, so terminate the
+                    // child immediately.
+                    if let Err(e) = child.kill().await {
+                        errors.push(e.into());
+                    }
+                }
+                Err(e) => errors.push(e.into()),
+            }
         }
 
         info!(pid = ?pid, errors = errors.len(), "CLI process stopped");
@@ -2115,12 +2269,14 @@ mod tests {
     fn telemetry_config_builder_composes() {
         let cfg = TelemetryConfig::new()
             .with_otlp_endpoint("http://collector:4318")
+            .with_otlp_protocol(OtlpHttpProtocol::HttpProtobuf)
             .with_file_path(PathBuf::from("/var/log/copilot.jsonl"))
             .with_exporter_type(OtelExporterType::OtlpHttp)
             .with_source_name("my-app")
             .with_capture_content(true);
 
         assert_eq!(cfg.otlp_endpoint.as_deref(), Some("http://collector:4318"));
+        assert_eq!(cfg.otlp_protocol, Some(OtlpHttpProtocol::HttpProtobuf));
         assert_eq!(
             cfg.file_path.as_deref(),
             Some(Path::new("/var/log/copilot.jsonl")),
@@ -2133,10 +2289,27 @@ mod tests {
     }
 
     #[test]
+    fn otlp_http_protocol_serde_matches_env_value() {
+        for (protocol, wire) in [
+            (OtlpHttpProtocol::HttpJson, "http/json"),
+            (OtlpHttpProtocol::HttpProtobuf, "http/protobuf"),
+        ] {
+            assert_eq!(protocol.as_str(), wire);
+
+            let serialized = serde_json::to_string(&protocol).unwrap();
+            assert_eq!(serialized, format!("\"{wire}\""));
+
+            let deserialized: OtlpHttpProtocol = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized, protocol);
+        }
+    }
+
+    #[test]
     fn build_command_sets_otel_env_when_telemetry_enabled() {
         let opts = ClientOptions {
             telemetry: Some(TelemetryConfig {
                 otlp_endpoint: Some("http://collector:4318".to_string()),
+                otlp_protocol: Some(OtlpHttpProtocol::HttpProtobuf),
                 file_path: Some(PathBuf::from("/var/log/copilot.jsonl")),
                 exporter_type: Some(OtelExporterType::OtlpHttp),
                 source_name: Some("my-app".to_string()),
@@ -2152,6 +2325,10 @@ mod tests {
         assert_eq!(
             env_value(&cmd, "OTEL_EXPORTER_OTLP_ENDPOINT"),
             Some(std::ffi::OsStr::new("http://collector:4318")),
+        );
+        assert_eq!(
+            env_value(&cmd, "OTEL_EXPORTER_OTLP_PROTOCOL"),
+            Some(std::ffi::OsStr::new("http/protobuf")),
         );
         assert_eq!(
             env_value(&cmd, "COPILOT_OTEL_FILE_EXPORTER_PATH"),
@@ -2178,6 +2355,7 @@ mod tests {
         for key in [
             "COPILOT_OTEL_ENABLED",
             "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_PROTOCOL",
             "COPILOT_OTEL_FILE_EXPORTER_PATH",
             "COPILOT_OTEL_EXPORTER_TYPE",
             "COPILOT_OTEL_SOURCE_NAME",
@@ -2211,6 +2389,7 @@ mod tests {
         );
         // None of the other fields should leak as env vars.
         for key in [
+            "OTEL_EXPORTER_OTLP_PROTOCOL",
             "COPILOT_OTEL_FILE_EXPORTER_PATH",
             "COPILOT_OTEL_EXPORTER_TYPE",
             "COPILOT_OTEL_SOURCE_NAME",
@@ -2548,6 +2727,7 @@ mod tests {
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured: false,
                 session_fs_sqlite_declared: false,
+                llm_inference: OnceLock::new(),
                 on_get_trace_context: None,
                 effective_connection_token: None,
                 mode: ClientMode::default(),

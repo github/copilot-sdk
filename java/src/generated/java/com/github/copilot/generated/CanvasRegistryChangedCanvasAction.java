@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -27,6 +26,6 @@ public record CanvasRegistryChangedCanvasAction(
     /** Action description */
     @JsonProperty("description") String description,
     /** JSON Schema for action input */
-    @JsonProperty("inputSchema") Map<String, Object> inputSchema
+    @JsonProperty("inputSchema") Object inputSchema
 ) {
 }

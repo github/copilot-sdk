@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "tool.execution_start". Tool execution startup details including MCP server information when applicable
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -51,6 +50,8 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("turnId") String turnId,
         /** When true, the tool output should be displayed expanded (verbatim) in the CLI timeline */
         @JsonProperty("displayVerbatim") Boolean displayVerbatim,
+        /** Tool definition metadata, present for MCP tools with MCP Apps support */
+        @JsonProperty("toolDescription") ToolExecutionStartToolDescription toolDescription,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {

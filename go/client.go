@@ -34,6 +34,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -370,6 +371,15 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 	}
 
+	// If a request handler was configured, register as the inference provider.
+	if c.options.RequestHandler != nil {
+		if _, err := c.RPC.LlmInference.SetProvider(ctx); err != nil {
+			killErr := c.killProcess()
+			c.state = stateError
+			return errors.Join(err, killErr)
+		}
+	}
+
 	c.state = stateConnected
 	return nil
 }
@@ -378,8 +388,9 @@ func (c *Client) Start(ctx context.Context) error {
 //
 // This method performs graceful cleanup:
 //  1. Closes all active sessions (releases in-memory resources)
-//  2. Closes the JSON-RPC connection
-//  3. Terminates the CLI server process (if spawned by this client)
+//  2. Requests runtime shutdown for SDK-owned CLI processes
+//  3. Closes the JSON-RPC connection
+//  4. Terminates the CLI server process (if spawned by this client)
 //
 // Note: session data on disk is preserved, so sessions can be resumed later.
 // To permanently remove session data before stopping, call [Client.DeleteSession]
@@ -416,9 +427,36 @@ func (c *Client) Stop() error {
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
 
-	// Kill CLI process FIRST (this closes stdout and unblocks readLoop) - only if we spawned it
+	if c.process != nil && !c.isExternalServer && c.RPC != nil {
+		rpcClient := c.RPC
+		runtimeShutdownStart := time.Now()
+		shutdownDone := make(chan error, 1)
+		go func() {
+			_, err := rpcClient.Runtime.Shutdown(context.Background())
+			shutdownDone <- err
+		}()
+
+		select {
+		case err := <-shutdownDone:
+			if err != nil {
+				c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown failed")
+				errs = append(errs, fmt.Errorf("failed to gracefully shut down runtime: %w", err))
+			} else {
+				c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown complete")
+			}
+		case <-time.After(runtimeShutdownTimeout):
+			c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown timed out")
+			errs = append(errs, fmt.Errorf("timed out gracefully shutting down runtime after %s", runtimeShutdownTimeout))
+		}
+	}
+
+	// The runtime completes all cleanup before responding to runtime.shutdown
+	// and then leaves termination to us; it deliberately keeps its JSON-RPC
+	// server alive to send the response and never self-exits. Waiting for a
+	// self-exit that will never come just wastes time, so terminate the child
+	// immediately and only wait to reap it.
 	if c.process != nil && !c.isExternalServer {
-		if err := c.killProcess(); err != nil {
+		if err := c.killProcessAndWait(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -451,6 +489,13 @@ func (c *Client) Stop() error {
 	c.RPC = nil
 	c.internalRPC = nil
 	return errors.Join(errs...)
+}
+
+func (c *Client) logDebugTiming(start time.Time, message string) {
+	switch strings.ToLower(c.options.LogLevel) {
+	case "debug", "all":
+		log.Printf("%s elapsed=%s", message, time.Since(start))
+	}
 }
 
 // ForceStop forcefully stops the CLI server without graceful cleanup.
@@ -628,6 +673,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExcludedTools = excludedTools
 	req.ToolFilterPrecedence = precedence
 	req.Provider = config.Provider
+	req.Capi = config.Capi
+	req.Providers = config.Providers
+	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
@@ -647,6 +695,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
+	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
 	req.Cloud = config.Cloud
@@ -830,7 +879,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		}
 	}
 
-	result, err := c.client.RequestWithInlineResponse("session.create", req, inlineCb)
+	result, err := c.client.RequestWithInlineResponse(ctx, "session.create", req, inlineCb)
 	if err != nil {
 		if registeredSessionID != "" {
 			c.sessionsMux.Lock()
@@ -922,6 +971,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.SystemMessage = wireSystemMessage
 	req.Tools = config.Tools
 	req.Provider = config.Provider
+	req.Capi = config.Capi
+	req.Providers = config.Providers
+	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
@@ -983,6 +1035,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
+	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
 	req.Canvases = config.Canvases
@@ -1075,7 +1128,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		session.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
 	}
 
-	result, err := c.client.Request("session.resume", req)
+	result, err := c.client.Request(ctx, "session.resume", req)
 	if err != nil {
 		c.sessionsMux.Lock()
 		delete(c.sessions, sessionID)
@@ -1136,7 +1189,7 @@ func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([
 	if filter != nil {
 		params.Filter = filter
 	}
-	result, err := c.client.Request("session.list", params)
+	result, err := c.client.Request(ctx, "session.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -1168,7 +1221,7 @@ func (c *Client) GetSessionMetadata(ctx context.Context, sessionID string) (*Ses
 		return nil, err
 	}
 
-	result, err := c.client.Request("session.getMetadata", getSessionMetadataRequest{SessionID: sessionID})
+	result, err := c.client.Request(ctx, "session.getMetadata", getSessionMetadataRequest{SessionID: sessionID})
 	if err != nil {
 		return nil, err
 	}
@@ -1199,7 +1252,7 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 		return err
 	}
 
-	result, err := c.client.Request("session.delete", deleteSessionRequest{SessionID: sessionID})
+	result, err := c.client.Request(ctx, "session.delete", deleteSessionRequest{SessionID: sessionID})
 	if err != nil {
 		return err
 	}
@@ -1246,7 +1299,7 @@ func (c *Client) GetLastSessionID(ctx context.Context) (*string, error) {
 		return nil, err
 	}
 
-	result, err := c.client.Request("session.getLastId", getLastSessionIDRequest{})
+	result, err := c.client.Request(ctx, "session.getLastId", getLastSessionIDRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1278,7 +1331,7 @@ func (c *Client) GetForegroundSessionID(ctx context.Context) (*string, error) {
 		return nil, err
 	}
 
-	result, err := c.client.Request("session.getForeground", getForegroundSessionRequest{})
+	result, err := c.client.Request(ctx, "session.getForeground", getForegroundSessionRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1306,7 +1359,7 @@ func (c *Client) SetForegroundSessionID(ctx context.Context, sessionID string) e
 		return err
 	}
 
-	result, err := c.client.Request("session.setForeground", setForegroundSessionRequest{SessionID: sessionID})
+	result, err := c.client.Request(ctx, "session.setForeground", setForegroundSessionRequest{SessionID: sessionID})
 	if err != nil {
 		return err
 	}
@@ -1446,7 +1499,7 @@ func (c *Client) Ping(ctx context.Context, message string) (*PingResponse, error
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("ping", pingRequest{Message: message})
+	result, err := c.client.Request(ctx, "ping", pingRequest{Message: message})
 	if err != nil {
 		return nil, err
 	}
@@ -1464,7 +1517,7 @@ func (c *Client) GetStatus(ctx context.Context) (*GetStatusResponse, error) {
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("status.get", getStatusRequest{})
+	result, err := c.client.Request(ctx, "status.get", getStatusRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1482,7 +1535,7 @@ func (c *Client) GetAuthStatus(ctx context.Context) (*GetAuthStatusResponse, err
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("auth.getStatus", getAuthStatusRequest{})
+	result, err := c.client.Request(ctx, "auth.getStatus", getAuthStatusRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1523,7 +1576,7 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 			return nil, fmt.Errorf("client not connected")
 		}
 		// Cache miss - fetch from backend while holding lock
-		result, err := c.client.Request("models.list", listModelsRequest{})
+		result, err := c.client.Request(ctx, "models.list", listModelsRequest{})
 		if err != nil {
 			return nil, err
 		}
@@ -1548,6 +1601,8 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 
 // minProtocolVersion is the minimum protocol version this SDK can communicate with.
 const minProtocolVersion = 3
+const runtimeShutdownTimeout = 10 * time.Second
+const processExitTimeout = 10 * time.Second
 
 // verifyProtocolVersion sends the `connect` handshake (carrying the optional token) and
 // verifies the server's protocol version. Falls back to `ping` against legacy servers
@@ -1695,6 +1750,9 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		if t.OTLPEndpoint != "" {
 			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_ENDPOINT", t.OTLPEndpoint)
 		}
+		if t.OTLPProtocol != "" {
+			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_PROTOCOL", t.OTLPProtocol)
+		}
 		if t.FilePath != "" {
 			c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_FILE_EXPORTER_PATH", t.FilePath)
 		}
@@ -1821,6 +1879,21 @@ func (c *Client) killProcess() error {
 	return nil
 }
 
+func (c *Client) killProcessAndWait() error {
+	done := c.processDone
+	killErr := c.killProcess()
+	if done == nil {
+		return killErr
+	}
+
+	select {
+	case <-done:
+		return killErr
+	case <-time.After(processExitTimeout):
+		return errors.Join(killErr, fmt.Errorf("timed out waiting for CLI process to exit after kill"))
+	}
+}
+
 // monitorProcess signals when the CLI process exits and captures any exit error.
 // processError is intentionally a local: each process lifecycle gets its own
 // error value, so goroutines from previous processes can't overwrite the
@@ -1924,6 +1997,15 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
+	if c.options.RequestHandler != nil {
+		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+			if c.RPC == nil {
+				return nil
+			}
+			return c.RPC.LlmInference
+		})
+		rpc.RegisterClientGlobalAPIHandlers(c.client, &rpc.ClientGlobalAPIHandlers{LlmInference: adapter})
+	}
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

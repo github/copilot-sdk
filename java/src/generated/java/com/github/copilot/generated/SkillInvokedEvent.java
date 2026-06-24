@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "skill.invoked". Skill invocation details including content, allowed tools, and plugin metadata
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -44,7 +43,7 @@ public final class SkillInvokedEvent extends SessionEvent {
         @JsonProperty("content") String content,
         /** Tool names that should be auto-approved when this skill is active */
         @JsonProperty("allowedTools") List<String> allowedTools,
-        /** Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), personal-claude (~/.claude/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill) */
+        /** Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill) */
         @JsonProperty("source") String source,
         /** Name of the plugin this skill originated from, when applicable */
         @JsonProperty("pluginName") String pluginName,

@@ -22,7 +22,16 @@ runs:
       shell: bash
     - name: Set CLI path
       id: cli-path
-      run: echo "path=$(pwd)/nodejs/node_modules/@github/copilot/index.js" >> $GITHUB_OUTPUT
+      run: |
+        # As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
+        # runnable index.js ships in the installed platform package
+        # (e.g. @github/copilot-linux-x64). Exactly one is installed.
+        cli_path=$(ls "$(pwd)"/nodejs/node_modules/@github/copilot-*/index.js 2>/dev/null | head -n1)
+        if [ -z "$cli_path" ]; then
+          echo "Could not find @github/copilot platform package (index.js) under nodejs/node_modules" >&2
+          exit 1
+        fi
+        echo "path=$cli_path" >> $GITHUB_OUTPUT
       shell: bash
     - name: Verify CLI works
       run: node ${{ steps.cli-path.outputs.path }} --version

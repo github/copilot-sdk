@@ -278,6 +278,7 @@ public sealed class CopilotClientOptions
         UseLoggedInUser = other.UseLoggedInUser;
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
+        RequestHandler = other.RequestHandler;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
         Mode = other.Mode;
@@ -365,6 +366,17 @@ public sealed class CopilotClientOptions
     public SessionFsConfig? SessionFs { get; set; }
 
     /// <summary>
+    /// Configures interception of the LLM inference requests the runtime would
+    /// otherwise issue itself (for both CAPI and BYOK providers). When set, the
+    /// client registers a client-global LLM inference handler on connect, so
+    /// every model-layer HTTP / WebSocket request is routed to this
+    /// <see cref="CopilotRequestHandler"/> subclass instead of the runtime's own
+    /// outbound call.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public CopilotRequestHandler? RequestHandler { get; set; }
+
+    /// <summary>
     /// OpenTelemetry configuration for the runtime.
     /// When set to a non-<see langword="null"/> instance, the runtime is started with OpenTelemetry instrumentation enabled.
     /// </summary>
@@ -412,6 +424,14 @@ public sealed class TelemetryConfig
     /// Maps to the <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> environment variable.
     /// </remarks>
     public string? OtlpEndpoint { get; set; }
+
+    /// <summary>
+    /// OTLP HTTP protocol for all signals (<c>"http/json"</c> or <c>"http/protobuf"</c>).
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>OTEL_EXPORTER_OTLP_PROTOCOL</c> environment variable.
+    /// </remarks>
+    public string? OtlpProtocol { get; set; }
 
     /// <summary>
     /// File path for the file exporter.
@@ -1984,6 +2004,15 @@ public sealed class ProviderConfig
     public string? WireApi { get; set; }
 
     /// <summary>
+    /// Transport for OpenAI Responses requests ("http" or "websockets"). Defaults to "http".
+    /// Set to "websockets" to deliver Responses API requests over a persistent WebSocket
+    /// connection instead of HTTP. Applies to OpenAI-compatible providers using
+    /// <c>wireApi: "responses"</c>.
+    /// </summary>
+    [JsonPropertyName("transport")]
+    public string? Transport { get; set; }
+
+    /// <summary>
     /// Base URL of the provider's API endpoint.
     /// </summary>
     [JsonPropertyName("baseUrl")]
@@ -2051,6 +2080,27 @@ public sealed class ProviderConfig
 }
 
 /// <summary>
+/// Provider-scoped options for the Copilot API (CAPI) provider.
+/// </summary>
+public sealed class CapiSessionOptions
+{
+    /// <summary>
+    /// When <see langword="false"/>, forces the HTTP Responses transport for the CAPI Responses API
+    /// instead of the default WebSocket transport.
+    /// </summary>
+    /// <remarks>
+    /// WebSocket transport is the default for CAPI Responses API requests when the model advertises
+    /// the <c>ws:/responses</c> endpoint. Set this to <see langword="false"/> for users behind proxies
+    /// where WebSockets fail. Setting it to <see langword="false"/> is equivalent to setting the
+    /// <c>COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES</c> environment variable. The option is scoped under
+    /// the <c>capi</c> namespace because a single session can host multiple providers, such as CAPI and
+    /// BYOK, so transport choice is provider-level.
+    /// </remarks>
+    [JsonPropertyName("enableWebSocketResponses")]
+    public bool? EnableWebSocketResponses { get; set; }
+}
+
+/// <summary>
 /// Azure OpenAI-specific provider options.
 /// </summary>
 public sealed class AzureOptions
@@ -2060,6 +2110,135 @@ public sealed class AzureOptions
     /// </summary>
     [JsonPropertyName("apiVersion")]
     public string? ApiVersion { get; set; }
+}
+
+/// <summary>
+/// A named BYOK provider connection (transport + credentials only), referenced by
+/// <see cref="ProviderModelConfig"/> entries via <see cref="Name"/>.
+/// <para>
+/// Unlike the singular, whole-session <see cref="ProviderConfig"/> — which bypasses
+/// Copilot API authentication — named providers are additive and coexist with Copilot
+/// API auth, so models from CAPI and one or more BYOK providers can be mixed within a
+/// single session and across sub-agents. Combining named providers/models with
+/// <see cref="SessionConfigBase.Provider"/> is rejected.
+/// </para>
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class NamedProviderConfig
+{
+    /// <summary>
+    /// Stable identifier referenced by <see cref="ProviderModelConfig.Provider"/>.
+    /// Must not contain '/'.
+    /// </summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+    /// </summary>
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    /// <summary>
+    /// Wire API format (openai/azure only). Defaults to "completions".
+    /// </summary>
+    [JsonPropertyName("wireApi")]
+    public string? WireApi { get; set; }
+
+    /// <summary>
+    /// API endpoint URL.
+    /// </summary>
+    [JsonPropertyName("baseUrl")]
+    public string BaseUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// API key. Optional for local providers like Ollama.
+    /// </summary>
+    [JsonPropertyName("apiKey")]
+    public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// Bearer token for authentication. Sets the Authorization header directly.
+    /// Takes precedence over <see cref="ApiKey"/> when both are set.
+    /// </summary>
+    [JsonPropertyName("bearerToken")]
+    public string? BearerToken { get; set; }
+
+    /// <summary>
+    /// Azure-specific configuration options.
+    /// </summary>
+    [JsonPropertyName("azure")]
+    public AzureOptions? Azure { get; set; }
+
+    /// <summary>
+    /// Custom HTTP headers to include in all outbound requests to the provider.
+    /// </summary>
+    [JsonPropertyName("headers")]
+    public IDictionary<string, string>? Headers { get; set; }
+}
+
+/// <summary>
+/// A BYOK model definition that references a <see cref="NamedProviderConfig"/> by name
+/// and is added to the session's selectable model list. The session-wide selection id
+/// (shown in the model list and passed to model switching) is the provider-qualified
+/// <c>provider/id</c>, so BYOK ids never collide with bare CAPI ids.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ProviderModelConfig
+{
+    /// <summary>
+    /// Provider-local model id, unique within its provider.
+    /// </summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Name of the <see cref="NamedProviderConfig"/> that serves this model.
+    /// </summary>
+    [JsonPropertyName("provider")]
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The model name sent to the provider API for inference. Defaults to <see cref="Id"/>.
+    /// </summary>
+    [JsonPropertyName("wireModel")]
+    public string? WireModel { get; set; }
+
+    /// <summary>
+    /// Well-known base model id used for behavior/capability/config lookup. Defaults to <see cref="Id"/>.
+    /// </summary>
+    [JsonPropertyName("modelId")]
+    public string? ModelId { get; set; }
+
+    /// <summary>
+    /// Display name for model pickers. Defaults to the provider-qualified selection id.
+    /// </summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Maximum prompt/input tokens for the model.
+    /// </summary>
+    [JsonPropertyName("maxPromptTokens")]
+    public int? MaxPromptTokens { get; set; }
+
+    /// <summary>
+    /// Maximum context window tokens for the model.
+    /// </summary>
+    [JsonPropertyName("maxContextWindowTokens")]
+    public int? MaxContextWindowTokens { get; set; }
+
+    /// <summary>
+    /// Maximum output tokens for the model.
+    /// </summary>
+    [JsonPropertyName("maxOutputTokens")]
+    public int? MaxOutputTokens { get; set; }
+
+    /// <summary>
+    /// Optional capability overrides (vision, tool_calls, reasoning, etc.) for the synthesized model.
+    /// </summary>
+    [JsonPropertyName("capabilities")]
+    public ModelCapabilitiesOverride? Capabilities { get; set; }
 }
 
 // ============================================================================
@@ -2365,6 +2544,18 @@ public sealed class LargeToolOutputConfig
 }
 
 /// <summary>
+/// Configuration for session memory.
+/// </summary>
+public sealed class MemoryConfiguration
+{
+    /// <summary>
+    /// Whether memory is enabled for the session.
+    /// </summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+}
+
+/// <summary>
 /// GitHub repository metadata to associate with a cloud session.
 /// </summary>
 public sealed class CloudSessionRepository
@@ -2458,6 +2649,7 @@ public abstract class SessionConfigBase
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         LargeOutput = other.LargeOutput;
+        Memory = other.Memory;
         McpServers = other.McpServers is not null
             ? (other.McpServers is Dictionary<string, McpServerConfig> dict
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
@@ -2473,6 +2665,9 @@ public abstract class SessionConfigBase
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
+        Capi = other.Capi;
+        Providers = other.Providers is not null ? [.. other.Providers] : null;
+        Models = other.Models is not null ? [.. other.Models] : null;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
         SkipCustomInstructions = other.SkipCustomInstructions;
         CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
@@ -2627,6 +2822,26 @@ public abstract class SessionConfigBase
 
     /// <summary>Custom model provider configuration for the session.</summary>
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// CAPI (Copilot API) provider-scoped configuration for the session.
+    /// </summary>
+    public CapiSessionOptions? Capi { get; set; }
+
+    /// <summary>
+    /// Named BYOK provider connections (transport + credentials). Additive to Copilot
+    /// API authentication (unlike <see cref="Provider"/>); combine with <see cref="Models"/>.
+    /// Cannot be combined with <see cref="Provider"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public IList<NamedProviderConfig>? Providers { get; set; }
+
+    /// <summary>
+    /// BYOK model definitions added to the session's selectable model list, each
+    /// referencing a <see cref="Providers"/> entry by name.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public IList<ProviderModelConfig>? Models { get; set; }
 
     /// <summary>
     /// Enables or disables internal session telemetry for this session.
@@ -2804,6 +3019,12 @@ public abstract class SessionConfigBase
     /// payload.
     /// </summary>
     public LargeToolOutputConfig? LargeOutput { get; set; }
+
+    /// <summary>
+    /// Configuration for session memory. When set, controls whether the
+    /// session can read and write persistent memory.
+    /// </summary>
+    public MemoryConfiguration? Memory { get; set; }
 
     /// <summary>
     /// Optional event handler registered on the session before the session.create / session.resume
@@ -3308,6 +3529,12 @@ public sealed class ModelBilling
     /// </summary>
     [JsonPropertyName("multiplier")]
     public double? Multiplier { get; set; }
+
+    /// <summary>
+    /// Token-level pricing information for this model.
+    /// </summary>
+    [JsonPropertyName("tokenPrices")]
+    public ModelBillingTokenPrices? TokenPrices { get; set; }
 }
 
 /// <summary>
@@ -3509,6 +3736,8 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(McpServerConfig))]
 [JsonSerializable(typeof(MessageOptions))]
 [JsonSerializable(typeof(ModelBilling))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPrices))]
+[JsonSerializable(typeof(GitHub.Copilot.Rpc.ModelBillingTokenPricesLongContext))]
 [JsonSerializable(typeof(ModelCapabilities))]
 [JsonSerializable(typeof(ModelCapabilitiesOverride))]
 [JsonSerializable(typeof(ModelInfo))]
@@ -3519,6 +3748,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]
+[JsonSerializable(typeof(CapiSessionOptions))]
 [JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionLifecycleEvent))]
 [JsonSerializable(typeof(SessionLifecycleEventMetadata))]

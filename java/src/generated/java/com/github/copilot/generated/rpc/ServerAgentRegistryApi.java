@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -31,6 +32,7 @@ public final class ServerAgentRegistryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<AgentRegistrySpawnResult> spawn(AgentRegistrySpawnParams params) {
         return caller.invoke("agentRegistry.spawn", params, AgentRegistrySpawnResult.class);
     }

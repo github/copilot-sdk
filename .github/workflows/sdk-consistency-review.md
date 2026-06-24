@@ -11,6 +11,9 @@ on:
       - 'go/**'
       - 'dotnet/**'
       - 'java/**'
+      - '!java/docs/**'
+      - '!java/*.txt'
+      - '!java/*.md'
   workflow_dispatch:
     inputs:
       pr_number:

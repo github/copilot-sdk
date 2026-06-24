@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
 import java.util.Optional;
 
@@ -49,6 +50,9 @@ public class SessionConfig {
     private List<String> availableTools;
     private List<String> excludedTools;
     private ProviderConfig provider;
+    private CapiSessionOptions capi;
+    private List<NamedProviderConfig> providers;
+    private List<ProviderModelConfig> models;
     private Boolean enableSessionTelemetry;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
@@ -70,6 +74,7 @@ public class SessionConfig {
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
+    private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private String configDirectory;
     private Boolean enableConfigDiscovery;
@@ -351,6 +356,85 @@ public class SessionConfig {
      */
     public SessionConfig setProvider(ProviderConfig provider) {
         this.provider = provider;
+        return this;
+    }
+
+    /**
+     * Gets the CAPI provider-scoped session options.
+     *
+     * @return the CAPI session options
+     */
+    public CapiSessionOptions getCapi() {
+        return capi;
+    }
+
+    /**
+     * Sets CAPI provider-scoped session options.
+     * <p>
+     * Use {@link CapiSessionOptions#setEnableWebSocketResponses(Boolean)} with
+     * {@code false} to force the HTTP Responses transport instead of the default
+     * CAPI Responses API WebSocket transport.
+     *
+     * @param capi
+     *            the CAPI session options
+     * @return this config instance for method chaining
+     * @see CapiSessionOptions
+     */
+    public SessionConfig setCapi(CapiSessionOptions capi) {
+        this.capi = capi;
+        return this;
+    }
+
+    /**
+     * Gets the named BYOK provider connections.
+     *
+     * @return the named provider connections, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public List<NamedProviderConfig> getProviders() {
+        return providers;
+    }
+
+    /**
+     * Sets the named BYOK provider connections (additive multi-provider registry).
+     * <p>
+     * Unlike {@link #setProvider(ProviderConfig)}, these do not switch the whole
+     * session to BYOK; they are exposed alongside the default Copilot routing.
+     * Attach models referencing these connections with {@link #setModels(List)}.
+     *
+     * @param providers
+     *            the named provider connections
+     * @return this config instance for method chaining
+     * @see NamedProviderConfig
+     */
+    @CopilotExperimental
+    public SessionConfig setProviders(List<NamedProviderConfig> providers) {
+        this.providers = providers;
+        return this;
+    }
+
+    /**
+     * Gets the BYOK model definitions.
+     *
+     * @return the model definitions, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public List<ProviderModelConfig> getModels() {
+        return models;
+    }
+
+    /**
+     * Sets the BYOK model definitions, each referencing a named provider supplied
+     * via {@link #setProviders(List)}.
+     *
+     * @param models
+     *            the model definitions
+     * @return this config instance for method chaining
+     * @see ProviderModelConfig
+     */
+    @CopilotExperimental
+    public SessionConfig setModels(List<ProviderModelConfig> models) {
+        this.models = models;
         return this;
     }
 
@@ -927,6 +1011,27 @@ public class SessionConfig {
      */
     public SessionConfig setLargeOutput(LargeToolOutputConfig largeOutput) {
         this.largeOutput = largeOutput;
+        return this;
+    }
+
+    /**
+     * Gets the configuration for session memory.
+     *
+     * @return the memory config, or {@code null} for default
+     */
+    public MemoryConfiguration getMemory() {
+        return memory;
+    }
+
+    /**
+     * Sets the configuration for session memory.
+     *
+     * @param memory
+     *            the memory config
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setMemory(MemoryConfiguration memory) {
+        this.memory = memory;
         return this;
     }
 
@@ -1649,6 +1754,9 @@ public class SessionConfig {
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
+        copy.capi = this.capi;
+        copy.providers = this.providers != null ? new ArrayList<>(this.providers) : null;
+        copy.models = this.models != null ? new ArrayList<>(this.models) : null;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
@@ -1671,6 +1779,7 @@ public class SessionConfig {
                 : null;
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
+        copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;

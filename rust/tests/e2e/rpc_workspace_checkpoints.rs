@@ -90,6 +90,7 @@ async fn should_return_typed_workspace_diff_result() {
                     .workspaces()
                     .diff(WorkspacesDiffRequest {
                         mode: WorkspaceDiffMode::Unstaged,
+                        ..Default::default()
                     })
                     .await
                     .expect("workspace diff");

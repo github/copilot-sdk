@@ -100,7 +100,8 @@ func (s *Session) WorkspacePath() string {
 
 // OpenCanvases returns the open-canvas snapshot last reported by the runtime.
 // The snapshot is populated from session.resume and live session.canvas.opened
-// events. The returned slice is a copy and is safe to mutate by the caller.
+// and session.canvas.closed events. The returned slice is a copy and is safe to
+// mutate by the caller.
 func (s *Session) OpenCanvases() []rpc.OpenCanvasInstance {
 	s.openCanvasesMu.RLock()
 	defer s.openCanvasesMu.RUnlock()
@@ -130,27 +131,44 @@ func (s *Session) upsertOpenCanvas(canvas rpc.OpenCanvasInstance) {
 	s.openCanvases = append(s.openCanvases, canvas)
 }
 
+func (s *Session) removeOpenCanvas(instanceID string) {
+	s.openCanvasesMu.Lock()
+	defer s.openCanvasesMu.Unlock()
+	filtered := make([]rpc.OpenCanvasInstance, 0, len(s.openCanvases))
+	for _, canvas := range s.openCanvases {
+		if canvas.InstanceID != instanceID {
+			filtered = append(filtered, canvas)
+		}
+	}
+	s.openCanvases = filtered
+}
+
 func (s *Session) updateOpenCanvasesFromEvent(event SessionEvent) {
-	data, ok := event.Data.(*SessionCanvasOpenedData)
-	if !ok {
-		return
+	switch data := event.Data.(type) {
+	case *SessionCanvasOpenedData:
+		if data.InstanceID == "" || data.CanvasID == "" || data.ExtensionID == "" || data.Availability == "" {
+			fmt.Printf("failed to deserialize session.canvas.opened payload\n")
+			return
+		}
+		s.upsertOpenCanvas(rpc.OpenCanvasInstance{
+			Availability:  rpc.CanvasInstanceAvailability(data.Availability),
+			CanvasID:      data.CanvasID,
+			ExtensionID:   data.ExtensionID,
+			ExtensionName: data.ExtensionName,
+			Input:         data.Input,
+			InstanceID:    data.InstanceID,
+			Reopen:        data.Reopen,
+			Status:        data.Status,
+			Title:         data.Title,
+			URL:           data.URL,
+		})
+	case *SessionCanvasClosedData:
+		if data.InstanceID == "" {
+			fmt.Printf("failed to deserialize session.canvas.closed payload\n")
+			return
+		}
+		s.removeOpenCanvas(data.InstanceID)
 	}
-	if data.InstanceID == "" || data.CanvasID == "" || data.ExtensionID == "" || data.Availability == "" {
-		fmt.Printf("failed to deserialize session.canvas.opened payload\n")
-		return
-	}
-	s.upsertOpenCanvas(rpc.OpenCanvasInstance{
-		Availability:  rpc.CanvasInstanceAvailability(data.Availability),
-		CanvasID:      data.CanvasID,
-		ExtensionID:   data.ExtensionID,
-		ExtensionName: data.ExtensionName,
-		Input:         data.Input,
-		InstanceID:    data.InstanceID,
-		Reopen:        data.Reopen,
-		Status:        data.Status,
-		Title:         data.Title,
-		URL:           data.URL,
-	})
 }
 
 func (s *Session) registerCanvasHandler(handler CanvasHandler) {
@@ -331,7 +349,7 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 		RequestHeaders: options.RequestHeaders,
 	}
 
-	result, err := s.client.Request("session.send", req)
+	result, err := s.client.Request(ctx, "session.send", req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send message: %w", err)
 	}
@@ -426,7 +444,7 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 		return result, nil
 	case err := <-errCh:
 		return nil, err
-	case <-ctx.Done(): // TODO: remove once session.Send honors the context
+	case <-ctx.Done():
 		return nil, fmt.Errorf("waiting for session.idle: %w", ctx.Err())
 	}
 }
@@ -1444,7 +1462,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 //	}
 func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 
-	result, err := s.client.Request("session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
+	result, err := s.client.Request(ctx, "session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get events: %w", err)
 	}
@@ -1479,7 +1497,7 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
-	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
+	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
@@ -1532,7 +1550,7 @@ func (s *Session) Disconnect() error {
 //	    log.Printf("Failed to abort: %v", err)
 //	}
 func (s *Session) Abort(ctx context.Context) error {
-	_, err := s.client.Request("session.abort", sessionAbortRequest{SessionID: s.SessionID})
+	_, err := s.client.Request(ctx, "session.abort", sessionAbortRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to abort session: %w", err)
 	}

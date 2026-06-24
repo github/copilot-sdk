@@ -13,11 +13,3 @@ conversations:
             function:
               name: resume_permission_tool
               arguments: '{"value":"alpha"}'
-      - role: tool
-        tool_call_id: toolcall_0
-        content: PERMISSION_RESUMED_ALPHA
-      - role: assistant
-        content: |-
-          I called `resume_permission_tool` with the value 'alpha' and received the result:
-
-          **PERMISSION_RESUMED_ALPHA**

@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.canvas.registry_changed".
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

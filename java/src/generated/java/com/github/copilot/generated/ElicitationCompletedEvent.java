@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "elicitation.completed". Elicitation request completion with the user's response
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

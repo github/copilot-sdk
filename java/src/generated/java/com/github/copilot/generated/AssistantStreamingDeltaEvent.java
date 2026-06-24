@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.streaming_delta". Streaming response progress with cumulative byte count
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

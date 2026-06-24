@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -56,6 +57,8 @@ public final class SessionRpc {
     public final SessionMcpApi mcp;
     /** API methods for the {@code plugins} namespace. */
     public final SessionPluginsApi plugins;
+    /** API methods for the {@code provider} namespace. */
+    public final SessionProviderApi provider;
     /** API methods for the {@code options} namespace. */
     public final SessionOptionsApi options;
     /** API methods for the {@code lsp} namespace. */
@@ -112,6 +115,7 @@ public final class SessionRpc {
         this.skills = new SessionSkillsApi(caller, sessionId);
         this.mcp = new SessionMcpApi(caller, sessionId);
         this.plugins = new SessionPluginsApi(caller, sessionId);
+        this.provider = new SessionProviderApi(caller, sessionId);
         this.options = new SessionOptionsApi(caller, sessionId);
         this.lsp = new SessionLspApi(caller, sessionId);
         this.extensions = new SessionExtensionsApi(caller, sessionId);
@@ -136,6 +140,7 @@ public final class SessionRpc {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> suspend() {
         return caller.invoke("session.suspend", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
@@ -149,6 +154,7 @@ public final class SessionRpc {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionSendResult> send(SessionSendParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -164,6 +170,7 @@ public final class SessionRpc {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionAbortResult> abort(SessionAbortParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -179,6 +186,7 @@ public final class SessionRpc {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> shutdown(SessionShutdownParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -194,6 +202,7 @@ public final class SessionRpc {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionLogResult> log(SessionLogParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

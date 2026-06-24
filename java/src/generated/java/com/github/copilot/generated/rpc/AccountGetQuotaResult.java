@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Quota usage snapshots for the resolved user, keyed by quota type.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Optional message to echo back to the caller.
- *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

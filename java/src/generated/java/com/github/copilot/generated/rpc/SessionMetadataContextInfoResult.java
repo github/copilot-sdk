@@ -10,13 +10,16 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Token breakdown for the session's current context window, or null if uninitialized.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -45,7 +48,7 @@ public record SessionMetadataContextInfoResult(
         @JsonProperty("promptTokenLimit") Long promptTokenLimit,
         /** Token count at which background compaction starts (configurable percentage of promptTokenLimit) */
         @JsonProperty("compactionThreshold") Long compactionThreshold,
-        /** Total context limit for /context display: promptTokenLimit + outputTokenLimit (the model's full max_output_tokens reserved on top of the prompt budget). */
+        /** Prompt token limit plus the model's full output token limit. */
         @JsonProperty("limit") Long limit,
         /** Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%) */
         @JsonProperty("bufferTokens") Long bufferTokens

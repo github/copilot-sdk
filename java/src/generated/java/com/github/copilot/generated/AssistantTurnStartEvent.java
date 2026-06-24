@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.turn_start". Turn initialization metadata including identifier and interaction tracking
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

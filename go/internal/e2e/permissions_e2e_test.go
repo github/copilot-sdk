@@ -96,7 +96,7 @@ func TestPermissionsE2E(t *testing.T) {
 		}
 
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Run 'echo hello' and tell me the output",
+			Prompt: "Run 'echo test' and tell me what happens",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)

@@ -15,7 +15,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "exit_plan_mode.requested". Plan approval request with plan content and available user actions
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

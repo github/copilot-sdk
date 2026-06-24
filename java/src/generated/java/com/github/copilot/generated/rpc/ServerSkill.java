@@ -34,6 +34,8 @@ public record ServerSkill(
     /** Absolute path to the skill file */
     @JsonProperty("path") String path,
     /** The project path this skill belongs to (only for project/inherited skills) */
-    @JsonProperty("projectPath") String projectPath
+    @JsonProperty("projectPath") String projectPath,
+    /** Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field */
+    @JsonProperty("argumentHint") String argumentHint
 ) {
 }

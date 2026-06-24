@@ -10,14 +10,17 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
  * Point-in-time snapshot of slow-changing session identifier and state fields
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -70,6 +73,8 @@ public record SessionMetadataSnapshotResult(
         @JsonProperty("branch") String branch,
         /** Display name for the session, if set */
         @JsonProperty("name") String name,
+        /** Whether the display name was explicitly set by the user */
+        @JsonProperty("user_named") Boolean userNamed,
         /** ISO 8601 timestamp when the workspace was created */
         @JsonProperty("created_at") OffsetDateTime createdAt,
         /** ISO 8601 timestamp when the workspace was last updated */

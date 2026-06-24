@@ -8,9 +8,9 @@
  */
 
 import fs from "fs/promises";
+import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
-import type { JSONSchema7 } from "json-schema";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -148,36 +148,61 @@ function toEnumConstant(value: string): string {
 
 // ── Schema path resolution ───────────────────────────────────────────────────
 
-async function getSessionEventsSchemaPath(): Promise<string> {
-    const candidates = [
-        path.join(REPO_ROOT, "scripts/codegen/node_modules/@github/copilot/schemas/session-events.schema.json"),
-        path.join(REPO_ROOT, "nodejs/node_modules/@github/copilot/schemas/session-events.schema.json"),
+/**
+ * Resolve a JSON schema shipped by the `@github/copilot` CLI package.
+ *
+ * The CLI package layout changed in 1.0.64-1: the umbrella `@github/copilot`
+ * package became a thin loader and its bundled assets (including the JSON
+ * schemas) moved into the platform-specific packages installed as optional
+ * dependencies, e.g. `@github/copilot-linux-x64` or `@github/copilot-win32-x64`.
+ *
+ * We search both the Java codegen install (`scripts/codegen/node_modules`) and
+ * the Node SDK install (`nodejs/node_modules`), checking the umbrella package
+ * first (older versions) and then whichever platform package is present.
+ */
+async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
+    const nodeModulesDirs = [
+        path.join(REPO_ROOT, "scripts/codegen/node_modules"),
+        path.join(REPO_ROOT, "nodejs/node_modules"),
     ];
-    for (const p of candidates) {
+
+    const candidates: string[] = [];
+    for (const nodeModulesDir of nodeModulesDirs) {
+        candidates.push(path.join(nodeModulesDir, "@github/copilot/schemas", fileName));
+        const githubScopeDir = path.join(nodeModulesDir, "@github");
         try {
-            await fs.access(p);
-            return p;
-        } catch {
-            // try next
+            for (const entry of await fs.readdir(githubScopeDir)) {
+                if (entry.startsWith("copilot-")) {
+                    candidates.push(path.join(githubScopeDir, entry, "schemas", fileName));
+                }
+            }
+        } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            if (code !== "ENOENT" && code !== "ENOTDIR") {
+                throw err;
+            }
+            // @github scope directory may not exist; try the next location.
         }
     }
-    throw new Error("session-events.schema.json not found. Run 'npm ci' in scripts/codegen first.");
+
+    for (const candidate of candidates) {
+        try {
+            await fs.access(candidate);
+            return candidate;
+        } catch {
+            // Try the next candidate.
+        }
+    }
+
+    throw new Error(`${fileName} not found. Run 'npm ci' in java/scripts/codegen or java/nodejs first.`);
+}
+
+async function getSessionEventsSchemaPath(): Promise<string> {
+    return resolveCopilotSchemaPath("session-events.schema.json");
 }
 
 async function getApiSchemaPath(): Promise<string> {
-    const candidates = [
-        path.join(REPO_ROOT, "scripts/codegen/node_modules/@github/copilot/schemas/api.schema.json"),
-        path.join(REPO_ROOT, "nodejs/node_modules/@github/copilot/schemas/api.schema.json"),
-    ];
-    for (const p of candidates) {
-        try {
-            await fs.access(p);
-            return p;
-        } catch {
-            // try next
-        }
-    }
-    throw new Error("api.schema.json not found. Run 'npm ci' in scripts/codegen first.");
+    return resolveCopilotSchemaPath("api.schema.json");
 }
 
 // ── File writing ─────────────────────────────────────────────────────────────
@@ -663,6 +688,8 @@ interface EventVariant {
     className: string;
     dataSchema: JSONSchema7 | null;
     description?: string;
+    stability?: string;
+    deprecated?: boolean;
 }
 
 function extractEventVariants(schema: JSONSchema7): EventVariant[] {
@@ -694,6 +721,8 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
                 className: `${baseName}Event`,
                 dataSchema: dataSchema ?? null,
                 description: resolved.description,
+                stability: (variant as unknown as Record<string, unknown>).stability as string | undefined,
+                deprecated: (variant as unknown as Record<string, unknown>).deprecated === true,
             };
         })
         .filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
@@ -985,15 +1014,22 @@ async function generateEventVariantClass(
     if (variant.description) {
         lines.push(`/**`);
         lines.push(` * ${variant.description}`);
-        lines.push(` *`);
-        lines.push(` * @since 1.0.0`);
-        lines.push(` */`);
     } else {
         lines.push(`/**`);
         lines.push(` * The {@code ${variant.typeName}} session event.`);
+    }
+    if (variant.stability === "experimental") {
         lines.push(` *`);
-        lines.push(` * @since 1.0.0`);
-        lines.push(` */`);
+        lines.push(` * @apiNote This method is experimental and may change in a future version.`);
+    }
+    lines.push(` * @since 1.0.0`);
+    lines.push(` */`);
+    if (variant.deprecated) {
+        lines.push(`@Deprecated`);
+    }
+    if (variant.stability === "experimental") {
+        allImports.add("com.github.copilot.CopilotExperimental");
+        lines.push(`@CopilotExperimental`);
     }
     lines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
     lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
@@ -1197,6 +1233,7 @@ interface RpcMethod {
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
     stability?: string;
+    deprecated?: boolean;
 }
 
 function isRpcMethod(node: unknown): node is RpcMethod {
@@ -1322,7 +1359,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
                 const paramsClassName = `${className}Params`;
                 if (!generatedClasses.has(paramsClassName)) {
                     generatedClasses.set(paramsClassName, true);
-                    allFiles.push(await generateRpcDataClass(paramsClassName, paramsSchema, packageName, packageDir, method.rpcMethod, "params"));
+                    allFiles.push(await generateRpcDataClass(paramsClassName, paramsSchema, packageName, packageDir, method.rpcMethod, "params", method.stability, method.deprecated === true));
                 }
             }
 
@@ -1336,7 +1373,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
                     const resultClassName = `${className}Result`;
                     if (!generatedClasses.has(resultClassName)) {
                         generatedClasses.set(resultClassName, true);
-                        allFiles.push(await generateRpcDataClass(resultClassName, resultSchema, packageName, packageDir, method.rpcMethod, "result"));
+                        allFiles.push(await generateRpcDataClass(resultClassName, resultSchema, packageName, packageDir, method.rpcMethod, "result", method.stability, method.deprecated === true));
                     }
                 } else if (resultRefName && resultSchema.type === "string" && resultSchema.enum) {
                     // String enum → register for standalone generation
@@ -1356,6 +1393,14 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
                         generatedClasses.set(resultRefName, true);
                         allFiles.push(await generateRpcDataClass(resultRefName, resultSchema, packageName, packageDir, method.rpcMethod, "result"));
                     }
+                } else if (resultRefName && resultSchema.type === "array") {
+                    // Named array aliases (e.g. AccountGetAllUsersResult) are returned
+                    // as List<T> by wrappers, but resolving them here discovers any
+                    // referenced item records that need standalone generation.
+                    schemaTypeToJava(resultSchema, false, resultRefName, "item", new Map());
+                } else if (resultSchema.type === "array") {
+                    // Inline arrays also need their referenced item records generated.
+                    schemaTypeToJava(resultSchema, false, `${className}Result`, "item", new Map());
                 }
             }
         }
@@ -1373,7 +1418,9 @@ async function generateRpcDataClass(
     packageName: string,
     packageDir: string,
     rpcMethod: string,
-    kind: "params" | "result"
+    kind: "params" | "result",
+    stability?: string,
+    deprecated?: boolean
 ): Promise<string> {
     const nestedTypes = new Map<string, { code: string }>();
     const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName);
@@ -1394,6 +1441,9 @@ async function generateRpcDataClass(
         "javax.annotation.processing.Generated",
         ...imports,
     ]);
+    if (stability === "experimental") {
+        allImports.add("com.github.copilot.CopilotExperimental");
+    }
     const sortedImports = [...allImports].sort();
     for (const imp of sortedImports) {
         lines.push(`import ${imp};`);
@@ -1403,15 +1453,21 @@ async function generateRpcDataClass(
     if (schema.description) {
         lines.push(`/**`);
         lines.push(` * ${schema.description}`);
-        lines.push(` *`);
-        lines.push(` * @since 1.0.0`);
-        lines.push(` */`);
     } else {
         lines.push(`/**`);
         lines.push(` * ${kind === "params" ? "Request parameters" : "Result"} for the {@code ${rpcMethod}} RPC method.`);
+    }
+    if (stability === "experimental") {
         lines.push(` *`);
-        lines.push(` * @since 1.0.0`);
-        lines.push(` */`);
+        lines.push(` * @apiNote This method is experimental and may change in a future version.`);
+    }
+    lines.push(` * @since 1.0.0`);
+    lines.push(` */`);
+    if (deprecated) {
+        lines.push(`@Deprecated`);
+    }
+    if (stability === "experimental") {
+        lines.push(`@CopilotExperimental`);
     }
     lines.push(GENERATED_ANNOTATION);
     lines.push(code);
@@ -1427,6 +1483,7 @@ async function generateRpcDataClass(
 interface RpcMethodNode {
     rpcMethod: string;
     stability: string;
+    deprecated: boolean;
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
 }
@@ -1447,6 +1504,7 @@ function buildNamespaceTree(node: Record<string, unknown>): NamespaceTree {
             tree.methods.set(key, {
                 rpcMethod: String(obj.rpcMethod),
                 stability: String(obj.stability ?? "stable"),
+                deprecated: obj.deprecated === true,
                 params: (obj.params as JSONSchema7) ?? null,
                 result: (obj.result as JSONSchema7) ?? null,
             });
@@ -1471,8 +1529,8 @@ function apiClassName(prefix: string, path: string[]): string {
 }
 
 /**
- * Derive the result class name for an RPC method.
- * Handles $ref to named definitions (enums, anyOf unions, objects with properties).
+ * Derive the Java result type for an RPC method.
+ * Handles $ref to named definitions (enums, anyOf unions, objects with properties, arrays).
  * Falls back to Void for null results or schemas with no meaningful type.
  */
 function wrapperResultClassName(method: RpcMethodNode): string {
@@ -1503,6 +1561,11 @@ function wrapperResultClassName(method: RpcMethodNode): string {
             if (resolved.type === "object" && !resolved.properties) {
                 return refName;
             }
+            // Named array aliases → use the underlying List<T> Java type.
+            if (resolved.type === "array") {
+                const result = schemaTypeToJava(resolved, false, refName, "item", new Map());
+                return result.javaType;
+            }
         }
     }
 
@@ -1518,6 +1581,11 @@ function wrapperResultClassName(method: RpcMethodNode): string {
         return rpcMethodToClassName(method.rpcMethod) + "Result";
     }
 
+    if (result && typeof result === "object" && result.type === "array") {
+        const javaResult = schemaTypeToJava(result, false, `${rpcMethodToClassName(method.rpcMethod)}Result`, "item", new Map());
+        return javaResult.javaType;
+    }
+
     // Free-form object with additionalProperties (e.g., x-opaque-json) → JsonNode
     if (
         result &&
@@ -1530,6 +1598,41 @@ function wrapperResultClassName(method: RpcMethodNode): string {
     }
 
     return "Void";
+}
+
+function wrapperResultTypeExpression(resultType: string): string {
+    const listMatch = resultType.match(/^List<([^<>]+)>$/);
+    if (listMatch) {
+        return `RpcMapper.INSTANCE.getTypeFactory().constructCollectionType(List.class, ${javaClassLiteral(listMatch[1])})`;
+    }
+
+    return javaClassLiteral(resultType);
+}
+
+function javaClassLiteral(javaType: string): string {
+    return javaType === "Void" ? "Void.class" : `${javaType}.class`;
+}
+
+function addWrapperResultImports(resultType: string, allImports: Set<string>, packageName: string): void {
+    if (resultType === "Void") {
+        return;
+    }
+
+    if (resultType === "JsonNode") {
+        allImports.add("com.fasterxml.jackson.databind.JsonNode");
+        return;
+    }
+
+    if (resultType.startsWith("List<")) {
+        allImports.add("java.util.List");
+    }
+
+    const builtInTypes = new Set(["Boolean", "Double", "Long", "List", "Object", "String", "Void"]);
+    for (const typeName of resultType.match(/\b[A-Z][A-Za-z0-9_]*\b/g) ?? []) {
+        if (!builtInTypes.has(typeName)) {
+            allImports.add(`${packageName}.${typeName}`);
+        }
+    }
 }
 
 /**
@@ -1562,7 +1665,7 @@ function generateApiMethod(
     method: RpcMethodNode,
     isSession: boolean,
     sessionIdExpr: string
-): { lines: string[]; needsMapper: boolean } {
+): { lines: string[]; needsMapper: boolean; needsExperimentalImport: boolean } {
     const resultClass = wrapperResultClassName(method);
     const paramsClass = wrapperParamsClassName(method);
     const hasSessionId = methodHasSessionId(method);
@@ -1588,6 +1691,12 @@ function generateApiMethod(
     }
     lines.push(`     * @since 1.0.0`);
     lines.push(`     */`);
+    if (method.deprecated) {
+        lines.push(`    @Deprecated`);
+    }
+    if (method.stability === "experimental") {
+        lines.push(`    @CopilotExperimental`);
+    }
 
     // Signature
     if (hasExtraParams) {
@@ -1603,25 +1712,25 @@ function generateApiMethod(
             needsMapper = true;
             lines.push(`        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);`);
             lines.push(`        _p.put("sessionId", ${sessionIdExpr});`);
-            lines.push(`        return caller.invoke("${method.rpcMethod}", _p, ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", _p, ${wrapperResultTypeExpression(resultClass)});`);
         } else if (hasSessionId) {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of("sessionId", ${sessionIdExpr}), ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of("sessionId", ${sessionIdExpr}), ${wrapperResultTypeExpression(resultClass)});`);
         } else {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${wrapperResultTypeExpression(resultClass)});`);
         }
     } else {
         // Server-side: pass params directly (or empty map if no params)
         if (hasExtraParams) {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", params, ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", params, ${wrapperResultTypeExpression(resultClass)});`);
         } else {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${resultClass}.class);`);
+            lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${wrapperResultTypeExpression(resultClass)});`);
         }
     }
 
     lines.push(`    }`);
     lines.push(``);
 
-    return { lines, needsMapper };
+    return { lines, needsMapper, needsExperimentalImport: method.stability === "experimental" };
 }
 
 /**
@@ -1667,18 +1776,13 @@ async function generateNamespaceApiFile(
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
         const paramsClass = wrapperParamsClassName(method);
-        if (resultClass !== "Void") {
-            if (resultClass === "JsonNode") {
-                allImports.add("com.fasterxml.jackson.databind.JsonNode");
-            } else {
-                allImports.add(`${packageName}.${resultClass}`);
-            }
-        }
+        addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
-        const { lines, needsMapper: nm } = generateApiMethod(key, method, isSession, sessionIdExpr);
+        const { lines, needsMapper: nm, needsExperimentalImport } = generateApiMethod(key, method, isSession, sessionIdExpr);
         methodLines.push(...lines);
         if (nm) needsMapper = true;
+        if (needsExperimentalImport) allImports.add("com.github.copilot.CopilotExperimental");
     }
 
     // Build class body
@@ -1792,18 +1896,13 @@ async function generateRpcRootFile(
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
         const paramsClass = wrapperParamsClassName(method);
-        if (resultClass !== "Void") {
-            if (resultClass === "JsonNode") {
-                allImports.add("com.fasterxml.jackson.databind.JsonNode");
-            } else {
-                allImports.add(`${packageName}.${resultClass}`);
-            }
-        }
+        addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
-        const { lines, needsMapper: nm } = generateApiMethod(key, method, isSession, sessionIdExpr);
+        const { lines, needsMapper: nm, needsExperimentalImport } = generateApiMethod(key, method, isSession, sessionIdExpr);
         methodLines.push(...lines);
         if (nm) needsMapper = true;
+        if (needsExperimentalImport) allImports.add("com.github.copilot.CopilotExperimental");
     }
 
     // Build file content
@@ -1901,7 +2000,10 @@ async function generateRpcCallerInterface(packageName: string, packageDir: strin
     lines.push(``);
     lines.push(`package ${packageName};`);
     lines.push(``);
+    lines.push(`import com.fasterxml.jackson.databind.JavaType;`);
+    lines.push(`import com.fasterxml.jackson.databind.JsonNode;`);
     lines.push(`import java.util.concurrent.CompletableFuture;`);
+    lines.push(`import java.util.concurrent.CompletionException;`);
     lines.push(`import javax.annotation.processing.Generated;`);
     lines.push(``);
     lines.push(`/**`);
@@ -1929,6 +2031,28 @@ async function generateRpcCallerInterface(packageName: string, packageDir: strin
     lines.push(`     * @return a {@link CompletableFuture} that completes with the deserialized result`);
     lines.push(`     */`);
     lines.push(`    <T> CompletableFuture<T> invoke(String method, Object params, Class<T> resultType);`);
+    lines.push(``);
+    lines.push(`    /**`);
+    lines.push(`     * Invokes a JSON-RPC method and returns a future for the typed response.`);
+    lines.push(`     *`);
+    lines.push(`     * @param <T>        the expected response type`);
+    lines.push(`     * @param method     the JSON-RPC method name`);
+    lines.push(`     * @param params     the request parameters (may be a {@code Map}, DTO record, or {@code JsonNode})`);
+    lines.push(`     * @param resultType the Jackson {@link JavaType} of the expected response type`);
+    lines.push(`     * @return a {@link CompletableFuture} that completes with the deserialized result`);
+    lines.push(`     */`);
+    lines.push(`    default <T> CompletableFuture<T> invoke(String method, Object params, JavaType resultType) {`);
+    lines.push(`        if (resultType.hasRawClass(Void.class) || resultType.hasRawClass(Void.TYPE)) {`);
+    lines.push(`            return invoke(method, params, Void.class).thenApply(ignored -> null);`);
+    lines.push(`        }`);
+    lines.push(`        return invoke(method, params, JsonNode.class).thenApply(result -> {`);
+    lines.push(`            try {`);
+    lines.push(`                return RpcMapper.INSTANCE.readerFor(resultType).readValue(result);`);
+    lines.push(`            } catch (java.io.IOException e) {`);
+    lines.push(`                throw new CompletionException(e);`);
+    lines.push(`            }`);
+    lines.push(`        });`);
+    lines.push(`    }`);
     lines.push(`}`);
     lines.push(``);
 
@@ -2020,11 +2144,112 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     console.log(`✅ RPC wrapper classes generated`);
 }
 
+// ── Package-info generation ──────────────────────────────────────────────────
+
+async function generateGeneratedPackageInfo(packageDir: string): Promise<void> {
+    const lines: string[] = [];
+    lines.push(COPYRIGHT);
+    lines.push("");
+    lines.push(AUTO_GENERATED_HEADER);
+    lines.push(GENERATED_FROM_SESSION_EVENTS);
+    lines.push("");
+    lines.push(`/**`);
+    lines.push(` * Auto-generated session event types for the GitHub Copilot SDK.`);
+    lines.push(` *`);
+    lines.push(` * <p>`);
+    lines.push(` * This package contains Java classes generated from the Copilot CLI's`);
+    lines.push(` * {@code session-events.schema.json}. Each event type corresponds to a`);
+    lines.push(` * notification emitted during a {@link com.github.copilot.CopilotSession}`);
+    lines.push(` * interaction.`);
+    lines.push(` *`);
+    lines.push(` * <h2>Key Classes</h2>`);
+    lines.push(` * <ul>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.SessionEvent} - Abstract sealed base`);
+    lines.push(` * class for all session events. Deserialized polymorphically via the`);
+    lines.push(` * {@code type} discriminator.</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.UnknownSessionEvent} - Fallback for`);
+    lines.push(` * event types not yet known to this SDK version, preserving forward`);
+    lines.push(` * compatibility.</li>`);
+    lines.push(` * </ul>`);
+    lines.push(` *`);
+    lines.push(` * <h2>Example Usage</h2>`);
+    lines.push(` *`);
+    lines.push(` * <pre>{@code`);
+    lines.push(` * session.on(AssistantMessageEvent.class, msg -> {`);
+    lines.push(` *     System.out.println(msg.getData().content());`);
+    lines.push(` * });`);
+    lines.push(` * }</pre>`);
+    lines.push(` *`);
+    lines.push(` * <h2>Related Packages</h2>`);
+    lines.push(` * <ul>`);
+    lines.push(` * <li>{@link com.github.copilot} - Core SDK classes</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.rpc} - Auto-generated RPC`);
+    lines.push(` * parameter and result types</li>`);
+    lines.push(` * </ul>`);
+    lines.push(` *`);
+    lines.push(` * @see com.github.copilot.CopilotSession`);
+    lines.push(` * @see com.github.copilot.generated.SessionEvent`);
+    lines.push(` */`);
+    lines.push(`package com.github.copilot.generated;`);
+    lines.push("");
+
+    await writeGeneratedFile(`${packageDir}/package-info.java`, lines.join("\n"));
+}
+
+async function generateRpcPackageInfo(packageDir: string): Promise<void> {
+    const lines: string[] = [];
+    lines.push(COPYRIGHT);
+    lines.push("");
+    lines.push(AUTO_GENERATED_HEADER);
+    lines.push(GENERATED_FROM_API);
+    lines.push("");
+    lines.push(`/**`);
+    lines.push(` * Auto-generated RPC parameter and result types for the GitHub Copilot SDK.`);
+    lines.push(` *`);
+    lines.push(` * <p>`);
+    lines.push(` * This package contains Java records and classes generated from the Copilot`);
+    lines.push(` * CLI's {@code api.schema.json}. These types represent the request parameters`);
+    lines.push(` * and response payloads for all JSON-RPC methods exposed by the CLI.`);
+    lines.push(` *`);
+    lines.push(` * <h2>Key Classes</h2>`);
+    lines.push(` * <ul>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.rpc.RpcCaller} - Functional interface`);
+    lines.push(` * for invoking JSON-RPC methods with typed responses.</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.rpc.ServerRpc} - Typed client for`);
+    lines.push(` * server-level RPC methods (session management, model listing, etc.).</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated.rpc.SessionRpc} - Typed client for`);
+    lines.push(` * session-scoped RPC methods (send messages, manage tools, etc.). Automatically`);
+    lines.push(` * injects the {@code sessionId} into every call.</li>`);
+    lines.push(` * </ul>`);
+    lines.push(` *`);
+    lines.push(` * <h2>Related Packages</h2>`);
+    lines.push(` * <ul>`);
+    lines.push(` * <li>{@link com.github.copilot} - Core SDK classes</li>`);
+    lines.push(` * <li>{@link com.github.copilot.generated} - Auto-generated session event`);
+    lines.push(` * types</li>`);
+    lines.push(` * </ul>`);
+    lines.push(` *`);
+    lines.push(` * @see com.github.copilot.CopilotClient`);
+    lines.push(` * @see com.github.copilot.generated.rpc.ServerRpc`);
+    lines.push(` * @see com.github.copilot.generated.rpc.SessionRpc`);
+    lines.push(` */`);
+    lines.push(`package com.github.copilot.generated.rpc;`);
+    lines.push("");
+
+    await writeGeneratedFile(`${packageDir}/package-info.java`, lines.join("\n"));
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
     console.log("🚀 Java SDK code generator");
     console.log("============================");
+
+    // Clean the generated output directory to remove orphaned files from previous runs
+    const generatedOutputDir = path.join(REPO_ROOT, "src/generated/java/com/github/copilot/generated");
+    console.log(`🧹 Cleaning output directory: ${generatedOutputDir}`);
+    await fs.rm(generatedOutputDir, { recursive: true, force: true });
+    await fs.mkdir(generatedOutputDir, { recursive: true });
 
     const sessionEventsSchemaPath = await getSessionEventsSchemaPath();
     console.log(`📄 Session events schema: ${sessionEventsSchemaPath}`);
@@ -2034,6 +2259,12 @@ async function main(): Promise<void> {
     await generateSessionEvents(sessionEventsSchemaPath);
     await generateRpcTypes(apiSchemaPath);
     await generateRpcWrappers(apiSchemaPath);
+
+    // Generate package-info.java for each generated package
+    const generatedPkgDir = `src/generated/java/com/github/copilot/generated`;
+    const rpcPkgDir = `src/generated/java/com/github/copilot/generated/rpc`;
+    await generateGeneratedPackageInfo(generatedPkgDir);
+    await generateRpcPackageInfo(rpcPkgDir);
 
     console.log("\n✅ Java code generation complete!");
 }

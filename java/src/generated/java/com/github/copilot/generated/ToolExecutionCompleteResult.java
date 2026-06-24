@@ -28,7 +28,13 @@ public record ToolExecutionCompleteResult(
     @JsonProperty("detailedContent") String detailedContent,
     /** Structured content blocks (text, images, audio, resources) returned by the tool in their native format */
     @JsonProperty("contents") List<Object> contents,
+    /** Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call */
+    @JsonProperty("binaryResultsForLlm") List<Object> binaryResultsForLlm,
     /** MCP Apps UI resource content for rendering in a sandboxed iframe */
-    @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource
+    @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource,
+    /** Structured content (arbitrary JSON) returned verbatim by the MCP tool */
+    @JsonProperty("structuredContent") Object structuredContent,
+    /** Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental. */
+    @JsonProperty("citableSources") List<CitableSource> citableSources
 ) {
 }

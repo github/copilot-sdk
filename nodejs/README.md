@@ -2,6 +2,12 @@
 
 TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Node.js ^20.19.0 or >=22.12.0
+
 ## Installation
 
 ```bash
@@ -482,6 +488,21 @@ defineTool("safe_lookup", {
 });
 ```
 
+#### Deferring Tools
+
+Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
+
+```ts
+defineTool("lookup_issue", {
+    description: "Fetch issue details",
+    parameters: z.object({ id: z.string() }),
+    defer: "auto",
+    handler: async ({ id }) => {
+        /* your logic */
+    },
+});
+```
+
 ### Commands
 
 Register slash commands so that users of the CLI's TUI can invoke custom actions via `/commandName`. Each command has a `name`, optional `description`, and a `handler` called when the user executes it.
@@ -656,6 +677,29 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+### Memory
+
+Sessions can opt in to the memory feature, which lets the agent persist and recall
+information across turns. Provide a `memory` configuration on session create or resume;
+when omitted, the runtime default applies. In the default `"copilot-cli"` client mode the
+SDK leaves `memory` unset so the runtime applies its own default, while `"empty"` mode
+defaults `memory` to disabled unless you set it explicitly.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
+
+```typescript
+// Enable memory for a session
+const session = await client.createSession({
+    model: "gpt-5",
+    memory: { enabled: true },
+});
+
+// Disable memory for a session
+const session = await client.createSession({
+    model: "gpt-5",
+    memory: { enabled: false },
+});
+```
+
 ### Multiple Sessions
 
 ```typescript
@@ -771,6 +815,7 @@ With just this configuration, the CLI emits spans for every session, message, an
 **TelemetryConfig options:**
 
 - `otlpEndpoint?: string` - OTLP HTTP endpoint URL
+- `otlpProtocol?: "http/json" | "http/protobuf"` - OTLP HTTP protocol for all signals
 - `filePath?: string` - File path for JSON-lines trace output
 - `exporterType?: string` - `"otlp-http"` or `"file"`
 - `sourceName?: string` - Instrumentation scope name
@@ -1032,11 +1077,6 @@ try {
     console.error("Error:", error.message);
 }
 ```
-
-## Requirements
-
-- Node.js ^20.19.0 or >=22.12.0
-- GitHub Copilot CLI installed and in PATH (or provide a custom `connection`)
 
 ## License
 

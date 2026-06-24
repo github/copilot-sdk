@@ -10,20 +10,23 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionModelSwitchToParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Model identifier to switch to */
+    /** Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model. */
     @JsonProperty("modelId") String modelId,
     /** Reasoning effort level to use for the model. "none" disables reasoning. */
     @JsonProperty("reasoningEffort") String reasoningEffort,

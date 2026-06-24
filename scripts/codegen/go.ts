@@ -1731,6 +1731,36 @@ function goVariantMatchFunctionLines(
     return lines;
 }
 
+function goDiscriminatorMethodName(
+    typeName: string,
+    discriminatorProp: string,
+    discGoName: string,
+    variants: GoDiscriminatedUnionVariant[],
+    ctx: GoCodegenCtx
+): string {
+    const collidesWithVariantField = variants.some((variant) => {
+        const resolved = resolveSchema(variant.schema, ctx.definitions) ?? variant.schema;
+        const objectSchema = resolveObjectSchema(resolved, ctx.definitions) ?? resolved;
+        const variantPreExisting = ctx.generatedNames.has(variant.typeName);
+        return Object.keys(objectSchema.properties ?? {}).some((propName) => {
+            const propGoName = toGoFieldName(propName);
+            if (propName === discriminatorProp) {
+                // The flat-union variant emission elides single-value discriminators
+                // and renames multi-value ones to ``Discriminator``, so a natural-name
+                // collision is only possible when the variant struct is a pre-existing
+                // type (already in ``ctx.generatedNames``) that retained the discriminator
+                // as a struct field with its natural Go name. The ``Discriminator``-rename
+                // collision case is independent and detected by the second clause.
+                return (variantPreExisting && propGoName === discGoName)
+                    || (variant.discriminatorValues.length > 1 && discGoName === "Discriminator");
+            }
+            return propGoName === discGoName;
+        });
+    });
+
+    return collidesWithVariantField ? `${toGoUnexportedIdentifier(typeName)}${discGoName}` : discGoName;
+}
+
 /**
  * Emit a Go interface for a discriminated union (anyOf with const discriminator).
  */
@@ -1748,7 +1778,7 @@ function emitGoFlatDiscriminatedUnion(
     const mapping = discriminator.mapping;
     const unionVariants = [...discriminator.variants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName));
     const discGoName = toGoFieldName(discriminatorProp);
-    const discriminatorMethodName = discGoName;
+    const discriminatorMethodName = goDiscriminatorMethodName(typeName, discriminatorProp, discGoName, unionVariants, ctx);
     let discEnumName: string | undefined;
     let discGoType = "bool";
     if (discriminator.valueKind === "string") {
@@ -3144,7 +3174,11 @@ export function generateGoSessionEventsCode(
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
             const isReq = required.has(propName);
-            const goName = toGoFieldName(propName);
+            let goName = toGoFieldName(propName);
+            // Avoid conflict with the Type() SessionEventType interface method
+            if (goName === "Type") {
+                goName = "Discriminator";
+            }
             const goType = resolveGoPropertyType(prop, variant.dataClassName, propName, isReq, ctx);
 
             if (prop.description) {
@@ -3918,7 +3952,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     if (generatedTypeCode.includes("time.Time")) {
         imports.push(`"time"`);
     }
-    if (schema.clientSession) {
+    if (schema.clientSession || schema.clientGlobal) {
         imports.push(`"errors"`, `"fmt"`);
     }
     imports.push(`"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
@@ -3951,6 +3985,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     if (schema.clientSession) {
         emitClientSessionApiRegistration(lines, schema.clientSession, resolveType, generatedRpcCode.discriminatedUnions);
+    }
+
+    if (schema.clientGlobal) {
+        emitClientGlobalApiRegistration(lines, schema.clientGlobal, resolveType, generatedRpcCode.discriminatedUnions);
     }
 
     const outPath = await writeGeneratedFile("go/rpc/zrpc.go", wrapGeneratedGoComments(lines.join("\n")));
@@ -4161,10 +4199,10 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
             }
             lines.push(`\t}`);
         }
-        lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", req)`);
+        lines.push(`\traw, err := ${clientRef}.Request(ctx, "${method.rpcMethod}", req)`);
     } else {
         const arg = hasParams ? paramsRef : "nil";
-        lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", ${arg})`);
+        lines.push(`\traw, err := ${clientRef}.Request(ctx, "${method.rpcMethod}", ${arg})`);
     }
 
     lines.push(`\tif err != nil {`);
@@ -4314,7 +4352,106 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
     lines.push(``);
 }
 
-// ── Main ────────────────────────────────────────────────────────────────────
+function emitClientGlobalApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string, unionInfos: Map<string, GoDiscriminatedUnionInfo>): void {
+    const groups = collectClientGroups(clientSchema);
+
+    for (const { groupName, groupNode, methods } of groups) {
+        const interfaceName = clientHandlerInterfaceName(groupName);
+        const groupExperimental = isNodeFullyExperimental(groupNode);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode);
+        if (groupDeprecated) {
+            pushGoComment(lines, `Deprecated: ${interfaceName} contains deprecated APIs that will be removed in a future version.`);
+        }
+        if (groupExperimental) {
+            pushGoExperimentalApiComment(lines, interfaceName);
+        }
+        lines.push(`type ${interfaceName} interface {`);
+        for (const method of methods) {
+            const resultSchema = getMethodResultSchema(method);
+            pushGoRpcMethodComment(
+                lines,
+                clientHandlerMethodName(method.rpcMethod),
+                method,
+                resultSchema,
+                goRpcParamsDescription(method, getMethodParamsSchema(method)),
+                "\t",
+                "handles"
+            );
+            if (method.deprecated && !groupDeprecated) {
+                pushGoComment(lines, `Deprecated: ${clientHandlerMethodName(method.rpcMethod)} is deprecated and will be removed in a future version.`, "\t");
+            }
+            if (method.stability === "experimental" && !groupExperimental) {
+                pushGoExperimentalMethodComment(lines, clientHandlerMethodName(method.rpcMethod), "\t");
+            }
+            const paramsType = resolveType(goParamsTypeName(method));
+            const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+            let returnType: string;
+            if (isOpaqueJson(resultSchema)) {
+                returnType = "any";
+            } else {
+                const resultType = nullableInner
+                    ? resolveType(goNullableResultTypeName(method, nullableInner))
+                    : resolveType(goResultTypeName(method));
+                returnType = unionInfos.has(resultType) ? resultType : `*${resultType}`;
+            }
+            lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (${returnType}, error)`);
+        }
+        lines.push(`}`);
+        lines.push(``);
+    }
+
+    lines.push(`// ClientGlobalAPIHandlers provides all client-global API handler groups.`);
+    lines.push(`//`);
+    lines.push(`// Unlike client-session handlers these carry no implicit session id dispatch`);
+    lines.push(`// key; a single set of handlers serves the entire connection.`);
+    lines.push(`type ClientGlobalAPIHandlers struct {`);
+    for (const { groupName } of groups) {
+        lines.push(`\t${toGoFieldName(groupName)} ${clientHandlerInterfaceName(groupName)}`);
+    }
+    lines.push(`}`);
+    lines.push(``);
+
+    lines.push(`func clientGlobalHandlerError(err error) *jsonrpc2.Error {`);
+    lines.push(`\tif err == nil {`);
+    lines.push(`\t\treturn nil`);
+    lines.push(`\t}`);
+    lines.push(`\tvar rpcErr *jsonrpc2.Error`);
+    lines.push(`\tif errors.As(err, &rpcErr) {`);
+    lines.push(`\t\treturn rpcErr`);
+    lines.push(`\t}`);
+    lines.push(`\treturn &jsonrpc2.Error{Code: -32603, Message: err.Error()}`);
+    lines.push(`}`);
+    lines.push(``);
+
+    lines.push(`// RegisterClientGlobalAPIHandlers registers handlers for server-to-client client-global API calls.`);
+    lines.push(`func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGlobalAPIHandlers) {`);
+    for (const { groupName, methods } of groups) {
+        const handlerField = toGoFieldName(groupName);
+        for (const method of methods) {
+            const paramsType = resolveType(goParamsTypeName(method));
+            lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);
+            lines.push(`\t\tvar request ${paramsType}`);
+            lines.push(`\t\tif err := json.Unmarshal(params, &request); err != nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\tif handlers == nil || handlers.${handlerField} == nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: "No ${groupName} client-global handler registered"}`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\tresult, err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request)`);
+            lines.push(`\t\tif err != nil {`);
+            lines.push(`\t\t\treturn nil, clientGlobalHandlerError(err)`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\traw, err := json.Marshal(result)`);
+            lines.push(`\t\tif err != nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\treturn raw, nil`);
+            lines.push(`\t})`);
+        }
+    }
+    lines.push(`}`);
+    lines.push(``);
+}
 
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     let apiSchemaForSharing: ApiSchema | undefined;

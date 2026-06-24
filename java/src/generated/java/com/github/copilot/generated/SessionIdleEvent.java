@@ -13,8 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.idle". Payload indicating the session is idle with no background agents in flight
- *
+ * Session event "session.idle". Payload indicating the session is idle with no background agents or attached shell commands in flight
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

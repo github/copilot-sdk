@@ -410,8 +410,10 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             Assert.Contains("56", msg?.Data.Content ?? string.Empty);
 
             var workspaceYamlPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/workspace.yaml");
-            await WaitForConditionAsync(() => File.Exists(workspaceYamlPath), TimeSpan.FromSeconds(30));
-            Assert.Contains(session.SessionId, await ReadAllTextSharedAsync(workspaceYamlPath));
+            await WaitForConditionAsync(
+                async () => File.Exists(workspaceYamlPath)
+                    && (await ReadAllTextSharedAsync(workspaceYamlPath)).Contains(session.SessionId),
+                TimeSpan.FromSeconds(30));
 
             var indexPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/checkpoints/index.md");
             await WaitForConditionAsync(() => File.Exists(indexPath), TimeSpan.FromSeconds(30));
@@ -442,8 +444,10 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             await session.Rpc.Plan.UpdateAsync("# Test Plan\n\nThis is a test.");
 
             var planPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/plan.md");
-            await WaitForConditionAsync(() => File.Exists(planPath), TimeSpan.FromSeconds(30));
-            Assert.Contains("This is a test.", await ReadAllTextSharedAsync(planPath));
+            await WaitForConditionAsync(
+                async () => File.Exists(planPath)
+                    && (await ReadAllTextSharedAsync(planPath)).Contains("This is a test."),
+                TimeSpan.FromSeconds(30));
 
             await session.DisposeAsync();
         }

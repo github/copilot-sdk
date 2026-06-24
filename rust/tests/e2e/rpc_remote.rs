@@ -1,6 +1,4 @@
-use github_copilot_sdk::rpc::{
-    RemoteEnableRequest, RemoteSessionMode, SessionsGetPersistedRemoteSteerableRequest,
-};
+use github_copilot_sdk::rpc::{RemoteEnableRequest, RemoteSessionMode};
 use github_copilot_sdk::session_events::{SessionEventType, SessionRemoteSteerableChangedData};
 
 use super::support::{wait_for_event, with_e2e_context};
@@ -106,15 +104,6 @@ async fn should_notify_steerable_changed_event_and_persist_flag() {
                     .await
                     .expect("notify remote steerable");
                 changed.await;
-                let persisted = client
-                    .rpc()
-                    .sessions()
-                    .get_persisted_remote_steerable(SessionsGetPersistedRemoteSteerableRequest {
-                        session_id: session.id().clone(),
-                    })
-                    .await
-                    .expect("persisted remote steerable");
-                assert_eq!(persisted.remote_steerable, Some(true));
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");

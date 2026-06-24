@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "auto_mode_switch.completed". Auto mode switch completion notification
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -454,4 +454,4 @@ Use these rules:
 * [BYOK](../auth/byok.md): using your own model provider credentials
 * [Cloud Sessions](../features/cloud-sessions.md): routing selected work to cloud sessions
 * [Session Persistence](../features/session-persistence.md): managing resumable session state
-* [Features overview](../features/index.md): tools, events, hooks, and advanced SDK features
+* [Features overview](../features/README.md): tools, events, hooks, and advanced SDK features

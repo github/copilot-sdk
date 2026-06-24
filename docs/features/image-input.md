@@ -345,7 +345,7 @@ func main() {
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
             &copilot.AttachmentBlob{
-                Data:        base64ImageData,
+                Data:        &base64ImageData,
                 MIMEType:    mimeType,
 				DisplayName: &displayName,
 			},
@@ -362,7 +362,7 @@ session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
         &copilot.AttachmentBlob{
-            Data:        base64ImageData, // base64-encoded string
+            Data:        &base64ImageData, // base64-encoded string
             MIMEType:    mimeType,
             DisplayName: &displayName,
         },

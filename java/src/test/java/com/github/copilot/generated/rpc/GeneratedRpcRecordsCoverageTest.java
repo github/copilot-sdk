@@ -447,27 +447,6 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals("sess-47", params.sessionId());
     }
 
-    @Test
-    void sessionWorkspaceCreateFileParams_record() {
-        var params = new SessionWorkspaceCreateFileParams("sess-48", "README.md", "# Hello");
-        assertEquals("sess-48", params.sessionId());
-        assertEquals("README.md", params.path());
-        assertEquals("# Hello", params.content());
-    }
-
-    @Test
-    void sessionWorkspaceListFilesParams_record() {
-        var params = new SessionWorkspaceListFilesParams("sess-49");
-        assertEquals("sess-49", params.sessionId());
-    }
-
-    @Test
-    void sessionWorkspaceReadFileParams_record() {
-        var params = new SessionWorkspaceReadFileParams("sess-50", "src/Main.java");
-        assertEquals("sess-50", params.sessionId());
-        assertEquals("src/Main.java", params.path());
-    }
-
     // ── Result records ─────────────────────────────────────────────────────
 
     @Test
@@ -477,11 +456,6 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals("pong", result.message());
         assertEquals(ts, result.timestamp());
         assertEquals(1L, result.protocolVersion());
-    }
-
-    @Test
-    void sessionAgentDeselectResult_empty() {
-        assertNotNull(new SessionAgentDeselectResult());
     }
 
     @Test
@@ -537,16 +511,6 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
-    void sessionExtensionsDisableResult_empty() {
-        assertNotNull(new SessionExtensionsDisableResult());
-    }
-
-    @Test
-    void sessionExtensionsEnableResult_empty() {
-        assertNotNull(new SessionExtensionsEnableResult());
-    }
-
-    @Test
     void sessionExtensionsListResult_nested() {
         var ext = new Extension("ext-1", "My Extension", ExtensionSource.PROJECT, ExtensionStatus.RUNNING, 1234L);
         var result = new SessionExtensionsListResult(List.of(ext));
@@ -570,11 +534,6 @@ class GeneratedRpcRecordsCoverageTest {
         }
         assertThrows(IllegalArgumentException.class, () -> ExtensionSource.fromValue("unknown"));
         assertThrows(IllegalArgumentException.class, () -> ExtensionStatus.fromValue("unknown"));
-    }
-
-    @Test
-    void sessionExtensionsReloadResult_empty() {
-        assertNotNull(new SessionExtensionsReloadResult());
     }
 
     @Test
@@ -666,19 +625,9 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
-    void sessionMcpDisableResult_empty() {
-        assertNotNull(new SessionMcpDisableResult());
-    }
-
-    @Test
-    void sessionMcpEnableResult_empty() {
-        assertNotNull(new SessionMcpEnableResult());
-    }
-
-    @Test
     void sessionMcpListResult_nested() {
-        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null);
-        var result = new SessionMcpListResult(List.of(server));
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null);
+        var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
         assertEquals("my-mcp", result.servers().get(0).name());
         assertEquals(McpServerStatus.CONNECTED, result.servers().get(0).status());
@@ -692,30 +641,6 @@ class GeneratedRpcRecordsCoverageTest {
             assertEquals(status, McpServerStatus.fromValue(status.getValue()));
         }
         assertThrows(IllegalArgumentException.class, () -> McpServerStatus.fromValue("unknown-status"));
-    }
-
-    @Test
-    void sessionMcpReloadResult_empty() {
-        assertNotNull(new SessionMcpReloadResult());
-    }
-
-    @Test
-    void sessionModeGetResult_enum() {
-        var result = new SessionModeGetResult(SessionModeGetResult.SessionModeGetResultMode.INTERACTIVE);
-        assertEquals(SessionModeGetResult.SessionModeGetResultMode.INTERACTIVE, result.mode());
-        assertEquals("interactive", result.mode().getValue());
-        for (var mode : SessionModeGetResult.SessionModeGetResultMode.values()) {
-            assertEquals(mode, SessionModeGetResult.SessionModeGetResultMode.fromValue(mode.getValue()));
-        }
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionModeGetResult.SessionModeGetResultMode.fromValue("unknown"));
-    }
-
-    @Test
-    void sessionModeSetResult_enum() {
-        var result = new SessionModeSetResult(SessionModeSetResult.SessionModeSetResultMode.AUTOPILOT);
-        assertEquals(SessionModeSetResult.SessionModeSetResultMode.AUTOPILOT, result.mode());
-        assertEquals("autopilot", result.mode().getValue());
     }
 
     @Test
@@ -738,21 +663,11 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
-    void sessionPlanDeleteResult_empty() {
-        assertNotNull(new SessionPlanDeleteResult());
-    }
-
-    @Test
     void sessionPlanReadResult_record() {
         var result = new SessionPlanReadResult(true, "# Plan\n1. Do stuff", "/workspace/.plan");
         assertTrue(result.exists());
         assertEquals("# Plan\n1. Do stuff", result.content());
         assertEquals("/workspace/.plan", result.path());
-    }
-
-    @Test
-    void sessionPlanUpdateResult_empty() {
-        assertNotNull(new SessionPlanUpdateResult());
     }
 
     @Test
@@ -780,18 +695,9 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
-    void sessionSkillsDisableResult_empty() {
-        assertNotNull(new SessionSkillsDisableResult());
-    }
-
-    @Test
-    void sessionSkillsEnableResult_empty() {
-        assertNotNull(new SessionSkillsEnableResult());
-    }
-
-    @Test
     void sessionSkillsListResult_nested() {
-        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md", null);
+        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md", null,
+                null);
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
@@ -850,24 +756,6 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
-    void sessionWorkspaceCreateFileResult_empty() {
-        assertNotNull(new SessionWorkspaceCreateFileResult());
-    }
-
-    @Test
-    void sessionWorkspaceListFilesResult_record() {
-        var result = new SessionWorkspaceListFilesResult(List.of("src/Main.java", "README.md"));
-        assertEquals(2, result.files().size());
-        assertEquals("src/Main.java", result.files().get(0));
-    }
-
-    @Test
-    void sessionWorkspaceReadFileResult_record() {
-        var result = new SessionWorkspaceReadFileResult("public class Main {}");
-        assertEquals("public class Main {}", result.content());
-    }
-
-    @Test
     void sessionsForkResult_record() {
         var result = new SessionsForkResult("forked-sess-id", null);
         assertEquals("forked-sess-id", result.sessionId());
@@ -900,22 +788,13 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void mcpDiscoverResult_nested() {
         var server = new DiscoveredMcpServer("discovered-server", DiscoveredMcpServerType.STDIO, McpServerSource.USER,
-                true);
+                null, null, true);
         var result = new McpDiscoverResult(List.of(server));
         assertEquals(1, result.servers().size());
         assertEquals("discovered-server", result.servers().get(0).name());
         assertEquals(DiscoveredMcpServerType.STDIO, result.servers().get(0).type());
         assertEquals(McpServerSource.USER, result.servers().get(0).source());
         assertTrue(result.servers().get(0).enabled());
-    }
-
-    @Test
-    void mcpDiscoverResult_source_enum_all_values() {
-        for (var src : DiscoveredMcpServerSource.values()) {
-            assertNotNull(src.getValue());
-            assertEquals(src, DiscoveredMcpServerSource.fromValue(src.getValue()));
-        }
-        assertThrows(IllegalArgumentException.class, () -> DiscoveredMcpServerSource.fromValue("unknown-source"));
     }
 
     @Test

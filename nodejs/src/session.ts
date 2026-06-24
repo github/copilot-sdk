@@ -134,6 +134,7 @@ export class CopilotSession {
     private traceContextProvider?: TraceContextProvider;
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
+    private disconnected = false;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -326,6 +327,22 @@ export class CopilotSession {
         }
     }
 
+    /** @internal */
+    _markDisconnected(): void {
+        this.disconnected = true;
+        this.eventHandlers.clear();
+        this.typedEventHandlers.clear();
+        this.toolHandlers.clear();
+        this.permissionHandler = undefined;
+        this.userInputHandler = undefined;
+        this.elicitationHandler = undefined;
+        this.exitPlanModeHandler = undefined;
+        this.autoModeSwitchHandler = undefined;
+        this.commandHandlers.clear();
+        this.canvases.clear();
+        this.transformCallbacks?.clear();
+    }
+
     /**
      * Subscribes to events from this session.
      *
@@ -443,6 +460,9 @@ export class CopilotSession {
      * @internal
      */
     private _handleBroadcastEvent(event: SessionEvent): void {
+        if (this.disconnected) {
+            return;
+        }
         if (event.type === "external_tool.requested") {
             const { requestId, toolName } = event.data as {
                 requestId: string;
@@ -507,6 +527,8 @@ export class CopilotSession {
             this._capabilities = { ...this._capabilities, ...event.data };
         } else if (event.type === "session.canvas.opened") {
             this.upsertOpenCanvasFromEvent(event.data);
+        } else if (event.type === "session.canvas.closed") {
+            this.removeOpenCanvasFromEvent(event.data);
         }
     }
 
@@ -516,6 +538,25 @@ export class CopilotSession {
             return;
         }
         this.upsertOpenCanvas(data);
+    }
+
+    private removeOpenCanvasFromEvent(data: unknown): void {
+        if (
+            !data ||
+            typeof data !== "object" ||
+            typeof (data as { instanceId?: unknown }).instanceId !== "string" ||
+            (data as { instanceId: string }).instanceId.length === 0
+        ) {
+            console.warn("failed to deserialize session.canvas.closed payload");
+            return;
+        }
+        this.removeOpenCanvas((data as { instanceId: string }).instanceId);
+    }
+
+    private removeOpenCanvas(instanceId: string): void {
+        this.openCanvasInstances = this.openCanvasInstances.filter(
+            (open) => open.instanceId !== instanceId
+        );
     }
 
     private upsertOpenCanvas(instance: OpenCanvasInstance): void {
@@ -561,8 +602,14 @@ export class CopilotSession {
             } else {
                 result = JSON.stringify(rawResult);
             }
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
+            if (this.disconnected) {
+                return;
+            }
             const message = error instanceof Error ? error.message : String(error);
             try {
                 await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
@@ -590,8 +637,14 @@ export class CopilotSession {
             if (result.kind === "no-result") {
                 return;
             }
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
         } catch (_error) {
+            if (this.disconnected) {
+                return;
+            }
             try {
                 await this.rpc.permissions.handlePendingPermissionRequest({
                     requestId,
@@ -635,8 +688,14 @@ export class CopilotSession {
 
         try {
             await handler({ sessionId: this.sessionId, command, commandName, args });
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.commands.handlePendingCommand({ requestId });
         } catch (error) {
+            if (this.disconnected) {
+                return;
+            }
             const message = error instanceof Error ? error.message : String(error);
             try {
                 await this.rpc.commands.handlePendingCommand({ requestId, error: message });
@@ -851,8 +910,8 @@ export class CopilotSession {
     /**
      * Snapshot of canvas instances currently known to be open for this session.
      * Populated from the `session.resume` response and live `session.canvas.opened`
-     * events. Returns a defensive copy — mutating the returned array has no effect
-     * on the session.
+     * and `session.canvas.closed` events. Returns a defensive copy — mutating the
+     * returned array has no effect on the session.
      */
     get openCanvases(): OpenCanvasInstance[] {
         return [...this.openCanvasInstances];
@@ -1149,17 +1208,13 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
+        if (this.disconnected) {
+            return;
+        }
         await this.connection.sendRequest("session.destroy", {
             sessionId: this.sessionId,
         });
-        this.eventHandlers.clear();
-        this.typedEventHandlers.clear();
-        this.toolHandlers.clear();
-        this.permissionHandler = undefined;
-        this.userInputHandler = undefined;
-        this.elicitationHandler = undefined;
-        this.exitPlanModeHandler = undefined;
-        this.autoModeSwitchHandler = undefined;
+        this._markDisconnected();
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */

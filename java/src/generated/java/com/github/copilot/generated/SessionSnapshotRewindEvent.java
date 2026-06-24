@@ -14,7 +14,6 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.snapshot_rewind". Session rewind details including target event and count of removed events
- *
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -113,6 +113,9 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
+        request.setCapi(config.getCapi());
+        request.setProviders(config.getProviders());
+        request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
@@ -135,6 +138,7 @@ final class SessionRequestBuilder {
         request.setInstructionDirectories(config.getInstructionDirectories());
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
+        request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
@@ -224,6 +228,9 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
+        request.setCapi(config.getCapi());
+        request.setProviders(config.getProviders());
+        request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
@@ -262,6 +269,7 @@ final class SessionRequestBuilder {
         request.setInstructionDirectories(config.getInstructionDirectories());
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
+        request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setModelCapabilities(config.getModelCapabilities());
