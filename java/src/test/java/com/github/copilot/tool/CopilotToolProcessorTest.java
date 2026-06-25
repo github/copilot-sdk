@@ -561,8 +561,8 @@ class CopilotToolProcessorTest {
             fileManager.setLocation(StandardLocation.CLASS_OUTPUT, List.of(tempDir.toFile()));
             CollectingFileManager collectingFileManager = new CollectingFileManager(fileManager);
 
-            JavaCompiler.CompilationTask task = compiler.getTask(null, collectingFileManager, diagnostics, options, null,
-                    sources);
+            JavaCompiler.CompilationTask task = compiler.getTask(null, collectingFileManager, diagnostics, options,
+                    null, sources);
             task.call();
 
             List<String> generatedSources = collectingFileManager.getGeneratedSources();
