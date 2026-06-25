@@ -177,7 +177,7 @@ When showing the same concept in multiple programming languages, use consecutive
 
 Shared prose goes above the group, then each `<details>` block contains only code:
 
-````markdown
+```markdown
 Install the SDK:
 
 <details open>
@@ -200,13 +200,13 @@ pip install github-copilot-sdk
 ```
 
 </details>
-````
+```
 
 ### Incorrect
 
 Do not put headings, prose, or multiple sections inside a `<details>` block:
 
-````markdown
+```markdown
 <details>
 <summary><strong>Python</strong></summary>
 
@@ -223,4 +223,4 @@ pip install github-copilot-sdk
 ```
 
 </details>
-````
+```
