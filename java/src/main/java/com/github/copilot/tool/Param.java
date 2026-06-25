@@ -10,6 +10,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * Annotates a parameter of a {@link CopilotTool}-annotated method to provide
  * metadata about the parameter that is sent to the model.
@@ -30,6 +32,7 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
+@CopilotExperimental
 public @interface Param {
 
     /** Parameter description (sent to the model). */

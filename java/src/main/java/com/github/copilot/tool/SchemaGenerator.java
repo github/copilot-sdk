@@ -20,6 +20,8 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * Compile-time utility that maps {@code javax.lang.model} types to JSON Schema
  * represented as Java source code literals ({@code Map.of(...)} expressions).
@@ -31,6 +33,7 @@ import javax.lang.model.util.Types;
  *
  * @since 1.0.2
  */
+@CopilotExperimental
 public class SchemaGenerator {
 
     /**

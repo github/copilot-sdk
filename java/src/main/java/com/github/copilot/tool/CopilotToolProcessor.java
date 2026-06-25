@@ -29,6 +29,8 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * JSR 269 annotation processor that finds {@link CopilotTool}-annotated methods
  * and generates {@code $$CopilotToolMeta} companion classes containing tool
@@ -43,6 +45,7 @@ import javax.tools.JavaFileObject;
  */
 @SupportedAnnotationTypes("com.github.copilot.tool.CopilotTool")
 @SupportedSourceVersion(SourceVersion.RELEASE_17)
+@CopilotExperimental
 public class CopilotToolProcessor extends AbstractProcessor {
 
     private final SchemaGenerator schemaGenerator = new SchemaGenerator();
