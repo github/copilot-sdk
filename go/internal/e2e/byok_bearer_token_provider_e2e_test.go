@@ -37,7 +37,7 @@ type capturedBYOKRequest struct {
 
 // byokCapturingRoundTripper stands in for a real HTTP upstream. It records the
 // `Authorization` header the runtime applied (after calling the provider's
-// GetBearerToken callback over the session-scoped `providerToken.getToken` RPC)
+// BearerTokenProvider callback over the session-scoped `providerToken.getToken` RPC)
 // for every request aimed at a fake `.invalid` BYOK host, answering them with a
 // synthetic 404 (a non-retryable status, so each outbound model request yields
 // exactly one capture). Every other request (CAPI bootstrap: model catalog,
@@ -96,7 +96,7 @@ func (rt *byokCapturingRoundTripper) reset() {
 }
 
 // TestBYOKBearerTokenProvider is end-to-end coverage for the experimental BYOK
-// bearer-token-provider surface (GetBearerToken on a provider config). The
+// bearer-token-provider surface (BearerTokenProvider on a provider config). The
 // callback stays entirely on the SDK/client side: the SDK strips it from the
 // wire config, sets the `hasBearerTokenProvider` flag, and the runtime calls
 // back over the session-scoped `providerToken.getToken` RPC before each outbound
@@ -151,11 +151,11 @@ func TestBYOKBearerTokenProvider(t *testing.T) {
 		}
 
 		providers := []copilot.NamedProviderConfig{{
-			Name:           "mi",
-			Type:           "openai",
-			WireAPI:        "completions",
-			BaseURL:        byokPrimaryBaseURL,
-			GetBearerToken: getBearerToken,
+			Name:                "mi",
+			Type:                "openai",
+			WireAPI:             "completions",
+			BaseURL:             byokPrimaryBaseURL,
+			BearerTokenProvider: getBearerToken,
 		}}
 		models := []copilot.ProviderModelConfig{{ID: "default", Provider: "mi", WireModel: "byok-gpt-4o"}}
 
@@ -189,11 +189,11 @@ func TestBYOKBearerTokenProvider(t *testing.T) {
 		}
 
 		providers := []copilot.NamedProviderConfig{{
-			Name:           "mi",
-			Type:           "openai",
-			WireAPI:        "completions",
-			BaseURL:        byokPrimaryBaseURL,
-			GetBearerToken: getBearerToken,
+			Name:                "mi",
+			Type:                "openai",
+			WireAPI:             "completions",
+			BaseURL:             byokPrimaryBaseURL,
+			BearerTokenProvider: getBearerToken,
 		}}
 		models := []copilot.ProviderModelConfig{{ID: "default", Provider: "mi", WireModel: "byok-gpt-4o"}}
 
@@ -227,12 +227,17 @@ func TestBYOKBearerTokenProvider(t *testing.T) {
 		}
 		var mu sync.Mutex
 		var acquiredFor []string
-		makeCallback := func(providerName string) copilot.GetBearerToken {
+		makeCallback := func(providerName string) copilot.BearerTokenProvider {
 			return func(args copilot.ProviderTokenArgs) (string, error) {
 				// The runtime forwards the requesting provider's name so the
 				// client can dispatch to the right credential.
 				if args.ProviderName != providerName {
 					t.Errorf("Expected providerName %q, got %q", providerName, args.ProviderName)
+				}
+				// The runtime also forwards the owning session id so a
+				// client-level shared callback can resolve the session.
+				if args.SessionID == "" {
+					t.Errorf("Expected a non-empty session id in token args")
 				}
 				mu.Lock()
 				acquiredFor = append(acquiredFor, providerName)
@@ -243,18 +248,18 @@ func TestBYOKBearerTokenProvider(t *testing.T) {
 
 		providers := []copilot.NamedProviderConfig{
 			{
-				Name:           "red",
-				Type:           "openai",
-				WireAPI:        "completions",
-				BaseURL:        byokRedBaseURL,
-				GetBearerToken: makeCallback("red"),
+				Name:                "red",
+				Type:                "openai",
+				WireAPI:             "completions",
+				BaseURL:             byokRedBaseURL,
+				BearerTokenProvider: makeCallback("red"),
 			},
 			{
-				Name:           "blue",
-				Type:           "openai",
-				WireAPI:        "completions",
-				BaseURL:        byokBlueBaseURL,
-				GetBearerToken: makeCallback("blue"),
+				Name:                "blue",
+				Type:                "openai",
+				WireAPI:             "completions",
+				BaseURL:             byokBlueBaseURL,
+				BearerTokenProvider: makeCallback("blue"),
 			},
 		}
 		models := []copilot.ProviderModelConfig{

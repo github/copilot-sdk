@@ -155,7 +155,7 @@ async fn callback_token_is_applied_as_authorization_header() {
                 NamedProviderConfig::new("mi", PRIMARY_BASE_URL)
                     .with_provider_type("openai")
                     .with_wire_api("completions")
-                    .with_get_bearer_token(Arc::new(move |_args: ProviderTokenArgs| {
+                    .with_bearer_token_provider(Arc::new(move |_args: ProviderTokenArgs| {
                         let callback_calls = callback_calls.clone();
                         async move {
                             callback_calls.fetch_add(1, Ordering::SeqCst);
@@ -202,7 +202,7 @@ async fn reacquires_a_fresh_token_for_each_request() {
                 NamedProviderConfig::new("mi", PRIMARY_BASE_URL)
                     .with_provider_type("openai")
                     .with_wire_api("completions")
-                    .with_get_bearer_token(Arc::new(move |_args: ProviderTokenArgs| {
+                    .with_bearer_token_provider(Arc::new(move |_args: ProviderTokenArgs| {
                         let callback_calls = callback_calls.clone();
                         async move {
                             let call = callback_calls.fetch_add(1, Ordering::SeqCst) + 1;
@@ -266,10 +266,14 @@ async fn dispatches_token_acquisition_per_provider() {
                     NamedProviderConfig::new(name, base_url)
                         .with_provider_type("openai")
                         .with_wire_api("completions")
-                        .with_get_bearer_token(Arc::new(move |args: ProviderTokenArgs| {
+                        .with_bearer_token_provider(Arc::new(move |args: ProviderTokenArgs| {
                             let acquired_for = acquired_for.clone();
                             async move {
                                 assert_eq!(args.provider_name, name);
+                                assert!(
+                                    !args.session_id.is_empty(),
+                                    "expected a non-empty session id in token args"
+                                );
                                 acquired_for.lock().unwrap().push(name.to_string());
                                 Ok::<_, BearerTokenError>(token.to_string())
                             }

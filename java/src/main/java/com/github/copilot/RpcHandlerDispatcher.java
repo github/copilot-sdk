@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
 import com.github.copilot.rpc.ExitPlanModeRequest;
-import com.github.copilot.rpc.GetBearerToken;
+import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.ProviderTokenArgs;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
@@ -321,14 +321,15 @@ final class RpcHandlerDispatcher {
                     return;
                 }
 
-                GetBearerToken provider = session.getBearerTokenProvider(providerName);
+                BearerTokenProvider provider = session.getBearerTokenProvider(providerName);
                 if (provider == null) {
                     rpc.sendErrorResponse(requestIdLong, -32603,
                             "No bearer-token provider registered for provider " + providerName);
                     return;
                 }
 
-                CompletableFuture<String> tokenFuture = provider.getToken(new ProviderTokenArgs(providerName));
+                CompletableFuture<String> tokenFuture = provider
+                        .getToken(new ProviderTokenArgs(providerName, sessionId));
                 if (tokenFuture == null) {
                     rpc.sendErrorResponse(requestIdLong, -32603,
                             "Bearer-token provider returned null future for provider " + providerName);

@@ -61,7 +61,7 @@ public class NamedProviderConfig {
     private String bearerToken;
 
     @JsonIgnore
-    private GetBearerToken getBearerToken;
+    private BearerTokenProvider bearerTokenProvider;
 
     @JsonProperty("azure")
     private AzureOptions azure;
@@ -221,8 +221,8 @@ public class NamedProviderConfig {
      *
      * @return the bearer-token provider callback, or {@code null} if not set
      */
-    public GetBearerToken getGetBearerToken() {
-        return getBearerToken;
+    public BearerTokenProvider getBearerTokenProvider() {
+        return bearerTokenProvider;
     }
 
     /**
@@ -234,19 +234,19 @@ public class NamedProviderConfig {
      * RPC before each model request. Return the raw token without a {@code Bearer }
      * prefix.
      *
-     * @param getBearerToken
+     * @param bearerTokenProvider
      *            the bearer-token provider callback
      * @return this config for method chaining
      */
-    public NamedProviderConfig setGetBearerToken(GetBearerToken getBearerToken) {
-        this.getBearerToken = getBearerToken;
+    public NamedProviderConfig setBearerTokenProvider(BearerTokenProvider bearerTokenProvider) {
+        this.bearerTokenProvider = bearerTokenProvider;
         return this;
     }
 
     @JsonProperty("hasBearerTokenProvider")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     Boolean hasBearerTokenProviderWireFlag() {
-        return getBearerToken != null ? Boolean.TRUE : null;
+        return bearerTokenProvider != null ? Boolean.TRUE : null;
     }
 
     /**

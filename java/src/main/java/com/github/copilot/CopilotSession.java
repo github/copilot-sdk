@@ -74,7 +74,7 @@ import com.github.copilot.rpc.ExitPlanModeInvocation;
 import com.github.copilot.rpc.ExitPlanModeRequest;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ElicitationSchema;
-import com.github.copilot.rpc.GetBearerToken;
+import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.GetMessagesResponse;
 import com.github.copilot.rpc.HookInvocation;
 import com.github.copilot.rpc.InputOptions;
@@ -169,7 +169,7 @@ public final class CopilotSession implements AutoCloseable {
     private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
-    private final Map<String, GetBearerToken> bearerTokenProviders = new ConcurrentHashMap<>();
+    private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
@@ -1358,7 +1358,7 @@ public final class CopilotSession implements AutoCloseable {
      * @param providers
      *            the callbacks keyed by provider name
      */
-    void registerBearerTokenProviders(Map<String, GetBearerToken> providers) {
+    void registerBearerTokenProviders(Map<String, BearerTokenProvider> providers) {
         bearerTokenProviders.clear();
         if (providers != null) {
             bearerTokenProviders.putAll(providers);
@@ -1372,7 +1372,7 @@ public final class CopilotSession implements AutoCloseable {
      *            the provider name
      * @return the registered callback, or {@code null} if none is registered
      */
-    GetBearerToken getBearerTokenProvider(String providerName) {
+    BearerTokenProvider getBearerTokenProvider(String providerName) {
         return bearerTokenProviders.get(providerName);
     }
 

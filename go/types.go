@@ -1564,7 +1564,7 @@ type ResumeSessionConfig struct {
 	ExpAssignments any
 }
 
-// ProviderTokenArgs carries the context passed to a [GetBearerToken] callback
+// ProviderTokenArgs carries the context passed to a [BearerTokenProvider] callback
 // when the runtime needs a fresh bearer token for a BYOK provider.
 //
 // Experimental: ProviderTokenArgs is part of the experimental managed-identity /
@@ -1579,9 +1579,15 @@ type ProviderTokenArgs struct {
 	// The callback closes over its own token scope/audience; the runtime is
 	// provider-agnostic and forwards only the provider name.
 	ProviderName string
+
+	// SessionID is the id of the session that triggered this token request. A
+	// client-level shared callback registered for many sessions can use this to
+	// resolve the owning session and scope token acquisition or caching per
+	// session.
+	SessionID string
 }
 
-// GetBearerToken is a per-provider callback that resolves a bearer token on
+// BearerTokenProvider is a per-provider callback that resolves a bearer token on
 // demand, returning the raw token string (without the "Bearer " prefix). The
 // Copilot SDK itself takes no Azure dependency: the consumer supplies this
 // callback backed by their own identity library (for example azidentity's
@@ -1589,10 +1595,10 @@ type ProviderTokenArgs struct {
 // outbound model request. The runtime does no caching of its own, so the callback
 // (or the identity library it wraps) owns token caching and refresh.
 //
-// Experimental: GetBearerToken is part of the experimental managed-identity /
+// Experimental: BearerTokenProvider is part of the experimental managed-identity /
 // bearer-token-provider surface and may change or be removed in future SDK or CLI
 // releases.
-type GetBearerToken func(args ProviderTokenArgs) (string, error)
+type BearerTokenProvider func(args ProviderTokenArgs) (string, error)
 
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -1634,20 +1640,24 @@ type ProviderConfig struct {
 	// tokens. When hit, the model stops generating and returns a truncated
 	// response.
 	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
-	// GetBearerToken resolves a bearer token on demand for this provider
+	// BearerTokenProvider resolves a bearer token on demand for this provider
 	// (managed-identity / on-demand auth). When set, the SDK strips the callback
 	// from the wire config and instead sends `hasBearerTokenProvider: true`; the
 	// runtime calls back over the session-scoped `providerToken.getToken` RPC
 	// before each outbound model request and applies the returned token as the
 	// Authorization header. Never serialized.
 	//
+	// When set alongside APIKey/BearerToken, this callback takes precedence: the
+	// runtime applies the token it returns as the Authorization: Bearer header for
+	// each request and does not send the static credential.
+	//
 	// Experimental: part of the experimental managed-identity / bearer-token-provider
 	// surface and may change or be removed in future SDK or CLI releases.
-	GetBearerToken GetBearerToken `json:"-"`
+	BearerTokenProvider BearerTokenProvider `json:"-"`
 }
 
 // MarshalJSON serializes the provider config, deriving the wire-only
-// `hasBearerTokenProvider` flag from the presence of [ProviderConfig.GetBearerToken].
+// `hasBearerTokenProvider` flag from the presence of [ProviderConfig.BearerTokenProvider].
 // The non-serializable callback never crosses the RPC boundary; the runtime only
 // learns that a token provider exists and forwards the provider name back when it
 // needs a token.
@@ -1657,7 +1667,7 @@ func (p ProviderConfig) MarshalJSON() ([]byte, error) {
 		wire
 		HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
 	}{wire: wire(p)}
-	if p.GetBearerToken != nil {
+	if p.BearerTokenProvider != nil {
 		aux.HasBearerTokenProvider = Bool(true)
 	}
 	return json.Marshal(aux)
@@ -1715,21 +1725,25 @@ type NamedProviderConfig struct {
 	Azure *AzureProviderOptions `json:"azure,omitempty"`
 	// Headers are custom HTTP headers included in all outbound provider requests.
 	Headers map[string]string `json:"headers,omitempty"`
-	// GetBearerToken resolves a bearer token on demand for this provider
+	// BearerTokenProvider resolves a bearer token on demand for this provider
 	// (managed-identity / on-demand auth). When set, the SDK strips the callback
 	// from the wire config and instead sends `hasBearerTokenProvider: true`; the
 	// runtime calls back over the session-scoped `providerToken.getToken` RPC
 	// before each outbound model request and applies the returned token as the
 	// Authorization header. Never serialized.
 	//
+	// When set alongside APIKey/BearerToken, this callback takes precedence: the
+	// runtime applies the token it returns as the Authorization: Bearer header for
+	// each request and does not send the static credential.
+	//
 	// Experimental: part of the experimental managed-identity / bearer-token-provider
 	// surface and may change or be removed in future SDK or CLI releases.
-	GetBearerToken GetBearerToken `json:"-"`
+	BearerTokenProvider BearerTokenProvider `json:"-"`
 }
 
 // MarshalJSON serializes the named provider config, deriving the wire-only
 // `hasBearerTokenProvider` flag from the presence of
-// [NamedProviderConfig.GetBearerToken]. The non-serializable callback never
+// [NamedProviderConfig.BearerTokenProvider]. The non-serializable callback never
 // crosses the RPC boundary; the runtime only learns that a token provider exists
 // and forwards the provider name back when it needs a token.
 func (p NamedProviderConfig) MarshalJSON() ([]byte, error) {
@@ -1738,7 +1752,7 @@ func (p NamedProviderConfig) MarshalJSON() ([]byte, error) {
 		wire
 		HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
 	}{wire: wire(p)}
-	if p.GetBearerToken != nil {
+	if p.BearerTokenProvider != nil {
 		aux.HasBearerTokenProvider = Bool(true)
 	}
 	return json.Marshal(aux)

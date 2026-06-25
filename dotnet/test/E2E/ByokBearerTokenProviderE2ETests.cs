@@ -13,7 +13,7 @@ namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// End-to-end coverage for the experimental BYOK bearer-token-provider surface
-/// (<c>GetBearerToken</c> on a provider config). The callback stays entirely on
+/// (<c>BearerTokenProvider</c> on a provider config). The callback stays entirely on
 /// the SDK/client side: the SDK strips it from the wire config, sets the
 /// <c>hasBearerTokenProvider</c> flag, and the runtime calls back over the
 /// session-scoped <c>providerToken.getToken</c> RPC before each outbound model
@@ -81,7 +81,7 @@ public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutput
         {
             await session.SendAndWaitAsync(new MessageOptions { Prompt = prompt });
         }
-        catch
+        catch (InvalidOperationException)
         {
             // The handler always 404s the BYOK endpoint, so the turn errors after
             // the token-bearing request was already captured. Expected.
@@ -110,7 +110,7 @@ public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutput
                 Type = "openai",
                 WireApi = "completions",
                 BaseUrl = PrimaryBaseUrl,
-                GetBearerToken = _ =>
+                BearerTokenProvider = _ =>
                 {
                     Interlocked.Increment(ref calls);
                     return Task.FromResult(sentinel);
@@ -149,7 +149,7 @@ public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutput
                 BaseUrl = PrimaryBaseUrl,
                 // A distinct token per acquisition proves the runtime re-invokes
                 // the callback per request rather than caching a previous token.
-                GetBearerToken = _ =>
+                BearerTokenProvider = _ =>
                 {
                     var n = Interlocked.Increment(ref calls);
                     return Task.FromResult($"rotating-token-{n}");
@@ -189,6 +189,9 @@ public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutput
                 // The runtime forwards the requesting provider's name so the client
                 // can dispatch to the right credential.
                 Assert.Equal(providerName, args.ProviderName);
+                // The runtime also forwards the owning session id so a
+                // client-level shared callback can resolve the session.
+                Assert.False(string.IsNullOrEmpty(args.SessionId));
                 acquiredFor.Add(providerName);
                 return Task.FromResult(tokenByProvider[providerName]);
             };
@@ -205,7 +208,7 @@ public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutput
                 Type = "openai",
                 WireApi = "completions",
                 BaseUrl = RedBaseUrl,
-                GetBearerToken = MakeCallback("red"),
+                BearerTokenProvider = MakeCallback("red"),
             },
             new()
             {
@@ -213,7 +216,7 @@ public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutput
                 Type = "openai",
                 WireApi = "completions",
                 BaseUrl = BlueBaseUrl,
-                GetBearerToken = MakeCallback("blue"),
+                BearerTokenProvider = MakeCallback("blue"),
             },
         };
         var models = new List<ProviderModelConfig>
@@ -240,7 +243,7 @@ public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutput
 /// The runtime invokes <see cref="SendRequestAsync"/> for every model-layer HTTP
 /// request. Requests aimed at a fake BYOK host (<c>*.invalid</c>) are captured —
 /// recording the <c>Authorization</c> header the runtime applied after calling
-/// the provider's <c>GetBearerToken</c> callback over the session-scoped
+/// the provider's <c>BearerTokenProvider</c> callback over the session-scoped
 /// <c>providerToken.getToken</c> RPC — and answered with a synthetic <c>404</c>
 /// (a non-retryable status, so each outbound model request yields exactly one
 /// capture). Every other request (CAPI bootstrap: model catalog, policy, …) is
@@ -262,13 +265,14 @@ internal sealed class CapturingRequestHandler : CopilotRequestHandler
                     ? string.Join(", ", values)
                     : null));
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
+            var response = new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 Content = new StringContent(
                     "{\"error\":{\"message\":\"fake byok endpoint\"}}",
                     System.Text.Encoding.UTF8,
                     "application/json"),
-            });
+            };
+            return Task.FromResult(response);
         }
 
         // CAPI bootstrap (model catalog, policy, …) — answered off-network.

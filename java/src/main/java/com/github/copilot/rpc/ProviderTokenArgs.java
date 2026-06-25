@@ -17,13 +17,9 @@ import com.github.copilot.CopilotExperimental;
 @CopilotExperimental
 public class ProviderTokenArgs {
 
-    private String providerName;
+    private final String providerName;
 
-    /**
-     * Creates an empty argument object.
-     */
-    public ProviderTokenArgs() {
-    }
+    private final String sessionId;
 
     /**
      * Creates argument object for the named provider.
@@ -32,9 +28,12 @@ public class ProviderTokenArgs {
      *            the name of the BYOK provider needing a token; {@code "default"}
      *            for the singular whole-session provider, otherwise the named
      *            provider's {@code name}
+     * @param sessionId
+     *            the id of the session that triggered this token request
      */
-    public ProviderTokenArgs(String providerName) {
+    public ProviderTokenArgs(String providerName, String sessionId) {
         this.providerName = providerName;
+        this.sessionId = sessionId;
     }
 
     /**
@@ -50,14 +49,15 @@ public class ProviderTokenArgs {
     }
 
     /**
-     * Sets the name of the BYOK provider needing a token.
+     * Gets the id of the session that triggered this token request.
+     * <p>
+     * A client-level shared callback registered for many sessions can use this to
+     * resolve the owning session and scope token acquisition or caching per
+     * session.
      *
-     * @param providerName
-     *            the provider name
-     * @return this args instance for method chaining
+     * @return the session id
      */
-    public ProviderTokenArgs setProviderName(String providerName) {
-        this.providerName = providerName;
-        return this;
+    public String getSessionId() {
+        return sessionId;
     }
 }

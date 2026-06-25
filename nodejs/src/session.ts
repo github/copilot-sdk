@@ -26,7 +26,7 @@ import type {
     ExitPlanModeHandler,
     ExitPlanModeRequest,
     ExitPlanModeResult,
-    GetBearerToken,
+    BearerTokenProvider,
     UiInputOptions,
     MessageOptions,
     PermissionHandler,
@@ -121,7 +121,7 @@ export class CopilotSession {
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
     private canvases: Map<string, Canvas> = new Map();
-    private bearerTokenProviders: Map<string, GetBearerToken> = new Map();
+    private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
@@ -798,7 +798,7 @@ export class CopilotSession {
     }
 
     /**
-     * Registers per-provider {@link GetBearerToken} callbacks for BYOK providers
+     * Registers per-provider {@link BearerTokenProvider} callbacks for BYOK providers
      * configured with managed-identity / on-demand bearer-token auth.
      *
      * The runtime never receives the callback itself; the SDK strips it from the
@@ -809,7 +809,7 @@ export class CopilotSession {
      * @param providers - Map of provider name → callback, or undefined/empty to clear.
      * @internal This method is called internally when creating/resuming a session.
      */
-    registerBearerTokenProviders(providers?: Map<string, GetBearerToken>): void {
+    registerBearerTokenProviders(providers?: Map<string, BearerTokenProvider>): void {
         this.bearerTokenProviders.clear();
         if (!providers || providers.size === 0) {
             delete this.clientSessionApis.providerToken;
@@ -830,6 +830,7 @@ export class CopilotSession {
                 }
                 const token = await callback({
                     providerName: params.providerName,
+                    sessionId: params.sessionId,
                 });
                 return { token };
             },

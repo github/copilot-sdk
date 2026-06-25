@@ -77,7 +77,7 @@ type Session struct {
 	elicitationMu         sync.RWMutex
 	canvasHandler         CanvasHandler
 	canvasMu              sync.RWMutex
-	bearerTokenProviders  map[string]GetBearerToken
+	bearerTokenProviders  map[string]BearerTokenProvider
 	bearerTokenMu         sync.RWMutex
 	openCanvases          []rpc.OpenCanvasInstance
 	openCanvasesMu        sync.RWMutex
@@ -183,7 +183,7 @@ func (s *Session) getCanvasHandler() CanvasHandler {
 	return s.canvasHandler
 }
 
-// registerBearerTokenProviders installs per-provider [GetBearerToken] callbacks
+// registerBearerTokenProviders installs per-provider [BearerTokenProvider] callbacks
 // for BYOK providers configured with managed-identity / on-demand bearer-token
 // auth, keyed by provider name.
 //
@@ -192,10 +192,10 @@ func (s *Session) getCanvasHandler() CanvasHandler {
 // runtime needs a token it issues a session-scoped `providerToken.getToken`
 // request, which the session's provider-token adapter routes to the matching
 // per-provider callback.
-func (s *Session) registerBearerTokenProviders(providers map[string]GetBearerToken) {
+func (s *Session) registerBearerTokenProviders(providers map[string]BearerTokenProvider) {
 	s.bearerTokenMu.Lock()
 	defer s.bearerTokenMu.Unlock()
-	s.bearerTokenProviders = make(map[string]GetBearerToken, len(providers))
+	s.bearerTokenProviders = make(map[string]BearerTokenProvider, len(providers))
 	for name, callback := range providers {
 		if callback == nil {
 			continue
@@ -204,7 +204,7 @@ func (s *Session) registerBearerTokenProviders(providers map[string]GetBearerTok
 	}
 }
 
-func (s *Session) getBearerTokenProvider(providerName string) GetBearerToken {
+func (s *Session) getBearerTokenProvider(providerName string) BearerTokenProvider {
 	s.bearerTokenMu.RLock()
 	defer s.bearerTokenMu.RUnlock()
 	return s.bearerTokenProviders[providerName]
@@ -229,7 +229,7 @@ func (a *providerTokenClientSessionAdapter) GetToken(request *rpc.ProviderTokenA
 	if callback == nil {
 		return nil, providerTokenJSONRPCError(fmt.Sprintf("No bearer-token provider registered for provider %q", request.ProviderName))
 	}
-	token, err := callback(ProviderTokenArgs{ProviderName: request.ProviderName})
+	token, err := callback(ProviderTokenArgs{ProviderName: request.ProviderName, SessionID: request.SessionID})
 	if err != nil {
 		return nil, providerTokenJSONRPCError(err.Error())
 	}

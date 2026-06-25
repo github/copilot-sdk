@@ -2215,7 +2215,7 @@ export interface ResumeSessionConfig extends SessionConfigBase {
 }
 
 /**
- * Arguments passed to a {@link GetBearerToken} callback when the runtime needs a
+ * Arguments passed to a {@link BearerTokenProvider} callback when the runtime needs a
  * fresh bearer token for a BYOK provider.
  *
  * @experimental Part of the experimental managed-identity / bearer-token-provider
@@ -2230,7 +2230,15 @@ export interface ProviderTokenArgs {
      * The callback closes over its own token scope/audience; the runtime is
      * provider-agnostic and forwards only the provider name.
      */
-    providerName: string;
+    readonly providerName: string;
+
+    /**
+     * Id of the session that triggered this token request. A client-level shared
+     * callback registered for many sessions can use this to resolve the owning
+     * session (e.g. via the client's session lookup) to scope token acquisition
+     * or caching per session.
+     */
+    readonly sessionId: string;
 }
 
 /**
@@ -2245,7 +2253,7 @@ export interface ProviderTokenArgs {
  * @experimental Part of the experimental managed-identity / bearer-token-provider
  * surface and may change or be removed in future SDK or CLI releases.
  */
-export type GetBearerToken = (args: ProviderTokenArgs) => Promise<string>;
+export type BearerTokenProvider = (args: ProviderTokenArgs) => Promise<string>;
 
 /**
  * Configuration for a custom API provider.
@@ -2294,12 +2302,14 @@ export interface ProviderConfig {
      * When set, the SDK keeps this function client-side (it is never serialized)
      * and the runtime calls back into this client to acquire a token before each
      * outbound request. The runtime does no caching of its own, so the callback
-     * owns token caching and refresh. Mutually exclusive with {@link apiKey} /
-     * {@link bearerToken}.
+     * owns token caching and refresh. When set alongside {@link apiKey} /
+     * {@link bearerToken}, this callback takes precedence: the runtime applies
+     * the token it returns as the `Authorization: Bearer` header for each
+     * request and does not send the static credential.
      *
      * @experimental
      */
-    getBearerToken?: GetBearerToken;
+    bearerTokenProvider?: BearerTokenProvider;
 
     /**
      * Azure-specific options
@@ -2397,12 +2407,14 @@ export interface NamedProviderConfig {
      * When set, the SDK keeps this function client-side (it is never serialized)
      * and the runtime calls back into this client to acquire a token before each
      * outbound request. The runtime does no caching of its own, so the callback
-     * owns token caching and refresh. Mutually exclusive with {@link apiKey} /
-     * {@link bearerToken}.
+     * owns token caching and refresh. When set alongside {@link apiKey} /
+     * {@link bearerToken}, this callback takes precedence: the runtime applies
+     * the token it returns as the `Authorization: Bearer` header for each
+     * request and does not send the static credential.
      *
      * @experimental
      */
-    getBearerToken?: GetBearerToken;
+    bearerTokenProvider?: BearerTokenProvider;
 
     /**
      * Azure-specific options.

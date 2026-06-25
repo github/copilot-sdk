@@ -119,6 +119,7 @@ async fn get_token(
     match token_provider
         .get_token(ProviderTokenArgs {
             provider_name: params.provider_name,
+            session_id: params.session_id.into_inner(),
         })
         .await
     {

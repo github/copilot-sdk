@@ -2044,26 +2044,27 @@ public sealed class ProviderConfig
     public string? BearerToken { get; set; }
 
     /// <summary>
-    /// Wire-only flag, emitted automatically when <see cref="GetBearerToken"/> is set, that tells
+    /// Wire-only flag, emitted automatically when <see cref="BearerTokenProvider"/> is set, that tells
     /// the runtime to request a token over the session-scoped <c>providerToken.getToken</c> RPC
-    /// before each outbound request to this provider. Derived from <see cref="GetBearerToken"/>;
+    /// before each outbound request to this provider. Derived from <see cref="BearerTokenProvider"/>;
     /// internal and never part of the public API.
     /// </summary>
     [JsonInclude]
     [JsonPropertyName("hasBearerTokenProvider")]
-    internal bool? HasBearerTokenProvider => GetBearerToken is not null ? true : null;
+    internal bool? HasBearerTokenProvider => BearerTokenProvider is not null ? true : null;
 
     /// <summary>
     /// Per-request callback that resolves a bearer token on demand for this BYOK provider (for
     /// example via Azure Managed Identity). The Copilot SDK takes no identity dependency: supply a
     /// callback backed by your own identity library. Never serialized — setting it makes the SDK send
     /// <c>hasBearerTokenProvider: true</c> on the wire and answer the runtime's
-    /// <c>providerToken.getToken</c> requests. Mutually exclusive with <see cref="ApiKey"/> and
-    /// <see cref="BearerToken"/>.
+    /// <c>providerToken.getToken</c> requests. When set alongside <see cref="ApiKey"/>/<see cref="BearerToken"/>, this callback takes precedence:
+    /// the runtime applies the token it returns as the Authorization: Bearer header for each request
+    /// and does not send the static credential.
     /// </summary>
     [JsonIgnore]
     [Experimental(Diagnostics.Experimental)]
-    public Func<ProviderTokenArgs, Task<string>>? GetBearerToken { get; set; }
+    public Func<ProviderTokenArgs, Task<string>>? BearerTokenProvider { get; set; }
 
     /// <summary>
     /// Azure-specific configuration options.
@@ -2198,26 +2199,27 @@ public sealed class NamedProviderConfig
     public string? BearerToken { get; set; }
 
     /// <summary>
-    /// Wire-only flag, emitted automatically when <see cref="GetBearerToken"/> is set, that tells
+    /// Wire-only flag, emitted automatically when <see cref="BearerTokenProvider"/> is set, that tells
     /// the runtime to request a token over the session-scoped <c>providerToken.getToken</c> RPC
-    /// before each outbound request to this provider. Derived from <see cref="GetBearerToken"/>;
+    /// before each outbound request to this provider. Derived from <see cref="BearerTokenProvider"/>;
     /// internal and never part of the public API.
     /// </summary>
     [JsonInclude]
     [JsonPropertyName("hasBearerTokenProvider")]
-    internal bool? HasBearerTokenProvider => GetBearerToken is not null ? true : null;
+    internal bool? HasBearerTokenProvider => BearerTokenProvider is not null ? true : null;
 
     /// <summary>
     /// Per-request callback that resolves a bearer token on demand for this BYOK provider (for
     /// example via Azure Managed Identity). The Copilot SDK takes no identity dependency: supply a
     /// callback backed by your own identity library. Never serialized — setting it makes the SDK send
     /// <c>hasBearerTokenProvider: true</c> on the wire and answer the runtime's
-    /// <c>providerToken.getToken</c> requests. Mutually exclusive with <see cref="ApiKey"/> and
-    /// <see cref="BearerToken"/>.
+    /// <c>providerToken.getToken</c> requests. When set alongside <see cref="ApiKey"/>/<see cref="BearerToken"/>, this callback takes precedence:
+    /// the runtime applies the token it returns as the Authorization: Bearer header for each request
+    /// and does not send the static credential.
     /// </summary>
     [JsonIgnore]
     [Experimental(Diagnostics.Experimental)]
-    public Func<ProviderTokenArgs, Task<string>>? GetBearerToken { get; set; }
+    public Func<ProviderTokenArgs, Task<string>>? BearerTokenProvider { get; set; }
 
     /// <summary>
     /// Azure-specific configuration options.

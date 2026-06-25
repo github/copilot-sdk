@@ -34,7 +34,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.rpc.GetBearerToken;
+import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.NamedProviderConfig;
 import com.github.copilot.rpc.PermissionHandler;
@@ -43,9 +43,9 @@ import com.github.copilot.rpc.SessionConfig;
 
 /**
  * End-to-end coverage for the experimental BYOK bearer-token-provider surface
- * ({@code getBearerToken} on a provider config). The callback stays entirely on
- * the SDK/client side: the SDK keeps it off the wire, sends only the
- * {@code hasBearerTokenProvider} flag, and the runtime calls back over the
+ * ({@code BearerTokenProvider} on a provider config). The callback stays
+ * entirely on the SDK/client side: the SDK keeps it off the wire, sends only
+ * the {@code hasBearerTokenProvider} flag, and the runtime calls back over the
  * session-scoped {@code providerToken.getToken} RPC before each outbound model
  * request.
  */
@@ -82,13 +82,13 @@ public class ByokBearerTokenProviderE2ETest {
     void appliesCallbackTokenAsAuthorizationHeader() throws Exception {
         String sentinel = "sentinel-bearer-token-abc123";
         AtomicInteger calls = new AtomicInteger();
-        GetBearerToken getBearerToken = args -> {
+        BearerTokenProvider tokenProvider = args -> {
             calls.incrementAndGet();
             return CompletableFuture.completedFuture(sentinel);
         };
 
         List<NamedProviderConfig> providers = List.of(new NamedProviderConfig().setName("mi").setType("openai")
-                .setWireApi("completions").setBaseUrl(PRIMARY_BASE_URL).setGetBearerToken(getBearerToken));
+                .setWireApi("completions").setBaseUrl(PRIMARY_BASE_URL).setBearerTokenProvider(tokenProvider));
         List<ProviderModelConfig> models = List
                 .of(new ProviderModelConfig().setId("default").setProvider("mi").setWireModel("byok-gpt-4o"));
 
@@ -102,11 +102,11 @@ public class ByokBearerTokenProviderE2ETest {
     @Test
     void reacquiresFreshTokenForEachRequest() throws Exception {
         AtomicInteger calls = new AtomicInteger();
-        GetBearerToken getBearerToken = args -> CompletableFuture
+        BearerTokenProvider tokenProvider = args -> CompletableFuture
                 .completedFuture("rotating-token-" + calls.incrementAndGet());
 
         List<NamedProviderConfig> providers = List.of(new NamedProviderConfig().setName("mi").setType("openai")
-                .setWireApi("completions").setBaseUrl(PRIMARY_BASE_URL).setGetBearerToken(getBearerToken));
+                .setWireApi("completions").setBaseUrl(PRIMARY_BASE_URL).setBearerTokenProvider(tokenProvider));
         List<ProviderModelConfig> models = List
                 .of(new ProviderModelConfig().setId("default").setProvider("mi").setWireModel("byok-gpt-4o"));
 
@@ -124,15 +124,19 @@ public class ByokBearerTokenProviderE2ETest {
     @Test
     void dispatchesTokenAcquisitionPerProvider() throws Exception {
         List<String> acquiredFor = new ArrayList<>();
-        GetBearerToken redCallback = args -> {
+        BearerTokenProvider redCallback = args -> {
             assertEquals("red", args.getProviderName(), "Expected providerName to be forwarded");
+            assertTrue(args.getSessionId() != null && !args.getSessionId().isEmpty(),
+                    "Expected a non-empty session id in token args");
             synchronized (acquiredFor) {
                 acquiredFor.add("red");
             }
             return CompletableFuture.completedFuture("token-for-red");
         };
-        GetBearerToken blueCallback = args -> {
+        BearerTokenProvider blueCallback = args -> {
             assertEquals("blue", args.getProviderName(), "Expected providerName to be forwarded");
+            assertTrue(args.getSessionId() != null && !args.getSessionId().isEmpty(),
+                    "Expected a non-empty session id in token args");
             synchronized (acquiredFor) {
                 acquiredFor.add("blue");
             }
@@ -141,9 +145,9 @@ public class ByokBearerTokenProviderE2ETest {
 
         List<NamedProviderConfig> providers = List.of(
                 new NamedProviderConfig().setName("red").setType("openai").setWireApi("completions")
-                        .setBaseUrl(RED_BASE_URL).setGetBearerToken(redCallback),
+                        .setBaseUrl(RED_BASE_URL).setBearerTokenProvider(redCallback),
                 new NamedProviderConfig().setName("blue").setType("openai").setWireApi("completions")
-                        .setBaseUrl(BLUE_BASE_URL).setGetBearerToken(blueCallback));
+                        .setBaseUrl(BLUE_BASE_URL).setBearerTokenProvider(blueCallback));
         List<ProviderModelConfig> models = List.of(
                 new ProviderModelConfig().setId("default").setProvider("red").setWireModel("byok-gpt-4o"),
                 new ProviderModelConfig().setId("default").setProvider("blue").setWireModel("byok-gpt-4o"));

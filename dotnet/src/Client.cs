@@ -671,7 +671,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private const string DefaultBearerTokenProviderName = "default";
 
     /// <summary>
-    /// Collects the per-provider <c>GetBearerToken</c> callbacks keyed by
+    /// Collects the per-provider <c>BearerTokenProvider</c> callbacks keyed by
     /// provider name for session-side registration. The singular, whole-session
     /// <see cref="ProviderConfig"/> uses the implicit
     /// <see cref="DefaultBearerTokenProviderName"/>.
@@ -679,18 +679,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private static Dictionary<string, Func<ProviderTokenArgs, Task<string>>> BuildBearerTokenCallbacks(SessionConfigBase config)
     {
         var callbacks = new Dictionary<string, Func<ProviderTokenArgs, Task<string>>>(StringComparer.Ordinal);
-        if (config.Provider?.GetBearerToken is { } singular)
+        if (config.Provider?.BearerTokenProvider is { } singular)
         {
             callbacks[DefaultBearerTokenProviderName] = singular;
         }
         if (config.Providers != null)
         {
-            foreach (var provider in config.Providers)
+            foreach (var provider in config.Providers.Where(provider => provider.BearerTokenProvider is not null))
             {
-                if (provider.GetBearerToken is { } callback)
-                {
-                    callbacks[provider.Name] = callback;
-                }
+                callbacks[provider.Name] = provider.BearerTokenProvider!;
             }
         }
         return callbacks;

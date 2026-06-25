@@ -7,7 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace GitHub.Copilot;
 
 /// <summary>
-/// Arguments passed to a bearer-token callback (the <c>GetBearerToken</c> property
+/// Arguments passed to a bearer-token callback (the <c>BearerTokenProvider</c> property
 /// on <see cref="ProviderConfig"/> / <see cref="NamedProviderConfig"/>) when the
 /// runtime needs a fresh bearer token for a BYOK provider.
 /// </summary>
@@ -29,4 +29,11 @@ public sealed class ProviderTokenArgs
     /// provider-agnostic and forwards only the provider name.
     /// </remarks>
     public required string ProviderName { get; init; }
+
+    /// <summary>
+    /// Id of the session that triggered this token request. A client-level
+    /// shared callback registered for many sessions can use this to resolve the
+    /// owning session and scope token acquisition or caching per session.
+    /// </summary>
+    public required string SessionId { get; init; }
 }

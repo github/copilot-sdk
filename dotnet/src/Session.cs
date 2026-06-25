@@ -871,7 +871,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Registers per-provider <c>GetBearerToken</c> callbacks for BYOK
+    /// Registers per-provider <c>BearerTokenProvider</c> callbacks for BYOK
     /// providers configured with managed-identity / on-demand bearer-token auth.
     /// </summary>
     /// <remarks>
@@ -899,7 +899,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     /// <summary>
     /// Routes runtime <c>providerToken.getToken</c> requests to the matching
-    /// per-provider <c>GetBearerToken</c> callback registered on the session.
+    /// per-provider <c>BearerTokenProvider</c> callback registered on the session.
     /// </summary>
     private sealed class BearerTokenProviderHandler(CopilotSession session) : IProviderTokenHandler
     {
@@ -910,7 +910,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 throw new InvalidOperationException(
                     $"No bearer-token provider registered for provider \"{request.ProviderName}\"");
             }
-            var token = await callback(new ProviderTokenArgs { ProviderName = request.ProviderName }).ConfigureAwait(false);
+            var token = await callback(new ProviderTokenArgs { ProviderName = request.ProviderName, SessionId = request.SessionId }).ConfigureAwait(false);
             return new ProviderTokenAcquireResult { Token = token };
         }
     }

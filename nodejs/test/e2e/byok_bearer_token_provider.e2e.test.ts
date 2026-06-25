@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { approveAll, CopilotRequestHandler } from "../../src/index.js";
 import type {
     CopilotRequestContext,
-    GetBearerToken,
+    BearerTokenProvider,
     NamedProviderConfig,
     ProviderModelConfig,
 } from "../../src/index.js";
@@ -40,7 +40,7 @@ const BLUE_BASE_URL = `https://${BLUE_HOST}/v1`;
  * The runtime invokes {@link sendRequest} for every model-layer HTTP request it
  * would otherwise issue. We capture the ones aimed at a fake BYOK host —
  * recording the `Authorization` header the runtime applied after calling the
- * provider's `getBearerToken` callback over the session-scoped
+ * provider's `bearerTokenProvider` callback over the session-scoped
  * `providerToken.getToken` RPC — and answer them with a synthetic `404` (a
  * non-retryable status, so each outbound model request yields exactly one
  * capture). Every other request (CAPI bootstrap: model catalog, policy, …) is
@@ -89,7 +89,7 @@ class CapturingRequestHandler extends CopilotRequestHandler {
 
 /**
  * End-to-end coverage for the experimental BYOK bearer-token-provider surface
- * (`getBearerToken` on a provider config). The callback stays entirely on the
+ * (`bearerTokenProvider` on a provider config). The callback stays entirely on the
  * SDK/client side: the SDK strips it from the wire config, sets the
  * `hasBearerTokenProvider` flag, and the runtime calls back over the session-scoped
  * `providerToken.getToken` RPC before each outbound model request, applying the
@@ -144,7 +144,7 @@ describe("BYOK bearer-token provider", async () => {
     it("applies the callback's token as the Authorization header", async () => {
         const SENTINEL = "sentinel-bearer-token-abc123";
         let calls = 0;
-        const getBearerToken: GetBearerToken = async () => {
+        const getBearerToken: BearerTokenProvider = async () => {
             calls += 1;
             return SENTINEL;
         };
@@ -155,7 +155,7 @@ describe("BYOK bearer-token provider", async () => {
                 type: "openai",
                 wireApi: "completions",
                 baseUrl: PRIMARY_BASE_URL,
-                getBearerToken,
+                bearerTokenProvider: getBearerToken,
             },
         ];
         const models: ProviderModelConfig[] = [
@@ -172,7 +172,7 @@ describe("BYOK bearer-token provider", async () => {
 
     it("re-acquires a fresh token for each request (no runtime caching)", async () => {
         let calls = 0;
-        const getBearerToken: GetBearerToken = async () => {
+        const getBearerToken: BearerTokenProvider = async () => {
             calls += 1;
             // A distinct token per acquisition proves the runtime re-invokes the
             // callback per request rather than caching a previous token.
@@ -185,7 +185,7 @@ describe("BYOK bearer-token provider", async () => {
                 type: "openai",
                 wireApi: "completions",
                 baseUrl: PRIMARY_BASE_URL,
-                getBearerToken,
+                bearerTokenProvider: getBearerToken,
             },
         ];
         const models: ProviderModelConfig[] = [
@@ -211,11 +211,15 @@ describe("BYOK bearer-token provider", async () => {
         };
         const acquiredFor: string[] = [];
         const makeCallback =
-            (providerName: string): GetBearerToken =>
+            (providerName: string): BearerTokenProvider =>
             async (args) => {
                 // The runtime forwards the requesting provider's name so the client
                 // can dispatch to the right credential.
                 expect(args.providerName).toBe(providerName);
+                // The runtime also forwards the owning session id so a
+                // client-level shared callback can resolve the session.
+                expect(typeof args.sessionId).toBe("string");
+                expect(args.sessionId.length).toBeGreaterThan(0);
                 acquiredFor.push(providerName);
                 return tokenByProvider[providerName];
             };
@@ -226,14 +230,14 @@ describe("BYOK bearer-token provider", async () => {
                 type: "openai",
                 wireApi: "completions",
                 baseUrl: RED_BASE_URL,
-                getBearerToken: makeCallback("red"),
+                bearerTokenProvider: makeCallback("red"),
             },
             {
                 name: "blue",
                 type: "openai",
                 wireApi: "completions",
                 baseUrl: BLUE_BASE_URL,
-                getBearerToken: makeCallback("blue"),
+                bearerTokenProvider: makeCallback("blue"),
             },
         ];
         const models: ProviderModelConfig[] = [

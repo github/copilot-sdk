@@ -5,7 +5,7 @@
 """E2E coverage for the experimental BYOK bearer-token-provider surface.
 
 Mirrors ``nodejs/test/e2e/byok_bearer_token_provider.e2e.test.ts``. A BYOK
-provider config may carry a ``get_bearer_token`` callback; the callback stays
+provider config may carry a ``bearer_token_provider`` callback; the callback stays
 entirely on the SDK/client side. The SDK strips it from the wire config, sets
 the ``hasBearerTokenProvider`` flag, and the runtime calls back over the
 session-scoped ``providerToken.getToken`` RPC before each outbound model
@@ -31,7 +31,7 @@ import pytest
 import pytest_asyncio
 
 from copilot import CopilotRequestContext, CopilotRequestHandler
-from copilot.session import GetBearerToken, PermissionHandler
+from copilot.session import BearerTokenProvider, PermissionHandler
 
 from ._copilot_request_helpers import build_isolated_client, build_non_inference_response
 from .testharness import E2ETestContext
@@ -56,7 +56,7 @@ class _CapturingRequestHandler(CopilotRequestHandler):
     The runtime invokes :meth:`send_request` for every model-layer HTTP request.
     Requests aimed at a fake BYOK host are captured — recording the
     ``Authorization`` header the runtime applied after calling the provider's
-    ``get_bearer_token`` callback over ``providerToken.getToken`` — and answered
+    ``bearer_token_provider`` callback over ``providerToken.getToken`` — and answered
     with a synthetic ``404`` (non-retryable, so each outbound model request
     yields exactly one capture). Every other request (CAPI bootstrap: model
     catalog, policy, …) is fabricated locally so no real network or CAPI proxy
@@ -126,6 +126,7 @@ async def _run_turn(client, providers, models, selection_id: str, prompt: str) -
         try:
             await session.send_and_wait(prompt)
         except Exception:
+            # The fake BYOK endpoint intentionally errors after capture.
             pass
     finally:
         try:
@@ -154,7 +155,7 @@ class TestByokBearerTokenProvider:
                 "type": "openai",
                 "wire_api": "completions",
                 "base_url": PRIMARY_BASE_URL,
-                "get_bearer_token": get_bearer_token,
+                "bearer_token_provider": get_bearer_token,
             }
         ]
         models = [{"id": "default", "provider": "mi", "wire_model": "byok-gpt-4o"}]
@@ -185,7 +186,7 @@ class TestByokBearerTokenProvider:
                 "type": "openai",
                 "wire_api": "completions",
                 "base_url": PRIMARY_BASE_URL,
-                "get_bearer_token": get_bearer_token,
+                "bearer_token_provider": get_bearer_token,
             }
         ]
         models = [{"id": "default", "provider": "mi", "wire_model": "byok-gpt-4o"}]
@@ -208,11 +209,14 @@ class TestByokBearerTokenProvider:
         token_by_provider = {"red": "token-for-red", "blue": "token-for-blue"}
         acquired_for: list[str] = []
 
-        def make_callback(provider_name: str) -> GetBearerToken:
+        def make_callback(provider_name: str) -> BearerTokenProvider:
             async def callback(args) -> str:
                 # The runtime forwards the requesting provider's name so the
                 # client can dispatch to the right credential.
                 assert args["provider_name"] == provider_name
+                # The runtime also forwards the owning session id so a
+                # client-level shared callback can resolve the session.
+                assert isinstance(args["session_id"], str) and args["session_id"]
                 acquired_for.append(provider_name)
                 return token_by_provider[provider_name]
 
@@ -224,14 +228,14 @@ class TestByokBearerTokenProvider:
                 "type": "openai",
                 "wire_api": "completions",
                 "base_url": RED_BASE_URL,
-                "get_bearer_token": make_callback("red"),
+                "bearer_token_provider": make_callback("red"),
             },
             {
                 "name": "blue",
                 "type": "openai",
                 "wire_api": "completions",
                 "base_url": BLUE_BASE_URL,
-                "get_bearer_token": make_callback("blue"),
+                "bearer_token_provider": make_callback("blue"),
             },
         ]
         models = [
