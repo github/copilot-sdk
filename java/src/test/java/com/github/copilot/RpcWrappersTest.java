@@ -86,6 +86,28 @@ class RpcWrappersTest {
     }
 
     @Test
+    void serverRpc_account_getAllUsers_returns_typed_list() throws Exception {
+        var stub = new StubCaller();
+        stub.nextResult = new ObjectMapper().readTree("""
+                [
+                  {
+                    "authInfo": { "kind": "oauth" },
+                    "token": "token-1"
+                  }
+                ]
+                """);
+
+        var server = new ServerRpc(stub);
+        var users = server.account.getAllUsers().get();
+
+        assertEquals(1, stub.calls.size());
+        assertEquals("account.getAllUsers", stub.calls.get(0).method());
+        assertEquals(1, users.size());
+        assertInstanceOf(Map.class, users.get(0).authInfo());
+        assertEquals("token-1", users.get(0).token());
+    }
+
+    @Test
     void serverRpc_ping_passes_params_directly() {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);

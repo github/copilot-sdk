@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -38,6 +39,7 @@ public final class SessionToolsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionToolsHandlePendingToolCallResult> handlePendingToolCall(SessionToolsHandlePendingToolCallParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -50,6 +52,7 @@ public final class SessionToolsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> initializeAndValidate() {
         return caller.invoke("session.tools.initializeAndValidate", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
@@ -60,8 +63,25 @@ public final class SessionToolsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionToolsGetCurrentMetadataResult> getCurrentMetadata() {
         return caller.invoke("session.tools.getCurrentMetadata", java.util.Map.of("sessionId", this.sessionId), SessionToolsGetCurrentMetadataResult.class);
+    }
+
+    /**
+     * Subagent settings to apply to the current session
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> updateSubagentSettings(SessionToolsUpdateSubagentSettingsParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.tools.updateSubagentSettings", _p, Void.class);
     }
 
 }

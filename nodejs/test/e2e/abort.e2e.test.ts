@@ -58,11 +58,32 @@ describe("Abort", async () => {
         // Abort mid-stream
         await session.abort();
 
-        // Session should be usable after abort — send a follow-up and get a response
-        const followUp = await session.sendAndWait({
-            prompt: "Say 'abort_recovery_ok'.",
+        // Session should be usable after abort. Wait for the specific recovery
+        // message rather than racing against a late idle from the aborted turn.
+        let recoveryResolve!: (content: string) => void;
+        const recoveryReceived = new Promise<string>((resolve) => {
+            recoveryResolve = resolve;
         });
-        expect(followUp?.data.content?.toLowerCase()).toContain("abort_recovery_ok");
+        const unsubscribeRecovery = session.on((event) => {
+            if (event.type === "assistant.message") {
+                const content = event.data.content ?? "";
+                if (content.toLowerCase().includes("abort_recovery_ok")) {
+                    recoveryResolve(content);
+                }
+            }
+        });
+
+        try {
+            await session.send({ prompt: "Say 'abort_recovery_ok'." });
+            const recoveryContent = await withTimeout(
+                recoveryReceived,
+                60_000,
+                "assistant.message containing abort_recovery_ok"
+            );
+            expect(recoveryContent.toLowerCase()).toContain("abort_recovery_ok");
+        } finally {
+            unsubscribeRecovery();
+        }
 
         await session.disconnect();
     });

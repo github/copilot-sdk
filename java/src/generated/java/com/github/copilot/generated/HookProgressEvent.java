@@ -35,7 +35,9 @@ public final class HookProgressEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record HookProgressEventData(
         /** Human-readable progress message from the hook process */
-        @JsonProperty("message") String message
+        @JsonProperty("message") String message,
+        /** When true, this status message replaces the previous temporary one instead of accumulating */
+        @JsonProperty("temporary") Boolean temporary
     ) {
     }
 }

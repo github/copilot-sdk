@@ -42,7 +42,7 @@ public final class SubagentFailedEvent extends SessionEvent {
         @JsonProperty("agentDisplayName") String agentDisplayName,
         /** Error message describing why the sub-agent failed */
         @JsonProperty("error") String error,
-        /** Model used by the sub-agent (if any model calls succeeded before failure) */
+        /** Model selected for the sub-agent, when known */
         @JsonProperty("model") String model,
         /** Total number of tool calls made before the sub-agent failed */
         @JsonProperty("totalToolCalls") Long totalToolCalls,

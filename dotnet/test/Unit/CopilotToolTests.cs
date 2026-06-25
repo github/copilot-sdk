@@ -19,7 +19,8 @@ public class CopilotToolTests
             new CopilotToolOptions
             {
                 OverridesBuiltInTool = true,
-                SkipPermission = true
+                SkipPermission = true,
+                Defer = CopilotToolDefer.Auto
             });
 
         Assert.Equal("test_tool", function.Name);
@@ -28,6 +29,8 @@ public class CopilotToolTests
         Assert.True((bool)isOverride!);
         Assert.True(function.AdditionalProperties.TryGetValue("skip_permission", out var skipPermission));
         Assert.True((bool)skipPermission!);
+        Assert.True(function.AdditionalProperties.TryGetValue("defer", out var defer));
+        Assert.Equal(CopilotToolDefer.Auto, defer);
     }
 
     [Fact]
@@ -37,6 +40,7 @@ public class CopilotToolTests
 
         Assert.False(function.AdditionalProperties.ContainsKey("is_override"));
         Assert.False(function.AdditionalProperties.ContainsKey("skip_permission"));
+        Assert.False(function.AdditionalProperties.ContainsKey("defer"));
     }
 
     [Fact]

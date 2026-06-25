@@ -49,7 +49,7 @@ public class BuiltinToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var session = await CreateSessionAsync();
         var msg = await session.SendAndWaitAsync(new MessageOptions
         {
-            Prompt = "Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content.",
+            Prompt = "Run 'echo error_msg >&2; sleep 0.5; echo ok' and tell me what stderr said. Reply with just the stderr content.",
         }, SendTimeout);
         Assert.Contains("error_msg", msg?.Data.Content ?? string.Empty);
     }

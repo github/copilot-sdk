@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionWorkspacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionWorkspacesGetWorkspaceResult> getWorkspace() {
         return caller.invoke("session.workspaces.getWorkspace", java.util.Map.of("sessionId", this.sessionId), SessionWorkspacesGetWorkspaceResult.class);
     }
@@ -45,6 +47,7 @@ public final class SessionWorkspacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionWorkspacesListFilesResult> listFiles() {
         return caller.invoke("session.workspaces.listFiles", java.util.Map.of("sessionId", this.sessionId), SessionWorkspacesListFilesResult.class);
     }
@@ -58,6 +61,7 @@ public final class SessionWorkspacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionWorkspacesReadFileResult> readFile(SessionWorkspacesReadFileParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -73,6 +77,7 @@ public final class SessionWorkspacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> createFile(SessionWorkspacesCreateFileParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -85,6 +90,7 @@ public final class SessionWorkspacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionWorkspacesListCheckpointsResult> listCheckpoints() {
         return caller.invoke("session.workspaces.listCheckpoints", java.util.Map.of("sessionId", this.sessionId), SessionWorkspacesListCheckpointsResult.class);
     }
@@ -98,6 +104,7 @@ public final class SessionWorkspacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionWorkspacesReadCheckpointResult> readCheckpoint(SessionWorkspacesReadCheckpointParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -113,6 +120,7 @@ public final class SessionWorkspacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionWorkspacesSaveLargePasteResult> saveLargePaste(SessionWorkspacesSaveLargePasteParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -128,6 +136,7 @@ public final class SessionWorkspacesApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionWorkspacesDiffResult> diff(SessionWorkspacesDiffParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

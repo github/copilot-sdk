@@ -17,14 +17,14 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 
 ## Available SDKs
 
-| SDK                      | Location                                                                | Cookbook                                                                                              | Installation                                                                                                                                                                                                                               |
-| ------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Node.js / TypeScript** | [`nodejs/`](./nodejs/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/nodejs/README.md) | `npm install @github/copilot-sdk`                                                                                                                                                                                                          |
-| **Python**               | [`python/`](./python/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`                                                                                                                                                                                                           |
-| **Go**                   | [`go/`](./go/)                                                          | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)     | `go get github.com/github/copilot-sdk/go`                                                                                                                                                                                                  |
-| **.NET**                 | [`dotnet/`](./dotnet/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`                                                                                                                                                                                                    |
-| **Rust**                 | [`rust/`](./rust/)                                                      | —                                                                                                     | `cargo add github-copilot-sdk`                                                                                                                                                                                                             |
-| **Java**                 | [`java/`](./java/) | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/java/README.md)                                                                                                   | Maven coordinates<br>`com.github:copilot-sdk-java`<br>See instructions for [Maven](./java/README.md#maven) and [Gradle](./java/README.md#gradle) |
+| SDK                      | Location                                                                | Cookbook                                                                                              | Installation                                                                                                                                                                                                                               | API docs                                                                       |
+| ------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| **Node.js / TypeScript** | [`nodejs/`](./nodejs/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/nodejs/README.md) | `npm install @github/copilot-sdk`                                                                                                                                                                                                          |                                                                                |
+| **Python**               | [`python/`](./python/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`                                                                                                                                                                                                           |                                                                                |
+| **Go**                   | [`go/`](./go/)                                                          | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)     | `go get github.com/github/copilot-sdk/go`                                                                                                                                                                                                  | [API docs](https://pkg.go.dev/github.com/github/copilot-sdk/go)               |
+| **.NET**                 | [`dotnet/`](./dotnet/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`                                                                                                                                                                                                    |                                                                                |
+| **Rust**                 | [`rust/`](./rust/)                                                      | —                                                                                                     | `cargo add github-copilot-sdk`                                                                                                                                                                                                             | [API docs](https://docs.rs/github-copilot-sdk/latest/github_copilot_sdk/)     |
+| **Java**                 | [`java/`](./java/) | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/java/README.md)                                                                                                   | Maven coordinates<br>`com.github:copilot-sdk-java`<br>See instructions for [Maven](./java/README.md#maven) and [Gradle](./java/README.md#gradle) | [API docs](https://javadoc.io/doc/com.github/copilot-sdk-java/latest/) |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
@@ -82,7 +82,7 @@ The SDK supports multiple authentication methods:
 - **Environment variables** - `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`
 - **BYOK** - Use your own API keys (no GitHub auth required)
 
-See the **[Authentication documentation](./docs/auth/index.md)** for details on each method.
+See the **[Authentication documentation](./docs/auth/README.md)** for details on each method.
 
 ### Do I need to install the Copilot CLI separately?
 
@@ -125,11 +125,11 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 ## Quick Links
 
-- **[Documentation](./docs/index.md)** – Full documentation index
+- **[Documentation](./docs/README.md)** – Full documentation index
 - **[Getting Started](./docs/getting-started.md)** – Tutorial to get up and running
-- **[Setup Guides](./docs/setup/index.md)** – Architecture, deployment, and scaling
-- **[Authentication](./docs/auth/index.md)** – GitHub OAuth, BYOK, and more
-- **[Features](./docs/features/index.md)** – Hooks, custom agents, MCP, skills, and more
+- **[Setup Guides](./docs/setup/README.md)** – Architecture, deployment, and scaling
+- **[Authentication](./docs/auth/README.md)** – GitHub OAuth, BYOK, and more
+- **[Features](./docs/features/README.md)** – Hooks, custom agents, MCP, skills, and more
 - **[Troubleshooting](./docs/troubleshooting/debugging.md)** – Common issues and solutions
 - **[Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk)** – Practical recipes for common tasks across all languages
 - **[More Resources](https://github.com/github/awesome-copilot/blob/main/collections/copilot-sdk.md)** – Additional examples, tutorials, and community resources

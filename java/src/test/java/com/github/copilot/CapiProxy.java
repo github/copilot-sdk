@@ -291,6 +291,53 @@ public class CapiProxy implements AutoCloseable {
     }
 
     /**
+     * Registers a raw Copilot user response for a given token on the
+     * {@code /copilot_internal/user} endpoint.
+     *
+     * <p>
+     * Unlike
+     * {@link #setCopilotUserByToken(String, String, String, String, String, String)},
+     * this posts the response object verbatim, so callers control the exact field
+     * names the proxy returns to the CLI. This matters because the CLI reads
+     * snake_case fields (e.g. {@code copilot_plan}, {@code is_mcp_enabled}) from
+     * the raw user JSON to gate MCP enablement. Use this to register the default
+     * e2e user with the same snake_case shape the Go, Node, Python, and .NET
+     * harnesses post, keeping MCP behavior hermetic and consistent across SDKs.
+     * </p>
+     *
+     * @param token
+     *            the GitHub token to configure
+     * @param response
+     *            the raw user response object to return for the token (field names
+     *            are sent verbatim)
+     * @throws IOException
+     *             if the request fails
+     * @throws InterruptedException
+     *             if the request is interrupted
+     */
+    public void setCopilotUserByToken(String token, Map<String, Object> response)
+            throws IOException, InterruptedException {
+        if (proxyUrl == null) {
+            throw new IllegalStateException("Proxy not started");
+        }
+
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("token", token);
+        payload.put("response", response);
+
+        String body = MAPPER.writeValueAsString(payload);
+
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(proxyUrl + "/copilot-user-config"))
+                .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build();
+
+        HttpResponse<String> response2 = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response2.statusCode() != 200) {
+            throw new IOException(
+                    "Failed to set copilot user config: " + response2.statusCode() + ": " + response2.body());
+        }
+    }
+
+    /**
      * Stops the proxy server gracefully.
      *
      * @throws IOException

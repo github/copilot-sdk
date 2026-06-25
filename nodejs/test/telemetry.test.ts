@@ -64,6 +64,7 @@ describe("telemetry", () => {
         it("sets correct env vars for full telemetry config", async () => {
             const telemetry = {
                 otlpEndpoint: "http://localhost:4318",
+                otlpProtocol: "http/protobuf",
                 filePath: "/tmp/traces.jsonl",
                 exporterType: "otlp-http",
                 sourceName: "my-app",
@@ -76,6 +77,7 @@ describe("telemetry", () => {
                 const t = telemetry;
                 env.COPILOT_OTEL_ENABLED = "true";
                 if (t.otlpEndpoint !== undefined) env.OTEL_EXPORTER_OTLP_ENDPOINT = t.otlpEndpoint;
+                if (t.otlpProtocol !== undefined) env.OTEL_EXPORTER_OTLP_PROTOCOL = t.otlpProtocol;
                 if (t.filePath !== undefined) env.COPILOT_OTEL_FILE_EXPORTER_PATH = t.filePath;
                 if (t.exporterType !== undefined) env.COPILOT_OTEL_EXPORTER_TYPE = t.exporterType;
                 if (t.sourceName !== undefined) env.COPILOT_OTEL_SOURCE_NAME = t.sourceName;
@@ -88,6 +90,7 @@ describe("telemetry", () => {
             expect(env).toEqual({
                 COPILOT_OTEL_ENABLED: "true",
                 OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318",
+                OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf",
                 COPILOT_OTEL_FILE_EXPORTER_PATH: "/tmp/traces.jsonl",
                 COPILOT_OTEL_EXPORTER_TYPE: "otlp-http",
                 COPILOT_OTEL_SOURCE_NAME: "my-app",
@@ -103,6 +106,7 @@ describe("telemetry", () => {
                 const t = telemetry as any;
                 env.COPILOT_OTEL_ENABLED = "true";
                 if (t.otlpEndpoint !== undefined) env.OTEL_EXPORTER_OTLP_ENDPOINT = t.otlpEndpoint;
+                if (t.otlpProtocol !== undefined) env.OTEL_EXPORTER_OTLP_PROTOCOL = t.otlpProtocol;
                 if (t.filePath !== undefined) env.COPILOT_OTEL_FILE_EXPORTER_PATH = t.filePath;
                 if (t.exporterType !== undefined) env.COPILOT_OTEL_EXPORTER_TYPE = t.exporterType;
                 if (t.sourceName !== undefined) env.COPILOT_OTEL_SOURCE_NAME = t.sourceName;

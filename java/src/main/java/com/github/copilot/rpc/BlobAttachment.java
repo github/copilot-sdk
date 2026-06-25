@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * }</pre>
  *
  * @see MessageOptions#setAttachments(java.util.List)
- * @since 1.2.0
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class BlobAttachment implements MessageAttachment {

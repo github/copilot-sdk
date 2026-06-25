@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,17 @@ public final class ServerSkillsApi {
      */
     public CompletableFuture<SkillsDiscoverResult> discover(SkillsDiscoverParams params) {
         return caller.invoke("skills.discover", params, SkillsDiscoverResult.class);
+    }
+
+    /**
+     * Optional project paths to enumerate.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SkillsGetDiscoveryPathsResult> getDiscoveryPaths(SkillsGetDiscoveryPathsParams params) {
+        return caller.invoke("skills.getDiscoveryPaths", params, SkillsGetDiscoveryPathsResult.class);
     }
 
 }

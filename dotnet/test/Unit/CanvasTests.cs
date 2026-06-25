@@ -150,11 +150,9 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Ready,
                 CanvasId = "",
                 ExtensionId = "project:counter",
                 InstanceId = "missing-canvas-id",
-                Reopen = false,
             }
         });
         DispatchEvent(session, new SessionCanvasOpenedEvent
@@ -163,7 +161,6 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Ready,
                 CanvasId = "counter",
                 ExtensionId = "project:counter",
                 ExtensionName = "Counter Provider",
@@ -172,7 +169,6 @@ public class CanvasTests
                 Status = "ready",
                 Url = "https://example.test/counter",
                 Input = JsonDocument.Parse("""{"seed":1}""").RootElement.Clone(),
-                Reopen = false,
             }
         });
         DispatchEvent(session, new SessionCanvasOpenedEvent
@@ -181,12 +177,10 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Stale,
                 CanvasId = "logs",
                 ExtensionId = "project:logs",
                 InstanceId = "logs-1",
                 Title = "Logs",
-                Reopen = false,
             }
         });
 
@@ -201,7 +195,6 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Stale,
                 CanvasId = "counter",
                 ExtensionId = "project:counter",
                 ExtensionName = "Counter Provider",
@@ -210,7 +203,6 @@ public class CanvasTests
                 Status = "reconnected",
                 Url = "https://example.test/counter-updated",
                 Input = JsonDocument.Parse("""{"seed":2}""").RootElement.Clone(),
-                Reopen = true,
             }
         });
 
@@ -222,10 +214,91 @@ public class CanvasTests
                 Assert.Equal("Counter Updated", canvas.Title);
                 Assert.Equal("reconnected", canvas.Status);
                 Assert.Equal("https://example.test/counter-updated", canvas.Url);
-                Assert.True(canvas.Reopen);
-                Assert.Equal(CanvasInstanceAvailability.Stale, canvas.Availability);
                 Assert.Equal(2, canvas.Input!.Value.GetProperty("seed").GetInt32());
             },
+            canvas => Assert.Equal("logs-1", canvas.InstanceId));
+    }
+
+    [Fact]
+    public void SessionCanvasClosedEvent_RemovesOpenCanvasSnapshots()
+    {
+        var session = CreateSession();
+
+        DispatchEvent(session, new SessionCanvasOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasOpenedData
+            {
+                CanvasId = "counter",
+                ExtensionId = "project:counter",
+                InstanceId = "counter-1",
+                Title = "Counter",
+            }
+        });
+        DispatchEvent(session, new SessionCanvasOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasOpenedData
+            {
+                CanvasId = "logs",
+                ExtensionId = "project:logs",
+                InstanceId = "logs-1",
+                Title = "Logs",
+            }
+        });
+
+        Assert.Collection(
+            session.OpenCanvases,
+            canvas => Assert.Equal("counter-1", canvas.InstanceId),
+            canvas => Assert.Equal("logs-1", canvas.InstanceId));
+
+        // Closing one instance removes it; the other remains.
+        DispatchEvent(session, new SessionCanvasClosedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasClosedData
+            {
+                CanvasId = "counter",
+                ExtensionId = "project:counter",
+                InstanceId = "counter-1",
+            }
+        });
+
+        Assert.Collection(
+            session.OpenCanvases,
+            canvas => Assert.Equal("logs-1", canvas.InstanceId));
+
+        // Closing an absent instance is a no-op (idempotent).
+        DispatchEvent(session, new SessionCanvasClosedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasClosedData
+            {
+                CanvasId = "counter",
+                ExtensionId = "project:counter",
+                InstanceId = "counter-1",
+            }
+        });
+
+        // A closed event with an empty instance id leaves the snapshot intact.
+        DispatchEvent(session, new SessionCanvasClosedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasClosedData
+            {
+                CanvasId = "logs",
+                ExtensionId = "project:logs",
+                InstanceId = "",
+            }
+        });
+
+        Assert.Collection(
+            session.OpenCanvases,
             canvas => Assert.Equal("logs-1", canvas.InstanceId));
     }
 

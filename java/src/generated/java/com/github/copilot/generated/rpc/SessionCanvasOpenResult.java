@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -18,6 +19,7 @@ import javax.annotation.processing.Generated;
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -37,10 +39,6 @@ public record SessionCanvasOpenResult(
     /** URL for web-rendered canvases */
     @JsonProperty("url") String url,
     /** Input supplied when the instance was opened */
-    @JsonProperty("input") Object input,
-    /** Whether this snapshot came from an idempotent reopen */
-    @JsonProperty("reopen") Boolean reopen,
-    /** Runtime-controlled routing state for an open canvas instance. */
-    @JsonProperty("availability") CanvasInstanceAvailability availability
+    @JsonProperty("input") Object input
 ) {
 }

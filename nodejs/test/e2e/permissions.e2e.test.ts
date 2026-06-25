@@ -564,12 +564,10 @@ describe("Permission callbacks", async () => {
                 ).success
             ).toBe(true);
             expect(
-                (await session.rpc.permissions.urls.setUnrestrictedMode({ unrestricted: true }))
-                    .success
+                (await session.rpc.permissions.urls.setUnrestrictedMode({ enabled: true })).success
             ).toBe(true);
             expect(
-                (await session.rpc.permissions.urls.setUnrestrictedMode({ unrestricted: false }))
-                    .success
+                (await session.rpc.permissions.urls.setUnrestrictedMode({ enabled: false })).success
             ).toBe(true);
         } finally {
             await session.disconnect();

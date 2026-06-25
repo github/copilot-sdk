@@ -60,7 +60,7 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 
 ### .NET SDK
 
-1. Install [.NET 8.0+](https://dotnet.microsoft.com/download)
+1. Install [.NET SDK 10+](https://dotnet.microsoft.com/download)
 1. Install .NET dependencies: `cd dotnet && dotnet restore`
 
 ## Submitting a Pull Request

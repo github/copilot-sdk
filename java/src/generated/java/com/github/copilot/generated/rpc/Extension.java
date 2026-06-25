@@ -21,11 +21,11 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record Extension(
-    /** Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper') */
+    /** Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext') */
     @JsonProperty("id") String id,
     /** Extension name (directory name) */
     @JsonProperty("name") String name,
-    /** Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/) */
+    /** Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/) */
     @JsonProperty("source") ExtensionSource source,
     /** Current status: running, disabled, failed, or starting */
     @JsonProperty("status") ExtensionStatus status,

@@ -116,6 +116,12 @@ type ClientOptions struct {
 	// on connection, routing session-scoped file I/O through per-session
 	// handlers.
 	SessionFS *SessionFSConfig
+	// RequestHandler registers a connection-level LLM inference callback. When
+	// non-nil, the client registers as the inference provider on connect, and
+	// the runtime routes its model-layer HTTP and WebSocket traffic through
+	// this handler instead of issuing the calls itself. Works for both CAPI
+	// and BYOK sessions.
+	RequestHandler *CopilotRequestHandler
 	// Telemetry configures OpenTelemetry integration for the runtime.
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
 	// fields are mapped to the corresponding environment variables.
@@ -158,6 +164,10 @@ type TelemetryConfig struct {
 	// OTLPEndpoint is the OTLP HTTP endpoint URL for trace/metric export.
 	// Sets OTEL_EXPORTER_OTLP_ENDPOINT.
 	OTLPEndpoint string
+
+	// OTLPProtocol is the OTLP HTTP protocol for all signals.
+	// Sets OTEL_EXPORTER_OTLP_PROTOCOL.
+	OTLPProtocol string
 
 	// FilePath is the file path for JSON-lines trace output.
 	// Sets COPILOT_OTEL_FILE_EXPORTER_PATH.
@@ -205,7 +215,10 @@ func Int(v int) *int {
 
 // Known system message section identifiers for the "customize" mode.
 const (
-	// SectionIdentity is the agent identity preamble and mode statement.
+	// SectionPreamble is the agent identity preamble and mode statement.
+	SectionPreamble = "preamble"
+	// SectionIdentity is the section group covering the identity preamble and its
+	// sibling sub-sections (tone, tool efficiency, etc.).
 	SectionIdentity = "identity"
 	// SectionTone covers response style, conciseness rules, and output formatting preferences.
 	SectionTone = "tone"
@@ -244,6 +257,10 @@ const (
 	SectionActionAppend SectionOverrideAction = "append"
 	// SectionActionPrepend prepends to existing section content.
 	SectionActionPrepend SectionOverrideAction = "prepend"
+	// SectionActionPreserve is a no-op marker that opts an individually-addressable
+	// section out of a group-level "remove" (e.g. keep "tone" when removing the
+	// "identity" group).
+	SectionActionPreserve SectionOverrideAction = "preserve"
 )
 
 // SectionTransformFn is a callback that receives the current content of a system message section
@@ -841,6 +858,12 @@ type InfiniteSessionConfig struct {
 	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
+// MemoryConfiguration configures the memory feature for a session.
+type MemoryConfiguration struct {
+	// Enabled controls whether the memory feature is enabled for this session.
+	Enabled bool `json:"enabled"`
+}
+
 // LargeToolOutputConfig configures handling of large tool outputs. When a tool
 // produces output exceeding the configured size, the output is written to a
 // temp file and a reference is returned to the model instead of the full
@@ -973,6 +996,20 @@ type SessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
+	// Capi configures provider-scoped CAPI (Copilot API) session options.
+	Capi *CapiSessionOptions
+	// Providers configures named BYOK provider connections. Additive to Copilot
+	// API auth (unlike Provider); combine with Models. Cannot be combined with Provider.
+	//
+	// Experimental: Providers is part of an experimental multi-provider BYOK
+	// surface and may change or be removed in future SDK or CLI releases.
+	Providers []NamedProviderConfig
+	// Models adds BYOK model definitions to the session's selectable model list,
+	// each referencing a Providers entry by name.
+	//
+	// Experimental: Models is part of an experimental multi-provider BYOK
+	// surface and may change or be removed in future SDK or CLI releases.
+	Models []ProviderModelConfig
 	// EnableSessionTelemetry enables or disables internal session telemetry for this session.
 	// When false, disables session telemetry. When nil (the default) or true,
 	// telemetry is enabled for GitHub-authenticated sessions. When a custom
@@ -1032,6 +1069,9 @@ type SessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// Memory configures the memory feature for the session. When omitted, the
+	// runtime default applies.
+	Memory *MemoryConfiguration
 	// OnEvent is an optional event handler that is registered on the session before
 	// the session.create RPC is issued. This guarantees that early events emitted
 	// by the CLI during session creation (e.g. session.start) are delivered to the
@@ -1111,13 +1151,40 @@ type SessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// ExpAssignments injects ExP assignment ("flight") data for this session,
+	// in the same JSON shape the Copilot CLI fetches from the experimentation
+	// service (CopilotExpAssignmentResponse). When supplied, the runtime feeds
+	// it into the same feature-flag path as CLI-fetched assignments and stamps
+	// it onto telemetry and the CAPI request header. When absent, the session
+	// does not block on ExP. Malformed payloads are dropped by the runtime
+	// (fail-open).
+	//
+	// Internal: ExpAssignments is part of the SDK's internal API surface,
+	// intended for trusted out-of-process integrators, and is not intended for
+	// general external use.
+	ExpAssignments any
 }
+
+// ToolDefer controls whether a tool may be deferred (loaded lazily via tool
+// search) rather than always pre-loaded.
+type ToolDefer string
+
+const (
+	// ToolDeferAuto allows the tool to be deferred and surfaced through tool search.
+	ToolDeferAuto ToolDefer = "auto"
+	// ToolDeferNever forces the tool to always be pre-loaded.
+	ToolDeferNever ToolDefer = "never"
+)
+
 type Tool struct {
 	Name                 string         `json:"name"`
 	Description          string         `json:"description,omitempty"`
 	Parameters           map[string]any `json:"parameters,omitzero"`
 	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
 	SkipPermission       bool           `json:"skipPermission,omitempty"`
+	// Defer controls whether the tool may be deferred (loaded lazily via tool
+	// search) rather than always pre-loaded. When empty, the runtime decides.
+	Defer ToolDefer `json:"defer,omitempty"`
 	// Handler is optional. When nil, the SDK exposes the tool declaration but does
 	// not automatically invoke it.
 	Handler ToolHandler `json:"-"`
@@ -1292,6 +1359,20 @@ type ResumeSessionConfig struct {
 	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
+	// Capi configures provider-scoped CAPI (Copilot API) session options.
+	Capi *CapiSessionOptions
+	// Providers configures named BYOK provider connections. Additive to Copilot
+	// API auth (unlike Provider); combine with Models. Cannot be combined with Provider.
+	//
+	// Experimental: Providers is part of an experimental multi-provider BYOK
+	// surface and may change or be removed in future SDK or CLI releases.
+	Providers []NamedProviderConfig
+	// Models adds BYOK model definitions to the session's selectable model list,
+	// each referencing a Providers entry by name.
+	//
+	// Experimental: Models is part of an experimental multi-provider BYOK
+	// surface and may change or be removed in future SDK or CLI releases.
+	Models []ProviderModelConfig
 	// EnableSessionTelemetry enables or disables internal session telemetry for this session.
 	// When false, disables session telemetry. When nil (the default) or true,
 	// telemetry is enabled for GitHub-authenticated sessions. When a custom
@@ -1417,6 +1498,9 @@ type ResumeSessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// Memory configures the memory feature for the session. When omitted, the
+	// runtime default applies.
+	Memory *MemoryConfiguration
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -1478,12 +1562,61 @@ type ResumeSessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// ExpAssignments injects ExP assignment ("flight") data on resume. See
+	// SessionConfig.ExpAssignments. Re-supply on resume so the runtime
+	// re-applies the assignments after a CLI process restart.
+	//
+	// Internal: ExpAssignments is part of the SDK's internal API surface,
+	// intended for trusted out-of-process integrators, and is not intended for
+	// general external use.
+	ExpAssignments any
 }
+
+// ProviderTokenArgs carries the context passed to a [BearerTokenProvider] callback
+// when the runtime needs a fresh bearer token for a BYOK provider.
+//
+// Experimental: ProviderTokenArgs is part of the experimental managed-identity /
+// bearer-token-provider surface and may change or be removed in future SDK or CLI
+// releases.
+type ProviderTokenArgs struct {
+	// ProviderName is the name of the BYOK provider needing a token. For the
+	// singular, whole-session [ProviderConfig] this is the implicit provider name
+	// ("default"); for [NamedProviderConfig] entries it is
+	// [NamedProviderConfig.Name].
+	//
+	// The callback closes over its own token scope/audience; the runtime is
+	// provider-agnostic and forwards only the provider name.
+	ProviderName string
+
+	// SessionID is the id of the session that triggered this token request. A
+	// client-level shared callback registered for many sessions can use this to
+	// resolve the owning session and scope token acquisition or caching per
+	// session.
+	SessionID string
+}
+
+// BearerTokenProvider is a per-provider callback that resolves a bearer token on
+// demand, returning the raw token string (without the "Bearer " prefix). The
+// Copilot SDK itself takes no Azure dependency: the consumer supplies this
+// callback backed by their own identity library (for example azidentity's
+// DefaultAzureCredential.GetToken), and the runtime calls it once before each
+// outbound model request. The runtime does no caching of its own, so the callback
+// (or the identity library it wraps) owns token caching and refresh.
+//
+// Experimental: BearerTokenProvider is part of the experimental managed-identity /
+// bearer-token-provider surface and may change or be removed in future SDK or CLI
+// releases.
+type BearerTokenProvider func(args ProviderTokenArgs) (string, error)
+
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
 	Type string `json:"type,omitempty"`
 	// WireAPI is the API format (openai/azure only): "completions" or "responses". Defaults to "completions".
 	WireAPI string `json:"wireApi,omitempty"`
+	// Transport for OpenAI Responses requests: "http" or "websockets". Defaults to "http".
+	// Set "websockets" to deliver Responses API requests over a persistent WebSocket
+	// connection instead of HTTP. Applies to OpenAI-compatible providers using WireAPI "responses".
+	Transport string `json:"transport,omitempty"`
 	// BaseURL is the API endpoint URL
 	BaseURL string `json:"baseUrl"`
 	// APIKey is the API key. Optional for local providers like Ollama.
@@ -1515,12 +1648,149 @@ type ProviderConfig struct {
 	// tokens. When hit, the model stops generating and returns a truncated
 	// response.
 	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
+	// BearerTokenProvider resolves a bearer token on demand for this provider
+	// (managed-identity / on-demand auth). When set, the SDK strips the callback
+	// from the wire config and instead sends `hasBearerTokenProvider: true`; the
+	// runtime calls back over the session-scoped `providerToken.getToken` RPC
+	// before each outbound model request and applies the returned token as the
+	// Authorization header. Never serialized.
+	//
+	// When set alongside APIKey/BearerToken, this callback takes precedence: the
+	// runtime applies the token it returns as the Authorization: Bearer header for
+	// each request and does not send the static credential.
+	//
+	// Experimental: part of the experimental managed-identity / bearer-token-provider
+	// surface and may change or be removed in future SDK or CLI releases.
+	BearerTokenProvider BearerTokenProvider `json:"-"`
+}
+
+// MarshalJSON serializes the provider config, deriving the wire-only
+// `hasBearerTokenProvider` flag from the presence of [ProviderConfig.BearerTokenProvider].
+// The non-serializable callback never crosses the RPC boundary; the runtime only
+// learns that a token provider exists and forwards the provider name back when it
+// needs a token.
+func (p ProviderConfig) MarshalJSON() ([]byte, error) {
+	type wire ProviderConfig
+	aux := struct {
+		wire
+		HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
+	}{wire: wire(p)}
+	if p.BearerTokenProvider != nil {
+		aux.HasBearerTokenProvider = Bool(true)
+	}
+	return json.Marshal(aux)
+}
+
+// CapiSessionOptions configures provider-scoped Copilot API (CAPI) session behavior.
+//
+// WebSocket transport is the default for the CAPI Responses API whenever the
+// model advertises the ws:/responses endpoint. Set EnableWebSocketResponses to
+// Bool(false) to force the HTTP Responses transport, which is useful behind
+// proxies where WebSockets fail. This is equivalent to setting the
+// COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES environment variable. These options
+// are provider-scoped under the capi namespace because a single session can host
+// multiple providers, such as CAPI and BYOK, so transport choice is provider-level.
+type CapiSessionOptions struct {
+	// EnableWebSocketResponses controls whether the CAPI Responses API uses
+	// WebSocket transport. Enabled by default when the model advertises
+	// ws:/responses support; set to Bool(false) to force HTTP Responses transport.
+	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration
 type AzureProviderOptions struct {
 	// APIVersion is the Azure API version. Defaults to "2024-10-21".
 	APIVersion string `json:"apiVersion,omitempty"`
+}
+
+// NamedProviderConfig is a named BYOK provider connection (transport +
+// credentials), referenced by ProviderModelConfig entries via Name.
+//
+// Unlike the singular Provider (which makes the whole session BYOK and bypasses
+// Copilot API authentication), named providers are additive: they coexist with
+// Copilot API auth so models from CAPI and one or more BYOK providers can be
+// mixed within a single session and across sub-agents. Combining Providers and
+// Models with Provider is rejected.
+//
+// Experimental: NamedProviderConfig is part of an experimental multi-provider
+// BYOK surface and may change or be removed in future SDK or CLI releases.
+type NamedProviderConfig struct {
+	// Name is the stable identifier referenced by ProviderModelConfig.Provider.
+	// Must not contain "/".
+	Name string `json:"name"`
+	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
+	Type string `json:"type,omitempty"`
+	// WireAPI is the API format (openai/azure only): "completions" or "responses". Defaults to "completions".
+	WireAPI string `json:"wireApi,omitempty"`
+	// BaseURL is the API endpoint URL.
+	BaseURL string `json:"baseUrl"`
+	// APIKey is the API key. Optional for local providers like Ollama.
+	APIKey string `json:"apiKey,omitempty"`
+	// BearerToken for authentication. Sets the Authorization header directly.
+	// Takes precedence over APIKey when both are set.
+	BearerToken string `json:"bearerToken,omitempty"`
+	// Azure contains Azure-specific options.
+	Azure *AzureProviderOptions `json:"azure,omitempty"`
+	// Headers are custom HTTP headers included in all outbound provider requests.
+	Headers map[string]string `json:"headers,omitempty"`
+	// BearerTokenProvider resolves a bearer token on demand for this provider
+	// (managed-identity / on-demand auth). When set, the SDK strips the callback
+	// from the wire config and instead sends `hasBearerTokenProvider: true`; the
+	// runtime calls back over the session-scoped `providerToken.getToken` RPC
+	// before each outbound model request and applies the returned token as the
+	// Authorization header. Never serialized.
+	//
+	// When set alongside APIKey/BearerToken, this callback takes precedence: the
+	// runtime applies the token it returns as the Authorization: Bearer header for
+	// each request and does not send the static credential.
+	//
+	// Experimental: part of the experimental managed-identity / bearer-token-provider
+	// surface and may change or be removed in future SDK or CLI releases.
+	BearerTokenProvider BearerTokenProvider `json:"-"`
+}
+
+// MarshalJSON serializes the named provider config, deriving the wire-only
+// `hasBearerTokenProvider` flag from the presence of
+// [NamedProviderConfig.BearerTokenProvider]. The non-serializable callback never
+// crosses the RPC boundary; the runtime only learns that a token provider exists
+// and forwards the provider name back when it needs a token.
+func (p NamedProviderConfig) MarshalJSON() ([]byte, error) {
+	type wire NamedProviderConfig
+	aux := struct {
+		wire
+		HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
+	}{wire: wire(p)}
+	if p.BearerTokenProvider != nil {
+		aux.HasBearerTokenProvider = Bool(true)
+	}
+	return json.Marshal(aux)
+}
+
+// ProviderModelConfig is a BYOK model definition that references a
+// NamedProviderConfig by name and is added to the session's selectable model
+// list. The session-wide selection id is the provider-qualified "provider/id".
+//
+// Experimental: ProviderModelConfig is part of an experimental multi-provider
+// BYOK surface and may change or be removed in future SDK or CLI releases.
+type ProviderModelConfig struct {
+	// ID is the provider-local model id, unique within its provider.
+	ID string `json:"id"`
+	// Provider is the name of the NamedProviderConfig that serves this model.
+	Provider string `json:"provider"`
+	// WireModel is the model name sent to the provider API for inference. Defaults to ID.
+	WireModel string `json:"wireModel,omitempty"`
+	// ModelID is the well-known base model id used for behavior/capability/config lookup. Defaults to ID.
+	ModelID string `json:"modelId,omitempty"`
+	// Name is the display name for model pickers. Defaults to the provider-qualified selection id.
+	Name string `json:"name,omitempty"`
+	// MaxPromptTokens is the maximum prompt/input tokens for the model.
+	MaxPromptTokens int `json:"maxPromptTokens,omitempty"`
+	// MaxContextWindowTokens is the maximum context window tokens for the model.
+	MaxContextWindowTokens int `json:"maxContextWindowTokens,omitempty"`
+	// MaxOutputTokens is the maximum output tokens for the model.
+	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
+	// Capabilities holds optional capability overrides for the synthesized model.
+	Capabilities *rpc.ModelCapabilitiesOverride `json:"capabilities,omitempty"`
 }
 
 // ToolBinaryResult represents binary payloads returned by tools.
@@ -1607,7 +1877,8 @@ type ModelPolicy struct {
 
 // ModelBilling contains model billing information
 type ModelBilling struct {
-	Multiplier *float64 `json:"multiplier,omitempty"`
+	Multiplier  *float64                     `json:"multiplier,omitempty"`
+	TokenPrices *rpc.ModelBillingTokenPrices `json:"tokenPrices,omitempty"`
 }
 
 // ModelInfo contains information about an available model
@@ -1697,6 +1968,9 @@ type createSessionRequest struct {
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
+	Capi                               *CapiSessionOptions                    `json:"capi,omitempty"`
+	Providers                          []NamedProviderConfig                  `json:"providers,omitempty"`
+	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
 	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
@@ -1734,6 +2008,7 @@ type createSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
@@ -1745,6 +2020,7 @@ type createSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -1776,6 +2052,9 @@ type resumeSessionRequest struct {
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
+	Capi                               *CapiSessionOptions                    `json:"capi,omitempty"`
+	Providers                          []NamedProviderConfig                  `json:"providers,omitempty"`
+	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
 	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
@@ -1815,6 +2094,7 @@ type resumeSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
@@ -1826,6 +2106,7 @@ type resumeSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }

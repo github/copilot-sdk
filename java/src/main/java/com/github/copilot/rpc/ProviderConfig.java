@@ -44,6 +44,9 @@ public class ProviderConfig {
     @JsonProperty("wireApi")
     private String wireApi;
 
+    @JsonProperty("transport")
+    private String transport;
+
     @JsonProperty("baseUrl")
     private String baseUrl;
 
@@ -52,6 +55,9 @@ public class ProviderConfig {
 
     @JsonProperty("bearerToken")
     private String bearerToken;
+
+    @JsonIgnore
+    private BearerTokenProvider bearerTokenProvider;
 
     @JsonProperty("azure")
     private AzureOptions azure;
@@ -119,6 +125,31 @@ public class ProviderConfig {
      */
     public ProviderConfig setWireApi(String wireApi) {
         this.wireApi = wireApi;
+        return this;
+    }
+
+    /**
+     * Gets the transport for OpenAI Responses requests.
+     *
+     * @return the transport ("http" or "websockets")
+     */
+    public String getTransport() {
+        return transport;
+    }
+
+    /**
+     * Sets the transport for OpenAI Responses requests.
+     * <p>
+     * Defaults to "http". Set to "websockets" to deliver Responses API requests
+     * over a persistent WebSocket connection instead of HTTP. Applies to
+     * OpenAI-compatible providers using {@code wireApi} "responses".
+     *
+     * @param transport
+     *            the transport ("http" or "websockets")
+     * @return this config for method chaining
+     */
+    public ProviderConfig setTransport(String transport) {
+        this.transport = transport;
         return this;
     }
 
@@ -192,6 +223,39 @@ public class ProviderConfig {
     public ProviderConfig setBearerToken(String bearerToken) {
         this.bearerToken = bearerToken;
         return this;
+    }
+
+    /**
+     * Gets the bearer-token provider callback.
+     *
+     * @return the bearer-token provider callback, or {@code null} if not set
+     */
+    public BearerTokenProvider getBearerTokenProvider() {
+        return bearerTokenProvider;
+    }
+
+    /**
+     * Sets a callback that supplies bearer tokens for outbound provider requests.
+     * <p>
+     * <strong>Experimental.</strong> The callback stays SDK-side and is not
+     * serialized. Instead, the runtime receives a {@code hasBearerTokenProvider}
+     * flag and calls back over the session-scoped {@code providerToken.getToken}
+     * RPC before each model request. Return the raw token without a {@code Bearer }
+     * prefix.
+     *
+     * @param bearerTokenProvider
+     *            the bearer-token provider callback
+     * @return this config for method chaining
+     */
+    public ProviderConfig setBearerTokenProvider(BearerTokenProvider bearerTokenProvider) {
+        this.bearerTokenProvider = bearerTokenProvider;
+        return this;
+    }
+
+    @JsonProperty("hasBearerTokenProvider")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    Boolean hasBearerTokenProviderWireFlag() {
+        return bearerTokenProvider != null ? Boolean.TRUE : null;
     }
 
     /**

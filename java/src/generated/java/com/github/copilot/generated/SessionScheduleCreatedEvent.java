@@ -36,12 +36,20 @@ public final class SessionScheduleCreatedEvent extends SessionEvent {
     public record SessionScheduleCreatedEventData(
         /** Sequential id assigned to the scheduled prompt within the session */
         @JsonProperty("id") Long id,
-        /** Interval between ticks in milliseconds */
+        /** Interval between ticks in milliseconds (relative-interval schedules) */
         @JsonProperty("intervalMs") Long intervalMs,
+        /** 5-field cron expression for a recurring calendar schedule, evaluated in `tz` */
+        @JsonProperty("cron") String cron,
+        /** IANA timezone the `cron` expression is evaluated in */
+        @JsonProperty("tz") String tz,
+        /** Absolute fire time (epoch milliseconds) for a one-shot calendar schedule */
+        @JsonProperty("at") Long at,
         /** Prompt text that gets enqueued on every tick */
         @JsonProperty("prompt") String prompt,
         /** Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`) */
         @JsonProperty("recurring") Boolean recurring,
+        /** True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled rather than auto-computed. */
+        @JsonProperty("selfPaced") Boolean selfPaced,
         /** Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion) */
         @JsonProperty("displayPrompt") String displayPrompt
     ) {

@@ -11,7 +11,6 @@ from copilot.rpc import (
     RemoteEnableRequest,
     RemoteNotifySteerableChangedRequest,
     RemoteSessionMode,
-    SessionsGetPersistedRemoteSteerableRequest,
 )
 from copilot.session import PermissionHandler
 from copilot.session_events import SessionRemoteSteerableChangedData
@@ -78,18 +77,10 @@ class TestRpcRemote:
                 RemoteNotifySteerableChangedRequest(remote_steerable=True)
             )
             await _wait_for_remote_steerable_event(session, True)
-            persisted = await ctx.client.rpc.sessions.get_persisted_remote_steerable(
-                SessionsGetPersistedRemoteSteerableRequest(session_id=session.session_id)
-            )
-            assert persisted.remote_steerable is True
 
             await session.rpc.remote.notify_steerable_changed(
                 RemoteNotifySteerableChangedRequest(remote_steerable=False)
             )
             await _wait_for_remote_steerable_event(session, False)
-            persisted = await ctx.client.rpc.sessions.get_persisted_remote_steerable(
-                SessionsGetPersistedRemoteSteerableRequest(session_id=session.session_id)
-            )
-            assert persisted.remote_steerable is False
         finally:
             await session.disconnect()

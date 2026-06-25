@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionHistoryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionHistoryCompactResult> compact() {
         return caller.invoke("session.history.compact", java.util.Map.of("sessionId", this.sessionId), SessionHistoryCompactResult.class);
     }
@@ -48,6 +50,7 @@ public final class SessionHistoryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionHistoryTruncateResult> truncate(SessionHistoryTruncateParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -60,6 +63,7 @@ public final class SessionHistoryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionHistoryCancelBackgroundCompactionResult> cancelBackgroundCompaction() {
         return caller.invoke("session.history.cancelBackgroundCompaction", java.util.Map.of("sessionId", this.sessionId), SessionHistoryCancelBackgroundCompactionResult.class);
     }
@@ -70,6 +74,7 @@ public final class SessionHistoryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionHistoryAbortManualCompactionResult> abortManualCompaction() {
         return caller.invoke("session.history.abortManualCompaction", java.util.Map.of("sessionId", this.sessionId), SessionHistoryAbortManualCompactionResult.class);
     }
@@ -80,6 +85,7 @@ public final class SessionHistoryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionHistorySummarizeForHandoffResult> summarizeForHandoff() {
         return caller.invoke("session.history.summarizeForHandoff", java.util.Map.of("sessionId", this.sessionId), SessionHistorySummarizeForHandoffResult.class);
     }

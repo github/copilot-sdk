@@ -18,7 +18,6 @@ from copilot.canvas import (
     OpenCanvasInstance,
 )
 from copilot.rpc import (
-    CanvasInstanceAvailability,
     CanvasProviderCloseRequest,
     CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest,
@@ -26,7 +25,7 @@ from copilot.rpc import (
 )
 from copilot.session import CopilotSession
 from copilot.session_events import (
-    CanvasOpenedAvailability,
+    SessionCanvasClosedData,
     SessionCanvasOpenedData,
     SessionEvent,
     SessionEventType,
@@ -204,11 +203,9 @@ def test_register_canvas_handler_can_clear_generated_handler():
 
 def test_set_open_canvases_round_trip():
     inst = OpenCanvasInstance(
-        availability=CanvasInstanceAvailability.READY,
         canvas_id="c",
         extension_id="e",
         instance_id="i",
-        reopen=False,
     )
     session = CopilotSession("sess-1", client=None)
     session._set_open_canvases([inst])
@@ -221,11 +218,9 @@ def test_session_canvas_opened_updates_open_canvases(caplog: pytest.LogCaptureFi
     session._dispatch_event(
         SessionEvent(
             data=SessionCanvasOpenedData(
-                availability=CanvasOpenedAvailability.READY,
                 canvas_id="",
                 extension_id="project:counter",
                 instance_id="missing-canvas-id",
-                reopen=False,
             ),
             id=uuid4(),
             timestamp=datetime.now(UTC),
@@ -235,12 +230,10 @@ def test_session_canvas_opened_updates_open_canvases(caplog: pytest.LogCaptureFi
     session._dispatch_event(
         SessionEvent(
             data=SessionCanvasOpenedData(
-                availability=CanvasOpenedAvailability.READY,
                 canvas_id="counter",
                 extension_id="project:counter",
                 extension_name="Counter Provider",
                 instance_id="counter-1",
-                reopen=False,
                 input={"seed": 1},
                 status="ready",
                 title="Counter",
@@ -254,11 +247,9 @@ def test_session_canvas_opened_updates_open_canvases(caplog: pytest.LogCaptureFi
     session._dispatch_event(
         SessionEvent(
             data=SessionCanvasOpenedData(
-                availability=CanvasOpenedAvailability.STALE,
                 canvas_id="logs",
                 extension_id="project:logs",
                 instance_id="logs-1",
-                reopen=False,
                 title="Logs",
             ),
             id=uuid4(),
@@ -276,12 +267,10 @@ def test_session_canvas_opened_updates_open_canvases(caplog: pytest.LogCaptureFi
     session._dispatch_event(
         SessionEvent(
             data=SessionCanvasOpenedData(
-                availability=CanvasOpenedAvailability.STALE,
                 canvas_id="counter",
                 extension_id="project:counter",
                 extension_name="Counter Provider",
                 instance_id="counter-1",
-                reopen=True,
                 input={"seed": 2},
                 status="reconnected",
                 title="Counter Updated",
@@ -300,6 +289,72 @@ def test_session_canvas_opened_updates_open_canvases(caplog: pytest.LogCaptureFi
     assert open_canvases[0].status == "reconnected"
     assert open_canvases[0].url == "https://example.test/counter-updated"
     assert open_canvases[0].input == {"seed": 2}
-    assert open_canvases[0].reopen is True
-    assert open_canvases[0].availability == CanvasInstanceAvailability.STALE
     assert open_canvases[1].instance_id == "logs-1"
+
+
+def test_session_canvas_closed_removes_open_canvases(caplog: pytest.LogCaptureFixture):
+    session = CopilotSession("sess-1", client=None)
+
+    for canvas_id, instance_id in (("counter", "counter-1"), ("logs", "logs-1")):
+        session._dispatch_event(
+            SessionEvent(
+                data=SessionCanvasOpenedData(
+                    canvas_id=canvas_id,
+                    extension_id=f"project:{canvas_id}",
+                    instance_id=instance_id,
+                ),
+                id=uuid4(),
+                timestamp=datetime.now(UTC),
+                type=SessionEventType.SESSION_CANVAS_OPENED,
+            )
+        )
+    assert [canvas.instance_id for canvas in session.open_canvases] == [
+        "counter-1",
+        "logs-1",
+    ]
+
+    # Closing one instance removes it; the other remains.
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasClosedData(
+                canvas_id="counter",
+                extension_id="project:counter",
+                instance_id="counter-1",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_CLOSED,
+        )
+    )
+    assert [canvas.instance_id for canvas in session.open_canvases] == ["logs-1"]
+
+    # Closing an absent instance is a no-op (idempotent).
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasClosedData(
+                canvas_id="counter",
+                extension_id="project:counter",
+                instance_id="counter-1",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_CLOSED,
+        )
+    )
+    assert [canvas.instance_id for canvas in session.open_canvases] == ["logs-1"]
+
+    # A closed event with an empty instance_id warns and leaves the snapshot intact.
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasClosedData(
+                canvas_id="logs",
+                extension_id="project:logs",
+                instance_id="",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_CLOSED,
+        )
+    )
+    assert "failed to deserialize session.canvas.closed payload" in caplog.text
+    assert [canvas.instance_id for canvas in session.open_canvases] == ["logs-1"]

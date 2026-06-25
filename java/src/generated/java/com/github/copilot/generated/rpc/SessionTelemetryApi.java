@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -30,6 +31,17 @@ public final class SessionTelemetryApi {
     }
 
     /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionTelemetryGetEngagementIdResult> getEngagementId() {
+        return caller.invoke("session.telemetry.getEngagementId", java.util.Map.of("sessionId", this.sessionId), SessionTelemetryGetEngagementIdResult.class);
+    }
+
+    /**
      * Feature override key/value pairs to attach to subsequent telemetry events from this session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -38,6 +50,7 @@ public final class SessionTelemetryApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> setFeatureOverrides(SessionTelemetrySetFeatureOverridesParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

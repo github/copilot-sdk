@@ -12,7 +12,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  *
  * @see SectionOverride
  * @see SystemMessageConfig
- * @since 1.2.0
+ * @since 1.0.0
  */
 public enum SectionOverrideAction {
 
@@ -27,6 +27,13 @@ public enum SectionOverrideAction {
 
     /** Prepend content before the existing section. */
     PREPEND("prepend"),
+
+    /**
+     * No-op marker that opts an individually-addressable section out of a
+     * group-level {@link #REMOVE} (e.g. keep {@link SystemMessageSections#TONE}
+     * when removing the {@link SystemMessageSections#IDENTITY} group).
+     */
+    PRESERVE("preserve"),
 
     /**
      * Transform the section content via a callback.

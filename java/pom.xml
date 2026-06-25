@@ -7,7 +7,7 @@
 
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.0.5-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GitHub Copilot SDK :: Java</name>
@@ -60,9 +60,9 @@
             environment variable, so `mvn verify` is self-contained and the
             developer never has to set it manually. Override on the command
             line to point at a different CLI build, e.g.:
-              mvn verify -Dcopilot.cli.path=/some/other/copilot/index.js
+              mvn verify -Dcopilot.cli.path=/some/other/copilot/npm-loader.js
         -->
-        <copilot.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot/index.js</copilot.cli.path>
+        <copilot.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot/npm-loader.js</copilot.cli.path>
         <!-- Set to true (via -Pskip-test-harness) to skip npm install of test harness -->
         <skip.test.harness>false</skip.test.harness>
         <!--
@@ -86,7 +86,7 @@
             DO NOT EDIT MANUALLY. Updated by the update-copilot-dependency
             workflow.
         -->
-        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.57</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
+        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.65</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
 
     </properties>
 
@@ -112,7 +112,7 @@
         <dependency>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-annotations</artifactId>
-            <version>4.9.8</version>
+            <version>4.10.2</version>
             <scope>provided</scope>
         </dependency>
 
@@ -147,7 +147,7 @@
                 <plugin>
                     <groupId>com.github.spotbugs</groupId>
                     <artifactId>spotbugs-maven-plugin</artifactId>
-                    <version>4.9.8.3</version>
+                    <version>4.10.2.0</version>
                     <configuration>
                         <excludeFilterFile>config/spotbugs/spotbugs-exclude.xml</excludeFilterFile>
                     </configuration>
@@ -164,6 +164,12 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.15.0</version>
+                <configuration>
+                    <compilerArgs>
+                        <arg>-Acopilot.experimental.allowed=true</arg>
+                    </compilerArgs>
+                    <proc>none</proc>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -378,7 +384,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.14</version>
+                <version>0.8.15</version>
                 <executions>
                     <!-- Instrument bytecode before E2ETestContext runs tests with CapiProxy -->
                     <execution>

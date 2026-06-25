@@ -2,6 +2,12 @@
 
 SDK for programmatic control of GitHub Copilot CLI.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Any of the [.NET Standard 2.0-compatible .NET implementations](https://learn.microsoft.com/dotnet/standard/net-standard?tabs=net-standard-2-0#select-net-standard-version)
+
 ## Installation
 
 ```bash
@@ -410,6 +416,21 @@ When enabled, sessions emit compaction events:
 - `SessionCompactionStartEvent` - Background compaction started
 - `SessionCompactionCompleteEvent` - Compaction finished (includes token counts)
 
+## Memory
+
+Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `CreateSessionAsync` and `ResumeSessionAsync`.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    Memory = new MemoryConfiguration { Enabled = true }
+});
+```
+
+When `Memory` is left unset, no memory configuration is sent and the runtime default applies. In the default `CopilotClientMode.CopilotCli` the SDK leaves `Memory` unset so the runtime applies its own default, while `CopilotClientMode.Empty` defaults `Memory` to disabled unless you set it explicitly.
+
 ## Advanced Usage
 
 ### Manual Server Control
@@ -503,6 +524,26 @@ var safeLookup = CopilotTool.DefineTool(
 `DefineTool` delegates to `AIFunctionFactory.Create`, so advanced `AIFunctionFactoryOptions` remain available through the overload that accepts both `AIFunctionFactoryOptions` and `CopilotToolOptions`.
 
 If you want to use `AIFunctionFactory.Create` directly, you can set `skip_permission` in the tool's `AdditionalProperties`.
+
+#### Deferring Tools
+
+Set `CopilotToolOptions.Defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `CopilotToolDefer.Auto` to allow the tool to be deferred and surfaced through tool search, or `CopilotToolDefer.Never` to force it to always be pre-loaded. Defaults to `CopilotToolDefer.Auto`.
+
+```csharp
+var lookupIssue = CopilotTool.DefineTool(
+    async ([Description("Issue ID")] string id) => {
+        // your logic
+    },
+    toolOptions: new CopilotToolOptions
+    {
+        Defer = CopilotToolDefer.Auto
+    },
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "lookup_issue",
+        Description = "Fetch issue details",
+    });
+```
 
 ## Commands
 
@@ -636,9 +677,9 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-Available section IDs are defined as static properties on the `SystemMessageSection` struct: `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `RuntimeInstructions`, `LastInstructions`.
+Available section IDs are defined as static properties on the `SystemMessageSection` struct: `Preamble`, `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `RuntimeInstructions`, `LastInstructions`. `Identity` and `ToolInstructions` are section groups that target a collection of related sub-sections as a unit; use `Preamble` to target just the identity preamble.
 
-Each section override supports four actions: `Replace`, `Remove`, `Append`, and `Prepend`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
+Each section override supports five actions: `Replace`, `Remove`, `Append`, `Prepend`, and `Preserve` (a no-op that opts an individually-addressable section out of a group-level `Remove`). Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
 
 #### Replace Mode
 
@@ -718,6 +759,7 @@ var client = new CopilotClient(new CopilotClientOptions
 **TelemetryConfig properties:**
 
 - `OtlpEndpoint` - OTLP HTTP endpoint URL
+- `OtlpProtocol` - OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
 - `FilePath` - File path for JSON-lines trace output
 - `ExporterType` - `"otlp-http"` or `"file"`
 - `SourceName` - Instrumentation scope name
@@ -981,11 +1023,6 @@ catch (Exception ex)
     Console.Error.WriteLine($"Error: {ex.Message}");
 }
 ```
-
-## Requirements
-
-- .NET 8.0 or later
-- GitHub Copilot CLI installed and in PATH (or provide custom `Connection = RuntimeConnection.ForStdio(path: ...)`)
 
 ## License
 

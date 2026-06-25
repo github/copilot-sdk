@@ -13,6 +13,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
+pub use crate::copilot_request_handler::{
+    CopilotHttpRequest, CopilotHttpResponse, CopilotHttpResponseBody, CopilotRequestContext,
+    CopilotRequestError, CopilotRequestHandler, CopilotRequestTransport, CopilotWebSocketForwarder,
+    CopilotWebSocketForwarderBuilder, CopilotWebSocketHandler, CopilotWebSocketMessage,
+    CopilotWebSocketResponse, WebSocketTransform, forward_http,
+};
 use crate::generated::api_types::OpenCanvasInstance;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::ContextTier;
@@ -22,6 +28,7 @@ use crate::handler::{
     UserInputHandler,
 };
 use crate::hooks::SessionHooks;
+use crate::provider_token::BearerTokenProvider;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
     SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
@@ -337,6 +344,13 @@ pub struct Tool {
     /// access control.
     #[serde(default, skip_serializing_if = "is_false")]
     pub skip_permission: bool,
+    /// Controls whether the tool may be deferred (loaded lazily via tool
+    /// search) rather than always pre-loaded. When [`DeferMode::Auto`], the
+    /// tool can be deferred and surfaced through tool search. When
+    /// [`DeferMode::Never`], the tool is always pre-loaded. `None` lets the
+    /// runtime decide.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defer: Option<DeferMode>,
     /// Optional runtime implementation. When `Some`, the SDK dispatches
     /// matching `external_tool.requested` broadcasts to this handler.
     /// When `None`, the tool is declaration-only.
@@ -355,6 +369,17 @@ pub struct Tool {
 #[inline]
 fn is_false(b: &bool) -> bool {
     !*b
+}
+
+/// Controls whether a [`Tool`] may be deferred (loaded lazily via tool search)
+/// rather than always pre-loaded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DeferMode {
+    /// The tool can be deferred and surfaced through tool search.
+    Auto,
+    /// The tool is always pre-loaded.
+    Never,
 }
 
 impl Tool {
@@ -437,6 +462,14 @@ impl Tool {
         self
     }
 
+    /// Set the deferral mode controlling whether the tool may be loaded
+    /// lazily via tool search ([`DeferMode::Auto`]) or always pre-loaded
+    /// ([`DeferMode::Never`]).
+    pub fn with_defer(mut self, defer: DeferMode) -> Self {
+        self.defer = Some(defer);
+        self
+    }
+
     /// Attach a runtime implementation. The SDK will dispatch matching
     /// `external_tool.requested` broadcasts to `handler` for this tool's
     /// name. Without a handler the tool is declaration-only.
@@ -464,6 +497,7 @@ impl std::fmt::Debug for Tool {
             .field("parameters", &self.parameters)
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
+            .field("defer", &self.defer)
             .field(
                 "handler",
                 &self.handler.as_ref().map(|_| "<set>").unwrap_or("None"),
@@ -776,6 +810,42 @@ impl InfiniteSessionConfig {
     }
 }
 
+/// Per-session configuration for the runtime memory feature.
+///
+/// Supplied via [`SessionConfig::with_memory`] /
+/// [`ResumeSessionConfig::with_memory`]. When a session is created or resumed
+/// without a memory configuration, the runtime applies its own default for the
+/// memory feature.
+///
+/// The type is extensible: today it carries [`enabled`](Self::enabled), and
+/// further tuning knobs can be added as optional fields without a breaking
+/// change.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct MemoryConfiguration {
+    /// Whether the memory feature is enabled for this session.
+    pub enabled: bool,
+}
+
+impl MemoryConfiguration {
+    /// A configuration with the memory feature enabled.
+    pub fn enabled() -> Self {
+        Self { enabled: true }
+    }
+
+    /// A configuration with the memory feature disabled.
+    pub fn disabled() -> Self {
+        Self { enabled: false }
+    }
+
+    /// Set whether the memory feature is enabled.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+}
+
 /// GitHub repository metadata to associate with a cloud session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -952,7 +1022,7 @@ pub struct McpHttpServerConfig {
 /// Routes session requests through an alternative model provider
 /// (OpenAI-compatible, Azure, Anthropic, or local) instead of GitHub
 /// Copilot's default routing.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ProviderConfig {
@@ -964,6 +1034,12 @@ pub struct ProviderConfig {
     /// Defaults to `"completions"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wire_api: Option<String>,
+    /// Transport for OpenAI Responses requests: `"http"` or `"websockets"`.
+    /// Defaults to `"http"`. Set `"websockets"` to deliver Responses API
+    /// requests over a persistent WebSocket connection instead of HTTP.
+    /// Applies to OpenAI-compatible providers using `wire_api` `"responses"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<String>,
     /// API endpoint URL.
     pub base_url: String,
     /// API key. Optional for local providers like Ollama.
@@ -974,6 +1050,12 @@ pub struct ProviderConfig {
     /// API key. Takes precedence over `api_key` when both are set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bearer_token: Option<String>,
+    /// **Experimental.** Callback used to acquire a bearer token before each
+    /// outbound request to this provider.
+    #[serde(skip)]
+    pub bearer_token_provider: Option<Arc<dyn BearerTokenProvider>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) has_bearer_token_provider: Option<bool>,
     /// Azure-specific options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub azure: Option<AzureProviderOptions>,
@@ -1005,6 +1087,30 @@ pub struct ProviderConfig {
     pub max_output_tokens: Option<i64>,
 }
 
+impl std::fmt::Debug for ProviderConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderConfig")
+            .field("provider_type", &self.provider_type)
+            .field("wire_api", &self.wire_api)
+            .field("transport", &self.transport)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key)
+            .field("bearer_token", &self.bearer_token)
+            .field(
+                "bearer_token_provider",
+                &self.bearer_token_provider.as_ref().map(|_| "<set>"),
+            )
+            .field("has_bearer_token_provider", &self.has_bearer_token_provider)
+            .field("azure", &self.azure)
+            .field("headers", &self.headers)
+            .field("model_id", &self.model_id)
+            .field("wire_model", &self.wire_model)
+            .field("max_prompt_tokens", &self.max_prompt_tokens)
+            .field("max_output_tokens", &self.max_output_tokens)
+            .finish()
+    }
+}
+
 impl ProviderConfig {
     /// Construct a [`ProviderConfig`] with the required `base_url` set;
     /// all other fields default to unset.
@@ -1027,6 +1133,13 @@ impl ProviderConfig {
         self
     }
 
+    /// Set the transport (`"http"` or `"websockets"`) for OpenAI Responses
+    /// requests. Defaults to `"http"`.
+    pub fn with_transport(mut self, transport: impl Into<String>) -> Self {
+        self.transport = Some(transport.into());
+        self
+    }
+
     /// Set the API key. Optional for local providers like Ollama.
     pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
         self.api_key = Some(api_key.into());
@@ -1037,6 +1150,16 @@ impl ProviderConfig {
     /// Takes precedence over `api_key` when both are set.
     pub fn with_bearer_token(mut self, bearer_token: impl Into<String>) -> Self {
         self.bearer_token = Some(bearer_token.into());
+        self
+    }
+
+    /// Set the callback used to acquire a bearer token before each outbound
+    /// request to this provider.
+    ///
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface and may change or be removed in a future release.
+    pub fn with_bearer_token_provider(mut self, provider: Arc<dyn BearerTokenProvider>) -> Self {
+        self.bearer_token_provider = Some(provider);
         self
     }
 
@@ -1084,6 +1207,44 @@ impl ProviderConfig {
     }
 }
 
+/// Provider-scoped Copilot API (CAPI) session options.
+///
+/// WebSocket transport is the default for the CAPI Responses API whenever
+/// the model advertises the `ws:/responses` endpoint. Set
+/// [`enable_web_socket_responses`](Self::enable_web_socket_responses) to
+/// `false` to force the HTTP Responses transport instead, which is useful
+/// for users behind proxies where WebSockets fail.
+///
+/// Setting it to `false` is equivalent to setting the
+/// `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable. The option
+/// is scoped under the `capi` namespace because a single session can host
+/// multiple providers, so transport choice is provider-level.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CapiSessionOptions {
+    /// Whether to use WebSocket transport for CAPI Responses API calls.
+    ///
+    /// When `Some(false)`, the runtime uses HTTP Responses transport even if
+    /// the selected model advertises `ws:/responses`. When unset, the runtime
+    /// default applies (WebSocket transport when advertised).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_web_socket_responses: Option<bool>,
+}
+
+impl CapiSessionOptions {
+    /// Construct CAPI session options with all fields unset.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set whether to use WebSocket transport for CAPI Responses API calls.
+    pub fn with_enable_web_socket_responses(mut self, enable: bool) -> Self {
+        self.enable_web_socket_responses = Some(enable);
+        self
+    }
+}
+
 /// Azure-specific provider options.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1091,6 +1252,258 @@ pub struct AzureProviderOptions {
     /// Azure API version. Defaults to `"2024-10-21"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_version: Option<String>,
+}
+
+/// A named BYOK provider connection in the multi-provider registry.
+///
+/// **Experimental.** Multi-provider BYOK configuration is part of an
+/// experimental surface and may change or be removed in a future release.
+///
+/// Unlike [`ProviderConfig`], which routes the whole session through a
+/// single provider, named providers are additive: the session keeps its
+/// default Copilot routing and exposes these providers' models alongside
+/// it. Models are attached via [`ProviderModelConfig`], which references a
+/// provider by [`name`](Self::name).
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct NamedProviderConfig {
+    /// Unique name used by [`ProviderModelConfig::provider`] to reference
+    /// this connection.
+    pub name: String,
+    /// Provider type: `"openai"`, `"azure"`, or `"anthropic"`. Defaults to
+    /// `"openai"` on the CLI.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
+    pub provider_type: Option<String>,
+    /// API format (openai/azure only): `"completions"` or `"responses"`.
+    /// Defaults to `"completions"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<String>,
+    /// API endpoint URL.
+    pub base_url: String,
+    /// API key. Optional for local providers like Ollama.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// Bearer token for authentication. Sets the `Authorization` header
+    /// directly. Takes precedence over `api_key` when both are set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bearer_token: Option<String>,
+    /// **Experimental.** Callback used to acquire a bearer token before each
+    /// outbound request to this provider.
+    #[serde(skip)]
+    pub bearer_token_provider: Option<Arc<dyn BearerTokenProvider>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) has_bearer_token_provider: Option<bool>,
+    /// Azure-specific options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azure: Option<AzureProviderOptions>,
+    /// Custom HTTP headers included in outbound provider requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
+}
+
+impl std::fmt::Debug for NamedProviderConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NamedProviderConfig")
+            .field("name", &self.name)
+            .field("provider_type", &self.provider_type)
+            .field("wire_api", &self.wire_api)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key)
+            .field("bearer_token", &self.bearer_token)
+            .field(
+                "bearer_token_provider",
+                &self.bearer_token_provider.as_ref().map(|_| "<set>"),
+            )
+            .field("has_bearer_token_provider", &self.has_bearer_token_provider)
+            .field("azure", &self.azure)
+            .field("headers", &self.headers)
+            .finish()
+    }
+}
+
+impl NamedProviderConfig {
+    /// Construct a [`NamedProviderConfig`] with the required `name` and
+    /// `base_url` set; all other fields default to unset.
+    pub fn new(name: impl Into<String>, base_url: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            base_url: base_url.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the provider type (`"openai"`, `"azure"`, or `"anthropic"`).
+    pub fn with_provider_type(mut self, provider_type: impl Into<String>) -> Self {
+        self.provider_type = Some(provider_type.into());
+        self
+    }
+
+    /// Set the API format (`"completions"` or `"responses"`; openai/azure only).
+    pub fn with_wire_api(mut self, wire_api: impl Into<String>) -> Self {
+        self.wire_api = Some(wire_api.into());
+        self
+    }
+
+    /// Set the API key. Optional for local providers like Ollama.
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.api_key = Some(api_key.into());
+        self
+    }
+
+    /// Set the bearer token used to populate the `Authorization` header.
+    /// Takes precedence over `api_key` when both are set.
+    pub fn with_bearer_token(mut self, bearer_token: impl Into<String>) -> Self {
+        self.bearer_token = Some(bearer_token.into());
+        self
+    }
+
+    /// Set the callback used to acquire a bearer token before each outbound
+    /// request to this provider.
+    ///
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface and may change or be removed in a future release.
+    pub fn with_bearer_token_provider(mut self, provider: Arc<dyn BearerTokenProvider>) -> Self {
+        self.bearer_token_provider = Some(provider);
+        self
+    }
+
+    /// Set Azure-specific options.
+    pub fn with_azure(mut self, azure: AzureProviderOptions) -> Self {
+        self.azure = Some(azure);
+        self
+    }
+
+    /// Set the custom HTTP headers attached to outbound provider requests.
+    pub fn with_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.headers = Some(headers);
+        self
+    }
+}
+
+fn prepare_bearer_token_providers(
+    provider: &mut Option<ProviderConfig>,
+    providers: &mut Option<Vec<NamedProviderConfig>>,
+) -> HashMap<String, Arc<dyn BearerTokenProvider>> {
+    let mut bearer_token_providers = HashMap::new();
+
+    if let Some(provider) = provider.as_mut()
+        && let Some(token_provider) = provider.bearer_token_provider.take()
+    {
+        provider.has_bearer_token_provider = Some(true);
+        bearer_token_providers.insert("default".to_string(), token_provider);
+    }
+
+    if let Some(providers) = providers.as_mut() {
+        for provider in providers {
+            if let Some(token_provider) = provider.bearer_token_provider.take() {
+                provider.has_bearer_token_provider = Some(true);
+                bearer_token_providers.insert(provider.name.clone(), token_provider);
+            }
+        }
+    }
+
+    bearer_token_providers
+}
+
+/// A BYOK model definition in the multi-provider registry.
+///
+/// **Experimental.** Multi-provider BYOK configuration is part of an
+/// experimental surface and may change or be removed in a future release.
+///
+/// References a [`NamedProviderConfig`] by [`provider`](Self::provider) and
+/// becomes selectable under the provider-qualified id `provider/id`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ProviderModelConfig {
+    /// Model identifier, unique within its provider. Combined with
+    /// [`provider`](Self::provider) to form the selection id `provider/id`.
+    pub id: String,
+    /// Name of the [`NamedProviderConfig`] this model is served by.
+    pub provider: String,
+    /// Model name sent to the provider API for inference. Use when the
+    /// provider's model name differs from [`id`](Self::id).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_model: Option<String>,
+    /// Well-known model ID used to look up agent config and default token
+    /// limits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    /// Human-readable display name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Overrides the resolved model's default max prompt tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
+    /// Overrides the resolved model's default max context window tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_context_window_tokens: Option<i64>,
+    /// Overrides the resolved model's default max output tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i64>,
+    /// Per-property overrides for model capabilities, deep-merged over
+    /// runtime defaults.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+}
+
+impl ProviderModelConfig {
+    /// Construct a [`ProviderModelConfig`] with the required `id` and
+    /// `provider` set; all other fields default to unset.
+    pub fn new(id: impl Into<String>, provider: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            provider: provider.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the model name sent to the provider API for inference.
+    pub fn with_wire_model(mut self, wire_model: impl Into<String>) -> Self {
+        self.wire_model = Some(wire_model.into());
+        self
+    }
+
+    /// Set the well-known model ID used to look up agent config and default
+    /// token limits.
+    pub fn with_model_id(mut self, model_id: impl Into<String>) -> Self {
+        self.model_id = Some(model_id.into());
+        self
+    }
+
+    /// Set the human-readable display name.
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Override the resolved model's default max prompt tokens.
+    pub fn with_max_prompt_tokens(mut self, max: i64) -> Self {
+        self.max_prompt_tokens = Some(max);
+        self
+    }
+
+    /// Override the resolved model's default max context window tokens.
+    pub fn with_max_context_window_tokens(mut self, max: i64) -> Self {
+        self.max_context_window_tokens = Some(max);
+        self
+    }
+
+    /// Override the resolved model's default max output tokens.
+    pub fn with_max_output_tokens(mut self, max: i64) -> Self {
+        self.max_output_tokens = Some(max);
+        self
+    }
+
+    /// Set per-property model capability overrides.
+    pub fn with_capabilities(
+        mut self,
+        capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
+    ) -> Self {
+        self.capabilities = Some(capabilities);
+        self
+    }
 }
 
 /// Configuration for creating a new session via the `session.create` RPC.
@@ -1283,6 +1696,25 @@ pub struct SessionConfig {
     /// requests through this provider instead of the default Copilot
     /// routing.
     pub provider: Option<ProviderConfig>,
+    /// Provider-scoped CAPI session options.
+    ///
+    /// Use this to opt out of the default WebSocket transport for CAPI
+    /// Responses API calls, equivalent to setting
+    /// `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`.
+    pub capi: Option<CapiSessionOptions>,
+    /// **Experimental.** This field is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Named BYOK provider connections. Additive to the default Copilot
+    /// routing — unlike [`provider`](Self::provider), these do not switch
+    /// the whole session to BYOK. Referenced by [`models`](Self::models).
+    pub providers: Option<Vec<NamedProviderConfig>>,
+    /// **Experimental.** This field is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// BYOK model definitions, each referencing a [`providers`](Self::providers)
+    /// entry by name. Selectable under the id `provider/id`.
+    pub models: Option<Vec<ProviderModelConfig>>,
     /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
@@ -1294,6 +1726,8 @@ pub struct SessionConfig {
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Per-session configuration for the runtime memory feature.
+    pub memory: Option<MemoryConfiguration>,
     /// Override the default configuration directory location. When set,
     /// the session uses this directory for storing config and state.
     pub config_directory: Option<PathBuf>,
@@ -1323,6 +1757,14 @@ pub struct SessionConfig {
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// ExP assignment ("flight") data injected by a trusted integrator, in
+    /// the same JSON shape the Copilot CLI fetches from the experimentation
+    /// service (`CopilotExpAssignmentResponse`). When supplied, the runtime
+    /// feeds it into the same feature-flag path as CLI-fetched assignments.
+    /// When absent, the session does not block on ExP. Set via
+    /// [`with_exp_assignments`](Self::with_exp_assignments).
+    #[doc(hidden)]
+    pub exp_assignments: Option<Value>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -1435,8 +1877,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("agent", &self.agent)
             .field("infinite_sessions", &self.infinite_sessions)
             .field("provider", &self.provider)
+            .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
+            .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field(
@@ -1450,6 +1894,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("exp_assignments", &self.exp_assignments)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -1535,8 +1980,12 @@ impl Default for SessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            capi: None,
+            providers: None,
+            models: None,
             enable_session_telemetry: None,
             model_capabilities: None,
+            memory: None,
             config_directory: None,
             working_directory: None,
             github_token: None,
@@ -1544,6 +1993,7 @@ impl Default for SessionConfig {
             cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            exp_assignments: None,
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
@@ -1578,6 +2028,7 @@ pub(crate) struct SessionConfigRuntime {
     pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
 
@@ -1629,6 +2080,8 @@ impl SessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+        let bearer_token_providers =
+            prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
         let wire = crate::wire::SessionCreateWire {
             session_id,
@@ -1678,8 +2131,12 @@ impl SessionConfig {
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
             provider: self.provider,
+            capi: self.capi,
+            providers: self.providers,
+            models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
+            memory: self.memory,
             config_dir: self.config_directory,
             working_directory: self.working_directory,
             github_token: self.github_token,
@@ -1687,6 +2144,7 @@ impl SessionConfig {
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             commands: wire_commands,
+            exp_assignments: self.exp_assignments,
         };
 
         let runtime = SessionConfigRuntime {
@@ -1701,6 +2159,7 @@ impl SessionConfig {
             tool_handlers,
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
+            bearer_token_providers,
             commands: self.commands,
         };
 
@@ -2100,6 +2559,32 @@ impl SessionConfig {
         self
     }
 
+    /// Configure provider-scoped CAPI session options.
+    pub fn with_capi(mut self, capi: CapiSessionOptions) -> Self {
+        self.capi = Some(capi);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Set the named BYOK provider connections (additive multi-provider
+    /// registry). Attach models referencing these with [`Self::with_models`].
+    pub fn with_providers(mut self, providers: Vec<NamedProviderConfig>) -> Self {
+        self.providers = Some(providers);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Set the BYOK model definitions, each referencing a named provider
+    /// supplied via [`Self::with_providers`].
+    pub fn with_models(mut self, models: Vec<ProviderModelConfig>) -> Self {
+        self.models = Some(models);
+        self
+    }
+
     /// Enable or disable internal session telemetry.
     ///
     /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
@@ -2114,6 +2599,12 @@ impl SessionConfig {
         capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
     ) -> Self {
         self.model_capabilities = Some(capabilities);
+        self
+    }
+
+    /// Configure the runtime memory feature for this session.
+    pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
+        self.memory = Some(memory);
         self
     }
 
@@ -2184,9 +2675,20 @@ impl SessionConfig {
         self.manage_schedule_enabled = Some(value);
         self
     }
-}
 
-/// Configuration for resuming an existing session via the `session.resume` RPC.
+    /// Inject ExP assignment ("flight") data for this session, in the same
+    /// JSON shape the Copilot CLI fetches from the experimentation service
+    /// (`CopilotExpAssignmentResponse`). The runtime feeds it into the same
+    /// feature-flag path as CLI-fetched assignments and stamps it onto
+    /// telemetry and the CAPI request header. Intended for trusted
+    /// integrators that fetch ExP data out of process; malformed payloads
+    /// are dropped by the runtime (fail-open).
+    #[doc(hidden)]
+    pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
+        self.exp_assignments = Some(assignments);
+        self
+    }
+}
 ///
 /// See [`SessionConfig`] for the construction patterns (chained `with_*`
 /// builder vs. direct field assignment for `Option<T>` pass-through) and
@@ -2294,6 +2796,24 @@ pub struct ResumeSessionConfig {
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     /// Re-supply BYOK provider configuration on resume.
     pub provider: Option<ProviderConfig>,
+    /// Re-supply provider-scoped CAPI session options on resume.
+    ///
+    /// Use this to opt out of the default WebSocket transport for CAPI
+    /// Responses API calls, equivalent to setting
+    /// `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`.
+    pub capi: Option<CapiSessionOptions>,
+    /// **Experimental.** This field is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Re-supply named BYOK provider connections on resume. Additive to
+    /// the default Copilot routing. Referenced by [`models`](Self::models).
+    pub providers: Option<Vec<NamedProviderConfig>>,
+    /// **Experimental.** This field is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Re-supply BYOK model definitions on resume, each referencing a
+    /// [`providers`](Self::providers) entry by name.
+    pub models: Option<Vec<ProviderModelConfig>>,
     /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
@@ -2304,6 +2824,8 @@ pub struct ResumeSessionConfig {
     pub enable_session_telemetry: Option<bool>,
     /// Per-property model capability overrides on resume.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Per-session configuration for the runtime memory feature on resume.
+    pub memory: Option<MemoryConfiguration>,
     /// Override the default configuration directory location on resume.
     pub config_directory: Option<PathBuf>,
     /// Per-session working directory on resume.
@@ -2320,6 +2842,12 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// ExP assignment ("flight") data injected on resume. See
+    /// [`SessionConfig::exp_assignments`]. Re-supply on resume so the runtime
+    /// re-applies the assignments after a CLI process restart. Set via
+    /// [`with_exp_assignments`](Self::with_exp_assignments).
+    #[doc(hidden)]
+    pub exp_assignments: Option<Value>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -2426,8 +2954,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("agent", &self.agent)
             .field("infinite_sessions", &self.infinite_sessions)
             .field("provider", &self.provider)
+            .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
+            .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field(
@@ -2440,6 +2970,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("exp_assignments", &self.exp_assignments)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -2521,6 +3052,8 @@ impl ResumeSessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+        let bearer_token_providers =
+            prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
@@ -2570,14 +3103,19 @@ impl ResumeSessionConfig {
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
             provider: self.provider,
+            capi: self.capi,
+            providers: self.providers,
+            models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
+            memory: self.memory,
             config_dir: self.config_directory,
             working_directory: self.working_directory,
             github_token: self.github_token,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             commands: wire_commands,
+            exp_assignments: self.exp_assignments,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
         };
@@ -2594,6 +3132,7 @@ impl ResumeSessionConfig {
             tool_handlers,
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
+            bearer_token_providers,
             commands: self.commands,
         };
 
@@ -2647,14 +3186,19 @@ impl ResumeSessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            capi: None,
+            providers: None,
+            models: None,
             enable_session_telemetry: None,
             model_capabilities: None,
+            memory: None,
             config_directory: None,
             working_directory: None,
             github_token: None,
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            exp_assignments: None,
             session_fs_provider: None,
             suppress_resume_event: None,
             continue_pending_work: None,
@@ -3042,6 +3586,32 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Re-supply provider-scoped CAPI session options on resume.
+    pub fn with_capi(mut self, capi: CapiSessionOptions) -> Self {
+        self.capi = Some(capi);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Re-supply the named BYOK provider connections on resume. Attach
+    /// models referencing these with [`Self::with_models`].
+    pub fn with_providers(mut self, providers: Vec<NamedProviderConfig>) -> Self {
+        self.providers = Some(providers);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental multi-provider
+    /// BYOK surface and may change or be removed in a future release.
+    ///
+    /// Re-supply the BYOK model definitions on resume, each referencing a
+    /// named provider supplied via [`Self::with_providers`].
+    pub fn with_models(mut self, models: Vec<ProviderModelConfig>) -> Self {
+        self.models = Some(models);
+        self
+    }
+
     /// Enable or disable internal session telemetry on resume.
     ///
     /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
@@ -3056,6 +3626,12 @@ impl ResumeSessionConfig {
         capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
     ) -> Self {
         self.model_capabilities = Some(capabilities);
+        self
+    }
+
+    /// Configure the runtime memory feature for the resumed session.
+    pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
+        self.memory = Some(memory);
         self
     }
 
@@ -3134,6 +3710,15 @@ impl ResumeSessionConfig {
         self.manage_schedule_enabled = Some(value);
         self
     }
+
+    /// Inject ExP assignment ("flight") data on resume. See
+    /// [`SessionConfig::with_exp_assignments`]. Re-supply the assignments on
+    /// resume so the runtime re-applies them after a CLI process restart.
+    #[doc(hidden)]
+    pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
+        self.exp_assignments = Some(assignments);
+        self
+    }
 }
 
 /// Controls how the system message is constructed.
@@ -3188,11 +3773,12 @@ impl SystemMessageConfig {
 ///
 /// Used within [`SystemMessageConfig::sections`] when `mode` is `"customize"`.
 /// The `action` field determines the operation: `"replace"`, `"remove"`,
-/// `"append"`, `"prepend"`, or `"transform"`.
+/// `"append"`, `"prepend"`, `"preserve"`, or `"transform"`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SectionOverride {
-    /// Override action: `"replace"`, `"remove"`, `"append"`, `"prepend"`, or `"transform"`.
+    /// Override action: `"replace"`, `"remove"`, `"append"`, `"prepend"`,
+    /// `"preserve"`, or `"transform"`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<String>,
     /// Content for the override operation.
@@ -4198,7 +4784,8 @@ impl InputFormat {
 /// [`crate::rpc`]; they live here so the crate-root
 /// `pub use types::*` surfaces them alongside hand-written SDK types.
 pub use crate::generated::api_types::{
-    Model, ModelBilling, ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
+    Model, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext,
+    ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
     PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
 };
@@ -4298,10 +4885,11 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
-        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, ProviderConfig,
-        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
+        CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
+        LargeToolOutputConfig, MemoryConfiguration, NamedProviderConfig, ProviderConfig,
+        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
@@ -4326,6 +4914,18 @@ mod tests {
         assert_eq!(tool.parameters.get("type").unwrap(), &json!("object"));
         assert!(tool.overrides_built_in_tool);
         assert!(tool.skip_permission);
+    }
+
+    #[test]
+    fn tool_defer_serialization() {
+        let tool = Tool::new("lookup").with_defer(super::DeferMode::Auto);
+        assert_eq!(tool.defer, Some(super::DeferMode::Auto));
+        let value = serde_json::to_value(&tool).unwrap();
+        assert_eq!(value.get("defer").unwrap(), &json!("auto"));
+
+        let plain = Tool::new("plain");
+        let value = serde_json::to_value(&plain).unwrap();
+        assert!(value.get("defer").is_none());
     }
 
     #[test]
@@ -4482,6 +5082,134 @@ mod tests {
     }
 
     #[test]
+    fn memory_configuration_constructors_and_serde() {
+        assert!(MemoryConfiguration::enabled().enabled);
+        assert!(!MemoryConfiguration::disabled().enabled);
+        assert!(MemoryConfiguration::disabled().with_enabled(true).enabled);
+
+        let json = serde_json::to_value(MemoryConfiguration::enabled()).unwrap();
+        assert_eq!(json, serde_json::json!({ "enabled": true }));
+    }
+
+    #[test]
+    fn session_config_with_memory_serializes() {
+        let (wire, _runtime) = SessionConfig::default()
+            .with_memory(MemoryConfiguration::enabled())
+            .into_wire(Some(SessionId::from("memory-on")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["memory"], serde_json::json!({ "enabled": true }));
+
+        let (wire_off, _) = SessionConfig::default()
+            .with_memory(MemoryConfiguration::disabled())
+            .into_wire(Some(SessionId::from("memory-off")))
+            .expect("no duplicate handlers");
+        let json_off = serde_json::to_value(&wire_off).unwrap();
+        assert_eq!(json_off["memory"], serde_json::json!({ "enabled": false }));
+
+        // Unset memory is omitted on the wire.
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("memory-unset")))
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("memory").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_with_memory_serializes() {
+        let (wire, _runtime) = ResumeSessionConfig::new(SessionId::from("resume-memory-on"))
+            .with_memory(MemoryConfiguration::enabled())
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["memory"], serde_json::json!({ "enabled": true }));
+
+        // Unset memory is omitted on the wire.
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-memory-unset"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("memory").is_none());
+    }
+
+    #[test]
+    fn session_config_with_exp_assignments_serializes() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-123",
+        });
+        let (wire, _runtime) = SessionConfig::default()
+            .with_exp_assignments(assignments.clone())
+            .into_wire(Some(SessionId::from("exp-on")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+
+        // Unset exp assignments are omitted on the wire.
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("exp-unset")))
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("expAssignments").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_with_exp_assignments_serializes() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-456",
+        });
+        let (wire, _runtime) = ResumeSessionConfig::new(SessionId::from("resume-exp-on"))
+            .with_exp_assignments(assignments.clone())
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+
+        // Unset exp assignments are omitted on the wire.
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-exp-unset"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("expAssignments").is_none());
+    }
+
+    #[test]
+    fn session_config_clone_preserves_exp_assignments() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-clone",
+        });
+        let config = SessionConfig::default().with_exp_assignments(assignments.clone());
+        let cloned = config.clone();
+
+        assert_eq!(cloned.exp_assignments.as_ref(), Some(&assignments));
+
+        let (wire, _runtime) = cloned
+            .into_wire(Some(SessionId::from("exp-clone")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+    }
+
+    #[test]
+    fn resume_session_config_clone_preserves_exp_assignments() {
+        let assignments = serde_json::json!({
+            "Parameters": { "copilot_exp_flag": "treatment" },
+            "AssignmentContext": "ctx-clone-resume",
+        });
+        let config = ResumeSessionConfig::new(SessionId::from("resume-exp-clone"))
+            .with_exp_assignments(assignments.clone());
+        let cloned = config.clone();
+
+        assert_eq!(cloned.exp_assignments.as_ref(), Some(&assignments));
+
+        let (wire, _runtime) = cloned.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["expAssignments"], assignments);
+    }
+
+    #[test]
     fn session_config_enable_experimental_mode_serializes_when_set() {
         let cfg = SessionConfig::default().with_enable_experimental_mode(false);
         assert_eq!(cfg.enable_experimental_mode, Some(false));
@@ -4590,6 +5318,80 @@ mod tests {
                 .is_none()
         );
         assert!(empty_json.get("cloud").is_none());
+    }
+
+    #[test]
+    fn session_config_into_wire_serializes_named_providers_and_models() {
+        let cfg = SessionConfig::default()
+            .with_providers(vec![
+                NamedProviderConfig::new("my-openai", "https://api.example.com/v1")
+                    .with_provider_type("openai")
+                    .with_wire_api("responses")
+                    .with_api_key("sk-test"),
+            ])
+            .with_models(vec![
+                ProviderModelConfig::new("gpt-x", "my-openai")
+                    .with_wire_model("gpt-x-2025")
+                    .with_max_output_tokens(2048),
+            ]);
+
+        let (wire, _) = cfg
+            .into_wire(Some(SessionId::from("sess-providers")))
+            .expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["providers"][0]["name"], "my-openai");
+        assert_eq!(
+            wire_json["providers"][0]["baseUrl"],
+            "https://api.example.com/v1"
+        );
+        assert_eq!(wire_json["providers"][0]["type"], "openai");
+        assert_eq!(wire_json["providers"][0]["wireApi"], "responses");
+        assert_eq!(wire_json["providers"][0]["apiKey"], "sk-test");
+        assert_eq!(wire_json["models"][0]["id"], "gpt-x");
+        assert_eq!(wire_json["models"][0]["provider"], "my-openai");
+        assert_eq!(wire_json["models"][0]["wireModel"], "gpt-x-2025");
+        assert_eq!(wire_json["models"][0]["maxOutputTokens"], 2048);
+
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("empty")))
+            .expect("default has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("providers").is_none());
+        assert!(empty_json.get("models").is_none());
+    }
+
+    #[test]
+    fn resume_config_into_wire_serializes_named_providers_and_models() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("sess-resume"))
+            .with_providers(vec![
+                NamedProviderConfig::new("my-azure", "https://example.openai.azure.com")
+                    .with_provider_type("azure")
+                    .with_azure(AzureProviderOptions {
+                        api_version: Some("2024-10-21".to_string()),
+                    }),
+            ])
+            .with_models(vec![
+                ProviderModelConfig::new("deploy-1", "my-azure").with_model_id("gpt-4o"),
+            ]);
+
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["providers"][0]["name"], "my-azure");
+        assert_eq!(wire_json["providers"][0]["type"], "azure");
+        assert_eq!(
+            wire_json["providers"][0]["azure"]["apiVersion"],
+            "2024-10-21"
+        );
+        assert_eq!(wire_json["models"][0]["id"], "deploy-1");
+        assert_eq!(wire_json["models"][0]["provider"], "my-azure");
+        assert_eq!(wire_json["models"][0]["modelId"], "gpt-4o");
+
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("empty"))
+            .into_wire()
+            .expect("default has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("providers").is_none());
+        assert!(empty_json.get("models").is_none());
     }
 
     #[test]
@@ -4717,6 +5519,7 @@ mod tests {
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
+            .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(false)
             .with_extension_info(ExtensionInfo::new("github-app", "counter"));
@@ -4753,6 +5556,10 @@ mod tests {
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(
+            cfg.capi,
+            Some(CapiSessionOptions::new().with_enable_web_socket_responses(false))
+        );
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
         assert_eq!(
@@ -4783,6 +5590,7 @@ mod tests {
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
+            .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
             .with_suppress_resume_event(true)
@@ -4819,6 +5627,10 @@ mod tests {
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(
+            cfg.capi,
+            Some(CapiSessionOptions::new().with_enable_web_socket_responses(false))
+        );
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
         assert_eq!(cfg.suppress_resume_event, Some(true));
@@ -4957,6 +5769,7 @@ mod tests {
         let cfg = ProviderConfig::new("https://api.example.com")
             .with_provider_type("openai")
             .with_wire_api("completions")
+            .with_transport("websockets")
             .with_api_key("sk-test")
             .with_bearer_token("bearer-test")
             .with_headers(headers)
@@ -4968,6 +5781,7 @@ mod tests {
         assert_eq!(cfg.base_url, "https://api.example.com");
         assert_eq!(cfg.provider_type.as_deref(), Some("openai"));
         assert_eq!(cfg.wire_api.as_deref(), Some("completions"));
+        assert_eq!(cfg.transport.as_deref(), Some("websockets"));
         assert_eq!(cfg.api_key.as_deref(), Some("sk-test"));
         assert_eq!(cfg.bearer_token.as_deref(), Some("bearer-test"));
         assert_eq!(
@@ -4995,6 +5809,61 @@ mod tests {
         assert!(wire_unset.get("wireModel").is_none());
         assert!(wire_unset.get("maxPromptTokens").is_none());
         assert!(wire_unset.get("maxOutputTokens").is_none());
+    }
+
+    #[test]
+    fn capi_session_options_builder_composes_and_serializes() {
+        let cfg = CapiSessionOptions::new().with_enable_web_socket_responses(false);
+
+        assert_eq!(cfg.enable_web_socket_responses, Some(false));
+
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(
+            wire,
+            serde_json::json!({ "enableWebSocketResponses": false })
+        );
+
+        let unset = CapiSessionOptions::new();
+        let wire_unset = serde_json::to_value(&unset).unwrap();
+        assert!(wire_unset.get("enableWebSocketResponses").is_none());
+    }
+
+    #[test]
+    fn session_config_with_capi_serializes() {
+        let (wire, _) = SessionConfig::default()
+            .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
+            .into_wire(Some(SessionId::from("capi-create")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["capi"],
+            serde_json::json!({ "enableWebSocketResponses": false })
+        );
+
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("capi-create-unset")))
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("capi").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_with_capi_serializes() {
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("capi-resume"))
+            .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["capi"],
+            serde_json::json!({ "enableWebSocketResponses": false })
+        );
+
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("capi-resume-unset"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("capi").is_none());
     }
 
     #[test]

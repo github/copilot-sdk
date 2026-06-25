@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,7 @@ public final class SessionAgentApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionAgentListResult> list() {
         return caller.invoke("session.agent.list", java.util.Map.of("sessionId", this.sessionId), SessionAgentListResult.class);
     }
@@ -45,6 +47,7 @@ public final class SessionAgentApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionAgentGetCurrentResult> getCurrent() {
         return caller.invoke("session.agent.getCurrent", java.util.Map.of("sessionId", this.sessionId), SessionAgentGetCurrentResult.class);
     }
@@ -58,6 +61,7 @@ public final class SessionAgentApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionAgentSelectResult> select(SessionAgentSelectParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -70,6 +74,7 @@ public final class SessionAgentApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> deselect() {
         return caller.invoke("session.agent.deselect", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
@@ -80,6 +85,7 @@ public final class SessionAgentApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionAgentReloadResult> reload() {
         return caller.invoke("session.agent.reload", java.util.Map.of("sessionId", this.sessionId), SessionAgentReloadResult.class);
     }

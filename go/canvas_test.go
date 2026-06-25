@@ -251,7 +251,7 @@ func TestCanvasRegisterClientSessionAPIHandlers_RawJSONRoundTrip(t *testing.T) {
 		_ = serverToClientReader.Close()
 	})
 
-	raw, err := requester.Request("canvas.open", map[string]any{
+	raw, err := requester.Request(t.Context(), "canvas.open", map[string]any{
 		"sessionId":   "s1",
 		"extensionId": "ext",
 		"canvasId":    "echo",
@@ -284,7 +284,7 @@ func TestCanvasRegisterClientSessionAPIHandlers_RawJSONRoundTrip(t *testing.T) {
 		t.Fatalf("expected status=ready, got %v", decoded["status"])
 	}
 
-	actionRaw, err := requester.Request("canvas.action.invoke", map[string]any{
+	actionRaw, err := requester.Request(t.Context(), "canvas.action.invoke", map[string]any{
 		"sessionId":   "s1",
 		"extensionId": "ext",
 		"canvasId":    "echo",
@@ -310,11 +310,9 @@ func TestCanvasResumeSessionResponse_OpenCanvasesParse(t *testing.T) {
 		"workspacePath": "/tmp/ws",
 		"openCanvases": [
 			{
-				"availability": "ready",
 				"canvasId": "echo",
 				"extensionId": "project:echo",
-				"instanceId": "echo-1",
-				"reopen": false
+				"instanceId": "echo-1"
 			}
 		]
 	}`)
@@ -343,11 +341,9 @@ func TestCanvasResumeSessionRequest_OpenCanvasesWireShape(t *testing.T) {
 		SessionID: "s1",
 		OpenCanvases: []rpc.OpenCanvasInstance{
 			{
-				Availability: "ready",
-				CanvasID:     "echo",
-				ExtensionID:  "project:echo",
-				InstanceID:   "echo-1",
-				Reopen:       false,
+				CanvasID:    "echo",
+				ExtensionID: "project:echo",
+				InstanceID:  "echo-1",
 			},
 		},
 	}

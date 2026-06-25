@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -38,6 +39,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksStartAgentResult> startAgent(SessionTasksStartAgentParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -50,6 +52,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksListResult> list() {
         return caller.invoke("session.tasks.list", java.util.Map.of("sessionId", this.sessionId), SessionTasksListResult.class);
     }
@@ -60,6 +63,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> refresh() {
         return caller.invoke("session.tasks.refresh", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
@@ -70,6 +74,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> waitForPending() {
         return caller.invoke("session.tasks.waitForPending", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
@@ -83,6 +88,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksGetProgressResult> getProgress(SessionTasksGetProgressParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -95,6 +101,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksGetCurrentPromotableResult> getCurrentPromotable() {
         return caller.invoke("session.tasks.getCurrentPromotable", java.util.Map.of("sessionId", this.sessionId), SessionTasksGetCurrentPromotableResult.class);
     }
@@ -108,6 +115,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksPromoteToBackgroundResult> promoteToBackground(SessionTasksPromoteToBackgroundParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -120,6 +128,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksPromoteCurrentToBackgroundResult> promoteCurrentToBackground() {
         return caller.invoke("session.tasks.promoteCurrentToBackground", java.util.Map.of("sessionId", this.sessionId), SessionTasksPromoteCurrentToBackgroundResult.class);
     }
@@ -133,6 +142,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksCancelResult> cancel(SessionTasksCancelParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -148,6 +158,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksRemoveResult> remove(SessionTasksRemoveParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
@@ -163,6 +174,7 @@ public final class SessionTasksApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SessionTasksSendMessageResult> sendMessage(SessionTasksSendMessageParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);

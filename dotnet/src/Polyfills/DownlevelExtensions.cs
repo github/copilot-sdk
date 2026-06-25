@@ -376,6 +376,25 @@ namespace System.IO
                     totalRead += bytesRead;
                 }
             }
+
+            public void Write(ReadOnlySpan<byte> buffer)
+            {
+                if (buffer.IsEmpty)
+                {
+                    return;
+                }
+
+                var rented = ArrayPool<byte>.Shared.Rent(buffer.Length);
+                try
+                {
+                    buffer.CopyTo(rented);
+                    stream.Write(rented, 0, buffer.Length);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rented);
+                }
+            }
         }
 
         private static async ValueTask<int> ReadAsyncSlow(Stream stream, Memory<byte> buffer, Threading.CancellationToken cancellationToken)
@@ -642,6 +661,128 @@ namespace System.Threading.Tasks
             {
                 await ((Task)task).WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
                 return await task.ConfigureAwait(false);
+            }
+        }
+    }
+}
+
+namespace System.Text
+{
+    internal static class DownlevelEncodingExtensions
+    {
+        extension(Encoding encoding)
+        {
+            public string GetString(ReadOnlySpan<byte> bytes)
+            {
+                if (bytes.IsEmpty)
+                {
+                    return string.Empty;
+                }
+
+                var rented = ArrayPool<byte>.Shared.Rent(bytes.Length);
+                try
+                {
+                    bytes.CopyTo(rented);
+                    return encoding.GetString(rented, 0, bytes.Length);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rented);
+                }
+            }
+        }
+    }
+}
+
+namespace System.Net.Http
+{
+    internal static class DownlevelHttpContentExtensions
+    {
+        extension(HttpContent content)
+        {
+            public Task<IO.Stream> ReadAsStreamAsync(Threading.CancellationToken cancellationToken)
+            {
+                // The underlying netstandard2.0 ReadAsStreamAsync() can't be cancelled,
+                // but honour an already-cancelled token to match the BCL overload.
+                cancellationToken.ThrowIfCancellationRequested();
+                return content.ReadAsStreamAsync();
+            }
+        }
+    }
+}
+
+namespace System.Net.WebSockets
+{
+    /// <summary>
+    /// Polyfill for the <c>System.Net.WebSockets.ValueWebSocketReceiveResult</c>
+    /// struct, which is unavailable on .NET Standard 2.0.
+    /// </summary>
+    internal readonly struct ValueWebSocketReceiveResult
+    {
+        public ValueWebSocketReceiveResult(int count, WebSocketMessageType messageType, bool endOfMessage)
+        {
+            Count = count;
+            MessageType = messageType;
+            EndOfMessage = endOfMessage;
+        }
+
+        public int Count { get; }
+
+        public WebSocketMessageType MessageType { get; }
+
+        public bool EndOfMessage { get; }
+    }
+
+    internal static class DownlevelWebSocketExtensions
+    {
+        extension(WebSocket socket)
+        {
+            public ValueTask SendAsync(ReadOnlyMemory<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, Threading.CancellationToken cancellationToken)
+            {
+                if (Runtime.InteropServices.MemoryMarshal.TryGetArray(buffer, out ArraySegment<byte> segment))
+                {
+                    return new ValueTask(socket.SendAsync(segment, messageType, endOfMessage, cancellationToken));
+                }
+
+                return SendAsyncSlow(socket, buffer, messageType, endOfMessage, cancellationToken);
+            }
+
+            public ValueTask<ValueWebSocketReceiveResult> ReceiveAsync(Memory<byte> buffer, Threading.CancellationToken cancellationToken) =>
+                ReceiveAsyncCore(socket, buffer, cancellationToken);
+        }
+
+        private static async ValueTask SendAsyncSlow(WebSocket socket, ReadOnlyMemory<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, Threading.CancellationToken cancellationToken)
+        {
+            var rented = ArrayPool<byte>.Shared.Rent(buffer.Length);
+            try
+            {
+                buffer.CopyTo(rented);
+                await socket.SendAsync(new ArraySegment<byte>(rented, 0, buffer.Length), messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+
+        private static async ValueTask<ValueWebSocketReceiveResult> ReceiveAsyncCore(WebSocket socket, Memory<byte> buffer, Threading.CancellationToken cancellationToken)
+        {
+            if (Runtime.InteropServices.MemoryMarshal.TryGetArray(buffer, out ArraySegment<byte> segment))
+            {
+                var result = await socket.ReceiveAsync(segment, cancellationToken).ConfigureAwait(false);
+                return new ValueWebSocketReceiveResult(result.Count, result.MessageType, result.EndOfMessage);
+            }
+
+            var rented = ArrayPool<byte>.Shared.Rent(buffer.Length);
+            try
+            {
+                var result = await socket.ReceiveAsync(new ArraySegment<byte>(rented, 0, buffer.Length), cancellationToken).ConfigureAwait(false);
+                new ReadOnlyMemory<byte>(rented, 0, result.Count).CopyTo(buffer);
+                return new ValueWebSocketReceiveResult(result.Count, result.MessageType, result.EndOfMessage);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
             }
         }
     }

@@ -77,6 +77,8 @@ type Session struct {
 	elicitationMu         sync.RWMutex
 	canvasHandler         CanvasHandler
 	canvasMu              sync.RWMutex
+	bearerTokenProviders  map[string]BearerTokenProvider
+	bearerTokenMu         sync.RWMutex
 	openCanvases          []rpc.OpenCanvasInstance
 	openCanvasesMu        sync.RWMutex
 	capabilities          SessionCapabilities
@@ -100,7 +102,8 @@ func (s *Session) WorkspacePath() string {
 
 // OpenCanvases returns the open-canvas snapshot last reported by the runtime.
 // The snapshot is populated from session.resume and live session.canvas.opened
-// events. The returned slice is a copy and is safe to mutate by the caller.
+// and session.canvas.closed events. The returned slice is a copy and is safe to
+// mutate by the caller.
 func (s *Session) OpenCanvases() []rpc.OpenCanvasInstance {
 	s.openCanvasesMu.RLock()
 	defer s.openCanvasesMu.RUnlock()
@@ -130,27 +133,42 @@ func (s *Session) upsertOpenCanvas(canvas rpc.OpenCanvasInstance) {
 	s.openCanvases = append(s.openCanvases, canvas)
 }
 
+func (s *Session) removeOpenCanvas(instanceID string) {
+	s.openCanvasesMu.Lock()
+	defer s.openCanvasesMu.Unlock()
+	filtered := make([]rpc.OpenCanvasInstance, 0, len(s.openCanvases))
+	for _, canvas := range s.openCanvases {
+		if canvas.InstanceID != instanceID {
+			filtered = append(filtered, canvas)
+		}
+	}
+	s.openCanvases = filtered
+}
+
 func (s *Session) updateOpenCanvasesFromEvent(event SessionEvent) {
-	data, ok := event.Data.(*SessionCanvasOpenedData)
-	if !ok {
-		return
+	switch data := event.Data.(type) {
+	case *SessionCanvasOpenedData:
+		if data.InstanceID == "" || data.CanvasID == "" || data.ExtensionID == "" {
+			fmt.Printf("failed to deserialize session.canvas.opened payload\n")
+			return
+		}
+		s.upsertOpenCanvas(rpc.OpenCanvasInstance{
+			CanvasID:      data.CanvasID,
+			ExtensionID:   data.ExtensionID,
+			ExtensionName: data.ExtensionName,
+			Input:         data.Input,
+			InstanceID:    data.InstanceID,
+			Status:        data.Status,
+			Title:         data.Title,
+			URL:           data.URL,
+		})
+	case *SessionCanvasClosedData:
+		if data.InstanceID == "" {
+			fmt.Printf("failed to deserialize session.canvas.closed payload\n")
+			return
+		}
+		s.removeOpenCanvas(data.InstanceID)
 	}
-	if data.InstanceID == "" || data.CanvasID == "" || data.ExtensionID == "" || data.Availability == "" {
-		fmt.Printf("failed to deserialize session.canvas.opened payload\n")
-		return
-	}
-	s.upsertOpenCanvas(rpc.OpenCanvasInstance{
-		Availability:  rpc.CanvasInstanceAvailability(data.Availability),
-		CanvasID:      data.CanvasID,
-		ExtensionID:   data.ExtensionID,
-		ExtensionName: data.ExtensionName,
-		Input:         data.Input,
-		InstanceID:    data.InstanceID,
-		Reopen:        data.Reopen,
-		Status:        data.Status,
-		Title:         data.Title,
-		URL:           data.URL,
-	})
 }
 
 func (s *Session) registerCanvasHandler(handler CanvasHandler) {
@@ -163,6 +181,66 @@ func (s *Session) getCanvasHandler() CanvasHandler {
 	s.canvasMu.RLock()
 	defer s.canvasMu.RUnlock()
 	return s.canvasHandler
+}
+
+// registerBearerTokenProviders installs per-provider [BearerTokenProvider] callbacks
+// for BYOK providers configured with managed-identity / on-demand bearer-token
+// auth, keyed by provider name.
+//
+// The runtime never receives the callback itself; the SDK strips it from the
+// provider config and instead sends `hasBearerTokenProvider: true`. When the
+// runtime needs a token it issues a session-scoped `providerToken.getToken`
+// request, which the session's provider-token adapter routes to the matching
+// per-provider callback.
+func (s *Session) registerBearerTokenProviders(providers map[string]BearerTokenProvider) {
+	s.bearerTokenMu.Lock()
+	defer s.bearerTokenMu.Unlock()
+	s.bearerTokenProviders = make(map[string]BearerTokenProvider, len(providers))
+	for name, callback := range providers {
+		if callback == nil {
+			continue
+		}
+		s.bearerTokenProviders[name] = callback
+	}
+}
+
+func (s *Session) getBearerTokenProvider(providerName string) BearerTokenProvider {
+	s.bearerTokenMu.RLock()
+	defer s.bearerTokenMu.RUnlock()
+	return s.bearerTokenProviders[providerName]
+}
+
+type providerTokenClientSessionAdapter struct {
+	session *Session
+}
+
+func newProviderTokenClientSessionAdapter(session *Session) rpc.ProviderTokenHandler {
+	return &providerTokenClientSessionAdapter{session: session}
+}
+
+func (a *providerTokenClientSessionAdapter) GetToken(request *rpc.ProviderTokenAcquireRequest) (*rpc.ProviderTokenAcquireResult, error) {
+	if request == nil {
+		return nil, providerTokenJSONRPCError("missing provider token request")
+	}
+	if a.session == nil || a.session.SessionID != request.SessionID {
+		return nil, providerTokenJSONRPCError(fmt.Sprintf("unknown session %s", request.SessionID))
+	}
+	callback := a.session.getBearerTokenProvider(request.ProviderName)
+	if callback == nil {
+		return nil, providerTokenJSONRPCError(fmt.Sprintf("No bearer-token provider registered for provider %q", request.ProviderName))
+	}
+	token, err := callback(ProviderTokenArgs{ProviderName: request.ProviderName, SessionID: request.SessionID})
+	if err != nil {
+		return nil, providerTokenJSONRPCError(err.Error())
+	}
+	return &rpc.ProviderTokenAcquireResult{Token: token}, nil
+}
+
+func providerTokenJSONRPCError(message string) *jsonrpc2.Error {
+	return &jsonrpc2.Error{
+		Code:    -32603,
+		Message: message,
+	}
 }
 
 type canvasClientSessionAdapter struct {
@@ -291,6 +369,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		RPC:               rpc.NewSessionRPC(client, sessionID),
 	}
 	s.clientSessionAPIs.Canvas = newCanvasClientSessionAdapter(s)
+	s.clientSessionAPIs.ProviderToken = newProviderTokenClientSessionAdapter(s)
 	go s.processEvents()
 	return s
 }
@@ -331,7 +410,7 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 		RequestHeaders: options.RequestHeaders,
 	}
 
-	result, err := s.client.Request("session.send", req)
+	result, err := s.client.Request(ctx, "session.send", req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send message: %w", err)
 	}
@@ -426,7 +505,7 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 		return result, nil
 	case err := <-errCh:
 		return nil, err
-	case <-ctx.Done(): // TODO: remove once session.Send honors the context
+	case <-ctx.Done():
 		return nil, fmt.Errorf("waiting for session.idle: %w", ctx.Err())
 	}
 }
@@ -1444,7 +1523,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 //	}
 func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 
-	result, err := s.client.Request("session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
+	result, err := s.client.Request(ctx, "session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get events: %w", err)
 	}
@@ -1479,7 +1558,7 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
-	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
+	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
@@ -1532,7 +1611,7 @@ func (s *Session) Disconnect() error {
 //	    log.Printf("Failed to abort: %v", err)
 //	}
 func (s *Session) Abort(ctx context.Context) error {
-	_, err := s.client.Request("session.abort", sessionAbortRequest{SessionID: s.SessionID})
+	_, err := s.client.Request(ctx, "session.abort", sessionAbortRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to abort session: %w", err)
 	}

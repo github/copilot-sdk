@@ -92,16 +92,8 @@ describe("Server-scoped RPC", async () => {
         return directory;
     }
 
-    async function saveAndGetEventFilePath(
-        targetClient: CopilotClient,
-        sessionId: string
-    ): Promise<string> {
+    async function saveSession(targetClient: CopilotClient, sessionId: string): Promise<void> {
         await expect(targetClient.rpc.sessions.save({ sessionId })).resolves.toBeDefined();
-        const pathResult = await targetClient.rpc.sessions.getEventFilePath({ sessionId });
-        expect(pathResult.filePath.trim()).toBeTruthy();
-        expect(path.isAbsolute(pathResult.filePath)).toBe(true);
-        expect(path.basename(pathResult.filePath)).toBe("events.jsonl");
-        return pathResult.filePath;
     }
 
     it("should call rpc ping with typed params and result", async () => {
@@ -199,8 +191,7 @@ describe("Server-scoped RPC", async () => {
         });
         try {
             await session.log("SERVER_RPC_LIST_READY");
-            const eventFilePath = await saveAndGetEventFilePath(client, sessionId);
-            expect(eventFilePath.toLowerCase()).toContain(sessionId.toLowerCase());
+            await saveSession(client, sessionId);
 
             await client.rpc.sessions.close({ sessionId });
             closed = true;
@@ -242,11 +233,6 @@ describe("Server-scoped RPC", async () => {
                 sessionIds: [sessionId, missingSessionId],
             });
             expect(inUse.inUse).not.toContain(missingSessionId);
-
-            const remoteSteerable = await client.rpc.sessions.getPersistedRemoteSteerable({
-                sessionId,
-            });
-            expect(remoteSteerable.remoteSteerable).toBeUndefined();
         } finally {
             if (closed) {
                 await client.rpc.sessions.bulkDelete({ sessionIds: [sessionId] });
@@ -265,7 +251,7 @@ describe("Server-scoped RPC", async () => {
             onPermissionRequest: () => ({ kind: "approve-once" }),
         });
         try {
-            await saveAndGetEventFilePath(client, sessionId);
+            await saveSession(client, sessionId);
 
             const now = new Date().toISOString();
             const result = await client.rpc.sessions.enrichMetadata({
@@ -300,7 +286,7 @@ describe("Server-scoped RPC", async () => {
         });
 
         await session.log("SERVER_RPC_CLOSE_READY");
-        await saveAndGetEventFilePath(client, sessionId);
+        await saveSession(client, sessionId);
 
         await expect(client.rpc.sessions.close({ sessionId })).resolves.toBeDefined();
         await expect(client.rpc.sessions.releaseLock({ sessionId })).resolves.toBeDefined();
@@ -320,7 +306,7 @@ describe("Server-scoped RPC", async () => {
             onPermissionRequest: () => ({ kind: "approve-once" }),
         });
 
-        await saveAndGetEventFilePath(client, sessionId);
+        await saveSession(client, sessionId);
         await client.rpc.sessions.close({ sessionId });
 
         const prune = await client.rpc.sessions.pruneOld({

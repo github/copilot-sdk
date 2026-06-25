@@ -57,10 +57,25 @@ class TestAbort:
             types = [e.type.value for e in events]
             assert "assistant.message_delta" in types
 
-            # Session should be in a usable state after abort
-            follow_up = await session.send_and_wait("Say 'abort_recovery_ok'.", timeout=60.0)
-            assert follow_up is not None
-            assert "abort_recovery_ok" in (follow_up.data.content or "").lower()
+            # Session should be usable after abort. Wait for the specific recovery
+            # message rather than racing against a late idle from the aborted turn.
+            recovery_received: asyncio.Future = asyncio.get_event_loop().create_future()
+
+            def check_recovery(event):
+                if (
+                    event.type.value == "assistant.message"
+                    and "abort_recovery_ok" in (event.data.content or "").lower()
+                    and not recovery_received.done()
+                ):
+                    recovery_received.set_result(event)
+
+            unsubscribe_recovery = session.on(check_recovery)
+            try:
+                await session.send("Say 'abort_recovery_ok'.")
+                recovery_message = await asyncio.wait_for(recovery_received, timeout=60.0)
+                assert "abort_recovery_ok" in (recovery_message.data.content or "").lower()
+            finally:
+                unsubscribe_recovery()
         finally:
             unsubscribe()
             await session.disconnect()

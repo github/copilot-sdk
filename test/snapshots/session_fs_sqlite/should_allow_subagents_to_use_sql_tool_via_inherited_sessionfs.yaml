@@ -81,7 +81,9 @@ conversations:
                 for the SQL operation (e.g., \\\"Insert test todo\\\").\",\"mode\":\"sync\"}"
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
       - role: tool
         tool_call_id: toolcall_1
         content: >-
@@ -94,5 +96,5 @@ conversations:
 
           - Status: `done`
       - role: assistant
-        content: Perfect! The task agent successfully ran the SQL insert query. The todo record with ID `subagent-test`, title
-          `Created by subagent`, and status `done` has been inserted into the todos table.
+        content: Done! The task agent successfully ran the SQL insert query. The todo with id 'subagent-test', title 'Created by
+          subagent', and status 'done' has been inserted into the database.

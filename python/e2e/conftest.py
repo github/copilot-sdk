@@ -1,5 +1,7 @@
 """Shared pytest fixtures for e2e tests."""
 
+import os
+
 import pytest
 import pytest_asyncio
 
@@ -24,7 +26,8 @@ async def ctx(request):
     await context.setup()
     yield context
     any_failed = request.session.stash.get("any_test_failed", False)
-    await context.teardown(test_failed=any_failed)
+    skip_writing_cache = any_failed or bool(os.environ.get("GITHUB_ACTIONS"))
+    await context.teardown(test_failed=skip_writing_cache)
 
 
 @pytest_asyncio.fixture(autouse=True, loop_scope="module")

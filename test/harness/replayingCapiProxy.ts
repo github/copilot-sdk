@@ -56,6 +56,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
     { toolName: "${shell}", normalizer: normalizeShellExitMarkers },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
+    { toolName: "*", normalizer: normalizeAvailableToolNames },
     { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
   ];
 
@@ -240,6 +241,53 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
 
+        // Handle /copilot_internal/user endpoint for per-session auth.
+        // This must run before the state guard below: the CLI authenticates and
+        // calls /copilot_internal/user at startup, which can race ahead of the
+        // per-test POST /config (e.g. the Go harness spawns the CLI before the
+        // first ConfigureForTest). The response only depends on the token map,
+        // which is populated independently of `state`.
+        if (options.requestOptions.path === "/copilot_internal/user") {
+          const headers = options.requestOptions.headers;
+          const headerMap = headers as
+            | Record<string, string | string[] | number | undefined>
+            | undefined;
+          const rawAuthHeader = Array.isArray(headers)
+            ? undefined
+            : (headerMap?.authorization ?? headerMap?.Authorization);
+          const authHeader = Array.isArray(rawAuthHeader)
+            ? rawAuthHeader[0]
+            : typeof rawAuthHeader === "string"
+              ? rawAuthHeader
+              : undefined;
+          const token = authHeader?.replace("Bearer ", "");
+          const registered = token
+            ? this.copilotUserByToken.get(token)
+            : undefined;
+          // The CLI gates third-party MCP servers behind the copilot user's
+          // `is_mcp_enabled` flag (a null/missing value disables them). Default
+          // it to true so e2e MCP servers are enabled unless a test opts out.
+          const userResponse = registered
+            ? ({ is_mcp_enabled: true, ...registered } as CopilotUserResponse)
+            : undefined;
+          if (userResponse) {
+            const headers = {
+              "content-type": "application/json",
+              ...commonResponseHeaders,
+            };
+            options.onResponseStart(200, headers);
+            options.onData(Buffer.from(JSON.stringify(userResponse)));
+            options.onResponseEnd();
+          } else {
+            options.onResponseStart(401, commonResponseHeaders);
+            options.onData(
+              Buffer.from(JSON.stringify({ message: "Bad credentials" })),
+            );
+            options.onResponseEnd();
+          }
+          return;
+        }
+
         const state = this.state;
         if (!state) {
           throw new Error(
@@ -264,42 +312,6 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.onResponseStart(200, headers);
           options.onData(Buffer.from(body));
           options.onResponseEnd();
-          return;
-        }
-
-        // Handle /copilot_internal/user endpoint for per-session auth
-        if (options.requestOptions.path === "/copilot_internal/user") {
-          const headers = options.requestOptions.headers;
-          const headerMap = headers as
-            | Record<string, string | string[] | number | undefined>
-            | undefined;
-          const rawAuthHeader = Array.isArray(headers)
-            ? undefined
-            : (headerMap?.authorization ?? headerMap?.Authorization);
-          const authHeader = Array.isArray(rawAuthHeader)
-            ? rawAuthHeader[0]
-            : typeof rawAuthHeader === "string"
-              ? rawAuthHeader
-              : undefined;
-          const token = authHeader?.replace("Bearer ", "");
-          const userResponse = token
-            ? this.copilotUserByToken.get(token)
-            : undefined;
-          if (userResponse) {
-            const headers = {
-              "content-type": "application/json",
-              ...commonResponseHeaders,
-            };
-            options.onResponseStart(200, headers);
-            options.onData(Buffer.from(JSON.stringify(userResponse)));
-            options.onResponseEnd();
-          } else {
-            options.onResponseStart(401, commonResponseHeaders);
-            options.onData(
-              Buffer.from(JSON.stringify({ message: "Bad credentials" })),
-            );
-            options.onResponseEnd();
-          }
           return;
         }
 
@@ -1157,6 +1169,44 @@ function normalizeReadAgentTimings(result: string): string {
     .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
 }
 
+// Maps the platform-specific shell tool family names to stable placeholders.
+// On Windows the runtime exposes powershell/read_powershell/stop_powershell/...,
+// on Linux/macOS it exposes bash/read_bash/stop_bash/.... Ordered so that the
+// prefixed names are handled explicitly; \b boundaries keep bare names from
+// matching inside the prefixed ones.
+const shellToolFamilyReplacements: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\bread_powershell\b/g, "${read_shell}"],
+  [/\bstop_powershell\b/g, "${stop_shell}"],
+  [/\blist_powershell\b/g, "${list_shell}"],
+  [/\bwrite_powershell\b/g, "${write_shell}"],
+  [/\bpowershell\b/g, "${shell}"],
+  [/\bread_bash\b/g, "${read_shell}"],
+  [/\bstop_bash\b/g, "${stop_shell}"],
+  [/\blist_bash\b/g, "${list_shell}"],
+  [/\bwrite_bash\b/g, "${write_shell}"],
+  [/\bbash\b/g, "${shell}"],
+];
+
+function normalizeShellToolFamilyNames(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of shellToolFamilyReplacements) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
+// When a model calls a tool that doesn't exist (e.g., the removed report_intent
+// tool), the runtime replies with "Available tools that can be called are <list>."
+// The shell tool family names in that list are platform-specific, so normalize
+// them to placeholders to keep snapshots matching across Windows/Linux/macOS.
+function normalizeAvailableToolNames(result: string): string {
+  return result.replace(
+    /(Available tools that can be called are )([^.]*)/g,
+    (_full, prefix: string, list: string) =>
+      prefix + normalizeShellToolFamilyNames(list),
+  );
+}
+
 // Transforms a single OpenAI-style inbound response message into normalized form
 function transformOpenAIResponseChoice(
   choices: ChatCompletion.Choice[],
@@ -1465,6 +1515,7 @@ export type ToolResultNormalizer = {
 export type CopilotUserResponse = {
   login: string;
   copilot_plan?: string;
+  is_mcp_enabled?: boolean;
   endpoints?: {
     api?: string;
     telemetry?: string;
