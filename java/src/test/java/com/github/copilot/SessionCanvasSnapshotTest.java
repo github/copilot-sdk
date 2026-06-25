@@ -117,8 +117,8 @@ public class SessionCanvasSnapshotTest {
         session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
 
         var canvases = session.getOpenCanvases();
-        assertThrows(UnsupportedOperationException.class, () -> canvases.add(new OpenCanvasInstance("x", "ext", null,
-                "c", null, null, null, null)));
+        assertThrows(UnsupportedOperationException.class,
+                () -> canvases.add(new OpenCanvasInstance("x", "ext", null, "c", null, null, null, null)));
 
         // The returned list is a point-in-time snapshot, not a live view: a
         // subsequent event must not change the previously-returned list.
