@@ -2230,7 +2230,7 @@ export interface ProviderTokenArgs {
      * The callback closes over its own token scope/audience; the runtime is
      * provider-agnostic and forwards only the provider name.
      */
-    providerName: string;
+    readonly providerName: string;
 
     /**
      * Id of the session that triggered this token request. A client-level shared
@@ -2238,7 +2238,7 @@ export interface ProviderTokenArgs {
      * session (e.g. via the client's session lookup) to scope token acquisition
      * or caching per session.
      */
-    sessionId: string;
+    readonly sessionId: string;
 }
 
 /**
