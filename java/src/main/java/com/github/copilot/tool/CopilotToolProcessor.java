@@ -49,7 +49,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        for (Element element : roundEnv.getElementsAnnotatedWith(CopilotTool.class)) {
+        List<Element> annotatedElements = getCopilotToolAnnotatedElements(roundEnv);
+        for (Element element : annotatedElements) {
             if (element.getKind() != ElementKind.METHOD) {
                 continue;
             }
@@ -75,7 +76,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
         // Group methods by enclosing type
         Map<TypeElement, List<ExecutableElement>> methodsByClass = new LinkedHashMap<>();
-        for (Element element : roundEnv.getElementsAnnotatedWith(CopilotTool.class)) {
+        for (Element element : annotatedElements) {
             if (element.getKind() != ElementKind.METHOD) {
                 continue;
             }
@@ -93,6 +94,15 @@ public class CopilotToolProcessor extends AbstractProcessor {
         }
 
         return false;
+    }
+
+    private List<Element> getCopilotToolAnnotatedElements(RoundEnvironment roundEnv) {
+        TypeElement copilotToolType = processingEnv.getElementUtils()
+                .getTypeElement("com.github.copilot.tool.CopilotTool");
+        if (copilotToolType != null) {
+            return new ArrayList<>(roundEnv.getElementsAnnotatedWith(copilotToolType));
+        }
+        return new ArrayList<>(roundEnv.getElementsAnnotatedWith(CopilotTool.class));
     }
 
     private void generateMetaClass(TypeElement classElement, List<ExecutableElement> methods) {

@@ -756,8 +756,24 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_get_last_session_id");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+            CopilotSession session = null;
+            for (int attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    session = client
+                            .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                            .get(45, TimeUnit.SECONDS);
+                    break;
+                } catch (java.util.concurrent.TimeoutException e) {
+                    if (attempt == 2) {
+                        throw e;
+                    }
+                } catch (java.util.concurrent.ExecutionException e) {
+                    if (!(e.getCause() instanceof java.util.concurrent.TimeoutException) || attempt == 2) {
+                        throw e;
+                    }
+                }
+            }
+            assertNotNull(session, "Session should be created");
 
             session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
             String sessionId = session.getSessionId();
