@@ -81,6 +81,7 @@ from .generated.session_events import (
 )
 from .session import (
     AutoModeSwitchHandler,
+    BearerTokenProvider,
     CommandDefinition,
     ContextTier,
     CopilotSession,
@@ -89,7 +90,6 @@ from .session import (
     DefaultAgentConfig,
     ElicitationHandler,
     ExitPlanModeHandler,
-    GetBearerToken,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MCPServerConfig,
@@ -180,8 +180,8 @@ _DEFAULT_BEARER_TOKEN_PROVIDER_NAME = "default"
 def _collect_bearer_token_callbacks(
     provider: ProviderConfig | None,
     providers: list[NamedProviderConfig] | None,
-) -> dict[str, GetBearerToken]:
-    """Collect per-provider ``get_bearer_token`` callbacks keyed by provider name.
+) -> dict[str, BearerTokenProvider]:
+    """Collect per-provider ``bearer_token_provider`` callbacks keyed by provider name.
 
     The singular, whole-session ``provider`` uses the implicit
     ``_DEFAULT_BEARER_TOKEN_PROVIDER_NAME``; ``providers`` entries use their own
@@ -189,14 +189,14 @@ def _collect_bearer_token_callbacks(
     ``hasBearerTokenProvider: true`` instead and the runtime calls back over
     ``providerToken.getToken``.
     """
-    callbacks: dict[str, GetBearerToken] = {}
+    callbacks: dict[str, BearerTokenProvider] = {}
     if provider is not None:
-        singular = provider.get("get_bearer_token")
+        singular = provider.get("bearer_token_provider")
         if singular is not None:
             callbacks[_DEFAULT_BEARER_TOKEN_PROVIDER_NAME] = singular
     if providers:
         for named in providers:
-            callback = named.get("get_bearer_token")
+            callback = named.get("bearer_token_provider")
             if callback is not None:
                 callbacks[named["name"]] = callback
     return callbacks
@@ -3266,7 +3266,7 @@ class CopilotClient:
             wire_provider["transport"] = provider["transport"]
         if "bearer_token" in provider:
             wire_provider["bearerToken"] = provider["bearer_token"]
-        if provider.get("get_bearer_token") is not None:
+        if provider.get("bearer_token_provider") is not None:
             wire_provider["hasBearerTokenProvider"] = True
         if "headers" in provider:
             wire_provider["headers"] = provider["headers"]
@@ -3304,7 +3304,7 @@ class CopilotClient:
             wire["apiKey"] = provider["api_key"]
         if "bearer_token" in provider:
             wire["bearerToken"] = provider["bearer_token"]
-        if provider.get("get_bearer_token") is not None:
+        if provider.get("bearer_token_provider") is not None:
             wire["hasBearerTokenProvider"] = True
         if "headers" in provider:
             wire["headers"] = provider["headers"]

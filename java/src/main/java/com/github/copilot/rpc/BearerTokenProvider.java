@@ -20,13 +20,13 @@ import com.github.copilot.CopilotExperimental;
  * <strong>Experimental.</strong> This managed-identity surface may change or be
  * removed in future SDK or CLI releases.
  *
- * @see ProviderConfig#setGetBearerToken(GetBearerToken)
- * @see NamedProviderConfig#setGetBearerToken(GetBearerToken)
+ * @see ProviderConfig#setBearerTokenProvider(BearerTokenProvider)
+ * @see NamedProviderConfig#setBearerTokenProvider(BearerTokenProvider)
  * @since 1.0.0
  */
 @CopilotExperimental
 @FunctionalInterface
-public interface GetBearerToken {
+public interface BearerTokenProvider {
 
     /**
      * Gets a bearer token for the provider identified by {@code args}.

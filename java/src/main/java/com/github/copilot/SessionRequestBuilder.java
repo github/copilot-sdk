@@ -13,7 +13,7 @@ import java.util.function.Function;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.NamedProviderConfig;
-import com.github.copilot.rpc.GetBearerToken;
+import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.CommandWireDefinition;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.ResumeSessionRequest;
@@ -335,7 +335,7 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             session.registerElicitationHandler(config.getOnElicitationRequest());
         }
-        Map<String, GetBearerToken> bearerTokenProviders = collectBearerTokenProviders(config.getProvider(),
+        Map<String, BearerTokenProvider> bearerTokenProviders = collectBearerTokenProviders(config.getProvider(),
                 config.getProviders());
         if (!bearerTokenProviders.isEmpty()) {
             session.registerBearerTokenProviders(bearerTokenProviders);
@@ -382,7 +382,7 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             session.registerElicitationHandler(config.getOnElicitationRequest());
         }
-        Map<String, GetBearerToken> bearerTokenProviders = collectBearerTokenProviders(config.getProvider(),
+        Map<String, BearerTokenProvider> bearerTokenProviders = collectBearerTokenProviders(config.getProvider(),
                 config.getProviders());
         if (!bearerTokenProviders.isEmpty()) {
             session.registerBearerTokenProviders(bearerTokenProviders);
@@ -398,17 +398,17 @@ final class SessionRequestBuilder {
         }
     }
 
-    private static Map<String, GetBearerToken> collectBearerTokenProviders(ProviderConfig provider,
+    private static Map<String, BearerTokenProvider> collectBearerTokenProviders(ProviderConfig provider,
             List<NamedProviderConfig> providers) {
-        Map<String, GetBearerToken> bearerTokenProviders = new HashMap<>();
-        if (provider != null && provider.getGetBearerToken() != null) {
-            bearerTokenProviders.put("default", provider.getGetBearerToken());
+        Map<String, BearerTokenProvider> bearerTokenProviders = new HashMap<>();
+        if (provider != null && provider.getBearerTokenProvider() != null) {
+            bearerTokenProviders.put("default", provider.getBearerTokenProvider());
         }
         if (providers != null) {
             for (NamedProviderConfig namedProvider : providers) {
                 if (namedProvider != null && namedProvider.getName() != null
-                        && namedProvider.getGetBearerToken() != null) {
-                    bearerTokenProviders.put(namedProvider.getName(), namedProvider.getGetBearerToken());
+                        && namedProvider.getBearerTokenProvider() != null) {
+                    bearerTokenProviders.put(namedProvider.getName(), namedProvider.getBearerTokenProvider());
                 }
             }
         }

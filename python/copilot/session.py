@@ -1080,7 +1080,7 @@ class AzureProviderOptions(TypedDict, total=False):
 
 
 class ProviderTokenArgs(TypedDict):
-    """Arguments passed to a :data:`GetBearerToken` callback when the runtime
+    """Arguments passed to a :data:`BearerTokenProvider` callback when the runtime
     needs a fresh bearer token for a BYOK provider.
 
     **Experimental.** Part of the bearer-token-provider surface and may change or
@@ -1104,7 +1104,7 @@ class ProviderTokenArgs(TypedDict):
 # Never serialized — setting it makes the SDK send ``hasBearerTokenProvider`` on
 # the wire and answer the runtime's ``providerToken.getToken`` requests. May be
 # sync or async.
-GetBearerToken = Callable[[ProviderTokenArgs], str | Awaitable[str]]
+BearerTokenProvider = Callable[[ProviderTokenArgs], str | Awaitable[str]]
 
 
 class ProviderConfig(TypedDict, total=False):
@@ -1147,8 +1147,10 @@ class ProviderConfig(TypedDict, total=False):
     # provider (for example via Azure Managed Identity). Never serialized — the
     # SDK sends hasBearerTokenProvider: true on the wire and answers the
     # runtime's providerToken.getToken requests with this callback's result.
-    # Mutually exclusive with api_key and bearer_token.
-    get_bearer_token: GetBearerToken
+    # When set alongside api_key/bearer_token, this callback takes precedence: the
+    # runtime applies the token it returns as the Authorization: Bearer header for
+    # each request and does not send the static credential.
+    bearer_token_provider: BearerTokenProvider
 
 
 class NamedProviderConfig(TypedDict, total=False):
@@ -1177,9 +1179,11 @@ class NamedProviderConfig(TypedDict, total=False):
     headers: dict[str, str]
     # Per-request bearer-token callback for this named BYOK provider. Never
     # serialized; the SDK sends hasBearerTokenProvider: true and answers the
-    # runtime's providerToken.getToken requests. Mutually exclusive with api_key
-    # and bearer_token.
-    get_bearer_token: GetBearerToken
+    # runtime's providerToken.getToken requests. When set alongside
+    # api_key/bearer_token, this callback takes precedence: the runtime applies
+    # the token it returns as the Authorization: Bearer header for each request
+    # and does not send the static credential.
+    bearer_token_provider: BearerTokenProvider
 
 
 class ProviderModelConfig(TypedDict, total=False):
@@ -1253,7 +1257,7 @@ def _canvas_handler_error(err: Exception) -> JsonRpcError:
 
 class _BearerTokenProviderAdapter:
     """Routes runtime ``providerToken.getToken`` requests to the matching
-    per-provider :data:`GetBearerToken` callback registered on the session.
+    per-provider :data:`BearerTokenProvider` callback registered on the session.
 
     The runtime calls this once per outbound request for a BYOK provider that
     declared ``hasBearerTokenProvider: true``; it does no caching, so the SDK
@@ -1348,7 +1352,7 @@ class CopilotSession:
         self._transform_callbacks_lock = threading.Lock()
         self._command_handlers: dict[str, CommandHandler] = {}
         self._command_handlers_lock = threading.Lock()
-        self._bearer_token_providers: dict[str, GetBearerToken] = {}
+        self._bearer_token_providers: dict[str, BearerTokenProvider] = {}
         self._bearer_token_providers_lock = threading.Lock()
         self._elicitation_handler: ElicitationHandler | None = None
         self._elicitation_handler_lock = threading.Lock()
@@ -2090,7 +2094,9 @@ class CopilotSession:
             for cmd in commands:
                 self._command_handlers[cmd.name] = cmd.handler
 
-    def _register_bearer_token_providers(self, providers: dict[str, GetBearerToken] | None) -> None:
+    def _register_bearer_token_providers(
+        self, providers: dict[str, BearerTokenProvider] | None
+    ) -> None:
         """Register per-provider bearer-token callbacks for this session.
 
         The runtime never receives the callbacks themselves; the SDK strips them

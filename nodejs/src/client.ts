@@ -51,7 +51,7 @@ import type {
     ExitPlanModeResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
-    GetBearerToken,
+    BearerTokenProvider,
     GetStatusResponse,
     InternalRuntimeConnection,
     LargeToolOutputConfig,
@@ -161,17 +161,17 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
 const DEFAULT_PROVIDER_NAME = "default";
 
 /** Wire-safe singular provider config carrying the `hasBearerTokenProvider` flag. */
-type WireProviderConfig = Omit<ProviderConfig, "getBearerToken"> & {
+type WireProviderConfig = Omit<ProviderConfig, "bearerTokenProvider"> & {
     hasBearerTokenProvider?: boolean;
 };
 
 /** Wire-safe named provider config carrying the `hasBearerTokenProvider` flag. */
-type WireNamedProviderConfig = Omit<NamedProviderConfig, "getBearerToken"> & {
+type WireNamedProviderConfig = Omit<NamedProviderConfig, "bearerTokenProvider"> & {
     hasBearerTokenProvider?: boolean;
 };
 
 /**
- * Strips the non-serializable {@link GetBearerToken} callbacks from the singular
+ * Strips the non-serializable {@link BearerTokenProvider} callbacks from the singular
  * and named provider configs before they cross the RPC boundary, replacing each
  * with a `hasBearerTokenProvider: true` wire flag. The callback closes over its
  * own token scope/audience, so nothing scope-related crosses the wire — the
@@ -185,14 +185,14 @@ function extractBearerTokenProviders(
 ): {
     wireProvider: WireProviderConfig | undefined;
     wireProviders: WireNamedProviderConfig[] | undefined;
-    callbacks: Map<string, GetBearerToken>;
+    callbacks: Map<string, BearerTokenProvider>;
 } {
-    const callbacks = new Map<string, GetBearerToken>();
+    const callbacks = new Map<string, BearerTokenProvider>();
 
     let wireProvider: WireProviderConfig | undefined = provider;
-    if (provider?.getBearerToken) {
-        const { getBearerToken, ...rest } = provider;
-        callbacks.set(DEFAULT_PROVIDER_NAME, getBearerToken);
+    if (provider?.bearerTokenProvider) {
+        const { bearerTokenProvider, ...rest } = provider;
+        callbacks.set(DEFAULT_PROVIDER_NAME, bearerTokenProvider);
         wireProvider = {
             ...rest,
             hasBearerTokenProvider: true,
@@ -200,11 +200,11 @@ function extractBearerTokenProviders(
     }
 
     let wireProviders: WireNamedProviderConfig[] | undefined = providers;
-    if (providers?.some((p) => p.getBearerToken)) {
+    if (providers?.some((p) => p.bearerTokenProvider)) {
         wireProviders = providers.map((p) => {
-            if (!p.getBearerToken) return p;
-            const { getBearerToken, ...rest } = p;
-            callbacks.set(p.name, getBearerToken);
+            if (!p.bearerTokenProvider) return p;
+            const { bearerTokenProvider, ...rest } = p;
+            callbacks.set(p.name, bearerTokenProvider);
             return {
                 ...rest,
                 hasBearerTokenProvider: true,
@@ -1305,7 +1305,7 @@ export class CopilotClient {
         const useServerGeneratedId = config.cloud != null && callerSessionId == null;
         const localSessionId = useServerGeneratedId ? undefined : (callerSessionId ?? randomUUID());
 
-        // Strip non-serializable getBearerToken callbacks from provider configs,
+        // Strip non-serializable bearerTokenProvider callbacks from provider configs,
         // replacing them with a wire flag; keep the callbacks for session-side
         // registration so the runtime can call back to acquire tokens.
         const {

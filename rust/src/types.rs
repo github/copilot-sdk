@@ -1053,7 +1053,7 @@ pub struct ProviderConfig {
     /// **Experimental.** Callback used to acquire a bearer token before each
     /// outbound request to this provider.
     #[serde(skip)]
-    pub get_bearer_token: Option<Arc<dyn BearerTokenProvider>>,
+    pub bearer_token_provider: Option<Arc<dyn BearerTokenProvider>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) has_bearer_token_provider: Option<bool>,
     /// Azure-specific options.
@@ -1097,8 +1097,8 @@ impl std::fmt::Debug for ProviderConfig {
             .field("api_key", &self.api_key)
             .field("bearer_token", &self.bearer_token)
             .field(
-                "get_bearer_token",
-                &self.get_bearer_token.as_ref().map(|_| "<set>"),
+                "bearer_token_provider",
+                &self.bearer_token_provider.as_ref().map(|_| "<set>"),
             )
             .field("has_bearer_token_provider", &self.has_bearer_token_provider)
             .field("azure", &self.azure)
@@ -1158,8 +1158,8 @@ impl ProviderConfig {
     ///
     /// **Experimental.** This method is part of an experimental wire-protocol
     /// surface and may change or be removed in a future release.
-    pub fn with_get_bearer_token(mut self, provider: Arc<dyn BearerTokenProvider>) -> Self {
-        self.get_bearer_token = Some(provider);
+    pub fn with_bearer_token_provider(mut self, provider: Arc<dyn BearerTokenProvider>) -> Self {
+        self.bearer_token_provider = Some(provider);
         self
     }
 
@@ -1291,7 +1291,7 @@ pub struct NamedProviderConfig {
     /// **Experimental.** Callback used to acquire a bearer token before each
     /// outbound request to this provider.
     #[serde(skip)]
-    pub get_bearer_token: Option<Arc<dyn BearerTokenProvider>>,
+    pub bearer_token_provider: Option<Arc<dyn BearerTokenProvider>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) has_bearer_token_provider: Option<bool>,
     /// Azure-specific options.
@@ -1312,8 +1312,8 @@ impl std::fmt::Debug for NamedProviderConfig {
             .field("api_key", &self.api_key)
             .field("bearer_token", &self.bearer_token)
             .field(
-                "get_bearer_token",
-                &self.get_bearer_token.as_ref().map(|_| "<set>"),
+                "bearer_token_provider",
+                &self.bearer_token_provider.as_ref().map(|_| "<set>"),
             )
             .field("has_bearer_token_provider", &self.has_bearer_token_provider)
             .field("azure", &self.azure)
@@ -1363,8 +1363,8 @@ impl NamedProviderConfig {
     ///
     /// **Experimental.** This method is part of an experimental wire-protocol
     /// surface and may change or be removed in a future release.
-    pub fn with_get_bearer_token(mut self, provider: Arc<dyn BearerTokenProvider>) -> Self {
-        self.get_bearer_token = Some(provider);
+    pub fn with_bearer_token_provider(mut self, provider: Arc<dyn BearerTokenProvider>) -> Self {
+        self.bearer_token_provider = Some(provider);
         self
     }
 
@@ -1388,7 +1388,7 @@ fn prepare_bearer_token_providers(
     let mut bearer_token_providers = HashMap::new();
 
     if let Some(provider) = provider.as_mut()
-        && let Some(token_provider) = provider.get_bearer_token.take()
+        && let Some(token_provider) = provider.bearer_token_provider.take()
     {
         provider.has_bearer_token_provider = Some(true);
         bearer_token_providers.insert("default".to_string(), token_provider);
@@ -1396,7 +1396,7 @@ fn prepare_bearer_token_providers(
 
     if let Some(providers) = providers.as_mut() {
         for provider in providers {
-            if let Some(token_provider) = provider.get_bearer_token.take() {
+            if let Some(token_provider) = provider.bearer_token_provider.take() {
                 provider.has_bearer_token_provider = Some(true);
                 bearer_token_providers.insert(provider.name.clone(), token_provider);
             }

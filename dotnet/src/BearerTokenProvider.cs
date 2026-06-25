@@ -7,7 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace GitHub.Copilot;
 
 /// <summary>
-/// Arguments passed to a bearer-token callback (the <c>GetBearerToken</c> property
+/// Arguments passed to a bearer-token callback (the <c>BearerTokenProvider</c> property
 /// on <see cref="ProviderConfig"/> / <see cref="NamedProviderConfig"/>) when the
 /// runtime needs a fresh bearer token for a BYOK provider.
 /// </summary>

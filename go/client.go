@@ -57,18 +57,18 @@ import (
 // whole-session [ProviderConfig]. Named providers are keyed by their own Name.
 const defaultBearerTokenProviderName = "default"
 
-// collectBearerTokenProviders gathers the per-provider [GetBearerToken] callbacks
+// collectBearerTokenProviders gathers the per-provider [BearerTokenProvider] callbacks
 // from the singular provider and any named providers, keyed by provider name. The
 // singular provider uses the implicit name "default"; named providers use their
 // own Name. Returns nil when no callbacks are configured.
-func collectBearerTokenProviders(provider *ProviderConfig, providers []NamedProviderConfig) map[string]GetBearerToken {
-	callbacks := make(map[string]GetBearerToken)
-	if provider != nil && provider.GetBearerToken != nil {
-		callbacks[defaultBearerTokenProviderName] = provider.GetBearerToken
+func collectBearerTokenProviders(provider *ProviderConfig, providers []NamedProviderConfig) map[string]BearerTokenProvider {
+	callbacks := make(map[string]BearerTokenProvider)
+	if provider != nil && provider.BearerTokenProvider != nil {
+		callbacks[defaultBearerTokenProviderName] = provider.BearerTokenProvider
 	}
 	for i := range providers {
-		if providers[i].GetBearerToken != nil {
-			callbacks[providers[i].Name] = providers[i].GetBearerToken
+		if providers[i].BearerTokenProvider != nil {
+			callbacks[providers[i].Name] = providers[i].BearerTokenProvider
 		}
 	}
 	if len(callbacks) == 0 {

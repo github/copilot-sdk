@@ -84,7 +84,7 @@ export type {
     MCPHTTPServerConfig,
     MCPServerConfig,
     DefaultAgentConfig,
-    GetBearerToken,
+    BearerTokenProvider,
     MessageOptions,
     ModelBilling,
     ModelBillingTokenPrices,
