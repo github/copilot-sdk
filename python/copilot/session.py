@@ -44,6 +44,8 @@ from .generated.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
+    ProviderTokenAcquireRequest,
+    ProviderTokenAcquireResult,
     SessionLogLevel,
     SessionRpc,
     UIElicitationRequest,
@@ -1077,6 +1079,29 @@ class AzureProviderOptions(TypedDict, total=False):
     api_version: str  # Azure API version. Defaults to "2024-10-21".
 
 
+class ProviderTokenArgs(TypedDict):
+    """Arguments passed to a :data:`GetBearerToken` callback when the runtime
+    needs a fresh bearer token for a BYOK provider.
+
+    **Experimental.** Part of the bearer-token-provider surface and may change or
+    be removed in future SDK or CLI releases.
+    """
+
+    # Name of the BYOK provider needing a token. For the singular, whole-session
+    # ``provider`` this is the implicit provider name ("default"); for
+    # ``NamedProviderConfig`` entries it is ``NamedProviderConfig.name``.
+    provider_name: str
+
+
+# Per-request callback that resolves a bearer token on demand for a BYOK
+# provider (for example via Azure Managed Identity). The Copilot SDK takes no
+# identity dependency: supply a callback backed by your own identity library.
+# Never serialized — setting it makes the SDK send ``hasBearerTokenProvider`` on
+# the wire and answer the runtime's ``providerToken.getToken`` requests. May be
+# sync or async.
+GetBearerToken = Callable[[ProviderTokenArgs], str | Awaitable[str]]
+
+
 class ProviderConfig(TypedDict, total=False):
     """Configuration for a custom API provider"""
 
@@ -1113,6 +1138,12 @@ class ProviderConfig(TypedDict, total=False):
     # Overrides the resolved model's default max output tokens. When hit, the
     # model stops generating and returns a truncated response.
     max_output_tokens: int
+    # Per-request callback that resolves a bearer token on demand for this BYOK
+    # provider (for example via Azure Managed Identity). Never serialized — the
+    # SDK sends hasBearerTokenProvider: true on the wire and answers the
+    # runtime's providerToken.getToken requests with this callback's result.
+    # Mutually exclusive with api_key and bearer_token.
+    get_bearer_token: GetBearerToken
 
 
 class NamedProviderConfig(TypedDict, total=False):
@@ -1139,6 +1170,11 @@ class NamedProviderConfig(TypedDict, total=False):
     bearer_token: str
     azure: AzureProviderOptions  # Azure-specific options
     headers: dict[str, str]
+    # Per-request bearer-token callback for this named BYOK provider. Never
+    # serialized; the SDK sends hasBearerTokenProvider: true and answers the
+    # runtime's providerToken.getToken requests. Mutually exclusive with api_key
+    # and bearer_token.
+    get_bearer_token: GetBearerToken
 
 
 class ProviderModelConfig(TypedDict, total=False):
@@ -1210,6 +1246,35 @@ def _canvas_handler_error(err: Exception) -> JsonRpcError:
     )
 
 
+class _BearerTokenProviderAdapter:
+    """Routes runtime ``providerToken.getToken`` requests to the matching
+    per-provider :data:`GetBearerToken` callback registered on the session.
+
+    The runtime calls this once per outbound request for a BYOK provider that
+    declared ``hasBearerTokenProvider: true``; it does no caching, so the SDK
+    consumer's callback (typically backed by an identity library) owns
+    acquisition, caching, and refresh.
+    """
+
+    def __init__(self, session: CopilotSession) -> None:
+        self._session = session
+
+    async def get_token(self, params: ProviderTokenAcquireRequest) -> ProviderTokenAcquireResult:
+        provider_name = params.provider_name
+        with self._session._bearer_token_providers_lock:
+            callback = self._session._bearer_token_providers.get(provider_name)
+        if callback is None:
+            raise JsonRpcError(
+                -32603,
+                f"No bearer-token provider registered for provider: {provider_name!r}",
+            )
+        args: ProviderTokenArgs = {"provider_name": provider_name}
+        result = callback(args)
+        if inspect.isawaitable(result):
+            result = await result
+        return ProviderTokenAcquireResult(token=cast(str, result))
+
+
 class CopilotSession:
     """
     Represents a single conversation session with the Copilot CLI.
@@ -1275,6 +1340,8 @@ class CopilotSession:
         self._transform_callbacks_lock = threading.Lock()
         self._command_handlers: dict[str, CommandHandler] = {}
         self._command_handlers_lock = threading.Lock()
+        self._bearer_token_providers: dict[str, GetBearerToken] = {}
+        self._bearer_token_providers_lock = threading.Lock()
         self._elicitation_handler: ElicitationHandler | None = None
         self._elicitation_handler_lock = threading.Lock()
         self._capabilities: SessionCapabilities = {}
@@ -2014,6 +2081,26 @@ class CopilotSession:
                 return
             for cmd in commands:
                 self._command_handlers[cmd.name] = cmd.handler
+
+    def _register_bearer_token_providers(self, providers: dict[str, GetBearerToken] | None) -> None:
+        """Register per-provider bearer-token callbacks for this session.
+
+        The runtime never receives the callbacks themselves; the SDK strips them
+        from the provider config and instead sends ``hasBearerTokenProvider:
+        true``. When the runtime needs a token it issues a session-scoped
+        ``providerToken.getToken`` request, which the registered handler routes
+        to the matching per-provider callback.
+
+        Args:
+            providers: Map of provider name -> callback, or None/empty to clear.
+        """
+        with self._bearer_token_providers_lock:
+            self._bearer_token_providers.clear()
+            if not providers:
+                self._client_session_apis.provider_token = None
+                return
+            self._bearer_token_providers.update(providers)
+            self._client_session_apis.provider_token = _BearerTokenProviderAdapter(self)
 
     def _register_elicitation_handler(self, handler: ElicitationHandler | None) -> None:
         """Register the elicitation handler for this session.

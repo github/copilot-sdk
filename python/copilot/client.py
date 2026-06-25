@@ -89,6 +89,7 @@ from .session import (
     DefaultAgentConfig,
     ElicitationHandler,
     ExitPlanModeHandler,
+    GetBearerToken,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MCPServerConfig,
@@ -169,6 +170,36 @@ def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]
     if "enable_web_socket_responses" in options:
         wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
     return wire
+
+
+# Implicit provider name for the singular, whole-session ``provider`` config.
+# Named providers are keyed by their own ``name``.
+_DEFAULT_BEARER_TOKEN_PROVIDER_NAME = "default"
+
+
+def _collect_bearer_token_callbacks(
+    provider: ProviderConfig | None,
+    providers: list[NamedProviderConfig] | None,
+) -> dict[str, GetBearerToken]:
+    """Collect per-provider ``get_bearer_token`` callbacks keyed by provider name.
+
+    The singular, whole-session ``provider`` uses the implicit
+    ``_DEFAULT_BEARER_TOKEN_PROVIDER_NAME``; ``providers`` entries use their own
+    ``name``. The callbacks are never serialized — the wire conversion emits
+    ``hasBearerTokenProvider: true`` instead and the runtime calls back over
+    ``providerToken.getToken``.
+    """
+    callbacks: dict[str, GetBearerToken] = {}
+    if provider is not None:
+        singular = provider.get("get_bearer_token")
+        if singular is not None:
+            callbacks[_DEFAULT_BEARER_TOKEN_PROVIDER_NAME] = singular
+    if providers:
+        for named in providers:
+            callback = named.get("get_bearer_token")
+            if callback is not None:
+                callbacks[named["name"]] = callback
+    return callbacks
 
 
 def _validate_session_fs_config(config: SessionFsConfig) -> None:
@@ -2128,6 +2159,7 @@ class CopilotClient:
                 s._register_auto_mode_switch_handler(on_auto_mode_switch_request)
             if canvas_handler is not None:
                 s._register_canvas_handler(canvas_handler)
+            s._register_bearer_token_providers(_collect_bearer_token_callbacks(provider, providers))
             if hooks:
                 s._register_hooks(hooks)
             if transform_callbacks:
@@ -2701,6 +2733,9 @@ class CopilotClient:
             session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
         if canvas_handler is not None:
             session._register_canvas_handler(canvas_handler)
+        session._register_bearer_token_providers(
+            _collect_bearer_token_callbacks(provider, providers)
+        )
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -3231,6 +3266,8 @@ class CopilotClient:
             wire_provider["transport"] = provider["transport"]
         if "bearer_token" in provider:
             wire_provider["bearerToken"] = provider["bearer_token"]
+        if provider.get("get_bearer_token") is not None:
+            wire_provider["hasBearerTokenProvider"] = True
         if "headers" in provider:
             wire_provider["headers"] = provider["headers"]
         if "model_id" in provider:
@@ -3267,6 +3304,8 @@ class CopilotClient:
             wire["apiKey"] = provider["api_key"]
         if "bearer_token" in provider:
             wire["bearerToken"] = provider["bearer_token"]
+        if provider.get("get_bearer_token") is not None:
+            wire["hasBearerTokenProvider"] = True
         if "headers" in provider:
             wire["headers"] = provider["headers"]
         if "azure" in provider:

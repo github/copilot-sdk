@@ -2215,6 +2215,39 @@ export interface ResumeSessionConfig extends SessionConfigBase {
 }
 
 /**
+ * Arguments passed to a {@link GetBearerToken} callback when the runtime needs a
+ * fresh bearer token for a BYOK provider.
+ *
+ * @experimental Part of the experimental managed-identity / bearer-token-provider
+ * surface and may change or be removed in future SDK or CLI releases.
+ */
+export interface ProviderTokenArgs {
+    /**
+     * Name of the BYOK provider needing a token. For the singular, whole-session
+     * {@link ProviderConfig} this is the implicit provider name (`"default"`); for
+     * {@link NamedProviderConfig} entries it is {@link NamedProviderConfig.name}.
+     *
+     * The callback closes over its own token scope/audience; the runtime is
+     * provider-agnostic and forwards only the provider name.
+     */
+    providerName: string;
+}
+
+/**
+ * Per-provider callback that resolves a bearer token on demand, returning the
+ * raw token string (without the `Bearer ` prefix). The Copilot SDK itself takes
+ * no Azure dependency: the consumer supplies this callback backed by their own
+ * identity library (for example `@azure/identity`'s
+ * `DefaultAzureCredential.getToken(scope)`), and the runtime calls it once before
+ * each outbound model request. The runtime does no caching of its own, so the
+ * callback (or the identity library it wraps) owns token caching and refresh.
+ *
+ * @experimental Part of the experimental managed-identity / bearer-token-provider
+ * surface and may change or be removed in future SDK or CLI releases.
+ */
+export type GetBearerToken = (args: ProviderTokenArgs) => Promise<string>;
+
+/**
  * Configuration for a custom API provider.
  */
 export interface ProviderConfig {
@@ -2255,6 +2288,18 @@ export interface ProviderConfig {
      * Takes precedence over apiKey when both are set.
      */
     bearerToken?: string;
+
+    /**
+     * Per-request bearer-token provider for managed-identity / on-demand auth.
+     * When set, the SDK keeps this function client-side (it is never serialized)
+     * and the runtime calls back into this client to acquire a token before each
+     * outbound request. The runtime does no caching of its own, so the callback
+     * owns token caching and refresh. Mutually exclusive with {@link apiKey} /
+     * {@link bearerToken}.
+     *
+     * @experimental
+     */
+    getBearerToken?: GetBearerToken;
 
     /**
      * Azure-specific options
@@ -2346,6 +2391,18 @@ export interface NamedProviderConfig {
      * Takes precedence over {@link apiKey} when both are set.
      */
     bearerToken?: string;
+
+    /**
+     * Per-request bearer-token provider for managed-identity / on-demand auth.
+     * When set, the SDK keeps this function client-side (it is never serialized)
+     * and the runtime calls back into this client to acquire a token before each
+     * outbound request. The runtime does no caching of its own, so the callback
+     * owns token caching and refresh. Mutually exclusive with {@link apiKey} /
+     * {@link bearerToken}.
+     *
+     * @experimental
+     */
+    getBearerToken?: GetBearerToken;
 
     /**
      * Azure-specific options.

@@ -53,6 +53,30 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
+// defaultBearerTokenProviderName is the implicit provider name for the singular,
+// whole-session [ProviderConfig]. Named providers are keyed by their own Name.
+const defaultBearerTokenProviderName = "default"
+
+// collectBearerTokenProviders gathers the per-provider [GetBearerToken] callbacks
+// from the singular provider and any named providers, keyed by provider name. The
+// singular provider uses the implicit name "default"; named providers use their
+// own Name. Returns nil when no callbacks are configured.
+func collectBearerTokenProviders(provider *ProviderConfig, providers []NamedProviderConfig) map[string]GetBearerToken {
+	callbacks := make(map[string]GetBearerToken)
+	if provider != nil && provider.GetBearerToken != nil {
+		callbacks[defaultBearerTokenProviderName] = provider.GetBearerToken
+	}
+	for i := range providers {
+		if providers[i].GetBearerToken != nil {
+			callbacks[providers[i].Name] = providers[i].GetBearerToken
+		}
+	}
+	if len(callbacks) == 0 {
+		return nil
+	}
+	return callbacks
+}
+
 func validateSessionFSConfig(config *SessionFSConfig) error {
 	if config == nil {
 		return nil
@@ -809,6 +833,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		if config.CanvasHandler != nil {
 			s.registerCanvasHandler(config.CanvasHandler)
 		}
+		if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
+			s.registerBearerTokenProviders(bearerTokenProviders)
+		}
 
 		c.sessionsMux.Lock()
 		c.sessions[sessionID] = s
@@ -1105,6 +1132,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.CanvasHandler != nil {
 		session.registerCanvasHandler(config.CanvasHandler)
+	}
+	if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
+		session.registerBearerTokenProviders(bearerTokenProviders)
 	}
 
 	c.sessionsMux.Lock()

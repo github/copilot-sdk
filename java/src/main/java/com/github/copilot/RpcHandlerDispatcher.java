@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
 import com.github.copilot.rpc.ExitPlanModeRequest;
+import com.github.copilot.rpc.GetBearerToken;
+import com.github.copilot.rpc.ProviderTokenArgs;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.SessionLifecycleEvent;
@@ -88,6 +90,8 @@ final class RpcHandlerDispatcher {
         rpc.registerMethodHandler("hooks.invoke", (requestId, params) -> handleHooksInvoke(rpc, requestId, params));
         rpc.registerMethodHandler("systemMessage.transform",
                 (requestId, params) -> handleSystemMessageTransform(rpc, requestId, params));
+        rpc.registerMethodHandler("providerToken.getToken",
+                (requestId, params) -> handleProviderTokenGetToken(rpc, requestId, params));
     }
 
     private void handleSessionEvent(JsonNode params) {
@@ -296,6 +300,68 @@ final class RpcHandlerDispatcher {
                 });
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Error handling user input request", e);
+            }
+        });
+    }
+
+    private void handleProviderTokenGetToken(JsonRpcClient rpc, String requestId, JsonNode params) {
+        LOG.fine("Received providerToken.getToken: " + params);
+        runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "providerToken.getToken");
+            if (requestIdLong == -1) {
+                return;
+            }
+            try {
+                String sessionId = params.get("sessionId").asText();
+                String providerName = params.get("providerName").asText();
+
+                CopilotSession session = sessions.get(sessionId);
+                if (session == null) {
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
+                    return;
+                }
+
+                GetBearerToken provider = session.getBearerTokenProvider(providerName);
+                if (provider == null) {
+                    rpc.sendErrorResponse(requestIdLong, -32603,
+                            "No bearer-token provider registered for provider " + providerName);
+                    return;
+                }
+
+                CompletableFuture<String> tokenFuture = provider.getToken(new ProviderTokenArgs(providerName));
+                if (tokenFuture == null) {
+                    rpc.sendErrorResponse(requestIdLong, -32603,
+                            "Bearer-token provider returned null future for provider " + providerName);
+                    return;
+                }
+
+                tokenFuture.thenAccept(token -> {
+                    try {
+                        if (token == null) {
+                            rpc.sendErrorResponse(requestIdLong, -32603,
+                                    "Bearer-token provider returned null token for provider " + providerName);
+                            return;
+                        }
+                        rpc.sendResponse(requestIdLong, Map.of("token", token));
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending provider token response", e);
+                    }
+                }).exceptionally(ex -> {
+                    LOG.log(Level.WARNING, "Bearer-token provider exception", ex);
+                    try {
+                        rpc.sendErrorResponse(requestIdLong, -32603, "Bearer-token provider error: " + ex.getMessage());
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending provider token error", e);
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Error handling providerToken.getToken", e);
+                try {
+                    rpc.sendErrorResponse(requestIdLong, -32603, "Provider token handler error: " + e.getMessage());
+                } catch (IOException ioException) {
+                    LOG.log(Level.SEVERE, "Error sending provider token handler error", ioException);
+                }
             }
         });
     }

@@ -652,6 +652,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         session.SetCanvasHandler(config.CanvasHandler);
+        session.RegisterBearerTokenProviders(BuildBearerTokenCallbacks(config));
         RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -662,6 +663,37 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Commands?.Count ?? 0,
             hasHooks);
         return session;
+    }
+
+    /// <summary>
+    /// Implicit provider name for the singular, whole-session <see cref="ProviderConfig"/>.
+    /// </summary>
+    private const string DefaultBearerTokenProviderName = "default";
+
+    /// <summary>
+    /// Collects the per-provider <c>GetBearerToken</c> callbacks keyed by
+    /// provider name for session-side registration. The singular, whole-session
+    /// <see cref="ProviderConfig"/> uses the implicit
+    /// <see cref="DefaultBearerTokenProviderName"/>.
+    /// </summary>
+    private static Dictionary<string, Func<ProviderTokenArgs, Task<string>>> BuildBearerTokenCallbacks(SessionConfigBase config)
+    {
+        var callbacks = new Dictionary<string, Func<ProviderTokenArgs, Task<string>>>(StringComparer.Ordinal);
+        if (config.Provider?.GetBearerToken is { } singular)
+        {
+            callbacks[DefaultBearerTokenProviderName] = singular;
+        }
+        if (config.Providers != null)
+        {
+            foreach (var provider in config.Providers)
+            {
+                if (provider.GetBearerToken is { } callback)
+                {
+                    callbacks[provider.Name] = callback;
+                }
+            }
+        }
+        return callbacks;
     }
 
     /// <summary>

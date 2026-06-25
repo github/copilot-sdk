@@ -7,6 +7,7 @@ package com.github.copilot.rpc;
 import java.util.Collections;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -58,6 +59,9 @@ public class NamedProviderConfig {
 
     @JsonProperty("bearerToken")
     private String bearerToken;
+
+    @JsonIgnore
+    private GetBearerToken getBearerToken;
 
     @JsonProperty("azure")
     private AzureOptions azure;
@@ -210,6 +214,39 @@ public class NamedProviderConfig {
     public NamedProviderConfig setBearerToken(String bearerToken) {
         this.bearerToken = bearerToken;
         return this;
+    }
+
+    /**
+     * Gets the bearer-token provider callback.
+     *
+     * @return the bearer-token provider callback, or {@code null} if not set
+     */
+    public GetBearerToken getGetBearerToken() {
+        return getBearerToken;
+    }
+
+    /**
+     * Sets a callback that supplies bearer tokens for outbound provider requests.
+     * <p>
+     * <strong>Experimental.</strong> The callback stays SDK-side and is not
+     * serialized. Instead, the runtime receives a {@code hasBearerTokenProvider}
+     * flag and calls back over the session-scoped {@code providerToken.getToken}
+     * RPC before each model request. Return the raw token without a {@code Bearer }
+     * prefix.
+     *
+     * @param getBearerToken
+     *            the bearer-token provider callback
+     * @return this config for method chaining
+     */
+    public NamedProviderConfig setGetBearerToken(GetBearerToken getBearerToken) {
+        this.getBearerToken = getBearerToken;
+        return this;
+    }
+
+    @JsonProperty("hasBearerTokenProvider")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    Boolean hasBearerTokenProviderWireFlag() {
+        return getBearerToken != null ? Boolean.TRUE : null;
     }
 
     /**

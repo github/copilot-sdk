@@ -22,6 +22,9 @@ pub mod hooks;
 mod jsonrpc;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
+/// BYOK bearer-token provider callbacks.
+pub mod provider_token;
+mod provider_token_dispatch;
 /// GitHub Copilot CLI binary resolution (env var, embedded, dev cache).
 pub(crate) mod resolve;
 mod router;
@@ -72,6 +75,7 @@ pub(crate) use jsonrpc::{
     JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,
 };
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
+pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]

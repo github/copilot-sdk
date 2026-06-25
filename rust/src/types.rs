@@ -28,6 +28,7 @@ use crate::handler::{
     UserInputHandler,
 };
 use crate::hooks::SessionHooks;
+use crate::provider_token::BearerTokenProvider;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
     SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
@@ -1021,7 +1022,7 @@ pub struct McpHttpServerConfig {
 /// Routes session requests through an alternative model provider
 /// (OpenAI-compatible, Azure, Anthropic, or local) instead of GitHub
 /// Copilot's default routing.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ProviderConfig {
@@ -1049,6 +1050,12 @@ pub struct ProviderConfig {
     /// API key. Takes precedence over `api_key` when both are set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bearer_token: Option<String>,
+    /// **Experimental.** Callback used to acquire a bearer token before each
+    /// outbound request to this provider.
+    #[serde(skip)]
+    pub get_bearer_token: Option<Arc<dyn BearerTokenProvider>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) has_bearer_token_provider: Option<bool>,
     /// Azure-specific options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub azure: Option<AzureProviderOptions>,
@@ -1078,6 +1085,30 @@ pub struct ProviderConfig {
     /// hit, the model stops generating and returns a truncated response.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_output_tokens: Option<i64>,
+}
+
+impl std::fmt::Debug for ProviderConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderConfig")
+            .field("provider_type", &self.provider_type)
+            .field("wire_api", &self.wire_api)
+            .field("transport", &self.transport)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key)
+            .field("bearer_token", &self.bearer_token)
+            .field(
+                "get_bearer_token",
+                &self.get_bearer_token.as_ref().map(|_| "<set>"),
+            )
+            .field("has_bearer_token_provider", &self.has_bearer_token_provider)
+            .field("azure", &self.azure)
+            .field("headers", &self.headers)
+            .field("model_id", &self.model_id)
+            .field("wire_model", &self.wire_model)
+            .field("max_prompt_tokens", &self.max_prompt_tokens)
+            .field("max_output_tokens", &self.max_output_tokens)
+            .finish()
+    }
 }
 
 impl ProviderConfig {
@@ -1119,6 +1150,16 @@ impl ProviderConfig {
     /// Takes precedence over `api_key` when both are set.
     pub fn with_bearer_token(mut self, bearer_token: impl Into<String>) -> Self {
         self.bearer_token = Some(bearer_token.into());
+        self
+    }
+
+    /// Set the callback used to acquire a bearer token before each outbound
+    /// request to this provider.
+    ///
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface and may change or be removed in a future release.
+    pub fn with_get_bearer_token(mut self, provider: Arc<dyn BearerTokenProvider>) -> Self {
+        self.get_bearer_token = Some(provider);
         self
     }
 
@@ -1223,7 +1264,7 @@ pub struct AzureProviderOptions {
 /// default Copilot routing and exposes these providers' models alongside
 /// it. Models are attached via [`ProviderModelConfig`], which references a
 /// provider by [`name`](Self::name).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct NamedProviderConfig {
@@ -1247,12 +1288,38 @@ pub struct NamedProviderConfig {
     /// directly. Takes precedence over `api_key` when both are set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bearer_token: Option<String>,
+    /// **Experimental.** Callback used to acquire a bearer token before each
+    /// outbound request to this provider.
+    #[serde(skip)]
+    pub get_bearer_token: Option<Arc<dyn BearerTokenProvider>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) has_bearer_token_provider: Option<bool>,
     /// Azure-specific options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub azure: Option<AzureProviderOptions>,
     /// Custom HTTP headers included in outbound provider requests.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub headers: Option<HashMap<String, String>>,
+}
+
+impl std::fmt::Debug for NamedProviderConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NamedProviderConfig")
+            .field("name", &self.name)
+            .field("provider_type", &self.provider_type)
+            .field("wire_api", &self.wire_api)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key)
+            .field("bearer_token", &self.bearer_token)
+            .field(
+                "get_bearer_token",
+                &self.get_bearer_token.as_ref().map(|_| "<set>"),
+            )
+            .field("has_bearer_token_provider", &self.has_bearer_token_provider)
+            .field("azure", &self.azure)
+            .field("headers", &self.headers)
+            .finish()
+    }
 }
 
 impl NamedProviderConfig {
@@ -1291,6 +1358,16 @@ impl NamedProviderConfig {
         self
     }
 
+    /// Set the callback used to acquire a bearer token before each outbound
+    /// request to this provider.
+    ///
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface and may change or be removed in a future release.
+    pub fn with_get_bearer_token(mut self, provider: Arc<dyn BearerTokenProvider>) -> Self {
+        self.get_bearer_token = Some(provider);
+        self
+    }
+
     /// Set Azure-specific options.
     pub fn with_azure(mut self, azure: AzureProviderOptions) -> Self {
         self.azure = Some(azure);
@@ -1302,6 +1379,31 @@ impl NamedProviderConfig {
         self.headers = Some(headers);
         self
     }
+}
+
+fn prepare_bearer_token_providers(
+    provider: &mut Option<ProviderConfig>,
+    providers: &mut Option<Vec<NamedProviderConfig>>,
+) -> HashMap<String, Arc<dyn BearerTokenProvider>> {
+    let mut bearer_token_providers = HashMap::new();
+
+    if let Some(provider) = provider.as_mut()
+        && let Some(token_provider) = provider.get_bearer_token.take()
+    {
+        provider.has_bearer_token_provider = Some(true);
+        bearer_token_providers.insert("default".to_string(), token_provider);
+    }
+
+    if let Some(providers) = providers.as_mut() {
+        for provider in providers {
+            if let Some(token_provider) = provider.get_bearer_token.take() {
+                provider.has_bearer_token_provider = Some(true);
+                bearer_token_providers.insert(provider.name.clone(), token_provider);
+            }
+        }
+    }
+
+    bearer_token_providers
 }
 
 /// A BYOK model definition in the multi-provider registry.
@@ -1919,6 +2021,7 @@ pub(crate) struct SessionConfigRuntime {
     pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
 
@@ -1970,6 +2073,8 @@ impl SessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+        let bearer_token_providers =
+            prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
         let wire = crate::wire::SessionCreateWire {
             session_id,
@@ -2046,6 +2151,7 @@ impl SessionConfig {
             tool_handlers,
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
+            bearer_token_providers,
             commands: self.commands,
         };
 
@@ -2926,6 +3032,8 @@ impl ResumeSessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+        let bearer_token_providers =
+            prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
@@ -3003,6 +3111,7 @@ impl ResumeSessionConfig {
             tool_handlers,
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
+            bearer_token_providers,
             commands: self.commands,
         };
 

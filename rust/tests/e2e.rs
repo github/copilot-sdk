@@ -7,6 +7,8 @@ mod abort;
 mod ask_user;
 #[path = "e2e/builtin_tools.rs"]
 mod builtin_tools;
+#[path = "e2e/byok_bearer_token_provider.rs"]
+mod byok_bearer_token_provider;
 #[path = "e2e/canvas.rs"]
 mod canvas;
 #[path = "e2e/client.rs"]
