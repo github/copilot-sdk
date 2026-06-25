@@ -758,19 +758,22 @@ public class CopilotSessionTest {
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = null;
             for (int attempt = 1; attempt <= 2; attempt++) {
+                CompletableFuture<CopilotSession> createFuture = client
+                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
                 try {
-                    session = client
-                            .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
-                            .get(45, TimeUnit.SECONDS);
+                    session = createFuture.get(45, TimeUnit.SECONDS);
                     break;
                 } catch (java.util.concurrent.TimeoutException e) {
+                    createFuture.cancel(true);
                     if (attempt == 2) {
                         throw e;
                     }
                 } catch (java.util.concurrent.ExecutionException e) {
-                    if (!(e.getCause() instanceof java.util.concurrent.TimeoutException) || attempt == 2) {
-                        throw e;
+                    if (e.getCause() instanceof java.util.concurrent.TimeoutException && attempt < 2) {
+                        createFuture.cancel(true);
+                        continue;
                     }
+                    throw e;
                 }
             }
             assertNotNull(session, "Session should be created");
