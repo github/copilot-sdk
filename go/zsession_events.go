@@ -46,7 +46,6 @@ type (
 	BinaryAssetReference                                           = rpc.BinaryAssetReference
 	BinaryAssetReferenceType                                       = rpc.BinaryAssetReferenceType
 	BinaryAssetType                                                = rpc.BinaryAssetType
-	CanvasOpenedAvailability                                       = rpc.CanvasOpenedAvailability
 	CanvasRegistryChangedCanvas                                    = rpc.CanvasRegistryChangedCanvas
 	CanvasRegistryChangedCanvasAction                              = rpc.CanvasRegistryChangedCanvasAction
 	CapabilitiesChangedData                                        = rpc.CapabilitiesChangedData
@@ -182,7 +181,10 @@ type (
 	SessionBinaryAssetData                                         = rpc.SessionBinaryAssetData
 	SessionCanvasClosedData                                        = rpc.SessionCanvasClosedData
 	SessionCanvasOpenedData                                        = rpc.SessionCanvasOpenedData
+	SessionCanvasRecordedData                                      = rpc.SessionCanvasRecordedData
 	SessionCanvasRegistryChangedData                               = rpc.SessionCanvasRegistryChangedData
+	SessionCanvasRemovedData                                       = rpc.SessionCanvasRemovedData
+	SessionCanvasUnavailableData                                   = rpc.SessionCanvasUnavailableData
 	SessionCompactionCompleteData                                  = rpc.SessionCompactionCompleteData
 	SessionCompactionStartData                                     = rpc.SessionCompactionStartData
 	SessionContextChangedData                                      = rpc.SessionContextChangedData
@@ -208,6 +210,7 @@ type (
 	SessionResumeData                                              = rpc.SessionResumeData
 	SessionScheduleCancelledData                                   = rpc.SessionScheduleCancelledData
 	SessionScheduleCreatedData                                     = rpc.SessionScheduleCreatedData
+	SessionScheduleRearmedData                                     = rpc.SessionScheduleRearmedData
 	SessionShutdownData                                            = rpc.SessionShutdownData
 	SessionSkillsLoadedData                                        = rpc.SessionSkillsLoadedData
 	SessionSnapshotRewindData                                      = rpc.SessionSnapshotRewindData
@@ -337,8 +340,6 @@ const (
 	BinaryAssetReferenceTypeResource                                   = rpc.BinaryAssetReferenceTypeResource
 	BinaryAssetTypeImage                                               = rpc.BinaryAssetTypeImage
 	BinaryAssetTypeResource                                            = rpc.BinaryAssetTypeResource
-	CanvasOpenedAvailabilityReady                                      = rpc.CanvasOpenedAvailabilityReady
-	CanvasOpenedAvailabilityStale                                      = rpc.CanvasOpenedAvailabilityStale
 	CitationLocationTypeBlock                                          = rpc.CitationLocationTypeBlock
 	CitationLocationTypeChar                                           = rpc.CitationLocationTypeChar
 	CitationLocationTypePage                                           = rpc.CitationLocationTypePage
@@ -481,7 +482,10 @@ const (
 	SessionEventTypeSessionBinaryAsset                                 = rpc.SessionEventTypeSessionBinaryAsset
 	SessionEventTypeSessionCanvasClosed                                = rpc.SessionEventTypeSessionCanvasClosed
 	SessionEventTypeSessionCanvasOpened                                = rpc.SessionEventTypeSessionCanvasOpened
+	SessionEventTypeSessionCanvasRecorded                              = rpc.SessionEventTypeSessionCanvasRecorded
 	SessionEventTypeSessionCanvasRegistryChanged                       = rpc.SessionEventTypeSessionCanvasRegistryChanged
+	SessionEventTypeSessionCanvasRemoved                               = rpc.SessionEventTypeSessionCanvasRemoved
+	SessionEventTypeSessionCanvasUnavailable                           = rpc.SessionEventTypeSessionCanvasUnavailable
 	SessionEventTypeSessionCompactionComplete                          = rpc.SessionEventTypeSessionCompactionComplete
 	SessionEventTypeSessionCompactionStart                             = rpc.SessionEventTypeSessionCompactionStart
 	SessionEventTypeSessionContextChanged                              = rpc.SessionEventTypeSessionContextChanged
@@ -503,6 +507,7 @@ const (
 	SessionEventTypeSessionResume                                      = rpc.SessionEventTypeSessionResume
 	SessionEventTypeSessionScheduleCancelled                           = rpc.SessionEventTypeSessionScheduleCancelled
 	SessionEventTypeSessionScheduleCreated                             = rpc.SessionEventTypeSessionScheduleCreated
+	SessionEventTypeSessionScheduleRearmed                             = rpc.SessionEventTypeSessionScheduleRearmed
 	SessionEventTypeSessionShutdown                                    = rpc.SessionEventTypeSessionShutdown
 	SessionEventTypeSessionSkillsLoaded                                = rpc.SessionEventTypeSessionSkillsLoaded
 	SessionEventTypeSessionSnapshotRewind                              = rpc.SessionEventTypeSessionSnapshotRewind

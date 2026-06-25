@@ -875,6 +875,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // featureFlags
                 null, // isExperimentalMode
                 null, // provider
+                null, // capi
                 null, // workingDirectory
                 null, // availableTools
                 null, // excludedTools

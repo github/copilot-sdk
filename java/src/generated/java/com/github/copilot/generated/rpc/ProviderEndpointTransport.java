@@ -10,28 +10,26 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Diff mode requested by the client.
+ * Transport to be used for provider requests.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum WorkspaceDiffMode {
-    /** The {@code unstaged} variant. */
-    UNSTAGED("unstaged"),
-    /** The {@code branch} variant. */
-    BRANCH("branch"),
-    /** The {@code session} variant. */
-    SESSION("session");
+public enum ProviderEndpointTransport {
+    /** The {@code http} variant. */
+    HTTP("http"),
+    /** The {@code websockets} variant. */
+    WEBSOCKETS("websockets");
 
     private final String value;
-    WorkspaceDiffMode(String value) { this.value = value; }
+    ProviderEndpointTransport(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static WorkspaceDiffMode fromValue(String value) {
-        for (WorkspaceDiffMode v : values()) {
+    public static ProviderEndpointTransport fromValue(String value) {
+        for (ProviderEndpointTransport v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown WorkspaceDiffMode value: " + value);
+        throw new IllegalArgumentException("Unknown ProviderEndpointTransport value: " + value);
     }
 }

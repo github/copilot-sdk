@@ -48,6 +48,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("isExperimentalMode") Boolean isExperimentalMode,
     /** Custom model-provider configuration (BYOK). */
     @JsonProperty("provider") ProviderConfig provider,
+    /** Options scoped to the built-in CAPI (Copilot API) provider. */
+    @JsonProperty("capi") CapiSessionOptions capi,
     /** Absolute working-directory path for shell tools. */
     @JsonProperty("workingDirectory") String workingDirectory,
     /** Allowlist of tool names available to this session. */

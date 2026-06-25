@@ -67,7 +67,9 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         /** Token count from non-system messages (user, assistant, tool) after compaction */
         @JsonProperty("conversationTokens") Long conversationTokens,
         /** Token count from tool definitions after compaction */
-        @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens
+        @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens,
+        /** For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error). */
+        @JsonProperty("statusCode") Long statusCode
     ) {
     }
 }

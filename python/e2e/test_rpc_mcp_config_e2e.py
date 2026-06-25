@@ -17,8 +17,8 @@ from copilot.rpc import (
     MCPConfigEnableRequest,
     MCPConfigRemoveRequest,
     MCPConfigUpdateRequest,
+    MCPGrantType,
     MCPServerConfig,
-    MCPServerConfigHTTPOauthGrantType,
     MCPServerConfigHTTPType,
 )
 
@@ -76,7 +76,7 @@ class TestRpcMcpConfig:
             headers={"Authorization": "Bearer token"},
             oauth_client_id="client-id",
             oauth_public_client=False,
-            oauth_grant_type=MCPServerConfigHTTPOauthGrantType.CLIENT_CREDENTIALS,
+            oauth_grant_type=MCPGrantType.CLIENT_CREDENTIALS,
             tools=["*"],
             timeout=3000,
         )
@@ -85,7 +85,7 @@ class TestRpcMcpConfig:
             url="https://example.com/updated-mcp",
             oauth_client_id="updated-client-id",
             oauth_public_client=True,
-            oauth_grant_type=MCPServerConfigHTTPOauthGrantType.AUTHORIZATION_CODE,
+            oauth_grant_type=MCPGrantType.AUTHORIZATION_CODE,
             tools=["updated-tool"],
             timeout=4000,
         )
@@ -102,7 +102,7 @@ class TestRpcMcpConfig:
             assert added.headers["Authorization"] == "Bearer token"
             assert added.oauth_client_id == "client-id"
             assert added.oauth_public_client is False
-            assert added.oauth_grant_type == MCPServerConfigHTTPOauthGrantType.CLIENT_CREDENTIALS
+            assert added.oauth_grant_type == MCPGrantType.CLIENT_CREDENTIALS
 
             await ctx.client.rpc.mcp.config.update(
                 MCPConfigUpdateRequest(name=server_name, config=updated_config)
@@ -112,7 +112,7 @@ class TestRpcMcpConfig:
             assert updated.url == "https://example.com/updated-mcp"
             assert updated.oauth_client_id == "updated-client-id"
             assert updated.oauth_public_client is True
-            assert updated.oauth_grant_type == MCPServerConfigHTTPOauthGrantType.AUTHORIZATION_CODE
+            assert updated.oauth_grant_type == MCPGrantType.AUTHORIZATION_CODE
             assert updated.tools is not None and updated.tools[0] == "updated-tool"
             assert updated.timeout == 4000
         finally:

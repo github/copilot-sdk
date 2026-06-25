@@ -25,6 +25,8 @@ pub enum SessionEventType {
     SessionScheduleCreated,
     #[serde(rename = "session.schedule_cancelled")]
     SessionScheduleCancelled,
+    #[serde(rename = "session.schedule_rearmed")]
+    SessionScheduleRearmed,
     #[serde(rename = "session.autopilot_objective_changed")]
     SessionAutopilotObjectiveChanged,
     #[serde(rename = "session.info")]
@@ -188,12 +190,60 @@ pub enum SessionEventType {
     SessionMcpServerStatusChanged,
     #[serde(rename = "session.extensions_loaded")]
     SessionExtensionsLoaded,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.opened")]
     SessionCanvasOpened,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.registry_changed")]
     SessionCanvasRegistryChanged,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.closed")]
     SessionCanvasClosed,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.unavailable")]
+    SessionCanvasUnavailable,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.recorded")]
+    SessionCanvasRecorded,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.removed")]
+    SessionCanvasRemoved,
     #[serde(rename = "session.extensions.attachments_pushed")]
     SessionExtensionsAttachmentsPushed,
     #[serde(rename = "mcp_app.tool_call_complete")]
@@ -226,6 +276,8 @@ pub enum SessionEventData {
     SessionScheduleCreated(SessionScheduleCreatedData),
     #[serde(rename = "session.schedule_cancelled")]
     SessionScheduleCancelled(SessionScheduleCancelledData),
+    #[serde(rename = "session.schedule_rearmed")]
+    SessionScheduleRearmed(SessionScheduleRearmedData),
     #[serde(rename = "session.autopilot_objective_changed")]
     SessionAutopilotObjectiveChanged(SessionAutopilotObjectiveChangedData),
     #[serde(rename = "session.info")]
@@ -382,12 +434,60 @@ pub enum SessionEventData {
     SessionMcpServerStatusChanged(SessionMcpServerStatusChangedData),
     #[serde(rename = "session.extensions_loaded")]
     SessionExtensionsLoaded(SessionExtensionsLoadedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.opened")]
     SessionCanvasOpened(SessionCanvasOpenedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.registry_changed")]
     SessionCanvasRegistryChanged(SessionCanvasRegistryChangedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.closed")]
     SessionCanvasClosed(SessionCanvasClosedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.unavailable")]
+    SessionCanvasUnavailable(SessionCanvasUnavailableData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.recorded")]
+    SessionCanvasRecorded(SessionCanvasRecordedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.removed")]
+    SessionCanvasRemoved(SessionCanvasRemovedData),
     #[serde(rename = "session.extensions.attachments_pushed")]
     SessionExtensionsAttachmentsPushed(SessionExtensionsAttachmentsPushedData),
     #[serde(rename = "mcp_app.tool_call_complete")]
@@ -609,6 +709,9 @@ pub struct SessionScheduleCreatedData {
     /// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurring: Option<bool>,
+    /// True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled rather than auto-computed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub self_paced: Option<bool>,
     /// IANA timezone the `cron` expression is evaluated in
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tz: Option<String>,
@@ -620,6 +723,16 @@ pub struct SessionScheduleCreatedData {
 pub struct SessionScheduleCancelledData {
     /// Id of the scheduled prompt that was cancelled
     pub id: i64,
+}
+
+/// Session event "session.schedule_rearmed". Self-paced schedule re-armed for its next run
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionScheduleRearmedData {
+    /// Id of the self-paced schedule that was re-armed
+    pub id: i64,
+    /// Absolute time (epoch milliseconds) the model armed the next run to fire
+    pub next_run_at: i64,
 }
 
 /// Session event "session.autopilot_objective_changed". Autopilot objective state file operation details indicating what changed
@@ -1118,6 +1231,9 @@ pub struct SessionCompactionCompleteData {
     /// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
+    /// For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i64>,
     /// Whether compaction completed successfully
     pub success: bool,
     /// LLM-generated summary of the compacted conversation history
@@ -1500,6 +1616,10 @@ pub(crate) struct AssistantUsageQuotaSnapshot {
     /// Total requests allowed by the entitlement
     #[doc(hidden)]
     pub(crate) entitlement_requests: i64,
+    /// Whether the user currently has quota available for use
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) has_quota: Option<bool>,
     /// Whether the user has an unlimited usage entitlement
     #[doc(hidden)]
     pub(crate) is_unlimited_entitlement: bool,
@@ -1509,6 +1629,10 @@ pub(crate) struct AssistantUsageQuotaSnapshot {
     /// Whether additional usage is allowed when quota is exhausted
     #[doc(hidden)]
     pub(crate) overage_allowed_with_exhausted_quota: bool,
+    /// Pay-as-you-go additional-usage budget cap in AI credits (1 credit = $0.01); present only when CAPI emits a finite value
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) overage_entitlement: Option<f64>,
     /// Percentage of quota remaining (0 to 100)
     #[doc(hidden)]
     pub(crate) remaining_percentage: f64,
@@ -1516,6 +1640,10 @@ pub(crate) struct AssistantUsageQuotaSnapshot {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) reset_date: Option<String>,
+    /// Whether this snapshot uses token-based billing (AI-credits allocation)
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) token_based_billing: Option<bool>,
     /// Whether usage is still permitted after quota exhaustion
     #[doc(hidden)]
     pub(crate) usage_allowed_with_exhausted_quota: bool,
@@ -1654,6 +1782,10 @@ pub struct ModelCallFailureData {
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
+    /// Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) quota_snapshots: Option<HashMap<String, AssistantUsageQuotaSnapshot>>,
     /// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_fingerprint: Option<ModelCallFailureRequestFingerprint>,
@@ -2427,6 +2559,12 @@ pub struct PermissionRequestShell {
     pub possible_paths: Vec<String>,
     /// URLs that may be accessed by the command
     pub possible_urls: Vec<PermissionRequestShellPossibleUrl>,
+    /// True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3523,11 +3661,16 @@ pub struct SessionExtensionsLoadedData {
 }
 
 /// Session event "session.canvas.opened".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCanvasOpenedData {
-    /// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
-    pub availability: CanvasOpenedAvailability,
     /// Provider-local canvas identifier
     pub canvas_id: String,
     /// Owning provider identifier
@@ -3540,8 +3683,6 @@ pub struct SessionCanvasOpenedData {
     pub input: Option<serde_json::Value>,
     /// Stable caller-supplied canvas instance identifier
     pub instance_id: String,
-    /// Whether this notification represents an idempotent reopen
-    pub reopen: bool,
     /// Provider-supplied status text
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -3554,6 +3695,13 @@ pub struct SessionCanvasOpenedData {
 }
 
 /// Schema for the `CanvasRegistryChangedCanvasAction` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasRegistryChangedCanvasAction {
@@ -3568,6 +3716,13 @@ pub struct CanvasRegistryChangedCanvasAction {
 }
 
 /// Schema for the `CanvasRegistryChangedCanvas` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasRegistryChangedCanvas {
@@ -3591,6 +3746,13 @@ pub struct CanvasRegistryChangedCanvas {
 }
 
 /// Session event "session.canvas.registry_changed".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCanvasRegistryChangedData {
@@ -3599,9 +3761,79 @@ pub struct SessionCanvasRegistryChangedData {
 }
 
 /// Session event "session.canvas.closed".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCanvasClosedData {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Stable caller-supplied identifier of the canvas instance that was closed
+    pub instance_id: String,
+}
+
+/// Session event "session.canvas.unavailable". Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasUnavailableData {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Stable caller-supplied identifier of the canvas instance whose provider became unavailable
+    pub instance_id: String,
+}
+
+/// Session event "session.canvas.recorded". Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasRecordedData {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Input supplied when the instance was opened
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Stable caller-supplied canvas instance identifier
+    pub instance_id: String,
+    /// Rendered title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
+/// Session event "session.canvas.removed". Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasRemovedData {
     /// Provider-local canvas identifier
     pub canvas_id: String,
     /// Owning provider identifier
@@ -4789,21 +5021,6 @@ pub enum ExtensionsLoadedExtensionStatus {
     /// The extension process is starting.
     #[serde(rename = "starting")]
     Starting,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CanvasOpenedAvailability {
-    /// Provider connection is live; actions can be invoked.
-    #[serde(rename = "ready")]
-    Ready,
-    /// Provider has gone away; the instance is awaiting rebinding.
-    #[serde(rename = "stale")]
-    Stale,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

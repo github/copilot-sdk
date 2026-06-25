@@ -37,6 +37,12 @@ public record AssistantUsageQuotaSnapshot(
     /** Percentage of quota remaining (0 to 100) */
     @JsonProperty("remainingPercentage") Double remainingPercentage,
     /** Date when the quota resets */
-    @JsonProperty("resetDate") OffsetDateTime resetDate
+    @JsonProperty("resetDate") OffsetDateTime resetDate,
+    /** Whether the user currently has quota available for use */
+    @JsonProperty("hasQuota") Boolean hasQuota,
+    /** Whether this snapshot uses token-based billing (AI-credits allocation) */
+    @JsonProperty("tokenBasedBilling") Boolean tokenBasedBilling,
+    /** Pay-as-you-go additional-usage budget cap in AI credits (1 credit = $0.01); present only when CAPI emits a finite value */
+    @JsonProperty("overageEntitlement") Double overageEntitlement
 ) {
 }

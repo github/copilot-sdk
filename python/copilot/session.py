@@ -1696,12 +1696,7 @@ class CopilotSession:
 
             case SessionCanvasOpenedData() as data:
                 try:
-                    if (
-                        not data.instance_id
-                        or not data.canvas_id
-                        or not data.extension_id
-                        or data.availability is None
-                    ):
+                    if not data.instance_id or not data.canvas_id or not data.extension_id:
                         raise ValueError("missing required open canvas fields")
                     self._upsert_open_canvas(OpenCanvasInstance.from_dict(data.to_dict()))
                 except Exception as exc:

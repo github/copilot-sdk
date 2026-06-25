@@ -13,43 +13,33 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.canvas.opened".
+ * Session event "session.canvas.removed". Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class SessionCanvasOpenedEvent extends SessionEvent {
+public final class SessionCanvasRemovedEvent extends SessionEvent {
 
     @Override
-    public String getType() { return "session.canvas.opened"; }
+    public String getType() { return "session.canvas.removed"; }
 
     @JsonProperty("data")
-    private SessionCanvasOpenedEventData data;
+    private SessionCanvasRemovedEventData data;
 
-    public SessionCanvasOpenedEventData getData() { return data; }
-    public void setData(SessionCanvasOpenedEventData data) { this.data = data; }
+    public SessionCanvasRemovedEventData getData() { return data; }
+    public void setData(SessionCanvasRemovedEventData data) { this.data = data; }
 
-    /** Data payload for {@link SessionCanvasOpenedEvent}. */
+    /** Data payload for {@link SessionCanvasRemovedEvent}. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionCanvasOpenedEventData(
-        /** Stable caller-supplied canvas instance identifier */
+    public record SessionCanvasRemovedEventData(
+        /** Stable caller-supplied identifier of the canvas instance that was closed */
         @JsonProperty("instanceId") String instanceId,
         /** Owning provider identifier */
         @JsonProperty("extensionId") String extensionId,
-        /** Owning extension display name, when available */
-        @JsonProperty("extensionName") String extensionName,
         /** Provider-local canvas identifier */
-        @JsonProperty("canvasId") String canvasId,
-        /** Rendered title */
-        @JsonProperty("title") String title,
-        /** Provider-supplied status text */
-        @JsonProperty("status") String status,
-        /** URL for web-rendered canvases */
-        @JsonProperty("url") String url,
-        /** Input supplied when the instance was opened */
-        @JsonProperty("input") Object input
+        @JsonProperty("canvasId") String canvasId
     ) {
     }
 }

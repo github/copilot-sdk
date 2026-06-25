@@ -378,8 +378,6 @@ describe("CopilotClient", () => {
                 status: "ready",
                 url: "https://example.test/counter",
                 input: { seed: 1 },
-                reopen: false,
-                availability: "ready",
             },
         });
         (session as any)._dispatchEvent({
@@ -389,8 +387,6 @@ describe("CopilotClient", () => {
                 canvasId: "logs",
                 instanceId: "logs-1",
                 title: "Logs",
-                reopen: false,
-                availability: "stale",
             },
         });
 
@@ -411,8 +407,6 @@ describe("CopilotClient", () => {
                 status: "reconnected",
                 url: "https://example.test/counter-updated",
                 input: { seed: 2 },
-                reopen: true,
-                availability: "stale",
             },
         });
 
@@ -423,8 +417,6 @@ describe("CopilotClient", () => {
             status: "reconnected",
             url: "https://example.test/counter-updated",
             input: { seed: 2 },
-            reopen: true,
-            availability: "stale",
         });
         expect(session.openCanvases[1].instanceId).toBe("logs-1");
         warn.mockRestore();
@@ -441,8 +433,6 @@ describe("CopilotClient", () => {
                 canvasId: "counter",
                 instanceId: "counter-1",
                 title: "Counter",
-                reopen: false,
-                availability: "ready",
             },
         });
         (session as any)._dispatchEvent({
@@ -452,8 +442,6 @@ describe("CopilotClient", () => {
                 canvasId: "logs",
                 instanceId: "logs-1",
                 title: "Logs",
-                reopen: false,
-                availability: "ready",
             },
         });
         expect(session.openCanvases.map((canvas) => canvas.instanceId)).toEqual([

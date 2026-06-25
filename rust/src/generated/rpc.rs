@@ -4682,7 +4682,7 @@ impl<'a> SessionRpcMcpOauth<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
+    /// * `params` - Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
     ///
     /// # Returns
     ///

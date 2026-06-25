@@ -475,6 +475,10 @@ type AttachmentDirectory struct {
 	DisplayName string `json:"displayName"`
 	// Absolute directory path
 	Path string `json:"path"`
+	// Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g.
+	// "* /path (12 items)"). Captured at send time so resumed history reproduces the exact text
+	// the model saw, independent of later filesystem changes.
+	TaggedFilesEntry *string `json:"taggedFilesEntry,omitempty"`
 }
 
 func (AttachmentDirectory) attachment() {}
@@ -528,6 +532,12 @@ type AttachmentFile struct {
 	OmittedReason *OmittedBinaryOmittedReason `json:"omittedReason,omitempty"`
 	// Absolute file path
 	Path string `json:"path"`
+	// Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g.
+	// "* /path (123 lines)"). Captured at send time so resumed history reproduces the exact
+	// text the model saw, independent of later filesystem changes. Present only for attachments
+	// routed to <tagged_files> (mutually exclusive with assetId, which marks bytes sent
+	// natively).
+	TaggedFilesEntry *string `json:"taggedFilesEntry,omitempty"`
 }
 
 func (AttachmentFile) attachment() {}
@@ -937,6 +947,18 @@ type CanvasProviderOpenResult struct {
 type CanvasSessionContext struct {
 	// Active session working directory, when known.
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
+}
+
+// Options scoped to the built-in CAPI (Copilot API) provider.
+// Experimental: CapiSessionOptions is part of an experimental API and may change or be
+// removed.
+type CapiSessionOptions struct {
+	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
+	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
+	// transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting
+	// this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`
+	// environment variable.
+	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
 }
 
 // Slash commands available in the session, after applying any include/exclude filters.
@@ -2666,7 +2688,7 @@ type MCPOauthHandlePendingResult struct {
 }
 
 // Remote MCP server name and optional overrides controlling reauthentication, OAuth client
-// display name, and the callback success-page copy.
+// display name, callback success-page copy, and static OAuth client selection.
 // Experimental: MCPOauthLoginRequest is part of an experimental API and may change or be
 // removed.
 type MCPOauthLoginRequest struct {
@@ -2674,16 +2696,30 @@ type MCPOauthLoginRequest struct {
 	// When omitted, the runtime applies a neutral fallback; callers driving interactive auth
 	// should pass surface-specific copy telling the user where to return.
 	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Optional OAuth client ID override for this login. When set, the runtime uses this
+	// pre-registered static client instead of dynamic client registration.
+	ClientID *string `json:"clientId,omitempty"`
 	// Optional override for the OAuth client display name shown on the consent screen. Applies
 	// to newly registered dynamic clients only — existing registrations keep the name they were
 	// created with. When omitted, the runtime applies a neutral fallback; callers driving
 	// interactive auth should pass their own surface-specific label so the consent screen
 	// matches the product the user sees.
 	ClientName *string `json:"clientName,omitempty"`
+	// Optional OAuth client secret override for this login. The runtime treats this as an
+	// ephemeral host-owned secret, uses it for this authentication attempt and does not persist
+	// it.
+	ClientSecret *string `json:"clientSecret,omitempty"`
 	// When true, clears any cached OAuth token for the server and runs a full new
 	// authorization. Use when the user explicitly wants to switch accounts or believes their
 	// session is stuck.
 	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Optional OAuth grant type override for this login. Defaults to the server configuration,
+	// or authorization_code when no grant type is specified.
+	GrantType *MCPOauthLoginGrantType `json:"grantType,omitempty"`
+	// Optional override indicating whether the static OAuth client is public. When false, the
+	// runtime treats it as confidential and uses the per-login clientSecret if provided,
+	// otherwise retrieving the client secret from the MCP OAuth secret store.
+	PublicClient *bool `json:"publicClient,omitempty"`
 	// Name of the remote MCP server to authenticate
 	ServerName string `json:"serverName"`
 }
@@ -3434,10 +3470,23 @@ type NamedProviderConfig struct {
 	// Bearer token for authentication. Sets the Authorization header directly. Takes precedence
 	// over apiKey when both are set.
 	BearerToken *string `json:"bearerToken,omitempty"`
+	// When true, the SDK client supplies bearer tokens on demand: the runtime calls the
+	// client-session `providerToken.getToken` callback before each request and applies the
+	// returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth
+	// scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens
+	// (including Anthropic's), not a provider-specific API-key header such as Anthropic's
+	// `x-api-key`. The token-acquiring function itself stays on the SDK side and is never
+	// serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`,
+	// the callback takes precedence: the runtime applies the token returned by
+	// `providerToken.getToken` as the `Authorization: Bearer` header for each request and does
+	// not send the static credential.
+	HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
 	// Custom HTTP headers to include in all outbound requests to the provider.
 	Headers map[string]string `json:"headers,omitzero"`
 	// Stable identifier referenced by BYOK model definitions. Must not contain '/'.
 	Name string `json:"name"`
+	// Provider transport. Defaults to "http".
+	Transport *ProviderConfigTransport `json:"transport,omitempty"`
 	// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
 	Type *ProviderConfigType `json:"type,omitempty"`
 	// Wire API format (openai/azure only). Defaults to "completions".
@@ -3481,8 +3530,6 @@ type NameSetRequest struct {
 // Experimental: OpenCanvasInstance is part of an experimental API and may change or be
 // removed.
 type OpenCanvasInstance struct {
-	// Runtime-controlled routing state for an open canvas instance.
-	Availability CanvasInstanceAvailability `json:"availability"`
 	// Provider-local canvas identifier
 	CanvasID string `json:"canvasId"`
 	// Owning provider identifier
@@ -3493,8 +3540,6 @@ type OpenCanvasInstance struct {
 	Input any `json:"input,omitempty"`
 	// Stable caller-supplied canvas instance identifier
 	InstanceID string `json:"instanceId"`
-	// Whether this snapshot came from an idempotent reopen
-	Reopen bool `json:"reopen"`
 	// Provider-supplied status text
 	Status *string `json:"status,omitempty"`
 	// Rendered title
@@ -4949,6 +4994,17 @@ type ProviderConfig struct {
 	// Bearer token for authentication. Sets the Authorization header directly. Takes precedence
 	// over apiKey when both are set.
 	BearerToken *string `json:"bearerToken,omitempty"`
+	// When true, the SDK client supplies bearer tokens on demand: the runtime calls the
+	// client-session `providerToken.getToken` callback before each request and applies the
+	// returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth
+	// scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens
+	// (including Anthropic's), not a provider-specific API-key header such as Anthropic's
+	// `x-api-key`. The token-acquiring function itself stays on the SDK side and is never
+	// serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`,
+	// the callback takes precedence: the runtime applies the token returned by
+	// `providerToken.getToken` as the `Authorization: Bearer` header for each request and does
+	// not send the static credential.
+	HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
 	// Custom HTTP headers to include in all outbound requests to the provider.
 	Headers map[string]string `json:"headers,omitzero"`
 	// Maximum context window tokens for the model.
@@ -4960,6 +5016,8 @@ type ProviderConfig struct {
 	// Well-known model ID used for capability lookup. When set, agent behavior config and token
 	// limits are inferred from this model.
 	ModelID *string `json:"modelId,omitempty"`
+	// Provider transport. Defaults to "http".
+	Transport *ProviderConfigTransport `json:"transport,omitempty"`
 	// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
 	Type *ProviderConfigType `json:"type,omitempty"`
 	// Wire API format (openai/azure only). Defaults to "completions".
@@ -4992,6 +5050,8 @@ type ProviderEndpoint struct {
 	// Short-lived, rotating credential the caller must send on every request, in addition to
 	// `apiKey` if one is present. Omitted when the endpoint does not require one.
 	SessionToken *ProviderSessionToken `json:"sessionToken,omitempty"`
+	// Transport to be used for provider requests.
+	Transport *ProviderEndpointTransport `json:"transport,omitempty"`
 	// Provider family. Matches the `type` field of a BYOK provider config.
 	Type ProviderEndpointType `json:"type"`
 	// Wire API to be used, when required for the provider type.
@@ -5047,6 +5107,29 @@ type ProviderSessionToken struct {
 	// requests against this model.
 	Model *string `json:"model,omitempty"`
 	// The short-lived token value.
+	Token string `json:"token"`
+}
+
+// Asks the SDK client to acquire a bearer token for a BYOK provider whose config set
+// `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request;
+// the runtime does no caching, so this is sent once per request.
+// Experimental: ProviderTokenAcquireRequest is part of an experimental API and may change
+// or be removed.
+type ProviderTokenAcquireRequest struct {
+	// Name of the BYOK provider needing a token. For the legacy whole-session `provider` this
+	// is the implicit provider name; for named providers it is `NamedProviderConfig.name`.
+	ProviderName string `json:"providerName"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as
+// `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK
+// consumer owns token caching and refresh.
+// Experimental: ProviderTokenAcquireResult is part of an experimental API and may change or
+// be removed.
+type ProviderTokenAcquireResult struct {
+	// The bearer token value (without the `Bearer ` prefix).
 	Token string `json:"token"`
 }
 
@@ -5566,9 +5649,6 @@ type RuntimeShutdownResult struct {
 type SandboxConfig struct {
 	// Whether to auto-add the current working directory to readwritePaths. Default: true.
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
-	// Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to
-	// `spawnSandboxFromConfig`, bypassing policy merging.
-	Config any `json:"config,omitempty"`
 	// Whether sandboxing is enabled for the session.
 	Enabled bool `json:"enabled"`
 	// User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -5579,12 +5659,15 @@ type SandboxConfig struct {
 // Experimental: SandboxConfigUserPolicy is part of an experimental API and may change or be
 // removed.
 type SandboxConfigUserPolicy struct {
-	// Platform-specific experimental policy fields.
+	// Deprecated legacy location for `seatbelt`; read only when the top-level `seatbelt` is
+	// absent.
 	Experimental *SandboxConfigUserPolicyExperimental `json:"experimental,omitempty"`
 	// Filesystem rules to merge into the base policy.
 	Filesystem *SandboxConfigUserPolicyFilesystem `json:"filesystem,omitempty"`
 	// Network rules to merge into the base policy.
 	Network *SandboxConfigUserPolicyNetwork `json:"network,omitempty"`
+	// macOS seatbelt options to merge into the base policy.
+	Seatbelt *SandboxConfigUserPolicySeatbelt `json:"seatbelt,omitempty"`
 }
 
 // Platform-specific experimental policy fields.
@@ -5631,6 +5714,14 @@ type SandboxConfigUserPolicyNetwork struct {
 	BlockedHosts []string `json:"blockedHosts,omitzero"`
 }
 
+// macOS seatbelt-specific options.
+// Experimental: SandboxConfigUserPolicySeatbelt is part of an experimental API and may
+// change or be removed.
+type SandboxConfigUserPolicySeatbelt struct {
+	// Whether the macOS seatbelt profile may access the keychain.
+	KeychainAccess *bool `json:"keychainAccess,omitempty"`
+}
+
 // Schema for the `ScheduleEntry` type.
 // Experimental: ScheduleEntry is part of an experimental API and may change or be removed.
 type ScheduleEntry struct {
@@ -5652,6 +5743,9 @@ type ScheduleEntry struct {
 	Prompt string `json:"prompt"`
 	// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`).
 	Recurring bool `json:"recurring"`
+	// True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next
+	// run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled.
+	SelfPaced *bool `json:"selfPaced,omitempty"`
 	// IANA timezone the `cron` expression is evaluated in.
 	Tz *string `json:"tz,omitempty"`
 }
@@ -6477,6 +6571,8 @@ type SessionOpenOptions struct {
 	AuthInfo AuthInfo `json:"authInfo,omitempty"`
 	// Allowlist of available tool names.
 	AvailableTools []string `json:"availableTools,omitzero"`
+	// Options scoped to the built-in CAPI (Copilot API) provider.
+	Capi *CapiSessionOptions `json:"capi,omitempty"`
 	// Structured client kind used for runtime behavior gates.
 	ClientKind *string `json:"clientKind,omitempty"`
 	// Identifier of the client driving the session.
@@ -7292,6 +7388,8 @@ type SessionUpdateOptionsParams struct {
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// Allowlist of tool names available to this session.
 	AvailableTools []string `json:"availableTools,omitzero"`
+	// Options scoped to the built-in CAPI (Copilot API) provider.
+	Capi *CapiSessionOptions `json:"capi,omitempty"`
 	// Identifier of the client driving the session.
 	ClientName *string `json:"clientName,omitempty"`
 	// Whether to include the `Co-authored-by` trailer in commit messages.
@@ -9280,20 +9378,6 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
-// Runtime-controlled routing state for an open canvas instance.
-// Experimental: CanvasInstanceAvailability is part of an experimental API and may change or
-// be removed.
-type CanvasInstanceAvailability string
-
-const (
-	// The owning provider is currently connected and routing calls will be dispatched normally.
-	CanvasInstanceAvailabilityReady CanvasInstanceAvailability = "ready"
-	// The owning provider is not currently connected. Routing calls fail with
-	// canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a
-	// fresh canvas.open) or the provider reconnects.
-	CanvasInstanceAvailabilityStale CanvasInstanceAvailability = "stale"
-)
-
 // Neutral SDK discriminator for the connected remote session kind.
 // Experimental: ConnectedRemoteSessionMetadataKind is part of an experimental API and may
 // change or be removed.
@@ -9674,6 +9758,19 @@ const (
 	MCPAppsSetHostContextDetailsThemeDark MCPAppsSetHostContextDetailsTheme = "dark"
 	// Light UI theme
 	MCPAppsSetHostContextDetailsThemeLight MCPAppsSetHostContextDetailsTheme = "light"
+)
+
+// OAuth grant type override for this login.
+// Experimental: MCPOauthLoginGrantType is part of an experimental API and may change or be
+// removed.
+type MCPOauthLoginGrantType string
+
+const (
+	// Interactive browser-based OAuth flow using an authorization code, typically with PKCE.
+	MCPOauthLoginGrantTypeAuthorizationCode MCPOauthLoginGrantType = "authorization_code"
+	// Headless OAuth flow where a confidential client authenticates directly with a client
+	// secret.
+	MCPOauthLoginGrantTypeClientCredentials MCPOauthLoginGrantType = "client_credentials"
 )
 
 // Kind discriminator for MCPOauthPendingRequestResponse.
@@ -10064,6 +10161,18 @@ const (
 	PermissionsSetApproveAllSourceSlashCommand PermissionsSetApproveAllSource = "slash_command"
 )
 
+// Provider transport. Defaults to "http".
+// Experimental: ProviderConfigTransport is part of an experimental API and may change or be
+// removed.
+type ProviderConfigTransport string
+
+const (
+	// HTTP request/streaming transport.
+	ProviderConfigTransportHTTP ProviderConfigTransport = "http"
+	// WebSocket transport.
+	ProviderConfigTransportWebsockets ProviderConfigTransport = "websockets"
+)
+
 // Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
 // Experimental: ProviderConfigType is part of an experimental API and may change or be
 // removed.
@@ -10088,6 +10197,18 @@ const (
 	ProviderConfigWireAPICompletions ProviderConfigWireAPI = "completions"
 	// OpenAI Responses API wire format.
 	ProviderConfigWireAPIResponses ProviderConfigWireAPI = "responses"
+)
+
+// Transport to be used for provider requests.
+// Experimental: ProviderEndpointTransport is part of an experimental API and may change or
+// be removed.
+type ProviderEndpointTransport string
+
+const (
+	// HTTP request/streaming transport.
+	ProviderEndpointTransportHTTP ProviderEndpointTransport = "http"
+	// WebSocket transport.
+	ProviderEndpointTransportWebsockets ProviderEndpointTransport = "websockets"
 )
 
 // Provider family. Matches the `type` field of a BYOK provider config.
@@ -10816,6 +10937,9 @@ type WorkspaceDiffMode string
 const (
 	// Return changes compared with the default branch.
 	WorkspaceDiffModeBranch WorkspaceDiffMode = "branch"
+	// Return the cumulative diff of files Copilot changed this session (used in non-git
+	// workspaces).
+	WorkspaceDiffModeSession WorkspaceDiffMode = "session"
 	// Return staged, unstaged, and untracked working tree changes.
 	WorkspaceDiffModeUnstaged WorkspaceDiffMode = "unstaged"
 )
@@ -13734,7 +13858,7 @@ func (a *MCPOauthAPI) HandlePendingRequest(ctx context.Context, params *MCPOauth
 // RPC method: session.mcp.oauth.login.
 //
 // Parameters: Remote MCP server name and optional overrides controlling reauthentication,
-// OAuth client display name, and the callback success-page copy.
+// OAuth client display name, callback success-page copy, and static OAuth client selection.
 //
 // Returns: OAuth authorization URL the caller should open, or empty when cached tokens
 // already authenticated the server.
@@ -13744,11 +13868,23 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 		if params.CallbackSuccessMessage != nil {
 			req["callbackSuccessMessage"] = *params.CallbackSuccessMessage
 		}
+		if params.ClientID != nil {
+			req["clientId"] = *params.ClientID
+		}
 		if params.ClientName != nil {
 			req["clientName"] = *params.ClientName
 		}
+		if params.ClientSecret != nil {
+			req["clientSecret"] = *params.ClientSecret
+		}
 		if params.ForceReauth != nil {
 			req["forceReauth"] = *params.ForceReauth
+		}
+		if params.GrantType != nil {
+			req["grantType"] = *params.GrantType
+		}
+		if params.PublicClient != nil {
+			req["publicClient"] = *params.PublicClient
 		}
 		req["serverName"] = params.ServerName
 	}
@@ -14186,6 +14322,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.AvailableTools != nil {
 			req["availableTools"] = params.AvailableTools
+		}
+		if params.Capi != nil {
+			req["capi"] = *params.Capi
 		}
 		if params.ClientName != nil {
 			req["clientName"] = *params.ClientName
@@ -16857,6 +16996,30 @@ type CanvasHandler interface {
 	Open(request *CanvasProviderOpenRequest) (*CanvasProviderOpenResult, error)
 }
 
+// Experimental: ProviderTokenHandler contains experimental APIs that may change or be
+// removed.
+type ProviderTokenHandler interface {
+	// GetToken asks the SDK client to get a bearer token for a BYOK provider whose config set
+	// `hasBearerTokenProvider: true`. Session-scoped: the runtime calls it back on the
+	// connection that most recently supplied that provider's config for the session (the
+	// creating connection, or a resuming connection if the session was resumed — distinct
+	// providers may be owned by different connections), passing the provider name, and uses the
+	// returned token as the Authorization header for the outbound model request. The runtime
+	// does no caching — it calls this once per outbound request; the SDK consumer owns token
+	// acquisition, caching, and refresh.
+	//
+	// RPC method: providerToken.getToken.
+	//
+	// Parameters: Asks the SDK client to acquire a bearer token for a BYOK provider whose
+	// config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound
+	// model request; the runtime does no caching, so this is sent once per request.
+	//
+	// Returns: A bearer token supplied by the SDK client for a BYOK provider. The runtime sets
+	// it as `Authorization: Bearer <token>` on the outbound request and does no caching; the
+	// SDK consumer owns token caching and refresh.
+	GetToken(request *ProviderTokenAcquireRequest) (*ProviderTokenAcquireResult, error)
+}
+
 // Experimental: SessionFSHandler contains experimental APIs that may change or be removed.
 type SessionFSHandler interface {
 	// AppendFile appends content to a file in the client-provided session filesystem.
@@ -16975,8 +17138,9 @@ type SessionFSHandler interface {
 
 // ClientSessionAPIHandlers provides all client session API handler groups for a session.
 type ClientSessionAPIHandlers struct {
-	Canvas    CanvasHandler
-	SessionFS SessionFSHandler
+	Canvas        CanvasHandler
+	ProviderToken ProviderTokenHandler
+	SessionFS     SessionFSHandler
 }
 
 func clientSessionHandlerError(err error) *jsonrpc2.Error {
@@ -17041,6 +17205,25 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.Canvas.Open(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("providerToken.getToken", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request ProviderTokenAcquireRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.ProviderToken == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No providerToken handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.ProviderToken.GetToken(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}

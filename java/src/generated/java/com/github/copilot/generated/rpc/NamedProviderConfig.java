@@ -28,6 +28,8 @@ public record NamedProviderConfig(
     @JsonProperty("type") ProviderConfigType type,
     /** Wire API format (openai/azure only). Defaults to "completions". */
     @JsonProperty("wireApi") ProviderConfigWireApi wireApi,
+    /** Provider transport. Defaults to "http". */
+    @JsonProperty("transport") ProviderConfigTransport transport,
     /** API endpoint URL. */
     @JsonProperty("baseUrl") String baseUrl,
     /** API key. Optional for local providers like Ollama. */
@@ -37,6 +39,8 @@ public record NamedProviderConfig(
     /** Azure-specific provider options. */
     @JsonProperty("azure") ProviderConfigAzure azure,
     /** Custom HTTP headers to include in all outbound requests to the provider. */
-    @JsonProperty("headers") Map<String, String> headers
+    @JsonProperty("headers") Map<String, String> headers,
+    /** When true, the SDK client supplies bearer tokens on demand: the runtime calls the client-session `providerToken.getToken` callback before each request and applies the returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens (including Anthropic's), not a provider-specific API-key header such as Anthropic's `x-api-key`. The token-acquiring function itself stays on the SDK side and is never serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`, the callback takes precedence: the runtime applies the token returned by `providerToken.getToken` as the `Authorization: Bearer` header for each request and does not send the static credential. */
+    @JsonProperty("hasBearerTokenProvider") Boolean hasBearerTokenProvider
 ) {
 }

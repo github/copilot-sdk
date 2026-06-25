@@ -93,10 +93,25 @@ const (
 	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
 	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
 	// may change or be removed.
-	SessionEventTypeSessionBinaryAsset                 SessionEventType = "session.binary_asset"
-	SessionEventTypeSessionCanvasClosed                SessionEventType = "session.canvas.closed"
-	SessionEventTypeSessionCanvasOpened                SessionEventType = "session.canvas.opened"
-	SessionEventTypeSessionCanvasRegistryChanged       SessionEventType = "session.canvas.registry_changed"
+	SessionEventTypeSessionBinaryAsset SessionEventType = "session.binary_asset"
+	// Experimental: SessionEventTypeSessionCanvasClosed identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionCanvasClosed SessionEventType = "session.canvas.closed"
+	// Experimental: SessionEventTypeSessionCanvasOpened identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionCanvasOpened SessionEventType = "session.canvas.opened"
+	// Experimental: SessionEventTypeSessionCanvasRecorded identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionCanvasRecorded SessionEventType = "session.canvas.recorded"
+	// Experimental: SessionEventTypeSessionCanvasRegistryChanged identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeSessionCanvasRegistryChanged SessionEventType = "session.canvas.registry_changed"
+	// Experimental: SessionEventTypeSessionCanvasRemoved identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionCanvasRemoved SessionEventType = "session.canvas.removed"
+	// Experimental: SessionEventTypeSessionCanvasUnavailable identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionCanvasUnavailable           SessionEventType = "session.canvas.unavailable"
 	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
 	SessionEventTypeSessionCompactionStart             SessionEventType = "session.compaction_start"
 	SessionEventTypeSessionContextChanged              SessionEventType = "session.context_changed"
@@ -118,6 +133,7 @@ const (
 	SessionEventTypeSessionResume                      SessionEventType = "session.resume"
 	SessionEventTypeSessionScheduleCancelled           SessionEventType = "session.schedule_cancelled"
 	SessionEventTypeSessionScheduleCreated             SessionEventType = "session.schedule_created"
+	SessionEventTypeSessionScheduleRearmed             SessionEventType = "session.schedule_rearmed"
 	SessionEventTypeSessionShutdown                    SessionEventType = "session.shutdown"
 	SessionEventTypeSessionSkillsLoaded                SessionEventType = "session.skills_loaded"
 	SessionEventTypeSessionSnapshotRewind              SessionEventType = "session.snapshot_rewind"
@@ -327,6 +343,8 @@ type SessionCompactionCompleteData struct {
 	RequestID *string `json:"requestId,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
+	// For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).
+	StatusCode *int64 `json:"statusCode,omitempty"`
 	// Whether compaction completed successfully
 	Success bool `json:"success"`
 	// LLM-generated summary of the compacted conversation history
@@ -400,6 +418,40 @@ type SubagentSelectedData struct {
 
 func (*SubagentSelectedData) sessionEventData()      {}
 func (*SubagentSelectedData) Type() SessionEventType { return SessionEventTypeSubagentSelected }
+
+// Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.
+// Experimental: SessionCanvasRecordedData is part of an experimental API and may change or be removed.
+type SessionCanvasRecordedData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Input supplied when the instance was opened
+	Input any `json:"input,omitempty"`
+	// Stable caller-supplied canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Rendered title
+	Title *string `json:"title,omitempty"`
+}
+
+func (*SessionCanvasRecordedData) sessionEventData() {}
+func (*SessionCanvasRecordedData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasRecorded
+}
+
+// Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.
+// Experimental: SessionCanvasRemovedData is part of an experimental API and may change or be removed.
+type SessionCanvasRemovedData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Stable caller-supplied identifier of the canvas instance that was closed
+	InstanceID string `json:"instanceId"`
+}
+
+func (*SessionCanvasRemovedData) sessionEventData()      {}
+func (*SessionCanvasRemovedData) Type() SessionEventType { return SessionEventTypeSessionCanvasRemoved }
 
 // Elicitation request completion with the user's response
 type ElicitationCompletedData struct {
@@ -543,6 +595,9 @@ type ModelCallFailureData struct {
 	Model *string `json:"model,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
+	// Internal: QuotaSnapshots is part of the SDK's internal API surface and is not intended for external use.
+	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitzero"`
 	// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
 	RequestFingerprint *ModelCallFailureRequestFingerprint `json:"requestFingerprint,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -951,6 +1006,8 @@ type SessionScheduleCreatedData struct {
 	Prompt string `json:"prompt"`
 	// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
 	Recurring *bool `json:"recurring,omitempty"`
+	// True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled rather than auto-computed.
+	SelfPaced *bool `json:"selfPaced,omitempty"`
 	// IANA timezone the `cron` expression is evaluated in
 	Tz *string `json:"tz,omitempty"`
 }
@@ -970,6 +1027,7 @@ func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
 }
 
 // Schema for the `CanvasClosedData` type.
+// Experimental: SessionCanvasClosedData is part of an experimental API and may change or be removed.
 type SessionCanvasClosedData struct {
 	// Provider-local canvas identifier
 	CanvasID string `json:"canvasId"`
@@ -983,9 +1041,8 @@ func (*SessionCanvasClosedData) sessionEventData()      {}
 func (*SessionCanvasClosedData) Type() SessionEventType { return SessionEventTypeSessionCanvasClosed }
 
 // Schema for the `CanvasOpenedData` type.
+// Experimental: SessionCanvasOpenedData is part of an experimental API and may change or be removed.
 type SessionCanvasOpenedData struct {
-	// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
-	Availability CanvasOpenedAvailability `json:"availability"`
 	// Provider-local canvas identifier
 	CanvasID string `json:"canvasId"`
 	// Owning provider identifier
@@ -996,8 +1053,6 @@ type SessionCanvasOpenedData struct {
 	Input any `json:"input,omitempty"`
 	// Stable caller-supplied canvas instance identifier
 	InstanceID string `json:"instanceId"`
-	// Whether this notification represents an idempotent reopen
-	Reopen bool `json:"reopen"`
 	// Provider-supplied status text
 	Status *string `json:"status,omitempty"`
 	// Rendered title
@@ -1010,6 +1065,7 @@ func (*SessionCanvasOpenedData) sessionEventData()      {}
 func (*SessionCanvasOpenedData) Type() SessionEventType { return SessionEventTypeSessionCanvasOpened }
 
 // Schema for the `CanvasRegistryChangedData` type.
+// Experimental: SessionCanvasRegistryChangedData is part of an experimental API and may change or be removed.
 type SessionCanvasRegistryChangedData struct {
 	// Canvas declarations currently available
 	Canvases []CanvasRegistryChangedCanvas `json:"canvases"`
@@ -1127,6 +1183,19 @@ type UserMessageData struct {
 
 func (*UserMessageData) sessionEventData()      {}
 func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMessage }
+
+// Self-paced schedule re-armed for its next run
+type SessionScheduleRearmedData struct {
+	// Id of the self-paced schedule that was re-armed
+	ID int64 `json:"id"`
+	// Absolute time (epoch milliseconds) the model armed the next run to fire
+	NextRunAt int64 `json:"nextRunAt"`
+}
+
+func (*SessionScheduleRearmedData) sessionEventData() {}
+func (*SessionScheduleRearmedData) Type() SessionEventType {
+	return SessionEventTypeSessionScheduleRearmed
+}
 
 // Session capability change notification
 type CapabilitiesChangedData struct {
@@ -1554,6 +1623,22 @@ type ToolExecutionStartData struct {
 func (*ToolExecutionStartData) sessionEventData()      {}
 func (*ToolExecutionStartData) Type() SessionEventType { return SessionEventTypeToolExecutionStart }
 
+// Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.
+// Experimental: SessionCanvasUnavailableData is part of an experimental API and may change or be removed.
+type SessionCanvasUnavailableData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Stable caller-supplied identifier of the canvas instance whose provider became unavailable
+	InstanceID string `json:"instanceId"`
+}
+
+func (*SessionCanvasUnavailableData) sessionEventData() {}
+func (*SessionCanvasUnavailableData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasUnavailable
+}
+
 // Turn abort information including the reason for termination
 type AbortData struct {
 	// Finite reason code describing why the current turn was aborted
@@ -1734,6 +1819,9 @@ type AssistantUsageQuotaSnapshot struct {
 	// Total requests allowed by the entitlement
 	// Internal: EntitlementRequests is part of the SDK's internal API surface and is not intended for external use.
 	EntitlementRequests int64 `json:"entitlementRequests"`
+	// Whether the user currently has quota available for use
+	// Internal: HasQuota is part of the SDK's internal API surface and is not intended for external use.
+	HasQuota *bool `json:"hasQuota,omitempty"`
 	// Whether the user has an unlimited usage entitlement
 	// Internal: IsUnlimitedEntitlement is part of the SDK's internal API surface and is not intended for external use.
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
@@ -1743,12 +1831,18 @@ type AssistantUsageQuotaSnapshot struct {
 	// Whether additional usage is allowed when quota is exhausted
 	// Internal: OverageAllowedWithExhaustedQuota is part of the SDK's internal API surface and is not intended for external use.
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
+	// Pay-as-you-go additional-usage budget cap in AI credits (1 credit = $0.01); present only when CAPI emits a finite value
+	// Internal: OverageEntitlement is part of the SDK's internal API surface and is not intended for external use.
+	OverageEntitlement *float64 `json:"overageEntitlement,omitempty"`
 	// Percentage of quota remaining (0 to 100)
 	// Internal: RemainingPercentage is part of the SDK's internal API surface and is not intended for external use.
 	RemainingPercentage float64 `json:"remainingPercentage"`
 	// Date when the quota resets
 	// Internal: ResetDate is part of the SDK's internal API surface and is not intended for external use.
 	ResetDate *time.Time `json:"resetDate,omitempty"`
+	// Whether this snapshot uses token-based billing (AI-credits allocation)
+	// Internal: TokenBasedBilling is part of the SDK's internal API surface and is not intended for external use.
+	TokenBasedBilling *bool `json:"tokenBasedBilling,omitempty"`
 	// Whether usage is still permitted after quota exhaustion
 	// Internal: UsageAllowedWithExhaustedQuota is part of the SDK's internal API surface and is not intended for external use.
 	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
@@ -1758,6 +1852,7 @@ type AssistantUsageQuotaSnapshot struct {
 }
 
 // Schema for the `CanvasRegistryChangedCanvas` type.
+// Experimental: CanvasRegistryChangedCanvas is part of an experimental API and may change or be removed.
 type CanvasRegistryChangedCanvas struct {
 	// Actions the agent or host may invoke
 	Actions []CanvasRegistryChangedCanvasAction `json:"actions,omitzero"`
@@ -1776,6 +1871,7 @@ type CanvasRegistryChangedCanvas struct {
 }
 
 // Schema for the `CanvasRegistryChangedCanvasAction` type.
+// Experimental: CanvasRegistryChangedCanvasAction is part of an experimental API and may change or be removed.
 type CanvasRegistryChangedCanvasAction struct {
 	// Action description
 	Description *string `json:"description,omitempty"`
@@ -2465,6 +2561,10 @@ type PermissionRequestShell struct {
 	PossiblePaths []string `json:"possiblePaths"`
 	// URLs that may be accessed by the command
 	PossibleURLs []PermissionRequestShellPossibleURL `json:"possibleUrls"`
+	// True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Optional warning message about risks of running this command
@@ -3288,16 +3388,6 @@ const (
 	BinaryAssetTypeImage BinaryAssetType = "image"
 	// Other binary resource data.
 	BinaryAssetTypeResource BinaryAssetType = "resource"
-)
-
-// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
-type CanvasOpenedAvailability string
-
-const (
-	// Provider connection is live; actions can be invoked.
-	CanvasOpenedAvailabilityReady CanvasOpenedAvailability = "ready"
-	// Provider has gone away; the instance is awaiting rebinding.
-	CanvasOpenedAvailabilityStale CanvasOpenedAvailability = "stale"
 )
 
 // Type discriminator for CitationLocation.

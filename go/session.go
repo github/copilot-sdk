@@ -146,18 +146,16 @@ func (s *Session) removeOpenCanvas(instanceID string) {
 func (s *Session) updateOpenCanvasesFromEvent(event SessionEvent) {
 	switch data := event.Data.(type) {
 	case *SessionCanvasOpenedData:
-		if data.InstanceID == "" || data.CanvasID == "" || data.ExtensionID == "" || data.Availability == "" {
+		if data.InstanceID == "" || data.CanvasID == "" || data.ExtensionID == "" {
 			fmt.Printf("failed to deserialize session.canvas.opened payload\n")
 			return
 		}
 		s.upsertOpenCanvas(rpc.OpenCanvasInstance{
-			Availability:  rpc.CanvasInstanceAvailability(data.Availability),
 			CanvasID:      data.CanvasID,
 			ExtensionID:   data.ExtensionID,
 			ExtensionName: data.ExtensionName,
 			Input:         data.Input,
 			InstanceID:    data.InstanceID,
-			Reopen:        data.Reopen,
 			Status:        data.Status,
 			Title:         data.Title,
 			URL:           data.URL,

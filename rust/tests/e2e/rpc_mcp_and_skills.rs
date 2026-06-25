@@ -573,6 +573,10 @@ async fn should_report_error_when_mcp_host_is_not_initialized() {
                         callback_success_message: None,
                         client_name: None,
                         force_reauth: None,
+                        client_id: None,
+                        client_secret: None,
+                        grant_type: None,
+                        public_client: None,
                     }),
                     "MCP host is not available",
                 )
@@ -608,6 +612,10 @@ async fn should_report_error_when_mcp_oauth_server_is_not_configured() {
                         callback_success_message: None,
                         client_name: None,
                         force_reauth: None,
+                        client_id: None,
+                        client_secret: None,
+                        grant_type: None,
+                        public_client: None,
                     }),
                     "is not configured",
                 )
@@ -645,6 +653,10 @@ async fn should_report_error_when_mcp_oauth_server_is_not_remote() {
                         callback_success_message: Some("Done".to_string()),
                         client_name: Some("SDK E2E".to_string()),
                         force_reauth: Some(true),
+                        client_id: None,
+                        client_secret: None,
+                        grant_type: None,
+                        public_client: None,
                     }),
                     "not a remote server",
                 )

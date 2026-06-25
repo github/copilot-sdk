@@ -55,7 +55,6 @@ import com.github.copilot.generated.SessionCanvasOpenedEvent;
 import com.github.copilot.generated.SessionErrorEvent;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionIdleEvent;
-import com.github.copilot.generated.rpc.CanvasInstanceAvailability;
 import com.github.copilot.generated.rpc.OpenCanvasInstance;
 import com.github.copilot.rpc.AgentInfo;
 import com.github.copilot.rpc.AutoModeSwitchHandler;
@@ -1454,13 +1453,12 @@ public final class CopilotSession implements AutoCloseable {
         if (event instanceof SessionCanvasOpenedEvent openedEvent) {
             var data = openedEvent.getData();
             if (data == null || isNullOrEmpty(data.instanceId()) || isNullOrEmpty(data.canvasId())
-                    || isNullOrEmpty(data.extensionId()) || data.availability() == null) {
+                    || isNullOrEmpty(data.extensionId())) {
                 LOG.warning("failed to deserialize session.canvas.opened payload");
                 return;
             }
             upsertOpenCanvas(new OpenCanvasInstance(data.instanceId(), data.extensionId(), data.extensionName(),
-                    data.canvasId(), data.title(), data.status(), data.url(), data.input(), data.reopen(),
-                    CanvasInstanceAvailability.fromValue(data.availability().getValue())));
+                    data.canvasId(), data.title(), data.status(), data.url(), data.input()));
         }
     }
 

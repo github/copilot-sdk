@@ -310,11 +310,9 @@ func TestCanvasResumeSessionResponse_OpenCanvasesParse(t *testing.T) {
 		"workspacePath": "/tmp/ws",
 		"openCanvases": [
 			{
-				"availability": "ready",
 				"canvasId": "echo",
 				"extensionId": "project:echo",
-				"instanceId": "echo-1",
-				"reopen": false
+				"instanceId": "echo-1"
 			}
 		]
 	}`)
@@ -343,11 +341,9 @@ func TestCanvasResumeSessionRequest_OpenCanvasesWireShape(t *testing.T) {
 		SessionID: "s1",
 		OpenCanvases: []rpc.OpenCanvasInstance{
 			{
-				Availability: "ready",
-				CanvasID:     "echo",
-				ExtensionID:  "project:echo",
-				InstanceID:   "echo-1",
-				Reopen:       false,
+				CanvasID:    "echo",
+				ExtensionID: "project:echo",
+				InstanceID:  "echo-1",
 			},
 		},
 	}

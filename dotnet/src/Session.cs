@@ -911,8 +911,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var data = canvasEvent.Data;
         if (string.IsNullOrEmpty(data.InstanceId)
             || string.IsNullOrEmpty(data.CanvasId)
-            || string.IsNullOrEmpty(data.ExtensionId)
-            || string.IsNullOrEmpty(data.Availability.Value))
+            || string.IsNullOrEmpty(data.ExtensionId))
         {
             _logger.LogWarning("failed to deserialize session.canvas.opened payload");
             return;
@@ -920,13 +919,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         UpsertOpenCanvas(new OpenCanvasInstance
         {
-            Availability = new CanvasInstanceAvailability(data.Availability.Value),
             CanvasId = data.CanvasId,
             ExtensionId = data.ExtensionId,
             ExtensionName = data.ExtensionName,
             Input = data.Input,
             InstanceId = data.InstanceId,
-            Reopen = data.Reopen,
             Status = data.Status,
             Title = data.Title,
             Url = data.Url,

@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Open canvas instance snapshot.
+ * Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request; the runtime does no caching, so this is sent once per request.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,22 +23,10 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionCanvasOpenResult(
-    /** Stable caller-supplied canvas instance identifier */
-    @JsonProperty("instanceId") String instanceId,
-    /** Owning provider identifier */
-    @JsonProperty("extensionId") String extensionId,
-    /** Owning extension display name, when available */
-    @JsonProperty("extensionName") String extensionName,
-    /** Provider-local canvas identifier */
-    @JsonProperty("canvasId") String canvasId,
-    /** Rendered title */
-    @JsonProperty("title") String title,
-    /** Provider-supplied status text */
-    @JsonProperty("status") String status,
-    /** URL for web-rendered canvases */
-    @JsonProperty("url") String url,
-    /** Input supplied when the instance was opened */
-    @JsonProperty("input") Object input
+public record ProviderTokenGetTokenParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Name of the BYOK provider needing a token. For the legacy whole-session `provider` this is the implicit provider name; for named providers it is `NamedProviderConfig.name`. */
+    @JsonProperty("providerName") String providerName
 ) {
 }

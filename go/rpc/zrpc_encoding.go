@@ -2822,6 +2822,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		AskUserDisabled                        *bool                                                `json:"askUserDisabled,omitempty"`
 		AuthInfo                               json.RawMessage                                      `json:"authInfo,omitempty"`
 		AvailableTools                         []string                                             `json:"availableTools,omitzero"`
+		Capi                                   *CapiSessionOptions                                  `json:"capi,omitempty"`
 		ClientKind                             *string                                              `json:"clientKind,omitempty"`
 		ClientName                             *string                                              `json:"clientName,omitempty"`
 		CoauthorEnabled                        *bool                                                `json:"coauthorEnabled,omitempty"`
@@ -2887,6 +2888,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		r.AuthInfo = value
 	}
 	r.AvailableTools = raw.AvailableTools
+	r.Capi = raw.Capi
 	r.ClientKind = raw.ClientKind
 	r.ClientName = raw.ClientName
 	r.CoauthorEnabled = raw.CoauthorEnabled

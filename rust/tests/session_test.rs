@@ -12,8 +12,8 @@ use github_copilot_sdk::handler::{
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::rpc::{
-    CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
-    CanvasProviderOpenResult, OpenCanvasInstance,
+    CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
+    OpenCanvasInstance,
 };
 use github_copilot_sdk::session_events::ReasoningSummary;
 use github_copilot_sdk::types::{
@@ -2623,8 +2623,6 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                     status: Some("ready".to_string()),
                     url: Some("https://example.test/counter".to_string()),
                     input: Some(serde_json::json!({ "seed": 1 })),
-                    reopen: false,
-                    availability: CanvasInstanceAvailability::Stale,
                 }]);
             client.resume_session(cfg).await.unwrap()
         }
@@ -2641,8 +2639,8 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
         "counter-provider"
     );
     assert_eq!(
-        request["params"]["openCanvases"][0]["availability"],
-        "stale"
+        request["params"]["openCanvases"][0]["instanceId"],
+        "counter-1"
     );
 
     let id = request["id"].as_u64().unwrap();
@@ -2655,9 +2653,7 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                 "extensionId": "project:counter",
                 "canvasId": "counter",
                 "instanceId": "counter-1",
-                "url": "https://example.test/counter",
-                "reopen": false,
-                "availability": "ready"
+                "url": "https://example.test/counter"
             }],
             "capabilities": {
                 "ui": { "canvases": true }
@@ -2676,7 +2672,6 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
     let open = session.open_canvases();
     assert_eq!(open.len(), 1);
     assert_eq!(open[0].instance_id, "counter-1");
-    assert_eq!(open[0].availability, CanvasInstanceAvailability::Ready);
     let caps = session.capabilities();
     assert_eq!(caps.ui.unwrap().canvases, Some(true));
 }
@@ -2705,9 +2700,7 @@ async fn session_canvas_opened_updates_open_canvas_snapshots() {
                 "title": "Counter",
                 "status": "ready",
                 "url": "https://example.test/counter",
-                "input": { "seed": 1 },
-                "reopen": false,
-                "availability": "ready"
+                "input": { "seed": 1 }
             }),
         )
         .await;
@@ -2718,9 +2711,7 @@ async fn session_canvas_opened_updates_open_canvas_snapshots() {
                 "extensionId": "project:logs",
                 "canvasId": "logs",
                 "instanceId": "logs-1",
-                "title": "Logs",
-                "reopen": false,
-                "availability": "stale"
+                "title": "Logs"
             }),
         )
         .await;
@@ -2736,7 +2727,6 @@ async fn session_canvas_opened_updates_open_canvas_snapshots() {
     assert_eq!(open.len(), 2);
     assert_eq!(open[0].instance_id, "counter-1");
     assert_eq!(open[0].title.as_deref(), Some("Counter"));
-    assert_eq!(open[0].availability, CanvasInstanceAvailability::Ready);
     assert_eq!(open[1].instance_id, "logs-1");
 
     server
@@ -2750,9 +2740,7 @@ async fn session_canvas_opened_updates_open_canvas_snapshots() {
                 "title": "Counter Updated",
                 "status": "reconnected",
                 "url": "https://example.test/counter-updated",
-                "input": { "seed": 2 },
-                "reopen": true,
-                "availability": "stale"
+                "input": { "seed": 2 }
             }),
         )
         .await;
@@ -2773,8 +2761,6 @@ async fn session_canvas_opened_updates_open_canvas_snapshots() {
         Some("https://example.test/counter-updated")
     );
     assert_eq!(open[0].input, Some(serde_json::json!({ "seed": 2 })));
-    assert!(open[0].reopen);
-    assert_eq!(open[0].availability, CanvasInstanceAvailability::Stale);
     assert_eq!(open[1].instance_id, "logs-1");
 }
 
@@ -2790,9 +2776,7 @@ async fn session_canvas_closed_removes_open_canvas_snapshot() {
                 "extensionId": "project:counter",
                 "canvasId": "counter",
                 "instanceId": "counter-1",
-                "title": "Counter",
-                "reopen": false,
-                "availability": "ready"
+                "title": "Counter"
             }),
         )
         .await;
@@ -2803,9 +2787,7 @@ async fn session_canvas_closed_removes_open_canvas_snapshot() {
                 "extensionId": "project:logs",
                 "canvasId": "logs",
                 "instanceId": "logs-1",
-                "title": "Logs",
-                "reopen": false,
-                "availability": "ready"
+                "title": "Logs"
             }),
         )
         .await;

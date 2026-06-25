@@ -33,6 +33,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionTitleChangedEvent.class, name = "session.title_changed"),
     @JsonSubTypes.Type(value = SessionScheduleCreatedEvent.class, name = "session.schedule_created"),
     @JsonSubTypes.Type(value = SessionScheduleCancelledEvent.class, name = "session.schedule_cancelled"),
+    @JsonSubTypes.Type(value = SessionScheduleRearmedEvent.class, name = "session.schedule_rearmed"),
     @JsonSubTypes.Type(value = SessionAutopilotObjectiveChangedEvent.class, name = "session.autopilot_objective_changed"),
     @JsonSubTypes.Type(value = SessionInfoEvent.class, name = "session.info"),
     @JsonSubTypes.Type(value = SessionWarningEvent.class, name = "session.warning"),
@@ -114,6 +115,9 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionCanvasOpenedEvent.class, name = "session.canvas.opened"),
     @JsonSubTypes.Type(value = SessionCanvasRegistryChangedEvent.class, name = "session.canvas.registry_changed"),
     @JsonSubTypes.Type(value = SessionCanvasClosedEvent.class, name = "session.canvas.closed"),
+    @JsonSubTypes.Type(value = SessionCanvasUnavailableEvent.class, name = "session.canvas.unavailable"),
+    @JsonSubTypes.Type(value = SessionCanvasRecordedEvent.class, name = "session.canvas.recorded"),
+    @JsonSubTypes.Type(value = SessionCanvasRemovedEvent.class, name = "session.canvas.removed"),
     @JsonSubTypes.Type(value = SessionExtensionsAttachmentsPushedEvent.class, name = "session.extensions.attachments_pushed"),
     @JsonSubTypes.Type(value = McpAppToolCallCompleteEvent.class, name = "mcp_app.tool_call_complete")
 })
@@ -127,6 +131,7 @@ public abstract sealed class SessionEvent permits
         SessionTitleChangedEvent,
         SessionScheduleCreatedEvent,
         SessionScheduleCancelledEvent,
+        SessionScheduleRearmedEvent,
         SessionAutopilotObjectiveChangedEvent,
         SessionInfoEvent,
         SessionWarningEvent,
@@ -208,6 +213,9 @@ public abstract sealed class SessionEvent permits
         SessionCanvasOpenedEvent,
         SessionCanvasRegistryChangedEvent,
         SessionCanvasClosedEvent,
+        SessionCanvasUnavailableEvent,
+        SessionCanvasRecordedEvent,
+        SessionCanvasRemovedEvent,
         SessionExtensionsAttachmentsPushedEvent,
         McpAppToolCallCompleteEvent,
         UnknownSessionEvent {
