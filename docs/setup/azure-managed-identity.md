@@ -67,7 +67,7 @@ npm install @github/copilot-sdk @azure/identity
 
 ### Basic usage
 
-Get a token using `DefaultAzureCredential` and pass it as the `bearer_token` in your provider config:
+Get a token using `DefaultAzureCredential` and pass it as the bearer token in your provider configuration:
 
 <details open>
 <summary><strong>.NET</strong></summary>
