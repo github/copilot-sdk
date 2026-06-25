@@ -51,8 +51,8 @@ public class ProviderTokenArgs {
     /**
      * Gets the id of the session that triggered this token request.
      * <p>
-     * A client-level shared callback registered for many sessions can use this
-     * to resolve the owning session and scope token acquisition or caching per
+     * A client-level shared callback registered for many sessions can use this to
+     * resolve the owning session and scope token acquisition or caching per
      * session.
      *
      * @return the session id

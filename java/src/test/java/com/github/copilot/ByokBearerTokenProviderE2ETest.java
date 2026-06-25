@@ -43,9 +43,9 @@ import com.github.copilot.rpc.SessionConfig;
 
 /**
  * End-to-end coverage for the experimental BYOK bearer-token-provider surface
- * ({@code BearerTokenProvider} on a provider config). The callback stays entirely on
- * the SDK/client side: the SDK keeps it off the wire, sends only the
- * {@code hasBearerTokenProvider} flag, and the runtime calls back over the
+ * ({@code BearerTokenProvider} on a provider config). The callback stays
+ * entirely on the SDK/client side: the SDK keeps it off the wire, sends only
+ * the {@code hasBearerTokenProvider} flag, and the runtime calls back over the
  * session-scoped {@code providerToken.getToken} RPC before each outbound model
  * request.
  */
