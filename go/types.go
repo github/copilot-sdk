@@ -1579,6 +1579,12 @@ type ProviderTokenArgs struct {
 	// The callback closes over its own token scope/audience; the runtime is
 	// provider-agnostic and forwards only the provider name.
 	ProviderName string
+
+	// SessionID is the id of the session that triggered this token request. A
+	// client-level shared callback registered for many sessions can use this to
+	// resolve the owning session and scope token acquisition or caching per
+	// session.
+	SessionID string
 }
 
 // GetBearerToken is a per-provider callback that resolves a bearer token on

@@ -19,6 +19,8 @@ public class ProviderTokenArgs {
 
     private String providerName;
 
+    private String sessionId;
+
     /**
      * Creates an empty argument object.
      */
@@ -32,9 +34,12 @@ public class ProviderTokenArgs {
      *            the name of the BYOK provider needing a token; {@code "default"}
      *            for the singular whole-session provider, otherwise the named
      *            provider's {@code name}
+     * @param sessionId
+     *            the id of the session that triggered this token request
      */
-    public ProviderTokenArgs(String providerName) {
+    public ProviderTokenArgs(String providerName, String sessionId) {
         this.providerName = providerName;
+        this.sessionId = sessionId;
     }
 
     /**
@@ -58,6 +63,31 @@ public class ProviderTokenArgs {
      */
     public ProviderTokenArgs setProviderName(String providerName) {
         this.providerName = providerName;
+        return this;
+    }
+
+    /**
+     * Gets the id of the session that triggered this token request.
+     * <p>
+     * A client-level shared callback registered for many sessions can use this
+     * to resolve the owning session and scope token acquisition or caching per
+     * session.
+     *
+     * @return the session id
+     */
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    /**
+     * Sets the id of the session that triggered this token request.
+     *
+     * @param sessionId
+     *            the session id
+     * @return this args instance for method chaining
+     */
+    public ProviderTokenArgs setSessionId(String sessionId) {
+        this.sessionId = sessionId;
         return this;
     }
 }

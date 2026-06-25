@@ -234,6 +234,11 @@ func TestBYOKBearerTokenProvider(t *testing.T) {
 				if args.ProviderName != providerName {
 					t.Errorf("Expected providerName %q, got %q", providerName, args.ProviderName)
 				}
+				// The runtime also forwards the owning session id so a
+				// client-level shared callback can resolve the session.
+				if args.SessionID == "" {
+					t.Errorf("Expected a non-empty session id in token args")
+				}
 				mu.Lock()
 				acquiredFor = append(acquiredFor, providerName)
 				mu.Unlock()

@@ -328,7 +328,7 @@ final class RpcHandlerDispatcher {
                     return;
                 }
 
-                CompletableFuture<String> tokenFuture = provider.getToken(new ProviderTokenArgs(providerName));
+                CompletableFuture<String> tokenFuture = provider.getToken(new ProviderTokenArgs(providerName, sessionId));
                 if (tokenFuture == null) {
                     rpc.sendErrorResponse(requestIdLong, -32603,
                             "Bearer-token provider returned null future for provider " + providerName);

@@ -30,6 +30,13 @@ pub struct ProviderTokenArgs {
     /// This is `"default"` for the singular whole-session provider, otherwise
     /// the named provider's `name`.
     pub provider_name: String,
+
+    /// Id of the session that triggered this token request.
+    ///
+    /// A client-level shared callback registered for many sessions can use this
+    /// to resolve the owning session and scope token acquisition or caching per
+    /// session.
+    pub session_id: String,
 }
 
 /// Error returned by a [`BearerTokenProvider`].

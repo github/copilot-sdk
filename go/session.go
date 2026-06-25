@@ -229,7 +229,7 @@ func (a *providerTokenClientSessionAdapter) GetToken(request *rpc.ProviderTokenA
 	if callback == nil {
 		return nil, providerTokenJSONRPCError(fmt.Sprintf("No bearer-token provider registered for provider %q", request.ProviderName))
 	}
-	token, err := callback(ProviderTokenArgs{ProviderName: request.ProviderName})
+	token, err := callback(ProviderTokenArgs{ProviderName: request.ProviderName, SessionID: request.SessionID})
 	if err != nil {
 		return nil, providerTokenJSONRPCError(err.Error())
 	}

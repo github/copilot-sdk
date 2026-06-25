@@ -270,6 +270,10 @@ async fn dispatches_token_acquisition_per_provider() {
                             let acquired_for = acquired_for.clone();
                             async move {
                                 assert_eq!(args.provider_name, name);
+                                assert!(
+                                    !args.session_id.is_empty(),
+                                    "expected a non-empty session id in token args"
+                                );
                                 acquired_for.lock().unwrap().push(name.to_string());
                                 Ok::<_, BearerTokenError>(token.to_string())
                             }

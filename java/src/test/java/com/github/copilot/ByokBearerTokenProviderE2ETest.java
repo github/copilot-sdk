@@ -126,6 +126,8 @@ public class ByokBearerTokenProviderE2ETest {
         List<String> acquiredFor = new ArrayList<>();
         GetBearerToken redCallback = args -> {
             assertEquals("red", args.getProviderName(), "Expected providerName to be forwarded");
+            assertTrue(args.getSessionId() != null && !args.getSessionId().isEmpty(),
+                    "Expected a non-empty session id in token args");
             synchronized (acquiredFor) {
                 acquiredFor.add("red");
             }
@@ -133,6 +135,8 @@ public class ByokBearerTokenProviderE2ETest {
         };
         GetBearerToken blueCallback = args -> {
             assertEquals("blue", args.getProviderName(), "Expected providerName to be forwarded");
+            assertTrue(args.getSessionId() != null && !args.getSessionId().isEmpty(),
+                    "Expected a non-empty session id in token args");
             synchronized (acquiredFor) {
                 acquiredFor.add("blue");
             }

@@ -2231,6 +2231,14 @@ export interface ProviderTokenArgs {
      * provider-agnostic and forwards only the provider name.
      */
     providerName: string;
+
+    /**
+     * Id of the session that triggered this token request. A client-level shared
+     * callback registered for many sessions can use this to resolve the owning
+     * session (e.g. via the client's session lookup) to scope token acquisition
+     * or caching per session.
+     */
+    sessionId: string;
 }
 
 /**

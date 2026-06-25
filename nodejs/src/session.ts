@@ -830,6 +830,7 @@ export class CopilotSession {
                 }
                 const token = await callback({
                     providerName: params.providerName,
+                    sessionId: params.sessionId,
                 });
                 return { token };
             },

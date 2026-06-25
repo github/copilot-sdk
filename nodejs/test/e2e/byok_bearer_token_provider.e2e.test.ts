@@ -216,6 +216,10 @@ describe("BYOK bearer-token provider", async () => {
                 // The runtime forwards the requesting provider's name so the client
                 // can dispatch to the right credential.
                 expect(args.providerName).toBe(providerName);
+                // The runtime also forwards the owning session id so a
+                // client-level shared callback can resolve the session.
+                expect(typeof args.sessionId).toBe("string");
+                expect(args.sessionId.length).toBeGreaterThan(0);
                 acquiredFor.push(providerName);
                 return tokenByProvider[providerName];
             };

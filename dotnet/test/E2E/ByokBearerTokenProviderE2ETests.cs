@@ -189,6 +189,9 @@ public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutput
                 // The runtime forwards the requesting provider's name so the client
                 // can dispatch to the right credential.
                 Assert.Equal(providerName, args.ProviderName);
+                // The runtime also forwards the owning session id so a
+                // client-level shared callback can resolve the session.
+                Assert.False(string.IsNullOrEmpty(args.SessionId));
                 acquiredFor.Add(providerName);
                 return Task.FromResult(tokenByProvider[providerName]);
             };

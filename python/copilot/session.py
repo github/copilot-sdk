@@ -1092,6 +1092,11 @@ class ProviderTokenArgs(TypedDict):
     # ``NamedProviderConfig`` entries it is ``NamedProviderConfig.name``.
     provider_name: str
 
+    # Id of the session that triggered this token request. A client-level shared
+    # callback registered for many sessions can use this to resolve the owning
+    # session and scope token acquisition or caching per session.
+    session_id: str
+
 
 # Per-request callback that resolves a bearer token on demand for a BYOK
 # provider (for example via Azure Managed Identity). The Copilot SDK takes no
@@ -1268,7 +1273,10 @@ class _BearerTokenProviderAdapter:
                 -32603,
                 f"No bearer-token provider registered for provider: {provider_name!r}",
             )
-        args: ProviderTokenArgs = {"provider_name": provider_name}
+        args: ProviderTokenArgs = {
+            "provider_name": provider_name,
+            "session_id": params.session_id,
+        }
         result = callback(args)
         if inspect.isawaitable(result):
             result = await result

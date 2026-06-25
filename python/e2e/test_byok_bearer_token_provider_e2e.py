@@ -213,6 +213,9 @@ class TestByokBearerTokenProvider:
                 # The runtime forwards the requesting provider's name so the
                 # client can dispatch to the right credential.
                 assert args["provider_name"] == provider_name
+                # The runtime also forwards the owning session id so a
+                # client-level shared callback can resolve the session.
+                assert isinstance(args["session_id"], str) and args["session_id"]
                 acquired_for.append(provider_name)
                 return token_by_provider[provider_name]
 

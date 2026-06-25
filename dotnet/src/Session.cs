@@ -910,7 +910,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 throw new InvalidOperationException(
                     $"No bearer-token provider registered for provider \"{request.ProviderName}\"");
             }
-            var token = await callback(new ProviderTokenArgs { ProviderName = request.ProviderName }).ConfigureAwait(false);
+            var token = await callback(new ProviderTokenArgs { ProviderName = request.ProviderName, SessionId = request.SessionId }).ConfigureAwait(false);
             return new ProviderTokenAcquireResult { Token = token };
         }
     }
