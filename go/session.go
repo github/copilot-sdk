@@ -77,6 +77,8 @@ type Session struct {
 	elicitationMu         sync.RWMutex
 	canvasHandler         CanvasHandler
 	canvasMu              sync.RWMutex
+	bearerTokenProviders  map[string]GetBearerToken
+	bearerTokenMu         sync.RWMutex
 	openCanvases          []rpc.OpenCanvasInstance
 	openCanvasesMu        sync.RWMutex
 	capabilities          SessionCapabilities
@@ -179,6 +181,66 @@ func (s *Session) getCanvasHandler() CanvasHandler {
 	s.canvasMu.RLock()
 	defer s.canvasMu.RUnlock()
 	return s.canvasHandler
+}
+
+// registerBearerTokenProviders installs per-provider [GetBearerToken] callbacks
+// for BYOK providers configured with managed-identity / on-demand bearer-token
+// auth, keyed by provider name.
+//
+// The runtime never receives the callback itself; the SDK strips it from the
+// provider config and instead sends `hasBearerTokenProvider: true`. When the
+// runtime needs a token it issues a session-scoped `providerToken.getToken`
+// request, which the session's provider-token adapter routes to the matching
+// per-provider callback.
+func (s *Session) registerBearerTokenProviders(providers map[string]GetBearerToken) {
+	s.bearerTokenMu.Lock()
+	defer s.bearerTokenMu.Unlock()
+	s.bearerTokenProviders = make(map[string]GetBearerToken, len(providers))
+	for name, callback := range providers {
+		if callback == nil {
+			continue
+		}
+		s.bearerTokenProviders[name] = callback
+	}
+}
+
+func (s *Session) getBearerTokenProvider(providerName string) GetBearerToken {
+	s.bearerTokenMu.RLock()
+	defer s.bearerTokenMu.RUnlock()
+	return s.bearerTokenProviders[providerName]
+}
+
+type providerTokenClientSessionAdapter struct {
+	session *Session
+}
+
+func newProviderTokenClientSessionAdapter(session *Session) rpc.ProviderTokenHandler {
+	return &providerTokenClientSessionAdapter{session: session}
+}
+
+func (a *providerTokenClientSessionAdapter) GetToken(request *rpc.ProviderTokenAcquireRequest) (*rpc.ProviderTokenAcquireResult, error) {
+	if request == nil {
+		return nil, providerTokenJSONRPCError("missing provider token request")
+	}
+	if a.session == nil || a.session.SessionID != request.SessionID {
+		return nil, providerTokenJSONRPCError(fmt.Sprintf("unknown session %s", request.SessionID))
+	}
+	callback := a.session.getBearerTokenProvider(request.ProviderName)
+	if callback == nil {
+		return nil, providerTokenJSONRPCError(fmt.Sprintf("No bearer-token provider registered for provider %q", request.ProviderName))
+	}
+	token, err := callback(ProviderTokenArgs{ProviderName: request.ProviderName})
+	if err != nil {
+		return nil, providerTokenJSONRPCError(err.Error())
+	}
+	return &rpc.ProviderTokenAcquireResult{Token: token}, nil
+}
+
+func providerTokenJSONRPCError(message string) *jsonrpc2.Error {
+	return &jsonrpc2.Error{
+		Code:    -32603,
+		Message: message,
+	}
 }
 
 type canvasClientSessionAdapter struct {
@@ -307,6 +369,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		RPC:               rpc.NewSessionRPC(client, sessionID),
 	}
 	s.clientSessionAPIs.Canvas = newCanvasClientSessionAdapter(s)
+	s.clientSessionAPIs.ProviderToken = newProviderTokenClientSessionAdapter(s)
 	go s.processEvents()
 	return s
 }

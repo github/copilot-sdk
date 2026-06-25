@@ -5,12 +5,14 @@
 using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 
 namespace GitHub.Copilot;
 
@@ -2042,6 +2044,28 @@ public sealed class ProviderConfig
     public string? BearerToken { get; set; }
 
     /// <summary>
+    /// Wire-only flag, emitted automatically when <see cref="GetBearerToken"/> is set, that tells
+    /// the runtime to request a token over the session-scoped <c>providerToken.getToken</c> RPC
+    /// before each outbound request to this provider. Derived from <see cref="GetBearerToken"/>;
+    /// internal and never part of the public API.
+    /// </summary>
+    [JsonInclude]
+    [JsonPropertyName("hasBearerTokenProvider")]
+    internal bool? HasBearerTokenProvider => GetBearerToken is not null ? true : null;
+
+    /// <summary>
+    /// Per-request callback that resolves a bearer token on demand for this BYOK provider (for
+    /// example via Azure Managed Identity). The Copilot SDK takes no identity dependency: supply a
+    /// callback backed by your own identity library. Never serialized — setting it makes the SDK send
+    /// <c>hasBearerTokenProvider: true</c> on the wire and answer the runtime's
+    /// <c>providerToken.getToken</c> requests. Mutually exclusive with <see cref="ApiKey"/> and
+    /// <see cref="BearerToken"/>.
+    /// </summary>
+    [JsonIgnore]
+    [Experimental(Diagnostics.Experimental)]
+    public Func<ProviderTokenArgs, Task<string>>? GetBearerToken { get; set; }
+
+    /// <summary>
     /// Azure-specific configuration options.
     /// </summary>
     [JsonPropertyName("azure")]
@@ -2172,6 +2196,28 @@ public sealed class NamedProviderConfig
     /// </summary>
     [JsonPropertyName("bearerToken")]
     public string? BearerToken { get; set; }
+
+    /// <summary>
+    /// Wire-only flag, emitted automatically when <see cref="GetBearerToken"/> is set, that tells
+    /// the runtime to request a token over the session-scoped <c>providerToken.getToken</c> RPC
+    /// before each outbound request to this provider. Derived from <see cref="GetBearerToken"/>;
+    /// internal and never part of the public API.
+    /// </summary>
+    [JsonInclude]
+    [JsonPropertyName("hasBearerTokenProvider")]
+    internal bool? HasBearerTokenProvider => GetBearerToken is not null ? true : null;
+
+    /// <summary>
+    /// Per-request callback that resolves a bearer token on demand for this BYOK provider (for
+    /// example via Azure Managed Identity). The Copilot SDK takes no identity dependency: supply a
+    /// callback backed by your own identity library. Never serialized — setting it makes the SDK send
+    /// <c>hasBearerTokenProvider: true</c> on the wire and answer the runtime's
+    /// <c>providerToken.getToken</c> requests. Mutually exclusive with <see cref="ApiKey"/> and
+    /// <see cref="BearerToken"/>.
+    /// </summary>
+    [JsonIgnore]
+    [Experimental(Diagnostics.Experimental)]
+    public Func<ProviderTokenArgs, Task<string>>? GetBearerToken { get; set; }
 
     /// <summary>
     /// Azure-specific configuration options.
