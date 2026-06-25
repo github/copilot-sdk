@@ -10,16 +10,24 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.io.FilterWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.net.URI;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
+import javax.tools.FileObject;
+import javax.tools.ForwardingJavaFileManager;
+import javax.tools.ForwardingJavaFileObject;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
@@ -540,25 +548,28 @@ class CopilotToolProcessorTest {
 
         String classpath = resolveClasspath();
         List<String> options = new ArrayList<>();
+        options.add("-proc:full");
+        options.addAll(List.of("-processor", "com.github.copilot.tool.CopilotToolProcessor"));
         options.addAll(List.of("-classpath", classpath));
         options.addAll(List.of("-d", tempDir.toString()));
         options.addAll(List.of("-s", tempDir.toString()));
         // Allow experimental APIs during test compilation
         options.add("-Acopilot.experimental.allowed=true");
 
-        try {
-            StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null);
+        try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null)) {
             fileManager.setLocation(StandardLocation.SOURCE_OUTPUT, List.of(tempDir.toFile()));
             fileManager.setLocation(StandardLocation.CLASS_OUTPUT, List.of(tempDir.toFile()));
+            CollectingFileManager collectingFileManager = new CollectingFileManager(fileManager);
 
-            JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, options, null,
-                    sources);
-            task.setProcessors(List.of(new CopilotToolProcessor()));
+            JavaCompiler.CompilationTask task = compiler.getTask(null, collectingFileManager, diagnostics, options,
+                    null, sources);
             task.call();
 
-            // Collect generated sources
-            List<String> generatedSources = new ArrayList<>();
-            collectGeneratedFiles(tempDir, generatedSources);
+            List<String> generatedSources = collectingFileManager.getGeneratedSources();
+            if (generatedSources.isEmpty()) {
+                // Fallback for file-manager implementations that only materialize on disk.
+                collectGeneratedFiles(tempDir, generatedSources);
+            }
 
             return new CompilationResult(diagnostics.getDiagnostics(), generatedSources, tempDir);
         } catch (Exception e) {
@@ -664,6 +675,54 @@ class CopilotToolProcessorTest {
                 }
             }
             return null;
+        }
+    }
+
+    private static class CollectingFileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
+        private final Map<String, StringBuilder> generatedByClass = new LinkedHashMap<>();
+
+        CollectingFileManager(StandardJavaFileManager fileManager) {
+            super(fileManager);
+        }
+
+        @Override
+        public JavaFileObject getJavaFileForOutput(Location location, String className, JavaFileObject.Kind kind,
+                FileObject sibling) throws IOException {
+            JavaFileObject delegate = super.getJavaFileForOutput(location, className, kind, sibling);
+            if (kind != JavaFileObject.Kind.SOURCE) {
+                return delegate;
+            }
+            StringBuilder captured = new StringBuilder();
+            generatedByClass.put(className, captured);
+            return new ForwardingJavaFileObject<>(delegate) {
+                @Override
+                public Writer openWriter() throws IOException {
+                    Writer target = delegate.openWriter();
+                    return new FilterWriter(target) {
+                        @Override
+                        public void write(char[] cbuf, int off, int len) throws IOException {
+                            captured.append(cbuf, off, len);
+                            super.write(cbuf, off, len);
+                        }
+
+                        @Override
+                        public void write(int c) throws IOException {
+                            captured.append((char) c);
+                            super.write(c);
+                        }
+
+                        @Override
+                        public void write(String str, int off, int len) throws IOException {
+                            captured.append(str, off, off + len);
+                            super.write(str, off, len);
+                        }
+                    };
+                }
+            };
+        }
+
+        List<String> getGeneratedSources() {
+            return generatedByClass.values().stream().map(StringBuilder::toString).toList();
         }
     }
 }
