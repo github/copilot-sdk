@@ -161,7 +161,8 @@ class CopilotToolProcessorTest {
                 }
                 """;
 
-        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.SingleRecordDefaultTools", source)));
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.SingleRecordDefaultTools", source)));
 
         assertTrue(hasErrorContaining(result, "single-record tool parameters"),
                 "Expected compile error for single-record wrapper defaultValue, got: " + result.diagnostics);
@@ -322,15 +323,16 @@ class CopilotToolProcessorTest {
                 """;
 
         CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.ArrayArgs", source)));
-                assertNoErrors(result);
+        assertNoErrors(result);
 
-                String generated = result.getGeneratedSource("test.ArrayArgs$$CopilotToolMeta");
-                assertNotNull(generated, "Expected generated source for ArrayArgs$$CopilotToolMeta");
-                assertTrue(generated.contains("new com.fasterxml.jackson.core.type.TypeReference<java.lang.String[]>() {}"),
-                        "Expected TypeReference-based conversion for String[] parameter, got:\n" + generated);
-                assertFalse(generated.contains("String[] ids = (Object) args.get(\"ids\");")
+        String generated = result.getGeneratedSource("test.ArrayArgs$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for ArrayArgs$$CopilotToolMeta");
+        assertTrue(generated.contains("new com.fasterxml.jackson.core.type.TypeReference<java.lang.String[]>() {}"),
+                "Expected TypeReference-based conversion for String[] parameter, got:\n" + generated);
+        assertFalse(
+                generated.contains("String[] ids = (Object) args.get(\"ids\");")
                         || generated.contains("java.lang.String[] ids = (Object) args.get(\"ids\");"),
-                        "Array parameter should no longer be assigned from raw Object, got:\n" + generated);
+                "Array parameter should no longer be assigned from raw Object, got:\n" + generated);
     }
 
     @Test
@@ -356,8 +358,9 @@ class CopilotToolProcessorTest {
         String generated = result.getGeneratedSource("test.GenericArgTypes$$CopilotToolMeta");
         assertNotNull(generated, "Expected generated source for GenericArgTypes$$CopilotToolMeta");
 
-        assertTrue(generated.contains(
-                "new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.UUID>>() {}"),
+        assertTrue(
+                generated.contains(
+                        "new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.UUID>>() {}"),
                 "Expected TypeReference for List<UUID>, got:\n" + generated);
         assertTrue(generated.contains(
                 "new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<java.lang.String,java.lang.Long>>() {}"),
@@ -441,13 +444,15 @@ class CopilotToolProcessorTest {
         assertNoErrors(result);
         String generated = result.getGeneratedSource("test.RecordTool$$CopilotToolMeta");
         assertNotNull(generated, "Expected generated source for RecordTool$$CopilotToolMeta");
-        assertTrue(generated.contains("mapper.convertValue(invocation.getArguments(), test.RecordTool.SearchArgs.class)"),
+        assertTrue(
+                generated.contains("mapper.convertValue(invocation.getArguments(), test.RecordTool.SearchArgs.class)"),
                 "Expected direct convertValue(invocation.getArguments(), ...), got:\n" + generated);
         assertFalse(generated.contains("Map<String, Object> args = invocation.getArguments();"),
                 "Single-record path should not declare local args map, got:\n" + generated);
         assertFalse(generated.contains("Map.entry(\"req\""),
                 "Single-record schema should be flattened, not nested under wrapper param, got:\n" + generated);
-        assertTrue(generated.contains("\"query\""), "Expected flattened record component in schema, got:\n" + generated);
+        assertTrue(generated.contains("\"query\""),
+                "Expected flattened record component in schema, got:\n" + generated);
     }
 
     @Test
@@ -468,7 +473,8 @@ class CopilotToolProcessorTest {
         assertNoErrors(result);
         String generated = result.getGeneratedSource("test.RecordToolArgs$$CopilotToolMeta");
         assertNotNull(generated, "Expected generated source for RecordToolArgs$$CopilotToolMeta");
-        assertTrue(generated.contains("test.RecordToolArgs.SearchArgs args = mapper.convertValue(invocation.getArguments(), test.RecordToolArgs.SearchArgs.class);"),
+        assertTrue(generated.contains(
+                "test.RecordToolArgs.SearchArgs args = mapper.convertValue(invocation.getArguments(), test.RecordToolArgs.SearchArgs.class);"),
                 "Expected args-named record param to compile with direct invocation mapping, got:\n" + generated);
         assertFalse(generated.contains("Map<String, Object> args = invocation.getArguments();"),
                 "Single-record path should avoid local args map collision, got:\n" + generated);

@@ -81,9 +81,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                         processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, defaultValidationError, param);
                     }
                 }
-                if (paramAnnotation != null
-                        && !paramAnnotation.required()
-                        && paramAnnotation.defaultValue().isEmpty()
+                if (paramAnnotation != null && !paramAnnotation.required() && paramAnnotation.defaultValue().isEmpty()
                         && param.asType().getKind().isPrimitive()) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
                             "@Param(required=false) primitive parameters must provide defaultValue or use a boxed/Optional type",
@@ -102,8 +100,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                                     "@Param(defaultValue=...) is not supported on single-record tool parameters; use record component defaults or a non-record parameter",
                                     singleParam);
                         }
-                        if (!paramAnnotation.name().isEmpty()
-                                || !paramAnnotation.value().isEmpty()
+                        if (!paramAnnotation.name().isEmpty() || !paramAnnotation.value().isEmpty()
                                 || !paramAnnotation.required()) {
                             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
                                     "@Param name/value/required are not supported on single-record tool parameters; annotate record components instead",
@@ -672,7 +669,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
     }
 
     private String validateCharacterDefault(String defaultValue) {
-        return defaultValue != null && defaultValue.length() == 1 ? null
+        return defaultValue != null && defaultValue.length() == 1
+                ? null
                 : "@Param defaultValue '" + defaultValue + "' is not valid for char parameters";
     }
 
