@@ -310,6 +310,8 @@ impl E2eContext {
                     .as_os_str()
                     .to_owned(),
             ),
+            ("COPILOT_MCP_APPS".into(), "true".into()),
+            ("MCP_APPS".into(), "true".into()),
         ]);
         if std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true") {
             env.push(("GH_TOKEN".into(), "fake-token-for-e2e-tests".into()));

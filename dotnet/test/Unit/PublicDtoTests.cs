@@ -21,6 +21,25 @@ namespace GitHub.Copilot.Test.Unit;
 public class PublicDtoTests
 {
     [Fact]
+    public void McpAuth_Result_Factories_Represent_Token_And_Cancellation()
+    {
+        var token = new McpAuthToken
+        {
+            AccessToken = "host-token",
+            TokenType = "Bearer",
+            ExpiresIn = 3600,
+        };
+
+        var tokenResult = McpAuthResult.FromToken(token);
+        Assert.Same(token, tokenResult.Token);
+        Assert.False(tokenResult.Cancelled);
+
+        var cancelled = McpAuthResult.Cancel();
+        Assert.True(cancelled.Cancelled);
+        Assert.Null(cancelled.Token);
+    }
+
+    [Fact]
     public void Public_Dto_Properties_Can_Be_Set_And_Read()
     {
         var exercisedProperties = 0;
