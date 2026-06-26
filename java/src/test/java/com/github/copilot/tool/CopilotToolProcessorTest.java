@@ -146,6 +146,48 @@ class CopilotToolProcessorTest {
                 "Expected compile error for optional primitive without defaultValue, got: " + result.diagnostics);
     }
 
+    @Test
+    void emitsError_forSingleRecordWrapperDefaultValue() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class SingleRecordDefaultTools {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Single record")
+                    public String search(@Param(defaultValue = "fallback") SearchArgs req) {
+                        return req.query();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.SingleRecordDefaultTools", source)));
+
+        assertTrue(hasErrorContaining(result, "single-record tool parameters"),
+                "Expected compile error for single-record wrapper defaultValue, got: " + result.diagnostics);
+    }
+
+    @Test
+    void emitsError_forSingleRecordWrapperMetadataOverrides() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class SingleRecordMetaTools {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Single record")
+                    public String search(@Param(value = "Search input", required = false, name = "input") SearchArgs req) {
+                        return req.query();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.SingleRecordMetaTools", source)));
+
+        assertTrue(hasErrorContaining(result, "name/value/required"),
+                "Expected compile error for single-record wrapper metadata overrides, got: " + result.diagnostics);
+    }
+
     // ── Test: Return type handling ──────────────────────────────────────────────
 
     @Test
@@ -315,6 +357,57 @@ class CopilotToolProcessorTest {
         assertTrue(generated.contains("\"properties\""), "Expected properties in schema");
         assertTrue(generated.contains("\"required\""), "Expected required in schema");
         assertTrue(generated.contains("\"query\""), "Expected query property");
+    }
+
+    @Test
+    void generatesFlattenedSchemaAndDirectRecordConversion_forSingleRecordParameter() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                public class RecordTool {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Search items")
+                    public String search(SearchArgs req) {
+                        return req.query() + ":" + req.limit();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.RecordTool", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.RecordTool$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for RecordTool$$CopilotToolMeta");
+        assertTrue(generated.contains("mapper.convertValue(invocation.getArguments(), test.RecordTool.SearchArgs.class)"),
+                "Expected direct convertValue(invocation.getArguments(), ...), got:\n" + generated);
+        assertFalse(generated.contains("Map<String, Object> args = invocation.getArguments();"),
+                "Single-record path should not declare local args map, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"req\""),
+                "Single-record schema should be flattened, not nested under wrapper param, got:\n" + generated);
+        assertTrue(generated.contains("\"query\""), "Expected flattened record component in schema, got:\n" + generated);
+    }
+
+    @Test
+    void supportsSingleRecordParameterNamedArgs_withoutLocalNameCollision() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                public class RecordToolArgs {
+                    public record SearchArgs(String query) {}
+                    @CopilotTool("Search items")
+                    public String search(SearchArgs args) {
+                        return args.query();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.RecordToolArgs", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.RecordToolArgs$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for RecordToolArgs$$CopilotToolMeta");
+        assertTrue(generated.contains("test.RecordToolArgs.SearchArgs args = mapper.convertValue(invocation.getArguments(), test.RecordToolArgs.SearchArgs.class);"),
+                "Expected args-named record param to compile with direct invocation mapping, got:\n" + generated);
+        assertFalse(generated.contains("Map<String, Object> args = invocation.getArguments();"),
+                "Single-record path should avoid local args map collision, got:\n" + generated);
     }
 
     // ── Test: Typed default values in schema ────────────────────────────────────

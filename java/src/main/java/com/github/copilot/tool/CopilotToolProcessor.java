@@ -83,6 +83,28 @@ public class CopilotToolProcessor extends AbstractProcessor {
                             param);
                 }
             }
+
+            // Validate single-record wrapper parameter metadata
+            if (method.getParameters().size() == 1) {
+                VariableElement singleParam = method.getParameters().get(0);
+                if (isRecord(singleParam.asType())) {
+                    Param paramAnnotation = singleParam.getAnnotation(Param.class);
+                    if (paramAnnotation != null) {
+                        if (!paramAnnotation.defaultValue().isEmpty()) {
+                            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                    "@Param(defaultValue=...) is not supported on single-record tool parameters; use record component defaults or a non-record parameter",
+                                    singleParam);
+                        }
+                        if (!paramAnnotation.name().isEmpty()
+                                || !paramAnnotation.value().isEmpty()
+                                || !paramAnnotation.required()) {
+                            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                    "@Param name/value/required are not supported on single-record tool parameters; annotate record components instead",
+                                    singleParam);
+                        }
+                    }
+                }
+            }
         }
 
         // Group methods by enclosing type
@@ -239,6 +261,10 @@ public class CopilotToolProcessor extends AbstractProcessor {
         if (parameters.isEmpty()) {
             return "Map.of(\"type\", \"object\", \"properties\", Map.of(), \"required\", List.of())";
         }
+        if (parameters.size() == 1 && isRecord(parameters.get(0).asType())) {
+            return schemaGenerator.generateSchemaSource(parameters.get(0).asType(), processingEnv.getTypeUtils(),
+                    processingEnv.getElementUtils());
+        }
 
         List<String> propertyEntries = new ArrayList<>();
         List<String> requiredNames = new ArrayList<>();
@@ -302,15 +328,15 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
         // Generate argument extraction
         if (!params.isEmpty()) {
-            sb.append("Map<String, Object> args = invocation.getArguments();\n");
-
             // Check if single-record-parameter shortcut applies
             if (params.size() == 1 && isRecord(params.get(0).asType())) {
                 String typeName = getTypeString(params.get(0).asType());
                 String paramName = params.get(0).getSimpleName().toString();
                 sb.append("                    ").append(typeName).append(" ").append(paramName)
-                        .append(" = mapper.convertValue(args, ").append(typeName).append(".class);\n");
+                        .append(" = mapper.convertValue(invocation.getArguments(), ").append(typeName)
+                        .append(".class);\n");
             } else {
+                sb.append("Map<String, Object> args = invocation.getArguments();\n");
                 for (VariableElement param : params) {
                     String paramName = getParamName(param);
                     String varName = param.getSimpleName().toString();
