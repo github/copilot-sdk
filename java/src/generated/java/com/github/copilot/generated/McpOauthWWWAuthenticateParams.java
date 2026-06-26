@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record McpOauthWWWAuthenticateParams(
-    /** Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present */
+    /** Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter */
     @JsonProperty("resourceMetadataUrl") String resourceMetadataUrl,
     /** Requested OAuth scopes from the WWW-Authenticate scope parameter, if present */
     @JsonProperty("scope") String scope,

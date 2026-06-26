@@ -26,8 +26,6 @@ public final class SessionMcpApi {
 
     /** API methods for the {@code mcp.oauth} sub-namespace. */
     public final SessionMcpOauthApi oauth;
-    /** API methods for the {@code mcp.headers} sub-namespace. */
-    public final SessionMcpHeadersApi headers;
     /** API methods for the {@code mcp.apps} sub-namespace. */
     public final SessionMcpAppsApi apps;
 
@@ -36,7 +34,6 @@ public final class SessionMcpApi {
         this.caller = caller;
         this.sessionId = sessionId;
         this.oauth = new SessionMcpOauthApi(caller, sessionId);
-        this.headers = new SessionMcpHeadersApi(caller, sessionId);
         this.apps = new SessionMcpAppsApi(caller, sessionId);
     }
 
