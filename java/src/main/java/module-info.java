@@ -19,11 +19,13 @@ module com.github.copilot.java {
     exports com.github.copilot.generated;
     exports com.github.copilot.generated.rpc;
     exports com.github.copilot.rpc;
+    exports com.github.copilot.tool;
 
     opens com.github.copilot to com.fasterxml.jackson.databind;
     opens com.github.copilot.generated to com.fasterxml.jackson.databind;
     opens com.github.copilot.generated.rpc to com.fasterxml.jackson.databind;
     opens com.github.copilot.rpc to com.fasterxml.jackson.databind;
 
-    provides javax.annotation.processing.Processor with com.github.copilot.CopilotExperimentalProcessor;
+    provides javax.annotation.processing.Processor
+            with com.github.copilot.CopilotExperimentalProcessor, com.github.copilot.tool.CopilotToolProcessor;
 }
