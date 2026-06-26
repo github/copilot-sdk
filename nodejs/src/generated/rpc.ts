@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, ResponseBudgetConfig, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
 
 /**
  * Initial authentication info for the session.
@@ -682,6 +682,26 @@ export type McpServerConfigHttpOauthGrantType =
   /** Headless client credentials flow using the configured OAuth client. */
   | "client_credentials";
 /**
+ * Host response: supply dynamic headers or decline this refresh.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpHeadersHandlePendingHeadersRefreshRequest".
+ */
+/** @experimental */
+export type McpHeadersHandlePendingHeadersRefreshRequest =
+  | {
+      /**
+       * Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers.
+       */
+      headers: {
+        [k: string]: string | undefined;
+      };
+      kind: "headers";
+    }
+  | {
+      kind: "none";
+    };
+/**
  * Host response to the pending OAuth request.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -698,10 +718,6 @@ export type McpOauthPendingRequestResponse =
        * OAuth token type. Defaults to Bearer when omitted.
        */
       tokenType?: string;
-      /**
-       * Refresh token supplied by the host, if available.
-       */
-      refreshToken?: string;
       /**
        * Token lifetime in seconds, if known.
        */
@@ -1580,7 +1596,7 @@ export type SkillDiscoveryScope =
   /** A configured custom skill directory. */
   | "custom";
 /**
- * Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+ * Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandInvocationResult".
@@ -1609,6 +1625,14 @@ export type SubagentSettings = {
    * Names of subagents the user has turned off; they cannot be dispatched
    */
   disabledSubagents?: string[];
+  /**
+   * Maximum number of subagents that can run concurrently; applies to usage-based billing users only
+   */
+  maxConcurrency?: number;
+  /**
+   * Maximum subagent nesting depth; applies to usage-based billing users only
+   */
+  maxDepth?: number;
 } | null;
 /**
  * Context tier override for matching subagents
@@ -5540,6 +5564,33 @@ export interface McpFilteredServer {
   enterpriseName?: string;
 }
 /**
+ * MCP headers refresh request id and the host response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpHeadersHandlePendingHeadersRefreshRequestRequest".
+ */
+/** @experimental */
+export interface McpHeadersHandlePendingHeadersRefreshRequestRequest {
+  /**
+   * Headers refresh request identifier from mcp.headers_refresh_required
+   */
+  requestId: string;
+  result: McpHeadersHandlePendingHeadersRefreshRequest;
+}
+/**
+ * Indicates whether the pending MCP headers refresh response was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpHeadersHandlePendingHeadersRefreshRequestResult".
+ */
+/** @experimental */
+export interface McpHeadersHandlePendingHeadersRefreshRequestResult {
+  /**
+   * Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+   */
+  success: boolean;
+}
+/**
  * Host-level state, omitted when no MCP host is initialized.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6357,6 +6408,10 @@ export interface ModelBilling {
    */
   multiplier?: number;
   tokenPrices?: ModelBillingTokenPrices;
+  /**
+   * Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models.
+   */
+  discountPercent?: number;
 }
 /**
  * Token-level pricing information for this model
@@ -10618,6 +10673,10 @@ export interface SessionOpenOptions {
   logInteractiveShells?: boolean;
   envValueMode?: SessionOpenOptionsEnvValueMode;
   /**
+   * Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+   */
+  allowAllMcpServerInstructions?: boolean;
+  /**
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
@@ -10684,6 +10743,7 @@ export interface SessionOpenOptions {
    */
   maxInlineBinaryBytes?: number;
   modelCapabilitiesOverrides?: ModelCapabilitiesOverride;
+  responseBudget?: ResponseBudgetConfig;
   /**
    * Runtime context discriminator for agent filtering.
    */
@@ -11581,6 +11641,10 @@ export interface SessionUpdateOptionsParams {
   logInteractiveShells?: boolean;
   envValueMode?: OptionsUpdateEnvValueMode;
   /**
+   * Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+   */
+  allowAllMcpServerInstructions?: boolean;
+  /**
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
@@ -11695,6 +11759,10 @@ export interface SessionUpdateOptionsParams {
    */
   enableSkills?: boolean;
   contextTier?: OptionsUpdateContextTier;
+  /**
+   * Optional experimental response budget limits. Pass null to clear the response budget.
+   */
+  responseBudget?: ResponseBudgetConfig | null;
 }
 /**
  * Indicates whether the session options patch was applied successfully.
@@ -15018,6 +15086,18 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                     connection.sendRequest("session.mcp.oauth.login", { sessionId, ...params }),
             },
             /** @experimental */
+            headers: {
+                /**
+                 * Responds to a pending MCP dynamic headers refresh request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide short-lived per-server headers or to indicate that no dynamic headers are available for this refresh.
+                 *
+                 * @param params MCP headers refresh request id and the host response.
+                 *
+                 * @returns Indicates whether the pending MCP headers refresh response was accepted.
+                 */
+                handlePendingHeadersRefreshRequest: async (params: McpHeadersHandlePendingHeadersRefreshRequestRequest): Promise<McpHeadersHandlePendingHeadersRefreshRequestResult> =>
+                    connection.sendRequest("session.mcp.headers.handlePendingHeadersRefreshRequest", { sessionId, ...params }),
+            },
+            /** @experimental */
             apps: {
                 /**
                  * Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.
@@ -15218,7 +15298,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              *
              * @param params Slash command name and optional raw input string to invoke.
              *
-             * @returns Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+             * @returns Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
              */
             invoke: async (params: CommandsInvokeRequest): Promise<SlashCommandInvocationResult> =>
                 connection.sendRequest("session.commands.invoke", { sessionId, ...params }),

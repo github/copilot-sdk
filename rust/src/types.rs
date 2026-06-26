@@ -24,8 +24,8 @@ use crate::generated::api_types::OpenCanvasInstance;
 pub use crate::generated::session_events::ContextTier;
 use crate::generated::session_events::ReasoningSummary;
 use crate::handler::{
-    AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
-    UserInputHandler,
+    AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
+    PermissionHandler, UserInputHandler,
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
@@ -1772,6 +1772,9 @@ pub struct SessionConfig {
     /// Optional elicitation-request handler. When `None`,
     /// `requestElicitation: false` goes on the wire.
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional MCP OAuth request handler. When set, the SDK can satisfy MCP
+    /// server OAuth requests with host-acquired token data or cancellation.
+    pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     /// Optional user-input handler. When `None`,
     /// `requestUserInput: false` goes on the wire and the `ask_user`
     /// tool is disabled.
@@ -1902,6 +1905,10 @@ impl std::fmt::Debug for SessionConfig {
                 &self.elicitation_handler.as_ref().map(|_| "<set>"),
             )
             .field(
+                "mcp_auth_handler",
+                &self.mcp_auth_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
                 "user_input_handler",
                 &self.user_input_handler.as_ref().map(|_| "<set>"),
             )
@@ -1990,6 +1997,7 @@ impl Default for SessionConfig {
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
+            mcp_auth_handler: None,
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
@@ -2013,6 +2021,7 @@ pub(crate) struct SessionConfigRuntime {
     pub permission_handler: Option<Arc<dyn PermissionHandler>>,
     pub permission_policy: Option<crate::permission::Policy>,
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
@@ -2143,6 +2152,7 @@ impl SessionConfig {
             permission_handler: self.permission_handler,
             permission_policy: self.permission_policy,
             elicitation_handler: self.elicitation_handler,
+            mcp_auth_handler: self.mcp_auth_handler,
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
@@ -2170,6 +2180,12 @@ impl SessionConfig {
     /// `requestElicitation: false` on the wire.
     pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
         self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`McpAuthHandler`] for host-provided MCP OAuth tokens.
+    pub fn with_mcp_auth_handler(mut self, handler: Arc<dyn McpAuthHandler>) -> Self {
+        self.mcp_auth_handler = Some(handler);
         self
     }
 
@@ -2851,6 +2867,8 @@ pub struct ResumeSessionConfig {
     /// Optional elicitation handler. See
     /// [`SessionConfig::elicitation_handler`].
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional MCP OAuth handler. See [`SessionConfig::mcp_auth_handler`].
+    pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     /// Optional user-input handler. See
     /// [`SessionConfig::user_input_handler`].
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
@@ -3103,6 +3121,7 @@ impl ResumeSessionConfig {
             permission_handler: self.permission_handler,
             permission_policy: self.permission_policy,
             elicitation_handler: self.elicitation_handler,
+            mcp_auth_handler: self.mcp_auth_handler,
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
@@ -3182,6 +3201,7 @@ impl ResumeSessionConfig {
             continue_pending_work: None,
             permission_handler: None,
             elicitation_handler: None,
+            mcp_auth_handler: None,
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
@@ -3204,6 +3224,12 @@ impl ResumeSessionConfig {
     /// Install an [`ElicitationHandler`] for the resumed session.
     pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
         self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`McpAuthHandler`] for host-provided MCP OAuth tokens.
+    pub fn with_mcp_auth_handler(mut self, handler: Arc<dyn McpAuthHandler>) -> Self {
+        self.mcp_auth_handler = Some(handler);
         self
     }
 

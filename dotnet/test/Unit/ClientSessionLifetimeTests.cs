@@ -16,6 +16,8 @@ namespace GitHub.Copilot.Test.Unit;
 
 public sealed class ClientSessionLifetimeTests
 {
+    private sealed record RpcRequestRecord(string Method, JsonElement Params);
+
     [Fact]
     public async Task StopAsync_Requests_Runtime_Shutdown_For_Owned_Process()
     {
@@ -189,6 +191,124 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task CreateSessionAsync_Registers_McpAuth_Interest_Only_When_Handler_Configured()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var withoutAuth = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnEvent = _ => { }
+        });
+
+        Assert.DoesNotContain(server.Requests, request =>
+            request.Method == "session.eventLog.registerInterest"
+            && request.Params.GetProperty("eventType").GetString() == "mcp.oauth_required");
+        Assert.Contains(server.Requests, request =>
+            request.Method == "session.create"
+            && request.Params.GetProperty("requestPermission").GetBoolean());
+
+        server.ClearRequests();
+
+        await using var withAuth = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpAuthRequest = _ => Task.FromResult<McpAuthResult?>(McpAuthResult.Cancel())
+        });
+
+        Assert.Collection(
+            server.Requests.Take(2),
+            request => Assert.Equal("session.create", request.Method),
+            request =>
+            {
+                Assert.Equal("session.eventLog.registerInterest", request.Method);
+                Assert.Equal("mcp.oauth_required", request.Params.GetProperty("eventType").GetString());
+            });
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Registers_McpAuth_Interest_After_Cloud_Create_When_Handler_Configured()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var cloud = new CloudSessionOptions
+        {
+            Repository = new CloudSessionRepository
+            {
+                Owner = "github",
+                Name = "copilot-sdk",
+                Branch = "main"
+            }
+        };
+
+        await using var withoutAuth = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            Cloud = cloud
+        });
+
+        Assert.DoesNotContain(server.Requests, request =>
+            request.Method == "session.eventLog.registerInterest"
+            && request.Params.GetProperty("eventType").GetString() == "mcp.oauth_required");
+
+        server.ClearRequests();
+
+        await using var withAuth = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpAuthRequest = _ => Task.FromResult<McpAuthResult?>(McpAuthResult.Cancel()),
+            Cloud = cloud
+        });
+
+        Assert.Collection(
+            server.Requests.Take(2),
+            request => Assert.Equal("session.create", request.Method),
+            request =>
+            {
+                Assert.Equal("session.eventLog.registerInterest", request.Method);
+                Assert.Equal("mcp.oauth_required", request.Params.GetProperty("eventType").GetString());
+            });
+    }
+
+    [Fact]
+    public async Task ResumeSessionAsync_Registers_McpAuth_Interest_Only_When_Handler_Configured()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var withoutAuth = await client.ResumeSessionAsync("session-without-auth", new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnEvent = _ => { }
+        });
+
+        Assert.DoesNotContain(server.Requests, request =>
+            request.Method == "session.eventLog.registerInterest"
+            && request.Params.GetProperty("eventType").GetString() == "mcp.oauth_required");
+        Assert.Contains(server.Requests, request =>
+            request.Method == "session.resume"
+            && request.Params.GetProperty("requestPermission").GetBoolean());
+
+        server.ClearRequests();
+
+        await using var withAuth = await client.ResumeSessionAsync("session-with-auth", new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpAuthRequest = _ => Task.FromResult<McpAuthResult?>(McpAuthResult.Cancel())
+        });
+
+        Assert.Collection(
+            server.Requests.Take(2),
+            request =>
+            {
+                Assert.Equal("session.eventLog.registerInterest", request.Method);
+                Assert.Equal("mcp.oauth_required", request.Params.GetProperty("eventType").GetString());
+            },
+            request => Assert.Equal("session.resume", request.Method));
+    }
+
+    [Fact]
     public async Task Generated_Session_Rpc_Throws_When_Session_Disposed()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -277,6 +397,8 @@ public sealed class ClientSessionLifetimeTests
         private readonly TaskCompletionSource _destroyStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _allowDestroy = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Task _serverTask;
+        private readonly List<RpcRequestRecord> _requests = [];
+        private readonly object _requestsLock = new();
         private string? _lastSessionId;
         private bool _delayDestroy;
         private bool _failRuntimeShutdown;
@@ -306,6 +428,25 @@ public sealed class ClientSessionLifetimeTests
         public Task DestroyStarted => _destroyStarted.Task;
 
         public int RuntimeShutdownCount { get; private set; }
+
+        public IReadOnlyList<RpcRequestRecord> Requests
+        {
+            get
+            {
+                lock (_requestsLock)
+                {
+                    return _requests.ToArray();
+                }
+            }
+        }
+
+        public void ClearRequests()
+        {
+            lock (_requestsLock)
+            {
+                _requests.Clear();
+            }
+        }
 
         public void DelayDestroy()
         {
@@ -382,6 +523,13 @@ public sealed class ClientSessionLifetimeTests
                 return;
             }
 
+            var paramsElement = request.TryGetProperty("params", out var rawParams)
+                ? rawParams.Clone()
+                : JsonDocument.Parse("{}").RootElement.Clone();
+            lock (_requestsLock)
+            {
+                _requests.Add(new RpcRequestRecord(method!, paramsElement));
+            }
             object? result = method switch
             {
                 "connect" => new Dictionary<string, object?>
@@ -392,6 +540,10 @@ public sealed class ClientSessionLifetimeTests
                 },
                 "session.create" => CreateSessionResult(request),
                 "session.resume" => CreateSessionResult(request),
+                "session.eventLog.registerInterest" => new Dictionary<string, object?>
+                {
+                    ["id"] = "interest-1"
+                },
                 "session.send" => new Dictionary<string, object?>
                 {
                     ["messageId"] = "message-1"

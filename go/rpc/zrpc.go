@@ -2617,6 +2617,65 @@ type MCPFilteredServer struct {
 	RedactedReason *string `json:"redactedReason,omitempty"`
 }
 
+// Host response: supply dynamic headers or decline this refresh.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequest is part of an experimental API
+// and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequest interface {
+	mcpHeadersHandlePendingHeadersRefreshRequest()
+	Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind
+}
+
+type RawMCPHeadersHandlePendingHeadersRefreshRequestData struct {
+	Discriminator MCPHeadersHandlePendingHeadersRefreshRequestKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPHeadersHandlePendingHeadersRefreshRequestData) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return r.Discriminator
+}
+
+type MCPHeadersHandlePendingHeadersRefreshRequestHeaders struct {
+	// Headers to overlay onto the MCP request. Dynamic headers override static config headers
+	// but do not replace SDK-managed request headers.
+	Headers map[string]string `json:"headers"`
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders
+}
+
+type MCPHeadersHandlePendingHeadersRefreshRequestNone struct {
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestNone) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestNone) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindNone
+}
+
+// MCP headers refresh request id and the host response.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequestRequest is part of an
+// experimental API and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequestRequest struct {
+	// Headers refresh request identifier from mcp.headers_refresh_required
+	RequestID string `json:"requestId"`
+	// Host response: supply dynamic headers or decline this refresh.
+	Result MCPHeadersHandlePendingHeadersRefreshRequest `json:"result"`
+}
+
+// Indicates whether the pending MCP headers refresh response was accepted.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequestResult is part of an
+// experimental API and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequestResult struct {
+	// Whether the response was accepted. False if the request was unknown, timed out, or
+	// already resolved.
+	Success bool `json:"success"`
+}
+
 // Host-level state, omitted when no MCP host is initialized.
 // Experimental: MCPHostState is part of an experimental API and may change or be removed.
 type MCPHostState struct {
@@ -2768,8 +2827,6 @@ type MCPOauthPendingRequestResponseToken struct {
 	AccessToken string `json:"accessToken"`
 	// Token lifetime in seconds, if known.
 	ExpiresIn *int64 `json:"expiresIn,omitempty"`
-	// Refresh token supplied by the host, if available.
-	RefreshToken *string `json:"refreshToken,omitempty"`
 	// OAuth token type. Defaults to Bearer when omitted.
 	TokenType *string `json:"tokenType,omitempty"`
 }
@@ -3236,6 +3293,10 @@ type Model struct {
 
 // Billing information
 type ModelBilling struct {
+	// Whole-number percentage discount (0-100) applied to usage billed through this model.
+	// Populated for the synthetic `auto` model, where requests routed by auto-mode are billed
+	// at a reduced rate; absent for concrete models.
+	DiscountPercent *int32 `json:"discountPercent,omitempty"`
 	// Billing cost multiplier relative to the base rate
 	Multiplier *float64 `json:"multiplier,omitempty"`
 	// Token-level pricing information for this model
@@ -5641,6 +5702,16 @@ type RemoteSessionRepository struct {
 	Owner string `json:"owner"`
 }
 
+// Optional experimental response budget limits.
+// Experimental: ResponseBudgetConfig is part of an experimental API and may change or be
+// removed.
+type ResponseBudgetConfig struct {
+	// Maximum AI Credits allowed while responding to one top-level user message.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+	// Maximum model-call iterations allowed while responding to one top-level user message.
+	MaxModelIterations *int64 `json:"maxModelIterations,omitempty"`
+}
+
 type RuntimeShutdownResult struct {
 }
 
@@ -6565,6 +6636,9 @@ type SessionOpenOptions struct {
 	AdditionalContentExclusionPolicies []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 	// Runtime context discriminator for agent filtering.
 	AgentContext *string `json:"agentContext,omitempty"`
+	// Whether to include instructions from every MCP server in the system prompt instead of
+	// only allowlisted servers.
+	AllowAllMCPServerInstructions *bool `json:"allowAllMcpServerInstructions,omitempty"`
 	// Whether ask_user is explicitly disabled.
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// Initial authentication info for the session.
@@ -6662,6 +6736,8 @@ type SessionOpenOptions struct {
 	RemoteExporting *bool `json:"remoteExporting,omitempty"`
 	// Whether this session supports remote steering.
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
+	// Initial experimental response budget limits for the session.
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Whether the host is an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -7384,6 +7460,9 @@ type SessionUpdateOptionsParams struct {
 	AdditionalContentExclusionPolicies []OptionsUpdateAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 	// Runtime context discriminator (e.g., `cli`, `actions`).
 	AgentContext *string `json:"agentContext,omitempty"`
+	// Whether to include instructions from every MCP server in the system prompt instead of
+	// only allowlisted servers.
+	AllowAllMCPServerInstructions *bool `json:"allowAllMcpServerInstructions,omitempty"`
 	// Whether to disable the `ask_user` tool (encourages autonomous behavior).
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// Allowlist of tool names available to this session.
@@ -7471,6 +7550,8 @@ type SessionUpdateOptionsParams struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode for supported model clients.
 	ReasoningSummary *OptionsUpdateReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Optional experimental response budget limits. Pass null to clear the response budget.
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Whether the session is running in an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -7781,8 +7862,8 @@ type SlashCommandInput struct {
 	Required *bool `json:"required,omitempty"`
 }
 
-// Result of invoking the slash command (text output, prompt to send to the agent, or
-// completion).
+// Result of invoking the slash command (text output, prompt to send to the agent,
+// completion, or subcommand selection).
 // Experimental: SlashCommandInvocationResult is part of an experimental API and may change
 // or be removed.
 type SlashCommandInvocationResult interface {
@@ -7896,6 +7977,11 @@ type SubagentSettings struct {
 	Agents map[string]SubagentSettingsEntry `json:"agents,omitzero"`
 	// Names of subagents the user has turned off; they cannot be dispatched
 	DisabledSubagents []string `json:"disabledSubagents,omitzero"`
+	// Maximum number of subagents that can run concurrently; applies to usage-based billing
+	// users only
+	MaxConcurrency *int32 `json:"maxConcurrency,omitempty"`
+	// Maximum subagent nesting depth; applies to usage-based billing users only
+	MaxDepth *int32 `json:"maxDepth,omitempty"`
 }
 
 // Subagent model, reasoning effort, and context tier settings
@@ -9758,6 +9844,14 @@ const (
 	MCPAppsSetHostContextDetailsThemeDark MCPAppsSetHostContextDetailsTheme = "dark"
 	// Light UI theme
 	MCPAppsSetHostContextDetailsThemeLight MCPAppsSetHostContextDetailsTheme = "light"
+)
+
+// Kind discriminator for MCPHeadersHandlePendingHeadersRefreshRequest.
+type MCPHeadersHandlePendingHeadersRefreshRequestKind string
+
+const (
+	MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders MCPHeadersHandlePendingHeadersRefreshRequestKind = "headers"
+	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
 )
 
 // OAuth grant type override for this login.
@@ -12933,7 +13027,7 @@ func (a *CommandsAPI) HandlePendingCommand(ctx context.Context, params *Commands
 // Parameters: Slash command name and optional raw input string to invoke.
 //
 // Returns: Result of invoking the slash command (text output, prompt to send to the agent,
-// or completion).
+// completion, or subcommand selection).
 func (a *CommandsAPI) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -13824,6 +13918,41 @@ func (s *MCPAPI) Apps() *MCPAppsAPI {
 	return (*MCPAppsAPI)(s)
 }
 
+// Experimental: MCPHeadersAPI contains experimental APIs that may change or be removed.
+type MCPHeadersAPI sessionAPI
+
+// HandlePendingHeadersRefreshRequest responds to a pending MCP dynamic headers refresh
+// request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide
+// short-lived per-server headers or to indicate that no dynamic headers are available for
+// this refresh.
+//
+// RPC method: session.mcp.headers.handlePendingHeadersRefreshRequest.
+//
+// Parameters: MCP headers refresh request id and the host response.
+//
+// Returns: Indicates whether the pending MCP headers refresh response was accepted.
+func (a *MCPHeadersAPI) HandlePendingHeadersRefreshRequest(ctx context.Context, params *MCPHeadersHandlePendingHeadersRefreshRequestRequest) (*MCPHeadersHandlePendingHeadersRefreshRequestResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.headers.handlePendingHeadersRefreshRequest", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPHeadersHandlePendingHeadersRefreshRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Headers returns experimental APIs that may change or be removed.
+func (s *MCPAPI) Headers() *MCPHeadersAPI {
+	return (*MCPHeadersAPI)(s)
+}
+
 // Experimental: MCPOauthAPI contains experimental APIs that may change or be removed.
 type MCPOauthAPI sessionAPI
 
@@ -14317,6 +14446,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.AgentContext != nil {
 			req["agentContext"] = *params.AgentContext
 		}
+		if params.AllowAllMCPServerInstructions != nil {
+			req["allowAllMcpServerInstructions"] = *params.AllowAllMCPServerInstructions
+		}
 		if params.AskUserDisabled != nil {
 			req["askUserDisabled"] = *params.AskUserDisabled
 		}
@@ -14424,6 +14556,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.ReasoningSummary != nil {
 			req["reasoningSummary"] = *params.ReasoningSummary
+		}
+		if params.ResponseBudget != nil {
+			req["responseBudget"] = *params.ResponseBudget
 		}
 		if params.RunningInInteractiveMode != nil {
 			req["runningInInteractiveMode"] = *params.RunningInInteractiveMode

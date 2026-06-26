@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::session_events::{
     AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest,
-    PermissionRule, ReasoningSummary, SessionMode, ShutdownType, SkillSource,
+    PermissionRule, ReasoningSummary, ResponseBudgetConfig, SessionMode, ShutdownType, SkillSource,
     UserToolSessionApproval,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
@@ -321,6 +321,9 @@ pub mod rpc_methods {
         "session.mcp.oauth.handlePendingRequest";
     /// `session.mcp.oauth.login`
     pub const SESSION_MCP_OAUTH_LOGIN: &str = "session.mcp.oauth.login";
+    /// `session.mcp.headers.handlePendingHeadersRefreshRequest`
+    pub const SESSION_MCP_HEADERS_HANDLEPENDINGHEADERSREFRESHREQUEST: &str =
+        "session.mcp.headers.handlePendingHeadersRefreshRequest";
     /// `session.mcp.apps.readResource`
     pub const SESSION_MCP_APPS_READRESOURCE: &str = "session.mcp.apps.readResource";
     /// `session.mcp.apps.listTools`
@@ -4285,6 +4288,52 @@ pub struct McpFilteredServer {
     pub redacted_reason: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestHeaders {
+    /// Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers.
+    pub headers: HashMap<String, String>,
+    pub kind: McpHeadersHandlePendingHeadersRefreshRequestHeadersKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestNone {
+    pub kind: McpHeadersHandlePendingHeadersRefreshRequestNoneKind,
+}
+
+/// MCP headers refresh request id and the host response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestRequest {
+    /// Headers refresh request identifier from mcp.headers_refresh_required
+    pub request_id: RequestId,
+    /// Host response: supply dynamic headers or decline this refresh.
+    pub result: McpHeadersHandlePendingHeadersRefreshRequest,
+}
+
+/// Indicates whether the pending MCP headers refresh response was accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestResult {
+    /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+    pub success: bool,
+}
+
 /// Recorded MCP server connection failure.
 ///
 /// <div class="warning">
@@ -4431,9 +4480,6 @@ pub struct McpOauthPendingRequestResponseToken {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<i64>,
     pub kind: McpOauthPendingRequestResponseTokenKind,
-    /// Refresh token supplied by the host, if available.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub refresh_token: Option<String>,
     /// OAuth token type. Defaults to Bearer when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_type: Option<String>,
@@ -5221,6 +5267,9 @@ pub struct ModelBillingTokenPrices {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelBilling {
+    /// Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discount_percent: Option<i32>,
     /// Billing cost multiplier relative to the base rate
     #[serde(skip_serializing_if = "Option::is_none")]
     pub multiplier: Option<f64>,
@@ -9793,6 +9842,9 @@ pub struct SessionOpenOptions {
     /// Runtime context discriminator for agent filtering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_context: Option<String>,
+    /// Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_all_mcp_server_instructions: Option<bool>,
     /// Whether ask_user is explicitly disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ask_user_disabled: Option<bool>,
@@ -9941,6 +9993,9 @@ pub struct SessionOpenOptions {
     /// Whether this session supports remote steering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
+    /// Initial experimental response budget limits for the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_budget: Option<ResponseBudgetConfig>,
     /// Whether the host is an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
@@ -10884,6 +10939,9 @@ pub struct SessionUpdateOptionsParams {
     /// Runtime context discriminator (e.g., `cli`, `actions`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_context: Option<String>,
+    /// Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_all_mcp_server_instructions: Option<bool>,
     /// Whether to disable the `ask_user` tool (encourages autonomous behavior).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ask_user_disabled: Option<bool>,
@@ -10992,6 +11050,9 @@ pub struct SessionUpdateOptionsParams {
     /// Reasoning summary mode for supported model clients.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<OptionsUpdateReasoningSummary>,
+    /// Optional experimental response budget limits. Pass null to clear the response budget.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_budget: Option<ResponseBudgetConfig>,
     /// Whether the session is running in an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
@@ -11532,6 +11593,12 @@ pub struct SubagentSettings {
     /// Names of subagents the user has turned off; they cannot be dispatched
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_subagents: Option<Vec<String>>,
+    /// Maximum number of subagents that can run concurrently; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrency: Option<i32>,
+    /// Maximum subagent nesting depth; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<i32>,
 }
 
 /// Schema for the `TaskAgentInfo` type.
@@ -12658,6 +12725,12 @@ pub struct UpdateSubagentSettingsRequestSubagents {
     /// Names of subagents the user has turned off; they cannot be dispatched
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_subagents: Option<Vec<String>>,
+    /// Maximum number of subagents that can run concurrently; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrency: Option<i32>,
+    /// Maximum subagent nesting depth; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<i32>,
 }
 
 /// Subagent settings to apply to the current session
@@ -15176,6 +15249,21 @@ pub struct SessionMcpOauthLoginResult {
     /// URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_url: Option<String>,
+}
+
+/// Indicates whether the pending MCP headers refresh response was accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpHeadersHandlePendingHeadersRefreshRequestResult {
+    /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+    pub success: bool,
 }
 
 /// Resource contents returned by the MCP server.
@@ -18124,6 +18212,35 @@ pub enum McpAppsSetHostContextDetailsTheme {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersHandlePendingHeadersRefreshRequestHeadersKind {
+    #[serde(rename = "headers")]
+    #[default]
+    Headers,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersHandlePendingHeadersRefreshRequestNoneKind {
+    #[serde(rename = "none")]
+    #[default]
+    None,
+}
+
+/// Host response: supply dynamic headers or decline this refresh.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpHeadersHandlePendingHeadersRefreshRequest {
+    Headers(McpHeadersHandlePendingHeadersRefreshRequestHeaders),
+    None(McpHeadersHandlePendingHeadersRefreshRequestNone),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpOauthPendingRequestResponseTokenKind {
     #[serde(rename = "token")]
     #[default]
@@ -19945,7 +20062,7 @@ pub enum SlashCommandSelectSubcommandResultKind {
     SelectSubcommand,
 }
 
-/// Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+/// Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
 ///
 /// <div class="warning">
 ///

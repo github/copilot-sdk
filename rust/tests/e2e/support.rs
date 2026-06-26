@@ -310,6 +310,8 @@ impl E2eContext {
                     .as_os_str()
                     .to_owned(),
             ),
+            ("COPILOT_MCP_APPS".into(), "true".into()),
+            ("MCP_APPS".into(), "true".into()),
         ]);
         if std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true") {
             env.push(("GH_TOKEN".into(), "fake-token-for-e2e-tests".into()));
@@ -596,6 +598,13 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
         if path.exists() {
             return Ok(path);
         }
+    }
+
+    let local_runtime_cli_path = PathBuf::from(
+        "/Users/roji/.copilot/repos/copilot-worktrees/copilot-agent-runtime/roji-symmetrical-dollop/dist-cli/index.js",
+    );
+    if local_runtime_cli_path.exists() {
+        return Ok(local_runtime_cli_path);
     }
 
     // The `@github/copilot` package is a thin loader; the runnable `index.js`

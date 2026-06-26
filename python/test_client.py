@@ -4,6 +4,7 @@ CopilotClient Unit Tests
 This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py instead.
 """
 
+import asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -28,6 +29,14 @@ from copilot.client import (
     ModelSupports,
 )
 from copilot.session import PermissionHandler
+from copilot.session_events import (
+    McpOauthRequestReason,
+    McpOauthRequiredData,
+    McpOauthRequiredStaticClientConfig,
+    McpOauthWWWAuthenticateParams,
+    SessionEvent,
+    SessionEventType,
+)
 from e2e.testharness import CLI_PATH
 
 
@@ -139,6 +148,306 @@ class TestPermissionHandlerOptional:
 
 
 class TestCreateSessionConfig:
+    @pytest.mark.asyncio
+    async def test_mcp_auth_handler_registers_interest_in_create_session(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                captured.append((method, params))
+                if method == "session.eventLog.registerInterest":
+                    return {"id": "interest-1"}
+                if method == "session.create":
+                    result = {"sessionId": params["sessionId"], "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_mcp_auth_request=lambda request: {"kind": "cancelled"},
+            )
+
+            create_method, create_payload = captured[0]
+            interest_method, interest_payload = captured[1]
+            assert create_method == "session.create"
+            assert interest_method == "session.eventLog.registerInterest"
+            assert interest_payload["eventType"] == "mcp.oauth_required"
+            assert interest_payload["sessionId"] == create_payload["sessionId"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_mcp_auth_interest_is_not_registered_without_handler(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                captured.append((method, params))
+                if method == "session.create":
+                    result = {"sessionId": params["sessionId"], "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_event=lambda event: None,
+            )
+            await client.resume_session(
+                "session-without-auth",
+                on_permission_request=PermissionHandler.approve_all,
+                on_event=lambda event: None,
+            )
+
+            assert session.session_id
+            assert not any(
+                method == "session.eventLog.registerInterest"
+                and params["eventType"] == "mcp.oauth_required"
+                for method, params in captured
+            )
+            assert any(
+                method == "session.create" and params["requestPermission"] is True
+                for method, params in captured
+            )
+            assert any(
+                method == "session.resume" and params["requestPermission"] is True
+                for method, params in captured
+            )
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_mcp_auth_handler_registers_interest_before_resume(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                captured.append((method, params))
+                if method == "session.eventLog.registerInterest":
+                    return {"id": "interest-1"}
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+            await client.resume_session(
+                "session-with-auth",
+                on_permission_request=PermissionHandler.approve_all,
+                on_mcp_auth_request=lambda request: {"kind": "cancelled"},
+            )
+
+            interest_method, interest_payload = captured[0]
+            resume_method, resume_payload = captured[1]
+            assert interest_method == "session.eventLog.registerInterest"
+            assert interest_payload == {
+                "sessionId": "session-with-auth",
+                "eventType": "mcp.oauth_required",
+            }
+            assert resume_method == "session.resume"
+            assert resume_payload["requestPermission"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_mcp_auth_handler_registers_interest_after_cloud_create_only_with_handler(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+            create_count = 0
+
+            async def mock_request(method, params, **kwargs):
+                nonlocal create_count
+                captured.append((method, params))
+                if method == "session.eventLog.registerInterest":
+                    return {"id": "interest-1"}
+                if method == "session.create":
+                    create_count += 1
+                    result = {
+                        "sessionId": f"server-assigned-session-{create_count}",
+                        "workspacePath": None,
+                    }
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            cloud = CloudSessionOptions(
+                repository=CloudSessionRepository(
+                    owner="github",
+                    name="copilot-sdk",
+                    branch="main",
+                )
+            )
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                cloud=cloud,
+            )
+
+            assert not any(
+                method == "session.eventLog.registerInterest"
+                and params["eventType"] == "mcp.oauth_required"
+                for method, params in captured
+            )
+
+            captured.clear()
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_mcp_auth_request=lambda request: {"kind": "cancelled"},
+                cloud=cloud,
+            )
+
+            create_method, _create_payload = captured[0]
+            interest_method, interest_payload = captured[1]
+            assert create_method == "session.create"
+            assert interest_method == "session.eventLog.registerInterest"
+            assert interest_payload == {
+                "sessionId": "server-assigned-session-2",
+                "eventType": "mcp.oauth_required",
+            }
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_mcp_auth_required_event_sends_host_token(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                if method == "session.mcp.oauth.handlePendingRequest":
+                    captured.append((method, params))
+                    return {"success": True}
+                if method == "session.create":
+                    result = {"sessionId": params["sessionId"], "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                if method == "session.eventLog.registerInterest":
+                    return {"id": "interest-1"}
+                return {}
+
+            client._client.request = mock_request
+            observed_request = None
+
+            def handle_mcp_auth_request(request, invocation):
+                nonlocal observed_request
+                observed_request = request
+                return {
+                    "accessToken": "host-token",
+                    "tokenType": "Bearer",
+                }
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_mcp_auth_request=handle_mcp_auth_request,
+            )
+
+            session._dispatch_event(
+                SessionEvent(
+                    data=McpOauthRequiredData(
+                        request_id="oauth-request",
+                        server_name="oauth-server",
+                        server_url="https://example.com/mcp",
+                        reason=McpOauthRequestReason.INITIAL,
+                        www_authenticate_params=McpOauthWWWAuthenticateParams(
+                            resource_metadata_url="https://example.com/.well-known/oauth-protected-resource"
+                        ),
+                        resource_metadata='{"resource":"https://example.com/mcp"}',
+                        static_client_config=McpOauthRequiredStaticClientConfig(
+                            client_id="static-client",
+                            client_secret="static-secret",
+                            grant_type="client_credentials",
+                            public_client=False,
+                        ),
+                    ),
+                    id="evt-1",
+                    timestamp="2026-01-01T00:00:00Z",
+                    type=SessionEventType.MCP_OAUTH_REQUIRED,
+                    ephemeral=True,
+                    parent_id=None,
+                )
+            )
+
+            for _ in range(200):
+                if captured:
+                    break
+                await asyncio.sleep(0.005)
+
+            assert observed_request is not None
+            assert observed_request["resourceMetadata"] == '{"resource":"https://example.com/mcp"}'
+            assert observed_request["wwwAuthenticateParams"]["resourceMetadataUrl"] == (
+                "https://example.com/.well-known/oauth-protected-resource"
+            )
+            assert observed_request["staticClientConfig"] == {
+                "clientId": "static-client",
+                "clientSecret": "static-secret",
+                "grantType": "client_credentials",
+                "publicClient": False,
+            }
+            assert captured == [
+                (
+                    "session.mcp.oauth.handlePendingRequest",
+                    {
+                        "sessionId": session.session_id,
+                        "requestId": "oauth-request",
+                        "result": {
+                            "kind": "token",
+                            "accessToken": "host-token",
+                            "tokenType": "Bearer",
+                        },
+                    },
+                )
+            ]
+
+            observed_request = None
+            session._dispatch_event(
+                SessionEvent(
+                    data=McpOauthRequiredData(
+                        request_id="oauth-request-without-metadata",
+                        server_name="oauth-server",
+                        server_url="https://example.com/mcp",
+                        reason=McpOauthRequestReason.INITIAL,
+                    ),
+                    id="evt-2",
+                    timestamp="2026-01-01T00:00:00Z",
+                    type=SessionEventType.MCP_OAUTH_REQUIRED,
+                    ephemeral=True,
+                    parent_id=None,
+                )
+            )
+
+            for _ in range(200):
+                if observed_request is not None:
+                    break
+                await asyncio.sleep(0.005)
+
+            assert observed_request is not None
+            assert "resourceMetadata" not in observed_request
+            assert "wwwAuthenticateParams" not in observed_request
+        finally:
+            await client.force_stop()
+
     @pytest.mark.asyncio
     async def test_create_session_forwards_cloud_options(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))

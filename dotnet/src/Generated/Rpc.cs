@@ -149,6 +149,10 @@ public sealed class ModelBillingTokenPrices
 /// <summary>Billing information.</summary>
 public sealed class ModelBilling
 {
+    /// <summary>Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models.</summary>
+    [JsonPropertyName("discountPercent")]
+    public int? DiscountPercent { get; set; }
+
     /// <summary>Billing cost multiplier relative to the base rate.</summary>
     [JsonPropertyName("multiplier")]
     public double? Multiplier { get; set; }
@@ -5612,11 +5616,6 @@ public partial class McpOauthPendingRequestResponseToken : McpOauthPendingReques
     [JsonPropertyName("expiresIn")]
     public long? ExpiresIn { get; set; }
 
-    /// <summary>Refresh token supplied by the host, if available.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("refreshToken")]
-    public string? RefreshToken { get; set; }
-
     /// <summary>OAuth token type. Defaults to Bearer when omitted.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("tokenType")]
@@ -5698,6 +5697,70 @@ internal sealed class McpOauthLoginRequest
     [MinLength(1)]
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Indicates whether the pending MCP headers refresh response was accepted.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpHeadersHandlePendingHeadersRefreshRequestResult
+{
+    /// <summary>Whether the response was accepted. False if the request was unknown, timed out, or already resolved.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>Host response: supply dynamic headers or decline this refresh.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpHeadersHandlePendingHeadersRefreshRequestHeaders), "headers")]
+[JsonDerivedType(typeof(McpHeadersHandlePendingHeadersRefreshRequestNone), "none")]
+public partial class McpHeadersHandlePendingHeadersRefreshRequest
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>headers</c> variant of <see cref="McpHeadersHandlePendingHeadersRefreshRequest"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpHeadersHandlePendingHeadersRefreshRequestHeaders : McpHeadersHandlePendingHeadersRefreshRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "headers";
+
+    /// <summary>Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers.</summary>
+    [JsonPropertyName("headers")]
+    public required IDictionary<string, string> Headers { get; set; }
+}
+
+/// <summary>The <c>none</c> variant of <see cref="McpHeadersHandlePendingHeadersRefreshRequest"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpHeadersHandlePendingHeadersRefreshRequestNone : McpHeadersHandlePendingHeadersRefreshRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "none";
+}
+
+/// <summary>MCP headers refresh request id and the host response.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpHeadersHandlePendingHeadersRefreshRequestRequest
+{
+    /// <summary>Headers refresh request identifier from mcp.headers_refresh_required.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Host response: supply dynamic headers or decline this refresh.</summary>
+    [JsonPropertyName("result")]
+    public McpHeadersHandlePendingHeadersRefreshRequest Result { get => field ??= new(); set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -6552,6 +6615,10 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("agentContext")]
     public string? AgentContext { get; set; }
 
+    /// <summary>Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.</summary>
+    [JsonPropertyName("allowAllMcpServerInstructions")]
+    public bool? AllowAllMcpServerInstructions { get; set; }
+
     /// <summary>Whether to disable the `ask_user` tool (encourages autonomous behavior).</summary>
     [JsonPropertyName("askUserDisabled")]
     public bool? AskUserDisabled { get; set; }
@@ -6695,6 +6762,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Reasoning summary mode for supported model clients.</summary>
     [JsonPropertyName("reasoningSummary")]
     public OptionsUpdateReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>Optional experimental response budget limits. Pass null to clear the response budget.</summary>
+    [JsonPropertyName("responseBudget")]
+    public ResponseBudgetConfig? ResponseBudget { get; set; }
 
     /// <summary>Whether the session is running in an interactive UI.</summary>
     [JsonPropertyName("runningInInteractiveMode")]
@@ -7207,6 +7278,14 @@ public sealed class UpdateSubagentSettingsRequestSubagents
     /// <summary>Names of subagents the user has turned off; they cannot be dispatched.</summary>
     [JsonPropertyName("disabledSubagents")]
     public IList<string>? DisabledSubagents { get; set; }
+
+    /// <summary>Maximum number of subagents that can run concurrently; applies to usage-based billing users only.</summary>
+    [JsonPropertyName("maxConcurrency")]
+    public int? MaxConcurrency { get; set; }
+
+    /// <summary>Maximum subagent nesting depth; applies to usage-based billing users only.</summary>
+    [JsonPropertyName("maxDepth")]
+    public int? MaxDepth { get; set; }
 }
 
 /// <summary>Subagent settings to apply to the current session.</summary>
@@ -7327,7 +7406,7 @@ internal sealed class CommandsListRequestWithSession
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Result of invoking the slash command (text output, prompt to send to the agent, or completion).</summary>
+/// <summary>Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
@@ -19139,6 +19218,12 @@ public sealed class McpApi
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>Headers APIs.</summary>
+    public McpHeadersApi Headers =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Apps APIs.</summary>
     public McpAppsApi Apps =>
         field ??
@@ -19204,6 +19289,33 @@ public sealed class McpOauthApi
 
         var request = new McpOauthLoginRequest { SessionId = _session.SessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage, ClientId = clientId, ClientSecret = clientSecret, PublicClient = publicClient, GrantType = grantType };
         return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped McpHeaders APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpHeadersApi
+{
+    private readonly CopilotSession _session;
+
+    internal McpHeadersApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Responds to a pending MCP dynamic headers refresh request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide short-lived per-server headers or to indicate that no dynamic headers are available for this refresh.</summary>
+    /// <param name="requestId">Headers refresh request identifier from mcp.headers_refresh_required.</param>
+    /// <param name="result">Host response: supply dynamic headers or decline this refresh.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the pending MCP headers refresh response was accepted.</returns>
+    public async Task<McpHeadersHandlePendingHeadersRefreshRequestResult> HandlePendingHeadersRefreshRequestAsync(string requestId, McpHeadersHandlePendingHeadersRefreshRequest result, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentNullException.ThrowIfNull(result);
+        _session.ThrowIfDisposed();
+
+        var request = new McpHeadersHandlePendingHeadersRefreshRequestRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<McpHeadersHandlePendingHeadersRefreshRequestResult>(_session.Rpc, "session.mcp.headers.handlePendingHeadersRefreshRequest", [request], cancellationToken);
     }
 }
 
@@ -19407,6 +19519,7 @@ public sealed class OptionsApi
     /// <param name="sandboxConfig">Resolved sandbox configuration.</param>
     /// <param name="logInteractiveShells">Whether interactive shell sessions are logged.</param>
     /// <param name="envValueMode">How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).</param>
+    /// <param name="allowAllMcpServerInstructions">Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.</param>
     /// <param name="skillDirectories">Additional directories to search for skills.</param>
     /// <param name="disabledSkills">Skill IDs that should be excluded from this session.</param>
     /// <param name="enableOnDemandInstructionDiscovery">Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag.</param>
@@ -19436,13 +19549,14 @@ public sealed class OptionsApi
     /// <param name="enableSessionStore">Whether to enable cross-session store writes and reads.</param>
     /// <param name="enableSkills">Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</param>
     /// <param name="contextTier">Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier.</param>
+    /// <param name="responseBudget">Optional experimental response budget limits. Pass null to clear the response budget.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, ResponseBudgetConfig? responseBudget = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, ResponseBudget = responseBudget };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -19630,7 +19744,7 @@ public sealed class CommandsApi
     /// <param name="name">Command name. Leading slashes are stripped and the name is matched case-insensitively.</param>
     /// <param name="input">Raw input after the command name.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Result of invoking the slash command (text output, prompt to send to the agent, or completion).</returns>
+    /// <returns>Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).</returns>
     public async Task<SlashCommandInvocationResult> InvokeAsync(string name, string? input = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -20957,6 +21071,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AbortData), TypeInfoPropertyName = "SessionEventsAbortData")]
 [JsonSerializable(typeof(GitHub.Copilot.AbortEvent), TypeInfoPropertyName = "SessionEventsAbortEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AbortReason), TypeInfoPropertyName = "SessionEventsAbortReason")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantIdleData), TypeInfoPropertyName = "SessionEventsAssistantIdleData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantIdleEvent), TypeInfoPropertyName = "SessionEventsAssistantIdleEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIntentData), TypeInfoPropertyName = "SessionEventsAssistantIntentData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIntentEvent), TypeInfoPropertyName = "SessionEventsAssistantIntentEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageData), TypeInfoPropertyName = "SessionEventsAssistantMessageData")]
@@ -21068,9 +21184,16 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteEvent), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteToolMeta), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteToolMeta")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteToolMetaUI), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteToolMetaUI")]
+[JsonSerializable(typeof(GitHub.Copilot.McpHeadersRefreshCompletedData), TypeInfoPropertyName = "SessionEventsMcpHeadersRefreshCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.McpHeadersRefreshCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpHeadersRefreshCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpHeadersRefreshCompletedOutcome), TypeInfoPropertyName = "SessionEventsMcpHeadersRefreshCompletedOutcome")]
+[JsonSerializable(typeof(GitHub.Copilot.McpHeadersRefreshRequiredData), TypeInfoPropertyName = "SessionEventsMcpHeadersRefreshRequiredData")]
+[JsonSerializable(typeof(GitHub.Copilot.McpHeadersRefreshRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpHeadersRefreshRequiredEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpHeadersRefreshRequiredReason), TypeInfoPropertyName = "SessionEventsMcpHeadersRefreshRequiredReason")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletionOutcome), TypeInfoPropertyName = "SessionEventsMcpOauthCompletionOutcome")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthRequestReason), TypeInfoPropertyName = "SessionEventsMcpOauthRequestReason")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
@@ -21128,6 +21251,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PersistedBinaryResult), TypeInfoPropertyName = "SessionEventsPersistedBinaryResult")]
 [JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
+[JsonSerializable(typeof(GitHub.Copilot.ResponseBudgetConfig), TypeInfoPropertyName = "SessionEventsResponseBudgetConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
@@ -21202,6 +21326,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionProgressEvent), TypeInfoPropertyName = "SessionEventsToolExecutionProgressEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartData), TypeInfoPropertyName = "SessionEventsToolExecutionStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartEvent), TypeInfoPropertyName = "SessionEventsToolExecutionStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartShellToolInfo), TypeInfoPropertyName = "SessionEventsToolExecutionStartShellToolInfo")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartToolDescription), TypeInfoPropertyName = "SessionEventsToolExecutionStartToolDescription")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartToolDescriptionMeta), TypeInfoPropertyName = "SessionEventsToolExecutionStartToolDescriptionMeta")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartToolDescriptionMetaUI), TypeInfoPropertyName = "SessionEventsToolExecutionStartToolDescriptionMetaUI")]
@@ -21214,6 +21339,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.UserInputRequestedEvent), TypeInfoPropertyName = "SessionEventsUserInputRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.UserMessageAgentMode), TypeInfoPropertyName = "SessionEventsUserMessageAgentMode")]
 [JsonSerializable(typeof(GitHub.Copilot.UserMessageData), TypeInfoPropertyName = "SessionEventsUserMessageData")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageDelivery), TypeInfoPropertyName = "SessionEventsUserMessageDelivery")]
 [JsonSerializable(typeof(GitHub.Copilot.UserMessageEvent), TypeInfoPropertyName = "SessionEventsUserMessageEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApproval), TypeInfoPropertyName = "SessionEventsUserToolSessionApproval")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalCommands), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCommands")]
@@ -21387,6 +21513,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpExecuteSamplingRequest))]
 [JsonSerializable(typeof(McpExecuteSamplingResult))]
 [JsonSerializable(typeof(McpFilteredServer))]
+[JsonSerializable(typeof(McpHeadersHandlePendingHeadersRefreshRequest))]
+[JsonSerializable(typeof(McpHeadersHandlePendingHeadersRefreshRequestRequest))]
+[JsonSerializable(typeof(McpHeadersHandlePendingHeadersRefreshRequestResult))]
 [JsonSerializable(typeof(McpHostState))]
 [JsonSerializable(typeof(McpIsServerRunningRequest))]
 [JsonSerializable(typeof(McpIsServerRunningResult))]
