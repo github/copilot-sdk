@@ -1016,3 +1016,278 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 		}
 	})
 }
+
+// TestToolInvocation_ContextCancelledOnAbort verifies that the context passed to a
+// tool handler is cancelled when the in-flight cancel func (as used by Abort) fires.
+func TestToolInvocation_ContextCancelledOnAbort(t *testing.T) {
+	session, cleanup := newRPCDrainSession(t, "session-abort-test")
+	defer cleanup()
+
+	// Channel to receive the invocation context from the handler.
+	ctxCh := make(chan context.Context, 1)
+
+	// The handler blocks until its context is cancelled, then reports.
+	handler := ToolHandler(func(inv ToolInvocation) (ToolResult, error) {
+		ctxCh <- inv.Context
+		<-inv.Context.Done()
+		return ToolResult{TextResultForLLM: "cancelled"}, nil
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		session.executeToolAndRespond("req-1", "my_tool", "tc-1", nil, handler, "", "")
+	}()
+
+	// Wait for the handler to start and capture its context.
+	var handlerCtx context.Context
+	select {
+	case handlerCtx = <-ctxCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler to start")
+	}
+
+	// Verify the context is not yet cancelled.
+	if handlerCtx.Err() != nil {
+		t.Fatalf("expected context to be active, got %v", handlerCtx.Err())
+	}
+
+	// Simulate what Abort() does: cancel all in-flight tool call contexts.
+	session.toolCallCancelsMu.Lock()
+	for _, cancel := range session.toolCallCancels {
+		cancel()
+	}
+	session.toolCallCancelsMu.Unlock()
+
+	// Wait for the handler to finish.
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler to finish after cancellation")
+	}
+
+	// The handler context must be cancelled.
+	if handlerCtx.Err() == nil {
+		t.Fatal("expected handler context to be cancelled after abort")
+	}
+
+	// The cancel func must have been removed from the map.
+	session.toolCallCancelsMu.Lock()
+	remaining := len(session.toolCallCancels)
+	session.toolCallCancelsMu.Unlock()
+	if remaining != 0 {
+		t.Fatalf("expected toolCallCancels to be empty after execution, got %d entries", remaining)
+	}
+}
+
+// TestToolInvocation_ContextPopulated verifies that executeToolAndRespond sets
+// both Context and TraceContext on the ToolInvocation passed to the handler.
+func TestToolInvocation_ContextPopulated(t *testing.T) {
+	session, cleanup := newRPCDrainSession(t, "session-ctx-test")
+	defer cleanup()
+
+	invCh := make(chan ToolInvocation, 1)
+	handler := ToolHandler(func(inv ToolInvocation) (ToolResult, error) {
+		invCh <- inv
+		return ToolResult{TextResultForLLM: "ok"}, nil
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		session.executeToolAndRespond("req-2", "check_tool", "tc-2", map[string]any{"x": 1}, handler, "", "")
+	}()
+
+	var inv ToolInvocation
+	select {
+	case inv = <-invCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler invocation")
+	}
+
+	if inv.Context == nil {
+		t.Fatal("expected ToolInvocation.Context to be set")
+	}
+	if inv.TraceContext == nil {
+		t.Fatal("expected ToolInvocation.TraceContext to be set")
+	}
+	// Context is a cancellable child of TraceContext; they are different instances.
+	// Both must be non-nil and Context must be cancellable independently.
+	if inv.Context == inv.TraceContext {
+		t.Error("expected Context and TraceContext to be different instances (Context is a cancellable child)")
+	}
+	if inv.SessionID != "session-ctx-test" {
+		t.Errorf("expected SessionID session-ctx-test, got %q", inv.SessionID)
+	}
+	if inv.ToolCallID != "tc-2" {
+		t.Errorf("expected ToolCallID tc-2, got %q", inv.ToolCallID)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for executeToolAndRespond to complete")
+	}
+}
+
+// newRPCDrainSession creates a Session backed by a pipe-based JSON-RPC client
+// whose server side drains requests and returns empty success responses.
+// The caller must close stdinW and stdoutW when done.
+func newRPCDrainSession(t *testing.T, sessionID string) (*Session, func()) {
+	t.Helper()
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+
+	session := &Session{
+		SessionID: sessionID,
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, sessionID),
+	}
+
+	// Drain goroutine: read every RPC request and send an empty success response.
+	// Uses a single bufio.Reader so that header parsing and body reads share the
+	// same read buffer — mixing bufio.Scanner with io.ReadFull on the same reader
+	// causes data corruption because Scanner may buffer-ahead bytes that
+	// io.ReadFull then misses.
+	go func() {
+		br := bufio.NewReader(stdinR)
+		for {
+			// Read headers until blank line.
+			var contentLen int
+			for {
+				line, err := br.ReadString('\n')
+				if err != nil {
+					return
+				}
+				line = strings.TrimRight(line, "\r\n")
+				if line == "" {
+					break // end of headers
+				}
+				fmt.Sscanf(line, "Content-Length: %d", &contentLen)
+			}
+			if contentLen == 0 {
+				continue
+			}
+
+			body := make([]byte, contentLen)
+			if _, err := io.ReadFull(br, body); err != nil {
+				return
+			}
+
+			var req struct {
+				ID json.RawMessage `json:"id"`
+			}
+			if err := json.Unmarshal(body, &req); err != nil || req.ID == nil {
+				continue
+			}
+			resp, _ := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      json.RawMessage(req.ID),
+				"result":  map[string]any{},
+			})
+			fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(resp), resp) //nolint:errcheck
+		}
+	}()
+
+	cleanup := func() {
+		client.Stop()
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+		stdoutW.Close()
+	}
+	return session, cleanup
+}
+
+// TestCancelToolCall_cancelsTargetedHandlerOnly verifies that CancelToolCall
+// cancels only the specified handler's context while leaving concurrent
+// handlers unaffected, and returns false for an unknown tool call ID.
+func TestCancelToolCall_cancelsTargetedHandlerOnly(t *testing.T) {
+	session, cleanup := newRPCDrainSession(t, "session-cancel-test")
+	defer cleanup()
+
+	type handlerState struct {
+		ctx  context.Context
+		done chan struct{}
+	}
+
+	makeBlockingHandler := func(id string) (ToolHandler, *handlerState) {
+		state := &handlerState{done: make(chan struct{})}
+		h := ToolHandler(func(inv ToolInvocation) (ToolResult, error) {
+			state.ctx = inv.Context
+			<-inv.Context.Done() // block until cancelled
+			return ToolResult{TextResultForLLM: "cancelled"}, nil
+		})
+		return h, state
+	}
+
+	h1, s1 := makeBlockingHandler("tc-a")
+	h2, s2 := makeBlockingHandler("tc-b")
+
+	// Start both handlers concurrently.
+	go func() {
+		defer close(s1.done)
+		session.executeToolAndRespond("req-a", "tool_a", "tc-a", nil, h1, "", "")
+	}()
+	go func() {
+		defer close(s2.done)
+		session.executeToolAndRespond("req-b", "tool_b", "tc-b", nil, h2, "", "")
+	}()
+
+	// Wait for both handlers to start (ctx will be set once they block).
+	deadline := time.After(2 * time.Second)
+	for s1.ctx == nil || s2.ctx == nil {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for handlers to start")
+		default:
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+
+	// Unknown ID returns false and leaves both handlers running.
+	if got := session.CancelToolCall("nonexistent"); got {
+		t.Fatal("expected CancelToolCall(unknown) to return false")
+	}
+	if s1.ctx.Err() != nil {
+		t.Fatal("handler 1 should still be running after unknown CancelToolCall")
+	}
+	if s2.ctx.Err() != nil {
+		t.Fatal("handler 2 should still be running after unknown CancelToolCall")
+	}
+
+	// Cancel only handler 1.
+	if got := session.CancelToolCall("tc-a"); !got {
+		t.Fatal("expected CancelToolCall(tc-a) to return true")
+	}
+
+	// Handler 1 should finish; handler 2 should remain live.
+	select {
+	case <-s1.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler 1 to finish after CancelToolCall")
+	}
+
+	if s1.ctx.Err() == nil {
+		t.Fatal("expected handler 1 context to be cancelled")
+	}
+	if s2.ctx.Err() != nil {
+		t.Fatal("handler 2 context should still be live")
+	}
+
+	// CancelToolCall on the same ID again returns false (already removed).
+	if got := session.CancelToolCall("tc-a"); got {
+		t.Fatal("expected second CancelToolCall(tc-a) to return false")
+	}
+
+	// Cancel handler 2 to let it finish and avoid goroutine leak.
+	session.CancelToolCall("tc-b")
+	select {
+	case <-s2.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler 2 to finish")
+	}
+}
