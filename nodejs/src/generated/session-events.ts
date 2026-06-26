@@ -45,6 +45,7 @@ export type SessionEvent =
   | AssistantMessageStartEvent
   | AssistantMessageDeltaEvent
   | AssistantTurnEndEvent
+  | AssistantIdleEvent
   | AssistantUsageEvent
   | ModelCallFailureEvent
   | AbortEvent
@@ -75,6 +76,8 @@ export type SessionEvent =
   | SamplingCompletedEvent
   | McpOauthRequiredEvent
   | McpOauthCompletedEvent
+  | McpHeadersRefreshRequiredEvent
+  | McpHeadersRefreshCompletedEvent
   | CustomNotificationEvent
   | ExternalToolRequestedEvent
   | ExternalToolCompletedEvent
@@ -234,6 +237,16 @@ export type AttachmentGitHubReferenceType =
   | "pr"
   /** GitHub discussion reference. */
   | "discussion";
+/**
+ * How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.
+ */
+export type UserMessageDelivery =
+  /** Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent). */
+  | "idle"
+  /** Injected into the current in-flight run while the agent was busy (immediate mode). */
+  | "steering"
+  /** Enqueued while the agent was busy; processed as its own run afterward. */
+  | "queued";
 /**
  * The system that produced a citation.
  */
@@ -508,6 +521,18 @@ export type ElicitationCompletedAction =
   /** The user dismissed the request. */
   | "cancel";
 /**
+ * Reason the runtime is requesting host-provided MCP OAuth credentials
+ */
+export type McpOauthRequestReason =
+  /** Initial credentials are required before connecting to the MCP server. */
+  | "initial"
+  /** The current host-provided credential was rejected and a replacement is requested. */
+  | "refresh"
+  /** The server requires a new host authorization flow before continuing. */
+  | "reauth"
+  /** The server requires a credential with additional scope or audience. */
+  | "upscope";
+/**
  * How the pending MCP OAuth request was completed
  */
 export type McpOauthCompletionOutcome =
@@ -515,6 +540,26 @@ export type McpOauthCompletionOutcome =
   | "token"
   /** The request completed without an OAuth provider. */
   | "cancelled";
+/**
+ * Why dynamic headers are being requested.
+ */
+export type McpHeadersRefreshRequiredReason =
+  /** The transport is making its first dynamic header request for this server. */
+  | "startup"
+  /** The previously cached dynamic headers expired. */
+  | "ttl-expired"
+  /** The server returned 401 and stale dynamic headers were invalidated. */
+  | "auth-failed";
+/**
+ * How the pending MCP headers refresh request resolved.
+ */
+export type McpHeadersRefreshCompletedOutcome =
+  /** The host supplied dynamic headers. */
+  | "headers"
+  /** The host responded with no dynamic headers. */
+  | "none"
+  /** No response arrived within the bounded window. */
+  | "timeout";
 /**
  * The user's auto-mode-switch choice
  */
@@ -684,6 +729,7 @@ export interface StartData {
    * Whether this session supports remote steering via GitHub
    */
   remoteSteerable?: boolean;
+  responseBudget?: ResponseBudgetConfig;
   /**
    * Model selected at session creation time, if any
    */
@@ -734,6 +780,19 @@ export interface WorkingDirectoryContext {
    * Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
    */
   repositoryHost?: string;
+}
+/**
+ * Optional response budget limits.
+ */
+export interface ResponseBudgetConfig {
+  /**
+   * Maximum AI Credits allowed while responding to one top-level user message.
+   */
+  maxAiCredits?: number;
+  /**
+   * Maximum model-call iterations allowed while responding to one top-level user message.
+   */
+  maxModelIterations?: number;
 }
 /**
  * Session event "session.resume". Session resume metadata including current context and event count
@@ -799,6 +858,10 @@ export interface ResumeData {
    * Whether this session supports remote steering via GitHub
    */
   remoteSteerable?: boolean;
+  /**
+   * Response budget limits currently configured at resume time; null when no budget is active
+   */
+  responseBudget?: ResponseBudgetConfig | null;
   /**
    * ISO 8601 timestamp when the session was resumed
    */
@@ -2322,6 +2385,7 @@ export interface UserMessageData {
    * The user's message text as displayed in the timeline
    */
   content: string;
+  delivery?: UserMessageDelivery;
   /**
    * CAPI interaction ID for correlating this user message with its turn
    */
@@ -3220,6 +3284,45 @@ export interface AssistantTurnEndData {
   turnId: string;
 }
 /**
+ * Session event "assistant.idle". Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
+ */
+export interface AssistantIdleEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AssistantIdleData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.idle".
+   */
+  type: "assistant.idle";
+}
+/**
+ * Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
+ */
+export interface AssistantIdleData {
+  /**
+   * True when the preceding agentic loop was cancelled via abort signal
+   */
+  aborted?: boolean;
+}
+/**
  * Session event "assistant.usage". LLM API call usage metrics including tokens, costs, quotas, and billing information
  */
 export interface AssistantUsageEvent {
@@ -3712,6 +3815,7 @@ export interface ToolExecutionStartData {
    * Tool call ID of the parent tool invocation when this event originates from a sub-agent
    */
   parentToolCallId?: string;
+  shellToolInfo?: ToolExecutionStartShellToolInfo;
   /**
    * Unique identifier for this tool call
    */
@@ -3725,6 +3829,19 @@ export interface ToolExecutionStartData {
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
    */
   turnId?: string;
+}
+/**
+ * Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
+ */
+export interface ToolExecutionStartShellToolInfo {
+  /**
+   * Whether the command includes a file write redirection (e.g., > or >>).
+   */
+  hasWriteFileRedirection: boolean;
+  /**
+   * File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
+   */
+  possiblePaths: string[];
 }
 /**
  * Tool definition metadata, present for MCP tools with MCP Apps support
@@ -6407,6 +6524,7 @@ export interface McpOauthRequiredEvent {
  * OAuth authentication request for an MCP server
  */
 export interface McpOauthRequiredData {
+  reason: McpOauthRequestReason;
   /**
    * Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
    */
@@ -6435,6 +6553,10 @@ export interface McpOauthRequiredStaticClientConfig {
    */
   clientId: string;
   /**
+   * Optional OAuth client secret for confidential static clients, when the runtime can resolve one
+   */
+  clientSecret?: string;
+  /**
    * Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
    */
   grantType?: "client_credentials";
@@ -6452,9 +6574,9 @@ export interface McpOauthWWWAuthenticateParams {
    */
   error?: string;
   /**
-   * Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter
+   * Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present
    */
-  resourceMetadataUrl: string;
+  resourceMetadataUrl?: string;
   /**
    * Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
    */
@@ -6497,6 +6619,94 @@ export interface McpOauthCompletedData {
   outcome: McpOauthCompletionOutcome;
   /**
    * Request ID of the resolved OAuth request
+   */
+  requestId: string;
+}
+/**
+ * Session event "mcp.headers_refresh_required". Dynamic headers refresh request for a remote MCP server
+ */
+export interface McpHeadersRefreshRequiredEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpHeadersRefreshRequiredData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "mcp.headers_refresh_required".
+   */
+  type: "mcp.headers_refresh_required";
+}
+/**
+ * Dynamic headers refresh request for a remote MCP server
+ */
+export interface McpHeadersRefreshRequiredData {
+  reason: McpHeadersRefreshRequiredReason;
+  /**
+   * Unique identifier for this headers refresh request; used to respond via session.mcp.headers.handlePendingHeadersRefreshRequest()
+   */
+  requestId: string;
+  /**
+   * Display name of the remote MCP server requesting headers
+   */
+  serverName: string;
+  /**
+   * URL of the remote MCP server requesting headers
+   */
+  serverUrl: string;
+}
+/**
+ * Session event "mcp.headers_refresh_completed". MCP headers refresh request completion notification
+ */
+export interface McpHeadersRefreshCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpHeadersRefreshCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "mcp.headers_refresh_completed".
+   */
+  type: "mcp.headers_refresh_completed";
+}
+/**
+ * MCP headers refresh request completion notification
+ */
+export interface McpHeadersRefreshCompletedData {
+  outcome: McpHeadersRefreshCompletedOutcome;
+  /**
+   * Request ID of the resolved headers refresh request
    */
   requestId: string;
 }

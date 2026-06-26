@@ -19,8 +19,13 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::generated::api_types::{
-    PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionReject,
-    PermissionDecisionUserNotAvailable,
+    McpOauthPendingRequestResponse, McpOauthPendingRequestResponseCancelled,
+    McpOauthPendingRequestResponseCancelledKind, McpOauthPendingRequestResponseToken,
+    McpOauthPendingRequestResponseTokenKind, PermissionDecision, PermissionDecisionApproveOnce,
+    PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+};
+use crate::session_events::{
+    McpOauthRequestReason, McpOauthRequiredStaticClientConfig, McpOauthWWWAuthenticateParams,
 };
 use crate::types::{
     ElicitationRequest, ElicitationResult, ExitPlanModeData, PermissionRequestData, RequestId,
@@ -159,6 +164,73 @@ pub trait ElicitationHandler: Send + Sync + 'static {
     ) -> ElicitationResult;
 }
 
+/// MCP OAuth request that the SDK host can satisfy with a host-acquired token.
+#[derive(Debug, Clone)]
+pub struct McpAuthRequest {
+    /// Display name of the MCP server that requires OAuth.
+    pub server_name: String,
+    /// URL of the MCP server that requires OAuth.
+    pub server_url: String,
+    /// Why the runtime is requesting host-provided OAuth credentials.
+    pub reason: McpOauthRequestReason,
+    /// Parsed WWW-Authenticate parameters from the MCP server, if available.
+    pub www_authenticate_params: Option<McpOauthWWWAuthenticateParams>,
+    /// Raw RFC 9728 protected-resource metadata JSON fetched by the runtime, if available.
+    pub resource_metadata: Option<String>,
+    /// Static OAuth client configuration, if the server specifies one.
+    pub static_client_config: Option<McpOauthRequiredStaticClientConfig>,
+}
+
+/// Result returned by an MCP auth request handler.
+#[derive(Debug, Clone)]
+pub enum McpAuthResult {
+    /// Supplies host-acquired OAuth token data.
+    Token {
+        /// Access token acquired by the SDK host.
+        access_token: String,
+        /// OAuth token type. Defaults to Bearer when omitted.
+        token_type: Option<String>,
+        /// Token lifetime in seconds, if known.
+        expires_in: Option<i64>,
+    },
+    /// Declines or cancels the pending OAuth request.
+    Cancelled,
+}
+
+impl McpAuthResult {
+    pub(crate) fn into_wire(self) -> McpOauthPendingRequestResponse {
+        match self {
+            Self::Token {
+                access_token,
+                token_type,
+                expires_in,
+            } => McpOauthPendingRequestResponse::Token(McpOauthPendingRequestResponseToken {
+                access_token,
+                token_type,
+                expires_in,
+                kind: McpOauthPendingRequestResponseTokenKind::Token,
+            }),
+            Self::Cancelled => {
+                McpOauthPendingRequestResponse::Cancelled(McpOauthPendingRequestResponseCancelled {
+                    kind: McpOauthPendingRequestResponseCancelledKind::Cancelled,
+                })
+            }
+        }
+    }
+}
+
+/// Handler for MCP server OAuth requests.
+#[async_trait]
+pub trait McpAuthHandler: Send + Sync + 'static {
+    /// Resolve an MCP OAuth request with host token data or cancellation.
+    async fn handle(
+        &self,
+        session_id: SessionId,
+        request_id: RequestId,
+        request: McpAuthRequest,
+    ) -> McpAuthResult;
+}
+
 /// Handler for `user_input.requested` events from the `ask_user` tool.
 ///
 /// When unset, `requestUserInput: false` goes on the wire and the
@@ -265,5 +337,24 @@ mod tests {
             result,
             PermissionResult::Decision(PermissionDecision::Reject(_))
         ));
+    }
+
+    #[test]
+    fn mcp_auth_result_token_converts_to_wire_response() {
+        let wire = McpAuthResult::Token {
+            access_token: "host-token".to_string(),
+            token_type: Some("Bearer".to_string()),
+            expires_in: Some(3600),
+        }
+        .into_wire();
+
+        match wire {
+            McpOauthPendingRequestResponse::Token(token) => {
+                assert_eq!(token.access_token, "host-token");
+                assert_eq!(token.token_type.as_deref(), Some("Bearer"));
+                assert_eq!(token.expires_in, Some(3600));
+            }
+            McpOauthPendingRequestResponse::Cancelled(_) => panic!("expected token response"),
+        }
     }
 }

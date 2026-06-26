@@ -140,6 +140,9 @@ public sealed class E2ETestContext : IAsyncDisposable
         var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 
+        const string localRuntimeCliPath = "/Users/roji/.copilot/repos/copilot-worktrees/copilot-agent-runtime/roji-symmetrical-dollop/dist-cli/index.js";
+        if (File.Exists(localRuntimeCliPath)) return localRuntimeCliPath;
+
         // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
         // runnable index.js ships in the installed platform package
         // (e.g. @github/copilot-linux-x64). Exactly one is installed.
@@ -192,6 +195,8 @@ public sealed class E2ETestContext : IAsyncDisposable
         env["GH_CONFIG_DIR"] = HomeDir;
         env["XDG_CONFIG_HOME"] = HomeDir;
         env["XDG_STATE_HOME"] = HomeDir;
+        env["COPILOT_MCP_APPS"] = "true";
+        env["MCP_APPS"] = "true";
         if (!string.IsNullOrEmpty(_proxy.ConnectProxyUrl) && !string.IsNullOrEmpty(_proxy.CaFilePath))
         {
             const string noProxy = "127.0.0.1,localhost,::1";

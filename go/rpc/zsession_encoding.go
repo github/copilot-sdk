@@ -41,6 +41,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantIdle:
+		var d AssistantIdleData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantIntent:
 		var d AssistantIntentData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -199,6 +205,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeMCPAppToolCallComplete:
 		var d MCPAppToolCallCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPHeadersRefreshCompleted:
+		var d MCPHeadersRefreshCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPHeadersRefreshRequired:
+		var d MCPHeadersRefreshRequiredData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -645,6 +663,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
 		Attachments                      []json.RawMessage     `json:"attachments,omitzero"`
 		Content                          string                `json:"content"`
+		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
 		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
 		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitzero"`
@@ -669,6 +688,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.Content = raw.Content
+	r.Delivery = raw.Delivery
 	r.InteractionID = raw.InteractionID
 	r.IsAutopilotContinuation = raw.IsAutopilotContinuation
 	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths

@@ -1138,6 +1138,89 @@ func (r *MCPConfigUpdateRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalMCPHeadersHandlePendingHeadersRefreshRequest(data []byte) (MCPHeadersHandlePendingHeadersRefreshRequest, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders:
+		var d MCPHeadersHandlePendingHeadersRefreshRequestHeaders
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPHeadersHandlePendingHeadersRefreshRequestKindNone:
+		var d MCPHeadersHandlePendingHeadersRefreshRequestNone
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawMCPHeadersHandlePendingHeadersRefreshRequestData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r MCPHeadersHandlePendingHeadersRefreshRequestHeaders) MarshalJSON() ([]byte, error) {
+	type alias MCPHeadersHandlePendingHeadersRefreshRequestHeaders
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPHeadersHandlePendingHeadersRefreshRequestNone) MarshalJSON() ([]byte, error) {
+	type alias MCPHeadersHandlePendingHeadersRefreshRequestNone
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *MCPHeadersHandlePendingHeadersRefreshRequestRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPHeadersHandlePendingHeadersRefreshRequestRequest struct {
+		RequestID string          `json:"requestId"`
+		Result    json.RawMessage `json:"result"`
+	}
+	var raw rawMCPHeadersHandlePendingHeadersRefreshRequestRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.RequestID = raw.RequestID
+	if raw.Result != nil {
+		value, err := unmarshalMCPHeadersHandlePendingHeadersRefreshRequest(raw.Result)
+		if err != nil {
+			return err
+		}
+		r.Result = value
+	}
+	return nil
+}
+
 func unmarshalMCPOauthPendingRequestResponse(data []byte) (MCPOauthPendingRequestResponse, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -2819,6 +2902,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	type rawSessionOpenOptions struct {
 		AdditionalContentExclusionPolicies     []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 		AgentContext                           *string                                              `json:"agentContext,omitempty"`
+		AllowAllMCPServerInstructions          *bool                                                `json:"allowAllMcpServerInstructions,omitempty"`
 		AskUserDisabled                        *bool                                                `json:"askUserDisabled,omitempty"`
 		AuthInfo                               json.RawMessage                                      `json:"authInfo,omitempty"`
 		AvailableTools                         []string                                             `json:"availableTools,omitzero"`
@@ -2861,6 +2945,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		RemoteDefaultedOn                      *bool                                                `json:"remoteDefaultedOn,omitempty"`
 		RemoteExporting                        *bool                                                `json:"remoteExporting,omitempty"`
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
+		ResponseBudget                         *ResponseBudgetConfig                                `json:"responseBudget,omitempty"`
 		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
@@ -2879,6 +2964,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	}
 	r.AdditionalContentExclusionPolicies = raw.AdditionalContentExclusionPolicies
 	r.AgentContext = raw.AgentContext
+	r.AllowAllMCPServerInstructions = raw.AllowAllMCPServerInstructions
 	r.AskUserDisabled = raw.AskUserDisabled
 	if raw.AuthInfo != nil {
 		value, err := unmarshalAuthInfo(raw.AuthInfo)
@@ -2927,6 +3013,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.RemoteDefaultedOn = raw.RemoteDefaultedOn
 	r.RemoteExporting = raw.RemoteExporting
 	r.RemoteSteerable = raw.RemoteSteerable
+	r.ResponseBudget = raw.ResponseBudget
 	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
 	r.SandboxConfig = raw.SandboxConfig
 	r.SessionCapabilities = raw.SessionCapabilities

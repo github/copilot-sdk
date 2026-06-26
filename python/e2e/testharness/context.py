@@ -18,6 +18,10 @@ from copilot import CopilotClient, RuntimeConnection
 
 from .proxy import CapiProxy
 
+LOCAL_RUNTIME_CLI_PATH = Path(
+    "/Users/roji/.copilot/repos/copilot-worktrees/copilot-agent-runtime/roji-symmetrical-dollop/dist-cli/index.js"
+)
+
 
 def get_cli_path_for_tests() -> str:
     """Get CLI path for E2E tests.
@@ -27,6 +31,9 @@ def get_cli_path_for_tests() -> str:
     env_path = os.environ.get("COPILOT_CLI_PATH")
     if env_path and Path(env_path).exists():
         return str(Path(env_path).resolve())
+
+    if LOCAL_RUNTIME_CLI_PATH.exists():
+        return str(LOCAL_RUNTIME_CLI_PATH)
 
     # Look for CLI in sibling nodejs directory's node_modules. As of CLI 1.0.64-1
     # the @github/copilot package is a thin loader; the runnable index.js ships in
@@ -168,6 +175,8 @@ class E2ETestContext:
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
                 "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
+                "COPILOT_MCP_APPS": "true",
+                "MCP_APPS": "true",
             }
         )
         return env

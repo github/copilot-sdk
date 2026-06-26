@@ -3,6 +3,8 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -1313,6 +1315,291 @@ func TestClient_StartStopRace(t *testing.T) {
 	if err := <-errChan; err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestClient_MCPAuthInterestRegistration(t *testing.T) {
+	t.Run("create skips MCP OAuth interest without auth handler", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		assertNoMCPAuthInterest(t, requests.snapshot())
+		assertRequestMethod(t, requests.snapshot(), "session.create")
+		assertCreateRequestPermission(t, requests.snapshot())
+	})
+
+	t.Run("create registers MCP OAuth interest after local session create when auth handler is configured", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnMCPAuthRequest: func(MCPAuthRequest, MCPAuthInvocation) (*MCPAuthResult, error) {
+				return &MCPAuthResult{Kind: "cancelled"}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		snapshot := requests.snapshot()
+		assertRequestMethod(t, snapshot, "session.eventLog.registerInterest")
+		if snapshot[0].Method != "session.create" {
+			t.Fatalf("expected session.create before MCP auth interest, got %s", snapshot[0].Method)
+		}
+		if snapshot[1].Method != "session.eventLog.registerInterest" {
+			t.Fatalf("expected MCP auth interest after session.create, got %s", snapshot[1].Method)
+		}
+		assertMCPAuthInterest(t, snapshot[1])
+		assertCreateRequestPermission(t, snapshot)
+	})
+
+	t.Run("cloud create registers MCP OAuth interest after server assigns id only when auth handler is configured", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		withoutAuth, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			Cloud: &CloudSessionOptions{
+				Repository: &CloudSessionRepository{Owner: "github", Name: "copilot-sdk", Branch: "main"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession without auth failed: %v", err)
+		}
+		defer withoutAuth.Disconnect()
+
+		assertNoMCPAuthInterest(t, requests.snapshot())
+		requests.clear()
+
+		withAuth, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnMCPAuthRequest: func(MCPAuthRequest, MCPAuthInvocation) (*MCPAuthResult, error) {
+				return &MCPAuthResult{Kind: "cancelled"}, nil
+			},
+			Cloud: &CloudSessionOptions{
+				Repository: &CloudSessionRepository{Owner: "github", Name: "copilot-sdk", Branch: "main"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession with auth failed: %v", err)
+		}
+		defer withAuth.Disconnect()
+
+		snapshot := requests.snapshot()
+		if snapshot[0].Method != "session.create" {
+			t.Fatalf("expected cloud session.create before MCP auth interest, got %s", snapshot[0].Method)
+		}
+		if snapshot[1].Method != "session.eventLog.registerInterest" {
+			t.Fatalf("expected MCP auth interest after cloud session.create, got %s", snapshot[1].Method)
+		}
+		assertMCPAuthInterest(t, snapshot[1])
+	})
+
+	t.Run("resume conditionally registers MCP OAuth interest before session resume", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		withoutAuth, err := client.ResumeSession(t.Context(), "session-without-auth", &ResumeSessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession without auth failed: %v", err)
+		}
+		defer withoutAuth.Disconnect()
+
+		assertNoMCPAuthInterest(t, requests.snapshot())
+		assertRequestMethod(t, requests.snapshot(), "session.resume")
+		requests.clear()
+
+		withAuth, err := client.ResumeSession(t.Context(), "session-with-auth", &ResumeSessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnMCPAuthRequest: func(MCPAuthRequest, MCPAuthInvocation) (*MCPAuthResult, error) {
+				return &MCPAuthResult{Kind: "cancelled"}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession with auth failed: %v", err)
+		}
+		defer withAuth.Disconnect()
+
+		snapshot := requests.snapshot()
+		if snapshot[0].Method != "session.eventLog.registerInterest" {
+			t.Fatalf("expected MCP auth interest before session.resume, got %s", snapshot[0].Method)
+		}
+		if snapshot[1].Method != "session.resume" {
+			t.Fatalf("expected session.resume after MCP auth interest, got %s", snapshot[1].Method)
+		}
+		assertMCPAuthInterest(t, snapshot[0])
+	})
+}
+
+type recordedRequest struct {
+	Method string
+	Params map[string]any
+}
+
+type requestRecorder struct {
+	mu       sync.Mutex
+	requests []recordedRequest
+}
+
+func (r *requestRecorder) append(request recordedRequest) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = append(r.requests, request)
+}
+
+func (r *requestRecorder) snapshot() []recordedRequest {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]recordedRequest, len(r.requests))
+	copy(out, r.requests)
+	return out
+}
+
+func (r *requestRecorder) clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = nil
+}
+
+func newInMemoryClient(t *testing.T) (*Client, *requestRecorder, func()) {
+	t.Helper()
+
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	rpcClient := jsonrpc2.NewClient(stdinW, stdoutR)
+	rpcClient.Start()
+
+	client := NewClient(&ClientOptions{})
+	client.client = rpcClient
+	client.RPC = rpc.NewServerRPC(rpcClient)
+	client.state = stateConnected
+
+	requests := &requestRecorder{}
+	done := make(chan struct{})
+	go serveInMemoryRuntime(t, stdinR, stdoutW, requests, done)
+
+	cleanup := func() {
+		rpcClient.Stop()
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+		stdoutW.Close()
+		<-done
+	}
+	return client, requests, cleanup
+}
+
+func serveInMemoryRuntime(t *testing.T, stdinR *io.PipeReader, stdoutW *io.PipeWriter, requests *requestRecorder, done chan<- struct{}) {
+	t.Helper()
+	defer close(done)
+
+	serverAssignedSessions := 0
+	for {
+		frame, err := readTestJSONRPCFrame(stdinR)
+		if err != nil {
+			return
+		}
+
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params map[string]any  `json:"params"`
+		}
+		if err := json.Unmarshal(frame, &request); err != nil {
+			t.Errorf("failed to unmarshal JSON-RPC request: %v", err)
+			return
+		}
+		requests.append(recordedRequest{Method: request.Method, Params: request.Params})
+
+		result := map[string]any{}
+		switch request.Method {
+		case "session.create", "session.resume":
+			sessionID, _ := request.Params["sessionId"].(string)
+			if sessionID == "" {
+				serverAssignedSessions++
+				sessionID = fmt.Sprintf("server-assigned-session-%d", serverAssignedSessions)
+			}
+			result = map[string]any{"sessionId": sessionID, "workspacePath": nil}
+		case "session.eventLog.registerInterest":
+			result = map[string]any{"id": "interest-1"}
+		case "session.options.update":
+			result = map[string]any{"success": true}
+		case "session.skills.reload", "session.destroy":
+			result = map[string]any{}
+		default:
+			t.Errorf("unexpected JSON-RPC method %s", request.Method)
+			return
+		}
+
+		response := map[string]any{
+			"jsonrpc": "2.0",
+			"id":      json.RawMessage(request.ID),
+			"result":  result,
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			t.Errorf("failed to marshal JSON-RPC response: %v", err)
+			return
+		}
+		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+			return
+		}
+	}
+}
+
+func assertRequestMethod(t *testing.T, requests []recordedRequest, method string) {
+	t.Helper()
+	for _, request := range requests {
+		if request.Method == method {
+			return
+		}
+	}
+	t.Fatalf("expected %s request in %+v", method, requests)
+}
+
+func assertNoMCPAuthInterest(t *testing.T, requests []recordedRequest) {
+	t.Helper()
+	for _, request := range requests {
+		if request.Method == "session.eventLog.registerInterest" && request.Params["eventType"] == "mcp.oauth_required" {
+			t.Fatalf("did not expect MCP auth interest registration in %+v", requests)
+		}
+	}
+}
+
+func assertMCPAuthInterest(t *testing.T, request recordedRequest) {
+	t.Helper()
+	if request.Method != "session.eventLog.registerInterest" {
+		t.Fatalf("expected registerInterest request, got %s", request.Method)
+	}
+	if request.Params["eventType"] != "mcp.oauth_required" {
+		t.Fatalf("expected mcp.oauth_required interest, got %v", request.Params["eventType"])
+	}
+}
+
+func assertCreateRequestPermission(t *testing.T, requests []recordedRequest) {
+	t.Helper()
+	for _, request := range requests {
+		if request.Method == "session.create" {
+			if request.Params["requestPermission"] != true {
+				t.Fatalf("expected create requestPermission=true, got %v", request.Params["requestPermission"])
+			}
+			return
+		}
+	}
+	t.Fatalf("session.create request not found in %+v", requests)
 }
 
 func TestCreateSessionRequest_Commands(t *testing.T) {

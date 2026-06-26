@@ -1615,6 +1615,76 @@ export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
  */
 export type ContextTier = "default" | "long_context";
 
+/** Parsed parameters from an MCP server's WWW-Authenticate response. */
+export interface McpAuthWwwAuthenticateParams {
+    /** Parsed resource_metadata URL used for protected-resource metadata discovery, if present. */
+    resourceMetadataUrl?: string;
+    /** Parsed OAuth scope, if present. */
+    scope?: string;
+    /** Parsed OAuth error, if present. */
+    error?: string;
+}
+
+/** Static OAuth client configuration supplied by the MCP server, if available. */
+export interface McpAuthStaticClientConfig {
+    /** OAuth client ID for the server. */
+    clientId: string;
+    /** Optional OAuth client secret for confidential static clients. */
+    clientSecret?: string;
+    /** Optional non-default OAuth grant type. */
+    grantType?: "client_credentials";
+    /** Whether this is a public OAuth client. */
+    publicClient?: boolean;
+}
+
+/** MCP OAuth request that the SDK host can satisfy with a host-acquired token. */
+export interface McpAuthRequest {
+    /** Unique request identifier used by the SDK when responding. */
+    requestId: string;
+    /** Display name of the MCP server that requires OAuth. */
+    serverName: string;
+    /** URL of the MCP server that requires OAuth. */
+    serverUrl: string;
+    /** Why the runtime is requesting host-provided OAuth credentials. */
+    reason: "initial" | "refresh" | "reauth" | "upscope";
+    /** Parsed WWW-Authenticate parameters from the MCP server. */
+    wwwAuthenticateParams?: McpAuthWwwAuthenticateParams;
+    /** Raw RFC 9728 protected-resource metadata JSON fetched by the runtime, if available. */
+    resourceMetadata?: string;
+    /** Static OAuth client configuration, if the server specifies one. */
+    staticClientConfig?: McpAuthStaticClientConfig;
+}
+
+/** Host-provided OAuth token data for a pending MCP OAuth request. */
+export interface McpAuthToken {
+    /** Access token acquired by the SDK host. */
+    accessToken: string;
+    /** OAuth token type. Defaults to Bearer when omitted. */
+    tokenType?: string;
+    /** Token lifetime in seconds, if known. */
+    expiresIn?: number;
+}
+
+/**
+ * Result returned by an MCP auth request handler.
+ *
+ * Return `null`/`undefined` or `{ kind: "cancelled" }` to cancel the pending
+ * OAuth request. Return `{ kind: "token", ... }` to provide host-acquired
+ * OAuth token data.
+ */
+export type McpAuthResult = ({ kind: "token" } & McpAuthToken) | { kind: "cancelled" };
+
+/** Callback invoked when an MCP server requires OAuth and the SDK host opted in. */
+export type McpAuthHandler = (
+    request: McpAuthRequest,
+    context: { sessionId: string }
+) =>
+    | McpAuthResult
+    | McpAuthToken
+    | null
+    | undefined
+    | Promise<McpAuthResult | McpAuthToken | null | undefined>;
+
 /**
  * Stable extension identity for session participants that provide canvases.
  */
@@ -1897,6 +1967,13 @@ export interface SessionConfigBase {
      * the consumer to resolve via the pending permission RPC.
      */
     onPermissionRequest?: PermissionHandler;
+
+    /**
+     * Optional handler for MCP OAuth requests from MCP servers.
+     * When provided, the SDK can satisfy MCP server OAuth requests with
+     * host-provided token data or cancellation.
+     */
+    onMcpAuthRequest?: McpAuthHandler;
 
     /**
      * Handler for user input requests from the agent.

@@ -3143,7 +3143,7 @@ impl<'a> SessionRpcCommands<'a> {
     ///
     /// # Returns
     ///
-    /// Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+    /// Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
     ///
     /// <div class="warning">
     ///
@@ -3887,6 +3887,13 @@ impl<'a> SessionRpcMcp<'a> {
         }
     }
 
+    /// `session.mcp.headers.*` sub-namespace.
+    pub fn headers(&self) -> SessionRpcMcpHeaders<'a> {
+        SessionRpcMcpHeaders {
+            session: self.session,
+        }
+    }
+
     /// `session.mcp.oauth.*` sub-namespace.
     pub fn oauth(&self) -> SessionRpcMcpOauth<'a> {
         SessionRpcMcpOauth {
@@ -4595,6 +4602,50 @@ impl<'a> SessionRpcMcpApps<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MCP_APPS_DIAGNOSE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.mcp.headers.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcMcpHeaders<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcMcpHeaders<'a> {
+    /// Responds to a pending MCP dynamic headers refresh request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide short-lived per-server headers or to indicate that no dynamic headers are available for this refresh.
+    ///
+    /// Wire method: `session.mcp.headers.handlePendingHeadersRefreshRequest`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP headers refresh request id and the host response.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the pending MCP headers refresh response was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn handle_pending_headers_refresh_request(
+        &self,
+        params: McpHeadersHandlePendingHeadersRefreshRequestRequest,
+    ) -> Result<McpHeadersHandlePendingHeadersRefreshRequestResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_HEADERS_HANDLEPENDINGHEADERSREFRESHREQUEST,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
