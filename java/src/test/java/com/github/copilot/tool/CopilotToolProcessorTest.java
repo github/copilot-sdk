@@ -126,6 +126,26 @@ class CopilotToolProcessorTest {
                 "Expected compile error for required+defaultValue conflict, got: " + result.diagnostics);
     }
 
+    @Test
+    void emitsError_forOptionalPrimitiveWithoutDefaultValue() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class OptionalPrimitiveTools {
+                    @CopilotTool("Optional primitive")
+                    public String doSomething(@Param(value = "Limit", required = false) int limit) {
+                        return "done";
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.OptionalPrimitiveTools", source)));
+
+        assertTrue(hasErrorContaining(result, "required=false"),
+                "Expected compile error for optional primitive without defaultValue, got: " + result.diagnostics);
+    }
+
     // ── Test: Return type handling ──────────────────────────────────────────────
 
     @Test
@@ -281,7 +301,7 @@ class CopilotToolProcessorTest {
                     @CopilotTool("Search items")
                     public String search(
                             @Param(value = "Query", required = true) String query,
-                            @Param(value = "Limit", required = false) int limit) {
+                            @Param(value = "Limit", required = false) Integer limit) {
                         return "done";
                     }
                 }

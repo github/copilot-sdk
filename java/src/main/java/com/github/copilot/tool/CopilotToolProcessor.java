@@ -74,6 +74,14 @@ public class CopilotToolProcessor extends AbstractProcessor {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
                             "@Param cannot have both required=true and a non-empty defaultValue", param);
                 }
+                if (paramAnnotation != null
+                        && !paramAnnotation.required()
+                        && paramAnnotation.defaultValue().isEmpty()
+                        && param.asType().getKind().isPrimitive()) {
+                    processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                            "@Param(required=false) primitive parameters must provide defaultValue or use a boxed/Optional type",
+                            param);
+                }
             }
         }
 
