@@ -23,6 +23,8 @@ import javax.annotation.processing.Generated;
 public record McpOauthRequiredStaticClientConfig(
     /** OAuth client ID for the server */
     @JsonProperty("clientId") String clientId,
+    /** Optional OAuth client secret for confidential static clients, when the runtime can resolve one */
+    @JsonProperty("clientSecret") String clientSecret,
     /** Whether this is a public OAuth client */
     @JsonProperty("publicClient") Boolean publicClient,
     /** Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server). */

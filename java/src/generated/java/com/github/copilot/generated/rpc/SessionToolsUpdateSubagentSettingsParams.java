@@ -39,7 +39,11 @@ public record SessionToolsUpdateSubagentSettingsParams(
         /** Per-agent settings keyed by subagent agent_type */
         @JsonProperty("agents") Map<String, SubagentSettingsEntry> agents,
         /** Names of subagents the user has turned off; they cannot be dispatched */
-        @JsonProperty("disabledSubagents") List<String> disabledSubagents
+        @JsonProperty("disabledSubagents") List<String> disabledSubagents,
+        /** Maximum number of subagents that can run concurrently; applies to usage-based billing users only */
+        @JsonProperty("maxConcurrency") Long maxConcurrency,
+        /** Maximum subagent nesting depth; applies to usage-based billing users only */
+        @JsonProperty("maxDepth") Long maxDepth
     ) {
     }
 }
