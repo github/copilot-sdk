@@ -160,6 +160,7 @@ from .session_fs_provider import (
     create_session_fs_adapter,
 )
 from .tools import (
+    AbortSignal,
     Tool,
     ToolBinaryResult,
     ToolInvocation,
@@ -181,6 +182,7 @@ __all__ = [
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
+    "AbortSignal",
     "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",

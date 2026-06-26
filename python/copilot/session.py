@@ -79,7 +79,7 @@ from .generated.session_events import (
 from .generated.session_events import (
     ReasoningSummary as _RpcReasoningSummary,
 )
-from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+from .tools import AbortController, Tool, ToolHandler, ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -1338,6 +1338,7 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
+        self._in_flight_tool_calls: dict[str, AbortController] = {}
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
@@ -1800,12 +1801,15 @@ class CopilotSession:
         tracestate: str | None = None,
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
+        abort_controller = AbortController()
+        self._in_flight_tool_calls[tool_call_id] = abort_controller
         try:
             invocation = ToolInvocation(
                 session_id=self.session_id,
                 tool_call_id=tool_call_id,
                 tool_name=tool_name,
                 arguments=arguments,
+                signal=abort_controller.signal,
             )
 
             with trace_context(traceparent, tracestate):
@@ -1890,6 +1894,11 @@ class CopilotSession:
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
                 pass  # Connection lost or RPC error — nothing we can do
+        finally:
+            # Only clear if this is still the controller for this toolCallId;
+            # guards against a recycled toolCallId from a later invocation.
+            if self._in_flight_tool_calls.get(tool_call_id) is abort_controller:
+                del self._in_flight_tool_calls[tool_call_id]
 
     async def _execute_permission_and_respond(
         self,
@@ -2588,6 +2597,9 @@ class CopilotSession:
             self._destroyed = True
 
         try:
+            # Abort any in-flight tool handlers so they can release resources.
+            self._abort_in_flight_tool_calls()
+            self._in_flight_tool_calls.clear()
             await self._client.request("session.destroy", {"sessionId": self.session_id})
         finally:
             # Clear handlers even if the request fails.
@@ -2627,6 +2639,12 @@ class CopilotSession:
         """
         Abort the currently processing message in this session.
 
+        This cancels the agentic loop and propagates cancellation to all
+        in-flight tool handlers via their :class:`~copilot.AbortSignal`
+        (passed in :attr:`~copilot.ToolInvocation.signal`). Tool handlers can
+        check the signal with ``invocation.signal.is_aborted`` or await
+        ``invocation.signal.wait()``.
+
         Use this to cancel a long-running request. The session remains valid
         and can continue to be used for new messages.
 
@@ -2643,7 +2661,43 @@ class CopilotSession:
             >>> await asyncio.sleep(5)
             >>> await session.abort()
         """
+        # Abort all in-flight tool handlers
+        self._abort_in_flight_tool_calls()
         await self._client.request("session.abort", {"sessionId": self.session_id})
+
+    def cancel_tool_call(self, tool_call_id: str) -> bool:
+        """
+        Cancel a single in-flight tool handler without aborting the agentic loop.
+
+        Signals only the handler identified by *tool_call_id* via its
+        :class:`~copilot.AbortSignal`; all other concurrent handlers are
+        unaffected.  The session remains valid and the agentic loop continues.
+
+        Args:
+            tool_call_id: The ``tool_call_id`` of the in-flight tool call to cancel.
+
+        Returns:
+            ``True`` if a matching in-flight call was found and its signal was
+            triggered; ``False`` if no call with that ID is currently running.
+
+        Example::
+
+            session.on(lambda event: (
+                session.cancel_tool_call(event.data.tool_call_id)
+                if event.type.value == "tool.execution_start"
+                else None
+            ))
+        """
+        controller = self._in_flight_tool_calls.get(tool_call_id)
+        if not controller:
+            return False
+        controller.abort()
+        return True
+
+    def _abort_in_flight_tool_calls(self) -> None:
+        """Abort the AbortSignal for every in-flight tool handler."""
+        for controller in self._in_flight_tool_calls.values():
+            controller.abort()
 
     async def set_model(
         self,
