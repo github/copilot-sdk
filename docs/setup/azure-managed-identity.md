@@ -29,19 +29,48 @@ sequenceDiagram
 
 ## Code samples
 
+### Prerequisites
+
+Install the Azure Identity and Copilot SDK packages for your language:
+
 <details open>
 <summary><strong>.NET</strong></summary>
 
-### Prerequisites
-
-Install the required packages:
+<!-- docs-validate: skip -->
 
 ```bash
 dotnet add package GitHub.Copilot.SDK
 dotnet add package Azure.Core
 ```
 
+</details>
+<details>
+<summary><strong>Python</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```bash
+pip install github-copilot-sdk azure-identity
+```
+
+</details>
+<details>
+<summary><strong>TypeScript</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```bash
+npm install @github/copilot-sdk @azure/identity
+```
+
+</details>
+
 ### Basic usage
+
+Get a token using `DefaultAzureCredential` and pass it as the bearer token in your provider configuration:
+
+<details open>
+<summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: skip -->
 
@@ -76,19 +105,8 @@ Console.WriteLine(response?.Data.Content);
 ```
 
 </details>
-
 <details>
 <summary><strong>Python</strong></summary>
-
-### Prerequisites
-
-Install the required packages:
-
-```bash
-pip install github-copilot-sdk azure-identity
-```
-
-### Basic usage
 
 <!-- docs-validate: skip -->
 
@@ -133,9 +151,46 @@ async def main():
 asyncio.run(main())
 ```
 
+</details>
+<details>
+<summary><strong>TypeScript</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```typescript
+import { DefaultAzureCredential } from "@azure/identity";
+import { CopilotClient } from "@github/copilot-sdk";
+
+const credential = new DefaultAzureCredential({
+  requiredEnvVars: ["AZURE_TOKEN_CREDENTIALS"],
+});
+const tokenResponse = await credential.getToken(
+  "https://ai.azure.com/.default"
+);
+
+const client = new CopilotClient();
+
+const session = await client.createSession({
+  model: "gpt-5.5",
+  provider: {
+    type: "openai",
+    baseUrl: `${process.env.FOUNDRY_RESOURCE_URL}/openai/v1/`,
+    bearerToken: tokenResponse.token,
+    wireApi: "responses",
+  },
+});
+
+const response = await session.sendAndWait({ prompt: "Hello!" });
+console.log(response?.data.content);
+
+await client.stop();
+```
+
+</details>
+
 ### Token refresh for long-running applications
 
-Bearer tokens expire (typically after ~1 hour). For servers or long-running agents, refresh the token before creating each session:
+Bearer tokens expire (typically after ~1 hour). For servers or long-running agents, refresh the token before creating each session. The following Python example demonstrates this pattern:
 
 <!-- docs-validate: skip -->
 
@@ -180,54 +235,6 @@ class ManagedIdentityCopilotAgent:
 
         return response.data.content if response else ""
 ```
-
-</details>
-
-<details>
-<summary><strong>TypeScript</strong></summary>
-
-### Prerequisites
-
-Install the required packages:
-
-```bash
-npm install @github/copilot-sdk @azure/identity
-```
-
-### Basic usage
-
-<!-- docs-validate: skip -->
-
-```typescript
-import { DefaultAzureCredential } from "@azure/identity";
-import { CopilotClient } from "@github/copilot-sdk";
-
-const credential = new DefaultAzureCredential({
-  requiredEnvVars: ["AZURE_TOKEN_CREDENTIALS"],
-});
-const tokenResponse = await credential.getToken(
-  "https://ai.azure.com/.default"
-);
-
-const client = new CopilotClient();
-
-const session = await client.createSession({
-  model: "gpt-5.5",
-  provider: {
-    type: "openai",
-    baseUrl: `${process.env.FOUNDRY_RESOURCE_URL}/openai/v1/`,
-    bearerToken: tokenResponse.token,
-    wireApi: "responses",
-  },
-});
-
-const response = await session.sendAndWait({ prompt: "Hello!" });
-console.log(response?.data.content);
-
-await client.stop();
-```
-
-</details>
 
 ## Environment configuration
 
