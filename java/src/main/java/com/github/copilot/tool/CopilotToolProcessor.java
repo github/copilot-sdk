@@ -421,6 +421,9 @@ public class CopilotToolProcessor extends AbstractProcessor {
             if ("java.lang.Boolean".equals(qualifiedName)) {
                 return "(Boolean) args.get(\"" + paramName + "\")";
             }
+            if (hasTypeArguments(type)) {
+                return generateGenericTypeReferenceConversion("args.get(\"" + paramName + "\")", type);
+            }
             // Complex types: enums, records, POJOs
             return "mapper.convertValue(args.get(\"" + paramName + "\"), " + qualifiedName + ".class)";
         }
@@ -443,9 +446,21 @@ public class CopilotToolProcessor extends AbstractProcessor {
             if ("java.lang.Boolean".equals(qualifiedName)) {
                 return "(Boolean) " + varExpr;
             }
+            if (hasTypeArguments(type)) {
+                return generateGenericTypeReferenceConversion(varExpr, type);
+            }
             return "mapper.convertValue(" + varExpr + ", " + qualifiedName + ".class)";
         }
         return "(Object) " + varExpr;
+    }
+
+    private boolean hasTypeArguments(TypeMirror type) {
+        return type.getKind() == TypeKind.DECLARED && !((DeclaredType) type).getTypeArguments().isEmpty();
+    }
+
+    private String generateGenericTypeReferenceConversion(String expr, TypeMirror type) {
+        return "mapper.convertValue(" + expr + ", new com.fasterxml.jackson.core.type.TypeReference<" + type
+                + ">() {})";
     }
 
     private String generatePrimitiveExtraction(String expr, TypeMirror type) {

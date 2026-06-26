@@ -307,6 +307,44 @@ class CopilotToolProcessorTest {
                 "Expected Boolean cast for boolean param, got:\n" + generated);
     }
 
+    @Test
+    void generatesTypeReferenceConversion_forGenericDeclaredParameters() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class GenericArgTypes {
+                    public record MyRecord(String name) {}
+                    @CopilotTool("Generic args")
+                    public String doSomething(
+                            @Param("Ids") java.util.List<java.util.UUID> ids,
+                            @Param("Values") java.util.Map<String, Long> values,
+                            @Param("Records") java.util.List<MyRecord> records) {
+                        return "done";
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.GenericArgTypes", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.GenericArgTypes$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for GenericArgTypes$$CopilotToolMeta");
+
+        assertTrue(generated.contains(
+                "new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.UUID>>() {}"),
+                "Expected TypeReference for List<UUID>, got:\n" + generated);
+        assertTrue(generated.contains(
+                "new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<java.lang.String,java.lang.Long>>() {}"),
+                "Expected TypeReference for Map<String, Long>, got:\n" + generated);
+        assertTrue(generated.contains(
+                "new com.fasterxml.jackson.core.type.TypeReference<java.util.List<test.GenericArgTypes.MyRecord>>() {}"),
+                "Expected TypeReference for List<MyRecord>, got:\n" + generated);
+        assertFalse(generated.contains("java.util.List.class"),
+                "Generic declared params should not use raw List.class conversion, got:\n" + generated);
+        assertFalse(generated.contains("java.util.Map.class"),
+                "Generic declared params should not use raw Map.class conversion, got:\n" + generated);
+    }
+
     // ── Test: snake_case conversion ─────────────────────────────────────────────
 
     @Test
