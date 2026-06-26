@@ -74,6 +74,13 @@ public class CopilotToolProcessor extends AbstractProcessor {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
                             "@Param cannot have both required=true and a non-empty defaultValue", param);
                 }
+                if (paramAnnotation != null && !paramAnnotation.defaultValue().isEmpty()) {
+                    String defaultValidationError = validateDefaultValueCompatibility(param.asType(),
+                            paramAnnotation.defaultValue());
+                    if (defaultValidationError != null) {
+                        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, defaultValidationError, param);
+                    }
+                }
                 if (paramAnnotation != null
                         && !paramAnnotation.required()
                         && paramAnnotation.defaultValue().isEmpty()
@@ -409,6 +416,9 @@ public class CopilotToolProcessor extends AbstractProcessor {
         if (type.getKind().isPrimitive()) {
             return generatePrimitiveExtraction("args.get(\"" + paramName + "\")", type);
         }
+        if (type.getKind() == TypeKind.ARRAY) {
+            return generateGenericTypeReferenceConversion("args.get(\"" + paramName + "\")", type);
+        }
         if (type.getKind() == TypeKind.DECLARED) {
             TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
             String qualifiedName = typeElement.getQualifiedName().toString();
@@ -433,6 +443,9 @@ public class CopilotToolProcessor extends AbstractProcessor {
     private String generateArgExtraction(String varExpr, TypeMirror type) {
         if (type.getKind().isPrimitive()) {
             return generatePrimitiveExtraction(varExpr, type);
+        }
+        if (type.getKind() == TypeKind.ARRAY) {
+            return generateGenericTypeReferenceConversion(varExpr, type);
         }
         if (type.getKind() == TypeKind.DECLARED) {
             TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
@@ -592,6 +605,94 @@ public class CopilotToolProcessor extends AbstractProcessor {
             }
         }
         return "\"" + escapeJava(defaultValue) + "\"";
+    }
+
+    private String validateDefaultValueCompatibility(TypeMirror type, String defaultValue) {
+        if (type.getKind().isPrimitive()) {
+            return validatePrimitiveDefault(type.getKind(), defaultValue);
+        }
+        if (type.getKind() == TypeKind.DECLARED) {
+            TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
+            String qualifiedName = typeElement.getQualifiedName().toString();
+            if ("java.lang.String".equals(qualifiedName)) {
+                return null;
+            }
+            if ("java.lang.Boolean".equals(qualifiedName)) {
+                return validateBooleanDefault(defaultValue);
+            }
+            if ("java.lang.Character".equals(qualifiedName)) {
+                return validateCharacterDefault(defaultValue);
+            }
+            if (isBoxedNumeric(qualifiedName)) {
+                return validatePrimitiveDefault(boxedTypeKind(qualifiedName), defaultValue);
+            }
+        }
+        return null;
+    }
+
+    private String validatePrimitiveDefault(TypeKind kind, String defaultValue) {
+        try {
+            switch (kind) {
+                case INT :
+                    Integer.parseInt(defaultValue);
+                    return null;
+                case LONG :
+                    Long.parseLong(defaultValue);
+                    return null;
+                case SHORT :
+                    Short.parseShort(defaultValue);
+                    return null;
+                case BYTE :
+                    Byte.parseByte(defaultValue);
+                    return null;
+                case DOUBLE :
+                    Double.parseDouble(defaultValue);
+                    return null;
+                case FLOAT :
+                    Float.parseFloat(defaultValue);
+                    return null;
+                case BOOLEAN :
+                    return validateBooleanDefault(defaultValue);
+                case CHAR :
+                    return validateCharacterDefault(defaultValue);
+                default :
+                    return null;
+            }
+        } catch (NumberFormatException ex) {
+            return "@Param defaultValue '" + defaultValue + "' is not valid for " + kind.name().toLowerCase()
+                    + " parameters";
+        }
+    }
+
+    private String validateBooleanDefault(String defaultValue) {
+        if ("true".equalsIgnoreCase(defaultValue) || "false".equalsIgnoreCase(defaultValue)) {
+            return null;
+        }
+        return "@Param defaultValue '" + defaultValue + "' is not valid for boolean parameters";
+    }
+
+    private String validateCharacterDefault(String defaultValue) {
+        return defaultValue != null && defaultValue.length() == 1 ? null
+                : "@Param defaultValue '" + defaultValue + "' is not valid for char parameters";
+    }
+
+    private TypeKind boxedTypeKind(String qualifiedName) {
+        switch (qualifiedName) {
+            case "java.lang.Integer" :
+                return TypeKind.INT;
+            case "java.lang.Long" :
+                return TypeKind.LONG;
+            case "java.lang.Double" :
+                return TypeKind.DOUBLE;
+            case "java.lang.Float" :
+                return TypeKind.FLOAT;
+            case "java.lang.Short" :
+                return TypeKind.SHORT;
+            case "java.lang.Byte" :
+                return TypeKind.BYTE;
+            default :
+                return TypeKind.NONE;
+        }
     }
 
     private String getParamName(VariableElement param) {

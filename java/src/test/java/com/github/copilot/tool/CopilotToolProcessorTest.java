@@ -509,6 +509,25 @@ class CopilotToolProcessorTest {
                 "Expected string default \"hello\" as quoted string. Generated:\n" + generated);
     }
 
+    @Test
+    void rejectsMismatchedNumericDefaultForIntegralParameters() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class MismatchedDefaults {
+                    @CopilotTool("Tool with bad default")
+                    public String doWork(@Param(value = "Limit", required = false, defaultValue = "1.5") int limit) {
+                        return String.valueOf(limit);
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.MismatchedDefaults", source)));
+        assertTrue(hasErrorContaining(result, "not valid for int parameters"),
+                "Expected compile error for mismatched int defaultValue, got: " + result.diagnostics);
+    }
+
     // ── Test: package-private methods are allowed ───────────────────────────────
 
     @Test
