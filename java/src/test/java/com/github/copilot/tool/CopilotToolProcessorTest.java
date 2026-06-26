@@ -308,7 +308,7 @@ class CopilotToolProcessorTest {
     }
 
     @Test
-    void arrayParametersProduceNonCompilingGeneratedCode() {
+    void generatesTypeReferenceConversion_forArrayParameters() {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
@@ -322,14 +322,15 @@ class CopilotToolProcessorTest {
                 """;
 
         CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.ArrayArgs", source)));
-        assertTrue(hasErrorContaining(result, "incompatible types") || hasErrorContaining(result, "cannot be converted"),
-                "Expected generated code for array parameters to fail compilation, got: " + result.diagnostics);
+                assertNoErrors(result);
 
-        String generated = result.getGeneratedSource("test.ArrayArgs$$CopilotToolMeta");
-        assertNotNull(generated, "Expected generated source for ArrayArgs$$CopilotToolMeta");
-        assertTrue(generated.contains("java.lang.String[] ids = (Object) args.get(\"ids\");")
-                || generated.contains("String[] ids = (Object) args.get(\"ids\");"),
-                "Expected array parameter to be assigned from Object in generated code, got:\n" + generated);
+                String generated = result.getGeneratedSource("test.ArrayArgs$$CopilotToolMeta");
+                assertNotNull(generated, "Expected generated source for ArrayArgs$$CopilotToolMeta");
+                assertTrue(generated.contains("new com.fasterxml.jackson.core.type.TypeReference<java.lang.String[]>() {}"),
+                        "Expected TypeReference-based conversion for String[] parameter, got:\n" + generated);
+                assertFalse(generated.contains("String[] ids = (Object) args.get(\"ids\");")
+                        || generated.contains("java.lang.String[] ids = (Object) args.get(\"ids\");"),
+                        "Array parameter should no longer be assigned from raw Object, got:\n" + generated);
     }
 
     @Test
