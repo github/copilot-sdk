@@ -47,7 +47,7 @@ func TestPerSessionAuthE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		authStatus, err := session.RPC.Auth.GetStatus(t.Context())
+		authStatus, err := session.RPC.GitHubAuth.GetStatus(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get auth status: %v", err)
 		}
@@ -79,12 +79,12 @@ func TestPerSessionAuthE2E(t *testing.T) {
 			t.Fatalf("Failed to create session B: %v", err)
 		}
 
-		statusA, err := sessionA.RPC.Auth.GetStatus(t.Context())
+		statusA, err := sessionA.RPC.GitHubAuth.GetStatus(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get auth status for session A: %v", err)
 		}
 
-		statusB, err := sessionB.RPC.Auth.GetStatus(t.Context())
+		statusB, err := sessionB.RPC.GitHubAuth.GetStatus(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get auth status for session B: %v", err)
 		}
@@ -115,7 +115,7 @@ func TestPerSessionAuthE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		authStatus, err := session.RPC.Auth.GetStatus(t.Context())
+		authStatus, err := session.RPC.GitHubAuth.GetStatus(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get auth status: %v", err)
 		}

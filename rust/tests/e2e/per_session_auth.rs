@@ -29,7 +29,7 @@ async fn session_uses_client_token_when_no_session_token_is_supplied() {
                     .expect("create session");
                 let status = session
                     .rpc()
-                    .auth()
+                    .git_hub_auth()
                     .get_status()
                     .await
                     .expect("auth status");
@@ -70,7 +70,7 @@ async fn session_token_overrides_client_token() {
                     .expect("create session");
                 let status = session
                     .rpc()
-                    .auth()
+                    .git_hub_auth()
                     .get_status()
                     .await
                     .expect("auth status");
@@ -103,7 +103,7 @@ async fn session_auth_status_is_unauthenticated_without_token() {
                     .expect("create session");
                 let status = session
                     .rpc()
-                    .auth()
+                    .git_hub_auth()
                     .get_status()
                     .await
                     .expect("auth status");

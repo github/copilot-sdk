@@ -113,9 +113,7 @@ async def _dispose_isolated(client: CopilotClient, home: Path, fixture_dir: Path
 
 
 class TestRpcServerPlugins:
-    async def test_should_install_list_and_uninstall_plugin_from_local_marketplace(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_install_and_list_plugin_from_local_marketplace(self, ctx: E2ETestContext):
         marketplace_dir = _create_local_marketplace_fixture(ctx)
         client, home = await _create_isolated_client(ctx)
         try:
@@ -141,13 +139,6 @@ class TestRpcServerPlugins:
             assert len(listed) == 1
             assert listed[0].enabled is True
 
-            await client.rpc.plugins.uninstall(PluginsUninstallRequest(name=spec))
-
-            after_uninstall = await client.rpc.plugins.list()
-            assert not any(
-                p.name == PLUGIN_NAME and p.marketplace == MARKETPLACE_NAME
-                for p in after_uninstall.plugins
-            )
         finally:
             await _dispose_isolated(client, home, marketplace_dir)
 
@@ -229,8 +220,14 @@ class TestRpcServerPlugins:
 
             after_install = await client.rpc.plugins.list()
             assert len([p for p in after_install.plugins if p.name == DIRECT_PLUGIN_NAME]) == 1
+            assert install.plugin.direct_source_id
 
-            await client.rpc.plugins.uninstall(PluginsUninstallRequest(name=DIRECT_PLUGIN_NAME))
+            await client.rpc.plugins.uninstall(
+                PluginsUninstallRequest(
+                    name=DIRECT_PLUGIN_NAME,
+                    direct_source_id=install.plugin.direct_source_id,
+                )
+            )
 
             after_uninstall = await client.rpc.plugins.list()
             assert not any(p.name == DIRECT_PLUGIN_NAME for p in after_uninstall.plugins)

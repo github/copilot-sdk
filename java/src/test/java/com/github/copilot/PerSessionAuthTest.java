@@ -13,7 +13,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.generated.rpc.SessionAuthGetStatusResult;
+import com.github.copilot.generated.rpc.SessionGitHubAuthGetStatusResult;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
@@ -73,7 +73,7 @@ public class PerSessionAuthTest {
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try {
-                SessionAuthGetStatusResult authStatus = session.getRpc().auth.getStatus().get();
+                SessionGitHubAuthGetStatusResult authStatus = session.getRpc().gitHubAuth.getStatus().get();
 
                 assertTrue(authStatus.isAuthenticated(), "Expected session to be authenticated");
                 assertEquals("alice", authStatus.login());
@@ -94,8 +94,8 @@ public class PerSessionAuthTest {
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try {
-                SessionAuthGetStatusResult statusA = sessionA.getRpc().auth.getStatus().get();
-                SessionAuthGetStatusResult statusB = sessionB.getRpc().auth.getStatus().get();
+                SessionGitHubAuthGetStatusResult statusA = sessionA.getRpc().gitHubAuth.getStatus().get();
+                SessionGitHubAuthGetStatusResult statusB = sessionB.getRpc().gitHubAuth.getStatus().get();
 
                 assertTrue(statusA.isAuthenticated(), "Expected session A to be authenticated");
                 assertEquals("alice", statusA.login());
@@ -131,7 +131,7 @@ public class PerSessionAuthTest {
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try {
-                SessionAuthGetStatusResult authStatus = session.getRpc().auth.getStatus().get();
+                SessionGitHubAuthGetStatusResult authStatus = session.getRpc().gitHubAuth.getStatus().get();
 
                 // With no global or per-session token, there is no identity at all.
                 assertNull(authStatus.login(), "Expected no login without per-session token");

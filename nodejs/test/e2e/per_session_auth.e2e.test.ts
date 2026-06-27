@@ -42,7 +42,7 @@ describe("Per-session GitHub auth", async () => {
             gitHubToken: "token-alice",
         });
 
-        const authStatus = await session.rpc.auth.getStatus();
+        const authStatus = await session.rpc.gitHubAuth.getStatus();
         expect(authStatus.isAuthenticated).toBe(true);
         expect(authStatus.login).toBe("alice");
         expect(authStatus.copilotPlan).toBe("individual_pro");
@@ -60,8 +60,8 @@ describe("Per-session GitHub auth", async () => {
             gitHubToken: "token-bob",
         });
 
-        const statusA = await sessionA.rpc.auth.getStatus();
-        const statusB = await sessionB.rpc.auth.getStatus();
+        const statusA = await sessionA.rpc.gitHubAuth.getStatus();
+        const statusB = await sessionB.rpc.gitHubAuth.getStatus();
 
         expect(statusA.isAuthenticated).toBe(true);
         expect(statusA.login).toBe("alice");
@@ -92,7 +92,7 @@ describe("Per-session GitHub auth", async () => {
                 onPermissionRequest: approveAll,
             });
 
-            const authStatus = await session.rpc.auth.getStatus();
+            const authStatus = await session.rpc.gitHubAuth.getStatus();
             // Without a per-session GitHub token, there is no per-session identity.
             // In CI the process-level fake token may still authenticate globally,
             // so we check login rather than isAuthenticated.

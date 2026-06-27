@@ -3,29 +3,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: session-events.schema.json
+// Generated from: api.schema.json
 
-package com.github.copilot.generated;
+package com.github.copilot.generated.rpc;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
+ * Indicates whether the pending MCP headers refresh response was accepted.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpOauthWWWAuthenticateParams(
-    /** Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present */
-    @JsonProperty("resourceMetadataUrl") String resourceMetadataUrl,
-    /** Requested OAuth scopes from the WWW-Authenticate scope parameter, if present */
-    @JsonProperty("scope") String scope,
-    /** OAuth error from the WWW-Authenticate error parameter, if present */
-    @JsonProperty("error") String error
+public record SessionMcpHeadersHandlePendingHeadersRefreshRequestResult(
+    /** Whether the response was accepted. False if the request was unknown, timed out, or already resolved. */
+    @JsonProperty("success") Boolean success
 ) {
 }

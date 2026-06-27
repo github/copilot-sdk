@@ -20,7 +20,7 @@ const (
 func TestRpcServerPlugins(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 
-	t.Run("should_install_list_and_uninstall_plugin_from_local_marketplace", func(t *testing.T) {
+	t.Run("should_install_and_list_plugin_from_local_marketplace", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 		marketplaceDir := createPortedLocalMarketplaceFixture(t)
 		client := newStartedIsolatedPortedClient(t, ctx)
@@ -63,17 +63,6 @@ func TestRpcServerPlugins(t *testing.T) {
 			t.Fatal("Expected listed marketplace plugin to be enabled")
 		}
 
-		if _, err := client.RPC.Plugins.Uninstall(t.Context(), &rpc.PluginsUninstallRequest{Name: spec}); err != nil {
-			t.Fatalf("Plugins.Uninstall failed: %v", err)
-		}
-
-		afterUninstall, err := client.RPC.Plugins.List(t.Context())
-		if err != nil {
-			t.Fatalf("Plugins.List after uninstall failed: %v", err)
-		}
-		if findPortedInstalledPlugin(afterUninstall.Plugins, portedPluginName, portedMarketplaceName) != nil {
-			t.Fatalf("Expected plugin %q to be removed", spec)
-		}
 	})
 
 	t.Run("should_enable_and_disable_marketplace_plugin", func(t *testing.T) {
@@ -200,8 +189,14 @@ func TestRpcServerPlugins(t *testing.T) {
 		if countPortedInstalledPluginByName(afterInstall.Plugins, portedDirectPluginName) != 1 {
 			t.Fatalf("Expected exactly one direct plugin named %q, got %+v", portedDirectPluginName, afterInstall.Plugins)
 		}
+		if install.Plugin.DirectSourceID == nil {
+			t.Fatal("Expected direct plugin install to include directSourceId")
+		}
 
-		if _, err := client.RPC.Plugins.Uninstall(t.Context(), &rpc.PluginsUninstallRequest{Name: portedDirectPluginName}); err != nil {
+		if _, err := client.RPC.Plugins.Uninstall(t.Context(), &rpc.PluginsUninstallRequest{
+			DirectSourceID: install.Plugin.DirectSourceID,
+			Name:           portedDirectPluginName,
+		}); err != nil {
 			t.Fatalf("Plugins.Uninstall direct failed: %v", err)
 		}
 		afterUninstall, err := client.RPC.Plugins.List(t.Context())

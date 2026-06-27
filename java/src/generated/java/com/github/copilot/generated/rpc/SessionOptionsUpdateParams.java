@@ -70,6 +70,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
     /** How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch). */
     @JsonProperty("envValueMode") OptionsUpdateEnvValueMode envValueMode,
+    /** Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers. */
+    @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
     /** Skill IDs that should be excluded from this session. */
@@ -127,6 +129,8 @@ public record SessionOptionsUpdateParams(
     /** Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset. */
     @JsonProperty("enableSkills") Boolean enableSkills,
     /** Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier. */
-    @JsonProperty("contextTier") OptionsUpdateContextTier contextTier
+    @JsonProperty("contextTier") OptionsUpdateContextTier contextTier,
+    /** Optional response budget limits. Pass null to clear the response budget. */
+    @JsonProperty("responseBudget") ResponseBudgetConfig responseBudget
 ) {
 }

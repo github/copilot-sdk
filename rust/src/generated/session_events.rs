@@ -85,6 +85,8 @@ pub enum SessionEventType {
     AssistantMessageDelta,
     #[serde(rename = "assistant.turn_end")]
     AssistantTurnEnd,
+    #[serde(rename = "assistant.idle")]
+    AssistantIdle,
     #[serde(rename = "assistant.usage")]
     AssistantUsage,
     #[serde(rename = "model.call_failure")]
@@ -152,6 +154,10 @@ pub enum SessionEventType {
     McpOauthRequired,
     #[serde(rename = "mcp.oauth_completed")]
     McpOauthCompleted,
+    #[serde(rename = "mcp.headers_refresh_required")]
+    McpHeadersRefreshRequired,
+    #[serde(rename = "mcp.headers_refresh_completed")]
+    McpHeadersRefreshCompleted,
     #[serde(rename = "session.custom_notification")]
     SessionCustomNotification,
     #[serde(rename = "external_tool.requested")]
@@ -336,6 +342,8 @@ pub enum SessionEventData {
     AssistantMessageDelta(AssistantMessageDeltaData),
     #[serde(rename = "assistant.turn_end")]
     AssistantTurnEnd(AssistantTurnEndData),
+    #[serde(rename = "assistant.idle")]
+    AssistantIdle(AssistantIdleData),
     #[serde(rename = "assistant.usage")]
     AssistantUsage(AssistantUsageData),
     #[serde(rename = "model.call_failure")]
@@ -396,6 +404,10 @@ pub enum SessionEventData {
     McpOauthRequired(McpOauthRequiredData),
     #[serde(rename = "mcp.oauth_completed")]
     McpOauthCompleted(McpOauthCompletedData),
+    #[serde(rename = "mcp.headers_refresh_required")]
+    McpHeadersRefreshRequired(McpHeadersRefreshRequiredData),
+    #[serde(rename = "mcp.headers_refresh_completed")]
+    McpHeadersRefreshCompleted(McpHeadersRefreshCompletedData),
     #[serde(rename = "session.custom_notification")]
     SessionCustomNotification(SessionCustomNotificationData),
     #[serde(rename = "external_tool.requested")]
@@ -550,6 +562,18 @@ pub struct WorkingDirectoryContext {
     pub repository_host: Option<String>,
 }
 
+/// Optional response budget limits.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponseBudgetConfig {
+    /// Maximum AI Credits allowed while responding to one top-level user message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ai_credits: Option<f64>,
+    /// Maximum model-call iterations allowed while responding to one top-level user message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_model_iterations: Option<i64>,
+}
+
 /// Session event "session.start". Session initialization metadata including context and configuration
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -579,6 +603,9 @@ pub struct SessionStartData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
+    /// Response budget limits configured at session creation time, if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_budget: Option<ResponseBudgetConfig>,
     /// Model selected at session creation time, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
@@ -620,6 +647,9 @@ pub struct SessionResumeData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
+    /// Response budget limits currently configured at resume time; null when no budget is active
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_budget: Option<ResponseBudgetConfig>,
     /// ISO 8601 timestamp when the session was resumed
     pub resume_time: String,
     /// Model currently selected at resume time
@@ -1274,6 +1304,9 @@ pub struct UserMessageData {
     pub attachments: Option<Vec<serde_json::Value>>,
     /// The user's message text as displayed in the timeline
     pub content: String,
+    /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<UserMessageDelivery>,
     /// CAPI interaction ID for correlating this user message with its turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
@@ -1583,6 +1616,15 @@ pub struct AssistantTurnEndData {
     pub turn_id: String,
 }
 
+/// Session event "assistant.idle". Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantIdleData {
+    /// True when the preceding agentic loop was cancelled via abort signal
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aborted: Option<bool>,
+}
+
 /// Token usage detail for a single billing category
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1820,6 +1862,16 @@ pub struct ToolUserRequestedData {
     pub tool_name: String,
 }
 
+/// Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionStartShellToolInfo {
+    /// Whether the command includes a file write redirection (e.g., > or >>).
+    pub has_write_file_redirection: bool,
+    /// File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
+    pub possible_paths: Vec<String>,
+}
+
 /// Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1879,6 +1931,9 @@ pub struct ToolExecutionStartData {
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
+    /// Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_tool_info: Option<ToolExecutionStartShellToolInfo>,
     /// Unique identifier for this tool call
     pub tool_call_id: String,
     /// Tool definition metadata, present for MCP tools with MCP Apps support
@@ -3274,6 +3329,9 @@ pub struct SamplingCompletedData {
 pub struct McpOauthRequiredStaticClientConfig {
     /// OAuth client ID for the server
     pub client_id: String,
+    /// Optional OAuth client secret for confidential static clients, when the runtime can resolve one
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
     /// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grant_type: Option<McpOauthRequiredStaticClientConfigGrantType>,
@@ -3289,8 +3347,9 @@ pub struct McpOauthWWWAuthenticateParams {
     /// OAuth error from the WWW-Authenticate error parameter, if present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter
-    pub resource_metadata_url: String,
+    /// Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_metadata_url: Option<String>,
     /// Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
@@ -3300,6 +3359,8 @@ pub struct McpOauthWWWAuthenticateParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthRequiredData {
+    /// Why the runtime is requesting host-provided OAuth credentials.
+    pub reason: McpOauthRequestReason,
     /// Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
     pub request_id: RequestId,
     /// Raw OAuth protected-resource metadata document fetched for the MCP server, if available
@@ -3324,6 +3385,30 @@ pub struct McpOauthCompletedData {
     /// How the pending OAuth request was completed
     pub outcome: McpOauthCompletionOutcome,
     /// Request ID of the resolved OAuth request
+    pub request_id: RequestId,
+}
+
+/// Session event "mcp.headers_refresh_required". Dynamic headers refresh request for a remote MCP server
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersRefreshRequiredData {
+    /// Why dynamic headers are being requested.
+    pub reason: McpHeadersRefreshRequiredReason,
+    /// Unique identifier for this headers refresh request; used to respond via session.mcp.headers.handlePendingHeadersRefreshRequest()
+    pub request_id: RequestId,
+    /// Display name of the remote MCP server requesting headers
+    pub server_name: String,
+    /// URL of the remote MCP server requesting headers
+    pub server_url: String,
+}
+
+/// Session event "mcp.headers_refresh_completed". MCP headers refresh request completion notification
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersRefreshCompletedData {
+    /// How the pending MCP headers refresh request resolved.
+    pub outcome: McpHeadersRefreshCompletedOutcome,
+    /// Request ID of the resolved headers refresh request
     pub request_id: RequestId,
 }
 
@@ -4094,6 +4179,24 @@ pub enum UserMessageAgentMode {
     Unknown,
 }
 
+/// How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserMessageDelivery {
+    /// Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent).
+    #[serde(rename = "idle")]
+    Idle,
+    /// Injected into the current in-flight run while the agent was busy (immediate mode).
+    #[serde(rename = "steering")]
+    Steering,
+    /// Enqueued while the agent was busy; processed as its own run afterward.
+    #[serde(rename = "queued")]
+    Queued,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The system that produced a citation.
 ///
 /// <div class="warning">
@@ -4824,6 +4927,27 @@ pub enum ElicitationCompletedAction {
     Unknown,
 }
 
+/// Reason the runtime is requesting host-provided MCP OAuth credentials
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthRequestReason {
+    /// Initial credentials are required before connecting to the MCP server.
+    #[serde(rename = "initial")]
+    Initial,
+    /// The current host-provided credential was rejected and a replacement is requested.
+    #[serde(rename = "refresh")]
+    Refresh,
+    /// The server requires a new host authorization flow before continuing.
+    #[serde(rename = "reauth")]
+    Reauth,
+    /// The server requires a credential with additional scope or audience.
+    #[serde(rename = "upscope")]
+    Upscope,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpOauthRequiredStaticClientConfigGrantType {
@@ -4841,6 +4965,42 @@ pub enum McpOauthCompletionOutcome {
     /// The request completed without an OAuth provider.
     #[serde(rename = "cancelled")]
     Cancelled,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why dynamic headers are being requested.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersRefreshRequiredReason {
+    /// The transport is making its first dynamic header request for this server.
+    #[serde(rename = "startup")]
+    Startup,
+    /// The previously cached dynamic headers expired.
+    #[serde(rename = "ttl-expired")]
+    TtlExpired,
+    /// The server returned 401 and stale dynamic headers were invalidated.
+    #[serde(rename = "auth-failed")]
+    AuthFailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How the pending MCP headers refresh request resolved.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersRefreshCompletedOutcome {
+    /// The host supplied dynamic headers.
+    #[serde(rename = "headers")]
+    Headers,
+    /// The host responded with no dynamic headers.
+    #[serde(rename = "none")]
+    None,
+    /// No response arrived within the bounded window.
+    #[serde(rename = "timeout")]
+    Timeout,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

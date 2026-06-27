@@ -492,7 +492,7 @@ describe("Session-scoped RPC", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         try {
             const login = `sdk-rpc-${randomUUID()}`;
-            const setCredentials = await session.rpc.auth.setCredentials({
+            const setCredentials = await session.rpc.gitHubAuth.setCredentials({
                 credentials: {
                     type: "user",
                     host: "https://github.com",
@@ -511,7 +511,7 @@ describe("Session-scoped RPC", async () => {
             });
             expect(setCredentials.success).toBe(true);
 
-            const status = await session.rpc.auth.getStatus();
+            const status = await session.rpc.gitHubAuth.getStatus();
             expect(status.isAuthenticated).toBe(true);
             expect(status.authType).toBe("user");
             expect(status.host).toBe("https://github.com");

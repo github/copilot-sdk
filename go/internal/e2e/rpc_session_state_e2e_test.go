@@ -704,7 +704,7 @@ func TestRPCSessionStateE2E(t *testing.T) {
 
 		api := ctx.ProxyURL
 		telemetry := "https://localhost:1/telemetry"
-		setCredentials, err := session.RPC.Auth.SetCredentials(t.Context(), &rpc.SessionSetCredentialsParams{
+		setCredentials, err := session.RPC.GitHubAuth.SetCredentials(t.Context(), &rpc.SessionSetCredentialsParams{
 			Credentials: &rpc.UserAuthInfo{
 				CopilotUser: &rpc.CopilotUserResponse{
 					AnalyticsTrackingID: rpcPtr("rpc-session-state-tracking-id"),
@@ -727,7 +727,7 @@ func TestRPCSessionStateE2E(t *testing.T) {
 			t.Fatalf("Expected Auth.SetCredentials Success=true, got %+v", setCredentials)
 		}
 
-		status, err := session.RPC.Auth.GetStatus(t.Context())
+		status, err := session.RPC.GitHubAuth.GetStatus(t.Context())
 		if err != nil {
 			t.Fatalf("Auth.GetStatus failed: %v", err)
 		}

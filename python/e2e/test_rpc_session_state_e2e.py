@@ -442,7 +442,7 @@ class TestRpcSessionState:
         )
         try:
             login = f"sdk-rpc-{uuid.uuid4().hex}"
-            result = await session.rpc.auth.set_credentials(
+            result = await session.rpc.git_hub_auth.set_credentials(
                 SessionSetCredentialsParams(
                     credentials=UserAuthInfo(
                         host="https://github.com",
@@ -462,7 +462,7 @@ class TestRpcSessionState:
             )
             assert result.success is True
 
-            status = await session.rpc.auth.get_status()
+            status = await session.rpc.git_hub_auth.get_status()
             assert status.is_authenticated is True
             assert status.auth_type == AuthInfoType.USER
             assert status.host == "https://github.com"

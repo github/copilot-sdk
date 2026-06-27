@@ -424,8 +424,8 @@ type AllowAllPermissionState struct {
 	Enabled bool `json:"enabled"`
 }
 
-// A user message attachment — a file, directory, code selection, blob, GitHub reference, or
-// extension-supplied context payload
+// A user message attachment — a file, directory, code selection, blob, GitHub-anchored
+// pointer, or extension-supplied context payload
 // Experimental: Attachment is part of an experimental API and may change or be removed.
 type Attachment interface {
 	attachment()
@@ -545,6 +545,85 @@ func (AttachmentFile) Type() AttachmentType {
 	return AttachmentTypeFile
 }
 
+// Pointer to a GitHub Actions job.
+// Experimental: AttachmentGitHubActionsJob is part of an experimental API and may change or
+// be removed.
+type AttachmentGitHubActionsJob struct {
+	// Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent
+	// for in-progress jobs.
+	Conclusion *string `json:"conclusion,omitempty"`
+	// Job id within the workflow run
+	JobID int64 `json:"jobId"`
+	// Display name of the job
+	JobName string `json:"jobName"`
+	// Repository the workflow run belongs to
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the job on GitHub
+	URL string `json:"url"`
+	// Display name of the workflow the job ran in
+	WorkflowName string `json:"workflowName"`
+}
+
+func (AttachmentGitHubActionsJob) attachment() {}
+func (AttachmentGitHubActionsJob) Type() AttachmentType {
+	return AttachmentTypeGitHubActionsJob
+}
+
+// Pointer to a GitHub commit.
+// Experimental: AttachmentGitHubCommit is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubCommit struct {
+	// First line of the commit message
+	Message string `json:"message"`
+	// Full commit SHA
+	Oid string `json:"oid"`
+	// Repository the commit belongs to
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the commit on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubCommit) attachment() {}
+func (AttachmentGitHubCommit) Type() AttachmentType {
+	return AttachmentTypeGitHubCommit
+}
+
+// Pointer to a file in a GitHub repository at a specific ref.
+// Experimental: AttachmentGitHubFile is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubFile struct {
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref the file is read at (branch, tag, or commit SHA)
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the file on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubFile) attachment() {}
+func (AttachmentGitHubFile) Type() AttachmentType {
+	return AttachmentTypeGitHubFile
+}
+
+// Pointer to a single-file diff. At least one of `head` and `base` must be present.
+// Experimental: AttachmentGitHubFileDiff is part of an experimental API and may change or
+// be removed.
+type AttachmentGitHubFileDiff struct {
+	// File location on the base side of the diff. Absent for additions.
+	Base *AttachmentGitHubFileDiffSide `json:"base,omitempty"`
+	// File location on the head side of the diff. Absent for deletions.
+	Head *AttachmentGitHubFileDiffSide `json:"head,omitempty"`
+	// URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL)
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubFileDiff) attachment() {}
+func (AttachmentGitHubFileDiff) Type() AttachmentType {
+	return AttachmentTypeGitHubFileDiff
+}
+
 // GitHub issue, pull request, or discussion reference
 // Experimental: AttachmentGitHubReference is part of an experimental API and may change or
 // be removed.
@@ -564,6 +643,96 @@ type AttachmentGitHubReference struct {
 func (AttachmentGitHubReference) attachment() {}
 func (AttachmentGitHubReference) Type() AttachmentType {
 	return AttachmentTypeGitHubReference
+}
+
+// Pointer to a GitHub release.
+// Experimental: AttachmentGitHubRelease is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubRelease struct {
+	// Human-readable release name
+	Name string `json:"name"`
+	// Repository the release belongs to
+	Repo GitHubRepoRef `json:"repo"`
+	// Git tag the release is anchored to
+	TagName string `json:"tagName"`
+	// URL to the release on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubRelease) attachment() {}
+func (AttachmentGitHubRelease) Type() AttachmentType {
+	return AttachmentTypeGitHubRelease
+}
+
+// Pointer to a GitHub repository.
+// Experimental: AttachmentGitHubRepository is part of an experimental API and may change or
+// be removed.
+type AttachmentGitHubRepository struct {
+	// Short description of the repository
+	Description *string `json:"description,omitempty"`
+	// Git ref this attachment is anchored at (branch, tag, or commit). When absent the default
+	// branch is implied.
+	Ref *string `json:"ref,omitempty"`
+	// Repository pointer
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the repository on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubRepository) attachment() {}
+func (AttachmentGitHubRepository) Type() AttachmentType {
+	return AttachmentTypeGitHubRepository
+}
+
+// Pointer to a line range inside a file in a GitHub repository.
+// Experimental: AttachmentGitHubSnippet is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubSnippet struct {
+	// Line range the snippet covers
+	LineRange AttachmentFileLineRange `json:"lineRange"`
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref the file is read at (branch, tag, or commit SHA)
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the snippet on GitHub (with line anchor)
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubSnippet) attachment() {}
+func (AttachmentGitHubSnippet) Type() AttachmentType {
+	return AttachmentTypeGitHubSnippet
+}
+
+// Pointer to a comparison between two git revisions.
+// Experimental: AttachmentGitHubTreeComparison is part of an experimental API and may
+// change or be removed.
+type AttachmentGitHubTreeComparison struct {
+	// Base side of the comparison
+	Base AttachmentGitHubTreeComparisonSide `json:"base"`
+	// Head side of the comparison
+	Head AttachmentGitHubTreeComparisonSide `json:"head"`
+	// URL to the comparison on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubTreeComparison) attachment() {}
+func (AttachmentGitHubTreeComparison) Type() AttachmentType {
+	return AttachmentTypeGitHubTreeComparison
+}
+
+// Generic GitHub URL reference.
+// Experimental: AttachmentGitHubURL is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubURL struct {
+	// URL to the GitHub resource
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubURL) attachment() {}
+func (AttachmentGitHubURL) Type() AttachmentType {
+	return AttachmentTypeGitHubURL
 }
 
 // Code selection attachment from an editor
@@ -593,6 +762,28 @@ type AttachmentFileLineRange struct {
 	End int64 `json:"end"`
 	// Start line number (1-based)
 	Start int64 `json:"start"`
+}
+
+// One side of a file diff (head or base)
+// Experimental: AttachmentGitHubFileDiffSide is part of an experimental API and may change
+// or be removed.
+type AttachmentGitHubFileDiffSide struct {
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref (branch, tag, or commit SHA) the file is read at
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo GitHubRepoRef `json:"repo"`
+}
+
+// One side of a tree comparison (head or base)
+// Experimental: AttachmentGitHubTreeComparisonSide is part of an experimental API and may
+// change or be removed.
+type AttachmentGitHubTreeComparisonSide struct {
+	// Repository the revision belongs to
+	Repo GitHubRepoRef `json:"repo"`
+	// Git revision (branch, tag, or commit SHA)
+	Revision string `json:"revision"`
 }
 
 // Position range of the selection within the file
@@ -1713,6 +1904,17 @@ type FolderTrustCheckResult struct {
 	Trusted bool `json:"trusted"`
 }
 
+// Pointer to a GitHub repository.
+// Experimental: GitHubRepoRef is part of an experimental API and may change or be removed.
+type GitHubRepoRef struct {
+	// Numeric GitHub repository id
+	ID *int64 `json:"id,omitempty"`
+	// Repository name (without owner)
+	Name string `json:"name"`
+	// Repository owner login (user or organization)
+	Owner string `json:"owner"`
+}
+
 // Pending external tool call request ID, with the tool result or an error describing why it
 // failed.
 // Experimental: HandlePendingToolCallRequest is part of an experimental API and may change
@@ -1844,6 +2046,10 @@ type InstalledPlugin struct {
 // Experimental: InstalledPluginInfo is part of an experimental API and may change or be
 // removed.
 type InstalledPluginInfo struct {
+	// Opaque, stable hash identifying a direct (non-marketplace) install source. Present only
+	// for direct repo / URL / local installs; absent for marketplace plugins. Same source
+	// yields the same id; distinct sources never collide.
+	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Whether the plugin is currently enabled for new sessions
 	Enabled bool `json:"enabled"`
 	// Marketplace the plugin came from. Empty string ("") for direct repo / URL / local
@@ -2617,6 +2823,65 @@ type MCPFilteredServer struct {
 	RedactedReason *string `json:"redactedReason,omitempty"`
 }
 
+// Host response: supply dynamic headers or decline this refresh.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequest is part of an experimental API
+// and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequest interface {
+	mcpHeadersHandlePendingHeadersRefreshRequest()
+	Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind
+}
+
+type RawMCPHeadersHandlePendingHeadersRefreshRequestData struct {
+	Discriminator MCPHeadersHandlePendingHeadersRefreshRequestKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPHeadersHandlePendingHeadersRefreshRequestData) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return r.Discriminator
+}
+
+type MCPHeadersHandlePendingHeadersRefreshRequestHeaders struct {
+	// Headers to overlay onto the MCP request. Dynamic headers override static config headers
+	// but do not replace SDK-managed request headers.
+	Headers map[string]string `json:"headers"`
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders
+}
+
+type MCPHeadersHandlePendingHeadersRefreshRequestNone struct {
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestNone) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestNone) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindNone
+}
+
+// MCP headers refresh request id and the host response.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequestRequest is part of an
+// experimental API and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequestRequest struct {
+	// Headers refresh request identifier from mcp.headers_refresh_required
+	RequestID string `json:"requestId"`
+	// Host response: supply dynamic headers or decline this refresh.
+	Result MCPHeadersHandlePendingHeadersRefreshRequest `json:"result"`
+}
+
+// Indicates whether the pending MCP headers refresh response was accepted.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequestResult is part of an
+// experimental API and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequestResult struct {
+	// Whether the response was accepted. False if the request was unknown, timed out, or
+	// already resolved.
+	Success bool `json:"success"`
+}
+
 // Host-level state, omitted when no MCP host is initialized.
 // Experimental: MCPHostState is part of an experimental API and may change or be removed.
 type MCPHostState struct {
@@ -2768,8 +3033,6 @@ type MCPOauthPendingRequestResponseToken struct {
 	AccessToken string `json:"accessToken"`
 	// Token lifetime in seconds, if known.
 	ExpiresIn *int64 `json:"expiresIn,omitempty"`
-	// Refresh token supplied by the host, if available.
-	RefreshToken *string `json:"refreshToken,omitempty"`
 	// OAuth token type. Defaults to Bearer when omitted.
 	TokenType *string `json:"tokenType,omitempty"`
 }
@@ -3236,6 +3499,10 @@ type Model struct {
 
 // Billing information
 type ModelBilling struct {
+	// Whole-number percentage discount (0-100) applied to usage billed through this model.
+	// Populated for the synthetic `auto` model, where requests routed by auto-mode are billed
+	// at a reduced rate; absent for concrete models.
+	DiscountPercent *int32 `json:"discountPercent,omitempty"`
 	// Billing cost multiplier relative to the base rate
 	Multiplier *float64 `json:"multiplier,omitempty"`
 	// Token-level pricing information for this model
@@ -4891,6 +5158,9 @@ type PluginsReloadRequest struct {
 // Experimental: PluginsUninstallRequest is part of an experimental API and may change or be
 // removed.
 type PluginsUninstallRequest struct {
+	// Stable source identity for a direct (non-marketplace) install. Disambiguates uninstall
+	// when multiple installed plugins share the same name.
+	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Plugin name or "plugin@marketplace" spec to uninstall. When ambiguous, prefer the
 	// fully-qualified spec.
 	Name string `json:"name"`
@@ -5214,6 +5484,85 @@ func (PushAttachmentFile) Type() PushAttachmentType {
 	return PushAttachmentTypeFile
 }
 
+// Pointer to a GitHub Actions job.
+// Experimental: PushAttachmentGitHubActionsJob is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGitHubActionsJob struct {
+	// Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent
+	// for in-progress jobs.
+	Conclusion *string `json:"conclusion,omitempty"`
+	// Job id within the workflow run
+	JobID int64 `json:"jobId"`
+	// Display name of the job
+	JobName string `json:"jobName"`
+	// Repository the workflow run belongs to
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the job on GitHub
+	URL string `json:"url"`
+	// Display name of the workflow the job ran in
+	WorkflowName string `json:"workflowName"`
+}
+
+func (PushAttachmentGitHubActionsJob) pushAttachment() {}
+func (PushAttachmentGitHubActionsJob) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubActionsJob
+}
+
+// Pointer to a GitHub commit.
+// Experimental: PushAttachmentGitHubCommit is part of an experimental API and may change or
+// be removed.
+type PushAttachmentGitHubCommit struct {
+	// First line of the commit message
+	Message string `json:"message"`
+	// Full commit SHA
+	Oid string `json:"oid"`
+	// Repository the commit belongs to
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the commit on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubCommit) pushAttachment() {}
+func (PushAttachmentGitHubCommit) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubCommit
+}
+
+// Pointer to a file in a GitHub repository at a specific ref.
+// Experimental: PushAttachmentGitHubFile is part of an experimental API and may change or
+// be removed.
+type PushAttachmentGitHubFile struct {
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref the file is read at (branch, tag, or commit SHA)
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the file on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubFile) pushAttachment() {}
+func (PushAttachmentGitHubFile) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubFile
+}
+
+// Pointer to a single-file diff. At least one of `head` and `base` must be present.
+// Experimental: PushAttachmentGitHubFileDiff is part of an experimental API and may change
+// or be removed.
+type PushAttachmentGitHubFileDiff struct {
+	// File location on the base side of the diff. Absent for additions.
+	Base *PushAttachmentGitHubFileDiffSide `json:"base,omitempty"`
+	// File location on the head side of the diff. Absent for deletions.
+	Head *PushAttachmentGitHubFileDiffSide `json:"head,omitempty"`
+	// URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL)
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubFileDiff) pushAttachment() {}
+func (PushAttachmentGitHubFileDiff) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubFileDiff
+}
+
 // GitHub issue, pull request, or discussion reference
 // Experimental: PushAttachmentGitHubReference is part of an experimental API and may change
 // or be removed.
@@ -5233,6 +5582,96 @@ type PushAttachmentGitHubReference struct {
 func (PushAttachmentGitHubReference) pushAttachment() {}
 func (PushAttachmentGitHubReference) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubReference
+}
+
+// Pointer to a GitHub release.
+// Experimental: PushAttachmentGitHubRelease is part of an experimental API and may change
+// or be removed.
+type PushAttachmentGitHubRelease struct {
+	// Human-readable release name
+	Name string `json:"name"`
+	// Repository the release belongs to
+	Repo PushGitHubRepoRef `json:"repo"`
+	// Git tag the release is anchored to
+	TagName string `json:"tagName"`
+	// URL to the release on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubRelease) pushAttachment() {}
+func (PushAttachmentGitHubRelease) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubRelease
+}
+
+// Pointer to a GitHub repository.
+// Experimental: PushAttachmentGitHubRepository is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGitHubRepository struct {
+	// Short description of the repository
+	Description *string `json:"description,omitempty"`
+	// Git ref this attachment is anchored at (branch, tag, or commit). When absent the default
+	// branch is implied.
+	Ref *string `json:"ref,omitempty"`
+	// Repository pointer
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the repository on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubRepository) pushAttachment() {}
+func (PushAttachmentGitHubRepository) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubRepository
+}
+
+// Pointer to a line range inside a file in a GitHub repository.
+// Experimental: PushAttachmentGitHubSnippet is part of an experimental API and may change
+// or be removed.
+type PushAttachmentGitHubSnippet struct {
+	// Line range the snippet covers
+	LineRange PushAttachmentFileLineRange `json:"lineRange"`
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref the file is read at (branch, tag, or commit SHA)
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the snippet on GitHub (with line anchor)
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubSnippet) pushAttachment() {}
+func (PushAttachmentGitHubSnippet) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubSnippet
+}
+
+// Pointer to a comparison between two git revisions.
+// Experimental: PushAttachmentGitHubTreeComparison is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGitHubTreeComparison struct {
+	// Base side of the comparison
+	Base PushAttachmentGitHubTreeComparisonSide `json:"base"`
+	// Head side of the comparison
+	Head PushAttachmentGitHubTreeComparisonSide `json:"head"`
+	// URL to the comparison on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubTreeComparison) pushAttachment() {}
+func (PushAttachmentGitHubTreeComparison) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubTreeComparison
+}
+
+// Generic GitHub URL reference.
+// Experimental: PushAttachmentGitHubURL is part of an experimental API and may change or be
+// removed.
+type PushAttachmentGitHubURL struct {
+	// URL to the GitHub resource
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubURL) pushAttachment() {}
+func (PushAttachmentGitHubURL) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubURL
 }
 
 // Code selection attachment from an editor
@@ -5264,6 +5703,28 @@ type PushAttachmentFileLineRange struct {
 	Start int64 `json:"start"`
 }
 
+// One side of a file diff (head or base)
+// Experimental: PushAttachmentGitHubFileDiffSide is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGitHubFileDiffSide struct {
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref (branch, tag, or commit SHA) the file is read at
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo PushGitHubRepoRef `json:"repo"`
+}
+
+// One side of a tree comparison (head or base)
+// Experimental: PushAttachmentGitHubTreeComparisonSide is part of an experimental API and
+// may change or be removed.
+type PushAttachmentGitHubTreeComparisonSide struct {
+	// Repository the revision belongs to
+	Repo PushGitHubRepoRef `json:"repo"`
+	// Git revision (branch, tag, or commit SHA)
+	Revision string `json:"revision"`
+}
+
 // Position range of the selection within the file
 // Experimental: PushAttachmentSelectionDetails is part of an experimental API and may
 // change or be removed.
@@ -5292,6 +5753,18 @@ type PushAttachmentSelectionDetailsStart struct {
 	Character int64 `json:"character"`
 	// Start line number (0-based)
 	Line int64 `json:"line"`
+}
+
+// Pointer to a GitHub repository.
+// Experimental: PushGitHubRepoRef is part of an experimental API and may change or be
+// removed.
+type PushGitHubRepoRef struct {
+	// Numeric GitHub repository id
+	ID *int64 `json:"id,omitempty"`
+	// Repository name (without owner)
+	Name string `json:"name"`
+	// Repository owner login (user or organization)
+	Owner string `json:"owner"`
 }
 
 // Result of the queued command execution.
@@ -5639,6 +6112,16 @@ type RemoteSessionRepository struct {
 	Name string `json:"name"`
 	// Repository owner or organization login.
 	Owner string `json:"owner"`
+}
+
+// Optional response budget limits.
+// Experimental: ResponseBudgetConfig is part of an experimental API and may change or be
+// removed.
+type ResponseBudgetConfig struct {
+	// Maximum AI Credits allowed while responding to one top-level user message.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+	// Maximum model-call iterations allowed while responding to one top-level user message.
+	MaxModelIterations *int64 `json:"maxModelIterations,omitempty"`
 }
 
 type RuntimeShutdownResult struct {
@@ -6565,6 +7048,9 @@ type SessionOpenOptions struct {
 	AdditionalContentExclusionPolicies []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 	// Runtime context discriminator for agent filtering.
 	AgentContext *string `json:"agentContext,omitempty"`
+	// Whether to include instructions from every MCP server in the system prompt instead of
+	// only allowlisted servers.
+	AllowAllMCPServerInstructions *bool `json:"allowAllMcpServerInstructions,omitempty"`
 	// Whether ask_user is explicitly disabled.
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// Initial authentication info for the session.
@@ -6662,6 +7148,8 @@ type SessionOpenOptions struct {
 	RemoteExporting *bool `json:"remoteExporting,omitempty"`
 	// Whether this session supports remote steering.
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
+	// Initial response budget limits for the session.
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Whether the host is an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -6996,10 +7484,14 @@ type SessionsEnrichMetadataRequest struct {
 // or be removed.
 type SessionSetCredentialsParams struct {
 	// The new auth credentials to install on the session. When omitted or `undefined`, the call
-	// is a no-op and the session's existing credentials are preserved. The runtime stores the
-	// value verbatim and uses it for outbound model/API requests; it does NOT re-validate or
-	// re-fetch the associated Copilot user response. Several variants carry secret material;
-	// treat this method's params as containing secrets at rest and in transit.
+	// is a no-op and the session's existing credentials are preserved. The runtime installs the
+	// supplied value immediately for outbound model/API requests. When the credential carries a
+	// raw token (`token`, `env`, or `gh-cli`) but no `copilotUser`, the runtime additionally
+	// re-resolves `copilotUser` server-side (best-effort, asynchronously, after the synchronous
+	// install) so plan/quota/billing metadata regains fidelity; on resolution failure the
+	// verbatim credential remains installed. It does NOT otherwise validate the credential.
+	// Several variants carry secret material; treat this method's params as containing secrets
+	// at rest and in transit.
 	Credentials AuthInfo `json:"credentials,omitempty"`
 }
 
@@ -7007,6 +7499,15 @@ type SessionSetCredentialsParams struct {
 // Experimental: SessionSetCredentialsResult is part of an experimental API and may change
 // or be removed.
 type SessionSetCredentialsResult struct {
+	// Whether the session ended up with a populated `copilotUser` for the installed
+	// credentials. `true` when the supplied credential already carried `copilotUser` or it was
+	// successfully re-resolved server-side. `false` when the credential is installed without
+	// `copilotUser` — either re-resolution failed, or the variant cannot be re-resolved from
+	// the credential alone (only the raw-token variants `token`, `env`, and `gh-cli` can). In
+	// both `false` cases the token swap still applied, but plan/quota/billing metadata is
+	// degraded. Present whenever a credential was supplied; omitted only when no credential was
+	// supplied (no-op call).
+	CopilotUserResolved *bool `json:"copilotUserResolved,omitempty"`
 	// Whether the operation succeeded
 	Success bool `json:"success"`
 }
@@ -7384,6 +7885,9 @@ type SessionUpdateOptionsParams struct {
 	AdditionalContentExclusionPolicies []OptionsUpdateAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 	// Runtime context discriminator (e.g., `cli`, `actions`).
 	AgentContext *string `json:"agentContext,omitempty"`
+	// Whether to include instructions from every MCP server in the system prompt instead of
+	// only allowlisted servers.
+	AllowAllMCPServerInstructions *bool `json:"allowAllMcpServerInstructions,omitempty"`
 	// Whether to disable the `ask_user` tool (encourages autonomous behavior).
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// Allowlist of tool names available to this session.
@@ -7471,6 +7975,8 @@ type SessionUpdateOptionsParams struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode for supported model clients.
 	ReasoningSummary *OptionsUpdateReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Optional response budget limits. Pass null to clear the response budget.
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Whether the session is running in an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -7781,8 +8287,8 @@ type SlashCommandInput struct {
 	Required *bool `json:"required,omitempty"`
 }
 
-// Result of invoking the slash command (text output, prompt to send to the agent, or
-// completion).
+// Result of invoking the slash command (text output, prompt to send to the agent,
+// completion, or subcommand selection).
 // Experimental: SlashCommandInvocationResult is part of an experimental API and may change
 // or be removed.
 type SlashCommandInvocationResult interface {
@@ -7896,6 +8402,11 @@ type SubagentSettings struct {
 	Agents map[string]SubagentSettingsEntry `json:"agents,omitzero"`
 	// Names of subagents the user has turned off; they cannot be dispatched
 	DisabledSubagents []string `json:"disabledSubagents,omitzero"`
+	// Maximum number of subagents that can run concurrently; applies to usage-based billing
+	// users only
+	MaxConcurrency *int32 `json:"maxConcurrency,omitempty"`
+	// Maximum subagent nesting depth; applies to usage-based billing users only
+	MaxDepth *int32 `json:"maxDepth,omitempty"`
 }
 
 // Subagent model, reasoning effort, and context tier settings
@@ -9356,12 +9867,21 @@ const (
 type AttachmentType string
 
 const (
-	AttachmentTypeBlob             AttachmentType = "blob"
-	AttachmentTypeDirectory        AttachmentType = "directory"
-	AttachmentTypeExtensionContext AttachmentType = "extension_context"
-	AttachmentTypeFile             AttachmentType = "file"
-	AttachmentTypeGitHubReference  AttachmentType = "github_reference"
-	AttachmentTypeSelection        AttachmentType = "selection"
+	AttachmentTypeBlob                 AttachmentType = "blob"
+	AttachmentTypeDirectory            AttachmentType = "directory"
+	AttachmentTypeExtensionContext     AttachmentType = "extension_context"
+	AttachmentTypeFile                 AttachmentType = "file"
+	AttachmentTypeGitHubActionsJob     AttachmentType = "github_actions_job"
+	AttachmentTypeGitHubCommit         AttachmentType = "github_commit"
+	AttachmentTypeGitHubFile           AttachmentType = "github_file"
+	AttachmentTypeGitHubFileDiff       AttachmentType = "github_file_diff"
+	AttachmentTypeGitHubReference      AttachmentType = "github_reference"
+	AttachmentTypeGitHubRelease        AttachmentType = "github_release"
+	AttachmentTypeGitHubRepository     AttachmentType = "github_repository"
+	AttachmentTypeGitHubSnippet        AttachmentType = "github_snippet"
+	AttachmentTypeGitHubTreeComparison AttachmentType = "github_tree_comparison"
+	AttachmentTypeGitHubURL            AttachmentType = "github_url"
+	AttachmentTypeSelection            AttachmentType = "selection"
 )
 
 // Type discriminator for AuthInfo.
@@ -9758,6 +10278,14 @@ const (
 	MCPAppsSetHostContextDetailsThemeDark MCPAppsSetHostContextDetailsTheme = "dark"
 	// Light UI theme
 	MCPAppsSetHostContextDetailsThemeLight MCPAppsSetHostContextDetailsTheme = "light"
+)
+
+// Kind discriminator for MCPHeadersHandlePendingHeadersRefreshRequest.
+type MCPHeadersHandlePendingHeadersRefreshRequestKind string
+
+const (
+	MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders MCPHeadersHandlePendingHeadersRefreshRequestKind = "headers"
+	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
 )
 
 // OAuth grant type override for this login.
@@ -10255,12 +10783,21 @@ const (
 type PushAttachmentType string
 
 const (
-	PushAttachmentTypeBlob             PushAttachmentType = "blob"
-	PushAttachmentTypeDirectory        PushAttachmentType = "directory"
-	PushAttachmentTypeExtensionContext PushAttachmentType = "extension_context"
-	PushAttachmentTypeFile             PushAttachmentType = "file"
-	PushAttachmentTypeGitHubReference  PushAttachmentType = "github_reference"
-	PushAttachmentTypeSelection        PushAttachmentType = "selection"
+	PushAttachmentTypeBlob                 PushAttachmentType = "blob"
+	PushAttachmentTypeDirectory            PushAttachmentType = "directory"
+	PushAttachmentTypeExtensionContext     PushAttachmentType = "extension_context"
+	PushAttachmentTypeFile                 PushAttachmentType = "file"
+	PushAttachmentTypeGitHubActionsJob     PushAttachmentType = "github_actions_job"
+	PushAttachmentTypeGitHubCommit         PushAttachmentType = "github_commit"
+	PushAttachmentTypeGitHubFile           PushAttachmentType = "github_file"
+	PushAttachmentTypeGitHubFileDiff       PushAttachmentType = "github_file_diff"
+	PushAttachmentTypeGitHubReference      PushAttachmentType = "github_reference"
+	PushAttachmentTypeGitHubRelease        PushAttachmentType = "github_release"
+	PushAttachmentTypeGitHubRepository     PushAttachmentType = "github_repository"
+	PushAttachmentTypeGitHubSnippet        PushAttachmentType = "github_snippet"
+	PushAttachmentTypeGitHubTreeComparison PushAttachmentType = "github_tree_comparison"
+	PushAttachmentTypeGitHubURL            PushAttachmentType = "github_url"
+	PushAttachmentTypeSelection            PushAttachmentType = "selection"
 )
 
 // Whether this item is a queued user message or a queued slash command / model change
@@ -12677,54 +13214,6 @@ func (a *AgentAPI) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 	return &result, nil
 }
 
-// Experimental: AuthAPI contains experimental APIs that may change or be removed.
-type AuthAPI sessionAPI
-
-// GetStatus gets authentication status and account metadata for the session.
-//
-// RPC method: session.auth.getStatus.
-//
-// Returns: Authentication status and account metadata for the session.
-func (a *AuthAPI) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request(ctx, "session.auth.getStatus", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionAuthStatus
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// SetCredentials updates the session's auth credentials used for outbound model and API
-// requests.
-//
-// RPC method: session.auth.setCredentials.
-//
-// Parameters: New auth credentials to install on the session. Omit to leave credentials
-// unchanged.
-//
-// Returns: Indicates whether the credential update succeeded.
-func (a *AuthAPI) SetCredentials(ctx context.Context, params *SessionSetCredentialsParams) (*SessionSetCredentialsResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Credentials != nil {
-			req["credentials"] = params.Credentials
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.auth.setCredentials", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionSetCredentialsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // Experimental: CanvasAPI contains experimental APIs that may change or be removed.
 type CanvasAPI sessionAPI
 
@@ -12933,7 +13422,7 @@ func (a *CommandsAPI) HandlePendingCommand(ctx context.Context, params *Commands
 // Parameters: Slash command name and optional raw input string to invoke.
 //
 // Returns: Result of invoking the slash command (text output, prompt to send to the agent,
-// or completion).
+// completion, or subcommand selection).
 func (a *CommandsAPI) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -13251,6 +13740,54 @@ func (a *FleetAPI) Start(ctx context.Context, params *FleetStartRequest) (*Fleet
 		return nil, err
 	}
 	var result FleetStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: GitHubAuthAPI contains experimental APIs that may change or be removed.
+type GitHubAuthAPI sessionAPI
+
+// GetStatus gets authentication status and account metadata for the session.
+//
+// RPC method: session.gitHubAuth.getStatus.
+//
+// Returns: Authentication status and account metadata for the session.
+func (a *GitHubAuthAPI) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.gitHubAuth.getStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAuthStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetCredentials updates the session's auth credentials used for outbound model and API
+// requests.
+//
+// RPC method: session.gitHubAuth.setCredentials.
+//
+// Parameters: New auth credentials to install on the session. Omit to leave credentials
+// unchanged.
+//
+// Returns: Indicates whether the credential update succeeded.
+func (a *GitHubAuthAPI) SetCredentials(ctx context.Context, params *SessionSetCredentialsParams) (*SessionSetCredentialsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Credentials != nil {
+			req["credentials"] = params.Credentials
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.gitHubAuth.setCredentials", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSetCredentialsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -13824,6 +14361,41 @@ func (s *MCPAPI) Apps() *MCPAppsAPI {
 	return (*MCPAppsAPI)(s)
 }
 
+// Experimental: MCPHeadersAPI contains experimental APIs that may change or be removed.
+type MCPHeadersAPI sessionAPI
+
+// HandlePendingHeadersRefreshRequest responds to a pending MCP dynamic headers refresh
+// request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide
+// short-lived per-server headers or to indicate that no dynamic headers are available for
+// this refresh.
+//
+// RPC method: session.mcp.headers.handlePendingHeadersRefreshRequest.
+//
+// Parameters: MCP headers refresh request id and the host response.
+//
+// Returns: Indicates whether the pending MCP headers refresh response was accepted.
+func (a *MCPHeadersAPI) HandlePendingHeadersRefreshRequest(ctx context.Context, params *MCPHeadersHandlePendingHeadersRefreshRequestRequest) (*MCPHeadersHandlePendingHeadersRefreshRequestResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.headers.handlePendingHeadersRefreshRequest", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPHeadersHandlePendingHeadersRefreshRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Headers returns experimental APIs that may change or be removed.
+func (s *MCPAPI) Headers() *MCPHeadersAPI {
+	return (*MCPHeadersAPI)(s)
+}
+
 // Experimental: MCPOauthAPI contains experimental APIs that may change or be removed.
 type MCPOauthAPI sessionAPI
 
@@ -14317,6 +14889,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.AgentContext != nil {
 			req["agentContext"] = *params.AgentContext
 		}
+		if params.AllowAllMCPServerInstructions != nil {
+			req["allowAllMcpServerInstructions"] = *params.AllowAllMCPServerInstructions
+		}
 		if params.AskUserDisabled != nil {
 			req["askUserDisabled"] = *params.AskUserDisabled
 		}
@@ -14424,6 +14999,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.ReasoningSummary != nil {
 			req["reasoningSummary"] = *params.ReasoningSummary
+		}
+		if params.ResponseBudget != nil {
+			req["responseBudget"] = *params.ResponseBudget
 		}
 		if params.RunningInInteractiveMode != nil {
 			req["runningInInteractiveMode"] = *params.RunningInInteractiveMode
@@ -16503,12 +17081,12 @@ type SessionRPC struct {
 	common sessionAPI
 
 	Agent        *AgentAPI
-	Auth         *AuthAPI
 	Canvas       *CanvasAPI
 	Commands     *CommandsAPI
 	EventLog     *EventLogAPI
 	Extensions   *ExtensionsAPI
 	Fleet        *FleetAPI
+	GitHubAuth   *GitHubAuthAPI
 	History      *HistoryAPI
 	Instructions *InstructionsAPI
 	Lsp          *LspAPI
@@ -16714,12 +17292,12 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r := &SessionRPC{}
 	r.common = sessionAPI{client: client, sessionID: sessionID}
 	r.Agent = (*AgentAPI)(&r.common)
-	r.Auth = (*AuthAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)
+	r.GitHubAuth = (*GitHubAuthAPI)(&r.common)
 	r.History = (*HistoryAPI)(&r.common)
 	r.Instructions = (*InstructionsAPI)(&r.common)
 	r.Lsp = (*LspAPI)(&r.common)

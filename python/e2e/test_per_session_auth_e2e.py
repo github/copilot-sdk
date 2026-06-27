@@ -58,7 +58,7 @@ class TestPerSessionAuth:
             github_token="token-alice",
         )
 
-        auth_status = await session.rpc.auth.get_status()
+        auth_status = await session.rpc.git_hub_auth.get_status()
         assert auth_status.is_authenticated is True
         assert auth_status.login == "alice"
         assert auth_status.copilot_plan == "individual_pro"
@@ -77,8 +77,8 @@ class TestPerSessionAuth:
             github_token="token-bob",
         )
 
-        status_a = await session_a.rpc.auth.get_status()
-        status_b = await session_b.rpc.auth.get_status()
+        status_a = await session_a.rpc.git_hub_auth.get_status()
+        status_b = await session_b.rpc.git_hub_auth.get_status()
 
         assert status_a.is_authenticated is True
         assert status_a.login == "alice"
@@ -108,7 +108,7 @@ class TestPerSessionAuth:
                 on_permission_request=PermissionHandler.approve_all,
             )
 
-            auth_status = await session.rpc.auth.get_status()
+            auth_status = await session.rpc.git_hub_auth.get_status()
             # Without a per-session token, there is no per-session identity.
             # In CI the process-level fake token may still authenticate globally,
             # so we check login rather than is_authenticated. On some platforms

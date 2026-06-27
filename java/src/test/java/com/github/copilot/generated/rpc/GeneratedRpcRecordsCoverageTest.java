@@ -803,7 +803,7 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
-        var billing = new ModelBilling(1.0, null);
+        var billing = new ModelBilling(1.0, null, null);
         var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null, null);
         var result = new ModelsListResult(List.of(modelItem));
 

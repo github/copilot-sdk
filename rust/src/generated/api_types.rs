@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::session_events::{
     AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest,
-    PermissionRule, ReasoningSummary, SessionMode, ShutdownType, SkillSource,
+    PermissionRule, ReasoningSummary, ResponseBudgetConfig, SessionMode, ShutdownType, SkillSource,
     UserToolSessionApproval,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
@@ -172,10 +172,10 @@ pub mod rpc_methods {
     pub const SESSION_ABORT: &str = "session.abort";
     /// `session.shutdown`
     pub const SESSION_SHUTDOWN: &str = "session.shutdown";
-    /// `session.auth.getStatus`
-    pub const SESSION_AUTH_GETSTATUS: &str = "session.auth.getStatus";
-    /// `session.auth.setCredentials`
-    pub const SESSION_AUTH_SETCREDENTIALS: &str = "session.auth.setCredentials";
+    /// `session.gitHubAuth.getStatus`
+    pub const SESSION_GITHUBAUTH_GETSTATUS: &str = "session.gitHubAuth.getStatus";
+    /// `session.gitHubAuth.setCredentials`
+    pub const SESSION_GITHUBAUTH_SETCREDENTIALS: &str = "session.gitHubAuth.setCredentials";
     /// `session.canvas.list`
     pub const SESSION_CANVAS_LIST: &str = "session.canvas.list";
     /// `session.canvas.listOpen`
@@ -321,6 +321,9 @@ pub mod rpc_methods {
         "session.mcp.oauth.handlePendingRequest";
     /// `session.mcp.oauth.login`
     pub const SESSION_MCP_OAUTH_LOGIN: &str = "session.mcp.oauth.login";
+    /// `session.mcp.headers.handlePendingHeadersRefreshRequest`
+    pub const SESSION_MCP_HEADERS_HANDLEPENDINGHEADERSREFRESHREQUEST: &str =
+        "session.mcp.headers.handlePendingHeadersRefreshRequest";
     /// `session.mcp.apps.readResource`
     pub const SESSION_MCP_APPS_READRESOURCE: &str = "session.mcp.apps.readResource";
     /// `session.mcp.apps.listTools`
@@ -1493,6 +1496,142 @@ pub struct AttachmentFile {
     pub r#type: AttachmentFileType,
 }
 
+/// Pointer to a GitHub repository.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubRepoRef {
+    /// Numeric GitHub repository id
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    /// Repository name (without owner)
+    pub name: String,
+    /// Repository owner login (user or organization)
+    pub owner: String,
+}
+
+/// Pointer to a GitHub Actions job.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubActionsJob {
+    /// Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent for in-progress jobs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conclusion: Option<String>,
+    /// Job id within the workflow run
+    pub job_id: i64,
+    /// Display name of the job
+    pub job_name: String,
+    /// Repository the workflow run belongs to
+    pub repo: GitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubActionsJobType,
+    /// URL to the job on GitHub
+    pub url: String,
+    /// Display name of the workflow the job ran in
+    pub workflow_name: String,
+}
+
+/// Pointer to a GitHub commit.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubCommit {
+    /// First line of the commit message
+    pub message: String,
+    /// Full commit SHA
+    pub oid: String,
+    /// Repository the commit belongs to
+    pub repo: GitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubCommitType,
+    /// URL to the commit on GitHub
+    pub url: String,
+}
+
+/// Pointer to a file in a GitHub repository at a specific ref.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubFile {
+    /// Repository-relative path to the file
+    pub path: String,
+    /// Git ref the file is read at (branch, tag, or commit SHA)
+    pub r#ref: String,
+    /// Repository the file lives in
+    pub repo: GitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubFileType,
+    /// URL to the file on GitHub
+    pub url: String,
+}
+
+/// One side of a file diff (head or base)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubFileDiffSide {
+    /// Repository-relative path to the file
+    pub path: String,
+    /// Git ref (branch, tag, or commit SHA) the file is read at
+    pub r#ref: String,
+    /// Repository the file lives in
+    pub repo: GitHubRepoRef,
+}
+
+/// Pointer to a single-file diff. At least one of `head` and `base` must be present.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubFileDiff {
+    /// File location on the base side of the diff. Absent for additions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base: Option<AttachmentGitHubFileDiffSide>,
+    /// File location on the head side of the diff. Absent for deletions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head: Option<AttachmentGitHubFileDiffSide>,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubFileDiffType,
+    /// URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL)
+    pub url: String,
+}
+
 /// GitHub issue, pull request, or discussion reference
 ///
 /// <div class="warning">
@@ -1515,6 +1654,134 @@ pub struct AttachmentGitHubReference {
     /// Attachment type discriminator
     pub r#type: AttachmentGitHubReferenceType,
     /// URL to the referenced item on GitHub
+    pub url: String,
+}
+
+/// Pointer to a GitHub release.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubRelease {
+    /// Human-readable release name
+    pub name: String,
+    /// Repository the release belongs to
+    pub repo: GitHubRepoRef,
+    /// Git tag the release is anchored to
+    pub tag_name: String,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubReleaseType,
+    /// URL to the release on GitHub
+    pub url: String,
+}
+
+/// Pointer to a GitHub repository.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubRepository {
+    /// Short description of the repository
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Git ref this attachment is anchored at (branch, tag, or commit). When absent the default branch is implied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
+    /// Repository pointer
+    pub repo: GitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubRepositoryType,
+    /// URL to the repository on GitHub
+    pub url: String,
+}
+
+/// Pointer to a line range inside a file in a GitHub repository.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubSnippet {
+    /// Line range the snippet covers
+    pub line_range: AttachmentFileLineRange,
+    /// Repository-relative path to the file
+    pub path: String,
+    /// Git ref the file is read at (branch, tag, or commit SHA)
+    pub r#ref: String,
+    /// Repository the file lives in
+    pub repo: GitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubSnippetType,
+    /// URL to the snippet on GitHub (with line anchor)
+    pub url: String,
+}
+
+/// One side of a tree comparison (head or base)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubTreeComparisonSide {
+    /// Repository the revision belongs to
+    pub repo: GitHubRepoRef,
+    /// Git revision (branch, tag, or commit SHA)
+    pub revision: String,
+}
+
+/// Pointer to a comparison between two git revisions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubTreeComparison {
+    /// Base side of the comparison
+    pub base: AttachmentGitHubTreeComparisonSide,
+    /// Head side of the comparison
+    pub head: AttachmentGitHubTreeComparisonSide,
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubTreeComparisonType,
+    /// URL to the comparison on GitHub
+    pub url: String,
+}
+
+/// Generic GitHub URL reference.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentGitHubUrl {
+    /// Attachment type discriminator
+    pub r#type: AttachmentGitHubUrlType,
+    /// URL to the GitHub resource
     pub url: String,
 }
 
@@ -3142,6 +3409,9 @@ pub struct InstalledPlugin {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstalledPluginInfo {
+    /// Opaque, stable hash identifying a direct (non-marketplace) install source. Present only for direct repo / URL / local installs; absent for marketplace plugins. Same source yields the same id; distinct sources never collide.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direct_source_id: Option<String>,
     /// Whether the plugin is currently enabled for new sessions
     pub enabled: bool,
     /// Marketplace the plugin came from. Empty string ("") for direct repo / URL / local installs.
@@ -4285,6 +4555,52 @@ pub struct McpFilteredServer {
     pub redacted_reason: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestHeaders {
+    /// Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers.
+    pub headers: HashMap<String, String>,
+    pub kind: McpHeadersHandlePendingHeadersRefreshRequestHeadersKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestNone {
+    pub kind: McpHeadersHandlePendingHeadersRefreshRequestNoneKind,
+}
+
+/// MCP headers refresh request id and the host response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestRequest {
+    /// Headers refresh request identifier from mcp.headers_refresh_required
+    pub request_id: RequestId,
+    /// Host response: supply dynamic headers or decline this refresh.
+    pub result: McpHeadersHandlePendingHeadersRefreshRequest,
+}
+
+/// Indicates whether the pending MCP headers refresh response was accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestResult {
+    /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+    pub success: bool,
+}
+
 /// Recorded MCP server connection failure.
 ///
 /// <div class="warning">
@@ -4431,9 +4747,6 @@ pub struct McpOauthPendingRequestResponseToken {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<i64>,
     pub kind: McpOauthPendingRequestResponseTokenKind,
-    /// Refresh token supplied by the host, if available.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub refresh_token: Option<String>,
     /// OAuth token type. Defaults to Bearer when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_type: Option<String>,
@@ -5221,6 +5534,9 @@ pub struct ModelBillingTokenPrices {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelBilling {
+    /// Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discount_percent: Option<i32>,
     /// Billing cost multiplier relative to the base rate
     #[serde(skip_serializing_if = "Option::is_none")]
     pub multiplier: Option<f64>,
@@ -7508,6 +7824,9 @@ pub struct PluginsReloadRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginsUninstallRequest {
+    /// Stable source identity for a direct (non-marketplace) install. Disambiguates uninstall when multiple installed plugins share the same name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direct_source_id: Option<String>,
     /// Plugin name or "plugin@marketplace" spec to uninstall. When ambiguous, prefer the fully-qualified spec.
     pub name: String,
 }
@@ -7934,6 +8253,142 @@ pub struct PushAttachmentFile {
     pub r#type: PushAttachmentFileType,
 }
 
+/// Pointer to a GitHub repository.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushGitHubRepoRef {
+    /// Numeric GitHub repository id
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    /// Repository name (without owner)
+    pub name: String,
+    /// Repository owner login (user or organization)
+    pub owner: String,
+}
+
+/// Pointer to a GitHub Actions job.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubActionsJob {
+    /// Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent for in-progress jobs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conclusion: Option<String>,
+    /// Job id within the workflow run
+    pub job_id: i64,
+    /// Display name of the job
+    pub job_name: String,
+    /// Repository the workflow run belongs to
+    pub repo: PushGitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubActionsJobType,
+    /// URL to the job on GitHub
+    pub url: String,
+    /// Display name of the workflow the job ran in
+    pub workflow_name: String,
+}
+
+/// Pointer to a GitHub commit.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubCommit {
+    /// First line of the commit message
+    pub message: String,
+    /// Full commit SHA
+    pub oid: String,
+    /// Repository the commit belongs to
+    pub repo: PushGitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubCommitType,
+    /// URL to the commit on GitHub
+    pub url: String,
+}
+
+/// Pointer to a file in a GitHub repository at a specific ref.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubFile {
+    /// Repository-relative path to the file
+    pub path: String,
+    /// Git ref the file is read at (branch, tag, or commit SHA)
+    pub r#ref: String,
+    /// Repository the file lives in
+    pub repo: PushGitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubFileType,
+    /// URL to the file on GitHub
+    pub url: String,
+}
+
+/// One side of a file diff (head or base)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubFileDiffSide {
+    /// Repository-relative path to the file
+    pub path: String,
+    /// Git ref (branch, tag, or commit SHA) the file is read at
+    pub r#ref: String,
+    /// Repository the file lives in
+    pub repo: PushGitHubRepoRef,
+}
+
+/// Pointer to a single-file diff. At least one of `head` and `base` must be present.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubFileDiff {
+    /// File location on the base side of the diff. Absent for additions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base: Option<PushAttachmentGitHubFileDiffSide>,
+    /// File location on the head side of the diff. Absent for deletions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head: Option<PushAttachmentGitHubFileDiffSide>,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubFileDiffType,
+    /// URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL)
+    pub url: String,
+}
+
 /// GitHub issue, pull request, or discussion reference
 ///
 /// <div class="warning">
@@ -7956,6 +8411,134 @@ pub struct PushAttachmentGitHubReference {
     /// Attachment type discriminator
     pub r#type: PushAttachmentGitHubReferenceType,
     /// URL to the referenced item on GitHub
+    pub url: String,
+}
+
+/// Pointer to a GitHub release.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubRelease {
+    /// Human-readable release name
+    pub name: String,
+    /// Repository the release belongs to
+    pub repo: PushGitHubRepoRef,
+    /// Git tag the release is anchored to
+    pub tag_name: String,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubReleaseType,
+    /// URL to the release on GitHub
+    pub url: String,
+}
+
+/// Pointer to a GitHub repository.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubRepository {
+    /// Short description of the repository
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Git ref this attachment is anchored at (branch, tag, or commit). When absent the default branch is implied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
+    /// Repository pointer
+    pub repo: PushGitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubRepositoryType,
+    /// URL to the repository on GitHub
+    pub url: String,
+}
+
+/// Pointer to a line range inside a file in a GitHub repository.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubSnippet {
+    /// Line range the snippet covers
+    pub line_range: PushAttachmentFileLineRange,
+    /// Repository-relative path to the file
+    pub path: String,
+    /// Git ref the file is read at (branch, tag, or commit SHA)
+    pub r#ref: String,
+    /// Repository the file lives in
+    pub repo: PushGitHubRepoRef,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubSnippetType,
+    /// URL to the snippet on GitHub (with line anchor)
+    pub url: String,
+}
+
+/// One side of a tree comparison (head or base)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubTreeComparisonSide {
+    /// Repository the revision belongs to
+    pub repo: PushGitHubRepoRef,
+    /// Git revision (branch, tag, or commit SHA)
+    pub revision: String,
+}
+
+/// Pointer to a comparison between two git revisions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubTreeComparison {
+    /// Base side of the comparison
+    pub base: PushAttachmentGitHubTreeComparisonSide,
+    /// Head side of the comparison
+    pub head: PushAttachmentGitHubTreeComparisonSide,
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubTreeComparisonType,
+    /// URL to the comparison on GitHub
+    pub url: String,
+}
+
+/// Generic GitHub URL reference.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushAttachmentGitHubUrl {
+    /// Attachment type discriminator
+    pub r#type: PushAttachmentGitHubUrlType,
+    /// URL to the GitHub resource
     pub url: String,
 }
 
@@ -9793,6 +10376,9 @@ pub struct SessionOpenOptions {
     /// Runtime context discriminator for agent filtering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_context: Option<String>,
+    /// Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_all_mcp_server_instructions: Option<bool>,
     /// Whether ask_user is explicitly disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ask_user_disabled: Option<bool>,
@@ -9941,6 +10527,9 @@ pub struct SessionOpenOptions {
     /// Whether this session supports remote steering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
+    /// Initial response budget limits for the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_budget: Option<ResponseBudgetConfig>,
     /// Whether the host is an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
@@ -10317,7 +10906,7 @@ pub struct SessionsEnrichMetadataRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSetCredentialsParams {
-    /// The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime stores the value verbatim and uses it for outbound model/API requests; it does NOT re-validate or re-fetch the associated Copilot user response. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.
+    /// The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime installs the supplied value immediately for outbound model/API requests. When the credential carries a raw token (`token`, `env`, or `gh-cli`) but no `copilotUser`, the runtime additionally re-resolves `copilotUser` server-side (best-effort, asynchronously, after the synchronous install) so plan/quota/billing metadata regains fidelity; on resolution failure the verbatim credential remains installed. It does NOT otherwise validate the credential. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credentials: Option<serde_json::Value>,
 }
@@ -10333,6 +10922,9 @@ pub struct SessionSetCredentialsParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSetCredentialsResult {
+    /// Whether the session ended up with a populated `copilotUser` for the installed credentials. `true` when the supplied credential already carried `copilotUser` or it was successfully re-resolved server-side. `false` when the credential is installed without `copilotUser` — either re-resolution failed, or the variant cannot be re-resolved from the credential alone (only the raw-token variants `token`, `env`, and `gh-cli` can). In both `false` cases the token swap still applied, but plan/quota/billing metadata is degraded. Present whenever a credential was supplied; omitted only when no credential was supplied (no-op call).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user_resolved: Option<bool>,
     /// Whether the operation succeeded
     pub success: bool,
 }
@@ -10884,6 +11476,9 @@ pub struct SessionUpdateOptionsParams {
     /// Runtime context discriminator (e.g., `cli`, `actions`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_context: Option<String>,
+    /// Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_all_mcp_server_instructions: Option<bool>,
     /// Whether to disable the `ask_user` tool (encourages autonomous behavior).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ask_user_disabled: Option<bool>,
@@ -10992,6 +11587,9 @@ pub struct SessionUpdateOptionsParams {
     /// Reasoning summary mode for supported model clients.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<OptionsUpdateReasoningSummary>,
+    /// Optional response budget limits. Pass null to clear the response budget.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_budget: Option<ResponseBudgetConfig>,
     /// Whether the session is running in an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
@@ -11532,6 +12130,12 @@ pub struct SubagentSettings {
     /// Names of subagents the user has turned off; they cannot be dispatched
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_subagents: Option<Vec<String>>,
+    /// Maximum number of subagents that can run concurrently; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrency: Option<i32>,
+    /// Maximum subagent nesting depth; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<i32>,
 }
 
 /// Schema for the `TaskAgentInfo` type.
@@ -12658,6 +13262,12 @@ pub struct UpdateSubagentSettingsRequestSubagents {
     /// Names of subagents the user has turned off; they cannot be dispatched
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_subagents: Option<Vec<String>>,
+    /// Maximum number of subagents that can run concurrently; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrency: Option<i32>,
+    /// Maximum subagent nesting depth; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<i32>,
 }
 
 /// Subagent settings to apply to the current session
@@ -13800,7 +14410,7 @@ pub struct SessionAbortResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionAuthGetStatusParams {
+pub struct SessionGitHubAuthGetStatusParams {
     /// Target session identifier
     pub session_id: SessionId,
 }
@@ -13815,7 +14425,7 @@ pub struct SessionAuthGetStatusParams {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionAuthGetStatusResult {
+pub struct SessionGitHubAuthGetStatusResult {
     /// Authentication type
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_type: Option<AuthInfoType>,
@@ -13845,7 +14455,10 @@ pub struct SessionAuthGetStatusResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionAuthSetCredentialsResult {
+pub struct SessionGitHubAuthSetCredentialsResult {
+    /// Whether the session ended up with a populated `copilotUser` for the installed credentials. `true` when the supplied credential already carried `copilotUser` or it was successfully re-resolved server-side. `false` when the credential is installed without `copilotUser` — either re-resolution failed, or the variant cannot be re-resolved from the credential alone (only the raw-token variants `token`, `env`, and `gh-cli` can). In both `false` cases the token swap still applied, but plan/quota/billing metadata is degraded. Present whenever a credential was supplied; omitted only when no credential was supplied (no-op call).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user_resolved: Option<bool>,
     /// Whether the operation succeeded
     pub success: bool,
 }
@@ -15176,6 +15789,21 @@ pub struct SessionMcpOauthLoginResult {
     /// URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_url: Option<String>,
+}
+
+/// Indicates whether the pending MCP headers refresh response was accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpHeadersHandlePendingHeadersRefreshRequestResult {
+    /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+    pub success: bool,
 }
 
 /// Resource contents returned by the MCP server.
@@ -17305,6 +17933,38 @@ pub enum AttachmentFileType {
     File,
 }
 
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubActionsJobType {
+    #[serde(rename = "github_actions_job")]
+    #[default]
+    GitHubActionsJob,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubCommitType {
+    #[serde(rename = "github_commit")]
+    #[default]
+    GitHubCommit,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubFileType {
+    #[serde(rename = "github_file")]
+    #[default]
+    GitHubFile,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubFileDiffType {
+    #[serde(rename = "github_file_diff")]
+    #[default]
+    GitHubFileDiff,
+}
+
 /// Type of GitHub reference
 ///
 /// <div class="warning">
@@ -17328,6 +17988,46 @@ pub enum AttachmentGitHubReferenceType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubReleaseType {
+    #[serde(rename = "github_release")]
+    #[default]
+    GitHubRelease,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubRepositoryType {
+    #[serde(rename = "github_repository")]
+    #[default]
+    GitHubRepository,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubSnippetType {
+    #[serde(rename = "github_snippet")]
+    #[default]
+    GitHubSnippet,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubTreeComparisonType {
+    #[serde(rename = "github_tree_comparison")]
+    #[default]
+    GitHubTreeComparison,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentGitHubUrlType {
+    #[serde(rename = "github_url")]
+    #[default]
+    GitHubUrl,
 }
 
 /// Attachment type discriminator
@@ -18121,6 +18821,35 @@ pub enum McpAppsSetHostContextDetailsTheme {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersHandlePendingHeadersRefreshRequestHeadersKind {
+    #[serde(rename = "headers")]
+    #[default]
+    Headers,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersHandlePendingHeadersRefreshRequestNoneKind {
+    #[serde(rename = "none")]
+    #[default]
+    None,
+}
+
+/// Host response: supply dynamic headers or decline this refresh.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpHeadersHandlePendingHeadersRefreshRequest {
+    Headers(McpHeadersHandlePendingHeadersRefreshRequestHeaders),
+    None(McpHeadersHandlePendingHeadersRefreshRequestNone),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -19223,6 +19952,38 @@ pub enum PushAttachmentFileType {
     File,
 }
 
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubActionsJobType {
+    #[serde(rename = "github_actions_job")]
+    #[default]
+    GitHubActionsJob,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubCommitType {
+    #[serde(rename = "github_commit")]
+    #[default]
+    GitHubCommit,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubFileType {
+    #[serde(rename = "github_file")]
+    #[default]
+    GitHubFile,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubFileDiffType {
+    #[serde(rename = "github_file_diff")]
+    #[default]
+    GitHubFileDiff,
+}
+
 /// Type of GitHub reference
 ///
 /// <div class="warning">
@@ -19246,6 +20007,46 @@ pub enum PushAttachmentGitHubReferenceType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubReleaseType {
+    #[serde(rename = "github_release")]
+    #[default]
+    GitHubRelease,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubRepositoryType {
+    #[serde(rename = "github_repository")]
+    #[default]
+    GitHubRepository,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubSnippetType {
+    #[serde(rename = "github_snippet")]
+    #[default]
+    GitHubSnippet,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubTreeComparisonType {
+    #[serde(rename = "github_tree_comparison")]
+    #[default]
+    GitHubTreeComparison,
+}
+
+/// Attachment type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushAttachmentGitHubUrlType {
+    #[serde(rename = "github_url")]
+    #[default]
+    GitHubUrl,
 }
 
 /// Attachment type discriminator
@@ -19945,7 +20746,7 @@ pub enum SlashCommandSelectSubcommandResultKind {
     SelectSubcommand,
 }
 
-/// Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+/// Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
 ///
 /// <div class="warning">
 ///

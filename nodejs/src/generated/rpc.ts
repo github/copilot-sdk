@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, ResponseBudgetConfig, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
 
 /**
  * Initial authentication info for the session.
@@ -682,6 +682,26 @@ export type McpServerConfigHttpOauthGrantType =
   /** Headless client credentials flow using the configured OAuth client. */
   | "client_credentials";
 /**
+ * Host response: supply dynamic headers or decline this refresh.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpHeadersHandlePendingHeadersRefreshRequest".
+ */
+/** @experimental */
+export type McpHeadersHandlePendingHeadersRefreshRequest =
+  | {
+      /**
+       * Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers.
+       */
+      headers: {
+        [k: string]: string | undefined;
+      };
+      kind: "headers";
+    }
+  | {
+      kind: "none";
+    };
+/**
  * Host response to the pending OAuth request.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -698,10 +718,6 @@ export type McpOauthPendingRequestResponse =
        * OAuth token type. Defaults to Bearer when omitted.
        */
       tokenType?: string;
-      /**
-       * Refresh token supplied by the host, if available.
-       */
-      refreshToken?: string;
       /**
        * Token lifetime in seconds, if known.
        */
@@ -1169,6 +1185,15 @@ export type PushAttachment =
   | PushAttachmentDirectory
   | PushAttachmentSelection
   | PushAttachmentGitHubReference
+  | PushAttachmentGitHubCommit
+  | PushAttachmentGitHubRelease
+  | PushAttachmentGitHubActionsJob
+  | PushAttachmentGitHubRepository
+  | PushAttachmentGitHubFileDiff
+  | PushAttachmentGitHubTreeComparison
+  | PushAttachmentGitHubUrl
+  | PushAttachmentGitHubFile
+  | PushAttachmentGitHubSnippet
   | PushAttachmentBlob
   | ExtensionContextPushInput;
 /**
@@ -1580,7 +1605,7 @@ export type SkillDiscoveryScope =
   /** A configured custom skill directory. */
   | "custom";
 /**
- * Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+ * Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandInvocationResult".
@@ -1609,6 +1634,14 @@ export type SubagentSettings = {
    * Names of subagents the user has turned off; they cannot be dispatched
    */
   disabledSubagents?: string[];
+  /**
+   * Maximum number of subagents that can run concurrently; applies to usage-based billing users only
+   */
+  maxConcurrency?: number;
+  /**
+   * Maximum subagent nesting depth; applies to usage-based billing users only
+   */
+  maxDepth?: number;
 } | null;
 /**
  * Context tier override for matching subagents
@@ -4316,6 +4349,10 @@ export interface InstalledPluginInfo {
    */
   marketplace: string;
   /**
+   * Opaque, stable hash identifying a direct (non-marketplace) install source. Present only for direct repo / URL / local installs; absent for marketplace plugins. Same source yields the same id; distinct sources never collide.
+   */
+  directSourceId?: string;
+  /**
    * Installed version (when reported by the plugin manifest)
    */
   version?: string;
@@ -5540,6 +5577,33 @@ export interface McpFilteredServer {
   enterpriseName?: string;
 }
 /**
+ * MCP headers refresh request id and the host response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpHeadersHandlePendingHeadersRefreshRequestRequest".
+ */
+/** @experimental */
+export interface McpHeadersHandlePendingHeadersRefreshRequestRequest {
+  /**
+   * Headers refresh request identifier from mcp.headers_refresh_required
+   */
+  requestId: string;
+  result: McpHeadersHandlePendingHeadersRefreshRequest;
+}
+/**
+ * Indicates whether the pending MCP headers refresh response was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpHeadersHandlePendingHeadersRefreshRequestResult".
+ */
+/** @experimental */
+export interface McpHeadersHandlePendingHeadersRefreshRequestResult {
+  /**
+   * Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
+   */
+  success: boolean;
+}
+/**
  * Host-level state, omitted when no MCP host is initialized.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6357,6 +6421,10 @@ export interface ModelBilling {
    */
   multiplier?: number;
   tokenPrices?: ModelBillingTokenPrices;
+  /**
+   * Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models.
+   */
+  discountPercent?: number;
 }
 /**
  * Token-level pricing information for this model
@@ -8391,6 +8459,10 @@ export interface PluginsUninstallRequest {
    * Plugin name or "plugin@marketplace" spec to uninstall. When ambiguous, prefer the fully-qualified spec.
    */
   name: string;
+  /**
+   * Stable source identity for a direct (non-marketplace) install. Disambiguates uninstall when multiple installed plugins share the same name.
+   */
+  directSourceId?: string | null;
 }
 /**
  * Name (or spec) of the plugin to update.
@@ -8888,6 +8960,279 @@ export interface PushAttachmentGitHubReference {
    * URL to the referenced item on GitHub
    */
   url: string;
+}
+/**
+ * Pointer to a GitHub commit.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubCommit".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubCommit {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_commit";
+  repo: PushGitHubRepoRef;
+  /**
+   * Full commit SHA
+   */
+  oid: string;
+  /**
+   * First line of the commit message
+   */
+  message: string;
+  /**
+   * URL to the commit on GitHub
+   */
+  url: string;
+}
+/**
+ * Pointer to a GitHub repository.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushGitHubRepoRef".
+ */
+/** @experimental */
+export interface PushGitHubRepoRef {
+  /**
+   * Numeric GitHub repository id
+   */
+  id?: number;
+  /**
+   * Repository name (without owner)
+   */
+  name: string;
+  /**
+   * Repository owner login (user or organization)
+   */
+  owner: string;
+}
+/**
+ * Pointer to a GitHub release.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubRelease".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubRelease {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_release";
+  repo: PushGitHubRepoRef;
+  /**
+   * Git tag the release is anchored to
+   */
+  tagName: string;
+  /**
+   * Human-readable release name
+   */
+  name: string;
+  /**
+   * URL to the release on GitHub
+   */
+  url: string;
+}
+/**
+ * Pointer to a GitHub Actions job.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubActionsJob".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubActionsJob {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_actions_job";
+  repo: PushGitHubRepoRef;
+  /**
+   * Job id within the workflow run
+   */
+  jobId: number;
+  /**
+   * Display name of the job
+   */
+  jobName: string;
+  /**
+   * Display name of the workflow the job ran in
+   */
+  workflowName: string;
+  /**
+   * URL to the job on GitHub
+   */
+  url: string;
+  /**
+   * Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent for in-progress jobs.
+   */
+  conclusion?: string;
+}
+/**
+ * Pointer to a GitHub repository.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubRepository".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubRepository {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_repository";
+  repo: PushGitHubRepoRef;
+  /**
+   * URL to the repository on GitHub
+   */
+  url: string;
+  /**
+   * Short description of the repository
+   */
+  description?: string;
+  /**
+   * Git ref this attachment is anchored at (branch, tag, or commit). When absent the default branch is implied.
+   */
+  ref?: string;
+}
+/**
+ * Pointer to a single-file diff. At least one of `head` and `base` must be present.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubFileDiff".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubFileDiff {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_file_diff";
+  /**
+   * URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL)
+   */
+  url: string;
+  head?: PushAttachmentGitHubFileDiffSide;
+  base?: PushAttachmentGitHubFileDiffSide;
+}
+/**
+ * One side of a file diff (head or base)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubFileDiffSide".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubFileDiffSide {
+  repo: PushGitHubRepoRef;
+  /**
+   * Git ref (branch, tag, or commit SHA) the file is read at
+   */
+  ref: string;
+  /**
+   * Repository-relative path to the file
+   */
+  path: string;
+}
+/**
+ * Pointer to a comparison between two git revisions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubTreeComparison".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubTreeComparison {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_tree_comparison";
+  /**
+   * URL to the comparison on GitHub
+   */
+  url: string;
+  base: PushAttachmentGitHubTreeComparisonSide;
+  head: PushAttachmentGitHubTreeComparisonSide;
+}
+/**
+ * One side of a tree comparison (head or base)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubTreeComparisonSide".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubTreeComparisonSide {
+  repo: PushGitHubRepoRef;
+  /**
+   * Git revision (branch, tag, or commit SHA)
+   */
+  revision: string;
+}
+/**
+ * Generic GitHub URL reference.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubUrl".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubUrl {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_url";
+  /**
+   * URL to the GitHub resource
+   */
+  url: string;
+}
+/**
+ * Pointer to a file in a GitHub repository at a specific ref.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubFile".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubFile {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_file";
+  repo: PushGitHubRepoRef;
+  /**
+   * Git ref the file is read at (branch, tag, or commit SHA)
+   */
+  ref: string;
+  /**
+   * Repository-relative path to the file
+   */
+  path: string;
+  /**
+   * URL to the file on GitHub
+   */
+  url: string;
+}
+/**
+ * Pointer to a line range inside a file in a GitHub repository.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PushAttachmentGitHubSnippet".
+ */
+/** @experimental */
+export interface PushAttachmentGitHubSnippet {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_snippet";
+  repo: PushGitHubRepoRef;
+  /**
+   * Git ref the file is read at (branch, tag, or commit SHA)
+   */
+  ref: string;
+  /**
+   * Repository-relative path to the file
+   */
+  path: string;
+  /**
+   * URL to the snippet on GitHub (with line anchor)
+   */
+  url: string;
+  lineRange: PushAttachmentFileLineRange;
 }
 /**
  * Blob attachment with inline base64-encoded data
@@ -10618,6 +10963,10 @@ export interface SessionOpenOptions {
   logInteractiveShells?: boolean;
   envValueMode?: SessionOpenOptionsEnvValueMode;
   /**
+   * Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+   */
+  allowAllMcpServerInstructions?: boolean;
+  /**
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
@@ -10684,6 +11033,7 @@ export interface SessionOpenOptions {
    */
   maxInlineBinaryBytes?: number;
   modelCapabilitiesOverrides?: ModelCapabilitiesOverride;
+  responseBudget?: ResponseBudgetConfig;
   /**
    * Runtime context discriminator for agent filtering.
    */
@@ -11070,6 +11420,10 @@ export interface SessionSetCredentialsResult {
    * Whether the operation succeeded
    */
   success: boolean;
+  /**
+   * Whether the session ended up with a populated `copilotUser` for the installed credentials. `true` when the supplied credential already carried `copilotUser` or it was successfully re-resolved server-side. `false` when the credential is installed without `copilotUser` — either re-resolution failed, or the variant cannot be re-resolved from the credential alone (only the raw-token variants `token`, `env`, and `gh-cli` can). In both `false` cases the token swap still applied, but plan/quota/billing metadata is degraded. Present whenever a credential was supplied; omitted only when no credential was supplied (no-op call).
+   */
+  copilotUserResolved?: boolean;
 }
 /**
  * UUID prefix to resolve to a unique session ID.
@@ -11581,6 +11935,10 @@ export interface SessionUpdateOptionsParams {
   logInteractiveShells?: boolean;
   envValueMode?: OptionsUpdateEnvValueMode;
   /**
+   * Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+   */
+  allowAllMcpServerInstructions?: boolean;
+  /**
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
@@ -11695,6 +12053,10 @@ export interface SessionUpdateOptionsParams {
    */
   enableSkills?: boolean;
   contextTier?: OptionsUpdateContextTier;
+  /**
+   * Optional response budget limits. Pass null to clear the response budget.
+   */
+  responseBudget?: ResponseBudgetConfig | null;
 }
 /**
  * Indicates whether the session options patch was applied successfully.
@@ -14468,14 +14830,14 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         shutdown: async (params: ShutdownRequest): Promise<void> =>
             connection.sendRequest("session.shutdown", { sessionId, ...params }),
         /** @experimental */
-        auth: {
+        gitHubAuth: {
             /**
              * Gets authentication status and account metadata for the session.
              *
              * @returns Authentication status and account metadata for the session.
              */
             getStatus: async (): Promise<SessionAuthStatus> =>
-                connection.sendRequest("session.auth.getStatus", { sessionId }),
+                connection.sendRequest("session.gitHubAuth.getStatus", { sessionId }),
             /**
              * Updates the session's auth credentials used for outbound model and API requests.
              *
@@ -14484,7 +14846,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Indicates whether the credential update succeeded.
              */
             setCredentials: async (params: SessionSetCredentialsParams): Promise<SessionSetCredentialsResult> =>
-                connection.sendRequest("session.auth.setCredentials", { sessionId, ...params }),
+                connection.sendRequest("session.gitHubAuth.setCredentials", { sessionId, ...params }),
         },
         /** @experimental */
         canvas: {
@@ -15018,6 +15380,18 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                     connection.sendRequest("session.mcp.oauth.login", { sessionId, ...params }),
             },
             /** @experimental */
+            headers: {
+                /**
+                 * Responds to a pending MCP dynamic headers refresh request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide short-lived per-server headers or to indicate that no dynamic headers are available for this refresh.
+                 *
+                 * @param params MCP headers refresh request id and the host response.
+                 *
+                 * @returns Indicates whether the pending MCP headers refresh response was accepted.
+                 */
+                handlePendingHeadersRefreshRequest: async (params: McpHeadersHandlePendingHeadersRefreshRequestRequest): Promise<McpHeadersHandlePendingHeadersRefreshRequestResult> =>
+                    connection.sendRequest("session.mcp.headers.handlePendingHeadersRefreshRequest", { sessionId, ...params }),
+            },
+            /** @experimental */
             apps: {
                 /**
                  * Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.
@@ -15218,7 +15592,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              *
              * @param params Slash command name and optional raw input string to invoke.
              *
-             * @returns Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+             * @returns Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
              */
             invoke: async (params: CommandsInvokeRequest): Promise<SlashCommandInvocationResult> =>
                 connection.sendRequest("session.commands.invoke", { sessionId, ...params }),
