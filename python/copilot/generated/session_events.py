@@ -160,6 +160,7 @@ class SessionEventType(Enum):
     ASSISTANT_MESSAGE_START = "assistant.message_start"
     ASSISTANT_MESSAGE_DELTA = "assistant.message_delta"
     ASSISTANT_TURN_END = "assistant.turn_end"
+    ASSISTANT_IDLE = "assistant.idle"
     ASSISTANT_USAGE = "assistant.usage"
     MODEL_CALL_FAILURE = "model.call_failure"
     ABORT = "abort"
@@ -191,6 +192,8 @@ class SessionEventType(Enum):
     SAMPLING_COMPLETED = "sampling.completed"
     MCP_OAUTH_REQUIRED = "mcp.oauth_required"
     MCP_OAUTH_COMPLETED = "mcp.oauth_completed"
+    MCP_HEADERS_REFRESH_REQUIRED = "mcp.headers_refresh_required"
+    MCP_HEADERS_REFRESH_COMPLETED = "mcp.headers_refresh_completed"
     SESSION_CUSTOM_NOTIFICATION = "session.custom_notification"
     EXTERNAL_TOOL_REQUESTED = "external_tool.requested"
     EXTERNAL_TOOL_COMPLETED = "external_tool.completed"
@@ -954,6 +957,26 @@ class AbortData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["reason"] = to_enum(AbortReason, self.reason)
+        return result
+
+
+@dataclass
+class AssistantIdleData:
+    "Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred"
+    aborted: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistantIdleData":
+        assert isinstance(obj, dict)
+        aborted = from_union([from_none, from_bool], obj.get("aborted"))
+        return AssistantIdleData(
+            aborted=aborted,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.aborted is not None:
+            result["aborted"] = from_union([from_none, from_bool], self.aborted)
         return result
 
 
@@ -1741,6 +1764,172 @@ class AttachmentFileLineRange:
 
 
 @dataclass
+class AttachmentGitHubActionsJob:
+    "Pointer to a GitHub Actions job."
+    job_id: int
+    job_name: str
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_actions_job"
+    url: str
+    workflow_name: str
+    conclusion: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubActionsJob":
+        assert isinstance(obj, dict)
+        job_id = from_int(obj.get("jobId"))
+        job_name = from_str(obj.get("jobName"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        workflow_name = from_str(obj.get("workflowName"))
+        conclusion = from_union([from_none, from_str], obj.get("conclusion"))
+        return AttachmentGitHubActionsJob(
+            job_id=job_id,
+            job_name=job_name,
+            repo=repo,
+            url=url,
+            workflow_name=workflow_name,
+            conclusion=conclusion,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["jobId"] = to_int(self.job_id)
+        result["jobName"] = from_str(self.job_name)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        result["workflowName"] = from_str(self.workflow_name)
+        if self.conclusion is not None:
+            result["conclusion"] = from_union([from_none, from_str], self.conclusion)
+        return result
+
+
+@dataclass
+class AttachmentGitHubCommit:
+    "Pointer to a GitHub commit."
+    message: str
+    oid: str
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_commit"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubCommit":
+        assert isinstance(obj, dict)
+        message = from_str(obj.get("message"))
+        oid = from_str(obj.get("oid"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubCommit(
+            message=message,
+            oid=oid,
+            repo=repo,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["message"] = from_str(self.message)
+        result["oid"] = from_str(self.oid)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubFile:
+    "Pointer to a file in a GitHub repository at a specific ref."
+    path: str
+    ref: str
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_file"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubFile":
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        ref = from_str(obj.get("ref"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubFile(
+            path=path,
+            ref=ref,
+            repo=repo,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["ref"] = from_str(self.ref)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubFileDiff:
+    "Pointer to a single-file diff. At least one of `head` and `base` must be present."
+    type: ClassVar[str] = "github_file_diff"
+    url: str
+    base: AttachmentGitHubFileDiffSide | None = None
+    head: AttachmentGitHubFileDiffSide | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubFileDiff":
+        assert isinstance(obj, dict)
+        url = from_str(obj.get("url"))
+        base = from_union([from_none, AttachmentGitHubFileDiffSide.from_dict], obj.get("base"))
+        head = from_union([from_none, AttachmentGitHubFileDiffSide.from_dict], obj.get("head"))
+        return AttachmentGitHubFileDiff(
+            url=url,
+            base=base,
+            head=head,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        if self.base is not None:
+            result["base"] = from_union([from_none, lambda x: to_class(AttachmentGitHubFileDiffSide, x)], self.base)
+        if self.head is not None:
+            result["head"] = from_union([from_none, lambda x: to_class(AttachmentGitHubFileDiffSide, x)], self.head)
+        return result
+
+
+@dataclass
+class AttachmentGitHubFileDiffSide:
+    "One side of a file diff (head or base)"
+    path: str
+    ref: str
+    repo: GitHubRepoRef
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubFileDiffSide":
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        ref = from_str(obj.get("ref"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        return AttachmentGitHubFileDiffSide(
+            path=path,
+            ref=ref,
+            repo=repo,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["ref"] = from_str(self.ref)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        return result
+
+
+@dataclass
 class AttachmentGitHubReference:
     "GitHub issue, pull request, or discussion reference"
     number: int
@@ -1772,6 +1961,184 @@ class AttachmentGitHubReference:
         result["referenceType"] = to_enum(AttachmentGitHubReferenceType, self.reference_type)
         result["state"] = from_str(self.state)
         result["title"] = from_str(self.title)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubRelease:
+    "Pointer to a GitHub release."
+    name: str
+    repo: GitHubRepoRef
+    tag_name: str
+    type: ClassVar[str] = "github_release"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubRelease":
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        tag_name = from_str(obj.get("tagName"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubRelease(
+            name=name,
+            repo=repo,
+            tag_name=tag_name,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["tagName"] = from_str(self.tag_name)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubRepository:
+    "Pointer to a GitHub repository."
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_repository"
+    url: str
+    description: str | None = None
+    ref: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubRepository":
+        assert isinstance(obj, dict)
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        ref = from_union([from_none, from_str], obj.get("ref"))
+        return AttachmentGitHubRepository(
+            repo=repo,
+            url=url,
+            description=description,
+            ref=ref,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.ref is not None:
+            result["ref"] = from_union([from_none, from_str], self.ref)
+        return result
+
+
+@dataclass
+class AttachmentGitHubSnippet:
+    "Pointer to a line range inside a file in a GitHub repository."
+    line_range: AttachmentFileLineRange
+    path: str
+    ref: str
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_snippet"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubSnippet":
+        assert isinstance(obj, dict)
+        line_range = AttachmentFileLineRange.from_dict(obj.get("lineRange"))
+        path = from_str(obj.get("path"))
+        ref = from_str(obj.get("ref"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubSnippet(
+            line_range=line_range,
+            path=path,
+            ref=ref,
+            repo=repo,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["lineRange"] = to_class(AttachmentFileLineRange, self.line_range)
+        result["path"] = from_str(self.path)
+        result["ref"] = from_str(self.ref)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubTreeComparison:
+    "Pointer to a comparison between two git revisions."
+    base: AttachmentGitHubTreeComparisonSide
+    head: AttachmentGitHubTreeComparisonSide
+    type: ClassVar[str] = "github_tree_comparison"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubTreeComparison":
+        assert isinstance(obj, dict)
+        base = AttachmentGitHubTreeComparisonSide.from_dict(obj.get("base"))
+        head = AttachmentGitHubTreeComparisonSide.from_dict(obj.get("head"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubTreeComparison(
+            base=base,
+            head=head,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["base"] = to_class(AttachmentGitHubTreeComparisonSide, self.base)
+        result["head"] = to_class(AttachmentGitHubTreeComparisonSide, self.head)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubTreeComparisonSide:
+    "One side of a tree comparison (head or base)"
+    repo: GitHubRepoRef
+    revision: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubTreeComparisonSide":
+        assert isinstance(obj, dict)
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        revision = from_str(obj.get("revision"))
+        return AttachmentGitHubTreeComparisonSide(
+            repo=repo,
+            revision=revision,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["revision"] = from_str(self.revision)
+        return result
+
+
+@dataclass
+class AttachmentGitHubUrl:
+    "Generic GitHub URL reference."
+    type: ClassVar[str] = "github_url"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubUrl":
+        assert isinstance(obj, dict)
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubUrl(
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
         result["type"] = self.type
         result["url"] = from_str(self.url)
         return result
@@ -2589,6 +2956,34 @@ class ExternalToolRequestedData:
 
 
 @dataclass
+class GitHubRepoRef:
+    "Pointer to a GitHub repository."
+    name: str
+    owner: str
+    id: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "GitHubRepoRef":
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        owner = from_str(obj.get("owner"))
+        id = from_union([from_none, from_int], obj.get("id"))
+        return GitHubRepoRef(
+            name=name,
+            owner=owner,
+            id=id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["owner"] = from_str(self.owner)
+        if self.id is not None:
+            result["id"] = from_union([from_none, to_int], self.id)
+        return result
+
+
+@dataclass
 class HandoffRepository:
     "Repository context for the handed-off session"
     name: str
@@ -2850,6 +3245,60 @@ class McpAppToolCallCompleteToolMetaUI:
 
 
 @dataclass
+class McpHeadersRefreshCompletedData:
+    "MCP headers refresh request completion notification"
+    outcome: McpHeadersRefreshCompletedOutcome
+    request_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpHeadersRefreshCompletedData":
+        assert isinstance(obj, dict)
+        outcome = parse_enum(McpHeadersRefreshCompletedOutcome, obj.get("outcome"))
+        request_id = from_str(obj.get("requestId"))
+        return McpHeadersRefreshCompletedData(
+            outcome=outcome,
+            request_id=request_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["outcome"] = to_enum(McpHeadersRefreshCompletedOutcome, self.outcome)
+        result["requestId"] = from_str(self.request_id)
+        return result
+
+
+@dataclass
+class McpHeadersRefreshRequiredData:
+    "Dynamic headers refresh request for a remote MCP server"
+    reason: McpHeadersRefreshRequiredReason
+    request_id: str
+    server_name: str
+    server_url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpHeadersRefreshRequiredData":
+        assert isinstance(obj, dict)
+        reason = parse_enum(McpHeadersRefreshRequiredReason, obj.get("reason"))
+        request_id = from_str(obj.get("requestId"))
+        server_name = from_str(obj.get("serverName"))
+        server_url = from_str(obj.get("serverUrl"))
+        return McpHeadersRefreshRequiredData(
+            reason=reason,
+            request_id=request_id,
+            server_name=server_name,
+            server_url=server_url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reason"] = to_enum(McpHeadersRefreshRequiredReason, self.reason)
+        result["requestId"] = from_str(self.request_id)
+        result["serverName"] = from_str(self.server_name)
+        result["serverUrl"] = from_str(self.server_url)
+        return result
+
+
+@dataclass
 class McpOauthCompletedData:
     "MCP OAuth request completion notification"
     outcome: McpOauthCompletionOutcome
@@ -2875,6 +3324,7 @@ class McpOauthCompletedData:
 @dataclass
 class McpOauthRequiredData:
     "OAuth authentication request for an MCP server"
+    reason: McpOauthRequestReason
     request_id: str
     server_name: str
     server_url: str
@@ -2885,6 +3335,7 @@ class McpOauthRequiredData:
     @staticmethod
     def from_dict(obj: Any) -> "McpOauthRequiredData":
         assert isinstance(obj, dict)
+        reason = parse_enum(McpOauthRequestReason, obj.get("reason"))
         request_id = from_str(obj.get("requestId"))
         server_name = from_str(obj.get("serverName"))
         server_url = from_str(obj.get("serverUrl"))
@@ -2892,6 +3343,7 @@ class McpOauthRequiredData:
         static_client_config = from_union([from_none, McpOauthRequiredStaticClientConfig.from_dict], obj.get("staticClientConfig"))
         www_authenticate_params = from_union([from_none, McpOauthWWWAuthenticateParams.from_dict], obj.get("wwwAuthenticateParams"))
         return McpOauthRequiredData(
+            reason=reason,
             request_id=request_id,
             server_name=server_name,
             server_url=server_url,
@@ -2902,6 +3354,7 @@ class McpOauthRequiredData:
 
     def to_dict(self) -> dict:
         result: dict = {}
+        result["reason"] = to_enum(McpOauthRequestReason, self.reason)
         result["requestId"] = from_str(self.request_id)
         result["serverName"] = from_str(self.server_name)
         result["serverUrl"] = from_str(self.server_url)
@@ -2918,6 +3371,7 @@ class McpOauthRequiredData:
 class McpOauthRequiredStaticClientConfig:
     "Static OAuth client configuration, if the server specifies one"
     client_id: str
+    client_secret: str | None = None
     grant_type: str | None = None
     public_client: bool | None = None
 
@@ -2925,10 +3379,12 @@ class McpOauthRequiredStaticClientConfig:
     def from_dict(obj: Any) -> "McpOauthRequiredStaticClientConfig":
         assert isinstance(obj, dict)
         client_id = from_str(obj.get("clientId"))
+        client_secret = from_union([from_none, from_str], obj.get("clientSecret"))
         grant_type = from_union([from_none, from_str], obj.get("grantType"))
         public_client = from_union([from_none, from_bool], obj.get("publicClient"))
         return McpOauthRequiredStaticClientConfig(
             client_id=client_id,
+            client_secret=client_secret,
             grant_type=grant_type,
             public_client=public_client,
         )
@@ -2936,6 +3392,8 @@ class McpOauthRequiredStaticClientConfig:
     def to_dict(self) -> dict:
         result: dict = {}
         result["clientId"] = from_str(self.client_id)
+        if self.client_secret is not None:
+            result["clientSecret"] = from_union([from_none, from_str], self.client_secret)
         if self.grant_type is not None:
             result["grantType"] = from_union([from_none, from_str], self.grant_type)
         if self.public_client is not None:
@@ -2946,27 +3404,28 @@ class McpOauthRequiredStaticClientConfig:
 @dataclass
 class McpOauthWWWAuthenticateParams:
     "OAuth WWW-Authenticate parameters parsed from an MCP auth challenge"
-    resource_metadata_url: str
     error: str | None = None
+    resource_metadata_url: str | None = None
     scope: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "McpOauthWWWAuthenticateParams":
         assert isinstance(obj, dict)
-        resource_metadata_url = from_str(obj.get("resourceMetadataUrl"))
         error = from_union([from_none, from_str], obj.get("error"))
+        resource_metadata_url = from_union([from_none, from_str], obj.get("resourceMetadataUrl"))
         scope = from_union([from_none, from_str], obj.get("scope"))
         return McpOauthWWWAuthenticateParams(
-            resource_metadata_url=resource_metadata_url,
             error=error,
+            resource_metadata_url=resource_metadata_url,
             scope=scope,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["resourceMetadataUrl"] = from_str(self.resource_metadata_url)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
+        if self.resource_metadata_url is not None:
+            result["resourceMetadataUrl"] = from_union([from_none, from_str], self.resource_metadata_url)
         if self.scope is not None:
             result["scope"] = from_union([from_none, from_str], self.scope)
         return result
@@ -4319,6 +4778,31 @@ class PersistedBinaryImage:
 
 
 @dataclass
+class ResponseBudgetConfig:
+    "Optional response budget limits."
+    max_ai_credits: float | None = None
+    max_model_iterations: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ResponseBudgetConfig":
+        assert isinstance(obj, dict)
+        max_ai_credits = from_union([from_none, from_float], obj.get("maxAiCredits"))
+        max_model_iterations = from_union([from_none, from_int], obj.get("maxModelIterations"))
+        return ResponseBudgetConfig(
+            max_ai_credits=max_ai_credits,
+            max_model_iterations=max_model_iterations,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_ai_credits is not None:
+            result["maxAiCredits"] = from_union([from_none, to_float], self.max_ai_credits)
+        if self.max_model_iterations is not None:
+            result["maxModelIterations"] = from_union([from_none, to_int], self.max_model_iterations)
+        return result
+
+
+@dataclass
 class SamplingCompletedData:
     "Sampling request completion notification signaling UI dismissal"
     request_id: str
@@ -5097,6 +5581,7 @@ class SessionResumeData:
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
+    response_budget: ResponseBudgetConfig | None = None
     selected_model: str | None = None
     session_was_active: bool | None = None
 
@@ -5113,6 +5598,7 @@ class SessionResumeData:
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
+        response_budget = from_union([from_none, ResponseBudgetConfig.from_dict], obj.get("responseBudget"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
         session_was_active = from_union([from_none, from_bool], obj.get("sessionWasActive"))
         return SessionResumeData(
@@ -5126,6 +5612,7 @@ class SessionResumeData:
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
+            response_budget=response_budget,
             selected_model=selected_model,
             session_was_active=session_was_active,
         )
@@ -5150,6 +5637,8 @@ class SessionResumeData:
             result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
+        if self.response_budget is not None:
+            result["responseBudget"] = from_union([from_none, lambda x: to_class(ResponseBudgetConfig, x)], self.response_budget)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
         if self.session_was_active is not None:
@@ -5401,6 +5890,7 @@ class SessionStartData:
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
+    response_budget: ResponseBudgetConfig | None = None
     selected_model: str | None = None
 
     @staticmethod
@@ -5418,6 +5908,7 @@ class SessionStartData:
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
+        response_budget = from_union([from_none, ResponseBudgetConfig.from_dict], obj.get("responseBudget"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
         return SessionStartData(
             copilot_version=copilot_version,
@@ -5432,6 +5923,7 @@ class SessionStartData:
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
+            response_budget=response_budget,
             selected_model=selected_model,
         )
 
@@ -5456,6 +5948,8 @@ class SessionStartData:
             result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
+        if self.response_budget is not None:
+            result["responseBudget"] = from_union([from_none, lambda x: to_class(ResponseBudgetConfig, x)], self.response_budget)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
         return result
@@ -7091,6 +7585,7 @@ class ToolExecutionStartData:
     model: str | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
+    shell_tool_info: ToolExecutionStartShellToolInfo | None = None
     tool_description: ToolExecutionStartToolDescription | None = None
     turn_id: str | None = None
 
@@ -7105,6 +7600,7 @@ class ToolExecutionStartData:
         mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        shell_tool_info = from_union([from_none, ToolExecutionStartShellToolInfo.from_dict], obj.get("shellToolInfo"))
         tool_description = from_union([from_none, ToolExecutionStartToolDescription.from_dict], obj.get("toolDescription"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionStartData(
@@ -7116,6 +7612,7 @@ class ToolExecutionStartData:
             mcp_tool_name=mcp_tool_name,
             model=model,
             parent_tool_call_id=parent_tool_call_id,
+            shell_tool_info=shell_tool_info,
             tool_description=tool_description,
             turn_id=turn_id,
         )
@@ -7136,10 +7633,35 @@ class ToolExecutionStartData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
+        if self.shell_tool_info is not None:
+            result["shellToolInfo"] = from_union([from_none, lambda x: to_class(ToolExecutionStartShellToolInfo, x)], self.shell_tool_info)
         if self.tool_description is not None:
             result["toolDescription"] = from_union([from_none, lambda x: to_class(ToolExecutionStartToolDescription, x)], self.tool_description)
         if self.turn_id is not None:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
+        return result
+
+
+@dataclass
+class ToolExecutionStartShellToolInfo:
+    "Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs."
+    has_write_file_redirection: bool
+    possible_paths: list[str]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionStartShellToolInfo":
+        assert isinstance(obj, dict)
+        has_write_file_redirection = from_bool(obj.get("hasWriteFileRedirection"))
+        possible_paths = from_list(from_str, obj.get("possiblePaths"))
+        return ToolExecutionStartShellToolInfo(
+            has_write_file_redirection=has_write_file_redirection,
+            possible_paths=possible_paths,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hasWriteFileRedirection"] = from_bool(self.has_write_file_redirection)
+        result["possiblePaths"] = from_list(from_str, self.possible_paths)
         return result
 
 
@@ -7318,6 +7840,7 @@ class UserMessageData:
     content: str
     agent_mode: UserMessageAgentMode | None = None
     attachments: list[Attachment] | None = None
+    delivery: UserMessageDelivery | None = None
     interaction_id: str | None = None
     is_autopilot_continuation: bool | None = None
     native_document_path_fallback_paths: list[str] | None = None
@@ -7332,6 +7855,7 @@ class UserMessageData:
         content = from_str(obj.get("content"))
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
         attachments = from_union([from_none, lambda x: from_list(_load_Attachment, x)], obj.get("attachments"))
+        delivery = from_union([from_none, lambda x: parse_enum(UserMessageDelivery, x)], obj.get("delivery"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         is_autopilot_continuation = from_union([from_none, from_bool], obj.get("isAutopilotContinuation"))
         native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("nativeDocumentPathFallbackPaths"))
@@ -7343,6 +7867,7 @@ class UserMessageData:
             content=content,
             agent_mode=agent_mode,
             attachments=attachments,
+            delivery=delivery,
             interaction_id=interaction_id,
             is_autopilot_continuation=is_autopilot_continuation,
             native_document_path_fallback_paths=native_document_path_fallback_paths,
@@ -7359,6 +7884,8 @@ class UserMessageData:
             result["agentMode"] = from_union([from_none, lambda x: to_enum(UserMessageAgentMode, x)], self.agent_mode)
         if self.attachments is not None:
             result["attachments"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.attachments)
+        if self.delivery is not None:
+            result["delivery"] = from_union([from_none, lambda x: to_enum(UserMessageDelivery, x)], self.delivery)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.is_autopilot_continuation is not None:
@@ -7599,6 +8126,15 @@ def _load_Attachment(obj: Any) -> "Attachment":
         case "directory": return AttachmentDirectory.from_dict(obj)
         case "selection": return AttachmentSelection.from_dict(obj)
         case "github_reference": return AttachmentGitHubReference.from_dict(obj)
+        case "github_commit": return AttachmentGitHubCommit.from_dict(obj)
+        case "github_release": return AttachmentGitHubRelease.from_dict(obj)
+        case "github_actions_job": return AttachmentGitHubActionsJob.from_dict(obj)
+        case "github_repository": return AttachmentGitHubRepository.from_dict(obj)
+        case "github_file_diff": return AttachmentGitHubFileDiff.from_dict(obj)
+        case "github_tree_comparison": return AttachmentGitHubTreeComparison.from_dict(obj)
+        case "github_url": return AttachmentGitHubUrl.from_dict(obj)
+        case "github_file": return AttachmentGitHubFile.from_dict(obj)
+        case "github_snippet": return AttachmentGitHubSnippet.from_dict(obj)
         case "blob": return AttachmentBlob.from_dict(obj)
         case "extension_context": return AttachmentExtensionContext.from_dict(obj)
         case _: raise ValueError(f"Unknown Attachment type: {kind!r}")
@@ -7714,8 +8250,8 @@ ToolExecutionCompleteContent = ToolExecutionCompleteContentText | ToolExecutionC
 PersistedBinaryResult = PersistedBinaryImage | OmittedBinaryResult | BinaryAssetReference
 
 
-# A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload
-Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentBlob | AttachmentExtensionContext
+# A user message attachment — a file, directory, code selection, blob, GitHub reference, GitHub-anchored pointer, or extension-supplied context payload
+Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentGitHubCommit | AttachmentGitHubRelease | AttachmentGitHubActionsJob | AttachmentGitHubRepository | AttachmentGitHubFileDiff | AttachmentGitHubTreeComparison | AttachmentGitHubUrl | AttachmentGitHubFile | AttachmentGitHubSnippet | AttachmentBlob | AttachmentExtensionContext
 
 
 # Derived user-facing permission prompt details for UI consumers
@@ -7915,12 +8451,44 @@ class HandoffSourceType(Enum):
     LOCAL = "local"
 
 
+class McpHeadersRefreshCompletedOutcome(Enum):
+    "How the pending MCP headers refresh request resolved."
+    # The host supplied dynamic headers.
+    HEADERS = "headers"
+    # The host responded with no dynamic headers.
+    NONE = "none"
+    # No response arrived within the bounded window.
+    TIMEOUT = "timeout"
+
+
+class McpHeadersRefreshRequiredReason(Enum):
+    "Why dynamic headers are being requested."
+    # The transport is making its first dynamic header request for this server.
+    STARTUP = "startup"
+    # The previously cached dynamic headers expired.
+    TTL_EXPIRED = "ttl-expired"
+    # The server returned 401 and stale dynamic headers were invalidated.
+    AUTH_FAILED = "auth-failed"
+
+
 class McpOauthCompletionOutcome(Enum):
     "How the pending MCP OAuth request was completed"
     # The request completed with a token-backed OAuth provider.
     TOKEN = "token"
     # The request completed without an OAuth provider.
     CANCELLED = "cancelled"
+
+
+class McpOauthRequestReason(Enum):
+    "Reason the runtime is requesting host-provided MCP OAuth credentials"
+    # Initial credentials are required before connecting to the MCP server.
+    INITIAL = "initial"
+    # The current host-provided credential was rejected and a replacement is requested.
+    REFRESH = "refresh"
+    # The server requires a new host authorization flow before continuing.
+    REAUTH = "reauth"
+    # The server requires a credential with additional scope or audience.
+    UPSCOPE = "upscope"
 
 
 class McpServerSource(Enum):
@@ -8149,6 +8717,16 @@ class UserMessageAgentMode(Enum):
     SHELL = "shell"
 
 
+class UserMessageDelivery(Enum):
+    "How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn."
+    # Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent).
+    IDLE = "idle"
+    # Injected into the current in-flight run while the agent was busy (immediate mode).
+    STEERING = "steering"
+    # Enqueued while the agent was busy; processed as its own run afterward.
+    QUEUED = "queued"
+
+
 class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
     # Repository is hosted on GitHub.
@@ -8165,7 +8743,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -8229,6 +8807,7 @@ class SessionEvent:
             case SessionEventType.ASSISTANT_MESSAGE_START: data = AssistantMessageStartData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_MESSAGE_DELTA: data = AssistantMessageDeltaData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_TURN_END: data = AssistantTurnEndData.from_dict(data_obj)
+            case SessionEventType.ASSISTANT_IDLE: data = AssistantIdleData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_USAGE: data = AssistantUsageData.from_dict(data_obj)
             case SessionEventType.MODEL_CALL_FAILURE: data = ModelCallFailureData.from_dict(data_obj)
             case SessionEventType.ABORT: data = AbortData.from_dict(data_obj)
@@ -8259,6 +8838,8 @@ class SessionEvent:
             case SessionEventType.SAMPLING_COMPLETED: data = SamplingCompletedData.from_dict(data_obj)
             case SessionEventType.MCP_OAUTH_REQUIRED: data = McpOauthRequiredData.from_dict(data_obj)
             case SessionEventType.MCP_OAUTH_COMPLETED: data = McpOauthCompletedData.from_dict(data_obj)
+            case SessionEventType.MCP_HEADERS_REFRESH_REQUIRED: data = McpHeadersRefreshRequiredData.from_dict(data_obj)
+            case SessionEventType.MCP_HEADERS_REFRESH_COMPLETED: data = McpHeadersRefreshCompletedData.from_dict(data_obj)
             case SessionEventType.SESSION_CUSTOM_NOTIFICATION: data = SessionCustomNotificationData.from_dict(data_obj)
             case SessionEventType.EXTERNAL_TOOL_REQUESTED: data = ExternalToolRequestedData.from_dict(data_obj)
             case SessionEventType.EXTERNAL_TOOL_COMPLETED: data = ExternalToolCompletedData.from_dict(data_obj)
@@ -8322,6 +8903,7 @@ def session_event_to_dict(x: SessionEvent) -> Any:
 __all__ = [
     "AbortData",
     "AbortReason",
+    "AssistantIdleData",
     "AssistantIntentData",
     "AssistantMessageData",
     "AssistantMessageDeltaData",
@@ -8344,8 +8926,19 @@ __all__ = [
     "AttachmentExtensionContext",
     "AttachmentFile",
     "AttachmentFileLineRange",
+    "AttachmentGitHubActionsJob",
+    "AttachmentGitHubCommit",
+    "AttachmentGitHubFile",
+    "AttachmentGitHubFileDiff",
+    "AttachmentGitHubFileDiffSide",
     "AttachmentGitHubReference",
     "AttachmentGitHubReferenceType",
+    "AttachmentGitHubRelease",
+    "AttachmentGitHubRepository",
+    "AttachmentGitHubSnippet",
+    "AttachmentGitHubTreeComparison",
+    "AttachmentGitHubTreeComparisonSide",
+    "AttachmentGitHubUrl",
     "AttachmentSelection",
     "AttachmentSelectionDetails",
     "AttachmentSelectionDetailsEnd",
@@ -8397,6 +8990,7 @@ __all__ = [
     "ExtensionsLoadedExtensionStatus",
     "ExternalToolCompletedData",
     "ExternalToolRequestedData",
+    "GitHubRepoRef",
     "HandoffRepository",
     "HandoffSourceType",
     "HookEndData",
@@ -8407,8 +9001,13 @@ __all__ = [
     "McpAppToolCallCompleteError",
     "McpAppToolCallCompleteToolMeta",
     "McpAppToolCallCompleteToolMetaUI",
+    "McpHeadersRefreshCompletedData",
+    "McpHeadersRefreshCompletedOutcome",
+    "McpHeadersRefreshRequiredData",
+    "McpHeadersRefreshRequiredReason",
     "McpOauthCompletedData",
     "McpOauthCompletionOutcome",
+    "McpOauthRequestReason",
     "McpOauthRequiredData",
     "McpOauthRequiredStaticClientConfig",
     "McpOauthWWWAuthenticateParams",
@@ -8471,6 +9070,7 @@ __all__ = [
     "PlanChangedOperation",
     "RawSessionEventData",
     "ReasoningSummary",
+    "ResponseBudgetConfig",
     "SamplingCompletedData",
     "SamplingRequestedData",
     "SessionAutopilotObjectiveChangedData",
@@ -8577,6 +9177,7 @@ __all__ = [
     "ToolExecutionPartialResultData",
     "ToolExecutionProgressData",
     "ToolExecutionStartData",
+    "ToolExecutionStartShellToolInfo",
     "ToolExecutionStartToolDescription",
     "ToolExecutionStartToolDescriptionMeta",
     "ToolExecutionStartToolDescriptionMetaUI",
@@ -8586,6 +9187,7 @@ __all__ = [
     "UserInputRequestedData",
     "UserMessageAgentMode",
     "UserMessageData",
+    "UserMessageDelivery",
     "UserToolSessionApproval",
     "UserToolSessionApprovalCommands",
     "UserToolSessionApprovalCustomTool",

@@ -25,6 +25,7 @@ namespace GitHub.Copilot;
     TypeDiscriminatorPropertyName = "type",
     IgnoreUnrecognizedTypeDiscriminators = true)]
 [JsonDerivedType(typeof(AbortEvent), "abort")]
+[JsonDerivedType(typeof(AssistantIdleEvent), "assistant.idle")]
 [JsonDerivedType(typeof(AssistantIntentEvent), "assistant.intent")]
 [JsonDerivedType(typeof(AssistantMessageEvent), "assistant.message")]
 [JsonDerivedType(typeof(AssistantMessageDeltaEvent), "assistant.message_delta")]
@@ -52,6 +53,8 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(HookProgressEvent), "hook.progress")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
 [JsonDerivedType(typeof(McpAppToolCallCompleteEvent), "mcp_app.tool_call_complete")]
+[JsonDerivedType(typeof(McpHeadersRefreshCompletedEvent), "mcp.headers_refresh_completed")]
+[JsonDerivedType(typeof(McpHeadersRefreshRequiredEvent), "mcp.headers_refresh_required")]
 [JsonDerivedType(typeof(McpOauthCompletedEvent), "mcp.oauth_completed")]
 [JsonDerivedType(typeof(McpOauthRequiredEvent), "mcp.oauth_required")]
 [JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
@@ -655,6 +658,19 @@ public sealed partial class AssistantTurnEndEvent : SessionEvent
     public required AssistantTurnEndData Data { get; set; }
 }
 
+/// <summary>Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred.</summary>
+/// <remarks>Represents the <c>assistant.idle</c> event.</remarks>
+public sealed partial class AssistantIdleEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "assistant.idle";
+
+    /// <summary>The <c>assistant.idle</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AssistantIdleData Data { get; set; }
+}
+
 /// <summary>LLM API call usage metrics including tokens, costs, quotas, and billing information.</summary>
 /// <remarks>Represents the <c>assistant.usage</c> event.</remarks>
 public sealed partial class AssistantUsageEvent : SessionEvent
@@ -1044,6 +1060,32 @@ public sealed partial class McpOauthCompletedEvent : SessionEvent
     /// <summary>The <c>mcp.oauth_completed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required McpOauthCompletedData Data { get; set; }
+}
+
+/// <summary>Dynamic headers refresh request for a remote MCP server.</summary>
+/// <remarks>Represents the <c>mcp.headers_refresh_required</c> event.</remarks>
+public sealed partial class McpHeadersRefreshRequiredEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.headers_refresh_required";
+
+    /// <summary>The <c>mcp.headers_refresh_required</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpHeadersRefreshRequiredData Data { get; set; }
+}
+
+/// <summary>MCP headers refresh request completion notification.</summary>
+/// <remarks>Represents the <c>mcp.headers_refresh_completed</c> event.</remarks>
+public sealed partial class McpHeadersRefreshCompletedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.headers_refresh_completed";
+
+    /// <summary>The <c>mcp.headers_refresh_completed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpHeadersRefreshCompletedData Data { get; set; }
 }
 
 /// <summary>Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.</summary>
@@ -1449,6 +1491,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
 
+    /// <summary>Response budget limits configured at session creation time, if any.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("responseBudget")]
+    public ResponseBudgetConfig? ResponseBudget { get; set; }
+
     /// <summary>Model selected at session creation time, if any.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("selectedModel")]
@@ -1513,6 +1560,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
+
+    /// <summary>Response budget limits currently configured at resume time; null when no budget is active.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("responseBudget")]
+    public ResponseBudgetConfig? ResponseBudget { get; set; }
 
     /// <summary>ISO 8601 timestamp when the session was resumed.</summary>
     [JsonPropertyName("resumeTime")]
@@ -2202,6 +2254,11 @@ public sealed partial class UserMessageData
     [JsonPropertyName("content")]
     public required string Content { get; set; }
 
+    /// <summary>How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("delivery")]
+    public UserMessageDelivery? Delivery { get; set; }
+
     /// <summary>CAPI interaction ID for correlating this user message with its turn.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("interactionId")]
@@ -2424,6 +2481,15 @@ public sealed partial class AssistantTurnEndData
     /// <summary>Identifier of the turn that has ended, matching the corresponding assistant.turn_start event.</summary>
     [JsonPropertyName("turnId")]
     public required string TurnId { get; set; }
+}
+
+/// <summary>Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred.</summary>
+public sealed partial class AssistantIdleData
+{
+    /// <summary>True when the preceding agentic loop was cancelled via abort signal.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("aborted")]
+    public bool? Aborted { get; set; }
 }
 
 /// <summary>LLM API call usage metrics including tokens, costs, quotas, and billing information.</summary>
@@ -2675,6 +2741,11 @@ public sealed partial class ToolExecutionStartData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
+
+    /// <summary>Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("shellToolInfo")]
+    public ToolExecutionStartShellToolInfo? ShellToolInfo { get; set; }
 
     /// <summary>Unique identifier for this tool call.</summary>
     [JsonPropertyName("toolCallId")]
@@ -3244,6 +3315,10 @@ public sealed partial class SamplingCompletedData
 /// <summary>OAuth authentication request for an MCP server.</summary>
 public sealed partial class McpOauthRequiredData
 {
+    /// <summary>Why the runtime is requesting host-provided OAuth credentials.</summary>
+    [JsonPropertyName("reason")]
+    public required McpOauthRequestReason Reason { get; set; }
+
     /// <summary>Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -3280,6 +3355,38 @@ public sealed partial class McpOauthCompletedData
     public required McpOauthCompletionOutcome Outcome { get; set; }
 
     /// <summary>Request ID of the resolved OAuth request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+}
+
+/// <summary>Dynamic headers refresh request for a remote MCP server.</summary>
+public sealed partial class McpHeadersRefreshRequiredData
+{
+    /// <summary>Why dynamic headers are being requested.</summary>
+    [JsonPropertyName("reason")]
+    public required McpHeadersRefreshRequiredReason Reason { get; set; }
+
+    /// <summary>Unique identifier for this headers refresh request; used to respond via session.mcp.headers.handlePendingHeadersRefreshRequest().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Display name of the remote MCP server requesting headers.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>URL of the remote MCP server requesting headers.</summary>
+    [JsonPropertyName("serverUrl")]
+    public required string ServerUrl { get; set; }
+}
+
+/// <summary>MCP headers refresh request completion notification.</summary>
+public sealed partial class McpHeadersRefreshCompletedData
+{
+    /// <summary>How the pending MCP headers refresh request resolved.</summary>
+    [JsonPropertyName("outcome")]
+    public required McpHeadersRefreshCompletedOutcome Outcome { get; set; }
+
+    /// <summary>Request ID of the resolved headers refresh request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
 }
@@ -3800,6 +3907,21 @@ public sealed partial class WorkingDirectoryContext
     public string? RepositoryHost { get; set; }
 }
 
+/// <summary>Optional response budget limits.</summary>
+/// <remarks>Nested data type for <c>ResponseBudgetConfig</c>.</remarks>
+public sealed partial class ResponseBudgetConfig
+{
+    /// <summary>Maximum AI Credits allowed while responding to one top-level user message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxAiCredits")]
+    public double? MaxAiCredits { get; set; }
+
+    /// <summary>Maximum model-call iterations allowed while responding to one top-level user message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxModelIterations")]
+    public long? MaxModelIterations { get; set; }
+}
+
 /// <summary>Repository context for the handed-off session.</summary>
 /// <remarks>Nested data type for <c>HandoffRepository</c>.</remarks>
 public sealed partial class HandoffRepository
@@ -4173,6 +4295,276 @@ public sealed partial class AttachmentGitHubReference : Attachment
     public required string Url { get; set; }
 }
 
+/// <summary>Pointer to a GitHub repository.</summary>
+/// <remarks>Nested data type for <c>GitHubRepoRef</c>.</remarks>
+public sealed partial class GitHubRepoRef
+{
+    /// <summary>Numeric GitHub repository id.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
+    /// <summary>Repository name (without owner).</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Repository owner login (user or organization).</summary>
+    [JsonPropertyName("owner")]
+    public required string Owner { get; set; }
+}
+
+/// <summary>Pointer to a GitHub commit.</summary>
+/// <remarks>The <c>github_commit</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubCommit : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_commit";
+
+    /// <summary>First line of the commit message.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Full commit SHA.</summary>
+    [JsonPropertyName("oid")]
+    public required string Oid { get; set; }
+
+    /// <summary>Repository the commit belongs to.</summary>
+    [JsonPropertyName("repo")]
+    public required GitHubRepoRef Repo { get; set; }
+
+    /// <summary>URL to the commit on GitHub.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Pointer to a GitHub release.</summary>
+/// <remarks>The <c>github_release</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubRelease : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_release";
+
+    /// <summary>Human-readable release name.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Repository the release belongs to.</summary>
+    [JsonPropertyName("repo")]
+    public required GitHubRepoRef Repo { get; set; }
+
+    /// <summary>Git tag the release is anchored to.</summary>
+    [JsonPropertyName("tagName")]
+    public required string TagName { get; set; }
+
+    /// <summary>URL to the release on GitHub.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Pointer to a GitHub Actions job.</summary>
+/// <remarks>The <c>github_actions_job</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubActionsJob : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_actions_job";
+
+    /// <summary>Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent for in-progress jobs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("conclusion")]
+    public string? Conclusion { get; set; }
+
+    /// <summary>Job id within the workflow run.</summary>
+    [JsonPropertyName("jobId")]
+    public required long JobId { get; set; }
+
+    /// <summary>Display name of the job.</summary>
+    [JsonPropertyName("jobName")]
+    public required string JobName { get; set; }
+
+    /// <summary>Repository the workflow run belongs to.</summary>
+    [JsonPropertyName("repo")]
+    public required GitHubRepoRef Repo { get; set; }
+
+    /// <summary>URL to the job on GitHub.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+
+    /// <summary>Display name of the workflow the job ran in.</summary>
+    [JsonPropertyName("workflowName")]
+    public required string WorkflowName { get; set; }
+}
+
+/// <summary>Pointer to a GitHub repository.</summary>
+/// <remarks>The <c>github_repository</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubRepository : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_repository";
+
+    /// <summary>Short description of the repository.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Git ref this attachment is anchored at (branch, tag, or commit). When absent the default branch is implied.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ref")]
+    public string? Ref { get; set; }
+
+    /// <summary>Repository pointer.</summary>
+    [JsonPropertyName("repo")]
+    public required GitHubRepoRef Repo { get; set; }
+
+    /// <summary>URL to the repository on GitHub.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>One side of a file diff (head or base).</summary>
+/// <remarks>Nested data type for <c>AttachmentGitHubFileDiffSide</c>.</remarks>
+public sealed partial class AttachmentGitHubFileDiffSide
+{
+    /// <summary>Repository-relative path to the file.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    /// <summary>Git ref (branch, tag, or commit SHA) the file is read at.</summary>
+    [JsonPropertyName("ref")]
+    public required string Ref { get; set; }
+
+    /// <summary>Repository the file lives in.</summary>
+    [JsonPropertyName("repo")]
+    public required GitHubRepoRef Repo { get; set; }
+}
+
+/// <summary>Pointer to a single-file diff. At least one of `head` and `base` must be present.</summary>
+/// <remarks>The <c>github_file_diff</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubFileDiff : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_file_diff";
+
+    /// <summary>File location on the base side of the diff. Absent for additions.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("base")]
+    public AttachmentGitHubFileDiffSide? Base { get; set; }
+
+    /// <summary>File location on the head side of the diff. Absent for deletions.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("head")]
+    public AttachmentGitHubFileDiffSide? Head { get; set; }
+
+    /// <summary>URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL).</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>One side of a tree comparison (head or base).</summary>
+/// <remarks>Nested data type for <c>AttachmentGitHubTreeComparisonSide</c>.</remarks>
+public sealed partial class AttachmentGitHubTreeComparisonSide
+{
+    /// <summary>Repository the revision belongs to.</summary>
+    [JsonPropertyName("repo")]
+    public required GitHubRepoRef Repo { get; set; }
+
+    /// <summary>Git revision (branch, tag, or commit SHA).</summary>
+    [JsonPropertyName("revision")]
+    public required string Revision { get; set; }
+}
+
+/// <summary>Pointer to a comparison between two git revisions.</summary>
+/// <remarks>The <c>github_tree_comparison</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubTreeComparison : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_tree_comparison";
+
+    /// <summary>Base side of the comparison.</summary>
+    [JsonPropertyName("base")]
+    public required AttachmentGitHubTreeComparisonSide Base { get; set; }
+
+    /// <summary>Head side of the comparison.</summary>
+    [JsonPropertyName("head")]
+    public required AttachmentGitHubTreeComparisonSide Head { get; set; }
+
+    /// <summary>URL to the comparison on GitHub.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Generic GitHub URL reference.</summary>
+/// <remarks>The <c>github_url</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubUrl : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_url";
+
+    /// <summary>URL to the GitHub resource.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Pointer to a file in a GitHub repository at a specific ref.</summary>
+/// <remarks>The <c>github_file</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubFile : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_file";
+
+    /// <summary>Repository-relative path to the file.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    /// <summary>Git ref the file is read at (branch, tag, or commit SHA).</summary>
+    [JsonPropertyName("ref")]
+    public required string Ref { get; set; }
+
+    /// <summary>Repository the file lives in.</summary>
+    [JsonPropertyName("repo")]
+    public required GitHubRepoRef Repo { get; set; }
+
+    /// <summary>URL to the file on GitHub.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Pointer to a line range inside a file in a GitHub repository.</summary>
+/// <remarks>The <c>github_snippet</c> variant of <see cref="Attachment"/>.</remarks>
+public sealed partial class AttachmentGitHubSnippet : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "github_snippet";
+
+    /// <summary>Line range the snippet covers.</summary>
+    [JsonPropertyName("lineRange")]
+    public required AttachmentFileLineRange LineRange { get; set; }
+
+    /// <summary>Repository-relative path to the file.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    /// <summary>Git ref the file is read at (branch, tag, or commit SHA).</summary>
+    [JsonPropertyName("ref")]
+    public required string Ref { get; set; }
+
+    /// <summary>Repository the file lives in.</summary>
+    [JsonPropertyName("repo")]
+    public required GitHubRepoRef Repo { get; set; }
+
+    /// <summary>URL to the snippet on GitHub (with line anchor).</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
 /// <summary>Blob attachment with inline base64-encoded data.</summary>
 /// <remarks>The <c>blob</c> variant of <see cref="Attachment"/>.</remarks>
 public sealed partial class AttachmentBlob : Attachment
@@ -4250,7 +4642,7 @@ public sealed partial class AttachmentExtensionContext : Attachment
     public required string Title { get; set; }
 }
 
-/// <summary>A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload.</summary>
+/// <summary>A user message attachment — a file, directory, code selection, blob, GitHub reference, GitHub-anchored pointer, or extension-supplied context payload.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
@@ -4259,6 +4651,15 @@ public sealed partial class AttachmentExtensionContext : Attachment
 [JsonDerivedType(typeof(AttachmentDirectory), "directory")]
 [JsonDerivedType(typeof(AttachmentSelection), "selection")]
 [JsonDerivedType(typeof(AttachmentGitHubReference), "github_reference")]
+[JsonDerivedType(typeof(AttachmentGitHubCommit), "github_commit")]
+[JsonDerivedType(typeof(AttachmentGitHubRelease), "github_release")]
+[JsonDerivedType(typeof(AttachmentGitHubActionsJob), "github_actions_job")]
+[JsonDerivedType(typeof(AttachmentGitHubRepository), "github_repository")]
+[JsonDerivedType(typeof(AttachmentGitHubFileDiff), "github_file_diff")]
+[JsonDerivedType(typeof(AttachmentGitHubTreeComparison), "github_tree_comparison")]
+[JsonDerivedType(typeof(AttachmentGitHubUrl), "github_url")]
+[JsonDerivedType(typeof(AttachmentGitHubFile), "github_file")]
+[JsonDerivedType(typeof(AttachmentGitHubSnippet), "github_snippet")]
 [JsonDerivedType(typeof(AttachmentBlob), "blob")]
 [JsonDerivedType(typeof(AttachmentExtensionContext), "extension_context")]
 public partial class Attachment
@@ -4631,6 +5032,19 @@ public sealed partial class ModelCallFailureRequestFingerprint
     /// <summary>Number of "tool" result messages in the request.</summary>
     [JsonPropertyName("toolResultMessageCount")]
     public required long ToolResultMessageCount { get; set; }
+}
+
+/// <summary>Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionStartShellToolInfo</c>.</remarks>
+public sealed partial class ToolExecutionStartShellToolInfo
+{
+    /// <summary>Whether the command includes a file write redirection (e.g., &gt; or &gt;&gt;).</summary>
+    [JsonPropertyName("hasWriteFileRedirection")]
+    public required bool HasWriteFileRedirection { get; set; }
+
+    /// <summary>File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.</summary>
+    [JsonPropertyName("possiblePaths")]
+    public required string[] PossiblePaths { get; set; }
 }
 
 /// <summary>Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.</summary>
@@ -6620,6 +7034,11 @@ public sealed partial class McpOauthRequiredStaticClientConfig
     [JsonPropertyName("clientId")]
     public required string ClientId { get; set; }
 
+    /// <summary>Optional OAuth client secret for confidential static clients, when the runtime can resolve one.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clientSecret")]
+    public string? ClientSecret { get; set; }
+
     /// <summary>Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("grantType")]
@@ -6640,9 +7059,10 @@ public sealed partial class McpOauthWWWAuthenticateParams
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
-    /// <summary>Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter.</summary>
+    /// <summary>Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("resourceMetadataUrl")]
-    public required string ResourceMetadataUrl { get; set; }
+    public string? ResourceMetadataUrl { get; set; }
 
     /// <summary>Requested OAuth scopes from the WWW-Authenticate scope parameter, if present.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7725,6 +8145,70 @@ public readonly struct AttachmentGitHubReferenceType : IEquatable<AttachmentGitH
         public override void Write(Utf8JsonWriter writer, AttachmentGitHubReferenceType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AttachmentGitHubReferenceType));
+        }
+    }
+}
+
+/// <summary>How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct UserMessageDelivery : IEquatable<UserMessageDelivery>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="UserMessageDelivery"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="UserMessageDelivery"/>.</param>
+    [JsonConstructor]
+    public UserMessageDelivery(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="UserMessageDelivery"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent).</summary>
+    public static UserMessageDelivery Idle { get; } = new("idle");
+
+    /// <summary>Injected into the current in-flight run while the agent was busy (immediate mode).</summary>
+    public static UserMessageDelivery Steering { get; } = new("steering");
+
+    /// <summary>Enqueued while the agent was busy; processed as its own run afterward.</summary>
+    public static UserMessageDelivery Queued { get; } = new("queued");
+
+    /// <summary>Returns a value indicating whether two <see cref="UserMessageDelivery"/> instances are equivalent.</summary>
+    public static bool operator ==(UserMessageDelivery left, UserMessageDelivery right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="UserMessageDelivery"/> instances are not equivalent.</summary>
+    public static bool operator !=(UserMessageDelivery left, UserMessageDelivery right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is UserMessageDelivery other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(UserMessageDelivery other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{UserMessageDelivery}"/> for serializing <see cref="UserMessageDelivery"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<UserMessageDelivery>
+    {
+        /// <inheritdoc />
+        public override UserMessageDelivery Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, UserMessageDelivery value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageDelivery));
         }
     }
 }
@@ -9035,6 +9519,73 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
     }
 }
 
+/// <summary>Reason the runtime is requesting host-provided MCP OAuth credentials.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpOauthRequestReason : IEquatable<McpOauthRequestReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpOauthRequestReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpOauthRequestReason"/>.</param>
+    [JsonConstructor]
+    public McpOauthRequestReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpOauthRequestReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Initial credentials are required before connecting to the MCP server.</summary>
+    public static McpOauthRequestReason Initial { get; } = new("initial");
+
+    /// <summary>The current host-provided credential was rejected and a replacement is requested.</summary>
+    public static McpOauthRequestReason Refresh { get; } = new("refresh");
+
+    /// <summary>The server requires a new host authorization flow before continuing.</summary>
+    public static McpOauthRequestReason Reauth { get; } = new("reauth");
+
+    /// <summary>The server requires a credential with additional scope or audience.</summary>
+    public static McpOauthRequestReason Upscope { get; } = new("upscope");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOauthRequestReason"/> instances are equivalent.</summary>
+    public static bool operator ==(McpOauthRequestReason left, McpOauthRequestReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOauthRequestReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpOauthRequestReason left, McpOauthRequestReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpOauthRequestReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpOauthRequestReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpOauthRequestReason}"/> for serializing <see cref="McpOauthRequestReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpOauthRequestReason>
+    {
+        /// <inheritdoc />
+        public override McpOauthRequestReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpOauthRequestReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpOauthRequestReason));
+        }
+    }
+}
+
 /// <summary>How the pending MCP OAuth request was completed.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -9092,6 +9643,134 @@ public readonly struct McpOauthCompletionOutcome : IEquatable<McpOauthCompletion
         public override void Write(Utf8JsonWriter writer, McpOauthCompletionOutcome value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpOauthCompletionOutcome));
+        }
+    }
+}
+
+/// <summary>Why dynamic headers are being requested.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpHeadersRefreshRequiredReason : IEquatable<McpHeadersRefreshRequiredReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpHeadersRefreshRequiredReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpHeadersRefreshRequiredReason"/>.</param>
+    [JsonConstructor]
+    public McpHeadersRefreshRequiredReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpHeadersRefreshRequiredReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The transport is making its first dynamic header request for this server.</summary>
+    public static McpHeadersRefreshRequiredReason Startup { get; } = new("startup");
+
+    /// <summary>The previously cached dynamic headers expired.</summary>
+    public static McpHeadersRefreshRequiredReason TtlExpired { get; } = new("ttl-expired");
+
+    /// <summary>The server returned 401 and stale dynamic headers were invalidated.</summary>
+    public static McpHeadersRefreshRequiredReason AuthFailed { get; } = new("auth-failed");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpHeadersRefreshRequiredReason"/> instances are equivalent.</summary>
+    public static bool operator ==(McpHeadersRefreshRequiredReason left, McpHeadersRefreshRequiredReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpHeadersRefreshRequiredReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpHeadersRefreshRequiredReason left, McpHeadersRefreshRequiredReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpHeadersRefreshRequiredReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpHeadersRefreshRequiredReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpHeadersRefreshRequiredReason}"/> for serializing <see cref="McpHeadersRefreshRequiredReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpHeadersRefreshRequiredReason>
+    {
+        /// <inheritdoc />
+        public override McpHeadersRefreshRequiredReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpHeadersRefreshRequiredReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpHeadersRefreshRequiredReason));
+        }
+    }
+}
+
+/// <summary>How the pending MCP headers refresh request resolved.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpHeadersRefreshCompletedOutcome : IEquatable<McpHeadersRefreshCompletedOutcome>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpHeadersRefreshCompletedOutcome"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpHeadersRefreshCompletedOutcome"/>.</param>
+    [JsonConstructor]
+    public McpHeadersRefreshCompletedOutcome(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpHeadersRefreshCompletedOutcome"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The host supplied dynamic headers.</summary>
+    public static McpHeadersRefreshCompletedOutcome Headers { get; } = new("headers");
+
+    /// <summary>The host responded with no dynamic headers.</summary>
+    public static McpHeadersRefreshCompletedOutcome None { get; } = new("none");
+
+    /// <summary>No response arrived within the bounded window.</summary>
+    public static McpHeadersRefreshCompletedOutcome Timeout { get; } = new("timeout");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpHeadersRefreshCompletedOutcome"/> instances are equivalent.</summary>
+    public static bool operator ==(McpHeadersRefreshCompletedOutcome left, McpHeadersRefreshCompletedOutcome right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpHeadersRefreshCompletedOutcome"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpHeadersRefreshCompletedOutcome left, McpHeadersRefreshCompletedOutcome right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpHeadersRefreshCompletedOutcome other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpHeadersRefreshCompletedOutcome other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpHeadersRefreshCompletedOutcome}"/> for serializing <see cref="McpHeadersRefreshCompletedOutcome"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpHeadersRefreshCompletedOutcome>
+    {
+        /// <inheritdoc />
+        public override McpHeadersRefreshCompletedOutcome Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpHeadersRefreshCompletedOutcome value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpHeadersRefreshCompletedOutcome));
         }
     }
 }
@@ -9651,6 +10330,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AbortData))]
 [JsonSerializable(typeof(AbortEvent))]
+[JsonSerializable(typeof(AssistantIdleData))]
+[JsonSerializable(typeof(AssistantIdleEvent))]
 [JsonSerializable(typeof(AssistantIntentData))]
 [JsonSerializable(typeof(AssistantIntentEvent))]
 [JsonSerializable(typeof(AssistantMessageData))]
@@ -9682,7 +10363,18 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AttachmentExtensionContext))]
 [JsonSerializable(typeof(AttachmentFile))]
 [JsonSerializable(typeof(AttachmentFileLineRange))]
+[JsonSerializable(typeof(AttachmentGitHubActionsJob))]
+[JsonSerializable(typeof(AttachmentGitHubCommit))]
+[JsonSerializable(typeof(AttachmentGitHubFile))]
+[JsonSerializable(typeof(AttachmentGitHubFileDiff))]
+[JsonSerializable(typeof(AttachmentGitHubFileDiffSide))]
 [JsonSerializable(typeof(AttachmentGitHubReference))]
+[JsonSerializable(typeof(AttachmentGitHubRelease))]
+[JsonSerializable(typeof(AttachmentGitHubRepository))]
+[JsonSerializable(typeof(AttachmentGitHubSnippet))]
+[JsonSerializable(typeof(AttachmentGitHubTreeComparison))]
+[JsonSerializable(typeof(AttachmentGitHubTreeComparisonSide))]
+[JsonSerializable(typeof(AttachmentGitHubUrl))]
 [JsonSerializable(typeof(AttachmentSelection))]
 [JsonSerializable(typeof(AttachmentSelectionDetails))]
 [JsonSerializable(typeof(AttachmentSelectionDetailsEnd))]
@@ -9735,6 +10427,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ExternalToolCompletedEvent))]
 [JsonSerializable(typeof(ExternalToolRequestedData))]
 [JsonSerializable(typeof(ExternalToolRequestedEvent))]
+[JsonSerializable(typeof(GitHubRepoRef))]
 [JsonSerializable(typeof(HandoffRepository))]
 [JsonSerializable(typeof(HookEndData))]
 [JsonSerializable(typeof(HookEndError))]
@@ -9748,6 +10441,10 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(McpAppToolCallCompleteEvent))]
 [JsonSerializable(typeof(McpAppToolCallCompleteToolMeta))]
 [JsonSerializable(typeof(McpAppToolCallCompleteToolMetaUI))]
+[JsonSerializable(typeof(McpHeadersRefreshCompletedData))]
+[JsonSerializable(typeof(McpHeadersRefreshCompletedEvent))]
+[JsonSerializable(typeof(McpHeadersRefreshRequiredData))]
+[JsonSerializable(typeof(McpHeadersRefreshRequiredEvent))]
 [JsonSerializable(typeof(McpOauthCompletedData))]
 [JsonSerializable(typeof(McpOauthCompletedEvent))]
 [JsonSerializable(typeof(McpOauthRequiredData))]
@@ -9803,6 +10500,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionRule))]
 [JsonSerializable(typeof(PersistedBinaryImage))]
 [JsonSerializable(typeof(PersistedBinaryResult))]
+[JsonSerializable(typeof(ResponseBudgetConfig))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
@@ -9956,6 +10654,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionProgressEvent))]
 [JsonSerializable(typeof(ToolExecutionStartData))]
 [JsonSerializable(typeof(ToolExecutionStartEvent))]
+[JsonSerializable(typeof(ToolExecutionStartShellToolInfo))]
 [JsonSerializable(typeof(ToolExecutionStartToolDescription))]
 [JsonSerializable(typeof(ToolExecutionStartToolDescriptionMeta))]
 [JsonSerializable(typeof(ToolExecutionStartToolDescriptionMetaUI))]

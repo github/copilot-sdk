@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Authentication status and account metadata for the session.
+ * MCP headers refresh request id and the host response.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,18 +23,12 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionAuthGetStatusResult(
-    /** Whether the session has resolved authentication */
-    @JsonProperty("isAuthenticated") Boolean isAuthenticated,
-    /** Authentication type */
-    @JsonProperty("authType") AuthInfoType authType,
-    /** Authentication host URL */
-    @JsonProperty("host") String host,
-    /** Authenticated login/username, if available */
-    @JsonProperty("login") String login,
-    /** Human-readable authentication status description */
-    @JsonProperty("statusMessage") String statusMessage,
-    /** Copilot plan tier (e.g., individual_pro, business) */
-    @JsonProperty("copilotPlan") String copilotPlan
+public record SessionMcpHeadersHandlePendingHeadersRefreshRequestParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Headers refresh request identifier from mcp.headers_refresh_required */
+    @JsonProperty("requestId") String requestId,
+    /** Host response: supply dynamic headers or decline this refresh. */
+    @JsonProperty("result") Object result
 ) {
 }

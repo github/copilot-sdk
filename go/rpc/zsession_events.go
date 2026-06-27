@@ -54,6 +54,7 @@ type SessionEventType string
 
 const (
 	SessionEventTypeAbort                            SessionEventType = "abort"
+	SessionEventTypeAssistantIdle                    SessionEventType = "assistant.idle"
 	SessionEventTypeAssistantIntent                  SessionEventType = "assistant.intent"
 	SessionEventTypeAssistantMessage                 SessionEventType = "assistant.message"
 	SessionEventTypeAssistantMessageDelta            SessionEventType = "assistant.message_delta"
@@ -81,6 +82,8 @@ const (
 	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
 	SessionEventTypeHookStart                        SessionEventType = "hook.start"
 	SessionEventTypeMCPAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMCPHeadersRefreshCompleted       SessionEventType = "mcp.headers_refresh_completed"
+	SessionEventTypeMCPHeadersRefreshRequired        SessionEventType = "mcp.headers_refresh_required"
 	SessionEventTypeMCPOauthCompleted                SessionEventType = "mcp.oauth_completed"
 	SessionEventTypeMCPOauthRequired                 SessionEventType = "mcp.oauth_required"
 	SessionEventTypeModelCallFailure                 SessionEventType = "model.call_failure"
@@ -453,6 +456,23 @@ type SessionCanvasRemovedData struct {
 func (*SessionCanvasRemovedData) sessionEventData()      {}
 func (*SessionCanvasRemovedData) Type() SessionEventType { return SessionEventTypeSessionCanvasRemoved }
 
+// Dynamic headers refresh request for a remote MCP server
+type MCPHeadersRefreshRequiredData struct {
+	// Why dynamic headers are being requested.
+	Reason MCPHeadersRefreshRequiredReason `json:"reason"`
+	// Unique identifier for this headers refresh request; used to respond via session.mcp.headers.handlePendingHeadersRefreshRequest()
+	RequestID string `json:"requestId"`
+	// Display name of the remote MCP server requesting headers
+	ServerName string `json:"serverName"`
+	// URL of the remote MCP server requesting headers
+	ServerURL string `json:"serverUrl"`
+}
+
+func (*MCPHeadersRefreshRequiredData) sessionEventData() {}
+func (*MCPHeadersRefreshRequiredData) Type() SessionEventType {
+	return SessionEventTypeMCPHeadersRefreshRequired
+}
+
 // Elicitation request completion with the user's response
 type ElicitationCompletedData struct {
 	// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
@@ -744,6 +764,19 @@ type MCPOauthCompletedData struct {
 func (*MCPOauthCompletedData) sessionEventData()      {}
 func (*MCPOauthCompletedData) Type() SessionEventType { return SessionEventTypeMCPOauthCompleted }
 
+// MCP headers refresh request completion notification
+type MCPHeadersRefreshCompletedData struct {
+	// How the pending MCP headers refresh request resolved.
+	Outcome MCPHeadersRefreshCompletedOutcome `json:"outcome"`
+	// Request ID of the resolved headers refresh request
+	RequestID string `json:"requestId"`
+}
+
+func (*MCPHeadersRefreshCompletedData) sessionEventData() {}
+func (*MCPHeadersRefreshCompletedData) Type() SessionEventType {
+	return SessionEventTypeMCPHeadersRefreshCompleted
+}
+
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
 	// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
@@ -780,6 +813,8 @@ func (*SessionRemoteSteerableChangedData) Type() SessionEventType {
 
 // OAuth authentication request for an MCP server
 type MCPOauthRequiredData struct {
+	// Why the runtime is requesting host-provided OAuth credentials.
+	Reason MCPOauthRequestReason `json:"reason"`
 	// Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
 	RequestID string `json:"requestId"`
 	// Raw OAuth protected-resource metadata document fetched for the MCP server, if available
@@ -815,6 +850,15 @@ func (*SessionCustomNotificationData) sessionEventData() {}
 func (*SessionCustomNotificationData) Type() SessionEventType {
 	return SessionEventTypeSessionCustomNotification
 }
+
+// Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
+type AssistantIdleData struct {
+	// True when the preceding agentic loop was cancelled via abort signal
+	Aborted *bool `json:"aborted,omitempty"`
+}
+
+func (*AssistantIdleData) sessionEventData()      {}
+func (*AssistantIdleData) Type() SessionEventType { return SessionEventTypeAssistantIdle }
 
 // Payload indicating the session is idle with no background agents or attached shell commands in flight
 type SessionIdleData struct {
@@ -1165,6 +1209,8 @@ type UserMessageData struct {
 	Attachments []Attachment `json:"attachments,omitzero"`
 	// The user's message text as displayed in the timeline
 	Content string `json:"content"`
+	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
+	Delivery *UserMessageDelivery `json:"delivery,omitempty"`
 	// CAPI interaction ID for correlating this user message with its turn
 	InteractionID *string `json:"interactionId,omitempty"`
 	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
@@ -1247,6 +1293,8 @@ type SessionStartData struct {
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
+	// Response budget limits configured at session creation time, if any
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Model selected at session creation time, if any
 	SelectedModel *string `json:"selectedModel,omitempty"`
 	// Unique identifier for the session
@@ -1280,6 +1328,8 @@ type SessionResumeData struct {
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
+	// Response budget limits currently configured at resume time; null when no budget is active
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// ISO 8601 timestamp when the session was resumed
 	ResumeTime time.Time `json:"resumeTime"`
 	// Model currently selected at resume time
@@ -1610,6 +1660,8 @@ type ToolExecutionStartData struct {
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
+	// Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
+	ShellToolInfo *ToolExecutionStartShellToolInfo `json:"shellToolInfo,omitempty"`
 	// Unique identifier for this tool call
 	ToolCallID string `json:"toolCallId"`
 	// Tool definition metadata, present for MCP tools with MCP Apps support
@@ -2145,6 +2197,8 @@ type MCPAppToolCallCompleteToolMetaUI struct {
 type MCPOauthRequiredStaticClientConfig struct {
 	// OAuth client ID for the server
 	ClientID string `json:"clientId"`
+	// Optional OAuth client secret for confidential static clients, when the runtime can resolve one
+	ClientSecret *string `json:"clientSecret,omitempty"`
 	// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
 	GrantType *MCPOauthRequiredStaticClientConfigGrantType `json:"grantType,omitempty"`
 	// Whether this is a public OAuth client
@@ -2155,8 +2209,8 @@ type MCPOauthRequiredStaticClientConfig struct {
 type MCPOauthWwwAuthenticateParams struct {
 	// OAuth error from the WWW-Authenticate error parameter, if present
 	Error *string `json:"error,omitempty"`
-	// Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter
-	ResourceMetadataURL string `json:"resourceMetadataUrl"`
+	// Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present
+	ResourceMetadataURL *string `json:"resourceMetadataUrl,omitempty"`
 	// Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
 	Scope *string `json:"scope,omitempty"`
 }
@@ -3264,6 +3318,14 @@ type ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation struct {
 type ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone struct {
 }
 
+// Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
+type ToolExecutionStartShellToolInfo struct {
+	// Whether the command includes a file write redirection (e.g., > or >>).
+	HasWriteFileRedirection bool `json:"hasWriteFileRedirection"`
+	// File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
+	PossiblePaths []string `json:"possiblePaths"`
+}
+
 // Tool definition metadata, present for MCP tools with MCP Apps support
 type ToolExecutionStartToolDescription struct {
 	// Tool description
@@ -3494,6 +3556,30 @@ const (
 	HandoffSourceTypeRemote HandoffSourceType = "remote"
 )
 
+// How the pending MCP headers refresh request resolved.
+type MCPHeadersRefreshCompletedOutcome string
+
+const (
+	// The host supplied dynamic headers.
+	MCPHeadersRefreshCompletedOutcomeHeaders MCPHeadersRefreshCompletedOutcome = "headers"
+	// The host responded with no dynamic headers.
+	MCPHeadersRefreshCompletedOutcomeNone MCPHeadersRefreshCompletedOutcome = "none"
+	// No response arrived within the bounded window.
+	MCPHeadersRefreshCompletedOutcomeTimeout MCPHeadersRefreshCompletedOutcome = "timeout"
+)
+
+// Why dynamic headers are being requested.
+type MCPHeadersRefreshRequiredReason string
+
+const (
+	// The server returned 401 and stale dynamic headers were invalidated.
+	MCPHeadersRefreshRequiredReasonAuthFailed MCPHeadersRefreshRequiredReason = "auth-failed"
+	// The transport is making its first dynamic header request for this server.
+	MCPHeadersRefreshRequiredReasonStartup MCPHeadersRefreshRequiredReason = "startup"
+	// The previously cached dynamic headers expired.
+	MCPHeadersRefreshRequiredReasonTtlExpired MCPHeadersRefreshRequiredReason = "ttl-expired"
+)
+
 // How the pending MCP OAuth request was completed
 type MCPOauthCompletionOutcome string
 
@@ -3502,6 +3588,20 @@ const (
 	MCPOauthCompletionOutcomeCancelled MCPOauthCompletionOutcome = "cancelled"
 	// The request completed with a token-backed OAuth provider.
 	MCPOauthCompletionOutcomeToken MCPOauthCompletionOutcome = "token"
+)
+
+// Reason the runtime is requesting host-provided MCP OAuth credentials
+type MCPOauthRequestReason string
+
+const (
+	// Initial credentials are required before connecting to the MCP server.
+	MCPOauthRequestReasonInitial MCPOauthRequestReason = "initial"
+	// The server requires a new host authorization flow before continuing.
+	MCPOauthRequestReasonReauth MCPOauthRequestReason = "reauth"
+	// The current host-provided credential was rejected and a replacement is requested.
+	MCPOauthRequestReasonRefresh MCPOauthRequestReason = "refresh"
+	// The server requires a credential with additional scope or audience.
+	MCPOauthRequestReasonUpscope MCPOauthRequestReason = "upscope"
 )
 
 // Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
@@ -3766,6 +3866,18 @@ const (
 	UserMessageAgentModePlan UserMessageAgentMode = "plan"
 	// The agent is in shell-focused UI mode.
 	UserMessageAgentModeShell UserMessageAgentMode = "shell"
+)
+
+// How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.
+type UserMessageDelivery string
+
+const (
+	// Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent).
+	UserMessageDeliveryIdle UserMessageDelivery = "idle"
+	// Enqueued while the agent was busy; processed as its own run afterward.
+	UserMessageDeliveryQueued UserMessageDelivery = "queued"
+	// Injected into the current in-flight run while the agent was busy (immediate mode).
+	UserMessageDeliverySteering UserMessageDelivery = "steering"
 )
 
 // Hosting platform type of the repository (github or ado)

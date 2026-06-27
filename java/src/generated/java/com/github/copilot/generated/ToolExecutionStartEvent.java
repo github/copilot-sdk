@@ -40,6 +40,8 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("toolName") String toolName,
         /** Arguments passed to the tool */
         @JsonProperty("arguments") Object arguments,
+        /** Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools. */
+        @JsonProperty("shellToolInfo") ToolExecutionStartShellToolInfo shellToolInfo,
         /** Model identifier that generated this tool call */
         @JsonProperty("model") String model,
         /** Name of the MCP server hosting this tool, when the tool is an MCP tool */

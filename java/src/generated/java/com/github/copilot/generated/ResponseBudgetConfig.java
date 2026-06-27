@@ -3,28 +3,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Indicates whether the credential update succeeded.
+ * Optional response budget limits.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionAuthSetCredentialsResult(
-    /** Whether the operation succeeded */
-    @JsonProperty("success") Boolean success
+public record ResponseBudgetConfig(
+    /** Maximum model-call iterations allowed while responding to one top-level user message. */
+    @JsonProperty("maxModelIterations") Long maxModelIterations,
+    /** Maximum AI Credits allowed while responding to one top-level user message. */
+    @JsonProperty("maxAiCredits") Double maxAiCredits
 ) {
 }

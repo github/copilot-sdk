@@ -24,6 +24,8 @@ public record ModelBilling(
     /** Billing cost multiplier relative to the base rate */
     @JsonProperty("multiplier") Double multiplier,
     /** Token-level pricing information for this model */
-    @JsonProperty("tokenPrices") ModelBillingTokenPrices tokenPrices
+    @JsonProperty("tokenPrices") ModelBillingTokenPrices tokenPrices,
+    /** Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models. */
+    @JsonProperty("discountPercent") Long discountPercent
 ) {
 }
