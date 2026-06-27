@@ -11,6 +11,7 @@ on:
         type: string
 if: "github.event_name == 'workflow_dispatch' || github.event.label.name == 'runtime triage'"
 permissions:
+  copilot-requests: write
   contents: read
   issues: read
   pull-requests: read
