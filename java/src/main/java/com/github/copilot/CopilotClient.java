@@ -573,7 +573,7 @@ public final class CopilotClient implements AutoCloseable {
                 registeredIdHolder[0] = localSessionId;
             }
 
-            var request = SessionRequestBuilder.buildCreateRequest(config, localSessionId);
+            var request = SessionRequestBuilder.buildCreateRequest(config, localSessionId, options.getMode());
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
@@ -610,6 +610,9 @@ public final class CopilotClient implements AutoCloseable {
                 }
                 if (request.getEnableSkills() == null) {
                     request.setEnableSkills(false);
+                }
+                if (request.getIsExperimentalMode() == null) {
+                    request.setIsExperimentalMode(false);
                 }
                 if (request.getMemory() == null) {
                     request.setMemory(new MemoryConfiguration().setEnabled(false));
@@ -715,7 +718,7 @@ public final class CopilotClient implements AutoCloseable {
                 session.registerTransformCallbacks(extracted.transformCallbacks());
             }
 
-            var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
+            var request = SessionRequestBuilder.buildResumeRequest(sessionId, config, options.getMode());
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
@@ -750,6 +753,9 @@ public final class CopilotClient implements AutoCloseable {
                 }
                 if (request.getEnableSkills() == null) {
                     request.setEnableSkills(false);
+                }
+                if (request.getIsExperimentalMode() == null) {
+                    request.setIsExperimentalMode(false);
                 }
                 if (request.getMemory() == null) {
                     request.setMemory(new MemoryConfiguration().setEnabled(false));

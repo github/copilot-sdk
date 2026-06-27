@@ -1653,6 +1653,63 @@ func TestCreateSessionRequest_RequestMCPApps(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_EnableExperimentalMode(t *testing.T) {
+	t.Run("create forwards enableExperimentalMode when explicitly false", func(t *testing.T) {
+		req := createSessionRequest{
+			IsExperimentalMode: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["isExperimentalMode"] != false {
+			t.Errorf("Expected isExperimentalMode to be false, got %v", m["isExperimentalMode"])
+		}
+	})
+
+	t.Run("create omits enableExperimentalMode when unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["isExperimentalMode"]; ok {
+			t.Error("Expected isExperimentalMode to be omitted when not set")
+		}
+	})
+
+	t.Run("resume forwards enableExperimentalMode when explicitly true", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:          "s1",
+			IsExperimentalMode: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["isExperimentalMode"] != true {
+			t.Errorf("Expected isExperimentalMode to be true, got %v", m["isExperimentalMode"])
+		}
+	})
+
+	t.Run("resume omits enableExperimentalMode when unset", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["isExperimentalMode"]; ok {
+			t.Error("Expected isExperimentalMode to be omitted when not set")
+		}
+	})
+}
+
 func TestResumeSessionRequest_RequestMCPApps(t *testing.T) {
 	t.Run("sends requestMcpApps flag when EnableMCPApps is set", func(t *testing.T) {
 		req := resumeSessionRequest{

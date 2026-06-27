@@ -1681,6 +1681,12 @@ export interface SessionConfigBase {
     reasoningSummary?: ReasoningSummary;
 
     /**
+     * Controls whether the session enables experimental features.
+     * Defaults to `false` in `"empty"` mode; otherwise the runtime decides when unset.
+     */
+    enableExperimentalMode?: boolean;
+
+    /**
      * Context window tier for models that support it. Use "long_context" to pin
      * the session to the long-context tier; omit or use "default" otherwise.
      */

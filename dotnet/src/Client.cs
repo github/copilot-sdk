@@ -751,6 +751,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         if (_options.Mode == CopilotClientMode.Empty)
         {
+            config.EnableExperimentalMode ??= false;
             config.EnableSessionTelemetry ??= false;
             config.SkipEmbeddingRetrieval ??= true;
             config.EmbeddingCacheStorage ??= EmbeddingCacheStorageMode.InMemory;
@@ -985,6 +986,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
+                config.EnableExperimentalMode,
                 config.OnPermissionRequest != null ? true : null,
                 config.OnUserInputRequest != null ? true : null,
                 config.OnExitPlanModeRequest != null ? true : null,
@@ -1185,6 +1187,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
+                config.EnableExperimentalMode,
                 config.OnPermissionRequest != null ? true : null,
                 config.OnUserInputRequest != null ? true : null,
                 config.OnExitPlanModeRequest != null ? true : null,
@@ -2427,6 +2430,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
+        bool? IsExperimentalMode,
         bool? RequestPermission,
         bool? RequestUserInput,
         bool? RequestExitPlanMode,
@@ -2521,6 +2525,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
+        bool? IsExperimentalMode,
         bool? RequestPermission,
         bool? RequestUserInput,
         bool? RequestExitPlanMode,

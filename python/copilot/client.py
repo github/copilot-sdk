@@ -37,6 +37,7 @@ from ._mode import (
     CopilotClientMode,
     ToolSet,
     _embedding_cache_storage_default,
+    _enable_experimental_mode_default,
     _enable_file_hooks_default,
     _enable_host_git_operations_default,
     _enable_on_demand_instruction_discovery_default,
@@ -1652,6 +1653,7 @@ class CopilotClient:
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        enable_experimental_mode: bool | None = None,
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
@@ -1730,6 +1732,9 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
+            enable_experimental_mode: Controls whether the session enables
+                experimental features. Defaults to ``False`` in ``"empty"``
+                mode; otherwise the runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -1898,6 +1903,7 @@ class CopilotClient:
         )
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
+        enable_experimental_mode = _enable_experimental_mode_default(mode, enable_experimental_mode)
 
         payload: dict[str, Any] = {}
         if model:
@@ -1908,6 +1914,8 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if reasoning_summary:
             payload["reasoningSummary"] = reasoning_summary
+        if enable_experimental_mode is not None:
+            payload["isExperimentalMode"] = enable_experimental_mode
         if context_tier:
             payload["contextTier"] = context_tier
         if tool_defs:
@@ -2274,6 +2282,7 @@ class CopilotClient:
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        enable_experimental_mode: bool | None = None,
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
@@ -2353,6 +2362,9 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
+            enable_experimental_mode: Controls whether the session enables
+                experimental features. Defaults to ``False`` in ``"empty"``
+                mode; otherwise the runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -2521,6 +2533,7 @@ class CopilotClient:
         )
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
+        enable_experimental_mode = _enable_experimental_mode_default(mode, enable_experimental_mode)
 
         payload: dict[str, Any] = {"sessionId": session_id}
 
@@ -2532,6 +2545,8 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if reasoning_summary:
             payload["reasoningSummary"] = reasoning_summary
+        if enable_experimental_mode is not None:
+            payload["isExperimentalMode"] = enable_experimental_mode
         if context_tier:
             payload["contextTier"] = context_tier
         if tool_defs:

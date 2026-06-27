@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ElicitationHandler;
@@ -98,6 +99,26 @@ public class SessionRequestBuilderTest {
         var config = new SessionConfig().setReasoningSummary("concise");
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
         assertEquals("concise", request.getReasoningSummary());
+    }
+
+    @Test
+    void testBuildCreateRequestSetsEnableExperimentalMode() {
+        var config = new SessionConfig().setEnableExperimentalMode(false);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertFalse(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildCreateRequestOmitsEnableExperimentalModeWhenNotSet() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        assertNull(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildCreateRequestDefaultsEnableExperimentalModeFalseInEmptyMode() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "sid-empty",
+                CopilotClientMode.EMPTY);
+        assertFalse(request.getIsExperimentalMode());
     }
 
     @Test
@@ -191,6 +212,27 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig();
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
         assertNull(request.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsEnableExperimentalMode() {
+        var config = new ResumeSessionConfig().setEnableExperimentalMode(true);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertTrue(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildResumeRequestOmitsEnableExperimentalModeWhenNotSet() {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertNull(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildResumeRequestDefaultsEnableExperimentalModeFalseInEmptyMode() {
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-empty", new ResumeSessionConfig(),
+                CopilotClientMode.EMPTY);
+        assertFalse(request.getIsExperimentalMode());
     }
 
     @Test

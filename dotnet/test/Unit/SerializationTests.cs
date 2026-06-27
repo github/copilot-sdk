@@ -570,6 +570,69 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeEnableExperimentalMode_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("IsExperimentalMode", false));
+        var createRoot = JsonDocument.Parse(JsonSerializer.Serialize(createRequest, createRequestType, options)).RootElement;
+        Assert.False(createRoot.GetProperty("isExperimentalMode").GetBoolean());
+
+        var createRequestOmitted = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"));
+        var createOmittedRoot = JsonDocument.Parse(JsonSerializer.Serialize(createRequestOmitted, createRequestType, options)).RootElement;
+        Assert.False(createOmittedRoot.TryGetProperty("isExperimentalMode", out _));
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("IsExperimentalMode", true));
+        var resumeRoot = JsonDocument.Parse(JsonSerializer.Serialize(resumeRequest, resumeRequestType, options)).RootElement;
+        Assert.True(resumeRoot.GetProperty("isExperimentalMode").GetBoolean());
+
+        var resumeRequestOmitted = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"));
+        var resumeOmittedRoot = JsonDocument.Parse(JsonSerializer.Serialize(resumeRequestOmitted, resumeRequestType, options)).RootElement;
+        Assert.False(resumeOmittedRoot.TryGetProperty("isExperimentalMode", out _));
+    }
+
+    [Fact]
+    public void ApplyConfigDefaultsForMode_EmptyDefaultsEnableExperimentalModeFalse()
+    {
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = System.IO.Path.GetTempPath(),
+        });
+        var config = new SessionConfig();
+
+        InvokeApplyConfigDefaultsForMode(client, config);
+
+        Assert.False(config.EnableExperimentalMode);
+    }
+
+    [Fact]
+    public void ApplyConfigDefaultsForMode_CopilotCliLeavesEnableExperimentalModeNull()
+    {
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            Mode = CopilotClientMode.CopilotCli,
+        });
+        var config = new ResumeSessionConfig();
+
+        InvokeApplyConfigDefaultsForMode(client, config);
+
+        Assert.Null(config.EnableExperimentalMode);
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableOnDemandInstructionDiscovery_WithSdkOptions()
     {
         var options = GetSerializerOptions();
@@ -835,6 +898,15 @@ public class SerializationTests
         var type = containingType.GetNestedType(name, System.Reflection.BindingFlags.NonPublic);
         Assert.NotNull(type);
         return type!;
+    }
+
+    private static void InvokeApplyConfigDefaultsForMode(CopilotClient client, SessionConfigBase config)
+    {
+        var method = typeof(CopilotClient).GetMethod(
+            "ApplyConfigDefaultsForMode",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        method!.Invoke(client, [config]);
     }
 
     [Fact]

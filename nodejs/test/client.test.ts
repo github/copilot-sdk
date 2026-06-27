@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { PassThrough } from "stream";
 import {
@@ -154,6 +157,100 @@ describe("CopilotClient", () => {
         )![1] as any;
         expect(createPayload.reasoningSummary).toBe("concise");
         expect(resumePayload.reasoningSummary).toBe("none");
+    });
+
+    it("forwards enableExperimentalMode in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            enableExperimentalMode: false,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            enableExperimentalMode: true,
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.isExperimentalMode).toBe(false);
+        expect(resumePayload.isExperimentalMode).toBe(true);
+    });
+
+    it("defaults enableExperimentalMode by client mode", async () => {
+        const baseDirectory = mkdtempSync(join(tmpdir(), "copilot-sdk-node-empty-"));
+        const emptyClient = new CopilotClient({ mode: "empty", baseDirectory });
+        await emptyClient.start();
+        onTestFinished(() => emptyClient.forceStop());
+
+        const emptySpy = vi
+            .spyOn((emptyClient as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const emptySession = await emptyClient.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+        });
+        await emptyClient.resumeSession(emptySession.sessionId, {
+            onPermissionRequest: approveAll,
+            availableTools: [],
+        });
+
+        const emptyCreatePayload = emptySpy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const emptyResumePayload = emptySpy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(emptyCreatePayload.isExperimentalMode).toBe(false);
+        expect(emptyResumePayload.isExperimentalMode).toBe(false);
+
+        const cliClient = new CopilotClient();
+        await cliClient.start();
+        onTestFinished(() => cliClient.forceStop());
+
+        const cliSpy = vi
+            .spyOn((cliClient as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const cliSession = await cliClient.createSession({
+            onPermissionRequest: approveAll,
+        });
+        await cliClient.resumeSession(cliSession.sessionId, {
+            onPermissionRequest: approveAll,
+        });
+
+        const cliCreatePayload = cliSpy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const cliResumePayload = cliSpy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(cliCreatePayload.isExperimentalMode).toBeUndefined();
+        expect(cliResumePayload.isExperimentalMode).toBeUndefined();
     });
 
     it("forwards contextTier in session.create and session.resume", async () => {
