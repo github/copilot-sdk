@@ -113,9 +113,7 @@ async def _dispose_isolated(client: CopilotClient, home: Path, fixture_dir: Path
 
 
 class TestRpcServerPlugins:
-    async def test_should_install_and_list_plugin_from_local_marketplace(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_install_and_list_plugin_from_local_marketplace(self, ctx: E2ETestContext):
         marketplace_dir = _create_local_marketplace_fixture(ctx)
         client, home = await _create_isolated_client(ctx)
         try:
