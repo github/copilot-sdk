@@ -1,0 +1,12 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          What is 19 + 23? Reply with just the number.
+          Answer the arithmetic question above.
+      - role: assistant
+        content: "42"

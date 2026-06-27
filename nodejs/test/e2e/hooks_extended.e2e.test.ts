@@ -7,6 +7,7 @@ import { z } from "zod";
 import { approveAll, defineTool } from "../../src/index.js";
 import type {
     ErrorOccurredHookInput,
+    PostUserPromptSubmittedHookInput,
     PostToolUseFailureHookInput,
     PostToolUseHookInput,
     PreToolUseHookInput,
@@ -145,6 +146,40 @@ describe("Extended session hooks", async () => {
         expect(inputs.length).toBeGreaterThan(0);
         expect(inputs[0].prompt).toContain("Say something else");
         expect(response?.data.content ?? "").toContain("HOOKED_PROMPT");
+
+        await session.disconnect();
+    });
+
+    it("should invoke postUserPromptSubmitted hook and modify transformed prompt", async () => {
+        const inputs: PostUserPromptSubmittedHookInput[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onPostUserPromptSubmitted: async (input, invocation) => {
+                    inputs.push(input);
+                    expect(invocation.sessionId).toBeTruthy();
+                    expect(input.prompt).toContain("Answer the arithmetic question above");
+                    expect(input.transformedPrompt).toContain("Answer the arithmetic question above");
+                    expect(input.transformedPrompt).toContain("<current_datetime>");
+
+                    return {
+                        modifiedTransformedPrompt: input.transformedPrompt.replace(
+                            /<current_datetime>.*?<\/current_datetime>\n*/s,
+                            "What is 19 + 23? Reply with just the number.\n"
+                        ),
+                    };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Answer the arithmetic question above.",
+        });
+
+        expect(inputs.length).toBeGreaterThan(0);
+        expect(inputs[0].timestamp).toBeInstanceOf(Date);
+        expect(inputs[0].workingDirectory).toBeDefined();
+        expect(response?.data.content ?? "").toContain("42");
 
         await session.disconnect();
     });
