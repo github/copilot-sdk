@@ -150,6 +150,7 @@ public class SessionEventSerializationTests
                 Data = new McpOauthRequiredData
                 {
                     RequestId = "oauth-request",
+                    Reason = McpOauthRequestReason.Initial,
                     ServerName = "oauth-server",
                     ServerUrl = "https://example.com/mcp",
                     StaticClientConfig = new McpOauthRequiredStaticClientConfig
