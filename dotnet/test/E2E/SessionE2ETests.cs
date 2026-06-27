@@ -34,7 +34,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Have_Stateful_Conversation()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
 
         var assistantMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
         Assert.NotNull(assistantMessage);
