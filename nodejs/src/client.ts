@@ -1448,6 +1448,7 @@ export class CopilotClient {
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
                 expAssignments: config.expAssignments,
+                internalCorrelationIds: config.internalCorrelationIds,
             });
 
             const {
@@ -1646,6 +1647,7 @@ export class CopilotClient {
                 remoteSession: config.remoteSession,
                 openCanvases: config.openCanvases,
                 expAssignments: config.expAssignments,
+                internalCorrelationIds: config.internalCorrelationIds,
             });
 
             const { workspacePath, capabilities, openCanvases } = response as {

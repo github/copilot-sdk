@@ -2165,6 +2165,9 @@ export interface SessionConfigBase {
      * @internal
      */
     expAssignments?: Record<string, unknown>;
+
+    /** @internal */
+    internalCorrelationIds?: Record<string, string>;
 }
 
 /**
