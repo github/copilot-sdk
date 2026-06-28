@@ -251,6 +251,70 @@ describe("CopilotClient", () => {
         expect(resumePayload.expAssignments).toBeUndefined();
     });
 
+    it("forwards internalCorrelationIds in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const correlationIds = {
+            cca_job_id: "job-123",
+            owner_id: "1",
+            repo_id: "2",
+        };
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            internalCorrelationIds: correlationIds,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            internalCorrelationIds: correlationIds,
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.internalCorrelationIds).toEqual(correlationIds);
+        expect(resumePayload.internalCorrelationIds).toEqual(correlationIds);
+    });
+
+    it("omits internalCorrelationIds from session.create and session.resume when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.internalCorrelationIds).toBeUndefined();
+        expect(resumePayload.internalCorrelationIds).toBeUndefined();
+    });
+
     it("forwards capi options in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();
