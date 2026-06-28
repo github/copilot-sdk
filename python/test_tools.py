@@ -7,10 +7,12 @@ from pydantic import BaseModel, Field
 
 from copilot import define_tool
 from copilot.tools import (
+    ToolBinaryResult,
     ToolInvocation,
     ToolResult,
     _normalize_result,
     convert_mcp_call_tool_result,
+    tool_result_to_external_tool_text_result_for_llm,
 )
 
 
@@ -427,3 +429,39 @@ class TestConvertMcpCallToolResult:
         result = _normalize_result({"content": [{"type": "text", "text": "hello"}]})
         parsed = json.loads(result.text_result_for_llm)
         assert parsed == {"content": [{"type": "text", "text": "hello"}]}
+
+
+class TestToolResultToExternalToolTextResultForLlm:
+    def test_forwards_binary_results_and_session_log(self):
+        tool_result = ToolResult(
+            text_result_for_llm="screenshot captured",
+            binary_results_for_llm=[
+                ToolBinaryResult(
+                    data="base64data",
+                    mime_type="image/png",
+                    type="image",
+                    description="screenshot.png",
+                )
+            ],
+            session_log="tool execution details",
+            tool_telemetry={"duration_ms": 42},
+        )
+
+        rpc_result = tool_result_to_external_tool_text_result_for_llm(tool_result)
+
+        assert rpc_result.text_result_for_llm == "screenshot captured"
+        assert rpc_result.session_log == "tool execution details"
+        assert rpc_result.tool_telemetry == {"duration_ms": 42}
+        assert rpc_result.binary_results_for_llm is not None
+        assert len(rpc_result.binary_results_for_llm) == 1
+        assert rpc_result.binary_results_for_llm[0].data == "base64data"
+        assert rpc_result.binary_results_for_llm[0].mime_type == "image/png"
+        assert rpc_result.binary_results_for_llm[0].type.value == "image"
+        assert rpc_result.binary_results_for_llm[0].description == "screenshot.png"
+
+    def test_omits_binary_results_when_none(self):
+        tool_result = ToolResult(text_result_for_llm="done")
+        rpc_result = tool_result_to_external_tool_text_result_for_llm(tool_result)
+        assert rpc_result.binary_results_for_llm is None
+        assert rpc_result.session_log is None
+

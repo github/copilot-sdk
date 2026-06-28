@@ -15,6 +15,12 @@ from typing import Any, Literal, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel
 
+from .generated.rpc import (
+    ExternalToolTextResultForLlm,
+    ExternalToolTextResultForLlmBinaryResultsForLlm,
+    ExternalToolTextResultForLlmBinaryResultsForLlmType,
+)
+
 ToolResultType = Literal["success", "failure", "rejected", "denied", "timeout"]
 
 
@@ -370,4 +376,30 @@ def convert_mcp_call_tool_result(call_result: dict[str, Any]) -> ToolResult:
         text_result_for_llm="\n".join(text_parts),
         result_type="failure" if call_result.get("isError") is True else "success",
         binary_results_for_llm=binary_results if binary_results else None,
+    )
+
+
+def tool_result_to_external_tool_text_result_for_llm(
+    tool_result: ToolResult,
+) -> ExternalToolTextResultForLlm:
+    """Convert a ToolResult into the RPC payload sent to HandlePendingToolCall."""
+    binary_results_for_llm = None
+    if tool_result.binary_results_for_llm:
+        binary_results_for_llm = [
+            ExternalToolTextResultForLlmBinaryResultsForLlm(
+                data=binary_result.data,
+                mime_type=binary_result.mime_type,
+                type=ExternalToolTextResultForLlmBinaryResultsForLlmType(binary_result.type),
+                description=binary_result.description or None,
+            )
+            for binary_result in tool_result.binary_results_for_llm
+        ]
+
+    return ExternalToolTextResultForLlm(
+        text_result_for_llm=tool_result.text_result_for_llm,
+        binary_results_for_llm=binary_results_for_llm,
+        error=tool_result.error,
+        result_type=tool_result.result_type,
+        session_log=tool_result.session_log,
+        tool_telemetry=tool_result.tool_telemetry,
     )
