@@ -2165,6 +2165,27 @@ export interface SessionConfigBase {
      * @internal
      */
     expAssignments?: Record<string, unknown>;
+
+    /**
+     * First-party session correlation IDs forwarded verbatim to the runtime,
+     * which stamps them onto every telemetry event emitted for the session
+     * (each entry becomes an `sdk_correlation_<key>` property). Intended for
+     * trusted hosts (e.g. the Copilot cloud agent) that need to join the
+     * runtime's CLI telemetry stream back to their own job/repo identifiers;
+     * `session_id` alone only correlates within a single invocation.
+     *
+     * Keys must match `^[a-z0-9][a-z0-9_]{0,63}$`; the runtime drops malformed
+     * keys, empty/oversized values, and anything beyond its per-session limit
+     * (fail-open). Applies to both session creation and resume.
+     *
+     * Deliberately not part of the public, typed SDK surface: it is stripped
+     * from the published type declarations so third-party integrators do not
+     * see it, while first-party hosts can still set it (via a cast) and have it
+     * threaded through to the runtime.
+     *
+     * @internal
+     */
+    internalCorrelationIds?: Record<string, string>;
 }
 
 /**
