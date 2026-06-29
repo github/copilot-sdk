@@ -33,6 +33,7 @@ from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
+from ._process import popen_process_group_kwargs, terminate_owned_cli_process
 from ._mode import (
     CopilotClientMode,
     ToolSet,
@@ -1549,30 +1550,18 @@ class CopilotClient:
         # never come. Once shutdown has completed (or failed) we terminate the
         # child immediately and only wait to reap it.
         if self._cli_process and not self._is_external_server:
-            poll = getattr(self._cli_process, "poll", None)
-            is_running = poll is None or poll() is None
-            if is_running:
-                self._cli_process.terminate()
-                try:
-                    await asyncio.to_thread(
-                        self._cli_process.wait,
-                        timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+            exited = await asyncio.to_thread(
+                terminate_owned_cli_process,
+                self._cli_process,
+                graceful=True,
+                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+            )
+            if not exited:
+                errors.append(
+                    StopError(
+                        message="Timed out waiting for CLI process tree to exit after kill"
                     )
-                except subprocess.TimeoutExpired:
-                    self._cli_process.kill()
-                    try:
-                        await asyncio.to_thread(
-                            self._cli_process.wait,
-                            timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                        )
-                    except subprocess.TimeoutExpired as e:
-                        errors.append(
-                            StopError(
-                                message=(
-                                    f"Timed out waiting for CLI process to exit after kill: {e}"
-                                )
-                            )
-                        )
+                )
             if self._process is self._cli_process:
                 self._process = None
             self._cli_process = None
@@ -1618,7 +1607,12 @@ class CopilotClient:
                     if self._process is not None and self._process is not self._cli_process:
                         self._process.terminate()
                     if self._cli_process is not None:
-                        self._cli_process.kill()
+                        await asyncio.to_thread(
+                            terminate_owned_cli_process,
+                            self._cli_process,
+                            graceful=False,
+                            timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                        )
                     self._process = None
                     self._cli_process = None
             except Exception:
@@ -3507,6 +3501,7 @@ class CopilotClient:
                 cwd=cwd,
                 env=env,
                 creationflags=creationflags,
+                **popen_process_group_kwargs(),
             )
             self._cli_process = self._process
         else:
@@ -3520,6 +3515,7 @@ class CopilotClient:
                 cwd=cwd,
                 env=env,
                 creationflags=creationflags,
+                **popen_process_group_kwargs(),
             )
             self._cli_process = self._process
         log_timing(
