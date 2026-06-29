@@ -52,8 +52,8 @@ public class HooksTest {
                 new SessionHooks().setOnPreToolUse(
                         (input, invocation) -> CompletableFuture.completedFuture(PreToolUseHookOutput.deny())),
                 new SessionHooks()
-                        .setOnPreToolUse((input, invocation) -> CompletableFuture
-                                .completedFuture(PreToolUseHookOutput.allow()))
+                        .setOnPreToolUse(
+                                (input, invocation) -> CompletableFuture.completedFuture(PreToolUseHookOutput.allow()))
                         .setOnPostToolUse((input, invocation) -> CompletableFuture
                                 .completedFuture((PostToolUseHookOutput) null)));
 

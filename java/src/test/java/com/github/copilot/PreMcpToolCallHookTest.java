@@ -19,7 +19,9 @@ import com.github.copilot.rpc.PreMcpToolCallHookOutput;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 
-/** Tests for SDK preMcpToolCall callback hook behavior with the native runtime. */
+/**
+ * Tests for SDK preMcpToolCall callback hook behavior with the native runtime.
+ */
 public class PreMcpToolCallHookTest {
 
     private static final String UNSUPPORTED_SDK_HOOKS_MESSAGE = "SDK hook callbacks are no longer supported";
