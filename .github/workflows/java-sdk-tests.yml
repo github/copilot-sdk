@@ -31,9 +31,7 @@ on:
   merge_group:
 
 permissions:
-  contents: write
-  checks: write
-  pull-requests: write
+  contents: read
 
 jobs:
   java-sdk:
