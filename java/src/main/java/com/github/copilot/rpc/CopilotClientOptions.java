@@ -11,10 +11,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.github.copilot.CopilotExperimental;
 import com.github.copilot.CopilotRequestHandler;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -57,6 +59,7 @@ public class CopilotClientOptions {
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private CopilotRequestHandler requestHandler;
+    private Consumer<GitHubTelemetryNotification> onGitHubTelemetry;
     private int port;
     private TelemetryConfig telemetry;
     private Integer sessionIdleTimeoutSeconds;
@@ -485,6 +488,41 @@ public class CopilotClientOptions {
     }
 
     /**
+     * Gets the connection-level GitHub telemetry redirection handler.
+     *
+     * <p>
+     * Experimental: this option may change or be removed without notice.
+     *
+     * @return the telemetry handler, or {@code null} if not set
+     */
+    @JsonIgnore
+    @CopilotExperimental
+    public Consumer<GitHubTelemetryNotification> getOnGitHubTelemetry() {
+        return onGitHubTelemetry;
+    }
+
+    /**
+     * Sets a connection-level handler for GitHub telemetry redirection
+     * (experimental).
+     *
+     * <p>
+     * When provided, the client opts every session it creates or resumes into
+     * telemetry redirection, and the runtime forwards each per-session telemetry
+     * event to this handler via the {@code gitHubTelemetry.event} notification.
+     *
+     * @param onGitHubTelemetry
+     *            the telemetry handler (must not be {@code null})
+     * @return this options instance for method chaining
+     * @throws IllegalArgumentException
+     *             if {@code onGitHubTelemetry} is {@code null}
+     */
+    @CopilotExperimental
+    public CopilotClientOptions setOnGitHubTelemetry(Consumer<GitHubTelemetryNotification> onGitHubTelemetry) {
+        this.onGitHubTelemetry = Objects.requireNonNull(onGitHubTelemetry, "onGitHubTelemetry must not be null");
+        return this;
+    }
+
+    /**
      * Gets the TCP port for the CLI server.
      *
      * @return the port number, or 0 for a random port
@@ -720,6 +758,7 @@ public class CopilotClientOptions {
         copy.logLevel = this.logLevel;
         copy.onListModels = this.onListModels;
         copy.requestHandler = this.requestHandler;
+        copy.onGitHubTelemetry = this.onGitHubTelemetry;
         copy.port = this.port;
         copy.remote = this.remote;
         copy.sessionIdleTimeoutSeconds = this.sessionIdleTimeoutSeconds;

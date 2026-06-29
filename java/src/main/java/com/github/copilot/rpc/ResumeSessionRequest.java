@@ -135,6 +135,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("includeSubAgentStreamingEvents")
     private Boolean includeSubAgentStreamingEvents;
 
+    @JsonProperty("enableGitHubTelemetryRedirection")
+    private Boolean enableGitHubTelemetryRedirection;
+
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
 
@@ -661,6 +664,27 @@ public final class ResumeSessionRequest {
      */
     public void clearIncludeSubAgentStreamingEvents() {
         this.includeSubAgentStreamingEvents = null;
+    }
+
+    /** Gets the GitHub telemetry redirection flag. @return the flag */
+    public Boolean getEnableGitHubTelemetryRedirection() {
+        return enableGitHubTelemetryRedirection;
+    }
+
+    /**
+     * Sets the GitHub telemetry redirection flag. @param
+     * enableGitHubTelemetryRedirection the flag
+     */
+    public void setEnableGitHubTelemetryRedirection(boolean enableGitHubTelemetryRedirection) {
+        this.enableGitHubTelemetryRedirection = enableGitHubTelemetryRedirection;
+    }
+
+    /**
+     * Clears the enableGitHubTelemetryRedirection setting, reverting to the default
+     * behavior.
+     */
+    public void clearEnableGitHubTelemetryRedirection() {
+        this.enableGitHubTelemetryRedirection = null;
     }
 
     /** Gets MCP servers. @return the servers map */
