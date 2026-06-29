@@ -449,7 +449,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         });
         var login = $"sdk-rpc-{Guid.NewGuid():N}";
 
-        var setCredentials = await session.Rpc.Auth.SetCredentialsAsync(new AuthInfoUser
+        var setCredentials = await session.Rpc.GitHubAuth.SetCredentialsAsync(new AuthInfoUser
         {
             CopilotUser = new CopilotUserResponse
             {
@@ -468,7 +468,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         });
         Assert.True(setCredentials.Success);
 
-        var status = await session.Rpc.Auth.GetStatusAsync();
+        var status = await session.Rpc.GitHubAuth.GetStatusAsync();
         Assert.True(status.IsAuthenticated);
         Assert.Equal(AuthInfoType.User, status.AuthType);
         Assert.Equal("https://github.com", status.Host);

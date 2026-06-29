@@ -29,8 +29,8 @@ public final class SessionRpc {
     private final RpcCaller caller;
     private final String sessionId;
 
-    /** API methods for the {@code auth} namespace. */
-    public final SessionAuthApi auth;
+    /** API methods for the {@code gitHubAuth} namespace. */
+    public final SessionGitHubAuthApi gitHubAuth;
     /** API methods for the {@code canvas} namespace. */
     public final SessionCanvasApi canvas;
     /** API methods for the {@code model} namespace. */
@@ -89,6 +89,8 @@ public final class SessionRpc {
     public final SessionUsageApi usage;
     /** API methods for the {@code remote} namespace. */
     public final SessionRemoteApi remote;
+    /** API methods for the {@code visibility} namespace. */
+    public final SessionVisibilityApi visibility;
     /** API methods for the {@code schedule} namespace. */
     public final SessionScheduleApi schedule;
 
@@ -101,7 +103,7 @@ public final class SessionRpc {
     public SessionRpc(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
-        this.auth = new SessionAuthApi(caller, sessionId);
+        this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
@@ -131,6 +133,7 @@ public final class SessionRpc {
         this.eventLog = new SessionEventLogApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
         this.remote = new SessionRemoteApi(caller, sessionId);
+        this.visibility = new SessionVisibilityApi(caller, sessionId);
         this.schedule = new SessionScheduleApi(caller, sessionId);
     }
 

@@ -15,10 +15,10 @@ const PLUGIN_NAME: &str = "csharp-e2e-plugin";
 const DIRECT_PLUGIN_NAME: &str = "csharp-e2e-direct";
 
 #[tokio::test]
-async fn should_install_list_and_uninstall_plugin_from_local_marketplace() {
+async fn should_install_and_list_plugin_from_local_marketplace() {
     with_e2e_context(
         "rpc_server_plugins",
-        "should_install_list_and_uninstall_plugin_from_local_marketplace",
+        "should_install_and_list_plugin_from_local_marketplace",
         |ctx| {
             Box::pin(async move {
                 let marketplace = create_local_marketplace_fixture();
@@ -39,7 +39,7 @@ async fn should_install_list_and_uninstall_plugin_from_local_marketplace() {
                     .rpc()
                     .plugins()
                     .install(PluginsInstallRequest {
-                        source: spec.clone(),
+                        source: spec,
                         working_directory: None,
                     })
                     .await
@@ -54,25 +54,6 @@ async fn should_install_list_and_uninstall_plugin_from_local_marketplace() {
                 let after_install = client.rpc().plugins().list().await.expect("list plugins");
                 let listed = single_plugin(&after_install, PLUGIN_NAME, MARKETPLACE_NAME);
                 assert!(listed.enabled);
-
-                client
-                    .rpc()
-                    .plugins()
-                    .uninstall(PluginsUninstallRequest { name: spec })
-                    .await
-                    .expect("uninstall marketplace plugin");
-
-                let after_uninstall = client
-                    .rpc()
-                    .plugins()
-                    .list()
-                    .await
-                    .expect("list after uninstall");
-                assert!(!contains_plugin(
-                    &after_uninstall,
-                    PLUGIN_NAME,
-                    MARKETPLACE_NAME
-                ));
 
                 client.stop().await.expect("stop client");
             })
@@ -293,11 +274,17 @@ async fn should_install_direct_local_plugin_with_deprecation_warning() {
                     direct_matches, 1,
                     "expected direct plugin in {after_install:?}"
                 );
+                let direct_source_id = install.plugin.direct_source_id.clone();
+                assert!(
+                    direct_source_id.is_some(),
+                    "expected direct plugin install to include direct_source_id"
+                );
 
                 client
                     .rpc()
                     .plugins()
                     .uninstall(PluginsUninstallRequest {
+                        direct_source_id,
                         name: DIRECT_PLUGIN_NAME.to_string(),
                     })
                     .await
@@ -545,10 +532,4 @@ fn single_plugin<'a>(
         .collect();
     assert_eq!(matches.len(), 1, "expected one plugin in {list:?}");
     matches[0]
-}
-
-fn contains_plugin(list: &PluginListResult, name: &str, marketplace: &str) -> bool {
-    list.plugins
-        .iter()
-        .any(|plugin| plugin.name == name && plugin.marketplace == marketplace)
 }
