@@ -122,6 +122,10 @@ func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {
 	if c.options.Mode != ModeEmpty {
 		return
 	}
+	if config.EnableExperimentalMode == nil {
+		f := false
+		config.EnableExperimentalMode = &f
+	}
 	if config.EnableSessionTelemetry == nil {
 		f := false
 		config.EnableSessionTelemetry = &f
@@ -165,6 +169,10 @@ func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {
 func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 	if c.options.Mode != ModeEmpty {
 		return
+	}
+	if config.EnableExperimentalMode == nil {
+		f := false
+		config.EnableExperimentalMode = &f
 	}
 	if config.EnableSessionTelemetry == nil {
 		f := false

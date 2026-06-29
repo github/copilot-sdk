@@ -1017,6 +1017,10 @@ type SessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// EnableExperimentalMode controls whether the session enables experimental
+	// features. When nil, it defaults to false in [ModeEmpty]; otherwise the
+	// runtime decides.
+	EnableExperimentalMode *bool
 	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
 	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
 	SkipCustomInstructions *bool
@@ -1376,6 +1380,10 @@ type ResumeSessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// EnableExperimentalMode controls whether the session enables experimental
+	// features. When nil, it defaults to false in [ModeEmpty]; otherwise the
+	// runtime decides.
+	EnableExperimentalMode *bool
 	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
 	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
 	SkipCustomInstructions *bool
@@ -1964,6 +1972,7 @@ type createSessionRequest struct {
 	Providers                          []NamedProviderConfig                  `json:"providers,omitempty"`
 	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
 	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`
@@ -2047,6 +2056,7 @@ type resumeSessionRequest struct {
 	Providers                          []NamedProviderConfig                  `json:"providers,omitempty"`
 	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
 	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`

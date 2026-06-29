@@ -55,6 +55,7 @@ public class SessionConfig {
     private List<NamedProviderConfig> providers;
     private List<ProviderModelConfig> models;
     private Boolean enableSessionTelemetry;
+    private Boolean enableExperimentalMode;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
@@ -481,6 +482,41 @@ public class SessionConfig {
      */
     public SessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Controls whether the session enables experimental features.
+     *
+     * @return {@code true} when experimental features are enabled, {@code false}
+     *         when they are disabled, or empty to use the mode-specific default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableExperimentalMode() {
+        return Optional.ofNullable(enableExperimentalMode);
+    }
+
+    /**
+     * Controls whether the session enables experimental features.
+     *
+     * @param enableExperimentalMode
+     *            {@code true} to enable experimental features; {@code false} to
+     *            disable them
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableExperimentalMode(boolean enableExperimentalMode) {
+        this.enableExperimentalMode = enableExperimentalMode;
+        return this;
+    }
+
+    /**
+     * Clears the enableExperimentalMode setting. In {@link CopilotClientMode#EMPTY
+     * EMPTY} mode this defaults to {@code false}; otherwise the runtime decides.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableExperimentalMode() {
+        this.enableExperimentalMode = null;
         return this;
     }
 
@@ -1792,6 +1828,7 @@ public class SessionConfig {
         copy.providers = this.providers != null ? new ArrayList<>(this.providers) : null;
         copy.models = this.models != null ? new ArrayList<>(this.models) : null;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
+        copy.enableExperimentalMode = this.enableExperimentalMode;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
         copy.coauthorEnabled = this.coauthorEnabled;

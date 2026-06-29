@@ -1659,6 +1659,11 @@ pub struct SessionConfig {
     ///
     /// Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
+    /// Controls whether the session enables experimental features.
+    ///
+    /// Defaults to `false` in [`crate::ClientMode::Empty`]. Otherwise, the
+    /// runtime decides when this is `None`.
+    pub enable_experimental_mode: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
@@ -1860,6 +1865,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("enable_session_store", &self.enable_session_store)
             .field("enable_skills", &self.enable_skills)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
+            .field("enable_experimental_mode", &self.enable_experimental_mode)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("plugin_directories", &self.plugin_directories)
@@ -1962,6 +1968,7 @@ impl Default for SessionConfig {
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
+            enable_experimental_mode: None,
             skill_directories: None,
             instruction_directories: None,
             plugin_directories: None,
@@ -2112,6 +2119,7 @@ impl SessionConfig {
             request_auto_mode_switch,
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            is_experimental_mode: self.enable_experimental_mode,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -2462,6 +2470,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set [`enable_experimental_mode`](Self::enable_experimental_mode).
+    pub fn with_enable_experimental_mode(mut self, enable_experimental_mode: bool) -> Self {
+        self.enable_experimental_mode = Some(enable_experimental_mode);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -2754,6 +2768,11 @@ pub struct ResumeSessionConfig {
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
     /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
+    /// Controls whether the session enables experimental features.
+    ///
+    /// Defaults to `false` in [`crate::ClientMode::Empty`]. Otherwise, the
+    /// runtime decides when this is `None`.
+    pub enable_experimental_mode: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
@@ -2923,6 +2942,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("enable_session_store", &self.enable_session_store)
             .field("enable_skills", &self.enable_skills)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
+            .field("enable_experimental_mode", &self.enable_experimental_mode)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("plugin_directories", &self.plugin_directories)
@@ -3071,6 +3091,7 @@ impl ResumeSessionConfig {
             request_auto_mode_switch,
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            is_experimental_mode: self.enable_experimental_mode,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -3153,6 +3174,7 @@ impl ResumeSessionConfig {
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
+            enable_experimental_mode: None,
             skill_directories: None,
             instruction_directories: None,
             plugin_directories: None,
@@ -3474,6 +3496,12 @@ impl ResumeSessionConfig {
     /// `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
     pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
         self.enable_mcp_apps = Some(enable);
+        self
+    }
+
+    /// Set [`enable_experimental_mode`](Self::enable_experimental_mode).
+    pub fn with_enable_experimental_mode(mut self, enable_experimental_mode: bool) -> Self {
+        self.enable_experimental_mode = Some(enable_experimental_mode);
         self
     }
 
@@ -5366,6 +5394,63 @@ mod tests {
         let (wire, _runtime) = cloned.into_wire().expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(json["expAssignments"], assignments);
+    }
+
+    #[test]
+    fn session_config_enable_experimental_mode_serializes_when_set() {
+        let cfg = SessionConfig::default().with_enable_experimental_mode(false);
+        assert_eq!(cfg.enable_experimental_mode, Some(false));
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("experimental-mode")))
+            .expect("enable_experimental_mode config has no duplicate handlers");
+        assert_eq!(wire.is_experimental_mode, Some(false));
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["isExperimentalMode"], serde_json::Value::Bool(false));
+    }
+
+    #[test]
+    fn session_config_enable_experimental_mode_omitted_when_none() {
+        let cfg = SessionConfig::default();
+        assert_eq!(cfg.enable_experimental_mode, None);
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("no-experimental-mode")))
+            .expect("default config has no duplicate handlers");
+        assert_eq!(wire.is_experimental_mode, None);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("isExperimentalMode").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_enable_experimental_mode_serializes_when_set() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-experimental-mode"))
+            .with_enable_experimental_mode(false);
+        assert_eq!(cfg.enable_experimental_mode, Some(false));
+
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("resume enable_experimental_mode config has no duplicate handlers");
+        assert_eq!(wire.is_experimental_mode, Some(false));
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["isExperimentalMode"], serde_json::Value::Bool(false));
+    }
+
+    #[test]
+    fn resume_session_config_enable_experimental_mode_omitted_when_none() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-no-experimental-mode"));
+        assert_eq!(cfg.enable_experimental_mode, None);
+
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("default resume config has no duplicate handlers");
+        assert_eq!(wire.is_experimental_mode, None);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("isExperimentalMode").is_none());
     }
 
     #[test]

@@ -2726,6 +2726,7 @@ public abstract class SessionConfigBase
         Providers = other.Providers is not null ? [.. other.Providers] : null;
         Models = other.Models is not null ? [.. other.Models] : null;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
+        EnableExperimentalMode = other.EnableExperimentalMode;
         SkipCustomInstructions = other.SkipCustomInstructions;
         CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
         CoauthorEnabled = other.CoauthorEnabled;
@@ -2911,6 +2912,15 @@ public abstract class SessionConfigBase
     /// OpenTelemetry export for observability.
     /// </summary>
     public bool? EnableSessionTelemetry { get; set; }
+
+    /// <summary>
+    /// Controls whether the session enables experimental features.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/> in <see cref="CopilotClientMode.Empty"/>.
+    /// Otherwise, the runtime decides when left <see langword="null"/>.
+    /// </remarks>
+    public bool? EnableExperimentalMode { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, suppresses loading of custom instruction files
