@@ -480,6 +480,113 @@ class CopilotToolProcessorTest {
                 "Single-record path should avoid local args map collision, got:\n" + generated);
     }
 
+    @Test
+    void supportsInjectedToolInvocation_forSchemaAndMethodCall() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class InvocationAwareTools {
+                    @CopilotTool("Reports progress")
+                    public String report(@Param("Phase") String phase, ToolInvocation toolInvocation) {
+                        return phase + ":" + toolInvocation.getSessionId();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.InvocationAwareTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.InvocationAwareTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for InvocationAwareTools$$CopilotToolMeta");
+        assertTrue(generated.contains("Map.entry(\"phase\""),
+                "Expected normal parameter in schema, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"toolInvocation\""),
+                "ToolInvocation must not appear in schema properties, got:\n" + generated);
+        assertTrue(generated.contains("required\", List.of(\"phase\")"),
+                "Expected only normal parameters in required list, got:\n" + generated);
+        assertFalse(generated.contains("args.get(\"toolInvocation\")"),
+                "ToolInvocation must not be read from invocation arguments, got:\n" + generated);
+        assertTrue(generated.contains("instance.report(phase, invocation)"),
+                "ToolInvocation parameter should be injected from runtime invocation, got:\n" + generated);
+    }
+
+    @Test
+    void supportsInjectedToolInvocation_forStaticAndAsyncMethods() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                import java.util.concurrent.CompletableFuture;
+                public class StaticInvocationAwareTools {
+                    @CopilotTool("Reports progress statically")
+                    public static String report(@Param("Phase") String phase, ToolInvocation toolInvocation) {
+                        return phase + ":" + toolInvocation.getToolCallId();
+                    }
+                    @CopilotTool("Reports progress asynchronously")
+                    public CompletableFuture<String> reportAsync(@Param("Phase") String phase, ToolInvocation toolInvocation) {
+                        return CompletableFuture.completedFuture(phase + ":" + toolInvocation.getToolCallId());
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.StaticInvocationAwareTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.StaticInvocationAwareTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for StaticInvocationAwareTools$$CopilotToolMeta");
+        assertTrue(generated.contains("test.StaticInvocationAwareTools.report(phase, invocation)"),
+                "Expected static method call with injected invocation, got:\n" + generated);
+        assertTrue(generated.contains("return instance.reportAsync(phase, invocation).thenApply(r -> (Object) r);"),
+                "Expected async method call with injected invocation, got:\n" + generated);
+    }
+
+    @Test
+    void emitsError_forDuplicateToolInvocationParameters() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                public class DuplicateInvocationTools {
+                    @CopilotTool("Invalid duplicate ToolInvocation")
+                    public String report(String phase, ToolInvocation first, ToolInvocation second) {
+                        return phase;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.DuplicateInvocationTools", source)));
+
+        assertTrue(hasErrorContaining(result, "at most one ToolInvocation parameter"),
+                "Expected compile error for duplicate ToolInvocation parameters, got: " + result.diagnostics);
+    }
+
+    @Test
+    void emitsError_forParamAnnotatedToolInvocationParameter() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class AnnotatedInvocationTools {
+                    @CopilotTool("Invalid @Param on ToolInvocation")
+                    public String report(@Param("Invocation context") ToolInvocation invocation) {
+                        return invocation.getToolName();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.AnnotatedInvocationTools", source)));
+
+        assertTrue(hasErrorContaining(result, "@Param is not supported on ToolInvocation parameters"),
+                "Expected compile error for @Param ToolInvocation parameter, got: " + result.diagnostics);
+    }
+
     // ── Test: Typed default values in schema ────────────────────────────────────
 
     @Test
