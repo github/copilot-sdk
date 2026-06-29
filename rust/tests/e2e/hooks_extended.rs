@@ -116,7 +116,6 @@ impl SessionHooks for ExtendedHooks {
     ) -> Option<PostToolUseFailureOutput> {
         Some(PostToolUseFailureOutput {
             additional_context: Some("not used".to_string()),
-            ..PostToolUseFailureOutput::default()
         })
     }
 }

@@ -78,8 +78,6 @@ public sealed class ModelBillingTokenPricesLongContext
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
@@ -96,8 +94,6 @@ public sealed class ModelBillingTokenPricesLongContext
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
@@ -127,8 +123,6 @@ public sealed class ModelBillingTokenPrices
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
@@ -145,8 +139,6 @@ public sealed class ModelBillingTokenPrices
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }

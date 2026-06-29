@@ -2421,8 +2421,6 @@ public sealed partial class AssistantMessageData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -2497,8 +2495,6 @@ public sealed partial class AssistantMessageDeltaData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -2601,8 +2597,6 @@ public sealed partial class AssistantUsageData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -2773,8 +2767,6 @@ public sealed partial class ToolExecutionStartData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -2855,8 +2847,6 @@ public sealed partial class ToolExecutionCompleteData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -5382,8 +5372,6 @@ public sealed partial class ToolExecutionCompleteContentText : ToolExecutionComp
 [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
 [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-[Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
 public sealed partial class ToolExecutionCompleteContentTerminal : ToolExecutionCompleteContent
 {
