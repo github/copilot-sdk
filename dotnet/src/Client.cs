@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Sockets;
 using System.Runtime.ExceptionServices;
@@ -1033,7 +1034,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
-                ExpAssignments: config.ExpAssignments);
+                ExpAssignments: config.ExpAssignments,
+                EnableGitHubTelemetryRedirection: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1235,7 +1237,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
-                ExpAssignments: config.ExpAssignments);
+                ExpAssignments: config.ExpAssignments,
+                EnableGitHubTelemetryRedirection: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -1708,21 +1711,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Builds the client-global RPC handler bag at construction time. Currently
-    /// only the LLM inference provider adapter is registered; returns null when no
+    /// Builds the client-global RPC handler bag at construction time. Registers
+    /// the LLM inference provider adapter and/or the GitHub telemetry adapter
+    /// depending on which options are configured; returns null when no
     /// client-global API is configured so the registration is skipped entirely.
     /// </summary>
     private ClientGlobalApiHandlers? BuildClientGlobalApis()
     {
         var handler = _options.RequestHandler;
-        if (handler is null)
+        var onGitHubTelemetry = _options.OnGitHubTelemetry;
+        if (handler is null && onGitHubTelemetry is null)
         {
             return null;
         }
 
         return new ClientGlobalApiHandlers
         {
-            LlmInference = new LlmInferenceAdapter(handler, () => _serverRpc),
+            LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
+            GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry),
         };
     }
 
@@ -2476,7 +2482,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        bool? EnableGitHubTelemetryRedirection = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2572,7 +2579,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        bool? EnableGitHubTelemetryRedirection = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(
@@ -2689,4 +2697,22 @@ public sealed class ToolResultAIContent(ToolResultObject toolResult) : AIContent
     /// Gets the underlying <see cref="ToolResultObject"/>.
     /// </summary>
     public ToolResultObject Result => toolResult;
+}
+
+/// <summary>
+/// Bridges the generated <see cref="Rpc.IGitHubTelemetryHandler"/> client-global handler to
+/// the public <c>OnGitHubTelemetry</c> callback, forwarding the generated
+/// <see cref="Rpc.GitHubTelemetryNotification"/> payload unchanged.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class GitHubTelemetryAdapter(Action<Rpc.GitHubTelemetryNotification> callback) : Rpc.IGitHubTelemetryHandler
+{
+    private readonly Action<Rpc.GitHubTelemetryNotification> _callback = callback ?? throw new ArgumentNullException(nameof(callback));
+
+    public Task EventAsync(Rpc.GitHubTelemetryNotification request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _callback(request);
+        return Task.CompletedTask;
+    }
 }
