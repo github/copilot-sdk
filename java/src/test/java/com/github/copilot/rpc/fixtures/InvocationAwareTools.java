@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture;
 import com.github.copilot.rpc.RecordInvocationArgs;
 import com.github.copilot.rpc.ToolInvocation;
 import com.github.copilot.tool.CopilotTool;
-import com.github.copilot.tool.Param;
+import com.github.copilot.tool.CopilotToolParam;
 
 /**
  * Tool fixture for {@link ToolInvocation} runtime context injection.
@@ -17,20 +17,20 @@ import com.github.copilot.tool.Param;
 public class InvocationAwareTools {
 
     @CopilotTool("Reports progress with invocation context")
-    public String reportProgress(@Param("Current phase") String phase, ToolInvocation invocation) {
+    public String reportProgress(@CopilotToolParam("Current phase") String phase, ToolInvocation invocation) {
         return "phase=" + phase + ",sessionId=" + invocation.getSessionId() + ",toolCallId="
                 + invocation.getToolCallId() + ",toolName=" + invocation.getToolName();
     }
 
     @CopilotTool("Reports progress asynchronously with invocation context")
-    public CompletableFuture<String> reportProgressAsync(@Param("Current phase") String phase,
+    public CompletableFuture<String> reportProgressAsync(@CopilotToolParam("Current phase") String phase,
             ToolInvocation invocation) {
         return CompletableFuture.completedFuture("async phase=" + phase + ",sessionId=" + invocation.getSessionId()
                 + ",toolCallId=" + invocation.getToolCallId() + ",toolName=" + invocation.getToolName());
     }
 
     @CopilotTool("Reports progress with invocation first")
-    public String reportProgressFirst(ToolInvocation invocation, @Param("Current phase") String phase) {
+    public String reportProgressFirst(ToolInvocation invocation, @CopilotToolParam("Current phase") String phase) {
         return "first phase=" + phase + ",sessionId=" + invocation.getSessionId() + ",toolCallId="
                 + invocation.getToolCallId() + ",toolName=" + invocation.getToolName();
     }
@@ -42,8 +42,8 @@ public class InvocationAwareTools {
     }
 
     @CopilotTool("Reports progress with invocation in the middle")
-    public String reportProgressMiddle(@Param("Current phase") String phase, ToolInvocation invocation,
-            @Param("Maximum items") int limit) {
+    public String reportProgressMiddle(@CopilotToolParam("Current phase") String phase, ToolInvocation invocation,
+            @CopilotToolParam("Maximum items") int limit) {
         return "middle phase=" + phase + ",limit=" + limit + ",sessionId=" + invocation.getSessionId() + ",toolCallId="
                 + invocation.getToolCallId() + ",toolName=" + invocation.getToolName();
     }
