@@ -64,6 +64,7 @@ from .copilot_request_handler import CopilotRequestHandler, create_copilot_reque
 from .generated.rpc import (
     ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
+    GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
@@ -389,6 +390,20 @@ class UriRuntimeConnection(RuntimeConnection):
     """Shared secret to authenticate the connection."""
 
 
+class _GitHubTelemetryAdapter:
+    """Adapts a user-provided ``on_github_telemetry`` callback to the generated
+    ``GitHubTelemetryHandler`` protocol.
+    """
+
+    def __init__(
+        self, callback: Callable[[GitHubTelemetryNotification], None]
+    ) -> None:
+        self._callback = callback
+
+    async def event(self, params: GitHubTelemetryNotification) -> None:
+        self._callback(params)
+
+
 @dataclass
 class _CopilotClientOptions:
     """Internal configuration carrier used by :class:`CopilotClient`.
@@ -410,6 +425,7 @@ class _CopilotClientOptions:
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
+    on_github_telemetry: Callable[[GitHubTelemetryNotification], None] | None = None
     mode: CopilotClientMode = "copilot-cli"
 
 
@@ -1099,6 +1115,7 @@ class CopilotClient:
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
+        on_github_telemetry: Callable[[GitHubTelemetryNotification], None] | None = None,
         mode: CopilotClientMode = "copilot-cli",
     ):
         """
@@ -1143,6 +1160,10 @@ class CopilotClient:
             on_list_models: Custom handler for :meth:`list_models`. When
                 provided, the handler is called instead of querying the runtime
                 server.
+            on_github_telemetry: Internal. Callback invoked when the runtime
+                forwards a GitHub telemetry event for a session. Registering a
+                handler opts every session opened by this client into telemetry
+                redirection.
 
         Example:
             >>> # Default — spawns runtime using stdio with the bundled binary
@@ -1173,6 +1194,7 @@ class CopilotClient:
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
             on_list_models=on_list_models,
+            on_github_telemetry=on_github_telemetry,
             mode=mode,
         )
         connection = (
@@ -1188,6 +1210,7 @@ class CopilotClient:
         self._options: _CopilotClientOptions = options
         self._connection: RuntimeConnection = connection
         self._on_list_models = options.on_list_models
+        self._on_github_telemetry = options.on_github_telemetry
 
         # Resolve connection-mode-specific state.
         self._actual_host: str = "localhost"
@@ -1980,6 +2003,11 @@ class CopilotClient:
             else True
         )
 
+        # Opt this connection into gitHubTelemetry.event notifications when a
+        # telemetry handler was registered on the client.
+        if self._on_github_telemetry is not None:
+            payload["enableGitHubTelemetryRedirection"] = True
+
         # Add provider configuration if provided
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
@@ -2567,6 +2595,11 @@ class CopilotClient:
             if include_sub_agent_streaming_events is not None
             else True
         )
+
+        # Opt this connection into gitHubTelemetry.event notifications when a
+        # telemetry handler was registered on the client.
+        if self._on_github_telemetry is not None:
+            payload["enableGitHubTelemetryRedirection"] = True
 
         # Enable permission request callback if handler provided
         payload["requestPermission"] = bool(on_permission_request)
@@ -3632,7 +3665,7 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
-        self._register_llm_inference_handlers()
+        self._register_client_global_handlers()
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -3752,7 +3785,7 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
-        self._register_llm_inference_handlers()
+        self._register_client_global_handlers()
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -3825,15 +3858,26 @@ class CopilotClient:
 
         await self._client.request("sessionFs.setProvider", params)
 
-    def _register_llm_inference_handlers(self) -> None:
-        if self._request_handler is None or not self._client:
+    def _register_client_global_handlers(self) -> None:
+        if not self._client:
             return
-        adapter = create_copilot_request_adapter(
-            self._request_handler,
-            lambda: self._rpc.llm_inference if self._rpc is not None else None,
-        )
+        llm_inference_adapter = None
+        if self._request_handler is not None:
+            llm_inference_adapter = create_copilot_request_adapter(
+                self._request_handler,
+                lambda: self._rpc.llm_inference if self._rpc is not None else None,
+            )
+        github_telemetry_adapter = None
+        if self._on_github_telemetry is not None:
+            github_telemetry_adapter = _GitHubTelemetryAdapter(self._on_github_telemetry)
+        if llm_inference_adapter is None and github_telemetry_adapter is None:
+            return
         register_client_global_api_handlers(
-            self._client, ClientGlobalApiHandlers(llm_inference=adapter)
+            self._client,
+            ClientGlobalApiHandlers(
+                llm_inference=llm_inference_adapter,
+                git_hub_telemetry=github_telemetry_adapter,
+            ),
         )
 
     async def _set_llm_inference_provider(self) -> None:
