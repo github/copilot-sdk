@@ -7,6 +7,8 @@ mod abort;
 mod ask_user;
 #[path = "e2e/builtin_tools.rs"]
 mod builtin_tools;
+#[path = "e2e/byok_bearer_token_provider.rs"]
+mod byok_bearer_token_provider;
 #[path = "e2e/canvas.rs"]
 mod canvas;
 #[path = "e2e/client.rs"]
@@ -21,6 +23,8 @@ mod client_options;
 mod commands;
 #[path = "e2e/compaction.rs"]
 mod compaction;
+#[path = "e2e/copilot_request_handler.rs"]
+mod copilot_request_handler;
 #[path = "e2e/elicitation.rs"]
 mod elicitation;
 #[path = "e2e/error_resilience.rs"]
@@ -41,6 +45,8 @@ mod mode_handlers;
 mod multi_client;
 #[path = "e2e/multi_client_commands_elicitation.rs"]
 mod multi_client_commands_elicitation;
+#[path = "e2e/multi_provider_registry.rs"]
+mod multi_provider_registry;
 #[path = "e2e/multi_turn.rs"]
 mod multi_turn;
 #[path = "e2e/pending_work_resume.rs"]
@@ -51,6 +57,8 @@ mod per_session_auth;
 mod permissions;
 #[path = "e2e/pre_mcp_tool_call_hook.rs"]
 mod pre_mcp_tool_call_hook;
+#[path = "e2e/provider_endpoint.rs"]
+mod provider_endpoint;
 #[path = "e2e/rpc_additional_edge_cases.rs"]
 mod rpc_additional_edge_cases;
 #[path = "e2e/rpc_agent.rs"]
@@ -105,6 +113,8 @@ mod session_fs;
 mod session_fs_sqlite;
 #[path = "e2e/session_lifecycle.rs"]
 mod session_lifecycle;
+#[path = "e2e/session_todos_changed.rs"]
+mod session_todos_changed;
 #[path = "e2e/skills.rs"]
 mod skills;
 #[path = "e2e/streaming_fidelity.rs"]
@@ -115,6 +125,8 @@ mod subagent_hooks;
 mod support;
 #[path = "e2e/suspend.rs"]
 mod suspend;
+#[path = "e2e/system_message_sections.rs"]
+mod system_message_sections;
 #[path = "e2e/system_message_transform.rs"]
 mod system_message_transform;
 #[path = "e2e/telemetry.rs"]

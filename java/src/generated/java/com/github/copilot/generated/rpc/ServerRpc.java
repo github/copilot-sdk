@@ -48,6 +48,8 @@ public final class ServerRpc {
     public final ServerRuntimeApi runtime;
     /** API methods for the {@code sessionFs} namespace. */
     public final ServerSessionFsApi sessionFs;
+    /** API methods for the {@code llmInference} namespace. */
+    public final ServerLlmInferenceApi llmInference;
     /** API methods for the {@code sessions} namespace. */
     public final ServerSessionsApi sessions;
     /** API methods for the {@code agentRegistry} namespace. */
@@ -72,6 +74,7 @@ public final class ServerRpc {
         this.user = new ServerUserApi(caller);
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
+        this.llmInference = new ServerLlmInferenceApi(caller);
         this.sessions = new ServerSessionsApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
     }

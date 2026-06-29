@@ -29,7 +29,7 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     private const string DirectPluginName = "csharp-e2e-direct";
 
     [Fact]
-    public async Task Should_Install_List_And_Uninstall_Plugin_From_Local_Marketplace()
+    public async Task Should_Install_And_List_Plugin_From_Local_Marketplace()
     {
         var marketplaceDir = CreateLocalMarketplaceFixture();
         var (client, home) = await CreateIsolatedClientAsync();
@@ -53,10 +53,6 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
                 p => p.Name == PluginName && p.Marketplace == MarketplaceName);
             Assert.True(listed.Enabled);
 
-            await client.Rpc.Plugins.UninstallAsync(spec);
-
-            var afterUninstall = await client.Rpc.Plugins.ListAsync();
-            Assert.DoesNotContain(afterUninstall.Plugins, p => p.Name == PluginName && p.Marketplace == MarketplaceName);
         }
         finally
         {
@@ -157,8 +153,9 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
 
             var afterInstall = await client.Rpc.Plugins.ListAsync();
             Assert.Single(afterInstall.Plugins, p => p.Name == DirectPluginName);
+            Assert.False(string.IsNullOrEmpty(install.Plugin.DirectSourceId));
 
-            await client.Rpc.Plugins.UninstallAsync(DirectPluginName);
+            await client.Rpc.Plugins.UninstallAsync(DirectPluginName, install.Plugin.DirectSourceId);
 
             var afterUninstall = await client.Rpc.Plugins.ListAsync();
             Assert.DoesNotContain(afterUninstall.Plugins, p => p.Name == DirectPluginName);

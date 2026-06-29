@@ -273,6 +273,9 @@ func TestApplyConfigDefaultsForMode_emptyDefaultsGranularFlags(t *testing.T) {
 	if cfg.EnableSkills == nil || *cfg.EnableSkills != false {
 		t.Errorf("expected EnableSkills=false in empty mode, got %v", cfg.EnableSkills)
 	}
+	if cfg.Memory == nil || cfg.Memory.Enabled != false {
+		t.Errorf("expected Memory.Enabled=false in empty mode, got %v", cfg.Memory)
+	}
 }
 
 func TestApplyConfigDefaultsForMode_emptyHonorsCallerGranularFlags(t *testing.T) {
@@ -287,6 +290,7 @@ func TestApplyConfigDefaultsForMode_emptyHonorsCallerGranularFlags(t *testing.T)
 		EnableHostGitOperations:            &trueVal,
 		EnableSessionStore:                 &trueVal,
 		EnableSkills:                       &trueVal,
+		Memory:                             &MemoryConfiguration{Enabled: true},
 	}
 	c.applyConfigDefaultsForMode(cfg)
 	if *cfg.SkipEmbeddingRetrieval != false {
@@ -309,6 +313,9 @@ func TestApplyConfigDefaultsForMode_emptyHonorsCallerGranularFlags(t *testing.T)
 	}
 	if *cfg.EnableSkills != true {
 		t.Errorf("caller-supplied EnableSkills must win")
+	}
+	if cfg.Memory == nil || cfg.Memory.Enabled != true {
+		t.Errorf("caller-supplied Memory must win")
 	}
 }
 
@@ -333,6 +340,9 @@ func TestApplyConfigDefaultsForMode_copilotCliLeavesGranularFlagsNil(t *testing.
 	}
 	if cfg.EnableSkills != nil {
 		t.Errorf("non-empty mode must not default EnableSkills")
+	}
+	if cfg.Memory != nil {
+		t.Errorf("non-empty mode must not default Memory")
 	}
 }
 

@@ -29,8 +29,8 @@ public final class SessionRpc {
     private final RpcCaller caller;
     private final String sessionId;
 
-    /** API methods for the {@code auth} namespace. */
-    public final SessionAuthApi auth;
+    /** API methods for the {@code gitHubAuth} namespace. */
+    public final SessionGitHubAuthApi gitHubAuth;
     /** API methods for the {@code canvas} namespace. */
     public final SessionCanvasApi canvas;
     /** API methods for the {@code model} namespace. */
@@ -57,6 +57,8 @@ public final class SessionRpc {
     public final SessionMcpApi mcp;
     /** API methods for the {@code plugins} namespace. */
     public final SessionPluginsApi plugins;
+    /** API methods for the {@code provider} namespace. */
+    public final SessionProviderApi provider;
     /** API methods for the {@code options} namespace. */
     public final SessionOptionsApi options;
     /** API methods for the {@code lsp} namespace. */
@@ -99,7 +101,7 @@ public final class SessionRpc {
     public SessionRpc(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
-        this.auth = new SessionAuthApi(caller, sessionId);
+        this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
@@ -113,6 +115,7 @@ public final class SessionRpc {
         this.skills = new SessionSkillsApi(caller, sessionId);
         this.mcp = new SessionMcpApi(caller, sessionId);
         this.plugins = new SessionPluginsApi(caller, sessionId);
+        this.provider = new SessionProviderApi(caller, sessionId);
         this.options = new SessionOptionsApi(caller, sessionId);
         this.lsp = new SessionLspApi(caller, sessionId);
         this.extensions = new SessionExtensionsApi(caller, sessionId);

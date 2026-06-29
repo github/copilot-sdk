@@ -27,6 +27,8 @@ public record SessionWorkspacesDiffParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Diff mode requested by the client. */
-    @JsonProperty("mode") WorkspaceDiffMode mode
+    @JsonProperty("mode") WorkspaceDiffMode mode,
+    /** When true, ignore whitespace-only changes (git `--ignore-all-space`). Defaults to false. */
+    @JsonProperty("ignoreWhitespace") Boolean ignoreWhitespace
 ) {
 }

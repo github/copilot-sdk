@@ -43,7 +43,7 @@ describe("Built-in Tools", async () => {
                 const session = await client.createSession({ onPermissionRequest: approveAll });
                 const msg = await session.sendAndWait(
                     {
-                        prompt: "Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content.",
+                        prompt: "Run 'echo error_msg >&2; sleep 0.5; echo ok' and tell me what stderr said. Reply with just the stderr content.",
                     },
                     SEND_TIMEOUT_MS
                 );

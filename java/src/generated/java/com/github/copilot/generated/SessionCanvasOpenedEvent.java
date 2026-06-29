@@ -49,11 +49,7 @@ public final class SessionCanvasOpenedEvent extends SessionEvent {
         /** URL for web-rendered canvases */
         @JsonProperty("url") String url,
         /** Input supplied when the instance was opened */
-        @JsonProperty("input") Object input,
-        /** Whether this notification represents an idempotent reopen */
-        @JsonProperty("reopen") Boolean reopen,
-        /** Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding. */
-        @JsonProperty("availability") CanvasOpenedAvailability availability
+        @JsonProperty("input") Object input
     ) {
     }
 }

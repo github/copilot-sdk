@@ -18,7 +18,7 @@ Copilot: In Tokyo it's 75°F and sunny. Great day to be outside!
 
 Before you begin, make sure you have:
 
-* **GitHub Copilot CLI** installed and authenticated (the Node.js, Python, and .NET SDKs bundle the CLI automatically—see [Bundled CLI](./setup/bundled-cli.md). Required for Go, Java, and Rust unless using their application-level CLI bundling features.)
+* **GitHub Copilot CLI** installed and authenticated (the Node.js, Python, and .NET SDKs provide the CLI automatically—see [Bundled CLI](./setup/bundled-cli.md). Required for Go, Java, and Rust unless using their application-level CLI bundling features.)
 * Your preferred language runtime:
   * **Node.js** 20+ or **Python** 3.11+ or **Go** 1.24+ or **Rust** 1.94+ or **Java** 17+ or **.NET** 8.0+
 
@@ -1911,9 +1911,11 @@ const session = await client.createSession({
 });
 ```
 
-Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`, `last_instructions`.
+Available section IDs: `preamble`, `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`, `last_instructions`.
 
-Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully—content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
+`identity` and `tool_instructions` are section *groups*: they target a collection of related sub-sections as a unit. Use `preamble` to target just the identity preamble without affecting its sibling sub-sections.
+
+Each override supports five actions: `replace`, `remove`, `append`, `prepend`, and `preserve`. The `preserve` action is a no-op that opts an individually-addressable section out of a group-level `remove` (for example, keep `tone` when removing the `identity` group). Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
 See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), [Rust](../rust/README.md), [Java](../java/README.md), and [C#](../dotnet/README.md).
 
@@ -2227,10 +2229,13 @@ Dependency: `io.opentelemetry:opentelemetry-api`
 | Option | Node.js | Python | Go | Rust | Java | .NET | Description |
 |---|---|---|---|---|---|---|---|
 | OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `otlp_endpoint` | `otlpEndpoint` | `OtlpEndpoint` | OTLP HTTP endpoint URL |
+| OTLP protocol | `otlpProtocol` | `otlp_protocol` | `OTLPProtocol` | `otlp_protocol` | `otlpProtocol` | `OtlpProtocol` | OTLP HTTP protocol for all signals: `"http/json"` or `"http/protobuf"` |
 | File path | `filePath` | `file_path` | `FilePath` | `file_path` | `filePath` | `FilePath` | File path for JSON-lines trace output |
 | Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `exporter_type` | `exporterType` | `ExporterType` | `"otlp-http"` or `"file"` |
 | Source name | `sourceName` | `source_name` | `SourceName` | `source_name` | `sourceName` | `SourceName` | Instrumentation scope name |
 | Capture content | `captureContent` | `capture_content` | `CaptureContent` | `capture_content` | `captureContent` | `CaptureContent` | Whether to capture message content |
+
+The OTLP protocol field configures the CLI's `"otlp-http"` exporter for all signals. Leave it unset to use the CLI default, or set it to `"http/protobuf"` to export protobuf over HTTP.
 
 ### File export
 

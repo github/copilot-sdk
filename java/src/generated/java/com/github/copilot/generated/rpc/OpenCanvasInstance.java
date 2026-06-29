@@ -36,10 +36,6 @@ public record OpenCanvasInstance(
     /** URL for web-rendered canvases */
     @JsonProperty("url") String url,
     /** Input supplied when the instance was opened */
-    @JsonProperty("input") Object input,
-    /** Whether this snapshot came from an idempotent reopen */
-    @JsonProperty("reopen") Boolean reopen,
-    /** Runtime-controlled routing state for an open canvas instance. */
-    @JsonProperty("availability") CanvasInstanceAvailability availability
+    @JsonProperty("input") Object input
 ) {
 }

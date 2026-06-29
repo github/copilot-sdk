@@ -42,7 +42,7 @@ public enum SystemMessageMode {
      * default system prompt. An optional {@code content} string is appended after
      * all sections when provided.
      *
-     * @since 1.2.0
+     * @since 1.0.0
      */
     CUSTOMIZE("customize");
 

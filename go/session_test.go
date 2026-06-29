@@ -583,9 +583,8 @@ func TestSession_Capabilities(t *testing.T) {
 
 		session.dispatchEvent(SessionEvent{
 			Data: &SessionCanvasOpenedData{
-				InstanceID:   "missing-canvas-id",
-				ExtensionID:  "project:counter",
-				Availability: CanvasOpenedAvailabilityReady,
+				InstanceID:  "missing-canvas-id",
+				ExtensionID: "project:counter",
 			},
 		})
 		session.dispatchEvent(SessionEvent{
@@ -598,18 +597,14 @@ func TestSession_Capabilities(t *testing.T) {
 				Status:        ptr("ready"),
 				URL:           ptr("https://example.test/counter"),
 				Input:         map[string]any{"seed": float64(1)},
-				Reopen:        false,
-				Availability:  CanvasOpenedAvailabilityReady,
 			},
 		})
 		session.dispatchEvent(SessionEvent{
 			Data: &SessionCanvasOpenedData{
-				ExtensionID:  "project:logs",
-				CanvasID:     "logs",
-				InstanceID:   "logs-1",
-				Title:        ptr("Logs"),
-				Reopen:       false,
-				Availability: CanvasOpenedAvailabilityStale,
+				ExtensionID: "project:logs",
+				CanvasID:    "logs",
+				InstanceID:  "logs-1",
+				Title:       ptr("Logs"),
 			},
 		})
 
@@ -631,8 +626,6 @@ func TestSession_Capabilities(t *testing.T) {
 				Status:        ptr("reconnected"),
 				URL:           ptr("https://example.test/counter-updated"),
 				Input:         map[string]any{"seed": float64(2)},
-				Reopen:        true,
-				Availability:  CanvasOpenedAvailabilityStale,
 			},
 		})
 
@@ -652,12 +645,6 @@ func TestSession_Capabilities(t *testing.T) {
 		if open[0].URL == nil || *open[0].URL != "https://example.test/counter-updated" {
 			t.Fatalf("expected updated URL, got %+v", open[0].URL)
 		}
-		if !open[0].Reopen {
-			t.Fatal("expected reopen to be true")
-		}
-		if string(open[0].Availability) != string(CanvasOpenedAvailabilityStale) {
-			t.Fatalf("expected stale availability, got %q", open[0].Availability)
-		}
 	})
 
 	t.Run("session.canvas.closed event removes open canvas snapshots", func(t *testing.T) {
@@ -666,20 +653,18 @@ func TestSession_Capabilities(t *testing.T) {
 
 		session.dispatchEvent(SessionEvent{
 			Data: &SessionCanvasOpenedData{
-				ExtensionID:  "project:counter",
-				CanvasID:     "counter",
-				InstanceID:   "counter-1",
-				Title:        ptr("Counter"),
-				Availability: CanvasOpenedAvailabilityReady,
+				ExtensionID: "project:counter",
+				CanvasID:    "counter",
+				InstanceID:  "counter-1",
+				Title:       ptr("Counter"),
 			},
 		})
 		session.dispatchEvent(SessionEvent{
 			Data: &SessionCanvasOpenedData{
-				ExtensionID:  "project:logs",
-				CanvasID:     "logs",
-				InstanceID:   "logs-1",
-				Title:        ptr("Logs"),
-				Availability: CanvasOpenedAvailabilityReady,
+				ExtensionID: "project:logs",
+				CanvasID:    "logs",
+				InstanceID:  "logs-1",
+				Title:       ptr("Logs"),
 			},
 		})
 

@@ -84,6 +84,91 @@ func TestToolsE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("low_level_tool_definition", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type PhaseArgs struct {
+			Phase string `json:"phase" jsonschema:"Current phase,enum=searching,enum=analyzing,enum=done"`
+		}
+		type SearchArgs struct {
+			Keyword string `json:"keyword" jsonschema:"Search keyword"`
+		}
+
+		var mu sync.Mutex
+		currentPhase := ""
+		searchKeyword := ""
+
+		setCurrentPhaseTool := copilot.DefineTool("set_current_phase", "Sets the current phase of the agent",
+			func(params PhaseArgs, inv copilot.ToolInvocation) (string, error) {
+				mu.Lock()
+				currentPhase = params.Phase
+				mu.Unlock()
+				return "Phase set to " + params.Phase, nil
+			})
+
+		searchItemsTool := copilot.DefineTool("search_items", "Search for items by keyword",
+			func(params SearchArgs, inv copilot.ToolInvocation) (string, error) {
+				mu.Lock()
+				searchKeyword = params.Keyword
+				mu.Unlock()
+				return "Found: item_alpha, item_beta", nil
+			})
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			AvailableTools:      copilot.NewToolSet().AddCustom("*").AddBuiltIn("web_fetch").ToSlice(),
+			Tools: []copilot.Tool{
+				setCurrentPhaseTool,
+				searchItemsTool,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "First, set the current phase to 'analyzing'. Then search for items with keyword 'copilot'. Report the phase and search results.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if answer == nil {
+			t.Fatalf("Expected non-nil assistant message")
+		}
+		ad, ok := answer.Data.(*copilot.AssistantMessageData)
+		if !ok {
+			t.Fatalf("Expected AssistantMessageData")
+		}
+
+		content := ad.Content
+		if content == "" {
+			t.Fatalf("Expected non-empty response")
+		}
+		lower := strings.ToLower(content)
+		if !strings.Contains(lower, "analyzing") {
+			t.Errorf("Expected response to contain 'analyzing', got %q", content)
+		}
+		if !strings.Contains(lower, "item_alpha") && !strings.Contains(lower, "item_beta") {
+			t.Errorf("Expected response to contain 'item_alpha' or 'item_beta', got %q", content)
+		}
+		mu.Lock()
+		gotPhase := currentPhase
+		gotKeyword := searchKeyword
+		mu.Unlock()
+		if gotKeyword != "copilot" {
+			t.Errorf("Expected search keyword to be 'copilot', got %q", gotKeyword)
+		}
+		if gotPhase != "analyzing" {
+			t.Errorf("Expected currentPhase to be 'analyzing', got %q", gotPhase)
+		}
+	})
+
 	t.Run("handles tool calling errors", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+ * Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
  *
  * @since 1.0.0
  */
@@ -19,7 +19,11 @@ public enum ExtensionSource {
     /** The {@code project} variant. */
     PROJECT("project"),
     /** The {@code user} variant. */
-    USER("user");
+    USER("user"),
+    /** The {@code plugin} variant. */
+    PLUGIN("plugin"),
+    /** The {@code session} variant. */
+    SESSION("session");
 
     private final String value;
     ExtensionSource(String value) { this.value = value; }

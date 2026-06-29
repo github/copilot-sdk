@@ -6,6 +6,12 @@ See [github/copilot-sdk](https://github.com/github/copilot-sdk) for the equivale
 
 **Releases:** [github.com/github/copilot-sdk/releases?q=rust%2F](https://github.com/github/copilot-sdk/releases?q=rust%2F) — per-version release notes for the Rust crate.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Rust 1.94.0 or later
+
 ## Quick Start
 
 ```rust,no_run
@@ -565,6 +571,21 @@ config.infinite_sessions = Some(infinite);
 
 The CLI emits `session.compaction_start` / `session.compaction_complete` events around each compaction. The session id remains stable across compactions; resume with `Client::resume_session` to pick up a prior conversation. Workspace state lives under `~/.copilot/session-state/{sessionId}` by default — override with `workspace_path` to relocate.
 
+### Memory
+
+Configure the runtime memory feature for a session:
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
+
+```rust,ignore
+use github_copilot_sdk::types::{MemoryConfiguration, SessionConfig};
+
+let config = SessionConfig::default().with_memory(MemoryConfiguration::enabled());
+```
+
+`MemoryConfiguration` is accepted on both `Client::create_session` and `Client::resume_session` (via `ResumeSessionConfig::with_memory`). `enabled` toggles the feature.
+
+The client mode affects the default: in the default `ClientMode::CopilotCli` the SDK leaves `memory` unset so the runtime applies its own default, while `ClientMode::Empty` defaults `memory` to disabled unless you set it explicitly.
+
 ### Custom Providers (BYOK)
 
 Route model traffic through your own inference endpoint instead of GitHub's hosted models:
@@ -588,11 +609,12 @@ Provider types include `"openai"`, `"azure"`, and `"anthropic"`. Set `wire_api` 
 Forward OpenTelemetry signals from the spawned CLI process to your collector:
 
 ```rust,ignore
-use github_copilot_sdk::{ClientOptions, OtelExporterType, TelemetryConfig};
+use github_copilot_sdk::{ClientOptions, OtelExporterType, OtlpHttpProtocol, TelemetryConfig};
 
 let mut telem = TelemetryConfig::default();
 telem.exporter_type = Some(OtelExporterType::OtlpHttp);
 telem.otlp_endpoint = Some("http://localhost:4318".to_string());
+telem.otlp_protocol = Some(OtlpHttpProtocol::HttpProtobuf);
 telem.source_name = Some("my-app".to_string());
 
 let mut opts = ClientOptions::default();
@@ -600,7 +622,7 @@ opts.telemetry = Some(telem);
 let client = Client::start(opts).await?;
 ```
 
-The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
+The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
 
 ### Progress Reporting (`send_and_wait`)
 

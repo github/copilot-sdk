@@ -21,6 +21,7 @@ class AgentInfoTest {
         assertNull(agent.getName());
         assertNull(agent.getDisplayName());
         assertNull(agent.getDescription());
+        assertNull(agent.getModel());
     }
 
     @Test
@@ -45,13 +46,21 @@ class AgentInfoTest {
     }
 
     @Test
+    void modelGetterSetter() {
+        var agent = new AgentInfo();
+        agent.setModel("alpha/sonnet");
+        assertEquals("alpha/sonnet", agent.getModel());
+    }
+
+    @Test
     void fluentChainingReturnsThis() {
         var agent = new AgentInfo().setName("coder").setDisplayName("Code Assistant")
-                .setDescription("Helps with coding tasks");
+                .setDescription("Helps with coding tasks").setModel("alpha/sonnet");
 
         assertEquals("coder", agent.getName());
         assertEquals("Code Assistant", agent.getDisplayName());
         assertEquals("Helps with coding tasks", agent.getDescription());
+        assertEquals("alpha/sonnet", agent.getModel());
     }
 
     @Test
@@ -60,5 +69,6 @@ class AgentInfoTest {
         assertSame(agent, agent.setName("test"));
         assertSame(agent, agent.setDisplayName("Test"));
         assertSame(agent, agent.setDescription("A test agent"));
+        assertSame(agent, agent.setModel("alpha/sonnet"));
     }
 }

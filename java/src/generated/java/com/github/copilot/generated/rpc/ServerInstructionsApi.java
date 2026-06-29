@@ -37,4 +37,15 @@ public final class ServerInstructionsApi {
         return caller.invoke("instructions.discover", params, InstructionsDiscoverResult.class);
     }
 
+    /**
+     * Optional project paths to include when enumerating instruction discovery targets.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<InstructionsGetDiscoveryPathsResult> getDiscoveryPaths(InstructionsGetDiscoveryPathsParams params) {
+        return caller.invoke("instructions.getDiscoveryPaths", params, InstructionsGetDiscoveryPathsResult.class);
+    }
+
 }

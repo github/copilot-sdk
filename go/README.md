@@ -2,6 +2,13 @@
 
 A Go SDK for programmatic access to the GitHub Copilot CLI.
 
+## Prerequisites
+
+To use the SDK, you'll need:
+
+- Go 1.24 or later
+- GitHub Copilot CLI installed and in `PATH` (or set `COPILOT_CLI_PATH`)
+
 ## Installation
 
 ```bash
@@ -158,7 +165,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
   - **append** (default): Appends `Content` after the SDK-managed prompt
   - **replace**: Replaces the entire prompt with `Content`
-  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
+  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionPreamble`, `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
@@ -231,14 +238,17 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 })
 ```
 
-Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`.
+Available section constants: `SectionPreamble`, `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`.
 
-Each section override supports four actions:
+`SectionIdentity` and `SectionToolInstructions` are section _groups_ that target a collection of related sub-sections as a unit. Use `SectionPreamble` to target just the identity preamble without affecting its sibling sub-sections.
+
+Each section override supports five actions:
 
 - **`replace`** — Replace the section content entirely
 - **`remove`** — Remove the section from the prompt
 - **`append`** — Add content after the existing section
 - **`prepend`** — Add content before the existing section
+- **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
 
 Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
@@ -497,6 +507,33 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+## Memory
+
+Sessions can opt in to the memory feature, which lets the agent persist and recall
+information across turns. Provide a `MemoryConfiguration` on session create or resume;
+when omitted, the runtime default applies. In the default `ModeCopilotCli` client mode the
+SDK leaves `Memory` unset so the runtime applies its own default, while `ModeEmpty`
+defaults `Memory` to disabled unless you set it explicitly.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
+
+```go
+// Enable memory for a session
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    Memory: &copilot.MemoryConfiguration{
+        Enabled: true,
+    },
+})
+
+// Disable memory for a session
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    Memory: &copilot.MemoryConfiguration{
+        Enabled: false,
+    },
+})
+```
+
 ## Custom Providers
 
 The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `Model` explicitly.
@@ -573,6 +610,7 @@ client, err := copilot.NewClient(copilot.ClientOptions{
 **TelemetryConfig fields:**
 
 - `OTLPEndpoint` (string): OTLP HTTP endpoint URL
+- `OTLPProtocol` (string): OTLP HTTP protocol for all signals (`"http/json"` or `"http/protobuf"`)
 - `FilePath` (string): File path for JSON-lines trace output
 - `ExporterType` (string): `"otlp-http"` or `"file"`
 - `SourceName` (string): Instrumentation scope name

@@ -626,7 +626,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionMcpListResult_nested() {
-        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null);
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null);
         var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
         assertEquals("my-mcp", result.servers().get(0).name());
@@ -696,7 +696,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsListResult_nested() {
-        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md", null);
+        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md", null,
+                null);
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
@@ -787,7 +788,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void mcpDiscoverResult_nested() {
         var server = new DiscoveredMcpServer("discovered-server", DiscoveredMcpServerType.STDIO, McpServerSource.USER,
-                true);
+                null, null, true);
         var result = new McpDiscoverResult(List.of(server));
         assertEquals(1, result.servers().size());
         assertEquals("discovered-server", result.servers().get(0).name());
@@ -802,7 +803,7 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
-        var billing = new ModelBilling(1.0, null);
+        var billing = new ModelBilling(1.0, null, null);
         var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null, null);
         var result = new ModelsListResult(List.of(modelItem));
 

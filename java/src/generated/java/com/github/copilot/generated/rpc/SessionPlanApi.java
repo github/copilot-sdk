@@ -79,4 +79,15 @@ public final class SessionPlanApi {
         return caller.invoke("session.plan.readSqlTodos", java.util.Map.of("sessionId", this.sessionId), SessionPlanReadSqlTodosResult.class);
     }
 
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionPlanReadSqlTodosWithDependenciesResult> readSqlTodosWithDependencies() {
+        return caller.invoke("session.plan.readSqlTodosWithDependencies", java.util.Map.of("sessionId", this.sessionId), SessionPlanReadSqlTodosWithDependenciesResult.class);
+    }
+
 }

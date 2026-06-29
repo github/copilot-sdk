@@ -15,12 +15,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.generated.CanvasOpenedAvailability;
 import com.github.copilot.generated.SessionCanvasClosedEvent;
 import com.github.copilot.generated.SessionCanvasClosedEvent.SessionCanvasClosedEventData;
 import com.github.copilot.generated.SessionCanvasOpenedEvent;
 import com.github.copilot.generated.SessionCanvasOpenedEvent.SessionCanvasOpenedEventData;
-import com.github.copilot.generated.rpc.CanvasInstanceAvailability;
 import com.github.copilot.generated.rpc.OpenCanvasInstance;
 import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.rpc.ResumeSessionResponse;
@@ -51,19 +49,18 @@ public class SessionCanvasSnapshotTest {
 
     @Test
     void openedUpsertsCanvases() {
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", CanvasOpenedAvailability.READY));
-        session.dispatchEvent(openedEvent("inst-2", "canvas-b", CanvasOpenedAvailability.READY));
+        session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
+        session.dispatchEvent(openedEvent("inst-2", "canvas-b"));
 
         var canvases = session.getOpenCanvases();
         assertEquals(2, canvases.size());
         assertEquals(List.of("inst-1", "inst-2"), canvases.stream().map(OpenCanvasInstance::instanceId).toList());
-        assertEquals(CanvasInstanceAvailability.READY, canvases.get(0).availability());
     }
 
     @Test
     void closedRemovesMatchingCanvas() {
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", CanvasOpenedAvailability.READY));
-        session.dispatchEvent(openedEvent("inst-2", "canvas-b", CanvasOpenedAvailability.READY));
+        session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
+        session.dispatchEvent(openedEvent("inst-2", "canvas-b"));
 
         session.dispatchEvent(closedEvent("inst-1"));
 
@@ -74,7 +71,7 @@ public class SessionCanvasSnapshotTest {
 
     @Test
     void closedForAbsentInstanceIsNoOp() {
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", CanvasOpenedAvailability.READY));
+        session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
 
         session.dispatchEvent(closedEvent("does-not-exist"));
 
@@ -85,7 +82,7 @@ public class SessionCanvasSnapshotTest {
 
     @Test
     void closedWithEmptyInstanceIdIsNoOp() {
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", CanvasOpenedAvailability.READY));
+        session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
 
         session.dispatchEvent(closedEvent(""));
         session.dispatchEvent(closedEvent(null));
@@ -97,36 +94,35 @@ public class SessionCanvasSnapshotTest {
 
     @Test
     void openedWithMissingRequiredFieldsIsIgnored() {
-        session.dispatchEvent(openedEvent("", "canvas-a", CanvasOpenedAvailability.READY));
-        session.dispatchEvent(openedEvent("inst-1", "", CanvasOpenedAvailability.READY));
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", null));
+        session.dispatchEvent(openedEvent("", "canvas-a"));
+        session.dispatchEvent(openedEvent("inst-1", ""));
 
         assertTrue(session.getOpenCanvases().isEmpty());
     }
 
     @Test
-    void staleReemitReplacesInsteadOfDuplicating() {
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", CanvasOpenedAvailability.READY));
+    void reemitReplacesInsteadOfDuplicating() {
+        session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
 
-        // Provider unregister re-emits the same instance as "stale".
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", CanvasOpenedAvailability.STALE));
+        // Provider re-emits the same instance id; it should replace, not duplicate.
+        session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
 
         var canvases = session.getOpenCanvases();
         assertEquals(1, canvases.size());
-        assertEquals(CanvasInstanceAvailability.STALE, canvases.get(0).availability());
+        assertEquals("inst-1", canvases.get(0).instanceId());
     }
 
     @Test
     void getOpenCanvasesReturnsImmutableCopy() {
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", CanvasOpenedAvailability.READY));
+        session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
 
         var canvases = session.getOpenCanvases();
-        assertThrows(UnsupportedOperationException.class, () -> canvases.add(new OpenCanvasInstance("x", "ext", null,
-                "c", null, null, null, null, null, CanvasInstanceAvailability.READY)));
+        assertThrows(UnsupportedOperationException.class,
+                () -> canvases.add(new OpenCanvasInstance("x", "ext", null, "c", null, null, null, null)));
 
         // The returned list is a point-in-time snapshot, not a live view: a
         // subsequent event must not change the previously-returned list.
-        session.dispatchEvent(openedEvent("inst-2", "canvas-b", CanvasOpenedAvailability.READY));
+        session.dispatchEvent(openedEvent("inst-2", "canvas-b"));
         assertEquals(1, canvases.size());
         assertEquals("inst-1", canvases.get(0).instanceId());
 
@@ -137,11 +133,9 @@ public class SessionCanvasSnapshotTest {
     @Test
     void setOpenCanvasesSeedsAndFiltersNulls() {
         var seed = new java.util.ArrayList<OpenCanvasInstance>();
-        seed.add(new OpenCanvasInstance("inst-1", "ext", null, "canvas-a", null, null, null, null, null,
-                CanvasInstanceAvailability.READY));
+        seed.add(new OpenCanvasInstance("inst-1", "ext", null, "canvas-a", null, null, null, null));
         seed.add(null);
-        seed.add(new OpenCanvasInstance("inst-2", "ext", null, "canvas-b", null, null, null, null, null,
-                CanvasInstanceAvailability.STALE));
+        seed.add(new OpenCanvasInstance("inst-2", "ext", null, "canvas-b", null, null, null, null));
 
         session.setOpenCanvases(seed);
 
@@ -152,7 +146,7 @@ public class SessionCanvasSnapshotTest {
 
     @Test
     void setOpenCanvasesWithNullClears() {
-        session.dispatchEvent(openedEvent("inst-1", "canvas-a", CanvasOpenedAvailability.READY));
+        session.dispatchEvent(openedEvent("inst-1", "canvas-a"));
 
         session.setOpenCanvases(null);
 
@@ -168,7 +162,7 @@ public class SessionCanvasSnapshotTest {
                   "workspacePath": "/tmp/ws",
                   "capabilities": {},
                   "openCanvases": [
-                    { "instanceId": "inst-1", "extensionId": "ext", "canvasId": "canvas-a", "availability": "ready" }
+                    { "instanceId": "inst-1", "extensionId": "ext", "canvasId": "canvas-a" }
                   ]
                 }
                 """;
@@ -178,7 +172,6 @@ public class SessionCanvasSnapshotTest {
         assertNotNull(response.openCanvases());
         assertEquals(1, response.openCanvases().size());
         assertEquals("inst-1", response.openCanvases().get(0).instanceId());
-        assertEquals(CanvasInstanceAvailability.READY, response.openCanvases().get(0).availability());
     }
 
     @Test
@@ -188,7 +181,7 @@ public class SessionCanvasSnapshotTest {
                 {
                   "sessionId": "abc",
                   "openCanvases": [
-                    { "instanceId": "inst-1", "extensionId": "ext", "canvasId": "canvas-a", "availability": "stale" }
+                    { "instanceId": "inst-1", "extensionId": "ext", "canvasId": "canvas-a" }
                   ]
                 }
                 """;
@@ -197,14 +190,13 @@ public class SessionCanvasSnapshotTest {
 
         assertNotNull(response.openCanvases());
         assertEquals(1, response.openCanvases().size());
-        assertEquals(CanvasInstanceAvailability.STALE, response.openCanvases().get(0).availability());
+        assertEquals("inst-1", response.openCanvases().get(0).instanceId());
     }
 
-    private static SessionCanvasOpenedEvent openedEvent(String instanceId, String canvasId,
-            CanvasOpenedAvailability availability) {
+    private static SessionCanvasOpenedEvent openedEvent(String instanceId, String canvasId) {
         var event = new SessionCanvasOpenedEvent();
         event.setData(new SessionCanvasOpenedEventData(instanceId, "ext-id", "Ext Name", canvasId, "Title", "ok", null,
-                null, null, availability));
+                null));
         return event;
     }
 

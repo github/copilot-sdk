@@ -36,6 +36,8 @@ public record ScheduleEntry(
     @JsonProperty("prompt") String prompt,
     /** Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`). */
     @JsonProperty("recurring") Boolean recurring,
+    /** True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled. */
+    @JsonProperty("selfPaced") Boolean selfPaced,
     /** Display-only label for the prompt as shown in the UI (e.g. `/skill-name` for a skill-invocation schedule). The actual enqueued prompt is `prompt`. */
     @JsonProperty("displayPrompt") String displayPrompt,
     /** ISO 8601 timestamp when the next tick is scheduled to fire. */

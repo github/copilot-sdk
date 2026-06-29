@@ -15,6 +15,7 @@ import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.github.copilot.CopilotRequestHandler;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -55,6 +56,7 @@ public class CopilotClientOptions {
     private String logLevel = "info";
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
+    private CopilotRequestHandler requestHandler;
     private int port;
     private TelemetryConfig telemetry;
     private Integer sessionIdleTimeoutSeconds;
@@ -455,6 +457,34 @@ public class CopilotClientOptions {
     }
 
     /**
+     * Gets the connection-level LLM inference request handler.
+     *
+     * @return the request handler, or {@code null} if not set
+     */
+    @JsonIgnore
+    public CopilotRequestHandler getRequestHandler() {
+        return requestHandler;
+    }
+
+    /**
+     * Sets a connection-level LLM inference request handler.
+     * <p>
+     * When provided, the client registers as the runtime's LLM inference provider
+     * on connect, and the runtime routes its model-layer HTTP and WebSocket traffic
+     * (both BYOK and CAPI) through the handler instead of issuing the calls itself.
+     *
+     * @param requestHandler
+     *            the request handler (must not be {@code null})
+     * @return this options instance for method chaining
+     * @throws IllegalArgumentException
+     *             if {@code requestHandler} is {@code null}
+     */
+    public CopilotClientOptions setRequestHandler(CopilotRequestHandler requestHandler) {
+        this.requestHandler = Objects.requireNonNull(requestHandler, "requestHandler must not be null");
+        return this;
+    }
+
+    /**
      * Gets the TCP port for the CLI server.
      *
      * @return the port number, or 0 for a random port
@@ -512,7 +542,7 @@ public class CopilotClientOptions {
      * Gets the OpenTelemetry configuration for the CLI server.
      *
      * @return the telemetry config, or {@code null}
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public TelemetryConfig getTelemetry() {
         return telemetry;
@@ -527,7 +557,7 @@ public class CopilotClientOptions {
      * @param telemetry
      *            the telemetry configuration
      * @return this options instance for method chaining
-     * @since 1.2.0
+     * @since 1.0.0
      */
     public CopilotClientOptions setTelemetry(TelemetryConfig telemetry) {
         this.telemetry = Objects.requireNonNull(telemetry, "telemetry must not be null");
@@ -689,6 +719,7 @@ public class CopilotClientOptions {
         copy.gitHubToken = this.gitHubToken;
         copy.logLevel = this.logLevel;
         copy.onListModels = this.onListModels;
+        copy.requestHandler = this.requestHandler;
         copy.port = this.port;
         copy.remote = this.remote;
         copy.sessionIdleTimeoutSeconds = this.sessionIdleTimeoutSeconds;

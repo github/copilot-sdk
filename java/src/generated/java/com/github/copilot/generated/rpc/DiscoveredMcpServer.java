@@ -27,6 +27,10 @@ public record DiscoveredMcpServer(
     @JsonProperty("type") DiscoveredMcpServerType type,
     /** Configuration source: user, workspace, plugin, or builtin */
     @JsonProperty("source") McpServerSource source,
+    /** Plugin name that provided this server, when source is plugin. */
+    @JsonProperty("sourcePlugin") String sourcePlugin,
+    /** Plugin version that provided this server, when source is plugin. */
+    @JsonProperty("sourcePluginVersion") String sourcePluginVersion,
     /** Whether the server is enabled (not in the disabled list) */
     @JsonProperty("enabled") Boolean enabled
 ) {

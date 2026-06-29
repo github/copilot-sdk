@@ -34,6 +34,8 @@ public record Skill(
     /** Absolute path to the skill file */
     @JsonProperty("path") String path,
     /** Name of the plugin that provides the skill, when source is 'plugin' */
-    @JsonProperty("pluginName") String pluginName
+    @JsonProperty("pluginName") String pluginName,
+    /** Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field */
+    @JsonProperty("argumentHint") String argumentHint
 ) {
 }

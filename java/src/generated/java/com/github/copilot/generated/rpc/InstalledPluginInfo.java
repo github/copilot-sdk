@@ -25,6 +25,8 @@ public record InstalledPluginInfo(
     @JsonProperty("name") String name,
     /** Marketplace the plugin came from. Empty string ("") for direct repo / URL / local installs. */
     @JsonProperty("marketplace") String marketplace,
+    /** Opaque, stable hash identifying a direct (non-marketplace) install source. Present only for direct repo / URL / local installs; absent for marketplace plugins. Same source yields the same id; distinct sources never collide. */
+    @JsonProperty("directSourceId") String directSourceId,
     /** Installed version (when reported by the plugin manifest) */
     @JsonProperty("version") String version,
     /** Whether the plugin is currently enabled for new sessions */

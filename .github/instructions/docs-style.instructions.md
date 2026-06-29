@@ -160,3 +160,67 @@ Body text here.
 
 * [Link text](./relative-path.md): short description
 ```
+
+## Multi-language code examples
+
+When showing the same concept in multiple programming languages, use consecutive `<details>` blocks. The docs-internal normalization pipeline converts these into tabbed language switchers on docs.github.com.
+
+### Rules
+
+* **Only code inside `<details>` blocks.** Shared prose, headings, and explanations must go outside the blocks. Each block should contain only a code fence (and optionally a `<!-- docs-validate: skip -->` comment).
+* **Blocks must be consecutive.** No content (headings, paragraphs) between `<details>` blocks in the same group. Blank lines between blocks are fine.
+* **Use the exact `<summary>` format:** `<summary><strong>LANGUAGE</strong></summary>`. Supported labels: `.NET`, `Python`, `TypeScript`, `Go`, `Java`, `Rust`, `Node.js`, `Shell`.
+* **Need 2+ blocks to form a group.** A single `<details>` block won't be converted and renders as raw HTML on docs.github.com.
+* **Equal content across tabs.** Each tab should show the same concept in a different language. Language-specific extras should be a separate section outside the tabs.
+
+### Correct
+
+Shared prose goes above the group, then each `<details>` block contains only code:
+
+```markdown
+Install the SDK:
+
+<details open>
+<summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```bash
+dotnet add package GitHub.Copilot.SDK
+```
+
+</details>
+<details>
+<summary><strong>Python</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```bash
+pip install github-copilot-sdk
+```
+
+</details>
+```
+
+### Incorrect
+
+Do not put headings, prose, or multiple sections inside a `<details>` block:
+
+```markdown
+<details>
+<summary><strong>Python</strong></summary>
+
+### Prerequisites           ← breaks TOC/anchors
+Install the packages:       ← prose belongs outside
+
+```bash
+pip install github-copilot-sdk
+```
+
+### Basic usage             ← multiple sections in one tab
+```python
+[code]
+```
+
+</details>
+```

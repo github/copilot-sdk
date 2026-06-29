@@ -58,6 +58,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 {
     private readonly Dictionary<string, AIFunction> _toolHandlers = [];
     private readonly Dictionary<string, Func<CommandContext, Task>> _commandHandlers = [];
+    private readonly Dictionary<string, Func<ProviderTokenArgs, Task<string>>> _bearerTokenProviders = new(StringComparer.Ordinal);
     private readonly ILogger _logger;
     private readonly CopilotClient _parentClient;
 
@@ -76,9 +77,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private Dictionary<string, Func<string, Task<string>>>? _transformCallbacks;
     private readonly SemaphoreSlim _transformCallbacksLock = new(1, 1);
 
-#pragma warning disable GHCP001
     private IReadOnlyList<OpenCanvasInstance> _openCanvases = Array.Empty<OpenCanvasInstance>();
-#pragma warning restore GHCP001
 
     private int _isDisposed;
 
@@ -126,7 +125,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
         private set;
     }
 
-#pragma warning disable GHCP001
     /// <summary>
     /// Canvas instances currently known to be open for this session.
     /// </summary>
@@ -136,7 +134,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
     public IReadOnlyList<OpenCanvasInstance> OpenCanvases => _openCanvases;
-#pragma warning restore GHCP001
 
     /// <summary>
     /// Gets the UI API for eliciting information from the user during this session.
@@ -874,6 +871,51 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Registers per-provider <c>BearerTokenProvider</c> callbacks for BYOK
+    /// providers configured with managed-identity / on-demand bearer-token auth.
+    /// </summary>
+    /// <remarks>
+    /// The runtime never receives the callback itself; the SDK strips it from the
+    /// provider config and instead sends <c>hasBearerTokenProvider: true</c>. When
+    /// the runtime needs a token it issues a session-scoped
+    /// <c>providerToken.getToken</c> request, which this handler routes to the
+    /// matching per-provider callback.
+    /// </remarks>
+    /// <param name="providers">Map of provider name to callback, or null/empty to clear.</param>
+    internal void RegisterBearerTokenProviders(IReadOnlyDictionary<string, Func<ProviderTokenArgs, Task<string>>>? providers)
+    {
+        _bearerTokenProviders.Clear();
+        if (providers is null || providers.Count == 0)
+        {
+            ClientSessionApis.ProviderToken = null;
+            return;
+        }
+        foreach (var (name, callback) in providers)
+        {
+            _bearerTokenProviders[name] = callback;
+        }
+        ClientSessionApis.ProviderToken = new BearerTokenProviderHandler(this);
+    }
+
+    /// <summary>
+    /// Routes runtime <c>providerToken.getToken</c> requests to the matching
+    /// per-provider <c>BearerTokenProvider</c> callback registered on the session.
+    /// </summary>
+    private sealed class BearerTokenProviderHandler(CopilotSession session) : IProviderTokenHandler
+    {
+        public async Task<ProviderTokenAcquireResult> GetTokenAsync(ProviderTokenAcquireRequest request, CancellationToken cancellationToken = default)
+        {
+            if (!session._bearerTokenProviders.TryGetValue(request.ProviderName, out var callback))
+            {
+                throw new InvalidOperationException(
+                    $"No bearer-token provider registered for provider \"{request.ProviderName}\"");
+            }
+            var token = await callback(new ProviderTokenArgs { ProviderName = request.ProviderName, SessionId = request.SessionId }).ConfigureAwait(false);
+            return new ProviderTokenAcquireResult { Token = token };
+        }
+    }
+
+    /// <summary>
     /// Sets the capabilities reported by the host for this session.
     /// </summary>
     /// <param name="capabilities">The capabilities to set.</param>
@@ -882,7 +924,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
         Capabilities = capabilities ?? new SessionCapabilities();
     }
 
-#pragma warning disable GHCP001
     internal void SetOpenCanvases(IList<OpenCanvasInstance>? canvases)
     {
         _openCanvases = canvases is { Count: > 0 }
@@ -911,8 +952,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var data = canvasEvent.Data;
         if (string.IsNullOrEmpty(data.InstanceId)
             || string.IsNullOrEmpty(data.CanvasId)
-            || string.IsNullOrEmpty(data.ExtensionId)
-            || string.IsNullOrEmpty(data.Availability.Value))
+            || string.IsNullOrEmpty(data.ExtensionId))
         {
             _logger.LogWarning("failed to deserialize session.canvas.opened payload");
             return;
@@ -920,13 +960,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         UpsertOpenCanvas(new OpenCanvasInstance
         {
-            Availability = new CanvasInstanceAvailability(data.Availability.Value),
             CanvasId = data.CanvasId,
             ExtensionId = data.ExtensionId,
             ExtensionName = data.ExtensionName,
             Input = data.Input,
             InstanceId = data.InstanceId,
-            Reopen = data.Reopen,
             Status = data.Status,
             Title = data.Title,
             Url = data.Url,
@@ -962,7 +1000,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var element = CopilotClient.ToJsonElementForWire(value);
         return element ?? NullJsonElement;
     }
-#pragma warning restore GHCP001
 
     private sealed class CanvasHandlerAdapter(ICanvasHandler handler) : Rpc.ICanvasHandler
     {

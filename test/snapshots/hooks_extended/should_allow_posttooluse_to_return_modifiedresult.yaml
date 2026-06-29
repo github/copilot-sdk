@@ -5,34 +5,10 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Call the report_intent tool with intent 'Testing post hook', then reply done.
+        content: Call the view tool to read the current directory, then reply done.
       - role: assistant
         tool_calls:
           - id: toolcall_0
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Testing post hook"}'
-      - role: assistant
-        tool_calls:
-          - id: toolcall_1
-            type: function
-            function:
-              name: view
-              arguments: '{"path":"${workdir}"}'
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: Call the report_intent tool with intent 'Testing post hook', then reply done.
-      - role: assistant
-        tool_calls:
-          - id: toolcall_0
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Testing post hook"}'
-          - id: toolcall_1
             type: function
             function:
               name: view
@@ -40,8 +16,5 @@ conversations:
       - role: tool
         tool_call_id: toolcall_0
         content: modified by post hook
-      - role: tool
-        tool_call_id: toolcall_1
-        content: Tool 'view' does not exist. Available tools that can be called are report_intent.
       - role: assistant
         content: Done.

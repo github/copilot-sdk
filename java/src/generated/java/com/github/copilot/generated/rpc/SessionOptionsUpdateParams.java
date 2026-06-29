@@ -48,6 +48,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("isExperimentalMode") Boolean isExperimentalMode,
     /** Custom model-provider configuration (BYOK). */
     @JsonProperty("provider") ProviderConfig provider,
+    /** Options scoped to the built-in CAPI (Copilot API) provider. */
+    @JsonProperty("capi") CapiSessionOptions capi,
     /** Absolute working-directory path for shell tools. */
     @JsonProperty("workingDirectory") String workingDirectory,
     /** Allowlist of tool names available to this session. */
@@ -68,12 +70,16 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
     /** How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch). */
     @JsonProperty("envValueMode") OptionsUpdateEnvValueMode envValueMode,
+    /** Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers. */
+    @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
     /** Skill IDs that should be excluded from this session. */
     @JsonProperty("disabledSkills") List<String> disabledSkills,
     /** Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag. */
     @JsonProperty("enableOnDemandInstructionDiscovery") Boolean enableOnDemandInstructionDiscovery,
+    /** Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB. */
+    @JsonProperty("maxInlineBinaryBytes") Long maxInlineBinaryBytes,
     /** Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes. */
     @JsonProperty("installedPlugins") List<SessionInstalledPlugin> installedPlugins,
     /** Whether to default custom agents to local-only execution. */
@@ -123,6 +129,8 @@ public record SessionOptionsUpdateParams(
     /** Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset. */
     @JsonProperty("enableSkills") Boolean enableSkills,
     /** Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier. */
-    @JsonProperty("contextTier") OptionsUpdateContextTier contextTier
+    @JsonProperty("contextTier") OptionsUpdateContextTier contextTier,
+    /** Optional response budget limits. Pass null to clear the response budget. */
+    @JsonProperty("responseBudget") ResponseBudgetConfig responseBudget
 ) {
 }

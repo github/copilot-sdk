@@ -22,6 +22,7 @@ import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.InfiniteSessionConfig;
 import com.github.copilot.rpc.LargeToolOutputConfig;
+import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.ModelInfo;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -120,6 +121,7 @@ class ConfigCloneTest {
         original.setPluginDirectories(List.of("/plugins/a", "/plugins/b"));
         original.setLargeOutput(
                 new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L).setOutputDirectory("/tmp/out"));
+        original.setMemory(new MemoryConfiguration().setEnabled(true));
         original.setStreaming(true);
 
         SessionConfig cloned = original.clone();
@@ -131,6 +133,7 @@ class ConfigCloneTest {
         assertEquals(original.getContextTier(), cloned.getContextTier());
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
+        assertEquals(original.getMemory(), cloned.getMemory());
         assertEquals(original.isStreaming(), cloned.isStreaming());
     }
 
@@ -177,6 +180,7 @@ class ConfigCloneTest {
         original.setPluginDirectories(List.of("/plugins/r"));
         original.setLargeOutput(
                 new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L).setOutputDirectory("/tmp/resume"));
+        original.setMemory(new MemoryConfiguration().setEnabled(false));
         original.setStreaming(false);
 
         ResumeSessionConfig cloned = original.clone();
@@ -186,6 +190,7 @@ class ConfigCloneTest {
         assertEquals(original.getContextTier(), cloned.getContextTier());
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
+        assertEquals(original.getMemory(), cloned.getMemory());
         assertEquals(original.isStreaming(), cloned.isStreaming());
     }
 

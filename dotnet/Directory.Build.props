@@ -8,4 +8,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'GitHub.Copilot.SDK'">
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)Open.snk</AssemblyOriginatorKeyFile>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+
 </Project>

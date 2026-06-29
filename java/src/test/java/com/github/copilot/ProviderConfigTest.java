@@ -224,6 +224,28 @@ public class ProviderConfigTest {
         assertEquals("responses", json.get("wireApi").asText());
     }
 
+    @Test
+    void testSerializeTransport() throws Exception {
+        var provider = new ProviderConfig().setType("openai").setBaseUrl("https://custom.example.com").setApiKey("key")
+                .setWireApi("responses").setTransport("websockets");
+
+        JsonNode json = MAPPER.valueToTree(provider);
+
+        assertEquals("websockets", json.get("transport").asText());
+
+        ProviderConfig roundTrip = MAPPER.readValue(MAPPER.writeValueAsString(provider), ProviderConfig.class);
+        assertEquals("websockets", roundTrip.getTransport());
+    }
+
+    @Test
+    void testTransportOmittedWhenNull() throws Exception {
+        var provider = new ProviderConfig().setType("openai").setBaseUrl("https://custom.example.com");
+
+        JsonNode json = MAPPER.valueToTree(provider);
+
+        assertTrue(json.path("transport").isMissingNode());
+    }
+
     // =========================================================================
     // JSON serialization — all fields populated
     // =========================================================================
