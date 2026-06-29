@@ -139,13 +139,13 @@ public class CopilotToolAnnotationTest {
         Parameter[] params = method.getParameters();
         assertEquals(2, params.length);
 
-        Param locationParam = params[0].getAnnotation(CopilotToolParam.class);
+        CopilotToolParam locationParam = params[0].getAnnotation(CopilotToolParam.class);
         assertNotNull(locationParam);
         assertEquals("City name", locationParam.value());
         assertTrue(locationParam.required());
         assertEquals("", locationParam.defaultValue());
 
-        Param unitParam = params[1].getAnnotation(CopilotToolParam.class);
+        CopilotToolParam unitParam = params[1].getAnnotation(CopilotToolParam.class);
         assertNotNull(unitParam);
         assertEquals("Temperature unit", unitParam.value());
         assertFalse(unitParam.required());

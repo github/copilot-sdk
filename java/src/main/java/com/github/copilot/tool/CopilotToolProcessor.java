@@ -80,7 +80,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                     }
                     continue;
                 }
-                Param paramAnnotation = param.getAnnotation(CopilotToolParam.class);
+                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                 if (paramAnnotation != null && paramAnnotation.required()
                         && !paramAnnotation.defaultValue().isEmpty()) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
@@ -111,7 +111,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
             if (schemaParameters.size() == 1) {
                 VariableElement singleParam = schemaParameters.get(0);
                 if (isRecord(singleParam.asType())) {
-                    Param paramAnnotation = singleParam.getAnnotation(CopilotToolParam.class);
+                    CopilotToolParam paramAnnotation = singleParam.getAnnotation(CopilotToolParam.class);
                     if (paramAnnotation != null) {
                         if (!paramAnnotation.defaultValue().isEmpty()) {
                             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
@@ -235,7 +235,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
     private boolean needsWithMetaHelper(List<ExecutableElement> methods) {
         for (ExecutableElement method : methods) {
             for (VariableElement param : method.getParameters()) {
-                Param paramAnnotation = param.getAnnotation(CopilotToolParam.class);
+                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                 if (paramAnnotation != null
                         && (!paramAnnotation.value().isEmpty() || !paramAnnotation.defaultValue().isEmpty())) {
                     return true;
@@ -296,7 +296,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         for (VariableElement param : schemaParameters) {
             String paramName = getParamName(param);
             TypeMirror paramType = param.asType();
-            Param paramAnnotation = param.getAnnotation(CopilotToolParam.class);
+            CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
 
             // Generate the type schema for this parameter
             String typeSchema = schemaGenerator.generateSchemaSource(paramType, processingEnv.getTypeUtils(),
@@ -338,7 +338,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         return TOOL_INVOCATION_TYPE.equals(processingEnv.getTypeUtils().erasure(type).toString());
     }
 
-    private String buildPropertySchema(String typeSchema, Param paramAnnotation, TypeMirror paramType) {
+    private String buildPropertySchema(String typeSchema, CopilotToolParam paramAnnotation, TypeMirror paramType) {
         if (paramAnnotation == null) {
             return typeSchema;
         }
@@ -382,7 +382,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                     TypeMirror paramType = param.asType();
 
                     // Handle default values
-                    Param paramAnnotation = param.getAnnotation(CopilotToolParam.class);
+                    CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                     boolean hasDefault = paramAnnotation != null && !paramAnnotation.defaultValue().isEmpty();
 
                     if (hasDefault) {
@@ -733,7 +733,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
     }
 
     private String getParamName(VariableElement param) {
-        Param paramAnnotation = param.getAnnotation(CopilotToolParam.class);
+        CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
         if (paramAnnotation != null && !paramAnnotation.name().isEmpty()) {
             return paramAnnotation.name();
         }
