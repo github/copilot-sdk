@@ -153,6 +153,11 @@ pub(crate) struct SessionCreateWire {
     pub cloud: Option<CloudSessionOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
+    #[serde(
+        rename = "enableGitHubTelemetryRedirection",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_github_telemetry_redirection: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -268,6 +273,11 @@ pub(crate) struct SessionResumeWire {
     pub remote_session: Option<RemoteSessionMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
+    #[serde(
+        rename = "enableGitHubTelemetryRedirection",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_github_telemetry_redirection: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
     /// Maps to wire field `disableResume`.
