@@ -4190,7 +4190,16 @@ impl Attachment {
             | Self::Directory { display_name, .. }
             | Self::Selection { display_name, .. }
             | Self::Blob { display_name, .. } => display_name.as_deref(),
-            _ => None,
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => None,
         }
     }
 
@@ -4233,7 +4242,16 @@ impl Attachment {
             | Self::Directory { display_name, .. }
             | Self::Selection { display_name, .. }
             | Self::Blob { display_name, .. } => *display_name = Some(derived_display_name),
-            _ => {}
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => {}
         }
     }
 
@@ -4244,7 +4262,16 @@ impl Attachment {
             }
             Self::Selection { file_path, .. } => Some(attachment_name_from_path(file_path)),
             Self::Blob { .. } => Some("attachment".to_string()),
-            _ => None,
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => None,
         }
     }
 }
@@ -6312,21 +6339,24 @@ mod tests {
             let attachment: Attachment = serde_json::from_value(input.clone())
                 .unwrap_or_else(|err| panic!("{expected_type} should deserialize: {err}"));
 
-            let serialized = serde_json::to_value(&attachment)
+            // Serialize to a string first: parsing into `serde_json::Value` would
+            // silently dedupe a duplicate `type` key, hiding the exact regression
+            // this test guards against (e.g. a wrapped generated struct emitting its
+            // own `type` alongside the enum tag).
+            let serialized_string = serde_json::to_string(&attachment)
                 .unwrap_or_else(|err| panic!("{expected_type} should serialize: {err}"));
-
-            let object = serialized
-                .as_object()
-                .unwrap_or_else(|| panic!("{expected_type} should serialize to an object"));
 
             // Exactly one `type` key, carrying the expected discriminator.
             assert_eq!(
-                object.keys().filter(|key| key.as_str() == "type").count(),
+                serialized_string.matches("\"type\":").count(),
                 1,
                 "{expected_type} must serialize a single `type` key"
             );
+
+            let serialized: serde_json::Value = serde_json::from_str(&serialized_string)
+                .unwrap_or_else(|err| panic!("{expected_type} should reparse: {err}"));
             assert_eq!(
-                object.get("type").and_then(|value| value.as_str()),
+                serialized.get("type").and_then(|value| value.as_str()),
                 Some(expected_type),
                 "{expected_type} must serialize the correct discriminator"
             );
