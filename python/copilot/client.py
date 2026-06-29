@@ -395,9 +395,7 @@ class _GitHubTelemetryAdapter:
     ``GitHubTelemetryHandler`` protocol.
     """
 
-    def __init__(
-        self, callback: Callable[[GitHubTelemetryNotification], None]
-    ) -> None:
+    def __init__(self, callback: Callable[[GitHubTelemetryNotification], None]) -> None:
         self._callback = callback
 
     async def event(self, params: GitHubTelemetryNotification) -> None:

@@ -236,9 +236,8 @@ describe("CopilotClient", () => {
     });
 
     it("dispatches a real gitHubTelemetry.event wire notification to the handler", async () => {
-        const { createMessageConnection, StreamMessageReader, StreamMessageWriter } = await import(
-            "vscode-jsonrpc/node.js"
-        );
+        const { createMessageConnection, StreamMessageReader, StreamMessageWriter } =
+            await import("vscode-jsonrpc/node.js");
         const { registerClientGlobalApiHandlers } = await import("../src/generated/rpc.js");
 
         const clientToServer = new PassThrough();

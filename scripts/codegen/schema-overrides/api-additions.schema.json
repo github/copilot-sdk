@@ -1,0 +1,166 @@
+{
+  "clientGlobal": {
+    "gitHubTelemetry": {
+      "event": {
+        "rpcMethod": "gitHubTelemetry.event",
+        "description": "Forwards a single GitHub telemetry event to a host connection that opted into telemetry redirection for the session.",
+        "params": {
+          "$ref": "#/definitions/GitHubTelemetryNotification",
+          "description": "Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session."
+        },
+        "result": {
+          "type": "null"
+        },
+        "notification": true,
+        "stability": "experimental"
+      }
+    }
+  },
+  "definitions": {
+    "GitHubTelemetryClientInfo": {
+      "type": "object",
+      "properties": {
+        "cli_version": {
+          "type": "string",
+          "description": "Copilot CLI version string."
+        },
+        "os_platform": {
+          "type": "string",
+          "description": "Operating system platform (e.g. darwin, linux, win32)."
+        },
+        "os_version": {
+          "type": "string",
+          "description": "Operating system version string."
+        },
+        "os_arch": {
+          "type": "string",
+          "description": "Operating system architecture (e.g. arm64, x64)."
+        },
+        "node_version": {
+          "type": "string",
+          "description": "Node.js runtime version string."
+        },
+        "copilot_plan": {
+          "type": "string",
+          "description": "Copilot subscription plan, when known."
+        },
+        "client_type": {
+          "type": "string",
+          "description": "Type of client."
+        },
+        "client_name": {
+          "type": "string",
+          "description": "Name of the client application."
+        },
+        "is_staff": {
+          "type": "boolean",
+          "description": "Whether the user is a GitHub/Microsoft staff member."
+        },
+        "dev_device_id": {
+          "type": "string",
+          "description": "Stable machine identifier for the device."
+        }
+      },
+      "required": [
+        "cli_version",
+        "os_platform",
+        "os_version",
+        "os_arch",
+        "node_version"
+      ],
+      "additionalProperties": false,
+      "description": "Client environment metadata describing the process that produced a telemetry event.",
+      "title": "GitHubTelemetryClientInfo",
+      "stability": "experimental"
+    },
+    "GitHubTelemetryEvent": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed)."
+        },
+        "created_at": {
+          "type": "string",
+          "description": "Timestamp when the event was created (ISO 8601 format)."
+        },
+        "model_call_id": {
+          "type": "string",
+          "description": "Reference to the model call that produced this event."
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "String-valued properties as a map from key to value."
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Numeric metrics as a map from key to value."
+        },
+        "exp_assignment_context": {
+          "type": "string",
+          "description": "Experiment assignment context."
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Feature flags enabled for this session, as a map from flag to value."
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Session identifier the event belongs to."
+        },
+        "copilot_tracking_id": {
+          "type": "string",
+          "description": "Copilot tracking ID for user-level attribution."
+        },
+        "client": {
+          "$ref": "#/definitions/GitHubTelemetryClientInfo",
+          "description": "Client environment metadata."
+        }
+      },
+      "required": [
+        "kind",
+        "properties",
+        "metrics"
+      ],
+      "additionalProperties": false,
+      "description": "A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.",
+      "title": "GitHubTelemetryEvent",
+      "stability": "experimental"
+    },
+    "GitHubTelemetryNotification": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "description": "Session the telemetry event belongs to."
+        },
+        "restricted": {
+          "type": "boolean",
+          "description": "Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only."
+        },
+        "event": {
+          "$ref": "#/definitions/GitHubTelemetryEvent",
+          "description": "The telemetry event, in the runtime's native GitHub-shaped telemetry format."
+        }
+      },
+      "required": [
+        "sessionId",
+        "restricted",
+        "event"
+      ],
+      "additionalProperties": false,
+      "description": "Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session.",
+      "title": "GitHubTelemetryNotification",
+      "stability": "experimental"
+    }
+  }
+}

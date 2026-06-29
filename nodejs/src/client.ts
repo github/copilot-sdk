@@ -33,7 +33,11 @@ import {
     registerClientGlobalApiHandlers,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
-import type { GitHubTelemetryNotification, OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated/rpc.js";
+import type {
+    GitHubTelemetryNotification,
+    OpenCanvasInstance,
+    SessionUpdateOptionsParams,
+} from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";

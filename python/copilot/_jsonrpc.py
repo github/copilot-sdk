@@ -233,9 +233,7 @@ class JsonRpcClient:
         """Set the handler for incoming notifications from the server."""
         self.notification_handler = handler
 
-    def set_notification_method_handler(
-        self, method: str, handler: Callable[[dict], Any] | None
-    ):
+    def set_notification_method_handler(self, method: str, handler: Callable[[dict], Any] | None):
         """Register a handler for a specific server-to-client notification method.
 
         Notifications carry no ``id`` and expect no response, so they are

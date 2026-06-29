@@ -40,7 +40,7 @@ import {
 	isSchemaExperimental,
 	isSchemaInternal,
 	isVoidSchema,
-	normalizeSchemaBrandCasing,
+	loadSchemaJson,
 	fixBrandCasing,
 	parseExternalSchemaRef,
 	postProcessSchema,
@@ -2155,12 +2155,8 @@ async function generate(): Promise<void> {
 		schemaArgs.sessionEventsSchemaPath || (await getSessionEventsSchemaPath());
 	const apiSchemaPath = await getApiSchemaPath(schemaArgs.apiSchemaPath);
 
-	const sessionEventsRaw = normalizeSchemaBrandCasing(
-		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
-	);
-	const apiRaw = normalizeSchemaBrandCasing(
-		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
-	);
+	const sessionEventsRaw = await loadSchemaJson(sessionEventsSchemaPath);
+	const apiRaw = await loadSchemaJson<ApiSchema>(apiSchemaPath);
 
 	const sessionEventsSchema = propagateInternalVisibility(
 		postProcessSchema(

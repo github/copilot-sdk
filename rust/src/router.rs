@@ -114,17 +114,17 @@ impl SessionRouter {
                                 >(params.clone())
                                 {
                                     Ok(telemetry) => {
-                                    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-                                        || callback(telemetry),
-                                    ))
-                                    .is_err()
-                                    {
-                                        warn!(
-                                            "gitHubTelemetry.event callback panicked; \
+                                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                                            || callback(telemetry),
+                                        ))
+                                        .is_err()
+                                        {
+                                            warn!(
+                                                "gitHubTelemetry.event callback panicked; \
                                              continuing notification routing"
-                                        );
+                                            );
+                                        }
                                     }
-                                }
                                     Err(e) => {
                                         warn!(
                                             error = %e,

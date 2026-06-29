@@ -2094,10 +2094,7 @@ class TestGitHubTelemetry:
         await client.start()
 
         try:
-            assert (
-                "gitHubTelemetry.event"
-                not in client._client.notification_method_handlers
-            )
+            assert "gitHubTelemetry.event" not in client._client.notification_method_handlers
             assert "gitHubTelemetry.event" not in client._client.request_handlers
         finally:
             await client.force_stop()

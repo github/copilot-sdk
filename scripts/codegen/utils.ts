@@ -46,6 +46,7 @@ export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T
 // ── Schema paths ────────────────────────────────────────────────────────────
 
 const SDK_NODE_MODULES = path.join(REPO_ROOT, "nodejs/node_modules");
+const API_SCHEMA_ADDITIONS_PATH = path.join(__dirname, "schema-overrides/api-additions.schema.json");
 
 /**
  * Resolve a JSON schema shipped by the `@github/copilot` CLI package.
@@ -185,7 +186,61 @@ function renameBrandDefinitionKeys(defs: Record<string, unknown>): void {
 /** Load a JSON schema file and normalize GitHub brand casing in titles, refs, and definition keys. */
 export async function loadSchemaJson<T>(filePath: string): Promise<T> {
     const parsed = JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
-    return normalizeSchemaBrandCasing(parsed);
+    const normalized = normalizeSchemaBrandCasing(parsed);
+    return applyApiSchemaAdditions(normalized, filePath);
+}
+
+async function applyApiSchemaAdditions<T>(schema: T, filePath: string): Promise<T> {
+    if (path.basename(filePath) !== "api.schema.json") return schema;
+
+    let additions: ApiSchema;
+    try {
+        additions = normalizeSchemaBrandCasing(
+            JSON.parse(await fs.readFile(API_SCHEMA_ADDITIONS_PATH, "utf-8")) as ApiSchema
+        );
+    } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === "ENOENT") return schema;
+        throw err;
+    }
+
+    const apiSchema = schema as ApiSchema;
+    mergeSchemaAdditions(apiSchema, "definitions", additions.definitions);
+    mergeSchemaAdditions(apiSchema, "$defs", additions.$defs);
+    mergeSchemaAdditions(apiSchema, "server", additions.server);
+    mergeSchemaAdditions(apiSchema, "session", additions.session);
+    mergeSchemaAdditions(apiSchema, "clientSession", additions.clientSession);
+    mergeSchemaAdditions(apiSchema, "clientGlobal", additions.clientGlobal);
+    return schema;
+}
+
+function mergeSchemaAdditions(
+    schema: ApiSchema,
+    key: keyof ApiSchema,
+    additions: Record<string, unknown> | undefined
+): void {
+    if (!additions) return;
+    mergeMissingEntries((schema[key] ??= {}) as Record<string, unknown>, additions);
+}
+
+function mergeMissingEntries(target: Record<string, unknown>, additions: Record<string, unknown> | undefined): void {
+    if (!additions) return;
+
+    for (const [key, value] of Object.entries(additions)) {
+        if (!(key in target)) {
+            target[key] = value;
+            continue;
+        }
+
+        const existing = target[key];
+        if (isPlainObject(existing) && isPlainObject(value)) {
+            mergeMissingEntries(existing, value);
+        }
+    }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // ── Schema processing ───────────────────────────────────────────────────────
