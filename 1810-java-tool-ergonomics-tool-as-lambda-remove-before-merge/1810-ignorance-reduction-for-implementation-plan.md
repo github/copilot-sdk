@@ -68,6 +68,377 @@ Open decisions:
 
 **Recommendation:** start with arity `0..3`, plus context-capable variants only if they remain concise.
 
+**Resolutions:**
+
+**Arity cap for v1 (`1..3` vs `1..5`).**: 
+
+Assume current annotation class `com.github.copilot.tool.Param` is renamed to `CopilotToolParam`.
+
+Then we define `Param` as 
+
+```java
+package com.github.copilot.tool;
+
+import java.util.Objects;
+
+/**
+ * Runtime parameter metadata for lambda-defined tools.
+ * Mirrors the fields of @CopilotToolParam.
+ */
+public final class Param<T> {
+
+    private final Class<T> type;
+    private final String value;        // description
+    private final String name;         // parameter name override
+    private final boolean required;    // required flag
+    private final String defaultValue; // default value as string
+
+    private Param(Class<T> type, String value, String name, boolean required, String defaultValue) {
+        this.type = Objects.requireNonNull(type, "type");
+        this.value = value == null ? "" : value;
+        this.name = name == null ? "" : name;
+        this.required = required;
+        this.defaultValue = defaultValue == null ? "" : defaultValue;
+    }
+
+    /** Minimal fluent entrypoint (required=true, defaultValue=""). */
+    public static <T> Param<T> of(Class<T> type, String name, String value) {
+        return new Param<>(type, value, name, true, "");
+    }
+
+    /** Full factory for parity with annotation fields. */
+    public static <T> Param<T> of(Class<T> type, String name, String value, boolean required, String defaultValue) {
+        return new Param<>(type, value, name, required, defaultValue);
+    }
+
+    // Fluent modifiers
+    public Param<T> name(String name) {
+        return new Param<>(this.type, this.value, name, this.required, this.defaultValue);
+    }
+
+    public Param<T> value(String value) {
+        return new Param<>(this.type, value, this.name, this.required, this.defaultValue);
+    }
+
+    public Param<T> required(boolean required) {
+        return new Param<>(this.type, this.value, this.name, required, this.defaultValue);
+    }
+
+    public Param<T> defaultValue(String defaultValue) {
+        return new Param<>(this.type, this.value, this.name, this.required, defaultValue);
+    }
+
+    // Accessors intentionally match annotation element names
+    public Class<T> type() { return type; }
+    public String value() { return value; }
+    public String name() { return name; }
+    public boolean required() { return required; }
+    public String defaultValue() { return defaultValue; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof Param<?> other)) return false;
+        return required == other.required
+            && Objects.equals(type, other.type)
+            && Objects.equals(value, other.value)
+            && Objects.equals(name, other.name)
+            && Objects.equals(defaultValue, other.defaultValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, value, name, required, defaultValue);
+    }
+}
+```
+
+The answer to the arity question is shown in this sample.
+
+```java
+package com.github.copilot.tool;
+
+import java.util.Objects;
+
+/**
+ * Runtime parameter metadata for lambda-defined tools.
+ * Mirrors the fields of @CopilotToolParam.
+ */
+public final class Param<T> {
+
+    private final Class<T> type;
+    private final String description;
+    private final String name;
+    private final boolean required;
+    private final String defaultValue;
+
+    private Param(Class<T> type, String description, String name, boolean required, String defaultValue) {
+        this.type = Objects.requireNonNull(type, "type");
+        this.description = requireNonBlank(description, "description");
+        this.name = requireNonBlank(name, "name");
+        this.defaultValue = defaultValue == null ? "" : defaultValue;
+        this.required = required;
+
+        if (this.required && !this.defaultValue.isEmpty()) {
+            throw new IllegalArgumentException("required=true cannot be combined with a non-empty defaultValue");
+        }
+
+        validateDefaultValue(type, this.defaultValue);
+    }
+
+    /** Minimal fluent entrypoint (required=true, no default). */
+    public static <T> Param<T> of(Class<T> type, String name, String description) {
+        return new Param<>(type, description, name, true, "");
+    }
+
+    /** Full factory for parity with annotation fields. */
+    public static <T> Param<T> of(
+            Class<T> type,
+            String name,
+            String description,
+            boolean required,
+            String defaultValue) {
+        return new Param<>(type, description, name, required, defaultValue);
+    }
+
+    public Param<T> name(String name) {
+        return new Param<>(this.type, this.description, name, this.required, this.defaultValue);
+    }
+
+    public Param<T> description(String description) {
+        return new Param<>(this.type, description, this.name, this.required, this.defaultValue);
+    }
+
+    /**
+     * Alias for annotation parity.
+     */
+    public Param<T> value(String value) {
+        return description(value);
+    }
+
+    public Param<T> required(boolean required) {
+        return new Param<>(this.type, this.description, this.name, required, this.defaultValue);
+    }
+
+    /**
+     * Setting a default makes the parameter optional.
+     */
+    public Param<T> defaultValue(String defaultValue) {
+        return new Param<>(this.type, this.description, this.name, false, defaultValue);
+    }
+
+    public Class<T> type() {
+        return type;
+    }
+
+    /**
+     * Alias kept for annotation parity.
+     */
+    public String value() {
+        return description;
+    }
+
+    public String description() {
+        return description;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public boolean required() {
+        return required;
+    }
+
+    public String defaultValue() {
+        return defaultValue;
+    }
+
+    public boolean hasDefaultValue() {
+        return !defaultValue.isEmpty();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof Param<?> other)) {
+            return false;
+        }
+        return required == other.required
+                && Objects.equals(type, other.type)
+                && Objects.equals(description, other.description)
+                && Objects.equals(name, other.name)
+                && Objects.equals(defaultValue, other.defaultValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, description, name, required, defaultValue);
+    }
+
+    private static String requireNonBlank(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " must not be null or blank");
+        }
+        return value;
+    }
+
+    private static <T> void validateDefaultValue(Class<T> type, String defaultValue) {
+        if (defaultValue == null || defaultValue.isEmpty()) {
+            return;
+        }
+
+        try {
+            if (type == String.class) {
+                return;
+            }
+            if (type == Integer.class || type == int.class) {
+                Integer.parseInt(defaultValue);
+                return;
+            }
+            if (type == Long.class || type == long.class) {
+                Long.parseLong(defaultValue);
+                return;
+            }
+            if (type == Double.class || type == double.class) {
+                Double.parseDouble(defaultValue);
+                return;
+            }
+            if (type == Float.class || type == float.class) {
+                Float.parseFloat(defaultValue);
+                return;
+            }
+            if (type == Short.class || type == short.class) {
+                Short.parseShort(defaultValue);
+                return;
+            }
+            if (type == Byte.class || type == byte.class) {
+                Byte.parseByte(defaultValue);
+                return;
+            }
+            if (type == Boolean.class || type == boolean.class) {
+                if (!"true".equalsIgnoreCase(defaultValue) && !"false".equalsIgnoreCase(defaultValue)) {
+                    throw new IllegalArgumentException("must be 'true' or 'false'");
+                }
+                return;
+            }
+            if (type.isEnum()) {
+                @SuppressWarnings({ "rawtypes", "unchecked" })
+                Class<? extends Enum> enumType = (Class<? extends Enum>) type;
+                Enum.valueOf(enumType, defaultValue);
+                return;
+            }
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException(
+                    "defaultValue '" + defaultValue + "' is not valid for type " + type.getSimpleName(), ex);
+        }
+
+        throw new IllegalArgumentException(
+                "defaultValue is not supported for type " + type.getName() + " without a custom coercion policy");
+    }
+}
+```
+
+
+**Whether zero-arg tools need a dedicated overload.**: Yes. And it needs two. See the preceding answer.
+
+**Whether `ToolInvocation` context injection is included in v1.**: 
+
+Yes, it must be. Here is the shape.
+
+```java
+// -----------------------------
+// With ToolInvocation context
+// -----------------------------
+
+// 0 visible args + ToolInvocation, sync:
+// Function<ToolInvocation, R>
+static <R> ToolDefinition fromWithToolInvocation(
+    String name,
+    String description,
+    Function<ToolInvocation, R> handler);
+
+// 0 visible args + ToolInvocation, async:
+// Function<ToolInvocation, CompletableFuture<R>>
+static <R> ToolDefinition fromAsyncWithToolInvocation(
+    String name,
+    String description,
+    Function<ToolInvocation, CompletableFuture<R>> handler);
+
+// 1 visible arg + ToolInvocation, sync:
+// BiFunction<T1, ToolInvocation, R>
+static <T1, R> ToolDefinition fromWithToolInvocation(
+    String name,
+    String description,
+    Param p1,
+    BiFunction<T1, ToolInvocation, R> handler);
+
+// 1 visible arg + ToolInvocation, async:
+// BiFunction<T1, ToolInvocation, CompletableFuture<R>>
+static <T1, R> ToolDefinition fromAsyncWithToolInvocation(
+    String name,
+    String description,
+    Param p1,
+    BiFunction<T1, ToolInvocation, CompletableFuture<R>> handler);
+```
+
+Usage examples.
+
+```java
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+// Assume this exists in the lambda-based API.
+Param phaseParam = Param.of("phase", "Current phase");
+
+// -------------------------------------------
+// fromWithToolInvocation(...)
+// -------------------------------------------
+
+// 0 visible args + ToolInvocation, sync:
+// Function<ToolInvocation, R>
+ToolDefinition sessionInfoSync = ToolDefinition.fromWithToolInvocation(
+    "session_info",
+    "Return the current session id",
+    invocation -> "sessionId=" + invocation.getSessionId()
+);
+
+// 1 visible arg + ToolInvocation, sync:
+// BiFunction<T1, ToolInvocation, R>
+ToolDefinition reportPhaseSync = ToolDefinition.fromWithToolInvocation(
+    "report_phase",
+    "Report the current phase along with invocation context",
+    phaseParam,
+    (phase, invocation) ->
+        "phase=" + phase + ", toolCallId=" + invocation.getToolCallId()
+);
+
+// -------------------------------------------
+// fromAsyncWithToolInvocation(...)
+// -------------------------------------------
+
+// 0 visible args + ToolInvocation, async:
+// Function<ToolInvocation, CompletableFuture<R>>
+ToolDefinition sessionInfoAsync = ToolDefinition.fromAsyncWithToolInvocation(
+    "session_info_async",
+    "Return the current session id asynchronously",
+    invocation -> CompletableFuture.completedFuture(
+        "sessionId=" + invocation.getSessionId()
+    )
+);
+
+// 1 visible arg + ToolInvocation, async:
+// BiFunction<T1, ToolInvocation, CompletableFuture<R>>
+ToolDefinition reportPhaseAsync = ToolDefinition.fromAsyncWithToolInvocation(
+    "report_phase_async",
+    "Report the current phase with invocation context asynchronously",
+    phaseParam,
+    (phase, invocation) -> CompletableFuture.completedFuture(
+        "phase=" + phase + ", toolCallId=" + invocation.getToolCallId()
+    )
+);
+```
+
+
 ### 3.2 — Functional interface set and type inference
 
 **Question:** What functional interfaces are needed for clean lambda syntax without casts?
@@ -79,6 +450,10 @@ Unknowns:
 * How to avoid ambiguous overload resolution between sync and async lambdas.
 
 **Recommendation:** use distinct interfaces for sync and async handlers and keep overload count minimal to reduce ambiguity.
+
+**Resolution:**
+
+The answers to 3.1 resolve this. But also please confirm that v1 uses only JDK functional interfaces and method-family naming to separate sync, async, and ToolInvocation-aware variants.
 
 ### 3.3 — Parameter metadata DSL design
 
@@ -93,10 +468,21 @@ Candidate concepts:
 Unknowns:
 
 1. How defaults are represented and validated by type.
-1. How optionality interacts with default values.
-1. Whether descriptions are required by policy.
+2. How optionality interacts with default values.
+3. Whether descriptions are required by policy.
 
 **Recommendation:** align with `@Param` semantics from ADR-005 wherever possible.
+
+**Resolution:**
+
+Use the above `Param` class. 
+
+- Lambda API enforcement
+   - `Param.of(...)` and fluent mutators reject blank `name`/`description`.
+   - `Param.defaultValue(...)` validates the value against `Class<T>`.
+   - `required=true` with non-empty `defaultValue` is rejected.
+   - Every `ToolDefinition.from` / `fromAsync` overload re-validates supplied `Param<?>` objects before building the tool.
+
 
 ### 3.4 — Type-to-JSON-schema mapping for inline params
 
@@ -119,6 +505,15 @@ Unknowns:
 
 **Recommendation:** implement the subset already validated by existing ergonomic and low-level tests, then extend.
 
+**Resolution:**
+
+For 3.4, I’d resolve it at this level:
+
+- tool-as-lambda supports exactly the same parameter-type surface already supported by the existing Java schema/tool pipeline, reused for lambda tools.
+- This includes the minimal set you listed.
+- No new schema semantics are invented for tool-as-lambda.
+- If a type is not already supported by the current Java ergonomic/low-level tool path, it is out of scope for tool-as-lambda.
+
 ### 3.5 — Invocation and coercion policy
 
 **Question:** How are JSON arguments coerced into typed lambda arguments?
@@ -130,6 +525,8 @@ Options:
 
 **Recommendation:** reuse existing mapper policy for consistency and reduced risk.
 
+**Resolution:** Use the existing `ObjectMapper`, eliminating DRY violations if any crop up.
+
 ### 3.6 — Tool options and advanced flags
 
 **Question:** How do callers set `overridesBuiltInTool`, `skipPermission`, and `defer` on inline tools?
@@ -140,6 +537,52 @@ Candidates:
 * Fluent builder wrapping `ToolDefinition.from(...)`.
 
 **Recommendation:** options object first, to avoid overload explosion.
+
+**Resolution:**
+
+Use fluent immutable modifier methods on `ToolDefinition` rather than introducing a separate options object in v1.
+
+Because `ToolDefinition` is already an immutable record carrying `overridesBuiltInTool`, `skipPermission`, and `defer`, the lambda-based `from*` factories should return a `ToolDefinition` that callers may further customize with copy-style fluent methods.
+
+Example:
+
+```java
+ToolDefinition tool = ToolDefinition.from(
+        "report_intent",
+        "Reports the agent's current intent",
+        Param.of(String.class, "intent", "The intent to report"),
+        intent -> "Reported intent: " + intent)
+    .overridesBuiltInTool(true)
+    .skipPermission(true)
+    .defer(ToolDefer.AUTO);
+```
+
+Equivalent context-aware example:
+
+```
+ToolDefinition tool = ToolDefinition.fromWithToolInvocation(
+        "report_phase",
+        "Reports the current phase with invocation context",
+        Param.of(String.class, "phase", "The current phase"),
+        (phase, invocation) -> "phase=" + phase + ", toolCallId=" + invocation.getToolCallId())
+    .skipPermission(true)
+    .defer(ToolDefer.NEVER);
+```
+
+The modifier surface for v1 is:
+
+```
+ToolDefinition overridesBuiltInTool(boolean value);
+ToolDefinition skipPermission(boolean value);
+ToolDefinition defer(ToolDefer value);
+```
+
+Notes:
+
+- `defer` should use the existing `ToolDefer` enum, not a boolean.
+- This keeps the API aligned with the existing `ToolDefinition` data model.
+- This avoids introducing a separate options type solely for inline/lambda-defined tools.
+- Existing low-level factories (`createOverride`, `createSkipPermission`, `createWithDefer`) may remain for compatibility, but the new lambda-based API should prefer the fluent style.
 
 ### 3.7 — Error model and validation boundaries
 
@@ -154,6 +597,21 @@ Must-validate cases:
 
 **Recommendation:** fail fast at tool construction with precise `IllegalArgumentException` messages.
 
+**Resolution:**
+
+- Construction-time validation for lambda tools:
+   - all `ToolDefinition.from*` factories must validate before returning
+   - failures use `IllegalArgumentException`
+   - messages should identify the offending tool name and parameter name when possible
+- `Param`-local validation:
+   - blank name/description
+   - `required=true` with default
+   - default incompatible with declared type
+- Cross-parameter validation:
+   - duplicate parameter names
+   - unsupported schema/type mappings
+
+
 ### 3.8 — Binary compatibility and package placement
 
 **Question:** Where do new public types live without destabilizing existing API?
@@ -165,6 +623,13 @@ Unknowns:
 
 **Recommendation:** place user-facing ergonomics in the package users already discover for tools, and keep internal helpers package-private.
 
+**Resolution:**
+
+- new public helper types like `Param<T>` belong in `com.github.copilot.tool`
+- any necessary `module-info.java` export updates should expose only that user-facing package surface
+- no extra public internal-helper types should leak just to support lambda tools
+
+
 ### 3.9 — E2E test scenario and snapshot reuse
 
 **Question:** Do we need a new replay snapshot?
@@ -172,6 +637,10 @@ Unknowns:
 Because wire format should match existing tool definitions, we should attempt snapshot reuse first.
 
 **Recommendation:** start with existing tool-definition snapshot; only add a new YAML if wire traffic differs.
+
+**Resolution:**
+
+Yes. start with existing tool-definition snapshot; only add a new YAML if wire traffic differs.
 
 ---
 
