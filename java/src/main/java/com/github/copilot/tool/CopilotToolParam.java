@@ -21,7 +21,8 @@ import com.github.copilot.CopilotExperimental;
  *
  * <pre>
  * &#64;CopilotTool("Search for issues")
- * public CompletableFuture&lt;String&gt; searchIssues(&#64;CopilotToolParam(value = "Search query", required = true) String query,
+ * public CompletableFuture&lt;String&gt; searchIssues(
+ * 		&#64;CopilotToolParam(value = "Search query", required = true) String query,
  * 		&#64;CopilotToolParam(value = "Max results", required = false, defaultValue = "10") int limit) {
  * 	// ...
  * }

@@ -18,7 +18,8 @@ public class SimpleTools {
     }
 
     @CopilotTool("Adds two numbers together")
-    public String addNumbers(@CopilotToolParam(value = "First number") int a, @CopilotToolParam(value = "Second number") int b) {
+    public String addNumbers(@CopilotToolParam(value = "First number") int a,
+            @CopilotToolParam(value = "Second number") int b) {
         return String.valueOf(a + b);
     }
 }

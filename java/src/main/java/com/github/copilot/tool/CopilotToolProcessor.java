@@ -255,7 +255,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
         boolean skipPermission = annotation.skipPermission();
         com.github.copilot.rpc.ToolDefer defer = annotation.defer();
 
-        // Generate schema with @CopilotToolParam metadata (descriptions, names, defaults)
+        // Generate schema with @CopilotToolParam metadata (descriptions, names,
+        // defaults)
         String schemaSource = generateSchemaWithParamMetadata(method.getParameters());
 
         // Generate invocation lambda

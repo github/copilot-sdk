@@ -118,7 +118,8 @@ public class CopilotToolAnnotationTest {
     static class SampleToolHolder {
 
         @CopilotTool(value = "Get weather for a location", name = "get_weather", defer = ToolDefer.AUTO)
-        public CompletableFuture<String> getWeather(@CopilotToolParam(value = "City name", required = true) String location,
+        public CompletableFuture<String> getWeather(
+                @CopilotToolParam(value = "City name", required = true) String location,
                 @CopilotToolParam(value = "Temperature unit", required = false, defaultValue = "celsius") String unit) {
             return CompletableFuture.completedFuture("Sunny in " + location);
         }
