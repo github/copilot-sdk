@@ -738,6 +738,12 @@ func unmarshalExternalToolTextResultForLlmContent(data []byte) (ExternalToolText
 			return nil, err
 		}
 		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeShellExit:
+		var d ExternalToolTextResultForLlmContentShellExit
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case ExternalToolTextResultForLlmContentTypeTerminal:
 		var d ExternalToolTextResultForLlmContentTerminal
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -875,6 +881,17 @@ func (r ExternalToolTextResultForLlmContentResource) MarshalJSON() ([]byte, erro
 
 func (r ExternalToolTextResultForLlmContentResourceLink) MarshalJSON() ([]byte, error) {
 	type alias ExternalToolTextResultForLlmContentResourceLink
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r ExternalToolTextResultForLlmContentShellExit) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentShellExit
 	return json.Marshal(struct {
 		Type ExternalToolTextResultForLlmContentType `json:"type"`
 		alias
@@ -3251,7 +3268,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		RemoteDefaultedOn                      *bool                                                `json:"remoteDefaultedOn,omitempty"`
 		RemoteExporting                        *bool                                                `json:"remoteExporting,omitempty"`
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
-		ResponseBudget                         *ResponseBudgetConfig                                `json:"responseBudget,omitempty"`
+		ResponseLimits                         *ResponseLimitsConfig                                `json:"responseLimits,omitempty"`
 		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
@@ -3319,7 +3336,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.RemoteDefaultedOn = raw.RemoteDefaultedOn
 	r.RemoteExporting = raw.RemoteExporting
 	r.RemoteSteerable = raw.RemoteSteerable
-	r.ResponseBudget = raw.ResponseBudget
+	r.ResponseLimits = raw.ResponseLimits
 	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
 	r.SandboxConfig = raw.SandboxConfig
 	r.SessionCapabilities = raw.SessionCapabilities

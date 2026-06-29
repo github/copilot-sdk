@@ -1,5 +1,7 @@
 //! Auto-generated from session-events.schema.json — do not edit manually.
 
+#![allow(deprecated)]
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -37,6 +39,8 @@ pub enum SessionEventType {
     SessionModelChange,
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged,
+    #[serde(rename = "session.response_limits_changed")]
+    SessionResponseLimitsChanged,
     #[serde(rename = "session.permissions_changed")]
     SessionPermissionsChanged,
     #[serde(rename = "session.plan_changed")]
@@ -294,6 +298,8 @@ pub enum SessionEventData {
     SessionModelChange(SessionModelChangeData),
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged(SessionModeChangedData),
+    #[serde(rename = "session.response_limits_changed")]
+    SessionResponseLimitsChanged(SessionResponseLimitsChangedData),
     #[serde(rename = "session.permissions_changed")]
     SessionPermissionsChanged(SessionPermissionsChangedData),
     #[serde(rename = "session.plan_changed")]
@@ -562,16 +568,13 @@ pub struct WorkingDirectoryContext {
     pub repository_host: Option<String>,
 }
 
-/// Optional response budget limits.
+/// Optional response limits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResponseBudgetConfig {
+pub struct ResponseLimitsConfig {
     /// Maximum AI Credits allowed while responding to one top-level user message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_ai_credits: Option<f64>,
-    /// Maximum model-call iterations allowed while responding to one top-level user message.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_model_iterations: Option<i64>,
 }
 
 /// Session event "session.start". Session initialization metadata including context and configuration
@@ -603,9 +606,9 @@ pub struct SessionStartData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
-    /// Response budget limits configured at session creation time, if any
+    /// Response limits configured at session creation time, if any
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_budget: Option<ResponseBudgetConfig>,
+    pub response_limits: Option<ResponseLimitsConfig>,
     /// Model selected at session creation time, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
@@ -647,9 +650,9 @@ pub struct SessionResumeData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
-    /// Response budget limits currently configured at resume time; null when no budget is active
+    /// Response limits currently configured at resume time; null when no limits are active
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_budget: Option<ResponseBudgetConfig>,
+    pub response_limits: Option<ResponseLimitsConfig>,
     /// ISO 8601 timestamp when the session was resumed
     pub resume_time: String,
     /// Model currently selected at resume time
@@ -845,6 +848,14 @@ pub struct SessionModeChangedData {
     pub new_mode: SessionMode,
     /// The session mode the agent is operating in
     pub previous_mode: SessionMode,
+}
+
+/// Session event "session.response_limits_changed". Response limits update details. Null clears the limits.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionResponseLimitsChangedData {
+    /// Current response limits for the session, or null when no limits are active
+    pub response_limits: Option<ResponseLimitsConfig>,
 }
 
 /// Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
@@ -2013,7 +2024,9 @@ pub struct ToolExecutionCompleteContentText {
     pub r#type: ToolExecutionCompleteContentTextType,
 }
 
-/// Terminal/shell output content block with optional exit code and working directory
+/// Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteContentTerminal {
@@ -2027,6 +2040,27 @@ pub struct ToolExecutionCompleteContentTerminal {
     pub text: String,
     /// Content block type discriminator
     pub r#type: ToolExecutionCompleteContentTerminalType,
+}
+
+/// Shell command exit metadata with optional output preview
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentShellExit {
+    /// Working directory where the shell command was executed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Exit code from the completed shell command
+    pub exit_code: i64,
+    /// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_preview: Option<String>,
+    /// Whether outputPreview is known to be incomplete or truncated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_truncated: Option<bool>,
+    /// Shell id, as assigned by Copilot runtime
+    pub shell_id: String,
+    /// Content block type discriminator
+    pub r#type: ToolExecutionCompleteContentShellExitType,
 }
 
 /// Image content block with base64-encoded data
@@ -4342,6 +4376,14 @@ pub enum ToolExecutionCompleteContentTerminalType {
 
 /// Content block type discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentShellExitType {
+    #[serde(rename = "shell_exit")]
+    #[default]
+    ShellExit,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToolExecutionCompleteContentImageType {
     #[serde(rename = "image")]
     #[default]
@@ -4401,6 +4443,7 @@ pub enum ToolExecutionCompleteContentResourceType {
 pub enum ToolExecutionCompleteContent {
     Text(ToolExecutionCompleteContentText),
     Terminal(ToolExecutionCompleteContentTerminal),
+    ShellExit(ToolExecutionCompleteContentShellExit),
     Image(ToolExecutionCompleteContentImage),
     Audio(ToolExecutionCompleteContentAudio),
     ResourceLink(ToolExecutionCompleteContentResourceLink),

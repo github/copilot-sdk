@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -27,8 +28,11 @@ public final class ServerSkillsConfigApi {
 
     /**
      * Skill names to mark as disabled in global configuration, replacing any previous list.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> setDisabledSkills(SkillsConfigSetDisabledSkillsParams params) {
         return caller.invoke("skills.config.setDisabledSkills", params, Void.class);
     }

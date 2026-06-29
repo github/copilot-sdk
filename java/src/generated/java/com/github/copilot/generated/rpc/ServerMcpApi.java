@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -31,8 +32,11 @@ public final class ServerMcpApi {
 
     /**
      * Optional working directory used as context for MCP server discovery.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<McpDiscoverResult> discover(McpDiscoverParams params) {
         return caller.invoke("mcp.discover", params, McpDiscoverResult.class);
     }

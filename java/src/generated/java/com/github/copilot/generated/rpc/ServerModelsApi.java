@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -27,8 +28,11 @@ public final class ServerModelsApi {
 
     /**
      * Optional GitHub token used to list models for a specific user instead of the global auth context.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<ModelsListResult> list() {
         return caller.invoke("models.list", java.util.Map.of(), ModelsListResult.class);
     }

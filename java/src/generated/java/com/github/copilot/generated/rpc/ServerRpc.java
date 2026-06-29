@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -81,16 +82,22 @@ public final class ServerRpc {
 
     /**
      * Optional message to echo back to the caller.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PingResult> ping(PingParams params) {
         return caller.invoke("ping", params, PingResult.class);
     }
 
     /**
      * Optional connection token presented by the SDK client during the handshake.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<ConnectResult> connect(ConnectParams params) {
         return caller.invoke("connect", params, ConnectResult.class);
     }

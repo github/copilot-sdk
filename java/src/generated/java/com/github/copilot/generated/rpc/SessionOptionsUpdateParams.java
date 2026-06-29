@@ -130,7 +130,7 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("enableSkills") Boolean enableSkills,
     /** Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier. */
     @JsonProperty("contextTier") OptionsUpdateContextTier contextTier,
-    /** Optional response budget limits. Pass null to clear the response budget. */
-    @JsonProperty("responseBudget") ResponseBudgetConfig responseBudget
+    /** Optional response limits. Pass null to clear the response limits. */
+    @JsonProperty("responseLimits") ResponseLimitsConfig responseLimits
 ) {
 }
