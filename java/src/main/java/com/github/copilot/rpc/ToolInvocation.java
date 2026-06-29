@@ -18,6 +18,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * When the assistant invokes a tool, this object contains the context including
  * the session ID, tool call ID, tool name, and arguments parsed from the
  * assistant's request.
+ * <p>
+ * In annotation-based tools, methods annotated with
+ * {@link com.github.copilot.tool.CopilotTool} may declare a
+ * {@code ToolInvocation} parameter in any position (before, between, or after
+ * schema-visible parameters). It is always injected as runtime context and is
+ * never included in the tool's JSON schema.
  *
  * @see ToolHandler
  * @see ToolDefinition

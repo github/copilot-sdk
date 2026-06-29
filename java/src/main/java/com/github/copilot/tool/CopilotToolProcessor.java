@@ -48,6 +48,8 @@ import com.github.copilot.CopilotExperimental;
 @CopilotExperimental
 public class CopilotToolProcessor extends AbstractProcessor {
 
+    private static final String TOOL_INVOCATION_TYPE = "com.github.copilot.rpc.ToolInvocation";
+
     private final SchemaGenerator schemaGenerator = new SchemaGenerator();
 
     @Override
@@ -67,7 +69,17 @@ public class CopilotToolProcessor extends AbstractProcessor {
             }
 
             // Validate @Param conflicts
+            int toolInvocationParamCount = 0;
             for (VariableElement param : method.getParameters()) {
+                if (isToolInvocationType(param.asType())) {
+                    toolInvocationParamCount++;
+                    if (param.getAnnotation(Param.class) != null) {
+                        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                "@Param is not supported on ToolInvocation parameters because ToolInvocation is injected runtime context and not part of the tool schema",
+                                param);
+                    }
+                    continue;
+                }
                 Param paramAnnotation = param.getAnnotation(Param.class);
                 if (paramAnnotation != null && paramAnnotation.required()
                         && !paramAnnotation.defaultValue().isEmpty()) {
@@ -88,10 +100,16 @@ public class CopilotToolProcessor extends AbstractProcessor {
                             param);
                 }
             }
+            if (toolInvocationParamCount > 1) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@CopilotTool methods may declare at most one ToolInvocation parameter; ToolInvocation is injected runtime context and not part of the tool schema",
+                        method);
+            }
 
             // Validate single-record wrapper parameter metadata
-            if (method.getParameters().size() == 1) {
-                VariableElement singleParam = method.getParameters().get(0);
+            List<? extends VariableElement> schemaParameters = getSchemaParameters(method.getParameters());
+            if (schemaParameters.size() == 1) {
+                VariableElement singleParam = schemaParameters.get(0);
                 if (isRecord(singleParam.asType())) {
                     Param paramAnnotation = singleParam.getAnnotation(Param.class);
                     if (paramAnnotation != null) {
@@ -262,18 +280,20 @@ public class CopilotToolProcessor extends AbstractProcessor {
     }
 
     private String generateSchemaWithParamMetadata(List<? extends VariableElement> parameters) {
-        if (parameters.isEmpty()) {
+        List<? extends VariableElement> schemaParameters = getSchemaParameters(parameters);
+
+        if (schemaParameters.isEmpty()) {
             return "Map.of(\"type\", \"object\", \"properties\", Map.of(), \"required\", List.of())";
         }
-        if (parameters.size() == 1 && isRecord(parameters.get(0).asType())) {
-            return schemaGenerator.generateSchemaSource(parameters.get(0).asType(), processingEnv.getTypeUtils(),
+        if (schemaParameters.size() == 1 && isRecord(schemaParameters.get(0).asType())) {
+            return schemaGenerator.generateSchemaSource(schemaParameters.get(0).asType(), processingEnv.getTypeUtils(),
                     processingEnv.getElementUtils());
         }
 
         List<String> propertyEntries = new ArrayList<>();
         List<String> requiredNames = new ArrayList<>();
 
-        for (VariableElement param : parameters) {
+        for (VariableElement param : schemaParameters) {
             String paramName = getParamName(param);
             TypeMirror paramType = param.asType();
             Param paramAnnotation = param.getAnnotation(Param.class);
@@ -304,6 +324,20 @@ public class CopilotToolProcessor extends AbstractProcessor {
         return "Map.of(\"type\", \"object\", \"properties\", " + properties + ", \"required\", " + required + ")";
     }
 
+    private List<? extends VariableElement> getSchemaParameters(List<? extends VariableElement> parameters) {
+        List<VariableElement> filtered = new ArrayList<>();
+        for (VariableElement param : parameters) {
+            if (!isToolInvocationType(param.asType())) {
+                filtered.add(param);
+            }
+        }
+        return filtered;
+    }
+
+    private boolean isToolInvocationType(TypeMirror type) {
+        return TOOL_INVOCATION_TYPE.equals(processingEnv.getTypeUtils().erasure(type).toString());
+    }
+
     private String buildPropertySchema(String typeSchema, Param paramAnnotation, TypeMirror paramType) {
         if (paramAnnotation == null) {
             return typeSchema;
@@ -328,20 +362,21 @@ public class CopilotToolProcessor extends AbstractProcessor {
 
     private String generateLambdaBody(ExecutableElement method) {
         List<? extends VariableElement> params = method.getParameters();
+        List<? extends VariableElement> schemaParameters = getSchemaParameters(params);
         StringBuilder sb = new StringBuilder();
 
         // Generate argument extraction
-        if (!params.isEmpty()) {
+        if (!schemaParameters.isEmpty()) {
             // Check if single-record-parameter shortcut applies
-            if (params.size() == 1 && isRecord(params.get(0).asType())) {
-                String typeName = getTypeString(params.get(0).asType());
-                String paramName = params.get(0).getSimpleName().toString();
+            if (schemaParameters.size() == 1 && isRecord(schemaParameters.get(0).asType())) {
+                String typeName = getTypeString(schemaParameters.get(0).asType());
+                String paramName = schemaParameters.get(0).getSimpleName().toString();
                 sb.append("                    ").append(typeName).append(" ").append(paramName)
                         .append(" = mapper.convertValue(invocation.getArguments(), ").append(typeName)
                         .append(".class);\n");
             } else {
                 sb.append("Map<String, Object> args = invocation.getArguments();\n");
-                for (VariableElement param : params) {
+                for (VariableElement param : schemaParameters) {
                     String paramName = getParamName(param);
                     String varName = param.getSimpleName().toString();
                     TypeMirror paramType = param.asType();
@@ -404,7 +439,11 @@ public class CopilotToolProcessor extends AbstractProcessor {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append(params.get(i).getSimpleName().toString());
+            if (isToolInvocationType(params.get(i).asType())) {
+                sb.append("invocation");
+            } else {
+                sb.append(params.get(i).getSimpleName().toString());
+            }
         }
         return sb.toString();
     }
