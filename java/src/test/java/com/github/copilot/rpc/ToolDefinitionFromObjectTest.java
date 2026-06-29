@@ -367,6 +367,107 @@ class ToolDefinitionFromObjectTest {
         assertEquals("phase=completed,sessionId=session-321,toolCallId=call-654,toolName=report_static", result);
     }
 
+    @Test
+    void fromObject_toolInvocationInjection_firstParameter() throws Exception {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "report_progress_first");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.containsKey("phase"));
+        assertFalse(properties.containsKey("invocation"));
+        assertEquals(List.of("phase"), required);
+
+        var result = tool.handler().invoke(createInvocation("report_progress_first", Map.of("phase", "starting"))
+                .setSessionId("session-first").setToolCallId("call-first")).get();
+        assertEquals(
+                "first phase=starting,sessionId=session-first,toolCallId=call-first,toolName=report_progress_first",
+                result);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_onlyParameter() throws Exception {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "only_context");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.isEmpty());
+        assertTrue(required.isEmpty());
+
+        var result = tool.handler().invoke(
+                createInvocation("only_context", Map.of()).setSessionId("session-only").setToolCallId("call-only"))
+                .get();
+        assertEquals("only sessionId=session-only,toolCallId=call-only,toolName=only_context", result);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_middleParameter() throws Exception {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "report_progress_middle");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.containsKey("phase"));
+        assertTrue(properties.containsKey("limit"));
+        assertFalse(properties.containsKey("invocation"));
+        assertEquals(List.of("phase", "limit"), required);
+
+        var result = tool.handler()
+                .invoke(createInvocation("report_progress_middle", Map.of("phase", "running", "limit", 7))
+                        .setSessionId("session-middle").setToolCallId("call-middle"))
+                .get();
+        assertEquals(
+                "middle phase=running,limit=7,sessionId=session-middle,toolCallId=call-middle,toolName=report_progress_middle",
+                result);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_singleRecordAndInvocation() throws Exception {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "report_progress_with_record");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.containsKey("query"));
+        assertTrue(properties.containsKey("limit"));
+        assertFalse(properties.containsKey("args"));
+        assertFalse(properties.containsKey("invocation"));
+        assertEquals(List.of("query", "limit"), required);
+
+        var result = tool.handler()
+                .invoke(createInvocation("report_progress_with_record", Map.of("query", "logs", "limit", 3))
+                        .setSessionId("session-record").setToolCallId("call-record"))
+                .get();
+        assertEquals(
+                "record query=logs,limit=3,sessionId=session-record,toolCallId=call-record,toolName=report_progress_with_record",
+                result);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────────
 
     private static ToolDefinition findTool(List<ToolDefinition> tools, String name) {

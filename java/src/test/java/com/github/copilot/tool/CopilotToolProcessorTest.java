@@ -547,6 +547,103 @@ class CopilotToolProcessorTest {
     }
 
     @Test
+    void supportsInjectedToolInvocation_whenItIsTheOnlyParameter() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                public class InvocationOnlyTools {
+                    @CopilotTool("Reports invocation context only")
+                    public String onlyContext(ToolInvocation invocation) {
+                        return invocation.getSessionId();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.InvocationOnlyTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.InvocationOnlyTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for InvocationOnlyTools$$CopilotToolMeta");
+        assertTrue(generated.contains("\"properties\", Map.of(), \"required\", List.of()"),
+                "Expected empty schema for invocation-only method, got:\n" + generated);
+        assertFalse(generated.contains("Map<String, Object> args = invocation.getArguments();"),
+                "Invocation-only method should not read argument map, got:\n" + generated);
+        assertTrue(generated.contains("instance.onlyContext(invocation)"),
+                "Invocation-only method should inject invocation directly, got:\n" + generated);
+    }
+
+    @Test
+    void supportsInjectedToolInvocation_whenItAppearsFirstOrMiddle() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.Param;
+                public class InvocationPositionTools {
+                    @CopilotTool("Invocation first")
+                    public String reportFirst(ToolInvocation invocation, @Param("Phase") String phase) {
+                        return phase + ":" + invocation.getToolCallId();
+                    }
+                    @CopilotTool("Invocation middle")
+                    public String reportMiddle(@Param("Phase") String phase, ToolInvocation invocation, @Param("Limit") int limit) {
+                        return phase + ":" + limit + ":" + invocation.getToolCallId();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.InvocationPositionTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.InvocationPositionTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for InvocationPositionTools$$CopilotToolMeta");
+        assertTrue(generated.contains("instance.reportFirst(invocation, phase)"),
+                "Expected invocation to be passed in first position, got:\n" + generated);
+        assertTrue(generated.contains("instance.reportMiddle(phase, invocation, limit)"),
+                "Expected invocation to be passed in middle position, got:\n" + generated);
+        assertFalse(generated.contains("args.get(\"invocation\")"),
+                "ToolInvocation must not be read from invocation arguments, got:\n" + generated);
+        assertTrue(generated.contains("Map.entry(\"phase\""),
+                "Expected schema-visible phase parameter, got:\n" + generated);
+        assertTrue(generated.contains("Map.entry(\"limit\""),
+                "Expected schema-visible limit parameter, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"invocation\""),
+                "ToolInvocation must not appear in schema properties, got:\n" + generated);
+    }
+
+    @Test
+    void supportsInjectedToolInvocation_withSingleRecordSchemaParameter() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                public class RecordInvocationTools {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Record plus invocation")
+                    public String report(SearchArgs args, ToolInvocation invocation) {
+                        return args.query() + ":" + invocation.getSessionId();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.RecordInvocationTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.RecordInvocationTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for RecordInvocationTools$$CopilotToolMeta");
+        assertTrue(generated.contains(
+                "test.RecordInvocationTools.SearchArgs args = mapper.convertValue(invocation.getArguments(), test.RecordInvocationTools.SearchArgs.class);"),
+                "Expected single-record conversion for schema-visible parameter, got:\n" + generated);
+        assertTrue(generated.contains("instance.report(args, invocation)"),
+                "Expected record + invocation method call order, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"args\""),
+                "Single-record schema should be flattened, got:\n" + generated);
+        assertFalse(generated.contains("args.get(\"invocation\")"),
+                "ToolInvocation must not be read from invocation arguments, got:\n" + generated);
+    }
+
+    @Test
     void emitsError_forDuplicateToolInvocationParameters() {
         String source = """
                 package test;

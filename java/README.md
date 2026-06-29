@@ -135,6 +135,7 @@ jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ## Annotation-based tools and `ToolInvocation` context
 
 When you define tools with `@CopilotTool`, parameters of type `ToolInvocation` are injected as runtime context and are not exposed in the tool schema.
+`ToolInvocation` can appear before, between, or after schema-visible parameters.
 
 ```java
 import com.github.copilot.rpc.ToolInvocation;
@@ -149,6 +150,19 @@ class ProgressTools {
         return "phase=" + phase + ", sessionId=" + invocation.getSessionId();
     }
 }
+```
+
+Position examples:
+
+```java
+@CopilotTool("Invocation first")
+public String report(ToolInvocation invocation, @Param("Phase") String phase) { ... }
+
+@CopilotTool("Invocation only")
+public String onlyContext(ToolInvocation invocation) { ... }
+
+@CopilotTool("Invocation middle")
+public String report(@Param("Phase") String phase, ToolInvocation invocation, @Param("Limit") int limit) { ... }
 ```
 
 ## Memory
