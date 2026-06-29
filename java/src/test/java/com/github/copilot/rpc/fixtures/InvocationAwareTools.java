@@ -16,16 +16,15 @@ import com.github.copilot.tool.Param;
 public class InvocationAwareTools {
 
     @CopilotTool("Reports progress with invocation context")
-    public String reportProgress(@Param(value = "Current phase", required = true) String phase,
-            ToolInvocation invocation) {
+    public String reportProgress(@Param("Current phase") String phase, ToolInvocation invocation) {
         return "phase=" + phase + ",sessionId=" + invocation.getSessionId() + ",toolCallId="
                 + invocation.getToolCallId() + ",toolName=" + invocation.getToolName();
     }
 
     @CopilotTool("Reports progress asynchronously with invocation context")
-    public CompletableFuture<String> reportProgressAsync(@Param(value = "Current phase", required = true) String phase,
+    public CompletableFuture<String> reportProgressAsync(@Param("Current phase") String phase,
             ToolInvocation invocation) {
         return CompletableFuture.completedFuture("async phase=" + phase + ",sessionId=" + invocation.getSessionId()
-                + ",toolCallId=" + invocation.getToolCallId());
+                + ",toolCallId=" + invocation.getToolCallId() + ",toolName=" + invocation.getToolName());
     }
 }

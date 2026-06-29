@@ -14,8 +14,7 @@ import com.github.copilot.tool.Param;
 public class StaticInvocationTools {
 
     @CopilotTool("Returns invocation context from a static tool")
-    public static String reportStatic(@Param(value = "Current phase", required = true) String phase,
-            ToolInvocation invocation) {
+    public static String reportStatic(@Param("Current phase") String phase, ToolInvocation invocation) {
         return "phase=" + phase + ",sessionId=" + invocation.getSessionId() + ",toolCallId="
                 + invocation.getToolCallId() + ",toolName=" + invocation.getToolName();
     }

@@ -502,6 +502,8 @@ class CopilotToolProcessorTest {
         assertNotNull(generated, "Expected generated source for InvocationAwareTools$$CopilotToolMeta");
         assertTrue(generated.contains("Map.entry(\"phase\""),
                 "Expected normal parameter in schema, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"invocation\""),
+                "ToolInvocation must not appear in schema properties, got:\n" + generated);
         assertFalse(generated.contains("Map.entry(\"toolInvocation\""),
                 "ToolInvocation must not appear in schema properties, got:\n" + generated);
         assertTrue(generated.contains("required\", List.of(\"phase\")"),

@@ -340,7 +340,6 @@ class ToolDefinitionFromObjectTest {
 
         assertTrue(properties.containsKey("phase"));
         assertFalse(properties.containsKey("invocation"));
-        assertFalse(properties.containsKey("toolInvocation"));
         assertEquals(List.of("phase"), required);
     }
 
@@ -353,7 +352,8 @@ class ToolDefinitionFromObjectTest {
 
         var result = tool.handler().invoke(createInvocation("report_progress_async", Map.of("phase", "planning"))
                 .setSessionId("session-789").setToolCallId("call-012")).get();
-        assertEquals("async phase=planning,sessionId=session-789,toolCallId=call-012", result);
+        assertEquals("async phase=planning,sessionId=session-789,toolCallId=call-012,toolName=report_progress_async",
+                result);
     }
 
     @Test
