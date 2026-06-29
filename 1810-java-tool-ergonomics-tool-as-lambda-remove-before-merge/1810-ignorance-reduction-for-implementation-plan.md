@@ -74,85 +74,7 @@ Open decisions:
 
 Assume current annotation class `com.github.copilot.tool.Param` is renamed to `CopilotToolParam`.
 
-Then we define `Param` as 
-
-```java
-package com.github.copilot.tool;
-
-import java.util.Objects;
-
-/**
- * Runtime parameter metadata for lambda-defined tools.
- * Mirrors the fields of @CopilotToolParam.
- */
-public final class Param<T> {
-
-    private final Class<T> type;
-    private final String value;        // description
-    private final String name;         // parameter name override
-    private final boolean required;    // required flag
-    private final String defaultValue; // default value as string
-
-    private Param(Class<T> type, String value, String name, boolean required, String defaultValue) {
-        this.type = Objects.requireNonNull(type, "type");
-        this.value = value == null ? "" : value;
-        this.name = name == null ? "" : name;
-        this.required = required;
-        this.defaultValue = defaultValue == null ? "" : defaultValue;
-    }
-
-    /** Minimal fluent entrypoint (required=true, defaultValue=""). */
-    public static <T> Param<T> of(Class<T> type, String name, String value) {
-        return new Param<>(type, value, name, true, "");
-    }
-
-    /** Full factory for parity with annotation fields. */
-    public static <T> Param<T> of(Class<T> type, String name, String value, boolean required, String defaultValue) {
-        return new Param<>(type, value, name, required, defaultValue);
-    }
-
-    // Fluent modifiers
-    public Param<T> name(String name) {
-        return new Param<>(this.type, this.value, name, this.required, this.defaultValue);
-    }
-
-    public Param<T> value(String value) {
-        return new Param<>(this.type, value, this.name, this.required, this.defaultValue);
-    }
-
-    public Param<T> required(boolean required) {
-        return new Param<>(this.type, this.value, this.name, required, this.defaultValue);
-    }
-
-    public Param<T> defaultValue(String defaultValue) {
-        return new Param<>(this.type, this.value, this.name, this.required, defaultValue);
-    }
-
-    // Accessors intentionally match annotation element names
-    public Class<T> type() { return type; }
-    public String value() { return value; }
-    public String name() { return name; }
-    public boolean required() { return required; }
-    public String defaultValue() { return defaultValue; }
-
-    @Override
-    public boolean equals(Object o) {
-        if (!(o instanceof Param<?> other)) return false;
-        return required == other.required
-            && Objects.equals(type, other.type)
-            && Objects.equals(value, other.value)
-            && Objects.equals(name, other.name)
-            && Objects.equals(defaultValue, other.defaultValue);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(type, value, name, required, defaultValue);
-    }
-}
-```
-
-The answer to the arity question is shown in this sample.
+Then, the answer to the arity question is shown here.
 
 ```java
 package com.github.copilot.tool;
@@ -337,6 +259,59 @@ public final class Param<T> {
 }
 ```
 
+Then the API:
+
+```java
+// -------------------------------------------------------
+// from(...) — sync, no ToolInvocation, arity 0..2
+// -------------------------------------------------------
+
+// 0-arg: Supplier<R>
+static <R> ToolDefinition from(
+    String name,
+    String description,
+    Supplier<R> handler);
+
+// 1-arg: Function<T1, R>
+static <T1, R> ToolDefinition from(
+    String name,
+    String description,
+    Param<T1> p1,
+    Function<T1, R> handler);
+
+// 2-arg: BiFunction<T1, T2, R>
+static <T1, T2, R> ToolDefinition from(
+    String name,
+    String description,
+    Param<T1> p1,
+    Param<T2> p2,
+    BiFunction<T1, T2, R> handler);
+
+// -------------------------------------------------------
+// fromAsync(...) — async, no ToolInvocation, arity 0..2
+// -------------------------------------------------------
+
+// 0-arg: Supplier<CompletableFuture<R>>
+static <R> ToolDefinition fromAsync(
+    String name,
+    String description,
+    Supplier<CompletableFuture<R>> handler);
+
+// 1-arg: Function<T1, CompletableFuture<R>>
+static <T1, R> ToolDefinition fromAsync(
+    String name,
+    String description,
+    Param<T1> p1,
+    Function<T1, CompletableFuture<R>> handler);
+
+// 2-arg: BiFunction<T1, T2, CompletableFuture<R>>
+static <T1, T2, R> ToolDefinition fromAsync(
+    String name,
+    String description,
+    Param<T1> p1,
+    Param<T2> p2,
+    BiFunction<T1, T2, CompletableFuture<R>> handler);
+```
 
 **Whether zero-arg tools need a dedicated overload.**: Yes. And it needs two. See the preceding answer.
 
@@ -387,8 +362,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-// Assume this exists in the lambda-based API.
-Param phaseParam = Param.of("phase", "Current phase");
+Param<String> phaseParam = Param.of(String.class, "phase", "Current phase");
 
 // -------------------------------------------
 // fromWithToolInvocation(...)
@@ -438,7 +412,6 @@ ToolDefinition reportPhaseAsync = ToolDefinition.fromAsyncWithToolInvocation(
 );
 ```
 
-
 ### 3.2 — Functional interface set and type inference
 
 **Question:** What functional interfaces are needed for clean lambda syntax without casts?
@@ -453,7 +426,9 @@ Unknowns:
 
 **Resolution:**
 
-The answers to 3.1 resolve this. But also please confirm that v1 uses only JDK functional interfaces and method-family naming to separate sync, async, and ToolInvocation-aware variants.
+* Naming (`ToolFn1`, `ToolFn2`, `AsyncToolFn1`, etc.): see 3.1.
+* Package placement `com.github.copilot.tool`.
+* How to avoid ambiguous:  Tools-as-lambda uses only JDK functional interfaces; sync and async are separated by method-family naming (`from`/`fromAsync`/`fromWithToolInvocation`/`fromAsyncWithToolInvocation`); no custom SAMs required.
 
 ### 3.3 — Parameter metadata DSL design
 
@@ -474,6 +449,8 @@ Unknowns:
 **Recommendation:** align with `@Param` semantics from ADR-005 wherever possible.
 
 **Resolution:**
+
+`Params.of(...)`: not needed.
 
 Use the above `Param` class. 
 
@@ -654,7 +631,7 @@ After Phase 3 is resolved, implement in this order.
 
 **Likely files:**
 
-* `java/src/main/java/com/github/copilot/rpc/` (new interfaces and metadata types)
+* `java/src/main/java/com/github/copilot/tool/` (new interfaces and metadata types)
 
 **Gating criteria:** compile passes; API signatures are stable and unambiguous for common lambda call sites.
 
@@ -670,11 +647,11 @@ After Phase 3 is resolved, implement in this order.
 
 ### 4.3 — Implement schema and coercion internals
 
-**What:** Build internal mapping from `ParamDef` + handler type info to JSON schema and typed invocation.
+**What:** Build internal mapping from `Param<T>` + handler type info to JSON schema and typed invocation.
 
 **Likely files:**
 
-* new internal helper(s) under `java/src/main/java/com/github/copilot/rpc/` or `.../tool/`
+* new internal helper(s) under `java/src/main/java/com/github/copilot/tool/`.
 
 **Gating criteria:** matches baseline behavior contract from Phase 2.
 
@@ -690,7 +667,7 @@ After Phase 3 is resolved, implement in this order.
 
 **Likely files:**
 
-* `java/src/test/java/com/github/copilot/rpc/*`
+* `java/src/test/java/com/github/copilot/tool/*`
 
 **Gating criteria:** deterministic tests covering success + failure paths.
 
