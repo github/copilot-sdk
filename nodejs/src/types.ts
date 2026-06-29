@@ -2150,6 +2150,14 @@ export interface SessionConfigBase {
     gitHubToken?: string;
 
     /**
+     * Opt-in: when true, the runtime self-fetches enterprise managed settings
+     * (bypass-permissions policy) at session bootstrap using the session's
+     * `gitHubToken`. The runtime calls `/copilot_internal/managed_settings`
+     * and enforces the result fail-closed before the first turn.
+     */
+    selfFetchManagedSettings?: boolean;
+
+    /**
      * When true, skips embedding-based retrieval for this session.
      * Use in multitenant deployments to prevent cross-session information leakage
      * through the shared embedding cache.
