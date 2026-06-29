@@ -132,6 +132,30 @@ Or run it directly from the repository:
 jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
 
+## One-shot / Hosted Environments
+
+When running the SDK in ephemeral containers or other one-shot environments (one request per container), the default session configuration enables SQLite-backed persistence features that you typically do not need:
+
+- **Infinite sessions** — background compaction and workspace persistence (enabled by default)
+- **Session store** — cross-session search and retrieval via a shared SQLite store (enabled by default in `CopilotClientMode.COPILOT_CLI` when `enableSessionStore` is unset)
+
+In restricted or short-lived environments, explicitly disable both to avoid unnecessary disk I/O and transient SQLite lock errors:
+
+```java
+import com.github.copilot.rpc.InfiniteSessionConfig;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
+
+var session = client.createSession(new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setModel("gpt-5")
+    .setEnableSessionStore(false)
+    .setInfiniteSessions(new InfiniteSessionConfig().setEnabled(false))
+).get();
+```
+
+In `CopilotClientMode.EMPTY`, the SDK already defaults `enableSessionStore` to `false`; in the default `CopilotClientMode.COPILOT_CLI` mode, you must set it explicitly.
+
 ## Memory
 
 Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `createSession` and `resumeSession`.

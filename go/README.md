@@ -169,6 +169,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
+- `EnableSessionStore` (\*bool): Enables the cross-session store for search and retrieval across sessions. When unset in `ModeCopilotCli`, the runtime default applies (enabled). In `ModeEmpty`, defaults to disabled. See [One-shot / Hosted Environments](#one-shot--hosted-environments).
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
@@ -506,6 +507,29 @@ When enabled, sessions emit compaction events:
 
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
+
+## One-shot / Hosted Environments
+
+When running the SDK in ephemeral containers or other one-shot environments (one request per container), the default session configuration enables SQLite-backed persistence features that you typically do not need:
+
+- **Infinite sessions** — background compaction and workspace persistence (enabled by default)
+- **Session store** — cross-session search and retrieval via a shared SQLite store (enabled by default in `ModeCopilotCli` when `EnableSessionStore` is unset)
+
+In restricted or short-lived environments, explicitly disable both to avoid unnecessary disk I/O and transient SQLite lock errors:
+
+```go
+falseVal := false
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model:              "gpt-5",
+    EnableSessionStore: &falseVal,
+    InfiniteSessions: &copilot.InfiniteSessionConfig{
+        Enabled: copilot.Bool(false),
+    },
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+})
+```
+
+In `ModeEmpty`, the SDK already defaults `EnableSessionStore` to `false`; in the default `ModeCopilotCli` mode, you must set it explicitly.
 
 ## Memory
 
