@@ -49,6 +49,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `llmInference.*` sub-namespace.
+    pub fn llm_inference(&self) -> ClientRpcLlmInference<'a> {
+        ClientRpcLlmInference {
+            client: self.client,
+        }
+    }
+
     /// `mcp.*` sub-namespace.
     pub fn mcp(&self) -> ClientRpcMcp<'a> {
         ClientRpcMcp {
@@ -205,6 +212,78 @@ impl<'a> ClientRpcAccount<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Gets the currently active authentication credentials from the global auth manager.
+    ///
+    /// Wire method: `account.getCurrentAuth`.
+    ///
+    /// # Returns
+    ///
+    /// Current authentication state
+    pub async fn get_current_auth(&self) -> Result<AccountGetCurrentAuthResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_GETCURRENTAUTH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Gets all authenticated users available for account switching.
+    ///
+    /// Wire method: `account.getAllUsers`.
+    ///
+    /// # Returns
+    ///
+    /// List of all authenticated users
+    pub async fn get_all_users(&self) -> Result<AccountGetAllUsersResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_GETALLUSERS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Stores authentication credentials after successful login (e.g., device code flow).
+    ///
+    /// Wire method: `account.login`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Credentials to store after successful authentication
+    ///
+    /// # Returns
+    ///
+    /// Result of a successful login; throws on failure
+    pub async fn login(&self, params: AccountLoginRequest) -> Result<AccountLoginResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_LOGIN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Removes user authentication from keychain and persisted state.
+    ///
+    /// Wire method: `account.logout`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - User to log out
+    ///
+    /// # Returns
+    ///
+    /// Logout result indicating if more users remain
+    pub async fn logout(&self, params: AccountLogoutRequest) -> Result<AccountLogoutResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_LOGOUT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `agentRegistry.*` RPCs.
@@ -280,6 +359,37 @@ impl<'a> ClientRpcAgents<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Returns the canonical directories where a client may create custom agents that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
+    ///
+    /// Wire method: `agents.getDiscoveryPaths`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths to include when enumerating agent discovery directories.
+    ///
+    /// # Returns
+    ///
+    /// Canonical locations where custom agents can be created so the runtime will recognize them.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_discovery_paths(
+        &self,
+        params: AgentsGetDiscoveryPathsRequest,
+    ) -> Result<AgentDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTS_GETDISCOVERYPATHS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `instructions.*` RPCs.
@@ -316,6 +426,140 @@ impl<'a> ClientRpcInstructions<'a> {
         let _value = self
             .client
             .call(rpc_methods::INSTRUCTIONS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the canonical files and directories where a client may create custom instructions that the runtime will recognize, including ones that do not exist yet. Repository targets become active once created.
+    ///
+    /// Wire method: `instructions.getDiscoveryPaths`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths to include when enumerating instruction discovery targets.
+    ///
+    /// # Returns
+    ///
+    /// Canonical files and directories where custom instructions can be created so the runtime will recognize them.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_discovery_paths(
+        &self,
+        params: InstructionsGetDiscoveryPathsRequest,
+    ) -> Result<InstructionDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::INSTRUCTIONS_GETDISCOVERYPATHS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `llmInference.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcLlmInference<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcLlmInference<'a> {
+    /// Registers an SDK client as the LLM inference callback provider.
+    ///
+    /// Wire method: `llmInference.setProvider`.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the calling client was registered as the LLM inference provider.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_provider(&self) -> Result<LlmInferenceSetProviderResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::LLMINFERENCE_SETPROVIDER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Delivers the response head (status + headers) for an in-flight request, correlated by the requestId the runtime supplied in httpRequestStart. Must be called exactly once per request before any httpResponseChunk frames.
+    ///
+    /// Wire method: `llmInference.httpResponseStart`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Response head.
+    ///
+    /// # Returns
+    ///
+    /// Whether the start frame was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn http_response_start(
+        &self,
+        params: LlmInferenceHttpResponseStartRequest,
+    ) -> Result<LlmInferenceHttpResponseStartResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::LLMINFERENCE_HTTPRESPONSESTART,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Delivers a body byte range (or a terminal transport error) for an in-flight response, correlated by requestId. Set `end` true on the last chunk. When `error` is set the response terminates with a transport-level failure and the runtime raises an APIConnectionError.
+    ///
+    /// Wire method: `llmInference.httpResponseChunk`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A response body chunk or terminal error.
+    ///
+    /// # Returns
+    ///
+    /// Whether the chunk was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn http_response_chunk(
+        &self,
+        params: LlmInferenceHttpResponseChunkRequest,
+    ) -> Result<LlmInferenceHttpResponseChunkResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::LLMINFERENCE_HTTPRESPONSECHUNK,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -1974,6 +2218,37 @@ impl<'a> ClientRpcSkills<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
+    ///
+    /// Wire method: `skills.getDiscoveryPaths`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths to enumerate.
+    ///
+    /// # Returns
+    ///
+    /// Canonical locations where skills can be created so the runtime will recognize them.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_discovery_paths(
+        &self,
+        params: SkillsGetDiscoveryPathsRequest,
+    ) -> Result<SkillDiscoveryPathList, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_GETDISCOVERYPATHS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `skills.config.*` RPCs.
@@ -2083,13 +2358,6 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
-    /// `session.auth.*` sub-namespace.
-    pub fn auth(&self) -> SessionRpcAuth<'a> {
-        SessionRpcAuth {
-            session: self.session,
-        }
-    }
-
     /// `session.canvas.*` sub-namespace.
     pub fn canvas(&self) -> SessionRpcCanvas<'a> {
         SessionRpcCanvas {
@@ -2121,6 +2389,13 @@ impl<'a> SessionRpc<'a> {
     /// `session.fleet.*` sub-namespace.
     pub fn fleet(&self) -> SessionRpcFleet<'a> {
         SessionRpcFleet {
+            session: self.session,
+        }
+    }
+
+    /// `session.gitHubAuth.*` sub-namespace.
+    pub fn git_hub_auth(&self) -> SessionRpcGitHubAuth<'a> {
+        SessionRpcGitHubAuth {
             session: self.session,
         }
     }
@@ -2565,72 +2840,6 @@ impl<'a> SessionRpcAgent<'a> {
     }
 }
 
-/// `session.auth.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct SessionRpcAuth<'a> {
-    pub(crate) session: &'a Session,
-}
-
-impl<'a> SessionRpcAuth<'a> {
-    /// Gets authentication status and account metadata for the session.
-    ///
-    /// Wire method: `session.auth.getStatus`.
-    ///
-    /// # Returns
-    ///
-    /// Authentication status and account metadata for the session.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn get_status(&self) -> Result<SessionAuthStatus, Error> {
-        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_AUTH_GETSTATUS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Updates the session's auth credentials used for outbound model and API requests.
-    ///
-    /// Wire method: `session.auth.setCredentials`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - New auth credentials to install on the session. Omit to leave credentials unchanged.
-    ///
-    /// # Returns
-    ///
-    /// Indicates whether the credential update succeeded.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn set_credentials(
-        &self,
-        params: SessionSetCredentialsParams,
-    ) -> Result<SessionSetCredentialsResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_AUTH_SETCREDENTIALS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-}
-
 /// `session.canvas.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcCanvas<'a> {
@@ -2868,7 +3077,7 @@ impl<'a> SessionRpcCommands<'a> {
     ///
     /// # Returns
     ///
-    /// Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+    /// Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
     ///
     /// <div class="warning">
     ///
@@ -3341,6 +3550,75 @@ impl<'a> SessionRpcFleet<'a> {
     }
 }
 
+/// `session.gitHubAuth.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcGitHubAuth<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcGitHubAuth<'a> {
+    /// Gets authentication status and account metadata for the session.
+    ///
+    /// Wire method: `session.gitHubAuth.getStatus`.
+    ///
+    /// # Returns
+    ///
+    /// Authentication status and account metadata for the session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_status(&self) -> Result<SessionAuthStatus, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_GITHUBAUTH_GETSTATUS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Updates the session's auth credentials used for outbound model and API requests.
+    ///
+    /// Wire method: `session.gitHubAuth.setCredentials`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - New auth credentials to install on the session. Omit to leave credentials unchanged.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the credential update succeeded.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_credentials(
+        &self,
+        params: SessionSetCredentialsParams,
+    ) -> Result<SessionSetCredentialsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_GITHUBAUTH_SETCREDENTIALS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `session.history.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcHistory<'a> {
@@ -3608,6 +3886,13 @@ impl<'a> SessionRpcMcp<'a> {
     /// `session.mcp.apps.*` sub-namespace.
     pub fn apps(&self) -> SessionRpcMcpApps<'a> {
         SessionRpcMcpApps {
+            session: self.session,
+        }
+    }
+
+    /// `session.mcp.headers.*` sub-namespace.
+    pub fn headers(&self) -> SessionRpcMcpHeaders<'a> {
+        SessionRpcMcpHeaders {
             session: self.session,
         }
     }
@@ -4325,6 +4610,50 @@ impl<'a> SessionRpcMcpApps<'a> {
     }
 }
 
+/// `session.mcp.headers.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcMcpHeaders<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcMcpHeaders<'a> {
+    /// Responds to a pending MCP dynamic headers refresh request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide short-lived per-server headers or to indicate that no dynamic headers are available for this refresh.
+    ///
+    /// Wire method: `session.mcp.headers.handlePendingHeadersRefreshRequest`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP headers refresh request id and the host response.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the pending MCP headers refresh response was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn handle_pending_headers_refresh_request(
+        &self,
+        params: McpHeadersHandlePendingHeadersRefreshRequestRequest,
+    ) -> Result<McpHeadersHandlePendingHeadersRefreshRequestResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_HEADERS_HANDLEPENDINGHEADERSREFRESHREQUEST,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `session.mcp.oauth.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcMcpOauth<'a> {
@@ -4332,7 +4661,7 @@ pub struct SessionRpcMcpOauth<'a> {
 }
 
 impl<'a> SessionRpcMcpOauth<'a> {
-    /// Responds to a pending MCP OAuth provider request. Marked internal because the `provider` argument is an in-process OAuthClientProvider instance that cannot be carried over the wire; the public OAuth surface will route the response through a wire-clean handshake once the CLI moves on top of the SDK.
+    /// Responds to a pending MCP OAuth request with an in-process provider. This internal CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public SDK-safe response path.
     ///
     /// Wire method: `session.mcp.oauth.respond`.
     ///
@@ -4365,13 +4694,49 @@ impl<'a> SessionRpcMcpOauth<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Resolves a pending MCP OAuth request with a host-provided token or cancellation. The pending request is emitted as mcp.oauth_required with the data necessary to authorize the request.
+    ///
+    /// Wire method: `session.mcp.oauth.handlePendingRequest`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pending MCP OAuth request ID and host-provided token or cancellation response.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the pending MCP OAuth response was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn handle_pending_request(
+        &self,
+        params: McpOauthHandlePendingRequest,
+    ) -> Result<McpOauthHandlePendingResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Starts OAuth authentication for a remote MCP server.
     ///
     /// Wire method: `session.mcp.oauth.login`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
+    /// * `params` - Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
     ///
     /// # Returns
     ///
@@ -6042,6 +6407,36 @@ impl<'a> SessionRpcProvider<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_PROVIDER_GETENDPOINT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Adds BYOK providers and/or models to the session's registry at runtime, extending the additive registry built from the session's `providers`/`models` options. Both fields are optional, so a call may add providers only, models only, or both. Within a single call providers are registered before models, so a model may reference a provider added in the same call; across calls a model may reference any provider already registered (from session creation or a prior add). A model whose referenced provider is not registered by the end of the call is rejected. Newly added models become selectable via `model.list` / `model.switchTo` and are inherited by sub-agents spawned afterwards.
+    ///
+    /// Wire method: `session.provider.add`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
+    ///
+    /// # Returns
+    ///
+    /// The selectable model entries synthesized for the models added by this call.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn add(&self, params: ProviderAddRequest) -> Result<ProviderAddResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PROVIDER_ADD, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

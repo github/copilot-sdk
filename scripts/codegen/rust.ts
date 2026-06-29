@@ -474,6 +474,21 @@ function isRustMapSchema(schema: JSONSchema7): boolean {
 	);
 }
 
+function isRustArraySchema(schema: JSONSchema7): boolean {
+	return schema.type === "array";
+}
+
+function rustArrayType(
+	schema: JSONSchema7,
+	parentTypeName: string,
+	ctx: RustCodegenCtx,
+): string {
+	const items = schema.items as JSONSchema7 | undefined;
+	if (!items) return "Vec<serde_json::Value>";
+
+	return `Vec<${resolveRustType(items, parentTypeName, "item", true, ctx)}>`;
+}
+
 function rustMapValueType(
 	schema: JSONSchema7,
 	parentTypeName: string,
@@ -526,6 +541,22 @@ function emitRustTypeAlias(
 	const aliasVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
 	lines.push(`${aliasVis} type ${typeName} = ${aliasType};`);
 	ctx.typeAliases.push(lines.join("\n"));
+}
+
+function emitRustArrayAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	emitRustTypeAlias(
+		typeName,
+		schema,
+		rustArrayType(schema, typeName, ctx),
+		ctx,
+		description,
+	);
 }
 
 function emitRustMapAlias(
@@ -1469,6 +1500,8 @@ function generateApiTypesCode(
 				getEnumValueDescriptions(schema),
 				isSchemaExperimental(schema),
 			);
+		} else if (isRustArraySchema(schema)) {
+			emitRustArrayAlias(name, schema, ctx, schema.description);
 		} else if (isRustMapSchema(schema)) {
 			emitRustMapAlias(name, schema, ctx, schema.description);
 		} else if (asGeneratedObjectSchema(schema, defCollections)) {
@@ -1531,6 +1564,8 @@ function generateApiTypesCode(
 			if (resolved) {
 				if (resolved.enum && Array.isArray(resolved.enum)) {
 					// Already generated from definitions
+				} else if (isRustArraySchema(resolved)) {
+					emitRustArrayAlias(resultName, resolved, ctx, resolved.description);
 				} else if (isRustMapSchema(resolved)) {
 					emitRustMapAlias(resultName, resolved, ctx, resolved.description);
 				} else if (isObjectSchema(resolved)) {

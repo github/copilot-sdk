@@ -62,6 +62,59 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Low_Level_Tool_Definition()
+    {
+        string currentPhase = string.Empty;
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools =
+            [
+                AIFunctionFactory.Create(SetCurrentPhase, new AIFunctionFactoryOptions
+                {
+                    Name = "set_current_phase",
+                    Description = "Sets the current phase of the agent",
+                }),
+                AIFunctionFactory.Create(SearchItems, new AIFunctionFactoryOptions
+                {
+                    Name = "search_items",
+                    Description = "Search for items by keyword",
+                }),
+            ],
+            AvailableTools = new ToolSet().AddCustom("*").AddBuiltIn("web_fetch"),
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "First, set the current phase to 'analyzing'. Then search for items with keyword 'copilot'. Report the phase and search results."
+        });
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.NotNull(assistantMessage);
+        var content = assistantMessage!.Data.Content ?? string.Empty;
+        Assert.NotEmpty(content);
+        Assert.Contains("analyzing", content, StringComparison.OrdinalIgnoreCase);
+        Assert.True(content.Contains("item_alpha", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("item_beta", StringComparison.OrdinalIgnoreCase),
+            $"Expected content to mention item_alpha or item_beta, got: {content}");
+        Assert.Equal("analyzing", currentPhase);
+
+        Task<string> SetCurrentPhase(string phase)
+        {
+            currentPhase = phase;
+            return Task.FromResult($"Phase set to {phase}");
+        }
+
+        Task<string> SearchItems(AIFunctionArguments args)
+        {
+            Assert.Equal("copilot", args["keyword"]?.ToString());
+            return Task.FromResult("Found: item_alpha, item_beta");
+        }
+    }
+
+    [Fact]
     public async Task Handles_Tool_Calling_Errors()
     {
         var getUserLocation = AIFunctionFactory.Create(

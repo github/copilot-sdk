@@ -1,0 +1,32 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: First, set the current phase to 'analyzing'. Then search for items with keyword 'copilot'. Report the phase and
+          search results.
+      - role: assistant
+        content: I'll set the phase and run the search now.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: set_current_phase
+              arguments: '{"phase":"analyzing"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: search_items
+              arguments: '{"keyword":"copilot"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Phase set to analyzing
+      - role: tool
+        tool_call_id: toolcall_1
+        content: "Found: item_alpha, item_beta"
+      - role: assistant
+        content: |-
+          Current phase: analyzing
+          Search results: item_alpha, item_beta

@@ -58,7 +58,12 @@ public class CopilotClientTest {
 
         verify(rpc).invoke(eq("runtime.shutdown"), eq(Map.of()), eq(Void.class));
         verify(rpc).close();
-        verify(process, never()).destroy();
+        // The runtime never self-exits after runtime.shutdown (it keeps its
+        // JSON-RPC server alive to send the response and leaves termination to
+        // the caller), so stop() terminates the owned process. The mocked
+        // process exits on the first SIGTERM (waitFor returns true), so we
+        // never escalate to destroyForcibly().
+        verify(process).destroy();
         verify(process, never()).destroyForcibly();
     }
 

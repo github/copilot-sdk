@@ -209,6 +209,76 @@ func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client
 	return rpcClient, server, shutdownCalled
 }
 
+func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertCapiEnableWebSocketResponses(t, <-createParams)
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed-capi","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-capi", &ResumeSessionConfig{
+		Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
+	})
+	if err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertCapiEnableWebSocketResponses(t, <-resumeParams)
+}
+
+func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
+	t.Helper()
+
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	capi, ok := decoded["capi"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected capi object in request params, got %T", decoded["capi"])
+	}
+	if capi["enableWebSocketResponses"] != false {
+		t.Fatalf("expected capi.enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
+	}
+}
+
+func sessionIDFromParams(t *testing.T, params json.RawMessage) string {
+	t.Helper()
+
+	var decoded struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if decoded.SessionID == "" {
+		t.Fatal("expected generated sessionId in request params")
+	}
+	return decoded.SessionID
+}
+
 func assertRuntimeShutdownNotCalled(t *testing.T, shutdownCalled <-chan struct{}) {
 	t.Helper()
 	select {
@@ -420,16 +490,14 @@ func TestClient_SessionIdleTimeoutSeconds(t *testing.T) {
 }
 
 func findCLIPathForTest() string {
-	abs, _ := filepath.Abs("../nodejs/node_modules/@github/copilot/index.js")
-	if fileExistsForTest(abs) {
-		return abs
+	base, err := filepath.Abs("../nodejs/node_modules/@github")
+	if err == nil {
+		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
+		if len(matches) > 0 {
+			return matches[0]
+		}
 	}
 	return ""
-}
-
-func fileExistsForTest(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func TestCreateSessionRequest_ClientName(t *testing.T) {
@@ -1098,7 +1166,7 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 				"inputPrice": 4.0,
 				"outputPrice": 16.0,
 				"cachePrice": 1.0,
-				"contextMax": 1000000
+				"maxPromptTokens": 1000000
 			}
 		}
 	}`
@@ -1109,10 +1177,10 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 		BatchSize:   int64Ptr(1000000),
 		ContextMax:  int64Ptr(128000),
 		LongContext: &rpc.ModelBillingTokenPricesLongContext{
-			InputPrice:  Float64(4.0),
-			OutputPrice: Float64(16.0),
-			CachePrice:  Float64(1.0),
-			ContextMax:  int64Ptr(1000000),
+			InputPrice:      Float64(4.0),
+			OutputPrice:     Float64(16.0),
+			CachePrice:      Float64(1.0),
+			MaxPromptTokens: int64Ptr(1000000),
 		},
 	}
 
@@ -1135,8 +1203,8 @@ func TestModelBillingTokenPricesJSON(t *testing.T) {
 	if lc.InputPrice == nil || *lc.InputPrice != 4.0 {
 		t.Errorf("unexpected LongContext.InputPrice: %v", lc.InputPrice)
 	}
-	if lc.ContextMax == nil || *lc.ContextMax != 1000000 {
-		t.Errorf("unexpected LongContext.ContextMax: %v", lc.ContextMax)
+	if lc.MaxPromptTokens == nil || *lc.MaxPromptTokens != 1000000 {
+		t.Errorf("unexpected LongContext.MaxPromptTokens: %v", lc.MaxPromptTokens)
 	}
 
 	// Round-trip back to JSON and ensure the nested structure survives.
@@ -1335,6 +1403,88 @@ func TestCreateSessionRequest_Cloud(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["cloud"]; ok {
 			t.Error("Expected cloud to be omitted when unset")
+		}
+	})
+}
+
+func TestSessionRequests_Capi(t *testing.T) {
+	t.Run("forwards capi options in session.create RPC", func(t *testing.T) {
+		req := createSessionRequest{
+			Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		capi, ok := m["capi"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected capi to be an object, got %T", m["capi"])
+		}
+		if capi["enableWebSocketResponses"] != false {
+			t.Errorf("Expected enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
+		}
+	})
+
+	t.Run("forwards capi options in session.resume RPC", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID: "s1",
+			Capi:      &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		capi, ok := m["capi"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected capi to be an object, got %T", m["capi"])
+		}
+		if capi["enableWebSocketResponses"] != false {
+			t.Errorf("Expected enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
+		}
+	})
+
+	t.Run("omits capi from JSON when unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["capi"]; ok {
+			t.Error("Expected capi to be omitted when unset")
+		}
+	})
+}
+
+func TestProviderConfig_Transport(t *testing.T) {
+	t.Run("serializes transport with camelCase key", func(t *testing.T) {
+		cfg := ProviderConfig{BaseURL: "https://example.com", Transport: "websockets"}
+		data, err := json.Marshal(cfg)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["transport"] != "websockets" {
+			t.Errorf("Expected transport=websockets, got %v", m["transport"])
+		}
+	})
+
+	t.Run("omits transport from JSON when unset", func(t *testing.T) {
+		cfg := ProviderConfig{BaseURL: "https://example.com"}
+		data, _ := json.Marshal(cfg)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["transport"]; ok {
+			t.Error("Expected transport to be omitted when unset")
 		}
 	})
 }
@@ -2069,4 +2219,86 @@ func TestStartCLIServer_StderrFieldSet(t *testing.T) {
 	if _, ok := cmd.Stderr.(*truncbuffer.TruncBuffer); !ok {
 		t.Error("expected Stderr to be *truncbuffer.TruncBuffer after assignment")
 	}
+}
+
+func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
+	assignments := map[string]any{
+		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
+		"AssignmentContext": "ctx-123",
+	}
+
+	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{ExpAssignments: assignments}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got, ok := m["expAssignments"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected expAssignments to be an object, got %v", m["expAssignments"])
+		}
+		if got["AssignmentContext"] != "ctx-123" {
+			t.Errorf("Expected AssignmentContext 'ctx-123', got %v", got["AssignmentContext"])
+		}
+	})
+
+	t.Run("omits expAssignments from JSON when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["expAssignments"]; ok {
+			t.Error("Expected expAssignments to be omitted when nil")
+		}
+	})
+}
+
+func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
+	assignments := map[string]any{
+		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
+		"AssignmentContext": "ctx-456",
+	}
+
+	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ExpAssignments: assignments}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got, ok := m["expAssignments"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected expAssignments to be an object, got %v", m["expAssignments"])
+		}
+		if got["AssignmentContext"] != "ctx-456" {
+			t.Errorf("Expected AssignmentContext 'ctx-456', got %v", got["AssignmentContext"])
+		}
+	})
+
+	t.Run("omits expAssignments from JSON when nil", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["expAssignments"]; ok {
+			t.Error("Expected expAssignments to be omitted when nil")
+		}
+	})
 }

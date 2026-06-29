@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record PluginsUninstallParams(
     /** Plugin name or "plugin@marketplace" spec to uninstall. When ambiguous, prefer the fully-qualified spec. */
-    @JsonProperty("name") String name
+    @JsonProperty("name") String name,
+    /** Stable source identity for a direct (non-marketplace) install. Disambiguates uninstall when multiple installed plugins share the same name. */
+    @JsonProperty("directSourceId") String directSourceId
 ) {
 }

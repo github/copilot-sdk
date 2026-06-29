@@ -35,7 +35,9 @@ public final class McpOauthCompletedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record McpOauthCompletedEventData(
         /** Request ID of the resolved OAuth request */
-        @JsonProperty("requestId") String requestId
+        @JsonProperty("requestId") String requestId,
+        /** How the pending OAuth request was completed */
+        @JsonProperty("outcome") McpOauthCompletionOutcome outcome
     ) {
     }
 }

@@ -248,10 +248,24 @@ public final class CopilotClient implements AutoCloseable {
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor);
             dispatcher.registerHandlers(rpc);
 
+            // Register the LLM inference request handler when configured.
+            com.github.copilot.CopilotRequestHandler requestHandler = this.options.getRequestHandler();
+            boolean hasLlmInference = requestHandler != null;
+            if (hasLlmInference) {
+                LlmInferenceAdapter llmAdapter = new LlmInferenceAdapter(requestHandler,
+                        () -> connection.serverRpc().llmInference, executor);
+                llmAdapter.registerHandlers(rpc);
+            }
+
             // Verify protocol version
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
                     "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
+
+            // Register as the runtime's LLM inference provider once connected.
+            if (hasLlmInference) {
+                connection.serverRpc().llmInference.setProvider().join();
+            }
 
             LoggingHelpers.logTiming(LOG, Level.FINE, "CopilotClient.start complete. Elapsed={Elapsed}", startNanos);
             return connection;
@@ -439,20 +453,22 @@ public final class CopilotClient implements AutoCloseable {
     private static void cleanupCliProcess(Process process, boolean forceImmediately) {
         try {
             if (process.isAlive()) {
-                if (!forceImmediately && process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                    return;
-                }
-
+                // The runtime completes all cleanup before responding to
+                // runtime.shutdown and then leaves termination to us; it
+                // deliberately keeps its JSON-RPC server alive to send the
+                // response and never self-exits. Waiting for a self-exit that
+                // will never come just wastes time, so terminate the child
+                // immediately and only wait to reap it.
                 if (forceImmediately) {
                     process.destroyForcibly();
                     if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                         LOG.fine("Process did not terminate within force kill timeout");
                     }
                     return;
-                } else {
-                    process.destroy();
                 }
-                if (!forceImmediately && process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+
+                process.destroy();
+                if (process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     return;
                 }
 
@@ -848,7 +864,7 @@ public final class CopilotClient implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        var params = new SessionOptionsUpdateParams(null, // sessionId — set by SessionOptionsApi
+        var params = new SessionOptionsUpdateParams(null, // sessionId - set by SessionOptionsApi
                 null, // model
                 null, // modelCapabilitiesOverrides
                 null, // reasoningEffort
@@ -859,6 +875,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // featureFlags
                 null, // isExperimentalMode
                 null, // provider
+                null, // capi
                 null, // workingDirectory
                 null, // availableTools
                 null, // excludedTools
@@ -869,9 +886,11 @@ public final class CopilotClient implements AutoCloseable {
                 null, // sandboxConfig
                 null, // logInteractiveShells
                 null, // envValueMode
+                null, // allowAllMcpServerInstructions
                 null, // skillDirectories
                 null, // disabledSkills
                 null, // enableOnDemandInstructionDiscovery
+                null, // maxInlineBinaryBytes
                 patchPlugins, // installedPlugins
                 patchAgents, // customAgentsLocalOnly
                 null, // suppressCustomAgentPrompt
@@ -896,7 +915,8 @@ public final class CopilotClient implements AutoCloseable {
                 null, // enableHostGitOperations
                 null, // enableSessionStore
                 null, // enableSkills
-                null // contextTier
+                null, // contextTier
+                null // responseBudget
         );
 
         return session.getRpc().options.update(params).<Void>thenCompose(result -> {

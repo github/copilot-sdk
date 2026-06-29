@@ -1,0 +1,10 @@
+models:
+  - byok-gpt-4o
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 5+5?
+      - role: assistant
+        content: 5 + 5 = 10

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import javax.annotation.processing.Generated;
 
 /**
- * Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+ * Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
  *
  * @since 1.0.0
  */

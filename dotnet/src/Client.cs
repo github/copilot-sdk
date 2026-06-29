@@ -85,6 +85,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private List<ModelInfo>? _modelsCache;
     private ServerRpc? _serverRpc;
 
+    /// <summary>
+    /// Client-global RPC handlers (e.g. the LLM inference provider adapter),
+    /// built once at construction when the corresponding option is configured and
+    /// registered on every connection. Null when no client-global API is enabled.
+    /// </summary>
+    private readonly ClientGlobalApiHandlers? _clientGlobalApis;
+
     private sealed record LifecycleSubscription(Type EventType, Action<SessionLifecycleEvent> Handler);
 
     /// <summary>
@@ -164,6 +171,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
+
+        _clientGlobalApis = BuildClientGlobalApis();
 
         // Empty mode: validate at construction time that the app supplied a
         // per-session persistence location. The runtime is mode-agnostic, so
@@ -275,6 +284,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         "CopilotClient.StartAsync session filesystem setup complete. Elapsed={Elapsed}",
                         sessionFsTimestamp);
                 }
+
+                await ConfigureLlmInferenceAsync(ct);
 
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StartAsync complete. Elapsed={Elapsed}",
@@ -426,7 +437,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
-        var runtimeShutdownCompleted = false;
         if (gracefulRuntimeShutdown && ctx.CliProcess is not null)
         {
             var runtimeShutdownTimestamp = Stopwatch.GetTimestamp();
@@ -434,7 +444,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 using var cancellation = new CancellationTokenSource(s_runtimeShutdownTimeout);
                 await ctx.Server.Runtime.ShutdownAsync(cancellation.Token);
-                runtimeShutdownCompleted = true;
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StopAsync runtime shutdown complete. Elapsed={Elapsed}",
                     runtimeShutdownTimestamp);
@@ -466,11 +475,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (ctx.CliProcess is { } childProcess)
         {
-            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger, runtimeShutdownCompleted);
+            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger);
         }
     }
 
-    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger, bool waitForGracefulExit = false)
+    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger)
     {
         stderrPump?.Cancel();
 
@@ -478,30 +487,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             if (!childProcess.HasExited)
             {
-                if (waitForGracefulExit)
-                {
-                    var shutdownWaitTimestamp = Stopwatch.GetTimestamp();
-                    try
-                    {
-                        await childProcess.WaitForExitAsync().WaitAsync(s_runtimeShutdownTimeout);
-                    }
-                    catch (TimeoutException ex)
-                    {
-                        if (logger is not null)
-                        {
-                            LoggingHelpers.LogTiming(logger, LogLevel.Debug, ex,
-                                "Timed out waiting for runtime process to exit after graceful shutdown. Elapsed={Elapsed}, Timeout={Timeout}",
-                                shutdownWaitTimestamp,
-                                s_runtimeShutdownTimeout);
-                        }
-                    }
-                }
-
-                if (childProcess.HasExited)
-                {
-                    return;
-                }
-
+                // The runtime completes all cleanup before responding to
+                // runtime.shutdown and then leaves termination to us; it
+                // deliberately keeps its JSON-RPC server alive to send the
+                // response and never self-exits. Waiting for a self-exit that
+                // will never come just wastes time, so terminate the child
+                // immediately and only wait to reap it.
                 childProcess.Kill(entireProcessTree: true);
                 // Kill is asynchronous; wait for the root CLI process to exit so cleanup callers
                 // do not observe StopAsync/DisposeAsync completion while it is still tearing down.
@@ -661,6 +652,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         session.SetCanvasHandler(config.CanvasHandler);
+        session.RegisterBearerTokenProviders(BuildBearerTokenCallbacks(config));
         RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -671,6 +663,34 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Commands?.Count ?? 0,
             hasHooks);
         return session;
+    }
+
+    /// <summary>
+    /// Implicit provider name for the singular, whole-session <see cref="ProviderConfig"/>.
+    /// </summary>
+    private const string DefaultBearerTokenProviderName = "default";
+
+    /// <summary>
+    /// Collects the per-provider <c>BearerTokenProvider</c> callbacks keyed by
+    /// provider name for session-side registration. The singular, whole-session
+    /// <see cref="ProviderConfig"/> uses the implicit
+    /// <see cref="DefaultBearerTokenProviderName"/>.
+    /// </summary>
+    private static Dictionary<string, Func<ProviderTokenArgs, Task<string>>> BuildBearerTokenCallbacks(SessionConfigBase config)
+    {
+        var callbacks = new Dictionary<string, Func<ProviderTokenArgs, Task<string>>>(StringComparer.Ordinal);
+        if (config.Provider?.BearerTokenProvider is { } singular)
+        {
+            callbacks[DefaultBearerTokenProviderName] = singular;
+        }
+        if (config.Providers != null)
+        {
+            foreach (var provider in config.Providers.Where(provider => provider.BearerTokenProvider is not null))
+            {
+                callbacks[provider.Name] = provider.BearerTokenProvider!;
+            }
+        }
+        return callbacks;
     }
 
     /// <summary>
@@ -963,6 +983,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
                 config.Provider,
+                config.Capi,
                 config.EnableSessionTelemetry,
                 config.OnPermissionRequest != null ? true : null,
                 config.OnUserInputRequest != null ? true : null,
@@ -1009,7 +1030,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestExtensions: config.RequestExtensions,
                 ExtensionSdkPath: config.ExtensionSdkPath,
                 ExtensionInfo: config.ExtensionInfo,
-                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence);
+                Providers: config.Providers,
+                Models: config.Models,
+                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
+                ExpAssignments: config.ExpAssignments);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1159,6 +1183,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
                 config.Provider,
+                config.Capi,
                 config.EnableSessionTelemetry,
                 config.OnPermissionRequest != null ? true : null,
                 config.OnUserInputRequest != null ? true : null,
@@ -1207,7 +1232,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExtensionSdkPath: config.ExtensionSdkPath,
                 ExtensionInfo: config.ExtensionInfo,
                 OpenCanvases: config.OpenCanvases,
-                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence);
+                Providers: config.Providers,
+                Models: config.Models,
+                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
+                ExpAssignments: config.ExpAssignments);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -1642,6 +1670,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Message = "CopilotClient.ConnectToServerAsync connecting to CLI server. Host={Host}, Port={Port}")]
     private static partial void LogConnectingToCliServer(ILogger logger, string host, int port);
 
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "[CLI] {Line}")]
+    private static partial void LogCliStderrLine(ILogger logger, string line);
+
     private static IOException CreateCliExitedException(string message, StringBuilder stderrBuffer)
     {
         string stderrOutput;
@@ -1672,6 +1705,39 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             _options.SessionFs.Conventions,
             _options.SessionFs.Capabilities,
             cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Builds the client-global RPC handler bag at construction time. Currently
+    /// only the LLM inference provider adapter is registered; returns null when no
+    /// client-global API is configured so the registration is skipped entirely.
+    /// </summary>
+    private ClientGlobalApiHandlers? BuildClientGlobalApis()
+    {
+        var handler = _options.RequestHandler;
+        if (handler is null)
+        {
+            return null;
+        }
+
+        return new ClientGlobalApiHandlers
+        {
+            LlmInference = new LlmInferenceAdapter(handler, () => _serverRpc),
+        };
+    }
+
+    /// <summary>
+    /// Tells the runtime to route its outbound model-layer requests through this
+    /// client's LLM inference provider. No-op when interception is not configured.
+    /// </summary>
+    private async Task ConfigureLlmInferenceAsync(CancellationToken cancellationToken)
+    {
+        if (_clientGlobalApis?.LlmInference is null)
+        {
+            return;
+        }
+
+        await Rpc.LlmInference.SetProviderAsync(cancellationToken);
     }
 
     private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, SessionFsProvider>? createSessionFsHandler)
@@ -2068,6 +2134,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
                 return session.ClientSessionApis;
             });
+            if (_clientGlobalApis is not null)
+            {
+                ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, _clientGlobalApis);
+            }
             rpc.StartListening();
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
@@ -2318,7 +2388,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         Buffer.AppendLine(line);
                     }
 
-                    logger.LogWarning("[CLI] {Line}", line);
+                    LogCliStderrLine(logger, line);
                 }
             }
             catch (Exception e) when (cancellationToken.IsCancellationRequested
@@ -2355,6 +2425,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
         ProviderConfig? Provider,
+        CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
         bool? RequestPermission,
         bool? RequestUserInput,
@@ -2402,7 +2473,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestExtensions = null,
         string? ExtensionSdkPath = null,
         ExtensionInfo? ExtensionInfo = null,
-        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null);
+        IList<NamedProviderConfig>? Providers = null,
+        IList<ProviderModelConfig>? Models = null,
+        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2445,6 +2519,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
         ProviderConfig? Provider,
+        CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
         bool? RequestPermission,
         bool? RequestUserInput,
@@ -2494,7 +2569,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? ExtensionSdkPath = null,
         ExtensionInfo? ExtensionInfo = null,
         IList<OpenCanvasInstance>? OpenCanvases = null,
-        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null);
+        IList<NamedProviderConfig>? Providers = null,
+        IList<ProviderModelConfig>? Models = null,
+        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(
@@ -2569,6 +2647,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(EmbeddingCacheStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
     [JsonSerializable(typeof(ProviderConfig))]
+    [JsonSerializable(typeof(CapiSessionOptions))]
+    [JsonSerializable(typeof(NamedProviderConfig))]
+    [JsonSerializable(typeof(ProviderModelConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
     [JsonSerializable(typeof(SessionCapabilities))]

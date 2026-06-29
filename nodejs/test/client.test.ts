@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { PassThrough } from "stream";
 import {
     approveAll,
     CopilotClient,
@@ -14,6 +15,22 @@ import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
+    it("disposes the stdio connection when child stdin emits an error", async () => {
+        const client = new CopilotClient();
+        onTestFinished(() => client.forceStop());
+
+        const stdin = new PassThrough();
+        const stdout = new PassThrough();
+        (client as any).cliProcess = { stdin, stdout };
+        await (client as any).connectToChildProcessViaStdio();
+
+        const dispose = vi.spyOn((client as any).connection, "dispose");
+
+        const boom = new Error("broken pipe");
+        expect(() => stdin.emit("error", boom)).not.toThrow();
+        expect(dispose).toHaveBeenCalledOnce();
+    });
+
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
         const session = new CopilotSession("session-1", {} as any);
         session.registerPermissionHandler(() => ({ kind: "no-result" }));
@@ -171,6 +188,101 @@ describe("CopilotClient", () => {
         expect(resumePayload.contextTier).toBe("default");
     });
 
+    it("forwards expAssignments in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const assignments = {
+            Parameters: { copilot_exp_flag: "treatment" },
+            AssignmentContext: "ctx-123",
+        };
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            expAssignments: assignments,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            expAssignments: assignments,
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.expAssignments).toEqual(assignments);
+        expect(resumePayload.expAssignments).toEqual(assignments);
+    });
+
+    it("omits expAssignments from session.create and session.resume when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.expAssignments).toBeUndefined();
+        expect(resumePayload.expAssignments).toBeUndefined();
+    });
+
+    it("forwards capi options in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            capi: { enableWebSocketResponses: false },
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            capi: { enableWebSocketResponses: false },
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.capi).toEqual({ enableWebSocketResponses: false });
+        expect(resumePayload.capi).toEqual({ enableWebSocketResponses: false });
+    });
+
     it("forwards pluginDirectories and largeOutput in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -266,8 +378,6 @@ describe("CopilotClient", () => {
                 status: "ready",
                 url: "https://example.test/counter",
                 input: { seed: 1 },
-                reopen: false,
-                availability: "ready",
             },
         });
         (session as any)._dispatchEvent({
@@ -277,8 +387,6 @@ describe("CopilotClient", () => {
                 canvasId: "logs",
                 instanceId: "logs-1",
                 title: "Logs",
-                reopen: false,
-                availability: "stale",
             },
         });
 
@@ -299,8 +407,6 @@ describe("CopilotClient", () => {
                 status: "reconnected",
                 url: "https://example.test/counter-updated",
                 input: { seed: 2 },
-                reopen: true,
-                availability: "stale",
             },
         });
 
@@ -311,8 +417,6 @@ describe("CopilotClient", () => {
             status: "reconnected",
             url: "https://example.test/counter-updated",
             input: { seed: 2 },
-            reopen: true,
-            availability: "stale",
         });
         expect(session.openCanvases[1].instanceId).toBe("logs-1");
         warn.mockRestore();
@@ -329,8 +433,6 @@ describe("CopilotClient", () => {
                 canvasId: "counter",
                 instanceId: "counter-1",
                 title: "Counter",
-                reopen: false,
-                availability: "ready",
             },
         });
         (session as any)._dispatchEvent({
@@ -340,8 +442,6 @@ describe("CopilotClient", () => {
                 canvasId: "logs",
                 instanceId: "logs-1",
                 title: "Logs",
-                reopen: false,
-                availability: "ready",
             },
         });
         expect(session.openCanvases.map((canvas) => canvas.instanceId)).toEqual([
@@ -957,6 +1057,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             },
         });
 
@@ -969,6 +1070,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             })
         );
         spy.mockRestore();
@@ -996,6 +1098,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             },
         });
 
@@ -1008,6 +1111,7 @@ describe("CopilotClient", () => {
                 wireModel: "my-finetune-v3",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
+                transport: "websockets",
             })
         );
         spy.mockRestore();

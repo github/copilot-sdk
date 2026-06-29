@@ -12,7 +12,9 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
 
+import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
 import java.util.Optional;
 
@@ -49,6 +51,9 @@ public class SessionConfig {
     private List<String> availableTools;
     private List<String> excludedTools;
     private ProviderConfig provider;
+    private CapiSessionOptions capi;
+    private List<NamedProviderConfig> providers;
+    private List<ProviderModelConfig> models;
     private Boolean enableSessionTelemetry;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
@@ -92,6 +97,7 @@ public class SessionConfig {
     private String gitHubToken;
     private String remoteSession;
     private CloudSessionOptions cloud;
+    private JsonNode expAssignments;
 
     /**
      * Gets the custom session ID.
@@ -352,6 +358,85 @@ public class SessionConfig {
      */
     public SessionConfig setProvider(ProviderConfig provider) {
         this.provider = provider;
+        return this;
+    }
+
+    /**
+     * Gets the CAPI provider-scoped session options.
+     *
+     * @return the CAPI session options
+     */
+    public CapiSessionOptions getCapi() {
+        return capi;
+    }
+
+    /**
+     * Sets CAPI provider-scoped session options.
+     * <p>
+     * Use {@link CapiSessionOptions#setEnableWebSocketResponses(Boolean)} with
+     * {@code false} to force the HTTP Responses transport instead of the default
+     * CAPI Responses API WebSocket transport.
+     *
+     * @param capi
+     *            the CAPI session options
+     * @return this config instance for method chaining
+     * @see CapiSessionOptions
+     */
+    public SessionConfig setCapi(CapiSessionOptions capi) {
+        this.capi = capi;
+        return this;
+    }
+
+    /**
+     * Gets the named BYOK provider connections.
+     *
+     * @return the named provider connections, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public List<NamedProviderConfig> getProviders() {
+        return providers;
+    }
+
+    /**
+     * Sets the named BYOK provider connections (additive multi-provider registry).
+     * <p>
+     * Unlike {@link #setProvider(ProviderConfig)}, these do not switch the whole
+     * session to BYOK; they are exposed alongside the default Copilot routing.
+     * Attach models referencing these connections with {@link #setModels(List)}.
+     *
+     * @param providers
+     *            the named provider connections
+     * @return this config instance for method chaining
+     * @see NamedProviderConfig
+     */
+    @CopilotExperimental
+    public SessionConfig setProviders(List<NamedProviderConfig> providers) {
+        this.providers = providers;
+        return this;
+    }
+
+    /**
+     * Gets the BYOK model definitions.
+     *
+     * @return the model definitions, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public List<ProviderModelConfig> getModels() {
+        return models;
+    }
+
+    /**
+     * Sets the BYOK model definitions, each referencing a named provider supplied
+     * via {@link #setProviders(List)}.
+     *
+     * @param models
+     *            the model definitions
+     * @return this config instance for method chaining
+     * @see ProviderModelConfig
+     */
+    @CopilotExperimental
+    public SessionConfig setModels(List<ProviderModelConfig> models) {
+        this.models = models;
         return this;
     }
 
@@ -1647,6 +1732,38 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the ExP assignment ("flight") data injected by a trusted integrator.
+     *
+     * @return the ExP assignment data, or {@code null} if not set
+     */
+    public JsonNode getExpAssignments() {
+        return expAssignments;
+    }
+
+    /**
+     * Sets ExP assignment ("flight") data injected by a trusted integrator.
+     * <p>
+     * The value is opaque JSON in the same shape the Copilot CLI fetches from the
+     * experimentation service ({@code CopilotExpAssignmentResponse}). When
+     * provided, the runtime feeds it into the same feature-flag path as CLI-fetched
+     * assignments and stamps it onto telemetry and the CAPI request header. When
+     * absent, the session does not block on ExP. Intended for out-of-process
+     * integrators that fetch ExP data themselves; malformed payloads are dropped by
+     * the runtime (fail-open). Serialized on the wire as {@code expAssignments}.
+     * <p>
+     * This is an internal/trusted-integrator option, not part of the broadly
+     * advertised public surface.
+     *
+     * @param expAssignments
+     *            the opaque ExP assignment data
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setExpAssignments(JsonNode expAssignments) {
+        this.expAssignments = expAssignments;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -1671,6 +1788,9 @@ public class SessionConfig {
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
+        copy.capi = this.capi;
+        copy.providers = this.providers != null ? new ArrayList<>(this.providers) : null;
+        copy.models = this.models != null ? new ArrayList<>(this.models) : null;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
@@ -1715,6 +1835,7 @@ public class SessionConfig {
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
+        copy.expAssignments = this.expAssignments;
         return copy;
     }
 }

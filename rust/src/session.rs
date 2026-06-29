@@ -21,6 +21,7 @@ use crate::handler::{
     PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
 };
 use crate::hooks::SessionHooks;
+use crate::provider_token::BearerTokenProvider;
 use crate::session_fs::SessionFsProvider;
 use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
@@ -893,6 +894,7 @@ impl Client {
         let command_handlers = build_command_handler_map(runtime.commands.as_deref());
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
+        let bearer_token_providers = std::mem::take(&mut runtime.bearer_token_providers);
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
@@ -1011,6 +1013,7 @@ impl Client {
             command_handlers,
             canvas_handler,
             session_fs_provider,
+            bearer_token_providers,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
@@ -1149,6 +1152,7 @@ impl Client {
         let command_handlers = build_command_handler_map(runtime.commands.as_deref());
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
+        let bearer_token_providers = std::mem::take(&mut runtime.bearer_token_providers);
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
@@ -1183,6 +1187,7 @@ impl Client {
             command_handlers,
             canvas_handler,
             session_fs_provider,
+            bearer_token_providers,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
@@ -1391,6 +1396,7 @@ fn spawn_event_loop(
     command_handlers: Arc<CommandHandlerMap>,
     canvas_handler: Option<Arc<dyn CanvasHandler>>,
     session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
@@ -1432,6 +1438,7 @@ fn spawn_event_loop(
                             transforms: transforms.as_deref(),
                             canvas_handler: canvas_handler.as_ref(),
                             session_fs_provider: session_fs_provider.as_ref(),
+                            bearer_token_providers: &bearer_token_providers,
                         };
                         handle_request(&session_id, ctx, request).await;
                     }
@@ -2010,6 +2017,7 @@ struct RequestDispatchContext<'a> {
     transforms: Option<&'a dyn SystemMessageTransform>,
     canvas_handler: Option<&'a Arc<dyn CanvasHandler>>,
     session_fs_provider: Option<&'a Arc<dyn SessionFsProvider>>,
+    bearer_token_providers: &'a HashMap<String, Arc<dyn BearerTokenProvider>>,
 }
 
 /// Process a JSON-RPC request from the CLI.
@@ -2025,6 +2033,7 @@ async fn handle_request(
     let transforms = ctx.transforms;
     let canvas_handler = ctx.canvas_handler;
     let session_fs_provider = ctx.session_fs_provider;
+    let bearer_token_providers = ctx.bearer_token_providers;
 
     if request.method.starts_with("sessionFs.") {
         crate::session_fs_dispatch::dispatch(client, session_fs_provider, request).await;
@@ -2033,6 +2042,11 @@ async fn handle_request(
 
     if request.method.starts_with("canvas.") {
         crate::canvas_dispatch::dispatch(client, canvas_handler, request).await;
+        return;
+    }
+
+    if request.method == crate::generated::api_types::rpc_methods::PROVIDERTOKEN_GETTOKEN {
+        crate::provider_token_dispatch::dispatch(client, bearer_token_providers, request).await;
         return;
     }
 

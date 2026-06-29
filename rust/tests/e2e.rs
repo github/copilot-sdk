@@ -7,6 +7,8 @@ mod abort;
 mod ask_user;
 #[path = "e2e/builtin_tools.rs"]
 mod builtin_tools;
+#[path = "e2e/byok_bearer_token_provider.rs"]
+mod byok_bearer_token_provider;
 #[path = "e2e/canvas.rs"]
 mod canvas;
 #[path = "e2e/client.rs"]
@@ -21,6 +23,8 @@ mod client_options;
 mod commands;
 #[path = "e2e/compaction.rs"]
 mod compaction;
+#[path = "e2e/copilot_request_handler.rs"]
+mod copilot_request_handler;
 #[path = "e2e/elicitation.rs"]
 mod elicitation;
 #[path = "e2e/error_resilience.rs"]
@@ -41,6 +45,8 @@ mod mode_handlers;
 mod multi_client;
 #[path = "e2e/multi_client_commands_elicitation.rs"]
 mod multi_client_commands_elicitation;
+#[path = "e2e/multi_provider_registry.rs"]
+mod multi_provider_registry;
 #[path = "e2e/multi_turn.rs"]
 mod multi_turn;
 #[path = "e2e/pending_work_resume.rs"]

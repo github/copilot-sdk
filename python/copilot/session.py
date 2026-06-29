@@ -44,6 +44,8 @@ from .generated.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
+    ProviderTokenAcquireRequest,
+    ProviderTokenAcquireResult,
     SessionLogLevel,
     SessionRpc,
     UIElicitationRequest,
@@ -253,10 +255,17 @@ class SystemMessageReplaceConfig(TypedDict):
 SectionTransformFn = Callable[[str], str | Awaitable[str]]
 """Transform callback: receives current section content, returns new content."""
 
-SectionOverrideAction = Literal["replace", "remove", "append", "prepend"] | SectionTransformFn
-"""Override action: a string literal for static overrides, or a callback for transforms."""
+SectionOverrideAction = (
+    Literal["replace", "remove", "append", "prepend", "preserve"] | SectionTransformFn
+)
+"""Override action: a string literal for static overrides, or a callback for transforms.
+
+``"preserve"`` is a no-op marker that opts an individually-addressable section out of a
+group-level ``"remove"`` (e.g. keep ``tone`` when removing the ``identity`` group).
+"""
 
 SystemMessageSection = Literal[
+    "preamble",
     "identity",
     "tone",
     "tool_efficiency",
@@ -271,7 +280,11 @@ SystemMessageSection = Literal[
 ]
 
 SYSTEM_MESSAGE_SECTIONS: dict[SystemMessageSection, str] = {
-    "identity": "Agent identity preamble and mode statement",
+    "preamble": "Agent identity preamble and mode statement",
+    "identity": (
+        "Section group covering the identity preamble and its sibling sub-sections"
+        " (tone, tool efficiency, etc.)"
+    ),
     "tone": "Response style, conciseness rules, output formatting preferences",
     "tool_efficiency": "Tool usage patterns, parallel calling, batching guidelines",
     "environment_context": "CWD, OS, git root, directory listing, available tools",
@@ -1066,11 +1079,44 @@ class AzureProviderOptions(TypedDict, total=False):
     api_version: str  # Azure API version. Defaults to "2024-10-21".
 
 
+class ProviderTokenArgs(TypedDict):
+    """Arguments passed to a :data:`BearerTokenProvider` callback when the runtime
+    needs a fresh bearer token for a BYOK provider.
+
+    **Experimental.** Part of the bearer-token-provider surface and may change or
+    be removed in future SDK or CLI releases.
+    """
+
+    # Name of the BYOK provider needing a token. For the singular, whole-session
+    # ``provider`` this is the implicit provider name ("default"); for
+    # ``NamedProviderConfig`` entries it is ``NamedProviderConfig.name``.
+    provider_name: str
+
+    # Id of the session that triggered this token request. A client-level shared
+    # callback registered for many sessions can use this to resolve the owning
+    # session and scope token acquisition or caching per session.
+    session_id: str
+
+
+# Per-request callback that resolves a bearer token on demand for a BYOK
+# provider (for example via Azure Managed Identity). The Copilot SDK takes no
+# identity dependency: supply a callback backed by your own identity library.
+# Never serialized — setting it makes the SDK send ``hasBearerTokenProvider`` on
+# the wire and answer the runtime's ``providerToken.getToken`` requests. May be
+# sync or async.
+BearerTokenProvider = Callable[[ProviderTokenArgs], str | Awaitable[str]]
+
+
 class ProviderConfig(TypedDict, total=False):
     """Configuration for a custom API provider"""
 
     type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
+    # Transport for OpenAI Responses requests. Defaults to "http". Set
+    # "websockets" to deliver Responses API requests over a persistent WebSocket
+    # connection instead of HTTP. Applies to OpenAI-compatible providers using
+    # wire_api "responses".
+    transport: Literal["http", "websockets"]
     base_url: str
     api_key: str
     # Bearer token for authentication. Sets the Authorization header directly.
@@ -1097,6 +1143,76 @@ class ProviderConfig(TypedDict, total=False):
     # Overrides the resolved model's default max output tokens. When hit, the
     # model stops generating and returns a truncated response.
     max_output_tokens: int
+    # Per-request callback that resolves a bearer token on demand for this BYOK
+    # provider (for example via Azure Managed Identity). Never serialized — the
+    # SDK sends hasBearerTokenProvider: true on the wire and answers the
+    # runtime's providerToken.getToken requests with this callback's result.
+    # When set alongside api_key/bearer_token, this callback takes precedence: the
+    # runtime applies the token it returns as the Authorization: Bearer header for
+    # each request and does not send the static credential.
+    bearer_token_provider: BearerTokenProvider
+
+
+class NamedProviderConfig(TypedDict, total=False):
+    """A named BYOK provider connection (transport + credentials).
+
+    Referenced by :class:`ProviderModelConfig` entries via ``name``. Unlike the
+    singular :class:`ProviderConfig` (which makes the whole session BYOK and
+    bypasses Copilot API authentication), named providers are additive: they
+    coexist with Copilot API auth so models from CAPI and one or more BYOK
+    providers can be mixed within a single session and across sub-agents.
+
+    **Experimental.** Multi-provider BYOK configuration is experimental and may
+    change or be removed in future SDK or CLI releases.
+    """
+
+    # Stable identifier referenced by ProviderModelConfig.provider. Must not contain "/".
+    name: str
+    type: Literal["openai", "azure", "anthropic"]
+    wire_api: Literal["completions", "responses"]
+    base_url: str
+    api_key: str
+    # Bearer token for authentication. Sets the Authorization header directly.
+    # Takes precedence over api_key when both are set.
+    bearer_token: str
+    azure: AzureProviderOptions  # Azure-specific options
+    headers: dict[str, str]
+    # Per-request bearer-token callback for this named BYOK provider. Never
+    # serialized; the SDK sends hasBearerTokenProvider: true and answers the
+    # runtime's providerToken.getToken requests. When set alongside
+    # api_key/bearer_token, this callback takes precedence: the runtime applies
+    # the token it returns as the Authorization: Bearer header for each request
+    # and does not send the static credential.
+    bearer_token_provider: BearerTokenProvider
+
+
+class ProviderModelConfig(TypedDict, total=False):
+    """A BYOK model definition that references a :class:`NamedProviderConfig`.
+
+    Added to the session's selectable model list. The session-wide selection id
+    (shown in the model list and passed to model switching) is the
+    provider-qualified ``provider/id``, so BYOK ids never collide with bare CAPI
+    ids.
+
+    **Experimental.** Multi-provider BYOK configuration is experimental and may
+    change or be removed in future SDK or CLI releases.
+    """
+
+    # Provider-local model id, unique within its provider.
+    id: str
+    # Name of the NamedProviderConfig that serves this model.
+    provider: str
+    # Model name sent to the provider API for inference. Defaults to id.
+    wire_model: str
+    # Well-known base model id used for behavior/capability/config lookup. Defaults to id.
+    model_id: str
+    # Display name for model pickers. Defaults to the provider-qualified selection id.
+    name: str
+    max_prompt_tokens: int
+    max_context_window_tokens: int
+    max_output_tokens: int
+    # Optional capability overrides for the synthesized model.
+    capabilities: ModelCapabilitiesOverride
 
 
 SessionEventHandler = Callable[[SessionEvent], None]
@@ -1137,6 +1253,38 @@ def _canvas_handler_error(err: Exception) -> JsonRpcError:
         str(err),
         data={"code": "canvas_handler_error", "message": str(err)},
     )
+
+
+class _BearerTokenProviderAdapter:
+    """Routes runtime ``providerToken.getToken`` requests to the matching
+    per-provider :data:`BearerTokenProvider` callback registered on the session.
+
+    The runtime calls this once per outbound request for a BYOK provider that
+    declared ``hasBearerTokenProvider: true``; it does no caching, so the SDK
+    consumer's callback (typically backed by an identity library) owns
+    acquisition, caching, and refresh.
+    """
+
+    def __init__(self, session: CopilotSession) -> None:
+        self._session = session
+
+    async def get_token(self, params: ProviderTokenAcquireRequest) -> ProviderTokenAcquireResult:
+        provider_name = params.provider_name
+        with self._session._bearer_token_providers_lock:
+            callback = self._session._bearer_token_providers.get(provider_name)
+        if callback is None:
+            raise JsonRpcError(
+                -32603,
+                f"No bearer-token provider registered for provider: {provider_name!r}",
+            )
+        args: ProviderTokenArgs = {
+            "provider_name": provider_name,
+            "session_id": params.session_id,
+        }
+        result = callback(args)
+        if inspect.isawaitable(result):
+            result = await result
+        return ProviderTokenAcquireResult(token=cast(str, result))
 
 
 class CopilotSession:
@@ -1204,6 +1352,8 @@ class CopilotSession:
         self._transform_callbacks_lock = threading.Lock()
         self._command_handlers: dict[str, CommandHandler] = {}
         self._command_handlers_lock = threading.Lock()
+        self._bearer_token_providers: dict[str, BearerTokenProvider] = {}
+        self._bearer_token_providers_lock = threading.Lock()
         self._elicitation_handler: ElicitationHandler | None = None
         self._elicitation_handler_lock = threading.Lock()
         self._capabilities: SessionCapabilities = {}
@@ -1625,12 +1775,7 @@ class CopilotSession:
 
             case SessionCanvasOpenedData() as data:
                 try:
-                    if (
-                        not data.instance_id
-                        or not data.canvas_id
-                        or not data.extension_id
-                        or data.availability is None
-                    ):
+                    if not data.instance_id or not data.canvas_id or not data.extension_id:
                         raise ValueError("missing required open canvas fields")
                     self._upsert_open_canvas(OpenCanvasInstance.from_dict(data.to_dict()))
                 except Exception as exc:
@@ -1948,6 +2093,28 @@ class CopilotSession:
                 return
             for cmd in commands:
                 self._command_handlers[cmd.name] = cmd.handler
+
+    def _register_bearer_token_providers(
+        self, providers: dict[str, BearerTokenProvider] | None
+    ) -> None:
+        """Register per-provider bearer-token callbacks for this session.
+
+        The runtime never receives the callbacks themselves; the SDK strips them
+        from the provider config and instead sends ``hasBearerTokenProvider:
+        true``. When the runtime needs a token it issues a session-scoped
+        ``providerToken.getToken`` request, which the registered handler routes
+        to the matching per-provider callback.
+
+        Args:
+            providers: Map of provider name -> callback, or None/empty to clear.
+        """
+        with self._bearer_token_providers_lock:
+            self._bearer_token_providers.clear()
+            if not providers:
+                self._client_session_apis.provider_token = None
+                return
+            self._bearer_token_providers.update(providers)
+            self._client_session_apis.provider_token = _BearerTokenProviderAdapter(self)
 
     def _register_elicitation_handler(self, handler: ElicitationHandler | None) -> None:
         """Register the elicitation handler for this session.

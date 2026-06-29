@@ -867,7 +867,7 @@ async fn should_set_auth_credentials() {
 
             let set = session
                 .rpc()
-                .auth()
+                .git_hub_auth()
                 .set_credentials(SessionSetCredentialsParams {
                     credentials: Some(json!({
                         "type": "user",
@@ -880,7 +880,7 @@ async fn should_set_auth_credentials() {
             assert!(set.success);
             let status = session
                 .rpc()
-                .auth()
+                .git_hub_auth()
                 .get_status()
                 .await
                 .expect("auth status");

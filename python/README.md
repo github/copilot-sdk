@@ -20,6 +20,33 @@ To include OpenTelemetry support:
 pip install "github-copilot-sdk[telemetry]"
 ```
 
+## Runtime
+
+Published wheels include a pinned runtime version. After installing, download the
+runtime:
+
+```bash
+python -m copilot download-runtime
+```
+
+This caches the runtime binary locally. If you skip this step, the SDK will
+attempt to download it automatically on first use as a fallback.
+
+| Platform | Cache path |
+|----------|-----------|
+| Linux | `~/.cache/github-copilot-sdk/cli/<version>/copilot` |
+| macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/copilot` |
+| Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\copilot.exe` |
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
+| `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
+| `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
+| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL |
+
 ## Run the Sample
 
 Try the interactive chat sample (from the repo root):
@@ -478,6 +505,7 @@ When enabled, sessions emit compaction events:
 ## Memory
 
 Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `create_session` and `resume_session`.
+For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
 
 ```python
 async with await client.create_session(
@@ -560,6 +588,87 @@ async with await client.create_session(
 > - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## System Message Customization
+
+Control the system prompt using `system_message` in session config:
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    system_message={
+        "mode": "append",
+        "content": """
+<workflow_rules>
+- Always check for security vulnerabilities
+- Suggest performance improvements when applicable
+</workflow_rules>
+""",
+    },
+) as session:
+    ...
+```
+
+### Customize Mode
+
+Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    system_message={
+        "mode": "customize",
+        "sections": {
+            "tone": {"action": "replace", "content": "Respond in a warm, professional tone. Be thorough in explanations."},
+            "code_change_rules": {"action": "remove"},
+            "guidelines": {"action": "append", "content": "\n* Always cite data sources"},
+        },
+        "content": "Focus on financial analysis and reporting.",
+    },
+) as session:
+    ...
+```
+
+Available section IDs: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"last_instructions"`.
+
+Each section override supports four string actions: `"replace"`, `"remove"`, `"append"`, and `"prepend"`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `"remove"` overrides are silently ignored.
+
+You can also pass a transform callback as the `action` instead of a string. The callback receives the current section content and returns the new content (sync or async):
+
+```python
+def redact_paths(content: str) -> str:
+    return content.replace("/home/user", "/***")
+
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    system_message={
+        "mode": "customize",
+        "sections": {
+            "environment_context": {"action": redact_paths},
+        },
+    },
+) as session:
+    ...
+```
+
+### Replace Mode
+
+For full control (removes all SDK guardrails including security restrictions), use `mode: "replace"`:
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    system_message={
+        "mode": "replace",
+        "content": "You are a helpful assistant.",
+    },
+) as session:
+    ...
+```
 
 ## Telemetry
 

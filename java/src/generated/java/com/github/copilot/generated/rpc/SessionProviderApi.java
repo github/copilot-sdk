@@ -19,6 +19,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public final class SessionProviderApi {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;
+
     private final RpcCaller caller;
     private final String sessionId;
 
@@ -37,6 +39,22 @@ public final class SessionProviderApi {
     @CopilotExperimental
     public CompletableFuture<SessionProviderGetEndpointResult> getEndpoint() {
         return caller.invoke("session.provider.getEndpoint", java.util.Map.of("sessionId", this.sessionId), SessionProviderGetEndpointResult.class);
+    }
+
+    /**
+     * BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionProviderAddResult> add(SessionProviderAddParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.provider.add", _p, SessionProviderAddResult.class);
     }
 
 }

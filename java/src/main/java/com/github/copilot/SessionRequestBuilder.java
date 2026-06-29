@@ -5,11 +5,15 @@
 package com.github.copilot;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import com.github.copilot.rpc.CreateSessionRequest;
+import com.github.copilot.rpc.ProviderConfig;
+import com.github.copilot.rpc.NamedProviderConfig;
+import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.CommandWireDefinition;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.ResumeSessionRequest;
@@ -113,6 +117,9 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
+        request.setCapi(config.getCapi());
+        request.setProviders(config.getProviders());
+        request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
@@ -174,6 +181,7 @@ final class SessionRequestBuilder {
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
         request.setCloud(config.getCloud());
+        request.setExpAssignments(config.getExpAssignments());
 
         return request;
     }
@@ -225,6 +233,9 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
+        request.setCapi(config.getCapi());
+        request.setProviders(config.getProviders());
+        request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
@@ -288,6 +299,7 @@ final class SessionRequestBuilder {
         }
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
+        request.setExpAssignments(config.getExpAssignments());
 
         return request;
     }
@@ -322,6 +334,11 @@ final class SessionRequestBuilder {
         }
         if (config.getOnElicitationRequest() != null) {
             session.registerElicitationHandler(config.getOnElicitationRequest());
+        }
+        Map<String, BearerTokenProvider> bearerTokenProviders = collectBearerTokenProviders(config.getProvider(),
+                config.getProviders());
+        if (!bearerTokenProviders.isEmpty()) {
+            session.registerBearerTokenProviders(bearerTokenProviders);
         }
         if (config.getOnExitPlanMode() != null) {
             session.registerExitPlanModeHandler(config.getOnExitPlanMode());
@@ -365,6 +382,11 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             session.registerElicitationHandler(config.getOnElicitationRequest());
         }
+        Map<String, BearerTokenProvider> bearerTokenProviders = collectBearerTokenProviders(config.getProvider(),
+                config.getProviders());
+        if (!bearerTokenProviders.isEmpty()) {
+            session.registerBearerTokenProviders(bearerTokenProviders);
+        }
         if (config.getOnExitPlanMode() != null) {
             session.registerExitPlanModeHandler(config.getOnExitPlanMode());
         }
@@ -374,5 +396,22 @@ final class SessionRequestBuilder {
         if (config.getOnEvent() != null) {
             session.on(config.getOnEvent());
         }
+    }
+
+    private static Map<String, BearerTokenProvider> collectBearerTokenProviders(ProviderConfig provider,
+            List<NamedProviderConfig> providers) {
+        Map<String, BearerTokenProvider> bearerTokenProviders = new HashMap<>();
+        if (provider != null && provider.getBearerTokenProvider() != null) {
+            bearerTokenProviders.put("default", provider.getBearerTokenProvider());
+        }
+        if (providers != null) {
+            for (NamedProviderConfig namedProvider : providers) {
+                if (namedProvider != null && namedProvider.getName() != null
+                        && namedProvider.getBearerTokenProvider() != null) {
+                    bearerTokenProviders.put(namedProvider.getName(), namedProvider.getBearerTokenProvider());
+                }
+            }
+        }
+        return bearerTokenProviders;
     }
 }

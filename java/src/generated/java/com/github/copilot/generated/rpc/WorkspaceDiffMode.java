@@ -19,7 +19,9 @@ public enum WorkspaceDiffMode {
     /** The {@code unstaged} variant. */
     UNSTAGED("unstaged"),
     /** The {@code branch} variant. */
-    BRANCH("branch");
+    BRANCH("branch"),
+    /** The {@code session} variant. */
+    SESSION("session");
 
     private final String value;
     WorkspaceDiffMode(String value) { this.value = value; }

@@ -25,7 +25,9 @@ public record SandboxConfigUserPolicy(
     @JsonProperty("filesystem") SandboxConfigUserPolicyFilesystem filesystem,
     /** Network rules to merge into the base policy. */
     @JsonProperty("network") SandboxConfigUserPolicyNetwork network,
-    /** Platform-specific experimental policy fields. */
+    /** macOS seatbelt options to merge into the base policy. */
+    @JsonProperty("seatbelt") SandboxConfigUserPolicySeatbelt seatbelt,
+    /** Deprecated legacy location for `seatbelt`; read only when the top-level `seatbelt` is absent. */
     @JsonProperty("experimental") SandboxConfigUserPolicyExperimental experimental
 ) {
 }

@@ -150,11 +150,9 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Ready,
                 CanvasId = "",
                 ExtensionId = "project:counter",
                 InstanceId = "missing-canvas-id",
-                Reopen = false,
             }
         });
         DispatchEvent(session, new SessionCanvasOpenedEvent
@@ -163,7 +161,6 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Ready,
                 CanvasId = "counter",
                 ExtensionId = "project:counter",
                 ExtensionName = "Counter Provider",
@@ -172,7 +169,6 @@ public class CanvasTests
                 Status = "ready",
                 Url = "https://example.test/counter",
                 Input = JsonDocument.Parse("""{"seed":1}""").RootElement.Clone(),
-                Reopen = false,
             }
         });
         DispatchEvent(session, new SessionCanvasOpenedEvent
@@ -181,12 +177,10 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Stale,
                 CanvasId = "logs",
                 ExtensionId = "project:logs",
                 InstanceId = "logs-1",
                 Title = "Logs",
-                Reopen = false,
             }
         });
 
@@ -201,7 +195,6 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Stale,
                 CanvasId = "counter",
                 ExtensionId = "project:counter",
                 ExtensionName = "Counter Provider",
@@ -210,7 +203,6 @@ public class CanvasTests
                 Status = "reconnected",
                 Url = "https://example.test/counter-updated",
                 Input = JsonDocument.Parse("""{"seed":2}""").RootElement.Clone(),
-                Reopen = true,
             }
         });
 
@@ -222,8 +214,6 @@ public class CanvasTests
                 Assert.Equal("Counter Updated", canvas.Title);
                 Assert.Equal("reconnected", canvas.Status);
                 Assert.Equal("https://example.test/counter-updated", canvas.Url);
-                Assert.True(canvas.Reopen);
-                Assert.Equal(CanvasInstanceAvailability.Stale, canvas.Availability);
                 Assert.Equal(2, canvas.Input!.Value.GetProperty("seed").GetInt32());
             },
             canvas => Assert.Equal("logs-1", canvas.InstanceId));
@@ -240,12 +230,10 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Ready,
                 CanvasId = "counter",
                 ExtensionId = "project:counter",
                 InstanceId = "counter-1",
                 Title = "Counter",
-                Reopen = false,
             }
         });
         DispatchEvent(session, new SessionCanvasOpenedEvent
@@ -254,12 +242,10 @@ public class CanvasTests
             Timestamp = DateTimeOffset.UtcNow,
             Data = new SessionCanvasOpenedData
             {
-                Availability = CanvasOpenedAvailability.Ready,
                 CanvasId = "logs",
                 ExtensionId = "project:logs",
                 InstanceId = "logs-1",
                 Title = "Logs",
-                Reopen = false,
             }
         });
 

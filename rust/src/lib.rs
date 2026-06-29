@@ -11,6 +11,10 @@ mod canvas_dispatch;
 pub(crate) mod embeddedcli;
 mod errors;
 pub use errors::*;
+/// Connection-level Copilot request handler — intercept and replace the
+/// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
+/// BYOK sessions.
+pub mod copilot_request_handler;
 /// Event handler traits for session lifecycle.
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
@@ -18,6 +22,9 @@ pub mod hooks;
 mod jsonrpc;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
+/// BYOK bearer-token provider callbacks.
+pub mod provider_token;
+mod provider_token_dispatch;
 /// GitHub Copilot CLI binary resolution (env var, embedded, dev cache).
 pub(crate) mod resolve;
 mod router;
@@ -68,6 +75,7 @@ pub(crate) use jsonrpc::{
     JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,
 };
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
+pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]
@@ -156,8 +164,10 @@ pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 /// it directly so callers (health checks, diagnostics, version probes)
 /// can reach the bundled binary without spinning up a full [`Client`].
 ///
-/// Subsequent calls return the cached result. Extraction is skipped
-/// when the target file already exists.
+/// Subsequent calls return the cached result. Extraction is skipped when
+/// an already-published binary passes a cheap integrity re-check; a
+/// truncated, empty, or antivirus-quarantined binary is re-extracted and
+/// re-verified rather than returned.
 ///
 /// Returns `None` when the `bundled-cli` feature is off, the target
 /// platform isn't supported by `build.rs`, or extraction failed (the
@@ -238,6 +248,15 @@ pub struct ClientOptions {
     /// [`SessionFsProvider`] via
     /// [`SessionConfig::with_session_fs_provider`](crate::SessionConfig::with_session_fs_provider).
     pub session_fs: Option<SessionFsConfig>,
+    /// Connection-level Copilot request handler configuration.
+    ///
+    /// When set, the SDK registers itself as the runtime's request handler
+    /// during [`Client::start`], so the runtime routes its model-layer HTTP and
+    /// WebSocket traffic — for both CAPI and BYOK sessions — through the
+    /// configured
+    /// [`CopilotRequestHandler`]
+    /// instead of issuing the calls itself.
+    pub request_handler: Option<Arc<dyn crate::copilot_request_handler::CopilotRequestHandler>>,
     /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers (`traceparent` / `tracestate`) on outbound `session.create`,
     /// `session.resume`, and `session.send` requests.
@@ -313,6 +332,10 @@ impl std::fmt::Debug for ClientOptions {
                 &self.on_list_models.as_ref().map(|_| "<set>"),
             )
             .field("session_fs", &self.session_fs)
+            .field(
+                "request_handler",
+                &self.request_handler.as_ref().map(|_| "<set>"),
+            )
             .field(
                 "on_get_trace_context",
                 &self.on_get_trace_context.as_ref().map(|_| "<set>"),
@@ -560,6 +583,7 @@ impl Default for ClientOptions {
             session_idle_timeout_seconds: None,
             on_list_models: None,
             session_fs: None,
+            request_handler: None,
             on_get_trace_context: None,
             telemetry: None,
             base_directory: None,
@@ -692,6 +716,18 @@ impl ClientOptions {
         self
     }
 
+    /// Register a connection-level Copilot request handler. The runtime will
+    /// route its model-layer HTTP and WebSocket traffic through the handler
+    /// configured here instead of issuing the calls itself. The handler is
+    /// wrapped in `Arc` internally.
+    pub fn with_request_handler<H>(mut self, handler: H) -> Self
+    where
+        H: crate::copilot_request_handler::CopilotRequestHandler,
+    {
+        self.request_handler = Some(Arc::new(handler));
+        self
+    }
+
     /// Set the [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers on outbound `session.create` / `session.resume` /
     /// `session.send` requests. The provider is wrapped in `Arc` internally.
@@ -814,6 +850,9 @@ struct ClientInner {
     models_cache: parking_lot::Mutex<Arc<tokio::sync::OnceCell<Vec<Model>>>>,
     session_fs_configured: bool,
     session_fs_sqlite_declared: bool,
+    /// Inbound `llmInference.*` dispatcher, installed when
+    /// [`ClientOptions::request_handler`] is set.
+    llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
     on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
     /// Token sent in the `connect` handshake. Auto-generated when the
     /// SDK spawns its own CLI in TCP mode and no explicit token is set;
@@ -909,6 +948,7 @@ impl Client {
             } => connection_token.clone(),
         };
         let session_fs_config = options.session_fs.clone();
+        let request_handler = options.request_handler.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
@@ -1044,6 +1084,26 @@ impl Client {
                 "Client::start session filesystem setup complete"
             );
         }
+        if let Some(handler) = request_handler {
+            let llm_inference_start = Instant::now();
+            let dispatcher = Arc::new(copilot_request_handler::CopilotRequestDispatcher::new(
+                handler,
+            ));
+            dispatcher.set_client(Arc::downgrade(&client.inner));
+            let _ = client.inner.llm_inference.set(dispatcher.clone());
+            // Start the router early (before any session is registered) so the
+            // startup model catalog request is dispatched to the handler.
+            client.inner.router.ensure_started(
+                &client.inner.notification_tx,
+                &client.inner.request_rx,
+                Some(dispatcher.clone()),
+            );
+            client.rpc().llm_inference().set_provider().await?;
+            debug!(
+                elapsed_ms = llm_inference_start.elapsed().as_millis(),
+                "Client::start Copilot request handler registration complete"
+            );
+        }
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start complete"
@@ -1176,6 +1236,7 @@ impl Client {
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured,
                 session_fs_sqlite_declared,
+                llm_inference: OnceLock::new(),
                 on_get_trace_context,
                 effective_connection_token,
                 mode,
@@ -1557,6 +1618,11 @@ impl Client {
         self.inner.rpc.write(response).await
     }
 
+    /// Reconstruct a [`Client`] handle from a shared inner pointer.
+    pub(crate) fn from_inner(inner: Arc<ClientInner>) -> Self {
+        Self { inner }
+    }
+
     /// Take the receiver for incoming JSON-RPC requests from the CLI.
     ///
     /// Can only be called once — subsequent calls return `None`.
@@ -1576,9 +1642,11 @@ impl Client {
         &self,
         session_id: &SessionId,
     ) -> crate::router::SessionChannels {
-        self.inner
-            .router
-            .ensure_started(&self.inner.notification_tx, &self.inner.request_rx);
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            self.inner.llm_inference.get().cloned(),
+        );
         self.inner.router.register(session_id)
     }
 
@@ -1911,14 +1979,12 @@ impl Client {
         }
 
         let should_shutdown_runtime = self.inner.child.lock().is_some();
-        let mut runtime_shutdown_completed = false;
         if should_shutdown_runtime {
             let runtime_shutdown_start = Instant::now();
             match tokio::time::timeout(RUNTIME_SHUTDOWN_TIMEOUT, self.rpc().runtime().shutdown())
                 .await
             {
                 Ok(Ok(())) => {
-                    runtime_shutdown_completed = true;
                     debug!(
                         elapsed_ms = runtime_shutdown_start.elapsed().as_millis(),
                         "Client::stop runtime shutdown complete"
@@ -1955,17 +2021,13 @@ impl Client {
             match child.try_wait() {
                 Ok(Some(_status)) => {}
                 Ok(None) => {
-                    if runtime_shutdown_completed {
-                        match tokio::time::timeout(RUNTIME_SHUTDOWN_TIMEOUT, child.wait()).await {
-                            Ok(Ok(_status)) => {}
-                            Ok(Err(e)) => errors.push(e.into()),
-                            Err(_) => {
-                                if let Err(e) = child.kill().await {
-                                    errors.push(e.into());
-                                }
-                            }
-                        }
-                    } else if let Err(e) = child.kill().await {
+                    // The runtime completes all cleanup before responding to
+                    // runtime.shutdown and then leaves termination to us; it
+                    // deliberately keeps its JSON-RPC server alive to send the
+                    // response and never self-exits. Waiting for a self-exit
+                    // that will never come just wastes time, so terminate the
+                    // child immediately.
+                    if let Err(e) = child.kill().await {
                         errors.push(e.into());
                     }
                 }
@@ -2669,6 +2731,7 @@ mod tests {
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured: false,
                 session_fs_sqlite_declared: false,
+                llm_inference: OnceLock::new(),
                 on_get_trace_context: None,
                 effective_connection_token: None,
                 mode: ClientMode::default(),

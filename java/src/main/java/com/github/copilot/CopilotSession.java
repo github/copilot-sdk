@@ -55,8 +55,8 @@ import com.github.copilot.generated.SessionCanvasOpenedEvent;
 import com.github.copilot.generated.SessionErrorEvent;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionIdleEvent;
-import com.github.copilot.generated.rpc.CanvasInstanceAvailability;
 import com.github.copilot.generated.rpc.OpenCanvasInstance;
+import com.github.copilot.rpc.AbortSignal;
 import com.github.copilot.rpc.AgentInfo;
 import com.github.copilot.rpc.AutoModeSwitchHandler;
 import com.github.copilot.rpc.AutoModeSwitchInvocation;
@@ -75,6 +75,7 @@ import com.github.copilot.rpc.ExitPlanModeInvocation;
 import com.github.copilot.rpc.ExitPlanModeRequest;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ElicitationSchema;
+import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.GetMessagesResponse;
 import com.github.copilot.rpc.HookInvocation;
 import com.github.copilot.rpc.InputOptions;
@@ -169,7 +170,8 @@ public final class CopilotSession implements AutoCloseable {
     private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
-    private final Map<String, com.github.copilot.rpc.AbortSignal> activeToolSignals = new ConcurrentHashMap<>();
+    private final Map<String, AbortSignal> activeToolSignals = new ConcurrentHashMap<>();
+    private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
@@ -1357,6 +1359,33 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Registers bearer-token provider callbacks for this session.
+     * <p>
+     * Called internally when creating or resuming a session with BYOK providers
+     * that use managed-identity token callbacks.
+     *
+     * @param providers
+     *            the callbacks keyed by provider name
+     */
+    void registerBearerTokenProviders(Map<String, BearerTokenProvider> providers) {
+        bearerTokenProviders.clear();
+        if (providers != null) {
+            bearerTokenProviders.putAll(providers);
+        }
+    }
+
+    /**
+     * Gets the bearer-token provider callback for the given provider name.
+     *
+     * @param providerName
+     *            the provider name
+     * @return the registered callback, or {@code null} if none is registered
+     */
+    BearerTokenProvider getBearerTokenProvider(String providerName) {
+        return bearerTokenProviders.get(providerName);
+    }
+
+    /**
      * Registers an exit-plan-mode handler for this session.
      * <p>
      * Called internally when creating or resuming a session with an exit-plan-mode
@@ -1462,13 +1491,12 @@ public final class CopilotSession implements AutoCloseable {
         if (event instanceof SessionCanvasOpenedEvent openedEvent) {
             var data = openedEvent.getData();
             if (data == null || isNullOrEmpty(data.instanceId()) || isNullOrEmpty(data.canvasId())
-                    || isNullOrEmpty(data.extensionId()) || data.availability() == null) {
+                    || isNullOrEmpty(data.extensionId())) {
                 LOG.warning("failed to deserialize session.canvas.opened payload");
                 return;
             }
             upsertOpenCanvas(new OpenCanvasInstance(data.instanceId(), data.extensionId(), data.extensionName(),
-                    data.canvasId(), data.title(), data.status(), data.url(), data.input(), data.reopen(),
-                    CanvasInstanceAvailability.fromValue(data.availability().getValue())));
+                    data.canvasId(), data.title(), data.status(), data.url(), data.input()));
         }
     }
 

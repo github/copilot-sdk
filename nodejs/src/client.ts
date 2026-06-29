@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
     ErrorCodes,
+    type Message,
     MessageConnection,
     ResponseError,
     StreamMessageReader,
@@ -29,12 +30,15 @@ import {
 import {
     createServerRpc,
     createInternalServerRpc,
+    registerClientGlobalApiHandlers,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
 import type { OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
+import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
+import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { ToolSet } from "./toolSet.js";
 import type {
@@ -47,11 +51,14 @@ import type {
     ExitPlanModeResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
+    BearerTokenProvider,
     GetStatusResponse,
     InternalRuntimeConnection,
     LargeToolOutputConfig,
     MCPServerConfig,
     ModelInfo,
+    NamedProviderConfig,
+    ProviderConfig,
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
@@ -148,6 +155,64 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
         return parameters.toJSONSchema();
     }
     return parameters;
+}
+
+/** Implicit provider name for the singular, whole-session {@link ProviderConfig}. */
+const DEFAULT_PROVIDER_NAME = "default";
+
+/** Wire-safe singular provider config carrying the `hasBearerTokenProvider` flag. */
+type WireProviderConfig = Omit<ProviderConfig, "bearerTokenProvider"> & {
+    hasBearerTokenProvider?: boolean;
+};
+
+/** Wire-safe named provider config carrying the `hasBearerTokenProvider` flag. */
+type WireNamedProviderConfig = Omit<NamedProviderConfig, "bearerTokenProvider"> & {
+    hasBearerTokenProvider?: boolean;
+};
+
+/**
+ * Strips the non-serializable {@link BearerTokenProvider} callbacks from the singular
+ * and named provider configs before they cross the RPC boundary, replacing each
+ * with a `hasBearerTokenProvider: true` wire flag. The callback closes over its
+ * own token scope/audience, so nothing scope-related crosses the wire — the
+ * runtime only forwards the provider name back when it needs a token.
+ * Returns wire-safe provider configs alongside a map of provider name → callback
+ * for session-side registration.
+ */
+function extractBearerTokenProviders(
+    provider: ProviderConfig | undefined,
+    providers: NamedProviderConfig[] | undefined
+): {
+    wireProvider: WireProviderConfig | undefined;
+    wireProviders: WireNamedProviderConfig[] | undefined;
+    callbacks: Map<string, BearerTokenProvider>;
+} {
+    const callbacks = new Map<string, BearerTokenProvider>();
+
+    let wireProvider: WireProviderConfig | undefined = provider;
+    if (provider?.bearerTokenProvider) {
+        const { bearerTokenProvider, ...rest } = provider;
+        callbacks.set(DEFAULT_PROVIDER_NAME, bearerTokenProvider);
+        wireProvider = {
+            ...rest,
+            hasBearerTokenProvider: true,
+        };
+    }
+
+    let wireProviders: WireNamedProviderConfig[] | undefined = providers;
+    if (providers?.some((p) => p.bearerTokenProvider)) {
+        wireProviders = providers.map((p) => {
+            if (!p.bearerTokenProvider) return p;
+            const { bearerTokenProvider, ...rest } = p;
+            callbacks.set(p.name, bearerTokenProvider);
+            return {
+                ...rest,
+                hasBearerTokenProvider: true,
+            };
+        });
+    }
+
+    return { wireProvider, wireProviders, callbacks };
 }
 
 /**
@@ -277,36 +342,65 @@ function getNodeExecPath(): string {
 }
 
 /**
- * Gets the path to the bundled CLI from the @github/copilot package.
- * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
+ * Computes the candidate platform-specific CLI package names for the current
+ * platform/arch, mirroring @github/copilot's npm-loader. As of CLI 1.0.64-1 the
+ * @github/copilot package is a thin loader and the actual CLI ships in a
+ * platform package (e.g. @github/copilot-darwin-arm64). For Linux we try both
+ * the glibc and musl variants since only the matching one is installed.
+ */
+function getCliPlatformPackageNames(): string[] {
+    const arch = process.arch;
+    const variants = process.platform === "linux" ? ["linux", "linuxmusl"] : [process.platform];
+    return variants.map((variant) => `@github/copilot-${variant}-${arch}`);
+}
+
+/**
+ * Gets the path to the bundled CLI from the platform-specific @github/copilot-*
+ * package. Uses index.js directly rather than the native binary so the CLI runs
+ * under the current Node.js runtime.
  *
  * In ESM, uses import.meta.resolve directly. In CJS (e.g., VS Code extensions
  * bundled with esbuild format:"cjs"), import.meta is empty so we fall back to
  * walking node_modules to find the package.
  */
 function getBundledCliPath(): string {
+    const packageNames = getCliPlatformPackageNames();
+
     if (typeof import.meta.resolve === "function") {
         // ESM: resolve via import.meta.resolve
-        const sdkUrl = import.meta.resolve("@github/copilot/sdk");
-        const sdkPath = fileURLToPath(sdkUrl);
-        // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
-        // Go up two levels to get the package root, then append index.js
-        return join(dirname(dirname(sdkPath)), "index.js");
+        for (const packageName of packageNames) {
+            try {
+                const sdkUrl = import.meta.resolve(`${packageName}/sdk`);
+                const sdkPath = fileURLToPath(sdkUrl);
+                // sdkPath is like .../node_modules/@github/copilot-<platform>/sdk/index.js
+                // Go up two levels to get the package root, then append index.js
+                return join(dirname(dirname(sdkPath)), "index.js");
+            } catch {
+                // Try the next candidate platform package.
+            }
+        }
+        throw new Error(
+            `Could not resolve a @github/copilot platform package (tried ${packageNames.join(", ")}). ` +
+                `Ensure @github/copilot is installed, or pass cliPath/cliUrl to CopilotClient.`
+        );
     }
 
-    // CJS fallback: the @github/copilot package has ESM-only exports so
-    // require.resolve cannot reach it. Walk the module search paths instead.
+    // CJS fallback: the platform packages have ESM-only exports so
+    // require.resolve cannot reach them. Walk the module search paths instead.
     const req = createRequire(__filename);
     const searchPaths = req.resolve.paths("@github/copilot") ?? [];
     for (const base of searchPaths) {
-        const candidate = join(base, "@github", "copilot", "index.js");
-        if (existsSync(candidate)) {
-            return candidate;
+        for (const packageName of packageNames) {
+            const candidate = join(base, ...packageName.split("/"), "index.js");
+            if (existsSync(candidate)) {
+                return candidate;
+            }
         }
     }
     throw new Error(
-        `Could not find @github/copilot package. Searched ${searchPaths.length} paths. ` +
-            `Ensure it is installed, or pass cliPath/cliUrl to CopilotClient.`
+        `Could not find a @github/copilot platform package (tried ${packageNames.join(", ")}). ` +
+            `Searched ${searchPaths.length} paths. ` +
+            `Ensure @github/copilot is installed, or pass cliPath/cliUrl to CopilotClient.`
     );
 }
 
@@ -343,10 +437,40 @@ function getBundledCliPath(): string {
  * await client.stop();
  * ```
  */
+/**
+ * A {@link StreamMessageWriter} that suppresses write failures while the client
+ * is tearing down its transport.
+ *
+ * During `stop()`/`forceStop()` the runtime's end of the pipe can close while
+ * vscode-jsonrpc still has an in-flight write — most commonly the
+ * auto-generated response to a server→client request (tool/hook/userInput/LLM
+ * inference handler) that resolved just before teardown. That write rejects
+ * with `ERR_STREAM_DESTROYED`, and because the response write is internal to
+ * vscode-jsonrpc and awaited by nobody, the rejection surfaces as an unhandled
+ * rejection. The writer still fires its `error` event (forwarded to
+ * {@link MessageConnection.onError}), so swallowing the rejected promise during
+ * teardown loses no signal. Outside teardown the flag stays `false`, so write
+ * failures propagate normally and in-flight requests still fail fast.
+ */
+class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
+    public suppressWriteErrors = false;
+
+    public override async write(msg: Message): Promise<void> {
+        try {
+            await super.write(msg);
+        } catch (error) {
+            if (!this.suppressWriteErrors) {
+                throw error;
+            }
+        }
+    }
+}
+
 export class CopilotClient {
     private cliStartTimeout: ReturnType<typeof setTimeout> | null = null;
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;
+    private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private socket: Socket | null = null;
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
@@ -389,6 +513,8 @@ export class CopilotClient {
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
+    private requestHandler: CopilotRequestHandler | null = null;
+    private llmInferenceHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
 
     /**
      * Typed server-scoped RPC methods.
@@ -422,6 +548,13 @@ export class CopilotClient {
         const level = this.options.logLevel?.toLowerCase();
         if (level === "debug" || level === "all") {
             process.stderr.write(`[copilot-sdk] ${message}. Elapsed=${Date.now() - startMs}ms\n`);
+        }
+    }
+
+    private logDebug(message: string): void {
+        const level = this.options.logLevel?.toLowerCase();
+        if (level === "debug" || level === "all") {
+            process.stderr.write(`[copilot-sdk] ${message}\n`);
         }
     }
 
@@ -500,6 +633,8 @@ export class CopilotClient {
         this.onListModels = options.onListModels;
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
+        this.requestHandler = options.requestHandler ?? null;
+        this.setupLlmInference();
 
         const effectiveEnv = options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
@@ -616,6 +751,21 @@ export class CopilotClient {
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
     }
 
+    private setupLlmInference(): void {
+        if (!this.requestHandler) {
+            return;
+        }
+        this.llmInferenceHandlers = {
+            llmInference: createCopilotRequestAdapter(this.requestHandler, () => {
+                if (!this.connection) {
+                    return undefined;
+                }
+                this._rpc ??= createServerRpc(this.connection);
+                return this._rpc;
+            }),
+        };
+    }
+
     /**
      * Starts the CLI server and establishes a connection.
      *
@@ -663,6 +813,13 @@ export class CopilotClient {
                 });
             }
 
+            // If a request handler was configured, register it. The runtime
+            // will then route outbound model HTTP requests through the
+            // registered handler for the duration of each session.
+            if (this.requestHandler) {
+                await this.connection!.sendRequest("llmInference.setProvider", {});
+            }
+
             this.state = "connected";
         } catch (error) {
             this.state = "error";
@@ -698,7 +855,8 @@ export class CopilotClient {
         const errors: Error[] = [];
 
         // Disconnect all active sessions with retry logic
-        for (const session of this.sessions.values()) {
+        const activeSessions = [...this.sessions.values()];
+        for (const session of activeSessions) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
 
@@ -727,12 +885,14 @@ export class CopilotClient {
                 );
             }
         }
+        for (const session of activeSessions) {
+            session._markDisconnected();
+        }
         this.sessions.clear();
 
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
         // close our connection to them.
-        let runtimeShutdownCompleted = false;
         if (this.connection && this.cliProcess && !this.isExternalServer) {
             const runtimeShutdownStart = Date.now();
             const shutdownPromise = this.rpc.runtime.shutdown();
@@ -743,7 +903,6 @@ export class CopilotClient {
                     RUNTIME_SHUTDOWN_TIMEOUT_MS,
                     `runtime.shutdown timed out after ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
                 );
-                runtimeShutdownCompleted = true;
                 this.logDebugTiming(
                     "CopilotClient.stop runtime shutdown complete",
                     runtimeShutdownStart
@@ -761,7 +920,13 @@ export class CopilotClient {
             }
         }
 
-        // Close connection
+        // Close connection. Suppress writer failures first: tearing down the
+        // transport can reject an in-flight server→client response write with
+        // ERR_STREAM_DESTROYED, which would otherwise surface as an unhandled
+        // rejection. dispose() still rejects any pending requests.
+        if (this.messageWriter) {
+            this.messageWriter.suppressWriteErrors = true;
+        }
         if (this.connection) {
             try {
                 this.connection.dispose();
@@ -773,6 +938,7 @@ export class CopilotClient {
                 );
             }
             this.connection = null;
+            this.messageWriter = null;
             this._rpc = null;
             this._internalRpc = null;
         }
@@ -800,25 +966,24 @@ export class CopilotClient {
             }
         }
 
-        // Give runtime.shutdown a bounded window to let the child exit on its
-        // own before falling back to SIGTERM.
+        // The runtime completes all cleanup before responding to
+        // runtime.shutdown and then leaves termination to us; it deliberately
+        // keeps its JSON-RPC server alive to send the response and never
+        // self-exits. Waiting a grace window for a self-exit that will never
+        // come just wastes time, so terminate the child immediately and only
+        // wait to reap it.
         if (this.cliProcess && !this.isExternalServer) {
             const child = this.cliProcess;
             this.cliProcess = null;
             try {
                 if (child.exitCode == null && child.signalCode == null) {
-                    const exitedGracefully = runtimeShutdownCompleted
-                        ? await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS)
-                        : false;
-                    if (!exitedGracefully) {
-                        child.kill();
-                        if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
-                            errors.push(
-                                new Error(
-                                    `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
-                                )
-                            );
-                        }
+                    child.kill();
+                    if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
+                        errors.push(
+                            new Error(
+                                `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
+                            )
+                        );
                     }
                 }
             } catch (error) {
@@ -887,9 +1052,16 @@ export class CopilotClient {
         this.forceStopping = true;
 
         // Clear sessions immediately without trying to destroy them
+        for (const session of this.sessions.values()) {
+            session._markDisconnected();
+        }
         this.sessions.clear();
 
-        // Force close connection
+        // Force close connection. Suppress writer failures first so teardown
+        // write rejections don't surface as unhandled rejections.
+        if (this.messageWriter) {
+            this.messageWriter.suppressWriteErrors = true;
+        }
         if (this.connection) {
             try {
                 this.connection.dispose();
@@ -897,6 +1069,7 @@ export class CopilotClient {
                 // Ignore errors during force stop
             }
             this.connection = null;
+            this.messageWriter = null;
             this._rpc = null;
             this._internalRpc = null;
         }
@@ -1132,6 +1305,15 @@ export class CopilotClient {
         const useServerGeneratedId = config.cloud != null && callerSessionId == null;
         const localSessionId = useServerGeneratedId ? undefined : (callerSessionId ?? randomUUID());
 
+        // Strip non-serializable bearerTokenProvider callbacks from provider configs,
+        // replacing them with a wire flag; keep the callbacks for session-side
+        // registration so the runtime can call back to acquire tokens.
+        const {
+            wireProvider: bearerWireProvider,
+            wireProviders: bearerWireProviders,
+            callbacks: bearerTokenCallbacks,
+        } = extractBearerTokenProviders(config.provider, config.providers);
+
         // Extract transform callbacks from system message config before serialization.
         const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
             config.systemMessage
@@ -1149,6 +1331,9 @@ export class CopilotClient {
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
             s.registerCommands(config.commands);
+            if (bearerTokenCallbacks.size > 0) {
+                s.registerBearerTokenProviders(bearerTokenCallbacks);
+            }
             s.registerPermissionHandler(config.onPermissionRequest);
             if (config.onUserInputRequest) {
                 s.registerUserInputHandler(config.onUserInputRequest);
@@ -1220,7 +1405,10 @@ export class CopilotClient {
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
                 toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
-                provider: config.provider,
+                provider: bearerWireProvider,
+                capi: config.capi,
+                providers: bearerWireProviders,
+                models: config.models,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
@@ -1259,6 +1447,7 @@ export class CopilotClient {
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
+                expAssignments: config.expAssignments,
             });
 
             const {
@@ -1338,6 +1527,14 @@ export class CopilotClient {
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
+        const {
+            wireProvider: bearerWireProvider,
+            wireProviders: bearerWireProviders,
+            callbacks: bearerTokenCallbacks,
+        } = extractBearerTokenProviders(config.provider, config.providers);
+        if (bearerTokenCallbacks.size > 0) {
+            session.registerBearerTokenProviders(bearerTokenCallbacks);
+        }
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
@@ -1404,7 +1601,10 @@ export class CopilotClient {
                     name: cmd.name,
                     description: cmd.description,
                 })),
-                provider: config.provider,
+                provider: bearerWireProvider,
+                capi: config.capi,
+                providers: bearerWireProviders,
+                models: config.models,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission:
@@ -1445,6 +1645,7 @@ export class CopilotClient {
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
                 openCanvases: config.openCanvases,
+                expAssignments: config.expAssignments,
             });
 
             const { workspacePath, capabilities, openCanvases } = response as {
@@ -2193,17 +2394,27 @@ export class CopilotClient {
             throw new Error("CLI process not started");
         }
 
-        // Add error handler to stdin to prevent unhandled rejections during forceStop
+        // Keep stdin pipe errors inside the normal JSON-RPC teardown path.
+        // Preserve the failure reason via the gated debug log rather than discarding it.
         this.cliProcess.stdin?.on("error", (err) => {
-            if (!this.forceStopping) {
-                throw err;
+            if (this.forceStopping) {
+                return;
+            }
+            this.state = "error";
+            const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+            this.logDebug(`stdin pipe error: ${reason}`);
+            try {
+                this.connection?.dispose();
+            } catch {
+                // The connection may already be closing after the child process exited.
             }
         });
 
         // Create JSON-RPC connection over stdin/stdout
+        this.messageWriter = new TeardownResilientStreamMessageWriter(this.cliProcess.stdin!);
         this.connection = createMessageConnection(
             new StreamMessageReader(this.cliProcess.stdout!),
-            new StreamMessageWriter(this.cliProcess.stdin!)
+            this.messageWriter
         );
 
         this.attachConnectionHandlers();
@@ -2219,9 +2430,10 @@ export class CopilotClient {
         }
 
         // Create JSON-RPC connection over stdin/stdout
+        this.messageWriter = new TeardownResilientStreamMessageWriter(process.stdout);
         this.connection = createMessageConnection(
             new StreamMessageReader(process.stdin),
-            new StreamMessageWriter(process.stdout)
+            this.messageWriter
         );
 
         this.attachConnectionHandlers();
@@ -2247,9 +2459,10 @@ export class CopilotClient {
             this.socket.connect(this.runtimePort!, this.actualHost, () => {
                 clearTimeout(connectionTimeout);
                 // Create JSON-RPC connection
+                this.messageWriter = new TeardownResilientStreamMessageWriter(this.socket!);
                 this.connection = createMessageConnection(
                     new StreamMessageReader(this.socket!),
-                    new StreamMessageWriter(this.socket!)
+                    this.messageWriter
                 );
 
                 this.attachConnectionHandlers();
@@ -2328,6 +2541,11 @@ export class CopilotClient {
             if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
             return session.clientSessionApis;
         });
+
+        // Register client *global* API handlers (e.g. LLM inference) on the
+        // same connection. These methods carry no implicit sessionId dispatch
+        // — the runtime calls into a single handler for the whole connection.
+        registerClientGlobalApiHandlers(this.connection, this.llmInferenceHandlers);
 
         this.connection.onClose(() => {
             this.state = "disconnected";

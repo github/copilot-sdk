@@ -34,7 +34,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Have_Stateful_Conversation()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
 
         var assistantMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
         Assert.NotNull(assistantMessage);
@@ -689,17 +689,19 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         session.On<SessionEvent>(evt =>
         {
-            if (evt is UserMessageEvent)
+            if (evt is SessionInfoEvent)
             {
                 // Call DisposeAsync from within a handler — must not deadlock.
                 session.DisposeAsync().AsTask().ContinueWith(_ => disposed.TrySetResult());
             }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await session.LogAsync("Dispose from handler trigger");
 
         // If this times out, we deadlocked.
         await disposed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await Client.ForceStopAsync();
     }
 
     [Fact]

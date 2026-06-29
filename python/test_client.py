@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from copilot import (
+    CapiSessionOptions,
     CopilotClient,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -51,7 +52,12 @@ class TestClientShutdown:
         await client.stop()
 
         assert calls == ["runtime.shutdown"]
-        process.terminate.assert_not_called()
+        # The runtime never self-exits after runtime.shutdown (it keeps its
+        # JSON-RPC server alive to send the response and leaves termination to
+        # the caller), so stop() terminates the owned process. The mocked
+        # process exits on terminate() (wait returns immediately), so we never
+        # escalate to kill().
+        process.terminate.assert_called_once()
         process.kill.assert_not_called()
 
     @pytest.mark.asyncio
@@ -241,6 +247,46 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_capi_options(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            create_capi: CapiSessionOptions = {"enable_web_socket_responses": False}
+            resume_capi: CapiSessionOptions = {"enable_web_socket_responses": True}
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                capi=create_capi,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                capi=resume_capi,
+            )
+
+            assert captured["session.create"]["capi"] == {
+                "enableWebSocketResponses": False,
+            }
+            assert captured["session.resume"]["capi"] == {
+                "enableWebSocketResponses": True,
+            }
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_and_resume_session_forward_plugin_directories_and_large_output(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
@@ -353,6 +399,75 @@ class TestCreateSessionConfig:
 
             assert "memory" not in captured["session.create"]
             assert "memory" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_exp_assignments(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            create_assignments = {"Configs": [{"Id": "exp-create"}]}
+            resume_assignments = {"Configs": [{"Id": "exp-resume"}]}
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                exp_assignments=create_assignments,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                exp_assignments=resume_assignments,
+            )
+
+            assert captured["session.create"]["expAssignments"] == create_assignments
+            assert captured["session.resume"]["expAssignments"] == resume_assignments
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_omit_exp_assignments_when_unset(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+
+            assert "expAssignments" not in captured["session.create"]
+            assert "expAssignments" not in captured["session.resume"]
         finally:
             await client.force_stop()
 
@@ -1084,6 +1199,7 @@ class TestSessionConfigForwarding:
                     "wire_model": "my-finetune-v3",
                     "max_prompt_tokens": 100_000,
                     "max_output_tokens": 4096,
+                    "transport": "websockets",
                 },
             )
 
@@ -1094,6 +1210,7 @@ class TestSessionConfigForwarding:
             assert provider["wireModel"] == "my-finetune-v3"
             assert provider["maxPromptTokens"] == 100_000
             assert provider["maxOutputTokens"] == 4096
+            assert provider["transport"] == "websockets"
         finally:
             await client.force_stop()
 

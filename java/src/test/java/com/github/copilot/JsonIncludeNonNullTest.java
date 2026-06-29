@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.rpc.CapiSessionOptions;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.CustomAgentConfig;
 import com.github.copilot.rpc.InfiniteSessionConfig;
@@ -74,6 +75,11 @@ class JsonIncludeNonNullTest {
     @Test
     void providerConfigHasNonNullAnnotation() {
         assertHasNonNullInclude(ProviderConfig.class);
+    }
+
+    @Test
+    void capiSessionOptionsHasNonNullAnnotation() {
+        assertHasNonNullInclude(CapiSessionOptions.class);
     }
 
     @Test

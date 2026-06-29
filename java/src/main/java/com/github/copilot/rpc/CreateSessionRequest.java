@@ -10,6 +10,9 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import com.github.copilot.CopilotExperimental;
 
 /**
  * Internal request object for creating a new session.
@@ -59,6 +62,14 @@ public final class CreateSessionRequest {
 
     @JsonProperty("provider")
     private ProviderConfig provider;
+
+    @JsonProperty("capi")
+    private CapiSessionOptions capi;
+    @JsonProperty("providers")
+    private List<NamedProviderConfig> providers;
+
+    @JsonProperty("models")
+    private List<ProviderModelConfig> models;
 
     @JsonProperty("enableSessionTelemetry")
     private Boolean enableSessionTelemetry;
@@ -184,6 +195,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("cloud")
     private CloudSessionOptions cloud;
+
+    @JsonProperty("expAssignments")
+    private JsonNode expAssignments;
 
     /** Gets the model name. @return the model */
     public String getModel() {
@@ -311,6 +325,40 @@ public final class CreateSessionRequest {
     /** Sets the provider config. @param provider the provider */
     public void setProvider(ProviderConfig provider) {
         this.provider = provider;
+    }
+
+    /** Gets the CAPI session options. @return the CAPI session options */
+    public CapiSessionOptions getCapi() {
+        return capi;
+    }
+
+    /** Sets the CAPI session options. @param capi the CAPI session options */
+    public void setCapi(CapiSessionOptions capi) {
+        this.capi = capi;
+    }
+
+    /** Gets the named provider connections. @return the named providers */
+    @CopilotExperimental
+    public List<NamedProviderConfig> getProviders() {
+        return providers;
+    }
+
+    /** Sets the named provider connections. @param providers the named providers */
+    @CopilotExperimental
+    public void setProviders(List<NamedProviderConfig> providers) {
+        this.providers = providers;
+    }
+
+    /** Gets the BYOK model definitions. @return the models */
+    @CopilotExperimental
+    public List<ProviderModelConfig> getModels() {
+        return models;
+    }
+
+    /** Sets the BYOK model definitions. @param models the models */
+    @CopilotExperimental
+    public void setModels(List<ProviderModelConfig> models) {
+        this.models = models;
     }
 
     /** Gets enable session telemetry flag. @return the flag */
@@ -839,5 +887,17 @@ public final class CreateSessionRequest {
     /** Sets the cloud session options. @param cloud the cloud session options */
     public void setCloud(CloudSessionOptions cloud) {
         this.cloud = cloud;
+    }
+
+    /** Gets the ExP assignment data. @return the ExP assignment data */
+    public JsonNode getExpAssignments() {
+        return expAssignments;
+    }
+
+    /**
+     * Sets the ExP assignment data. @param expAssignments the ExP assignment data
+     */
+    public void setExpAssignments(JsonNode expAssignments) {
+        this.expAssignments = expAssignments;
     }
 }

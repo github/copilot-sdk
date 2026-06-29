@@ -53,6 +53,30 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
+// defaultBearerTokenProviderName is the implicit provider name for the singular,
+// whole-session [ProviderConfig]. Named providers are keyed by their own Name.
+const defaultBearerTokenProviderName = "default"
+
+// collectBearerTokenProviders gathers the per-provider [BearerTokenProvider] callbacks
+// from the singular provider and any named providers, keyed by provider name. The
+// singular provider uses the implicit name "default"; named providers use their
+// own Name. Returns nil when no callbacks are configured.
+func collectBearerTokenProviders(provider *ProviderConfig, providers []NamedProviderConfig) map[string]BearerTokenProvider {
+	callbacks := make(map[string]BearerTokenProvider)
+	if provider != nil && provider.BearerTokenProvider != nil {
+		callbacks[defaultBearerTokenProviderName] = provider.BearerTokenProvider
+	}
+	for i := range providers {
+		if providers[i].BearerTokenProvider != nil {
+			callbacks[providers[i].Name] = providers[i].BearerTokenProvider
+		}
+	}
+	if len(callbacks) == 0 {
+		return nil
+	}
+	return callbacks
+}
+
 func validateSessionFSConfig(config *SessionFSConfig) error {
 	if config == nil {
 		return nil
@@ -371,6 +395,15 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 	}
 
+	// If a request handler was configured, register as the inference provider.
+	if c.options.RequestHandler != nil {
+		if _, err := c.RPC.LlmInference.SetProvider(ctx); err != nil {
+			killErr := c.killProcess()
+			c.state = stateError
+			return errors.Join(err, killErr)
+		}
+	}
+
 	c.state = stateConnected
 	return nil
 }
@@ -418,7 +451,6 @@ func (c *Client) Stop() error {
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
 
-	runtimeShutdownCompleted := false
 	if c.process != nil && !c.isExternalServer && c.RPC != nil {
 		rpcClient := c.RPC
 		runtimeShutdownStart := time.Now()
@@ -434,7 +466,6 @@ func (c *Client) Stop() error {
 				c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown failed")
 				errs = append(errs, fmt.Errorf("failed to gracefully shut down runtime: %w", err))
 			} else {
-				runtimeShutdownCompleted = true
 				c.logDebugTiming(runtimeShutdownStart, "CopilotClient.Stop runtime shutdown complete")
 			}
 		case <-time.After(runtimeShutdownTimeout):
@@ -443,29 +474,14 @@ func (c *Client) Stop() error {
 		}
 	}
 
-	// Give runtime.shutdown a bounded window to let the child exit on its own
-	// before falling back to killing it.
+	// The runtime completes all cleanup before responding to runtime.shutdown
+	// and then leaves termination to us; it deliberately keeps its JSON-RPC
+	// server alive to send the response and never self-exits. Waiting for a
+	// self-exit that will never come just wastes time, so terminate the child
+	// immediately and only wait to reap it.
 	if c.process != nil && !c.isExternalServer {
-		if c.processDone != nil {
-			if runtimeShutdownCompleted {
-				select {
-				case <-c.processDone:
-					c.osProcess.Swap(nil)
-					c.process = nil
-				case <-time.After(runtimeShutdownTimeout):
-					if err := c.killProcessAndWait(); err != nil {
-						errs = append(errs, err)
-					}
-				}
-			} else {
-				if err := c.killProcessAndWait(); err != nil {
-					errs = append(errs, err)
-				}
-			}
-		} else {
-			if err := c.killProcessAndWait(); err != nil {
-				errs = append(errs, err)
-			}
+		if err := c.killProcessAndWait(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	c.process = nil
@@ -681,6 +697,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExcludedTools = excludedTools
 	req.ToolFilterPrecedence = precedence
 	req.Provider = config.Provider
+	req.Capi = config.Capi
+	req.Providers = config.Providers
+	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
@@ -708,6 +727,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
+	req.ExpAssignments = config.ExpAssignments
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -812,6 +832,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		}
 		if config.CanvasHandler != nil {
 			s.registerCanvasHandler(config.CanvasHandler)
+		}
+		if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
+			s.registerBearerTokenProviders(bearerTokenProviders)
 		}
 
 		c.sessionsMux.Lock()
@@ -976,6 +999,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.SystemMessage = wireSystemMessage
 	req.Tools = config.Tools
 	req.Provider = config.Provider
+	req.Capi = config.Capi
+	req.Providers = config.Providers
+	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
@@ -1045,6 +1071,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
+	req.ExpAssignments = config.ExpAssignments
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -1105,6 +1132,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.CanvasHandler != nil {
 		session.registerCanvasHandler(config.CanvasHandler)
+	}
+	if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
+		session.registerBearerTokenProviders(bearerTokenProviders)
 	}
 
 	c.sessionsMux.Lock()
@@ -1999,6 +2029,15 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
+	if c.options.RequestHandler != nil {
+		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+			if c.RPC == nil {
+				return nil
+			}
+			return c.RPC.LlmInference
+		})
+		rpc.RegisterClientGlobalAPIHandlers(c.client, &rpc.ClientGlobalAPIHandlers{LlmInference: adapter})
+	}
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

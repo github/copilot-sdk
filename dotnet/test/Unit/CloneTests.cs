@@ -82,6 +82,7 @@ public class CloneTests
             McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
             CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5" }],
             Agent = "agent1",
+            Capi = new CapiSessionOptions { EnableWebSocketResponses = false },
             Cloud = new CloudSessionOptions
             {
                 Repository = new CloudSessionRepository
@@ -123,6 +124,7 @@ public class CloneTests
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
         Assert.Equal(original.CustomAgents[0].Model, clone.CustomAgents[0].Model);
         Assert.Equal(original.Agent, clone.Agent);
+        Assert.Same(original.Capi, clone.Capi);
         Assert.Same(original.Cloud, clone.Cloud);
         Assert.Equal(original.DefaultAgent!.ExcludedTools, clone.DefaultAgent!.ExcludedTools);
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
@@ -514,5 +516,31 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Equal(McpOAuthTokenStorageMode.Persistent, clone.McpOAuthTokenStorage);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesCapiOptions()
+    {
+        var original = new SessionConfig
+        {
+            Capi = new CapiSessionOptions { EnableWebSocketResponses = false },
+        };
+
+        var clone = original.Clone();
+
+        Assert.Same(original.Capi, clone.Capi);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesCapiOptions()
+    {
+        var original = new ResumeSessionConfig
+        {
+            Capi = new CapiSessionOptions { EnableWebSocketResponses = false },
+        };
+
+        var clone = original.Clone();
+
+        Assert.Same(original.Capi, clone.Capi);
     }
 }

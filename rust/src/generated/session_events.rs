@@ -25,6 +25,8 @@ pub enum SessionEventType {
     SessionScheduleCreated,
     #[serde(rename = "session.schedule_cancelled")]
     SessionScheduleCancelled,
+    #[serde(rename = "session.schedule_rearmed")]
+    SessionScheduleRearmed,
     #[serde(rename = "session.autopilot_objective_changed")]
     SessionAutopilotObjectiveChanged,
     #[serde(rename = "session.info")]
@@ -83,6 +85,8 @@ pub enum SessionEventType {
     AssistantMessageDelta,
     #[serde(rename = "assistant.turn_end")]
     AssistantTurnEnd,
+    #[serde(rename = "assistant.idle")]
+    AssistantIdle,
     #[serde(rename = "assistant.usage")]
     AssistantUsage,
     #[serde(rename = "model.call_failure")]
@@ -117,6 +121,15 @@ pub enum SessionEventType {
     HookEnd,
     #[serde(rename = "hook.progress")]
     HookProgress,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.binary_asset")]
+    SessionBinaryAsset,
     #[serde(rename = "system.message")]
     SystemMessage,
     #[serde(rename = "system.notification")]
@@ -141,6 +154,10 @@ pub enum SessionEventType {
     McpOauthRequired,
     #[serde(rename = "mcp.oauth_completed")]
     McpOauthCompleted,
+    #[serde(rename = "mcp.headers_refresh_required")]
+    McpHeadersRefreshRequired,
+    #[serde(rename = "mcp.headers_refresh_completed")]
+    McpHeadersRefreshCompleted,
     #[serde(rename = "session.custom_notification")]
     SessionCustomNotification,
     #[serde(rename = "external_tool.requested")]
@@ -179,12 +196,60 @@ pub enum SessionEventType {
     SessionMcpServerStatusChanged,
     #[serde(rename = "session.extensions_loaded")]
     SessionExtensionsLoaded,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.opened")]
     SessionCanvasOpened,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.registry_changed")]
     SessionCanvasRegistryChanged,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.closed")]
     SessionCanvasClosed,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.unavailable")]
+    SessionCanvasUnavailable,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.recorded")]
+    SessionCanvasRecorded,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.removed")]
+    SessionCanvasRemoved,
     #[serde(rename = "session.extensions.attachments_pushed")]
     SessionExtensionsAttachmentsPushed,
     #[serde(rename = "mcp_app.tool_call_complete")]
@@ -217,6 +282,8 @@ pub enum SessionEventData {
     SessionScheduleCreated(SessionScheduleCreatedData),
     #[serde(rename = "session.schedule_cancelled")]
     SessionScheduleCancelled(SessionScheduleCancelledData),
+    #[serde(rename = "session.schedule_rearmed")]
+    SessionScheduleRearmed(SessionScheduleRearmedData),
     #[serde(rename = "session.autopilot_objective_changed")]
     SessionAutopilotObjectiveChanged(SessionAutopilotObjectiveChangedData),
     #[serde(rename = "session.info")]
@@ -275,6 +342,8 @@ pub enum SessionEventData {
     AssistantMessageDelta(AssistantMessageDeltaData),
     #[serde(rename = "assistant.turn_end")]
     AssistantTurnEnd(AssistantTurnEndData),
+    #[serde(rename = "assistant.idle")]
+    AssistantIdle(AssistantIdleData),
     #[serde(rename = "assistant.usage")]
     AssistantUsage(AssistantUsageData),
     #[serde(rename = "model.call_failure")]
@@ -309,6 +378,8 @@ pub enum SessionEventData {
     HookEnd(HookEndData),
     #[serde(rename = "hook.progress")]
     HookProgress(HookProgressData),
+    #[serde(rename = "session.binary_asset")]
+    SessionBinaryAsset(SessionBinaryAssetData),
     #[serde(rename = "system.message")]
     SystemMessage(SystemMessageData),
     #[serde(rename = "system.notification")]
@@ -333,6 +404,10 @@ pub enum SessionEventData {
     McpOauthRequired(McpOauthRequiredData),
     #[serde(rename = "mcp.oauth_completed")]
     McpOauthCompleted(McpOauthCompletedData),
+    #[serde(rename = "mcp.headers_refresh_required")]
+    McpHeadersRefreshRequired(McpHeadersRefreshRequiredData),
+    #[serde(rename = "mcp.headers_refresh_completed")]
+    McpHeadersRefreshCompleted(McpHeadersRefreshCompletedData),
     #[serde(rename = "session.custom_notification")]
     SessionCustomNotification(SessionCustomNotificationData),
     #[serde(rename = "external_tool.requested")]
@@ -371,12 +446,60 @@ pub enum SessionEventData {
     SessionMcpServerStatusChanged(SessionMcpServerStatusChangedData),
     #[serde(rename = "session.extensions_loaded")]
     SessionExtensionsLoaded(SessionExtensionsLoadedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.opened")]
     SessionCanvasOpened(SessionCanvasOpenedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.registry_changed")]
     SessionCanvasRegistryChanged(SessionCanvasRegistryChangedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.canvas.closed")]
     SessionCanvasClosed(SessionCanvasClosedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.unavailable")]
+    SessionCanvasUnavailable(SessionCanvasUnavailableData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.recorded")]
+    SessionCanvasRecorded(SessionCanvasRecordedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.canvas.removed")]
+    SessionCanvasRemoved(SessionCanvasRemovedData),
     #[serde(rename = "session.extensions.attachments_pushed")]
     SessionExtensionsAttachmentsPushed(SessionExtensionsAttachmentsPushedData),
     #[serde(rename = "mcp_app.tool_call_complete")]
@@ -439,6 +562,18 @@ pub struct WorkingDirectoryContext {
     pub repository_host: Option<String>,
 }
 
+/// Optional response budget limits.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponseBudgetConfig {
+    /// Maximum AI Credits allowed while responding to one top-level user message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ai_credits: Option<f64>,
+    /// Maximum model-call iterations allowed while responding to one top-level user message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_model_iterations: Option<i64>,
+}
+
 /// Session event "session.start". Session initialization metadata including context and configuration
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -468,6 +603,9 @@ pub struct SessionStartData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
+    /// Response budget limits configured at session creation time, if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_budget: Option<ResponseBudgetConfig>,
     /// Model selected at session creation time, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
@@ -509,6 +647,9 @@ pub struct SessionResumeData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
+    /// Response budget limits currently configured at resume time; null when no budget is active
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_budget: Option<ResponseBudgetConfig>,
     /// ISO 8601 timestamp when the session was resumed
     pub resume_time: String,
     /// Model currently selected at resume time
@@ -598,6 +739,9 @@ pub struct SessionScheduleCreatedData {
     /// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurring: Option<bool>,
+    /// True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled rather than auto-computed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub self_paced: Option<bool>,
     /// IANA timezone the `cron` expression is evaluated in
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tz: Option<String>,
@@ -609,6 +753,16 @@ pub struct SessionScheduleCreatedData {
 pub struct SessionScheduleCancelledData {
     /// Id of the scheduled prompt that was cancelled
     pub id: i64,
+}
+
+/// Session event "session.schedule_rearmed". Self-paced schedule re-armed for its next run
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionScheduleRearmedData {
+    /// Id of the self-paced schedule that was re-armed
+    pub id: i64,
+    /// Absolute time (epoch milliseconds) the model armed the next run to fire
+    pub next_run_at: i64,
 }
 
 /// Session event "session.autopilot_objective_changed". Autopilot objective state file operation details indicating what changed
@@ -1031,7 +1185,10 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CompactionCompleteCompactionTokensUsedCopilotUsage {
     /// Itemized token usage breakdown
-    pub token_details: Vec<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail>,
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) token_details:
+        Option<Vec<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail>>,
     /// Total cost in nano-AI units for this request
     pub total_nano_aiu: f64,
 }
@@ -1104,6 +1261,9 @@ pub struct SessionCompactionCompleteData {
     /// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
+    /// For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i64>,
     /// Whether compaction completed successfully
     pub success: bool,
     /// LLM-generated summary of the compacted conversation history
@@ -1144,6 +1304,9 @@ pub struct UserMessageData {
     pub attachments: Option<Vec<serde_json::Value>>,
     /// The user's message text as displayed in the timeline
     pub content: String,
+    /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<UserMessageDelivery>,
     /// CAPI interaction ID for correlating this user message with its turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
@@ -1219,6 +1382,92 @@ pub struct AssistantStreamingDeltaData {
     pub total_response_size_bytes: i64,
 }
 
+/// A source that backs one or more cited spans in the assistant's response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationSource {
+    /// Stable, turn-scoped identifier for this source, referenced by CitationReference.sourceId.
+    pub id: String,
+    /// File path relative to the agent's workspace root, when the source is a file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// The system that produced this citation.
+    pub provider: CitationProvider,
+    /// Human-readable title of the source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL of the source, when it is a web resource.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// A single citation occurrence linking a span of generated text to a supporting source.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationReference {
+    /// The exact text from the source that supports the cited span, when provided by the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cited_text: Option<String>,
+    /// Location within the source that supports the cited span, when the provider reports one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<serde_json::Value>,
+    /// Provider-native citation correlation data (e.g. Anthropic search_result_index / document_index), passed through opaquely for debugging and forward compatibility.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<serde_json::Value>,
+    /// Identifier of the CitationSource this reference points to (CitationSource.id).
+    pub source_id: String,
+}
+
+/// A contiguous span of generated assistant text and the source references that support it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationSpan {
+    /// End offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, exclusive).
+    pub end_index: i64,
+    /// The sources that support this span of generated text.
+    pub references: Vec<CitationReference>,
+    /// Start offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, inclusive).
+    pub start_index: i64,
+}
+
+/// Provider-agnostic citations linking spans of the assistant's response to their supporting sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Citations {
+    /// Deduplicated set of sources referenced by the citation spans.
+    pub sources: Vec<CitationSource>,
+    /// Spans of generated text annotated with the sources that support them.
+    pub spans: Vec<CitationSpan>,
+}
+
 /// Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
 ///
 /// <div class="warning">
@@ -1276,6 +1525,16 @@ pub struct AssistantMessageData {
     /// Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
+    /// Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citations: Option<Citations>,
     /// The assistant's text response content
     pub content: String,
     /// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -1357,6 +1616,15 @@ pub struct AssistantTurnEndData {
     pub turn_id: String,
 }
 
+/// Session event "assistant.idle". Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantIdleData {
+    /// True when the preceding agentic loop was cancelled via abort signal
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aborted: Option<bool>,
+}
+
 /// Token usage detail for a single billing category
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1374,9 +1642,11 @@ pub struct AssistantUsageCopilotUsageTokenDetail {
 /// Per-request cost and usage data from the CAPI copilot_usage response field
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct AssistantUsageCopilotUsage {
+pub struct AssistantUsageCopilotUsage {
     /// Itemized token usage breakdown
-    pub token_details: Vec<AssistantUsageCopilotUsageTokenDetail>,
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) token_details: Option<Vec<AssistantUsageCopilotUsageTokenDetail>>,
     /// Total cost in nano-AI units for this request
     pub total_nano_aiu: f64,
 }
@@ -1388,6 +1658,10 @@ pub(crate) struct AssistantUsageQuotaSnapshot {
     /// Total requests allowed by the entitlement
     #[doc(hidden)]
     pub(crate) entitlement_requests: i64,
+    /// Whether the user currently has quota available for use
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) has_quota: Option<bool>,
     /// Whether the user has an unlimited usage entitlement
     #[doc(hidden)]
     pub(crate) is_unlimited_entitlement: bool,
@@ -1397,6 +1671,10 @@ pub(crate) struct AssistantUsageQuotaSnapshot {
     /// Whether additional usage is allowed when quota is exhausted
     #[doc(hidden)]
     pub(crate) overage_allowed_with_exhausted_quota: bool,
+    /// Pay-as-you-go additional-usage budget cap in AI credits (1 credit = $0.01); present only when CAPI emits a finite value
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) overage_entitlement: Option<f64>,
     /// Percentage of quota remaining (0 to 100)
     #[doc(hidden)]
     pub(crate) remaining_percentage: f64,
@@ -1404,6 +1682,10 @@ pub(crate) struct AssistantUsageQuotaSnapshot {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) reset_date: Option<String>,
+    /// Whether this snapshot uses token-based billing (AI-credits allocation)
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) token_based_billing: Option<bool>,
     /// Whether usage is still permitted after quota exhaustion
     #[doc(hidden)]
     pub(crate) usage_allowed_with_exhausted_quota: bool,
@@ -1432,9 +1714,8 @@ pub struct AssistantUsageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_filter_triggered: Option<bool>,
     /// Per-request cost and usage data from the CAPI copilot_usage response field
-    #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) copilot_usage: Option<AssistantUsageCopilotUsage>,
+    pub copilot_usage: Option<AssistantUsageCopilotUsage>,
     /// Model multiplier cost for billing purposes
     ///
     /// <div class="warning">
@@ -1491,6 +1772,27 @@ pub struct AssistantUsageData {
     pub time_to_first_token_ms: Option<i64>,
 }
 
+/// Content-free structural summary of the failing request for diagnosing malformed 4xx calls
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCallFailureRequestFingerprint {
+    /// Total number of image content parts
+    pub image_part_count: i64,
+    /// Image parts whose media type cannot be determined (rejected by strict providers)
+    pub image_parts_missing_media_type: i64,
+    /// Role of the final message in the request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_message_role: Option<String>,
+    /// Total number of messages in the request
+    pub message_count: i64,
+    /// Tool calls whose name is missing or empty (rejected by strict providers)
+    pub nameless_tool_call_count: i64,
+    /// Total number of tool calls across assistant messages
+    pub tool_call_count: i64,
+    /// Number of "tool" result messages in the request
+    pub tool_result_message_count: i64,
+}
+
 /// Session event "model.call_failure". Failed LLM API call metadata for telemetry
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1498,12 +1800,21 @@ pub struct ModelCallFailureData {
     /// Completion ID from the model provider (e.g., chatcmpl-abc123)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
+    /// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bad_request_kind: Option<ModelCallFailureBadRequestKind>,
     /// Duration of the failed API call in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<i64>,
+    /// For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
     /// Raw provider/runtime error message for restricted telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
+    /// For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_type: Option<String>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
@@ -1513,6 +1824,13 @@ pub struct ModelCallFailureData {
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
+    /// Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) quota_snapshots: Option<HashMap<String, AssistantUsageQuotaSnapshot>>,
+    /// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_fingerprint: Option<ModelCallFailureRequestFingerprint>,
     /// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
@@ -1542,6 +1860,16 @@ pub struct ToolUserRequestedData {
     pub tool_call_id: String,
     /// Name of the tool the user wants to invoke
     pub tool_name: String,
+}
+
+/// Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionStartShellToolInfo {
+    /// Whether the command includes a file write redirection (e.g., > or >>).
+    pub has_write_file_redirection: bool,
+    /// File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
+    pub possible_paths: Vec<String>,
 }
 
 /// Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.
@@ -1603,6 +1931,9 @@ pub struct ToolExecutionStartData {
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
+    /// Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_tool_info: Option<ToolExecutionStartShellToolInfo>,
     /// Unique identifier for this tool call
     pub tool_call_id: String,
     /// Tool definition metadata, present for MCP tools with MCP Apps support
@@ -1644,6 +1975,32 @@ pub struct ToolExecutionCompleteError {
     pub code: Option<String>,
     /// Human-readable error message
     pub message: String,
+}
+
+/// A source supplied by a tool that should be made available to the model as citable content.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitableSource {
+    /// The source text made available to the model as citable content.
+    pub content: String,
+    /// Stable identifier for this source within the tool result. Used for deduplication and may be used by future provider integrations to correlate response citations back to the originating source.
+    pub id: String,
+    /// File path relative to the agent's workspace root, when the source is a file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// Human-readable title of the source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL of the source, when it is a web resource.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 /// Plain text content block
@@ -1876,6 +2233,26 @@ pub struct ToolExecutionCompleteUIResource {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteResult {
+    /// Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_results_for_llm: Option<Vec<serde_json::Value>>,
+    /// Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citable_sources: Option<Vec<CitableSource>>,
     /// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
     pub content: String,
     /// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
@@ -2139,6 +2516,28 @@ pub struct HookProgressData {
     pub temporary: Option<bool>,
 }
 
+/// Session event "session.binary_asset". Canonical bytes for a content-addressed binary asset shared by reference across events
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionBinaryAssetData {
+    /// Content-addressed id for this binary asset (e.g. "sha256:...").
+    pub asset_id: String,
+    /// Decoded byte length of the binary asset
+    pub byte_length: i64,
+    /// Base64-encoded binary data
+    pub data: String,
+    /// Human-readable description of the binary data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Optional metadata from the producing tool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    /// MIME type of the binary asset
+    pub mime_type: String,
+    /// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+    pub r#type: BinaryAssetType,
+}
+
 /// Metadata about the prompt template and its construction
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2215,6 +2614,12 @@ pub struct PermissionRequestShell {
     pub possible_paths: Vec<String>,
     /// URLs that may be accessed by the command
     pub possible_urls: Vec<PermissionRequestShellPossibleUrl>,
+    /// True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -2924,6 +3329,9 @@ pub struct SamplingCompletedData {
 pub struct McpOauthRequiredStaticClientConfig {
     /// OAuth client ID for the server
     pub client_id: String,
+    /// Optional OAuth client secret for confidential static clients, when the runtime can resolve one
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
     /// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grant_type: Option<McpOauthRequiredStaticClientConfigGrantType>,
@@ -2932,12 +3340,32 @@ pub struct McpOauthRequiredStaticClientConfig {
     pub public_client: Option<bool>,
 }
 
+/// OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthWWWAuthenticateParams {
+    /// OAuth error from the WWW-Authenticate error parameter, if present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_metadata_url: Option<String>,
+    /// Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+}
+
 /// Session event "mcp.oauth_required". OAuth authentication request for an MCP server
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthRequiredData {
-    /// Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth()
+    /// Why the runtime is requesting host-provided OAuth credentials.
+    pub reason: McpOauthRequestReason,
+    /// Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
     pub request_id: RequestId,
+    /// Raw OAuth protected-resource metadata document fetched for the MCP server, if available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_metadata: Option<String>,
     /// Display name of the MCP server that requires OAuth
     pub server_name: String,
     /// URL of the MCP server that requires OAuth
@@ -2945,13 +3373,42 @@ pub struct McpOauthRequiredData {
     /// Static OAuth client configuration, if the server specifies one
     #[serde(skip_serializing_if = "Option::is_none")]
     pub static_client_config: Option<McpOauthRequiredStaticClientConfig>,
+    /// OAuth WWW-Authenticate parameters parsed from the auth challenge, if available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub www_authenticate_params: Option<McpOauthWWWAuthenticateParams>,
 }
 
 /// Session event "mcp.oauth_completed". MCP OAuth request completion notification
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthCompletedData {
+    /// How the pending OAuth request was completed
+    pub outcome: McpOauthCompletionOutcome,
     /// Request ID of the resolved OAuth request
+    pub request_id: RequestId,
+}
+
+/// Session event "mcp.headers_refresh_required". Dynamic headers refresh request for a remote MCP server
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersRefreshRequiredData {
+    /// Why dynamic headers are being requested.
+    pub reason: McpHeadersRefreshRequiredReason,
+    /// Unique identifier for this headers refresh request; used to respond via session.mcp.headers.handlePendingHeadersRefreshRequest()
+    pub request_id: RequestId,
+    /// Display name of the remote MCP server requesting headers
+    pub server_name: String,
+    /// URL of the remote MCP server requesting headers
+    pub server_url: String,
+}
+
+/// Session event "mcp.headers_refresh_completed". MCP headers refresh request completion notification
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersRefreshCompletedData {
+    /// How the pending MCP headers refresh request resolved.
+    pub outcome: McpHeadersRefreshCompletedOutcome,
+    /// Request ID of the resolved headers refresh request
     pub request_id: RequestId,
 }
 
@@ -3159,6 +3616,9 @@ pub struct SessionBackgroundTasksChangedData {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsLoadedSkill {
+    /// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub argument_hint: Option<String>,
     /// Description of what the skill does
     pub description: String,
     /// Whether the skill is currently enabled
@@ -3286,11 +3746,16 @@ pub struct SessionExtensionsLoadedData {
 }
 
 /// Session event "session.canvas.opened".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCanvasOpenedData {
-    /// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
-    pub availability: CanvasOpenedAvailability,
     /// Provider-local canvas identifier
     pub canvas_id: String,
     /// Owning provider identifier
@@ -3303,8 +3768,6 @@ pub struct SessionCanvasOpenedData {
     pub input: Option<serde_json::Value>,
     /// Stable caller-supplied canvas instance identifier
     pub instance_id: String,
-    /// Whether this notification represents an idempotent reopen
-    pub reopen: bool,
     /// Provider-supplied status text
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -3317,6 +3780,13 @@ pub struct SessionCanvasOpenedData {
 }
 
 /// Schema for the `CanvasRegistryChangedCanvasAction` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasRegistryChangedCanvasAction {
@@ -3325,12 +3795,19 @@ pub struct CanvasRegistryChangedCanvasAction {
     pub description: Option<String>,
     /// JSON Schema for action input
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_schema: Option<HashMap<String, serde_json::Value>>,
+    pub input_schema: Option<serde_json::Value>,
     /// Action name
     pub name: String,
 }
 
 /// Schema for the `CanvasRegistryChangedCanvas` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasRegistryChangedCanvas {
@@ -3350,10 +3827,17 @@ pub struct CanvasRegistryChangedCanvas {
     pub extension_name: Option<String>,
     /// JSON Schema for canvas open input
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_schema: Option<HashMap<String, serde_json::Value>>,
+    pub input_schema: Option<serde_json::Value>,
 }
 
 /// Session event "session.canvas.registry_changed".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCanvasRegistryChangedData {
@@ -3362,9 +3846,79 @@ pub struct SessionCanvasRegistryChangedData {
 }
 
 /// Session event "session.canvas.closed".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCanvasClosedData {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Stable caller-supplied identifier of the canvas instance that was closed
+    pub instance_id: String,
+}
+
+/// Session event "session.canvas.unavailable". Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasUnavailableData {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Stable caller-supplied identifier of the canvas instance whose provider became unavailable
+    pub instance_id: String,
+}
+
+/// Session event "session.canvas.recorded". Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasRecordedData {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Input supplied when the instance was opened
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Stable caller-supplied canvas instance identifier
+    pub instance_id: String,
+    /// Rendered title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
+/// Session event "session.canvas.removed". Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasRemovedData {
     /// Provider-local canvas identifier
     pub canvas_id: String,
     /// Owning provider identifier
@@ -3625,6 +4179,49 @@ pub enum UserMessageAgentMode {
     Unknown,
 }
 
+/// How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserMessageDelivery {
+    /// Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent).
+    #[serde(rename = "idle")]
+    Idle,
+    /// Injected into the current in-flight run while the agent was busy (immediate mode).
+    #[serde(rename = "steering")]
+    Steering,
+    /// Enqueued while the agent was busy; processed as its own run afterward.
+    #[serde(rename = "queued")]
+    Queued,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The system that produced a citation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CitationProvider {
+    /// Citation produced by an Anthropic (Claude) model response.
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    /// Citation produced by an OpenAI model response.
+    #[serde(rename = "openai")]
+    Openai,
+    /// Citation synthesized client-side by the runtime from tool output.
+    #[serde(rename = "client")]
+    Client,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssistantMessageToolRequestType {
@@ -3655,6 +4252,21 @@ pub enum AssistantUsageApiEndpoint {
     /// WebSocket Responses API endpoint.
     #[serde(rename = "ws:/responses")]
     WsResponses,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFailureBadRequestKind {
+    /// The 400 response carried no error body (transient gateway/proxy signature).
+    #[serde(rename = "bodyless")]
+    Bodyless,
+    /// The 400 response carried a structured CAPI error envelope (deterministic validation failure).
+    #[serde(rename = "structured_error")]
+    StructuredError,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -3822,6 +4434,21 @@ pub enum SkillInvokedTrigger {
     /// Skill content loaded as part of another context, such as a configured custom agent or subagent.
     #[serde(rename = "context-load")]
     ContextLoad,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BinaryAssetType {
+    /// Binary image data.
+    #[serde(rename = "image")]
+    Image,
+    /// Other binary resource data.
+    #[serde(rename = "resource")]
+    Resource,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -4300,12 +4927,84 @@ pub enum ElicitationCompletedAction {
     Unknown,
 }
 
+/// Reason the runtime is requesting host-provided MCP OAuth credentials
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthRequestReason {
+    /// Initial credentials are required before connecting to the MCP server.
+    #[serde(rename = "initial")]
+    Initial,
+    /// The current host-provided credential was rejected and a replacement is requested.
+    #[serde(rename = "refresh")]
+    Refresh,
+    /// The server requires a new host authorization flow before continuing.
+    #[serde(rename = "reauth")]
+    Reauth,
+    /// The server requires a credential with additional scope or audience.
+    #[serde(rename = "upscope")]
+    Upscope,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpOauthRequiredStaticClientConfigGrantType {
     #[serde(rename = "client_credentials")]
     #[default]
     ClientCredentials,
+}
+
+/// How the pending MCP OAuth request was completed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthCompletionOutcome {
+    /// The request completed with a token-backed OAuth provider.
+    #[serde(rename = "token")]
+    Token,
+    /// The request completed without an OAuth provider.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why dynamic headers are being requested.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersRefreshRequiredReason {
+    /// The transport is making its first dynamic header request for this server.
+    #[serde(rename = "startup")]
+    Startup,
+    /// The previously cached dynamic headers expired.
+    #[serde(rename = "ttl-expired")]
+    TtlExpired,
+    /// The server returned 401 and stale dynamic headers were invalidated.
+    #[serde(rename = "auth-failed")]
+    AuthFailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How the pending MCP headers refresh request resolved.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersRefreshCompletedOutcome {
+    /// The host supplied dynamic headers.
+    #[serde(rename = "headers")]
+    Headers,
+    /// The host responded with no dynamic headers.
+    #[serde(rename = "none")]
+    None,
+    /// No response arrived within the bounded window.
+    #[serde(rename = "timeout")]
+    Timeout,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// The user's auto-mode-switch choice
@@ -4482,21 +5181,6 @@ pub enum ExtensionsLoadedExtensionStatus {
     /// The extension process is starting.
     #[serde(rename = "starting")]
     Starting,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CanvasOpenedAvailability {
-    /// Provider connection is live; actions can be invoked.
-    #[serde(rename = "ready")]
-    Ready,
-    /// Provider has gone away; the instance is awaiting rebinding.
-    #[serde(rename = "stale")]
-    Stale,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -27,6 +27,10 @@ public record McpServer(
     @JsonProperty("status") McpServerStatus status,
     /** Configuration source: user, workspace, plugin, or builtin */
     @JsonProperty("source") McpServerSource source,
+    /** Plugin name that provided this server, when source is plugin. */
+    @JsonProperty("sourcePlugin") String sourcePlugin,
+    /** Plugin version that provided this server, when source is plugin. */
+    @JsonProperty("sourcePluginVersion") String sourcePluginVersion,
     /** Error message if the server failed to connect */
     @JsonProperty("error") String error
 ) {

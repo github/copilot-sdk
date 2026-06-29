@@ -53,47 +53,68 @@ func (r RawSessionEventData) Type() SessionEventType {
 type SessionEventType string
 
 const (
-	SessionEventTypeAbort                              SessionEventType = "abort"
-	SessionEventTypeAssistantIntent                    SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantMessage                   SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta              SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantMessageStart              SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantReasoning                 SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta            SessionEventType = "assistant.reasoning_delta"
-	SessionEventTypeAssistantStreamingDelta            SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantTurnEnd                   SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantTurnStart                 SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantUsage                     SessionEventType = "assistant.usage"
-	SessionEventTypeAutoModeSwitchCompleted            SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeAutoModeSwitchRequested            SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeCapabilitiesChanged                SessionEventType = "capabilities.changed"
-	SessionEventTypeCommandCompleted                   SessionEventType = "command.completed"
-	SessionEventTypeCommandExecute                     SessionEventType = "command.execute"
-	SessionEventTypeCommandQueued                      SessionEventType = "command.queued"
-	SessionEventTypeCommandsChanged                    SessionEventType = "commands.changed"
-	SessionEventTypeElicitationCompleted               SessionEventType = "elicitation.completed"
-	SessionEventTypeElicitationRequested               SessionEventType = "elicitation.requested"
-	SessionEventTypeExitPlanModeCompleted              SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeExitPlanModeRequested              SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExternalToolCompleted              SessionEventType = "external_tool.completed"
-	SessionEventTypeExternalToolRequested              SessionEventType = "external_tool.requested"
-	SessionEventTypeHookEnd                            SessionEventType = "hook.end"
-	SessionEventTypeHookProgress                       SessionEventType = "hook.progress"
-	SessionEventTypeHookStart                          SessionEventType = "hook.start"
-	SessionEventTypeMCPAppToolCallComplete             SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMCPOauthCompleted                  SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMCPOauthRequired                   SessionEventType = "mcp.oauth_required"
-	SessionEventTypeModelCallFailure                   SessionEventType = "model.call_failure"
-	SessionEventTypePendingMessagesModified            SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted                SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested                SessionEventType = "permission.requested"
-	SessionEventTypeSamplingCompleted                  SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested                  SessionEventType = "sampling.requested"
-	SessionEventTypeSessionAutopilotObjectiveChanged   SessionEventType = "session.autopilot_objective_changed"
-	SessionEventTypeSessionBackgroundTasksChanged      SessionEventType = "session.background_tasks_changed"
-	SessionEventTypeSessionCanvasClosed                SessionEventType = "session.canvas.closed"
-	SessionEventTypeSessionCanvasOpened                SessionEventType = "session.canvas.opened"
-	SessionEventTypeSessionCanvasRegistryChanged       SessionEventType = "session.canvas.registry_changed"
+	SessionEventTypeAbort                            SessionEventType = "abort"
+	SessionEventTypeAssistantIdle                    SessionEventType = "assistant.idle"
+	SessionEventTypeAssistantIntent                  SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage                 SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta            SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart            SessionEventType = "assistant.message_start"
+	SessionEventTypeAssistantReasoning               SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta          SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantStreamingDelta          SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantTurnEnd                 SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnStart               SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage                   SessionEventType = "assistant.usage"
+	SessionEventTypeAutoModeSwitchCompleted          SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeAutoModeSwitchRequested          SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeCapabilitiesChanged              SessionEventType = "capabilities.changed"
+	SessionEventTypeCommandCompleted                 SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute                   SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued                    SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged                  SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted             SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested             SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted            SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested            SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted            SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested            SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                          SessionEventType = "hook.end"
+	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                        SessionEventType = "hook.start"
+	SessionEventTypeMCPAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMCPHeadersRefreshCompleted       SessionEventType = "mcp.headers_refresh_completed"
+	SessionEventTypeMCPHeadersRefreshRequired        SessionEventType = "mcp.headers_refresh_required"
+	SessionEventTypeMCPOauthCompleted                SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMCPOauthRequired                 SessionEventType = "mcp.oauth_required"
+	SessionEventTypeModelCallFailure                 SessionEventType = "model.call_failure"
+	SessionEventTypePendingMessagesModified          SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted              SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested              SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted                SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested                SessionEventType = "sampling.requested"
+	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
+	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
+	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionBinaryAsset SessionEventType = "session.binary_asset"
+	// Experimental: SessionEventTypeSessionCanvasClosed identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionCanvasClosed SessionEventType = "session.canvas.closed"
+	// Experimental: SessionEventTypeSessionCanvasOpened identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionCanvasOpened SessionEventType = "session.canvas.opened"
+	// Experimental: SessionEventTypeSessionCanvasRecorded identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionCanvasRecorded SessionEventType = "session.canvas.recorded"
+	// Experimental: SessionEventTypeSessionCanvasRegistryChanged identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeSessionCanvasRegistryChanged SessionEventType = "session.canvas.registry_changed"
+	// Experimental: SessionEventTypeSessionCanvasRemoved identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionCanvasRemoved SessionEventType = "session.canvas.removed"
+	// Experimental: SessionEventTypeSessionCanvasUnavailable identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionCanvasUnavailable           SessionEventType = "session.canvas.unavailable"
 	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
 	SessionEventTypeSessionCompactionStart             SessionEventType = "session.compaction_start"
 	SessionEventTypeSessionContextChanged              SessionEventType = "session.context_changed"
@@ -115,6 +136,7 @@ const (
 	SessionEventTypeSessionResume                      SessionEventType = "session.resume"
 	SessionEventTypeSessionScheduleCancelled           SessionEventType = "session.schedule_cancelled"
 	SessionEventTypeSessionScheduleCreated             SessionEventType = "session.schedule_created"
+	SessionEventTypeSessionScheduleRearmed             SessionEventType = "session.schedule_rearmed"
 	SessionEventTypeSessionShutdown                    SessionEventType = "session.shutdown"
 	SessionEventTypeSessionSkillsLoaded                SessionEventType = "session.skills_loaded"
 	SessionEventTypeSessionSnapshotRewind              SessionEventType = "session.snapshot_rewind"
@@ -180,6 +202,9 @@ func (*AssistantReasoningData) Type() SessionEventType { return SessionEventType
 type AssistantMessageData struct {
 	// Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
 	APICallID *string `json:"apiCallId,omitempty"`
+	// Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
+	// Experimental: Citations is part of an experimental API and may change or be removed.
+	Citations *Citations `json:"citations,omitempty"`
 	// The assistant's text response content
 	Content string `json:"content"`
 	// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -259,6 +284,27 @@ func (*SessionAutopilotObjectiveChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionAutopilotObjectiveChanged
 }
 
+// Canonical bytes for a content-addressed binary asset shared by reference across events
+type SessionBinaryAssetData struct {
+	// Content-addressed id for this binary asset (e.g. "sha256:...").
+	AssetID string `json:"assetId"`
+	// Decoded byte length of the binary asset
+	ByteLength int64 `json:"byteLength"`
+	// Base64-encoded binary data
+	Data string `json:"data"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitzero"`
+	// MIME type of the binary asset
+	MIMEType string `json:"mimeType"`
+	// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+	Discriminator BinaryAssetType `json:"type"`
+}
+
+func (*SessionBinaryAssetData) sessionEventData()      {}
+func (*SessionBinaryAssetData) Type() SessionEventType { return SessionEventTypeSessionBinaryAsset }
+
 // Context window breakdown at the start of LLM-powered conversation compaction
 type SessionCompactionStartData struct {
 	// Token count from non-system messages (user, assistant, tool) at compaction start
@@ -300,6 +346,8 @@ type SessionCompactionCompleteData struct {
 	RequestID *string `json:"requestId,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
+	// For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error).
+	StatusCode *int64 `json:"statusCode,omitempty"`
 	// Whether compaction completed successfully
 	Success bool `json:"success"`
 	// LLM-generated summary of the compacted conversation history
@@ -374,12 +422,63 @@ type SubagentSelectedData struct {
 func (*SubagentSelectedData) sessionEventData()      {}
 func (*SubagentSelectedData) Type() SessionEventType { return SessionEventTypeSubagentSelected }
 
+// Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.
+// Experimental: SessionCanvasRecordedData is part of an experimental API and may change or be removed.
+type SessionCanvasRecordedData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Input supplied when the instance was opened
+	Input any `json:"input,omitempty"`
+	// Stable caller-supplied canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Rendered title
+	Title *string `json:"title,omitempty"`
+}
+
+func (*SessionCanvasRecordedData) sessionEventData() {}
+func (*SessionCanvasRecordedData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasRecorded
+}
+
+// Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.
+// Experimental: SessionCanvasRemovedData is part of an experimental API and may change or be removed.
+type SessionCanvasRemovedData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Stable caller-supplied identifier of the canvas instance that was closed
+	InstanceID string `json:"instanceId"`
+}
+
+func (*SessionCanvasRemovedData) sessionEventData()      {}
+func (*SessionCanvasRemovedData) Type() SessionEventType { return SessionEventTypeSessionCanvasRemoved }
+
+// Dynamic headers refresh request for a remote MCP server
+type MCPHeadersRefreshRequiredData struct {
+	// Why dynamic headers are being requested.
+	Reason MCPHeadersRefreshRequiredReason `json:"reason"`
+	// Unique identifier for this headers refresh request; used to respond via session.mcp.headers.handlePendingHeadersRefreshRequest()
+	RequestID string `json:"requestId"`
+	// Display name of the remote MCP server requesting headers
+	ServerName string `json:"serverName"`
+	// URL of the remote MCP server requesting headers
+	ServerURL string `json:"serverUrl"`
+}
+
+func (*MCPHeadersRefreshRequiredData) sessionEventData() {}
+func (*MCPHeadersRefreshRequiredData) Type() SessionEventType {
+	return SessionEventTypeMCPHeadersRefreshRequired
+}
+
 // Elicitation request completion with the user's response
 type ElicitationCompletedData struct {
 	// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 	Action *ElicitationCompletedAction `json:"action,omitempty"`
 	// The submitted form data when action is 'accept'; keys match the requested schema fields
-	Content map[string]ElicitationCompletedContent `json:"content,omitzero"`
+	Content map[string]any `json:"content,omitzero"`
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
 }
@@ -500,16 +599,27 @@ func (*ExternalToolRequestedData) Type() SessionEventType {
 type ModelCallFailureData struct {
 	// Completion ID from the model provider (e.g., chatcmpl-abc123)
 	APICallID *string `json:"apiCallId,omitempty"`
+	// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+	BadRequestKind *ModelCallFailureBadRequestKind `json:"badRequestKind,omitempty"`
 	// Duration of the failed API call in milliseconds
 	DurationMs *int64 `json:"durationMs,omitempty"`
+	// For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+	ErrorCode *string `json:"errorCode,omitempty"`
 	// Raw provider/runtime error message for restricted telemetry
 	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
+	ErrorType *string `json:"errorType,omitempty"`
 	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
 	Initiator *string `json:"initiator,omitempty"`
 	// Model identifier used for the failed API call
 	Model *string `json:"model,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
+	// Internal: QuotaSnapshots is part of the SDK's internal API surface and is not intended for external use.
+	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitzero"`
+	// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
+	RequestFingerprint *ModelCallFailureRequestFingerprint `json:"requestFingerprint,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Where the failed model call originated
@@ -579,7 +689,6 @@ type AssistantUsageData struct {
 	// Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason.
 	ContentFilterTriggered *bool `json:"contentFilterTriggered,omitempty"`
 	// Per-request cost and usage data from the CAPI copilot_usage response field
-	// Internal: CopilotUsage is part of the SDK's internal API surface and is not intended for external use.
 	CopilotUsage *AssistantUsageCopilotUsage `json:"copilotUsage,omitempty"`
 	// Model multiplier cost for billing purposes
 	// Experimental: Cost is part of an experimental API and may change or be removed.
@@ -646,12 +755,27 @@ func (*MCPAppToolCallCompleteData) Type() SessionEventType {
 
 // MCP OAuth request completion notification
 type MCPOauthCompletedData struct {
+	// How the pending OAuth request was completed
+	Outcome MCPOauthCompletionOutcome `json:"outcome"`
 	// Request ID of the resolved OAuth request
 	RequestID string `json:"requestId"`
 }
 
 func (*MCPOauthCompletedData) sessionEventData()      {}
 func (*MCPOauthCompletedData) Type() SessionEventType { return SessionEventTypeMCPOauthCompleted }
+
+// MCP headers refresh request completion notification
+type MCPHeadersRefreshCompletedData struct {
+	// How the pending MCP headers refresh request resolved.
+	Outcome MCPHeadersRefreshCompletedOutcome `json:"outcome"`
+	// Request ID of the resolved headers refresh request
+	RequestID string `json:"requestId"`
+}
+
+func (*MCPHeadersRefreshCompletedData) sessionEventData() {}
+func (*MCPHeadersRefreshCompletedData) Type() SessionEventType {
+	return SessionEventTypeMCPHeadersRefreshCompleted
+}
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
@@ -689,14 +813,20 @@ func (*SessionRemoteSteerableChangedData) Type() SessionEventType {
 
 // OAuth authentication request for an MCP server
 type MCPOauthRequiredData struct {
-	// Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth()
+	// Why the runtime is requesting host-provided OAuth credentials.
+	Reason MCPOauthRequestReason `json:"reason"`
+	// Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
 	RequestID string `json:"requestId"`
+	// Raw OAuth protected-resource metadata document fetched for the MCP server, if available
+	ResourceMetadata *string `json:"resourceMetadata,omitempty"`
 	// Display name of the MCP server that requires OAuth
 	ServerName string `json:"serverName"`
 	// URL of the MCP server that requires OAuth
 	ServerURL string `json:"serverUrl"`
 	// Static OAuth client configuration, if the server specifies one
 	StaticClientConfig *MCPOauthRequiredStaticClientConfig `json:"staticClientConfig,omitempty"`
+	// OAuth WWW-Authenticate parameters parsed from the auth challenge, if available
+	WwwAuthenticateParams *MCPOauthWwwAuthenticateParams `json:"wwwAuthenticateParams,omitempty"`
 }
 
 func (*MCPOauthRequiredData) sessionEventData()      {}
@@ -707,7 +837,7 @@ type SessionCustomNotificationData struct {
 	// Source-defined custom notification name
 	Name string `json:"name"`
 	// Source-defined JSON payload for the custom notification
-	Payload CustomNotificationPayload `json:"payload"`
+	Payload any `json:"payload"`
 	// Namespace for the custom notification producer
 	Source string `json:"source"`
 	// Optional source-defined string identifiers describing the payload subject
@@ -720,6 +850,15 @@ func (*SessionCustomNotificationData) sessionEventData() {}
 func (*SessionCustomNotificationData) Type() SessionEventType {
 	return SessionEventTypeSessionCustomNotification
 }
+
+// Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
+type AssistantIdleData struct {
+	// True when the preceding agentic loop was cancelled via abort signal
+	Aborted *bool `json:"aborted,omitempty"`
+}
+
+func (*AssistantIdleData) sessionEventData()      {}
+func (*AssistantIdleData) Type() SessionEventType { return SessionEventTypeAssistantIdle }
 
 // Payload indicating the session is idle with no background agents or attached shell commands in flight
 type SessionIdleData struct {
@@ -911,6 +1050,8 @@ type SessionScheduleCreatedData struct {
 	Prompt string `json:"prompt"`
 	// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
 	Recurring *bool `json:"recurring,omitempty"`
+	// True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled rather than auto-computed.
+	SelfPaced *bool `json:"selfPaced,omitempty"`
 	// IANA timezone the `cron` expression is evaluated in
 	Tz *string `json:"tz,omitempty"`
 }
@@ -930,6 +1071,7 @@ func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
 }
 
 // Schema for the `CanvasClosedData` type.
+// Experimental: SessionCanvasClosedData is part of an experimental API and may change or be removed.
 type SessionCanvasClosedData struct {
 	// Provider-local canvas identifier
 	CanvasID string `json:"canvasId"`
@@ -943,9 +1085,8 @@ func (*SessionCanvasClosedData) sessionEventData()      {}
 func (*SessionCanvasClosedData) Type() SessionEventType { return SessionEventTypeSessionCanvasClosed }
 
 // Schema for the `CanvasOpenedData` type.
+// Experimental: SessionCanvasOpenedData is part of an experimental API and may change or be removed.
 type SessionCanvasOpenedData struct {
-	// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
-	Availability CanvasOpenedAvailability `json:"availability"`
 	// Provider-local canvas identifier
 	CanvasID string `json:"canvasId"`
 	// Owning provider identifier
@@ -956,8 +1097,6 @@ type SessionCanvasOpenedData struct {
 	Input any `json:"input,omitempty"`
 	// Stable caller-supplied canvas instance identifier
 	InstanceID string `json:"instanceId"`
-	// Whether this notification represents an idempotent reopen
-	Reopen bool `json:"reopen"`
 	// Provider-supplied status text
 	Status *string `json:"status,omitempty"`
 	// Rendered title
@@ -970,6 +1109,7 @@ func (*SessionCanvasOpenedData) sessionEventData()      {}
 func (*SessionCanvasOpenedData) Type() SessionEventType { return SessionEventTypeSessionCanvasOpened }
 
 // Schema for the `CanvasRegistryChangedData` type.
+// Experimental: SessionCanvasRegistryChangedData is part of an experimental API and may change or be removed.
 type SessionCanvasRegistryChangedData struct {
 	// Canvas declarations currently available
 	Canvases []CanvasRegistryChangedCanvas `json:"canvases"`
@@ -1069,6 +1209,8 @@ type UserMessageData struct {
 	Attachments []Attachment `json:"attachments,omitzero"`
 	// The user's message text as displayed in the timeline
 	Content string `json:"content"`
+	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
+	Delivery *UserMessageDelivery `json:"delivery,omitempty"`
 	// CAPI interaction ID for correlating this user message with its turn
 	InteractionID *string `json:"interactionId,omitempty"`
 	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
@@ -1087,6 +1229,19 @@ type UserMessageData struct {
 
 func (*UserMessageData) sessionEventData()      {}
 func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMessage }
+
+// Self-paced schedule re-armed for its next run
+type SessionScheduleRearmedData struct {
+	// Id of the self-paced schedule that was re-armed
+	ID int64 `json:"id"`
+	// Absolute time (epoch milliseconds) the model armed the next run to fire
+	NextRunAt int64 `json:"nextRunAt"`
+}
+
+func (*SessionScheduleRearmedData) sessionEventData() {}
+func (*SessionScheduleRearmedData) Type() SessionEventType {
+	return SessionEventTypeSessionScheduleRearmed
+}
 
 // Session capability change notification
 type CapabilitiesChangedData struct {
@@ -1138,6 +1293,8 @@ type SessionStartData struct {
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
+	// Response budget limits configured at session creation time, if any
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Model selected at session creation time, if any
 	SelectedModel *string `json:"selectedModel,omitempty"`
 	// Unique identifier for the session
@@ -1171,6 +1328,8 @@ type SessionResumeData struct {
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
+	// Response budget limits currently configured at resume time; null when no budget is active
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// ISO 8601 timestamp when the session was resumed
 	ResumeTime time.Time `json:"resumeTime"`
 	// Model currently selected at resume time
@@ -1501,6 +1660,8 @@ type ToolExecutionStartData struct {
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
+	// Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
+	ShellToolInfo *ToolExecutionStartShellToolInfo `json:"shellToolInfo,omitempty"`
 	// Unique identifier for this tool call
 	ToolCallID string `json:"toolCallId"`
 	// Tool definition metadata, present for MCP tools with MCP Apps support
@@ -1513,6 +1674,22 @@ type ToolExecutionStartData struct {
 
 func (*ToolExecutionStartData) sessionEventData()      {}
 func (*ToolExecutionStartData) Type() SessionEventType { return SessionEventTypeToolExecutionStart }
+
+// Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.
+// Experimental: SessionCanvasUnavailableData is part of an experimental API and may change or be removed.
+type SessionCanvasUnavailableData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Stable caller-supplied identifier of the canvas instance whose provider became unavailable
+	InstanceID string `json:"instanceId"`
+}
+
+func (*SessionCanvasUnavailableData) sessionEventData() {}
+func (*SessionCanvasUnavailableData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasUnavailable
+}
 
 // Turn abort information including the reason for termination
 type AbortData struct {
@@ -1668,10 +1845,10 @@ type AssistantMessageToolRequest struct {
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
-// Internal: AssistantUsageCopilotUsage is an internal SDK API and is not part of the public surface.
 type AssistantUsageCopilotUsage struct {
 	// Itemized token usage breakdown
-	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
+	// Internal: TokenDetails is part of the SDK's internal API surface and is not intended for external use.
+	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails,omitzero"`
 	// Total cost in nano-AI units for this request
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
@@ -1694,6 +1871,9 @@ type AssistantUsageQuotaSnapshot struct {
 	// Total requests allowed by the entitlement
 	// Internal: EntitlementRequests is part of the SDK's internal API surface and is not intended for external use.
 	EntitlementRequests int64 `json:"entitlementRequests"`
+	// Whether the user currently has quota available for use
+	// Internal: HasQuota is part of the SDK's internal API surface and is not intended for external use.
+	HasQuota *bool `json:"hasQuota,omitempty"`
 	// Whether the user has an unlimited usage entitlement
 	// Internal: IsUnlimitedEntitlement is part of the SDK's internal API surface and is not intended for external use.
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
@@ -1703,12 +1883,18 @@ type AssistantUsageQuotaSnapshot struct {
 	// Whether additional usage is allowed when quota is exhausted
 	// Internal: OverageAllowedWithExhaustedQuota is part of the SDK's internal API surface and is not intended for external use.
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
+	// Pay-as-you-go additional-usage budget cap in AI credits (1 credit = $0.01); present only when CAPI emits a finite value
+	// Internal: OverageEntitlement is part of the SDK's internal API surface and is not intended for external use.
+	OverageEntitlement *float64 `json:"overageEntitlement,omitempty"`
 	// Percentage of quota remaining (0 to 100)
 	// Internal: RemainingPercentage is part of the SDK's internal API surface and is not intended for external use.
 	RemainingPercentage float64 `json:"remainingPercentage"`
 	// Date when the quota resets
 	// Internal: ResetDate is part of the SDK's internal API surface and is not intended for external use.
 	ResetDate *time.Time `json:"resetDate,omitempty"`
+	// Whether this snapshot uses token-based billing (AI-credits allocation)
+	// Internal: TokenBasedBilling is part of the SDK's internal API surface and is not intended for external use.
+	TokenBasedBilling *bool `json:"tokenBasedBilling,omitempty"`
 	// Whether usage is still permitted after quota exhaustion
 	// Internal: UsageAllowedWithExhaustedQuota is part of the SDK's internal API surface and is not intended for external use.
 	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
@@ -1718,6 +1904,7 @@ type AssistantUsageQuotaSnapshot struct {
 }
 
 // Schema for the `CanvasRegistryChangedCanvas` type.
+// Experimental: CanvasRegistryChangedCanvas is part of an experimental API and may change or be removed.
 type CanvasRegistryChangedCanvas struct {
 	// Actions the agent or host may invoke
 	Actions []CanvasRegistryChangedCanvasAction `json:"actions,omitzero"`
@@ -1732,15 +1919,16 @@ type CanvasRegistryChangedCanvas struct {
 	// Owning extension display name, when available
 	ExtensionName *string `json:"extensionName,omitempty"`
 	// JSON Schema for canvas open input
-	InputSchema map[string]any `json:"inputSchema,omitzero"`
+	InputSchema any `json:"inputSchema,omitempty"`
 }
 
 // Schema for the `CanvasRegistryChangedCanvasAction` type.
+// Experimental: CanvasRegistryChangedCanvasAction is part of an experimental API and may change or be removed.
 type CanvasRegistryChangedCanvasAction struct {
 	// Action description
 	Description *string `json:"description,omitempty"`
 	// JSON Schema for action input
-	InputSchema map[string]any `json:"inputSchema,omitzero"`
+	InputSchema any `json:"inputSchema,omitempty"`
 	// Action name
 	Name string `json:"name"`
 }
@@ -1753,6 +1941,125 @@ type CapabilitiesChangedUI struct {
 	Elicitation *bool `json:"elicitation,omitempty"`
 	// Whether MCP Apps (SEP-1865) UI passthrough is now supported
 	MCPApps *bool `json:"mcpApps,omitempty"`
+}
+
+// A source supplied by a tool that should be made available to the model as citable content.
+// Experimental: CitableSource is part of an experimental API and may change or be removed.
+type CitableSource struct {
+	// The source text made available to the model as citable content.
+	Content string `json:"content"`
+	// Stable identifier for this source within the tool result. Used for deduplication and may be used by future provider integrations to correlate response citations back to the originating source.
+	ID string `json:"id"`
+	// File path relative to the agent's workspace root, when the source is a file.
+	Path *string `json:"path,omitempty"`
+	// Human-readable title of the source.
+	Title *string `json:"title,omitempty"`
+	// URL of the source, when it is a web resource.
+	URL *string `json:"url,omitempty"`
+}
+
+// Location within a cited source (character, page, or content-block range) that supports a span.
+// Experimental: CitationLocation is part of an experimental API and may change or be removed.
+type CitationLocation interface {
+	citationLocation()
+	Type() CitationLocationType
+}
+
+type RawCitationLocation struct {
+	Discriminator CitationLocationType
+	Raw           json.RawMessage
+}
+
+func (RawCitationLocation) citationLocation() {}
+func (r RawCitationLocation) Type() CitationLocationType {
+	return r.Discriminator
+}
+
+// A content-block range within a structured source document.
+type CitationLocationBlock struct {
+	// Index of the last content block of the cited range (zero-based, exclusive).
+	EndBlock int64 `json:"endBlock"`
+	// Index of the first content block of the cited range (zero-based, inclusive).
+	StartBlock int64 `json:"startBlock"`
+}
+
+func (CitationLocationBlock) citationLocation() {}
+func (CitationLocationBlock) Type() CitationLocationType {
+	return CitationLocationTypeBlock
+}
+
+// A character range within the source's text content.
+type CitationLocationChar struct {
+	// End character offset within the source text (zero-based, exclusive).
+	EndIndex int64 `json:"endIndex"`
+	// Start character offset within the source text (zero-based, inclusive).
+	StartIndex int64 `json:"startIndex"`
+}
+
+func (CitationLocationChar) citationLocation() {}
+func (CitationLocationChar) Type() CitationLocationType {
+	return CitationLocationTypeChar
+}
+
+// A page range within a paginated source document.
+type CitationLocationPage struct {
+	// Last page number of the cited range (inclusive).
+	EndPage int64 `json:"endPage"`
+	// First page number of the cited range.
+	StartPage int64 `json:"startPage"`
+}
+
+func (CitationLocationPage) citationLocation() {}
+func (CitationLocationPage) Type() CitationLocationType {
+	return CitationLocationTypePage
+}
+
+// A single citation occurrence linking a span of generated text to a supporting source.
+// Experimental: CitationReference is part of an experimental API and may change or be removed.
+type CitationReference struct {
+	// The exact text from the source that supports the cited span, when provided by the model.
+	CitedText *string `json:"citedText,omitempty"`
+	// Location within the source that supports the cited span, when the provider reports one.
+	Location CitationLocation `json:"location,omitempty"`
+	// Provider-native citation correlation data (e.g. Anthropic search_result_index / document_index), passed through opaquely for debugging and forward compatibility.
+	ProviderMetadata any `json:"providerMetadata,omitempty"`
+	// Identifier of the CitationSource this reference points to (CitationSource.id).
+	SourceID string `json:"sourceId"`
+}
+
+// Provider-agnostic citations linking spans of the assistant's response to their supporting sources.
+// Experimental: Citations is part of an experimental API and may change or be removed.
+type Citations struct {
+	// Deduplicated set of sources referenced by the citation spans.
+	Sources []CitationSource `json:"sources"`
+	// Spans of generated text annotated with the sources that support them.
+	Spans []CitationSpan `json:"spans"`
+}
+
+// A source that backs one or more cited spans in the assistant's response.
+// Experimental: CitationSource is part of an experimental API and may change or be removed.
+type CitationSource struct {
+	// Stable, turn-scoped identifier for this source, referenced by CitationReference.sourceId.
+	ID string `json:"id"`
+	// File path relative to the agent's workspace root, when the source is a file.
+	Path *string `json:"path,omitempty"`
+	// The system that produced this citation.
+	Provider CitationProvider `json:"provider"`
+	// Human-readable title of the source.
+	Title *string `json:"title,omitempty"`
+	// URL of the source, when it is a web resource.
+	URL *string `json:"url,omitempty"`
+}
+
+// A contiguous span of generated assistant text and the source references that support it.
+// Experimental: CitationSpan is part of an experimental API and may change or be removed.
+type CitationSpan struct {
+	// End offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, exclusive).
+	EndIndex int64 `json:"endIndex"`
+	// The sources that support this span of generated text.
+	References []CitationReference `json:"references"`
+	// Start offset of the cited span within the final assistant message content (UTF-16 code units, zero-based, inclusive).
+	StartIndex int64 `json:"startIndex"`
 }
 
 // Schema for the `CommandsChangedCommand` type.
@@ -1786,7 +2093,8 @@ type CompactionCompleteCompactionTokensUsed struct {
 // Internal: CompactionCompleteCompactionTokensUsedCopilotUsage is an internal SDK API and is not part of the public surface.
 type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
 	// Itemized token usage breakdown
-	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
+	// Internal: TokenDetails is part of the SDK's internal API surface and is not intended for external use.
+	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails,omitzero"`
 	// Total cost in nano-AI units for this request
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
@@ -1822,36 +2130,6 @@ type CustomAgentsUpdatedAgent struct {
 	// Whether the agent can be selected by the user
 	UserInvocable bool `json:"userInvocable"`
 }
-
-// Source-defined JSON payload for the custom notification
-type CustomNotificationPayload struct {
-	AnyArray []any
-	AnyMap   map[string]any
-	Bool     *bool
-	Double   *float64
-	String   *string
-}
-
-// Schema for the `ElicitationCompletedContent` type.
-type ElicitationCompletedContent interface {
-	elicitationCompletedContent()
-}
-
-type ElicitationCompletedBooleanContent bool
-
-func (ElicitationCompletedBooleanContent) elicitationCompletedContent() {}
-
-type ElicitationCompletedNumberContent float64
-
-func (ElicitationCompletedNumberContent) elicitationCompletedContent() {}
-
-type ElicitationCompletedStringArrayContent []string
-
-func (ElicitationCompletedStringArrayContent) elicitationCompletedContent() {}
-
-type ElicitationCompletedStringContent string
-
-func (ElicitationCompletedStringContent) elicitationCompletedContent() {}
 
 // JSON Schema describing the form fields to present to the user (form mode only)
 type ElicitationRequestedSchema struct {
@@ -1919,10 +2197,22 @@ type MCPAppToolCallCompleteToolMetaUI struct {
 type MCPOauthRequiredStaticClientConfig struct {
 	// OAuth client ID for the server
 	ClientID string `json:"clientId"`
+	// Optional OAuth client secret for confidential static clients, when the runtime can resolve one
+	ClientSecret *string `json:"clientSecret,omitempty"`
 	// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
 	GrantType *MCPOauthRequiredStaticClientConfigGrantType `json:"grantType,omitempty"`
 	// Whether this is a public OAuth client
 	PublicClient *bool `json:"publicClient,omitempty"`
+}
+
+// OAuth WWW-Authenticate parameters parsed from an MCP auth challenge
+type MCPOauthWwwAuthenticateParams struct {
+	// OAuth error from the WWW-Authenticate error parameter, if present
+	Error *string `json:"error,omitempty"`
+	// Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present
+	ResourceMetadataURL *string `json:"resourceMetadataUrl,omitempty"`
+	// Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
+	Scope *string `json:"scope,omitempty"`
 }
 
 // Schema for the `McpServersLoadedServer` type.
@@ -1941,6 +2231,24 @@ type MCPServersLoadedServer struct {
 	Status MCPServerStatus `json:"status"`
 	// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
 	Transport *MCPServerTransport `json:"transport,omitempty"`
+}
+
+// Content-free structural summary of the failing request for diagnosing malformed 4xx calls
+type ModelCallFailureRequestFingerprint struct {
+	// Total number of image content parts
+	ImagePartCount int64 `json:"imagePartCount"`
+	// Image parts whose media type cannot be determined (rejected by strict providers)
+	ImagePartsMissingMediaType int64 `json:"imagePartsMissingMediaType"`
+	// Role of the final message in the request
+	LastMessageRole *string `json:"lastMessageRole,omitempty"`
+	// Total number of messages in the request
+	MessageCount int64 `json:"messageCount"`
+	// Tool calls whose name is missing or empty (rejected by strict providers)
+	NamelessToolCallCount int64 `json:"namelessToolCallCount"`
+	// Total number of tool calls across assistant messages
+	ToolCallCount int64 `json:"toolCallCount"`
+	// Number of "tool" result messages in the request
+	ToolResultMessageCount int64 `json:"toolResultMessageCount"`
 }
 
 // Derived user-facing permission prompt details for UI consumers
@@ -2047,7 +2355,7 @@ func (PermissionPromptRequestHook) Kind() PermissionPromptRequestKind {
 // MCP tool invocation permission prompt
 type PermissionPromptRequestMCP struct {
 	// Arguments to pass to the MCP tool
-	Args *any `json:"args,omitempty"`
+	Args any `json:"args,omitempty"`
 	// Name of the MCP server providing the tool
 	ServerName string `json:"serverName"`
 	// Tool call ID that triggered this permission request
@@ -2307,6 +2615,10 @@ type PermissionRequestShell struct {
 	PossiblePaths []string `json:"possiblePaths"`
 	// URLs that may be accessed by the command
 	PossibleURLs []PermissionRequestShellPossibleURL `json:"possibleUrls"`
+	// True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Optional warning message about risks of running this command
@@ -2487,6 +2799,90 @@ func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() Permissio
 	return PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
+// A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference
+// Experimental: PersistedBinaryResult is part of an experimental API and may change or be removed.
+type PersistedBinaryResult interface {
+	persistedBinaryResult()
+	Type() PersistedBinaryResultType
+}
+
+type RawPersistedBinaryResult struct {
+	Discriminator PersistedBinaryResultType
+	Raw           json.RawMessage
+}
+
+func (RawPersistedBinaryResult) persistedBinaryResult() {}
+func (r RawPersistedBinaryResult) Type() PersistedBinaryResultType {
+	return r.Discriminator
+}
+
+// A reference to binary data persisted once on a session.binary_asset event and shared by id
+type BinaryAssetReference struct {
+	// Content-addressed id of the session.binary_asset event that holds this binary's bytes (e.g. "sha256:...").
+	AssetID string `json:"assetId"`
+	// Decoded byte length of the referenced binary data
+	ByteLength int64 `json:"byteLength"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitzero"`
+	// MIME type of the referenced binary data
+	MIMEType      string                   `json:"mimeType"`
+	Discriminator BinaryAssetReferenceType `json:"type,omitempty"`
+}
+
+func (BinaryAssetReference) persistedBinaryResult() {}
+func (r BinaryAssetReference) Type() PersistedBinaryResultType {
+	if r.Discriminator == "" {
+		return PersistedBinaryResultTypeImage
+	}
+	return PersistedBinaryResultType(r.Discriminator)
+}
+
+// A binary result whose data was omitted from persistence due to the inline size limit
+type OmittedBinaryResult struct {
+	// Decoded byte length of the omitted binary data
+	ByteLength int64 `json:"byteLength"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitzero"`
+	// MIME type of the omitted binary data
+	MIMEType string `json:"mimeType"`
+	// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+	OmittedReason OmittedBinaryOmittedReason `json:"omittedReason"`
+	Discriminator OmittedBinaryType          `json:"type,omitempty"`
+}
+
+func (OmittedBinaryResult) persistedBinaryResult() {}
+func (r OmittedBinaryResult) Type() PersistedBinaryResultType {
+	if r.Discriminator == "" {
+		return PersistedBinaryResultTypeImage
+	}
+	return PersistedBinaryResultType(r.Discriminator)
+}
+
+// Binary result returned by a tool for the model
+type PersistedBinaryImage struct {
+	// Base64-encoded binary data
+	Data string `json:"data"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitzero"`
+	// MIME type of the binary data
+	MIMEType      string                   `json:"mimeType"`
+	Discriminator PersistedBinaryImageType `json:"type,omitempty"`
+}
+
+func (PersistedBinaryImage) persistedBinaryResult() {}
+func (r PersistedBinaryImage) Type() PersistedBinaryResultType {
+	if r.Discriminator == "" {
+		return PersistedBinaryResultTypeImage
+	}
+	return PersistedBinaryResultType(r.Discriminator)
+}
+
 // Aggregate code change metrics for the session
 type ShutdownCodeChanges struct {
 	// List of file paths that were modified during the session
@@ -2548,6 +2944,8 @@ type ShutdownTokenDetail struct {
 
 // Schema for the `SkillsLoadedSkill` type.
 type SkillsLoadedSkill struct {
+	// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
+	ArgumentHint *string `json:"argumentHint,omitempty"`
 	// Description of what the skill does
 	Description string `json:"description"`
 	// Whether the skill is currently enabled
@@ -2812,6 +3210,12 @@ type ToolExecutionCompleteError struct {
 
 // Tool execution result on success
 type ToolExecutionCompleteResult struct {
+	// Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call
+	// Experimental: BinaryResultsForLlm is part of an experimental API and may change or be removed.
+	BinaryResultsForLlm []PersistedBinaryResult `json:"binaryResultsForLlm,omitzero"`
+	// Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental.
+	// Experimental: CitableSources is part of an experimental API and may change or be removed.
+	CitableSources []CitableSource `json:"citableSources,omitzero"`
 	// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
 	Content string `json:"content"`
 	// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
@@ -2912,6 +3316,14 @@ type ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation struct {
 
 // Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
 type ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone struct {
+}
+
+// Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
+type ToolExecutionStartShellToolInfo struct {
+	// Whether the command includes a file write redirection (e.g., > or >>).
+	HasWriteFileRedirection bool `json:"hasWriteFileRedirection"`
+	// File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
+	PossiblePaths []string `json:"possiblePaths"`
 }
 
 // Tool definition metadata, present for MCP tools with MCP Apps support
@@ -3020,14 +3432,47 @@ const (
 	AutopilotObjectiveChangedStatusPaused AutopilotObjectiveChangedStatus = "paused"
 )
 
-// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
-type CanvasOpenedAvailability string
+// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+type BinaryAssetReferenceType string
 
 const (
-	// Provider connection is live; actions can be invoked.
-	CanvasOpenedAvailabilityReady CanvasOpenedAvailability = "ready"
-	// Provider has gone away; the instance is awaiting rebinding.
-	CanvasOpenedAvailabilityStale CanvasOpenedAvailability = "stale"
+	// Binary image data.
+	BinaryAssetReferenceTypeImage BinaryAssetReferenceType = "image"
+	// Other binary resource data.
+	BinaryAssetReferenceTypeResource BinaryAssetReferenceType = "resource"
+)
+
+// Binary asset type discriminator. Use "image" for images and "resource" otherwise.
+type BinaryAssetType string
+
+const (
+	// Binary image data.
+	BinaryAssetTypeImage BinaryAssetType = "image"
+	// Other binary resource data.
+	BinaryAssetTypeResource BinaryAssetType = "resource"
+)
+
+// Type discriminator for CitationLocation.
+// Experimental: CitationLocationType is part of an experimental API and may change or be removed.
+type CitationLocationType string
+
+const (
+	CitationLocationTypeBlock CitationLocationType = "block"
+	CitationLocationTypeChar  CitationLocationType = "char"
+	CitationLocationTypePage  CitationLocationType = "page"
+)
+
+// The system that produced a citation.
+// Experimental: CitationProvider is part of an experimental API and may change or be removed.
+type CitationProvider string
+
+const (
+	// Citation produced by an Anthropic (Claude) model response.
+	CitationProviderAnthropic CitationProvider = "anthropic"
+	// Citation synthesized client-side by the runtime from tool output.
+	CitationProviderClient CitationProvider = "client"
+	// Citation produced by an OpenAI model response.
+	CitationProviderOpenai CitationProvider = "openai"
 )
 
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
@@ -3111,6 +3556,54 @@ const (
 	HandoffSourceTypeRemote HandoffSourceType = "remote"
 )
 
+// How the pending MCP headers refresh request resolved.
+type MCPHeadersRefreshCompletedOutcome string
+
+const (
+	// The host supplied dynamic headers.
+	MCPHeadersRefreshCompletedOutcomeHeaders MCPHeadersRefreshCompletedOutcome = "headers"
+	// The host responded with no dynamic headers.
+	MCPHeadersRefreshCompletedOutcomeNone MCPHeadersRefreshCompletedOutcome = "none"
+	// No response arrived within the bounded window.
+	MCPHeadersRefreshCompletedOutcomeTimeout MCPHeadersRefreshCompletedOutcome = "timeout"
+)
+
+// Why dynamic headers are being requested.
+type MCPHeadersRefreshRequiredReason string
+
+const (
+	// The server returned 401 and stale dynamic headers were invalidated.
+	MCPHeadersRefreshRequiredReasonAuthFailed MCPHeadersRefreshRequiredReason = "auth-failed"
+	// The transport is making its first dynamic header request for this server.
+	MCPHeadersRefreshRequiredReasonStartup MCPHeadersRefreshRequiredReason = "startup"
+	// The previously cached dynamic headers expired.
+	MCPHeadersRefreshRequiredReasonTtlExpired MCPHeadersRefreshRequiredReason = "ttl-expired"
+)
+
+// How the pending MCP OAuth request was completed
+type MCPOauthCompletionOutcome string
+
+const (
+	// The request completed without an OAuth provider.
+	MCPOauthCompletionOutcomeCancelled MCPOauthCompletionOutcome = "cancelled"
+	// The request completed with a token-backed OAuth provider.
+	MCPOauthCompletionOutcomeToken MCPOauthCompletionOutcome = "token"
+)
+
+// Reason the runtime is requesting host-provided MCP OAuth credentials
+type MCPOauthRequestReason string
+
+const (
+	// Initial credentials are required before connecting to the MCP server.
+	MCPOauthRequestReasonInitial MCPOauthRequestReason = "initial"
+	// The server requires a new host authorization flow before continuing.
+	MCPOauthRequestReasonReauth MCPOauthRequestReason = "reauth"
+	// The current host-provided credential was rejected and a replacement is requested.
+	MCPOauthRequestReasonRefresh MCPOauthRequestReason = "refresh"
+	// The server requires a credential with additional scope or audience.
+	MCPOauthRequestReasonUpscope MCPOauthRequestReason = "upscope"
+)
+
 // Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
 type MCPOauthRequiredStaticClientConfigGrantType string
 
@@ -3132,6 +3625,16 @@ const (
 	MCPServerTransportStdio MCPServerTransport = "stdio"
 )
 
+// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
+type ModelCallFailureBadRequestKind string
+
+const (
+	// The 400 response carried no error body (transient gateway/proxy signature).
+	ModelCallFailureBadRequestKindBodyless ModelCallFailureBadRequestKind = "bodyless"
+	// The 400 response carried a structured CAPI error envelope (deterministic validation failure).
+	ModelCallFailureBadRequestKindStructuredError ModelCallFailureBadRequestKind = "structured_error"
+)
+
 // Where the failed model call originated
 type ModelCallFailureSource string
 
@@ -3142,6 +3645,16 @@ const (
 	ModelCallFailureSourceSubagent ModelCallFailureSource = "subagent"
 	// Model call from the top-level agent.
 	ModelCallFailureSourceTopLevel ModelCallFailureSource = "top_level"
+)
+
+// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+type OmittedBinaryType string
+
+const (
+	// Binary image data.
+	OmittedBinaryTypeImage OmittedBinaryType = "image"
+	// Other binary resource data.
+	OmittedBinaryTypeResource OmittedBinaryType = "resource"
 )
 
 // Kind discriminator for PermissionPromptRequest.
@@ -3222,6 +3735,25 @@ const (
 	PermissionResultKindDeniedByRules                                  PermissionResultKind = "denied-by-rules"
 	PermissionResultKindDeniedInteractivelyByUser                      PermissionResultKind = "denied-interactively-by-user"
 	PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+)
+
+// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+type PersistedBinaryImageType string
+
+const (
+	// Binary image data.
+	PersistedBinaryImageTypeImage PersistedBinaryImageType = "image"
+	// Other binary resource data.
+	PersistedBinaryImageTypeResource PersistedBinaryImageType = "resource"
+)
+
+// Type discriminator for PersistedBinaryResult.
+// Experimental: PersistedBinaryResultType is part of an experimental API and may change or be removed.
+type PersistedBinaryResultType string
+
+const (
+	PersistedBinaryResultTypeImage    PersistedBinaryResultType = "image"
+	PersistedBinaryResultTypeResource PersistedBinaryResultType = "resource"
 )
 
 // The type of operation performed on the plan file
@@ -3334,6 +3866,18 @@ const (
 	UserMessageAgentModePlan UserMessageAgentMode = "plan"
 	// The agent is in shell-focused UI mode.
 	UserMessageAgentModeShell UserMessageAgentMode = "shell"
+)
+
+// How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.
+type UserMessageDelivery string
+
+const (
+	// Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent).
+	UserMessageDeliveryIdle UserMessageDelivery = "idle"
+	// Enqueued while the agent was busy; processed as its own run afterward.
+	UserMessageDeliveryQueued UserMessageDelivery = "queued"
+	// Injected into the current in-flight run while the agent was busy (immediate mode).
+	UserMessageDeliverySteering UserMessageDelivery = "steering"
 )
 
 // Hosting platform type of the repository (github or ado)

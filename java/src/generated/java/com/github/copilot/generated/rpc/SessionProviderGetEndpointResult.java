@@ -29,6 +29,8 @@ public record SessionProviderGetEndpointResult(
     @JsonProperty("type") ProviderEndpointType type,
     /** Wire API to be used, when required for the provider type. */
     @JsonProperty("wireApi") ProviderEndpointWireApi wireApi,
+    /** Transport to be used for provider requests. */
+    @JsonProperty("transport") ProviderEndpointTransport transport,
     /** Base URL to pass to the LLM client library. */
     @JsonProperty("baseUrl") String baseUrl,
     /** A credential the caller should use with this endpoint. Omitted only when the endpoint accepts unauthenticated requests. */

@@ -28,7 +28,6 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
@@ -61,7 +60,9 @@ from .canvas import (
     CanvasHandler,
     ExtensionInfo,
 )
+from .copilot_request_handler import CopilotRequestHandler, create_copilot_request_adapter
 from .generated.rpc import (
+    ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
@@ -71,6 +72,7 @@ from .generated.rpc import (
     _ConnectRequest,
     _InternalServerRpc,
     from_datetime,
+    register_client_global_api_handlers,
     register_client_session_api_handlers,
 )
 from .generated.session_events import (
@@ -79,6 +81,7 @@ from .generated.session_events import (
 )
 from .session import (
     AutoModeSwitchHandler,
+    BearerTokenProvider,
     CommandDefinition,
     ContextTier,
     CopilotSession,
@@ -92,7 +95,9 @@ from .session import (
     MCPServerConfig,
     MemoryConfiguration,
     ModelCapabilitiesOverride,
+    NamedProviderConfig,
     ProviderConfig,
+    ProviderModelConfig,
     ReasoningEffort,
     ReasoningSummary,
     SectionTransformFn,
@@ -133,6 +138,20 @@ class CloudSessionOptions:
     repository: CloudSessionRepository | None = None
 
 
+class CapiSessionOptions(TypedDict, total=False):
+    """Provider-scoped Copilot API (CAPI) session options."""
+
+    enable_web_socket_responses: bool
+    """Whether to use WebSocket transport for the CAPI Responses API.
+
+    Enabled by default when the model advertises ``ws:/responses`` support. Set
+    to ``False`` to force the HTTP Responses transport instead, which is
+    equivalent to the ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+    variable and useful in environments where WebSockets are blocked (e.g.
+    behind a proxy).
+    """
+
+
 def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, Any]:
     result: dict[str, Any] = {}
     if options.repository is not None:
@@ -144,6 +163,43 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
             repository["branch"] = options.repository.branch
         result["repository"] = repository
     return result
+
+
+def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]:
+    wire: dict[str, Any] = {}
+    if "enable_web_socket_responses" in options:
+        wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
+    return wire
+
+
+# Implicit provider name for the singular, whole-session ``provider`` config.
+# Named providers are keyed by their own ``name``.
+_DEFAULT_BEARER_TOKEN_PROVIDER_NAME = "default"
+
+
+def _collect_bearer_token_callbacks(
+    provider: ProviderConfig | None,
+    providers: list[NamedProviderConfig] | None,
+) -> dict[str, BearerTokenProvider]:
+    """Collect per-provider ``bearer_token_provider`` callbacks keyed by provider name.
+
+    The singular, whole-session ``provider`` uses the implicit
+    ``_DEFAULT_BEARER_TOKEN_PROVIDER_NAME``; ``providers`` entries use their own
+    ``name``. The callbacks are never serialized — the wire conversion emits
+    ``hasBearerTokenProvider: true`` instead and the runtime calls back over
+    ``providerToken.getToken``.
+    """
+    callbacks: dict[str, BearerTokenProvider] = {}
+    if provider is not None:
+        singular = provider.get("bearer_token_provider")
+        if singular is not None:
+            callbacks[_DEFAULT_BEARER_TOKEN_PROVIDER_NAME] = singular
+    if providers:
+        for named in providers:
+            callback = named.get("bearer_token_provider")
+            if callback is not None:
+                callbacks[named["name"]] = callback
+    return callbacks
 
 
 def _validate_session_fs_config(config: SessionFsConfig) -> None:
@@ -350,6 +406,7 @@ class _CopilotClientOptions:
     use_logged_in_user: bool | None = None
     telemetry: TelemetryConfig | None = None
     session_fs: SessionFsConfig | None = None
+    request_handler: CopilotRequestHandler | None = None
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
@@ -946,24 +1003,15 @@ _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
-def _get_bundled_cli_path() -> str | None:
-    """Get the path to the bundled CLI binary, if available."""
-    # The binary is bundled in copilot/bin/ within the package
-    bin_dir = Path(__file__).parent / "bin"
-    if not bin_dir.exists():
-        return None
+def _get_or_download_cli() -> str | None:
+    """Get the cached CLI binary, downloading if necessary.
 
-    # Determine binary name based on platform
-    if sys.platform == "win32":
-        binary_name = "copilot.exe"
-    else:
-        binary_name = "copilot"
+    Returns the path to the CLI binary, or None if unavailable (dev install
+    with no pinned version, or auto-download disabled).
+    """
+    from ._cli_download import get_or_download_cli
 
-    binary_path = bin_dir / binary_name
-    if binary_path.exists():
-        return str(binary_path)
-
-    return None
+    return get_or_download_cli()
 
 
 def _extract_transform_callbacks(
@@ -1047,6 +1095,7 @@ class CopilotClient:
         use_logged_in_user: bool | None = None,
         telemetry: TelemetryConfig | None = None,
         session_fs: SessionFsConfig | None = None,
+        request_handler: CopilotRequestHandler | None = None,
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
@@ -1081,6 +1130,9 @@ class CopilotClient:
                 telemetry.
             session_fs: Connection-level session filesystem provider
                 configuration.
+            request_handler: Connection-level request handler. When set, the
+                supplied handler services every model-layer HTTP/WebSocket
+                request the runtime would otherwise issue (both BYOK and CAPI).
             session_idle_timeout_seconds: Server-wide session idle timeout in
                 seconds. Sessions without activity for this duration are
                 automatically cleaned up. Set to ``None`` or ``0`` to disable.
@@ -1117,6 +1169,7 @@ class CopilotClient:
             use_logged_in_user=use_logged_in_user,
             telemetry=telemetry,
             session_fs=session_fs,
+            request_handler=request_handler,
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
             on_list_models=on_list_models,
@@ -1164,7 +1217,7 @@ class CopilotClient:
             else:
                 self._effective_connection_token = None
 
-            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary.
+            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > downloaded binary.
             effective_env = options.env if options.env is not None else os.environ
             self._cli_path_source: str | None = "explicit"
             if connection.path is None:
@@ -1173,14 +1226,15 @@ class CopilotClient:
                     connection.path = env_cli_path
                     self._cli_path_source = "environment"
                 else:
-                    bundled_path = _get_bundled_cli_path()
-                    if bundled_path:
-                        connection.path = bundled_path
-                        self._cli_path_source = "bundled"
+                    downloaded_path = _get_or_download_cli()
+                    if downloaded_path:
+                        connection.path = downloaded_path
+                        self._cli_path_source = "downloaded"
                     else:
                         raise RuntimeError(
-                            "Copilot CLI not found. The bundled CLI binary is not available. "
-                            "Ensure you installed a platform-specific wheel, or set "
+                            "Copilot CLI not found. Install a published wheel (which "
+                            "auto-downloads the CLI on first use), set COPILOT_CLI_PATH, "
+                            "or pass an explicit path via "
                             "RuntimeConnection.for_stdio(path=...) / "
                             "RuntimeConnection.for_tcp(path=...)."
                         )
@@ -1207,6 +1261,7 @@ class CopilotClient:
         if options.session_fs is not None:
             _validate_session_fs_config(options.session_fs)
         self._session_fs_config = options.session_fs
+        self._request_handler = options.request_handler
 
     @property
     def rpc(self) -> ServerRpc:
@@ -1359,6 +1414,9 @@ class CopilotClient:
                     session_fs_start,
                 )
 
+            if self._request_handler is not None:
+                await self._set_llm_inference_provider()
+
             self._state = "connected"
             log_timing(
                 logger,
@@ -1443,12 +1501,10 @@ class CopilotClient:
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
 
-        runtime_shutdown_completed = False
         if self._rpc is not None and self._cli_process is not None and not self._is_external_server:
             runtime_shutdown_start = time.perf_counter()
             try:
                 await self._rpc.runtime.shutdown(timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS)
-                runtime_shutdown_completed = True
                 log_timing(
                     logger,
                     logging.DEBUG,
@@ -1483,62 +1539,40 @@ class CopilotClient:
                 logger.debug("Error while closing Copilot runtime transport", exc_info=True)
             self._process = None
 
-        # Terminate CLI process (only if we spawned it)
+        # Terminate CLI process (only if we spawned it).
+        #
+        # Per the runtime.shutdown contract, the runtime completes all cleanup
+        # *before* responding and then leaves termination to the caller ("callers
+        # may then terminate the owned runtime process"). It deliberately keeps
+        # its JSON-RPC server alive to send the response and does not self-exit,
+        # so there is no point waiting a grace window for a self-exit that will
+        # never come. Once shutdown has completed (or failed) we terminate the
+        # child immediately and only wait to reap it.
         if self._cli_process and not self._is_external_server:
             poll = getattr(self._cli_process, "poll", None)
             is_running = poll is None or poll() is None
             if is_running:
-                if runtime_shutdown_completed:
-                    try:
-                        await asyncio.to_thread(
-                            self._cli_process.wait,
-                            timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS,
-                        )
-                    except subprocess.TimeoutExpired:
-                        self._cli_process.terminate()
-                        try:
-                            await asyncio.to_thread(
-                                self._cli_process.wait,
-                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                            )
-                        except subprocess.TimeoutExpired:
-                            self._cli_process.kill()
-                            try:
-                                await asyncio.to_thread(
-                                    self._cli_process.wait,
-                                    timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                                )
-                            except subprocess.TimeoutExpired as e:
-                                errors.append(
-                                    StopError(
-                                        message=(
-                                            "Timed out waiting for CLI process to exit after kill: "
-                                            f"{e}"
-                                        )
-                                    )
-                                )
-                else:
-                    self._cli_process.terminate()
+                self._cli_process.terminate()
+                try:
+                    await asyncio.to_thread(
+                        self._cli_process.wait,
+                        timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
+                    )
+                except subprocess.TimeoutExpired:
+                    self._cli_process.kill()
                     try:
                         await asyncio.to_thread(
                             self._cli_process.wait,
                             timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
                         )
-                    except subprocess.TimeoutExpired:
-                        self._cli_process.kill()
-                        try:
-                            await asyncio.to_thread(
-                                self._cli_process.wait,
-                                timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
-                            )
-                        except subprocess.TimeoutExpired as e:
-                            errors.append(
-                                StopError(
-                                    message=(
-                                        f"Timed out waiting for CLI process to exit after kill: {e}"
-                                    )
+                    except subprocess.TimeoutExpired as e:
+                        errors.append(
+                            StopError(
+                                message=(
+                                    f"Timed out waiting for CLI process to exit after kill: {e}"
                                 )
                             )
+                        )
             if self._process is self._cli_process:
                 self._process = None
             self._cli_process = None
@@ -1627,6 +1661,9 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        capi: CapiSessionOptions | None = None,
+        providers: list[NamedProviderConfig] | None = None,
+        models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
@@ -1673,6 +1710,7 @@ class CopilotClient:
         extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
+        exp_assignments: dict[str, Any] | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1709,6 +1747,21 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            capi: CAPI provider-scoped options. WebSocket transport is the
+                default for the CAPI Responses API whenever the model advertises
+                the ``ws:/responses`` endpoint. Set
+                ``enable_web_socket_responses=False`` to force the HTTP
+                Responses transport, which is useful behind proxies where
+                WebSockets fail. This is equivalent to setting the
+                ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+                variable. The option is under the ``capi`` namespace because a
+                single session can host multiple providers (CAPI + BYOK), so
+                transport choice is provider-level.
+            providers: Named BYOK provider connections. Additive to Copilot API
+                auth (unlike `provider`); combine with `models`. Cannot be
+                combined with `provider`.
+            models: BYOK model definitions added to the selectable model list,
+                each referencing a `providers` entry by name.
             enable_session_telemetry: Enables or disables internal session telemetry
                 for this session. When False, disables session telemetry. When omitted
                 or True, telemetry is enabled for GitHub-authenticated sessions. When
@@ -1770,6 +1823,17 @@ class CopilotClient:
                 override) is on; otherwise the request is silently dropped.
                 Inspect ``capabilities.ui.mcpApps`` on the create response to
                 detect the drop.
+            exp_assignments: ExP assignment ("flight") data injected by a
+                trusted integrator, in the same JSON shape the Copilot CLI
+                fetches from the experimentation service
+                (``CopilotExpAssignmentResponse``). When supplied, the runtime
+                feeds it into the same feature-flag path as CLI-fetched
+                assignments and stamps it onto telemetry and the CAPI request
+                header. When absent, the session does not block on ExP. Intended
+                for out-of-process integrators that fetch ExP data themselves;
+                malformed payloads are dropped by the runtime (fail-open). This
+                is an internal/trusted-integrator option. Sent on the wire as
+                ``expAssignments``.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -1897,6 +1961,10 @@ class CopilotClient:
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
 
+        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        if exp_assignments is not None:
+            payload["expAssignments"] = exp_assignments
+
         # Add working directory if provided
         if working_directory:
             payload["workingDirectory"] = working_directory
@@ -1915,6 +1983,16 @@ class CopilotClient:
         # Add provider configuration if provided
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+
+        if capi is not None:
+            payload["capi"] = _capi_session_options_to_wire(capi)
+        # Add additive BYOK provider/model registry if provided
+        if providers:
+            payload["providers"] = [
+                self._convert_named_provider_to_wire_format(p) for p in providers
+            ]
+        if models:
+            payload["models"] = [self._convert_model_to_wire_format(m) for m in models]
 
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
@@ -2081,6 +2159,7 @@ class CopilotClient:
                 s._register_auto_mode_switch_handler(on_auto_mode_switch_request)
             if canvas_handler is not None:
                 s._register_canvas_handler(canvas_handler)
+            s._register_bearer_token_providers(_collect_bearer_token_callbacks(provider, providers))
             if hooks:
                 s._register_hooks(hooks)
             if transform_callbacks:
@@ -2204,6 +2283,9 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        capi: CapiSessionOptions | None = None,
+        providers: list[NamedProviderConfig] | None = None,
+        models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
@@ -2251,6 +2333,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
+        exp_assignments: dict[str, Any] | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2287,6 +2370,21 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            capi: CAPI provider-scoped options. WebSocket transport is the
+                default for the CAPI Responses API whenever the model advertises
+                the ``ws:/responses`` endpoint. Set
+                ``enable_web_socket_responses=False`` to force the HTTP
+                Responses transport, which is useful behind proxies where
+                WebSockets fail. This is equivalent to setting the
+                ``COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`` environment
+                variable. The option is under the ``capi`` namespace because a
+                single session can host multiple providers (CAPI + BYOK), so
+                transport choice is provider-level.
+            providers: Named BYOK provider connections. Additive to Copilot API
+                auth (unlike `provider`); combine with `models`. Cannot be
+                combined with `provider`.
+            models: BYOK model definitions added to the selectable model list,
+                each referencing a `providers` entry by name.
             enable_session_telemetry: Enables or disables internal session telemetry
                 for this session. When False, disables session telemetry. When omitted
                 or True, telemetry is enabled for GitHub-authenticated sessions. When
@@ -2349,6 +2447,17 @@ class CopilotClient:
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
                 treats pending work as interrupted on resume.
+            exp_assignments: ExP assignment ("flight") data injected by a
+                trusted integrator, in the same JSON shape the Copilot CLI
+                fetches from the experimentation service
+                (``CopilotExpAssignmentResponse``). When supplied, the runtime
+                feeds it into the same feature-flag path as CLI-fetched
+                assignments and stamps it onto telemetry and the CAPI request
+                header. When absent, the session does not block on ExP. Intended
+                for out-of-process integrators that fetch ExP data themselves;
+                malformed payloads are dropped by the runtime (fail-open). This
+                is an internal/trusted-integrator option. Sent on the wire as
+                ``expAssignments``.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -2437,6 +2546,14 @@ class CopilotClient:
         payload["toolFilterPrecedence"] = "excluded"
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+        if capi is not None:
+            payload["capi"] = _capi_session_options_to_wire(capi)
+        if providers:
+            payload["providers"] = [
+                self._convert_named_provider_to_wire_format(p) for p in providers
+            ]
+        if models:
+            payload["models"] = [self._convert_model_to_wire_format(m) for m in models]
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if model_capabilities:
@@ -2480,6 +2597,10 @@ class CopilotClient:
         # Add remote session mode if provided
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
+
+        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        if exp_assignments is not None:
+            payload["expAssignments"] = exp_assignments
 
         if working_directory:
             payload["workingDirectory"] = working_directory
@@ -2612,6 +2733,9 @@ class CopilotClient:
             session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
         if canvas_handler is not None:
             session._register_canvas_handler(canvas_handler)
+        session._register_bearer_token_providers(
+            _collect_bearer_token_callbacks(provider, providers)
+        )
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -3138,8 +3262,12 @@ class CopilotClient:
             wire_provider["apiKey"] = provider["api_key"]
         if "wire_api" in provider:
             wire_provider["wireApi"] = provider["wire_api"]
+        if "transport" in provider:
+            wire_provider["transport"] = provider["transport"]
         if "bearer_token" in provider:
             wire_provider["bearerToken"] = provider["bearer_token"]
+        if provider.get("bearer_token_provider") is not None:
+            wire_provider["hasBearerTokenProvider"] = True
         if "headers" in provider:
             wire_provider["headers"] = provider["headers"]
         if "model_id" in provider:
@@ -3158,6 +3286,61 @@ class CopilotClient:
             if wire_azure:
                 wire_provider["azure"] = wire_azure
         return wire_provider
+
+    def _convert_named_provider_to_wire_format(
+        self, provider: NamedProviderConfig | dict[str, Any]
+    ) -> dict[str, Any]:
+        """Convert a named BYOK provider from snake_case to camelCase wire format."""
+        wire: dict[str, Any] = {}
+        if "name" in provider:
+            wire["name"] = provider["name"]
+        if "type" in provider:
+            wire["type"] = provider["type"]
+        if "wire_api" in provider:
+            wire["wireApi"] = provider["wire_api"]
+        if "base_url" in provider:
+            wire["baseUrl"] = provider["base_url"]
+        if "api_key" in provider:
+            wire["apiKey"] = provider["api_key"]
+        if "bearer_token" in provider:
+            wire["bearerToken"] = provider["bearer_token"]
+        if provider.get("bearer_token_provider") is not None:
+            wire["hasBearerTokenProvider"] = True
+        if "headers" in provider:
+            wire["headers"] = provider["headers"]
+        if "azure" in provider:
+            azure = provider["azure"]
+            wire_azure: dict[str, Any] = {}
+            if "api_version" in azure:
+                wire_azure["apiVersion"] = azure["api_version"]
+            if wire_azure:
+                wire["azure"] = wire_azure
+        return wire
+
+    def _convert_model_to_wire_format(
+        self, model: ProviderModelConfig | dict[str, Any]
+    ) -> dict[str, Any]:
+        """Convert a BYOK model definition from snake_case to camelCase wire format."""
+        wire: dict[str, Any] = {}
+        if "id" in model:
+            wire["id"] = model["id"]
+        if "provider" in model:
+            wire["provider"] = model["provider"]
+        if "wire_model" in model:
+            wire["wireModel"] = model["wire_model"]
+        if "model_id" in model:
+            wire["modelId"] = model["model_id"]
+        if "name" in model:
+            wire["name"] = model["name"]
+        if "max_prompt_tokens" in model:
+            wire["maxPromptTokens"] = model["max_prompt_tokens"]
+        if "max_context_window_tokens" in model:
+            wire["maxContextWindowTokens"] = model["max_context_window_tokens"]
+        if "max_output_tokens" in model:
+            wire["maxOutputTokens"] = model["max_output_tokens"]
+        if "capabilities" in model:
+            wire["capabilities"] = _capabilities_to_dict(model["capabilities"])
+        return wire
 
     def _convert_custom_agent_to_wire_format(
         self, agent: CustomAgentConfig | dict[str, Any]
@@ -3449,6 +3632,7 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
+        self._register_llm_inference_handlers()
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -3568,6 +3752,7 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
+        self._register_llm_inference_handlers()
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -3639,6 +3824,22 @@ class CopilotClient:
             params["capabilities"] = self._session_fs_config["capabilities"]
 
         await self._client.request("sessionFs.setProvider", params)
+
+    def _register_llm_inference_handlers(self) -> None:
+        if self._request_handler is None or not self._client:
+            return
+        adapter = create_copilot_request_adapter(
+            self._request_handler,
+            lambda: self._rpc.llm_inference if self._rpc is not None else None,
+        )
+        register_client_global_api_handlers(
+            self._client, ClientGlobalApiHandlers(llm_inference=adapter)
+        )
+
+    async def _set_llm_inference_provider(self) -> None:
+        if self._request_handler is None or self._rpc is None:
+            return
+        await self._rpc.llm_inference.set_provider()
 
     def _get_client_session_handlers(self, session_id: str) -> ClientSessionApiHandlers:
         with self._sessions_lock:

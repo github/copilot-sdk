@@ -28,6 +28,25 @@ type AbortResult struct {
 	Success bool `json:"success"`
 }
 
+// Schema for the `AccountAllUsers` type.
+type AccountAllUsers struct {
+	// Authentication information for this user
+	AuthInfo AuthInfo `json:"authInfo"`
+	// Associated token, if available
+	Token *string `json:"token,omitempty"`
+}
+
+// List of all authenticated users
+type AccountGetAllUsersResult []AccountAllUsers
+
+// Current authentication state
+type AccountGetCurrentAuthResult struct {
+	// Authentication errors from the last auth attempt, if any
+	AuthErrors []string `json:"authErrors,omitzero"`
+	// Current authentication information, if authenticated
+	AuthInfo AuthInfo `json:"authInfo,omitempty"`
+}
+
 type AccountGetQuotaRequest struct {
 	// GitHub token for per-user quota lookup. When provided, resolves this token to determine
 	// the user's quota instead of using the global auth.
@@ -38,6 +57,36 @@ type AccountGetQuotaRequest struct {
 type AccountGetQuotaResult struct {
 	// Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
 	QuotaSnapshots map[string]AccountQuotaSnapshot `json:"quotaSnapshots"`
+}
+
+// Credentials to store after successful authentication
+type AccountLoginRequest struct {
+	// GitHub host URL
+	Host string `json:"host"`
+	// User login/username
+	Login string `json:"login"`
+	// GitHub authentication token
+	Token string `json:"token"`
+}
+
+// Result of a successful login; throws on failure
+type AccountLoginResult struct {
+	// Whether the credential was persisted to a secure store (system keychain, or the config
+	// file when plaintext storage is enabled). False when no secure store was available and the
+	// token was not saved, so the consumer can decide how to proceed.
+	StoredInVault bool `json:"storedInVault"`
+}
+
+// User to log out
+type AccountLogoutRequest struct {
+	// Authentication information for the user to log out
+	AuthInfo AuthInfo `json:"authInfo"`
+}
+
+// Logout result indicating if more users remain
+type AccountLogoutResult struct {
+	// Whether other authenticated users remain after logout
+	HasMoreUsers bool `json:"hasMoreUsers"`
 }
 
 // Schema for the `AccountQuotaSnapshot` type.
@@ -58,6 +107,29 @@ type AccountQuotaSnapshot struct {
 	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
 	// Number of requests used so far this period
 	UsedRequests int64 `json:"usedRequests"`
+}
+
+// Schema for the `AgentDiscoveryPath` type.
+// Experimental: AgentDiscoveryPath is part of an experimental API and may change or be
+// removed.
+type AgentDiscoveryPath struct {
+	// Absolute path of the search/create directory (may not exist on disk yet)
+	Path string `json:"path"`
+	// Whether this is the canonical directory to create a new agent in its tier. At most one
+	// entry per tier is preferred.
+	PreferredForCreation bool `json:"preferredForCreation"`
+	// The input project path this directory was derived from (only for project scope)
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Which tier this directory belongs to
+	Scope AgentDiscoveryPathScope `json:"scope"`
+}
+
+// Canonical locations where custom agents can be created so the runtime will recognize them.
+// Experimental: AgentDiscoveryPathList is part of an experimental API and may change or be
+// removed.
+type AgentDiscoveryPathList struct {
+	// Canonical agent create/discovery directories, in priority order
+	Paths []AgentDiscoveryPath `json:"paths"`
 }
 
 // The currently selected custom agent, or null when using the default agent.
@@ -298,8 +370,8 @@ type AgentReloadResult struct {
 // Experimental: AgentsDiscoverRequest is part of an experimental API and may change or be
 // removed.
 type AgentsDiscoverRequest struct {
-	// When true, omit the host's agents (the `<COPILOT_HOME>/agents` directory and all plugin
-	// agents), leaving only project and remote agents. For multitenant deployments.
+	// When true, omit the host's agents (the user-level agent directory and all plugin agents),
+	// leaving only project and remote agents. For multitenant deployments.
 	ExcludeHostAgents *bool `json:"excludeHostAgents,omitempty"`
 	// Optional list of project directory paths to scan for project-scoped agents. When omitted
 	// or empty, only user/plugin/remote-independent agents are returned (no project scan).
@@ -322,6 +394,18 @@ type AgentSelectResult struct {
 	Agent AgentInfo `json:"agent"`
 }
 
+// Optional project paths to include when enumerating agent discovery directories.
+// Experimental: AgentsGetDiscoveryPathsRequest is part of an experimental API and may
+// change or be removed.
+type AgentsGetDiscoveryPathsRequest struct {
+	// When true, omit the host's user-level agent directory, leaving only project directories.
+	// For multitenant deployments (mirrors `discover`'s `excludeHostAgents`).
+	ExcludeHostAgents *bool `json:"excludeHostAgents,omitempty"`
+	// Optional list of project directory paths. When omitted or empty, only the user-level
+	// directory is returned.
+	ProjectPaths []string `json:"projectPaths,omitzero"`
+}
+
 // Indicates whether the operation succeeded and reports the post-mutation state.
 // Experimental: AllowAllPermissionSetResult is part of an experimental API and may change
 // or be removed.
@@ -340,8 +424,8 @@ type AllowAllPermissionState struct {
 	Enabled bool `json:"enabled"`
 }
 
-// A user message attachment — a file, directory, code selection, blob, GitHub reference, or
-// extension-supplied context payload
+// A user message attachment — a file, directory, code selection, blob, GitHub-anchored
+// pointer, or extension-supplied context payload
 // Experimental: Attachment is part of an experimental API and may change or be removed.
 type Attachment interface {
 	attachment()
@@ -361,12 +445,21 @@ func (r RawAttachmentData) Type() AttachmentType {
 // Blob attachment with inline base64-encoded data
 // Experimental: AttachmentBlob is part of an experimental API and may change or be removed.
 type AttachmentBlob struct {
-	// Base64-encoded content
-	Data string `json:"data"`
+	// Internal: content-addressed id of the session.binary_asset event holding this
+	// attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.
+	AssetID *string `json:"assetId,omitempty"`
+	// Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.
+	ByteLength *int64 `json:"byteLength,omitempty"`
+	// Base64-encoded content. Present on input and for external consumers; replaced by an
+	// internal `assetId` reference in persisted events when interned to a content-addressed
+	// asset.
+	Data *string `json:"data,omitempty"`
 	// User-facing display name for the attachment
 	DisplayName *string `json:"displayName,omitempty"`
 	// MIME type of the inline data
 	MIMEType string `json:"mimeType"`
+	// Internal: why model-facing bytes are absent from persistence. Absent externally.
+	OmittedReason *OmittedBinaryOmittedReason `json:"omittedReason,omitempty"`
 }
 
 func (AttachmentBlob) attachment() {}
@@ -382,6 +475,10 @@ type AttachmentDirectory struct {
 	DisplayName string `json:"displayName"`
 	// Absolute directory path
 	Path string `json:"path"`
+	// Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g.
+	// "* /path (12 items)"). Captured at send time so resumed history reproduces the exact text
+	// the model saw, independent of later filesystem changes.
+	TaggedFilesEntry *string `json:"taggedFilesEntry,omitempty"`
 }
 
 func (AttachmentDirectory) attachment() {}
@@ -419,17 +516,112 @@ func (AttachmentExtensionContext) Type() AttachmentType {
 // File attachment
 // Experimental: AttachmentFile is part of an experimental API and may change or be removed.
 type AttachmentFile struct {
+	// Internal: content-addressed id of the session.binary_asset event holding this
+	// attachment's model-facing bytes (e.g. "sha256:..."). Absent externally.
+	AssetID *string `json:"assetId,omitempty"`
+	// Internal: decoded byte length of the attachment's model-facing bytes. Absent externally.
+	ByteLength *int64 `json:"byteLength,omitempty"`
 	// User-facing display name for the attachment
 	DisplayName string `json:"displayName"`
 	// Optional line range to scope the attachment to a specific section of the file
 	LineRange *AttachmentFileLineRange `json:"lineRange,omitempty"`
+	// Internal: MIME type of the file's model-facing bytes (post-resize for images). Set when
+	// the file's bytes are interned to an asset. Absent externally.
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Internal: why model-facing bytes are absent from persistence. Absent externally.
+	OmittedReason *OmittedBinaryOmittedReason `json:"omittedReason,omitempty"`
 	// Absolute file path
 	Path string `json:"path"`
+	// Frozen rendered line this attachment contributed to the <tagged_files> prompt block (e.g.
+	// "* /path (123 lines)"). Captured at send time so resumed history reproduces the exact
+	// text the model saw, independent of later filesystem changes. Present only for attachments
+	// routed to <tagged_files> (mutually exclusive with assetId, which marks bytes sent
+	// natively).
+	TaggedFilesEntry *string `json:"taggedFilesEntry,omitempty"`
 }
 
 func (AttachmentFile) attachment() {}
 func (AttachmentFile) Type() AttachmentType {
 	return AttachmentTypeFile
+}
+
+// Pointer to a GitHub Actions job.
+// Experimental: AttachmentGitHubActionsJob is part of an experimental API and may change or
+// be removed.
+type AttachmentGitHubActionsJob struct {
+	// Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent
+	// for in-progress jobs.
+	Conclusion *string `json:"conclusion,omitempty"`
+	// Job id within the workflow run
+	JobID int64 `json:"jobId"`
+	// Display name of the job
+	JobName string `json:"jobName"`
+	// Repository the workflow run belongs to
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the job on GitHub
+	URL string `json:"url"`
+	// Display name of the workflow the job ran in
+	WorkflowName string `json:"workflowName"`
+}
+
+func (AttachmentGitHubActionsJob) attachment() {}
+func (AttachmentGitHubActionsJob) Type() AttachmentType {
+	return AttachmentTypeGitHubActionsJob
+}
+
+// Pointer to a GitHub commit.
+// Experimental: AttachmentGitHubCommit is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubCommit struct {
+	// First line of the commit message
+	Message string `json:"message"`
+	// Full commit SHA
+	Oid string `json:"oid"`
+	// Repository the commit belongs to
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the commit on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubCommit) attachment() {}
+func (AttachmentGitHubCommit) Type() AttachmentType {
+	return AttachmentTypeGitHubCommit
+}
+
+// Pointer to a file in a GitHub repository at a specific ref.
+// Experimental: AttachmentGitHubFile is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubFile struct {
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref the file is read at (branch, tag, or commit SHA)
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the file on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubFile) attachment() {}
+func (AttachmentGitHubFile) Type() AttachmentType {
+	return AttachmentTypeGitHubFile
+}
+
+// Pointer to a single-file diff. At least one of `head` and `base` must be present.
+// Experimental: AttachmentGitHubFileDiff is part of an experimental API and may change or
+// be removed.
+type AttachmentGitHubFileDiff struct {
+	// File location on the base side of the diff. Absent for additions.
+	Base *AttachmentGitHubFileDiffSide `json:"base,omitempty"`
+	// File location on the head side of the diff. Absent for deletions.
+	Head *AttachmentGitHubFileDiffSide `json:"head,omitempty"`
+	// URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL)
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubFileDiff) attachment() {}
+func (AttachmentGitHubFileDiff) Type() AttachmentType {
+	return AttachmentTypeGitHubFileDiff
 }
 
 // GitHub issue, pull request, or discussion reference
@@ -451,6 +643,96 @@ type AttachmentGitHubReference struct {
 func (AttachmentGitHubReference) attachment() {}
 func (AttachmentGitHubReference) Type() AttachmentType {
 	return AttachmentTypeGitHubReference
+}
+
+// Pointer to a GitHub release.
+// Experimental: AttachmentGitHubRelease is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubRelease struct {
+	// Human-readable release name
+	Name string `json:"name"`
+	// Repository the release belongs to
+	Repo GitHubRepoRef `json:"repo"`
+	// Git tag the release is anchored to
+	TagName string `json:"tagName"`
+	// URL to the release on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubRelease) attachment() {}
+func (AttachmentGitHubRelease) Type() AttachmentType {
+	return AttachmentTypeGitHubRelease
+}
+
+// Pointer to a GitHub repository.
+// Experimental: AttachmentGitHubRepository is part of an experimental API and may change or
+// be removed.
+type AttachmentGitHubRepository struct {
+	// Short description of the repository
+	Description *string `json:"description,omitempty"`
+	// Git ref this attachment is anchored at (branch, tag, or commit). When absent the default
+	// branch is implied.
+	Ref *string `json:"ref,omitempty"`
+	// Repository pointer
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the repository on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubRepository) attachment() {}
+func (AttachmentGitHubRepository) Type() AttachmentType {
+	return AttachmentTypeGitHubRepository
+}
+
+// Pointer to a line range inside a file in a GitHub repository.
+// Experimental: AttachmentGitHubSnippet is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubSnippet struct {
+	// Line range the snippet covers
+	LineRange AttachmentFileLineRange `json:"lineRange"`
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref the file is read at (branch, tag, or commit SHA)
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo GitHubRepoRef `json:"repo"`
+	// URL to the snippet on GitHub (with line anchor)
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubSnippet) attachment() {}
+func (AttachmentGitHubSnippet) Type() AttachmentType {
+	return AttachmentTypeGitHubSnippet
+}
+
+// Pointer to a comparison between two git revisions.
+// Experimental: AttachmentGitHubTreeComparison is part of an experimental API and may
+// change or be removed.
+type AttachmentGitHubTreeComparison struct {
+	// Base side of the comparison
+	Base AttachmentGitHubTreeComparisonSide `json:"base"`
+	// Head side of the comparison
+	Head AttachmentGitHubTreeComparisonSide `json:"head"`
+	// URL to the comparison on GitHub
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubTreeComparison) attachment() {}
+func (AttachmentGitHubTreeComparison) Type() AttachmentType {
+	return AttachmentTypeGitHubTreeComparison
+}
+
+// Generic GitHub URL reference.
+// Experimental: AttachmentGitHubURL is part of an experimental API and may change or be
+// removed.
+type AttachmentGitHubURL struct {
+	// URL to the GitHub resource
+	URL string `json:"url"`
+}
+
+func (AttachmentGitHubURL) attachment() {}
+func (AttachmentGitHubURL) Type() AttachmentType {
+	return AttachmentTypeGitHubURL
 }
 
 // Code selection attachment from an editor
@@ -480,6 +762,28 @@ type AttachmentFileLineRange struct {
 	End int64 `json:"end"`
 	// Start line number (1-based)
 	Start int64 `json:"start"`
+}
+
+// One side of a file diff (head or base)
+// Experimental: AttachmentGitHubFileDiffSide is part of an experimental API and may change
+// or be removed.
+type AttachmentGitHubFileDiffSide struct {
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref (branch, tag, or commit SHA) the file is read at
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo GitHubRepoRef `json:"repo"`
+}
+
+// One side of a tree comparison (head or base)
+// Experimental: AttachmentGitHubTreeComparisonSide is part of an experimental API and may
+// change or be removed.
+type AttachmentGitHubTreeComparisonSide struct {
+	// Repository the revision belongs to
+	Repo GitHubRepoRef `json:"repo"`
+	// Git revision (branch, tag, or commit SHA)
+	Revision string `json:"revision"`
 }
 
 // Position range of the selection within the file
@@ -513,7 +817,6 @@ type AttachmentSelectionDetailsStart struct {
 }
 
 // Initial authentication info for the session.
-// Experimental: AuthInfo is part of an experimental API and may change or be removed.
 type AuthInfo interface {
 	authInfo()
 	Type() AuthInfoType
@@ -530,7 +833,6 @@ func (r RawAuthInfoData) Type() AuthInfoType {
 }
 
 // Schema for the `ApiKeyAuthInfo` type.
-// Experimental: APIKeyAuthInfo is part of an experimental API and may change or be removed.
 type APIKeyAuthInfo struct {
 	// The API key. Treat as a secret.
 	APIKey string `json:"apiKey"`
@@ -548,8 +850,6 @@ func (APIKeyAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `CopilotApiTokenAuthInfo` type.
-// Experimental: CopilotAPITokenAuthInfo is part of an experimental API and may change or be
-// removed.
 type CopilotAPITokenAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -565,7 +865,6 @@ func (CopilotAPITokenAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `EnvAuthInfo` type.
-// Experimental: EnvAuthInfo is part of an experimental API and may change or be removed.
 type EnvAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -588,7 +887,6 @@ func (EnvAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `GhCliAuthInfo` type.
-// Experimental: GhCLIAuthInfo is part of an experimental API and may change or be removed.
 type GhCLIAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -608,7 +906,6 @@ func (GhCLIAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `HMACAuthInfo` type.
-// Experimental: HMACAuthInfo is part of an experimental API and may change or be removed.
 type HMACAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -626,7 +923,6 @@ func (HMACAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `TokenAuthInfo` type.
-// Experimental: TokenAuthInfo is part of an experimental API and may change or be removed.
 type TokenAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -644,7 +940,6 @@ func (TokenAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `UserAuthInfo` type.
-// Experimental: UserAuthInfo is part of an experimental API and may change or be removed.
 type UserAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -845,6 +1140,18 @@ type CanvasSessionContext struct {
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
+// Options scoped to the built-in CAPI (Copilot API) provider.
+// Experimental: CapiSessionOptions is part of an experimental API and may change or be
+// removed.
+type CapiSessionOptions struct {
+	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
+	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
+	// transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting
+	// this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`
+	// environment variable.
+	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
+}
+
 // Slash commands available in the session, after applying any include/exclude filters.
 // Experimental: CommandList is part of an experimental API and may change or be removed.
 type CommandList struct {
@@ -997,8 +1304,6 @@ type ConnectResult struct {
 // Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 // GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
 // verbatim and does not re-fetch when set.
-// Experimental: CopilotUserResponse is part of an experimental API and may change or be
-// removed.
 type CopilotUserResponse struct {
 	AccessTypeSku              *string `json:"access_type_sku,omitempty"`
 	AnalyticsTrackingID        *string `json:"analytics_tracking_id,omitempty"`
@@ -1014,6 +1319,7 @@ type CopilotUserResponse struct {
 	// Schema for the `CopilotUserResponseEndpoints` type.
 	Endpoints             *CopilotUserResponseEndpoints             `json:"endpoints,omitempty"`
 	IsMCPEnabled          *bool                                     `json:"is_mcp_enabled,omitempty"`
+	IsStaff               *bool                                     `json:"is_staff,omitempty"`
 	LimitedUserQuotas     map[string]float64                        `json:"limited_user_quotas,omitzero"`
 	LimitedUserResetDate  *string                                   `json:"limited_user_reset_date,omitempty"`
 	Login                 *string                                   `json:"login,omitempty"`
@@ -1029,8 +1335,6 @@ type CopilotUserResponse struct {
 }
 
 // Schema for the `CopilotUserResponseEndpoints` type.
-// Experimental: CopilotUserResponseEndpoints is part of an experimental API and may change
-// or be removed.
 type CopilotUserResponseEndpoints struct {
 	API           *string `json:"api,omitempty"`
 	OriginTracker *string `json:"origin-tracker,omitempty"`
@@ -1044,8 +1348,6 @@ type CopilotUserResponseOrganizationListItem struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshots` type.
-// Experimental: CopilotUserResponseQuotaSnapshots is part of an experimental API and may
-// change or be removed.
 type CopilotUserResponseQuotaSnapshots struct {
 	// Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
 	Chat *CopilotUserResponseQuotaSnapshotsChat `json:"chat,omitempty"`
@@ -1056,8 +1358,6 @@ type CopilotUserResponseQuotaSnapshots struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
-// Experimental: CopilotUserResponseQuotaSnapshotsChat is part of an experimental API and
-// may change or be removed.
 type CopilotUserResponseQuotaSnapshotsChat struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -1074,8 +1374,6 @@ type CopilotUserResponseQuotaSnapshotsChat struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
-// Experimental: CopilotUserResponseQuotaSnapshotsCompletions is part of an experimental API
-// and may change or be removed.
 type CopilotUserResponseQuotaSnapshotsCompletions struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -1092,8 +1390,6 @@ type CopilotUserResponseQuotaSnapshotsCompletions struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
-// Experimental: CopilotUserResponseQuotaSnapshotsPremiumInteractions is part of an
-// experimental API and may change or be removed.
 type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -1172,6 +1468,10 @@ type DiscoveredMCPServer struct {
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source MCPServerSource `json:"source"`
+	// Plugin name that provided this server, when source is plugin.
+	SourcePlugin *string `json:"sourcePlugin,omitempty"`
+	// Plugin version that provided this server, when source is plugin.
+	SourcePluginVersion *string `json:"sourcePluginVersion,omitempty"`
 	// Server transport type: stdio, http, sse (deprecated), or memory
 	Type *DiscoveredMCPServerType `json:"type,omitempty"`
 }
@@ -1604,6 +1904,17 @@ type FolderTrustCheckResult struct {
 	Trusted bool `json:"trusted"`
 }
 
+// Pointer to a GitHub repository.
+// Experimental: GitHubRepoRef is part of an experimental API and may change or be removed.
+type GitHubRepoRef struct {
+	// Numeric GitHub repository id
+	ID *int64 `json:"id,omitempty"`
+	// Repository name (without owner)
+	Name string `json:"name"`
+	// Repository owner login (user or organization)
+	Owner string `json:"owner"`
+}
+
 // Pending external tool call request ID, with the tool result or an error describing why it
 // failed.
 // Experimental: HandlePendingToolCallRequest is part of an experimental API and may change
@@ -1735,6 +2046,10 @@ type InstalledPlugin struct {
 // Experimental: InstalledPluginInfo is part of an experimental API and may change or be
 // removed.
 type InstalledPluginInfo struct {
+	// Opaque, stable hash identifying a direct (non-marketplace) install source. Present only
+	// for direct repo / URL / local installs; absent for marketplace plugins. Same source
+	// yields the same id; distinct sources never collide.
+	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Whether the plugin is currently enabled for new sessions
 	Enabled bool `json:"enabled"`
 	// Marketplace the plugin came from. Empty string ("") for direct repo / URL / local
@@ -1787,6 +2102,32 @@ type InstalledPluginSourceURL struct {
 	URL    string                         `json:"url"`
 }
 
+// Schema for the `InstructionDiscoveryPath` type.
+// Experimental: InstructionDiscoveryPath is part of an experimental API and may change or
+// be removed.
+type InstructionDiscoveryPath struct {
+	// Whether the target is a single file or a directory of instruction files
+	Kind InstructionDiscoveryPathKind `json:"kind"`
+	// Which tier this target belongs to
+	Location InstructionDiscoveryPathLocation `json:"location"`
+	// Absolute path of the file or directory (may not exist on disk yet)
+	Path string `json:"path"`
+	// Whether this is the canonical target to create new instructions in its tier. At most one
+	// entry per tier is preferred.
+	PreferredForCreation bool `json:"preferredForCreation"`
+	// The input project path this target was derived from (only for repository targets)
+	ProjectPath *string `json:"projectPath,omitempty"`
+}
+
+// Canonical files and directories where custom instructions can be created so the runtime
+// will recognize them.
+// Experimental: InstructionDiscoveryPathList is part of an experimental API and may change
+// or be removed.
+type InstructionDiscoveryPathList struct {
+	// Canonical instruction create/discovery files and directories, in priority order
+	Paths []InstructionDiscoveryPath `json:"paths"`
+}
+
 // Optional project paths to include in instruction discovery.
 // Experimental: InstructionsDiscoverRequest is part of an experimental API and may change
 // or be removed.
@@ -1797,6 +2138,18 @@ type InstructionsDiscoverRequest struct {
 	// Optional list of project directory paths to scan for repository/working-directory
 	// instruction sources. When omitted or empty, only user-level and plugin instruction
 	// sources are returned (no project scan).
+	ProjectPaths []string `json:"projectPaths,omitzero"`
+}
+
+// Optional project paths to include when enumerating instruction discovery targets.
+// Experimental: InstructionsGetDiscoveryPathsRequest is part of an experimental API and may
+// change or be removed.
+type InstructionsGetDiscoveryPathsRequest struct {
+	// When true, omit the host's user-level instruction targets, leaving only repository
+	// targets. For multitenant deployments (mirrors `discover`'s `excludeHostInstructions`).
+	ExcludeHostInstructions *bool `json:"excludeHostInstructions,omitempty"`
+	// Optional list of project directory paths. When omitted or empty, only the user-level
+	// targets are returned.
 	ProjectPaths []string `json:"projectPaths,omitzero"`
 }
 
@@ -1836,6 +2189,134 @@ type InstructionSource struct {
 	SourcePath string `json:"sourcePath"`
 	// Category of instruction source — used for merge logic
 	Type InstructionSourceType `json:"type"`
+}
+
+// HTTP headers as a map from lowercased header name to a list of values. Multi-valued
+// headers (e.g. Set-Cookie) preserve all values.
+// Experimental: LlmInferenceHeaders is part of an experimental API and may change or be
+// removed.
+type LlmInferenceHeaders map[string][]string
+
+// A request body chunk or cancellation signal.
+type LlmInferenceHTTPRequestChunkRequest struct {
+	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
+	Binary *bool `json:"binary,omitempty"`
+	// When true, the runtime is cancelling the in-flight request (e.g. upstream consumer
+	// aborted). `data` is ignored. Implies end-of-request.
+	Cancel *bool `json:"cancel,omitempty"`
+	// Optional human-readable reason for the cancellation, propagated for logging.
+	CancelReason *string `json:"cancelReason,omitempty"`
+	// Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when
+	// `binary` is true. May be empty.
+	Data string `json:"data"`
+	// When true, this is the final body chunk for the request. The SDK may rely on having
+	// received an end-marked chunk before treating the request body as complete.
+	End *bool `json:"end,omitempty"`
+	// Matches the requestId from the originating httpRequestStart frame.
+	RequestID string `json:"requestId"`
+}
+
+// Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as
+// fire-and-forget.
+type LlmInferenceHTTPRequestChunkResult struct {
+}
+
+// The head of an outbound model-layer HTTP request.
+type LlmInferenceHTTPRequestStartRequest struct {
+	Headers map[string][]string `json:"headers"`
+	// HTTP method, e.g. GET, POST.
+	Method string `json:"method"`
+	// Opaque runtime-minted id, unique per in-flight request. The SDK uses this to correlate
+	// httpRequestChunk frames and to address its httpResponseStart / httpResponseChunk replies
+	// back to the runtime.
+	RequestID string `json:"requestId"`
+	// Id of the runtime session that triggered this request, when one is in scope. Absent for
+	// requests issued outside any session (e.g. startup model-catalog or capability
+	// resolution). This is a payload field — not a dispatch key — because the client-global API
+	// is registered process-wide rather than per session.
+	SessionID *string `json:"sessionId,omitempty"`
+	// Transport the runtime would otherwise use for this request. `http` (the default when
+	// absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message
+	// channel where each body chunk maps to one WebSocket message and the `binary` flag
+	// distinguishes text from binary frames. The SDK consumer uses this to decide whether to
+	// service the request with an HTTP client or a WebSocket client. It is the one piece of
+	// request metadata the consumer cannot reliably infer from the URL or headers alone.
+	Transport *LlmInferenceHTTPRequestStartTransport `json:"transport,omitempty"`
+	// Absolute request URL.
+	URL string `json:"url"`
+}
+
+// Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it
+// does not imply the request will succeed.
+type LlmInferenceHTTPRequestStartResult struct {
+}
+
+// Set to terminate the response with a transport-level failure. Implies end-of-stream; any
+// further chunks for this requestId are ignored.
+// Experimental: LlmInferenceHTTPResponseChunkError is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseChunkError struct {
+	// Optional machine-readable error code.
+	Code *string `json:"code,omitempty"`
+	// Human-readable failure description.
+	Message string `json:"message"`
+}
+
+// A response body chunk or terminal error.
+// Experimental: LlmInferenceHTTPResponseChunkRequest is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseChunkRequest struct {
+	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
+	Binary *bool `json:"binary,omitempty"`
+	// Body byte range. UTF-8 text when `binary` is absent or false; base64-encoded bytes when
+	// `binary` is true. May be empty (e.g. when the response body is empty: send a single chunk
+	// with empty data and end=true).
+	Data string `json:"data"`
+	// When true, this is the final body chunk for the response. The runtime treats the response
+	// body as complete after receiving an end-marked chunk.
+	End *bool `json:"end,omitempty"`
+	// Set to terminate the response with a transport-level failure. Implies end-of-stream; any
+	// further chunks for this requestId are ignored.
+	Error *LlmInferenceHTTPResponseChunkError `json:"error,omitempty"`
+	// Matches the requestId from the originating httpRequestStart frame.
+	RequestID string `json:"requestId"`
+}
+
+// Whether the chunk was accepted.
+// Experimental: LlmInferenceHTTPResponseChunkResult is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseChunkResult struct {
+	// True when the chunk was matched to a pending request; false when unknown.
+	Accepted bool `json:"accepted"`
+}
+
+// Response head.
+// Experimental: LlmInferenceHTTPResponseStartRequest is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseStartRequest struct {
+	Headers map[string][]string `json:"headers"`
+	// Matches the requestId from the originating httpRequestStart frame.
+	RequestID string `json:"requestId"`
+	// HTTP status code.
+	Status int64 `json:"status"`
+	// Optional HTTP status reason phrase.
+	StatusText *string `json:"statusText,omitempty"`
+}
+
+// Whether the start frame was accepted.
+// Experimental: LlmInferenceHTTPResponseStartResult is part of an experimental API and may
+// change or be removed.
+type LlmInferenceHTTPResponseStartResult struct {
+	// True when the response start was matched to a pending request; false when unknown.
+	Accepted bool `json:"accepted"`
+}
+
+// Indicates whether the calling client was registered as the LLM inference provider.
+// Experimental: LlmInferenceSetProviderResult is part of an experimental API and may change
+// or be removed.
+type LlmInferenceSetProviderResult struct {
+	// Whether the provider was set successfully
+	Success bool `json:"success"`
 }
 
 // Schema for the `LocalSessionMetadataValue` type.
@@ -2342,6 +2823,65 @@ type MCPFilteredServer struct {
 	RedactedReason *string `json:"redactedReason,omitempty"`
 }
 
+// Host response: supply dynamic headers or decline this refresh.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequest is part of an experimental API
+// and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequest interface {
+	mcpHeadersHandlePendingHeadersRefreshRequest()
+	Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind
+}
+
+type RawMCPHeadersHandlePendingHeadersRefreshRequestData struct {
+	Discriminator MCPHeadersHandlePendingHeadersRefreshRequestKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPHeadersHandlePendingHeadersRefreshRequestData) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return r.Discriminator
+}
+
+type MCPHeadersHandlePendingHeadersRefreshRequestHeaders struct {
+	// Headers to overlay onto the MCP request. Dynamic headers override static config headers
+	// but do not replace SDK-managed request headers.
+	Headers map[string]string `json:"headers"`
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders
+}
+
+type MCPHeadersHandlePendingHeadersRefreshRequestNone struct {
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestNone) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestNone) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindNone
+}
+
+// MCP headers refresh request id and the host response.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequestRequest is part of an
+// experimental API and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequestRequest struct {
+	// Headers refresh request identifier from mcp.headers_refresh_required
+	RequestID string `json:"requestId"`
+	// Host response: supply dynamic headers or decline this refresh.
+	Result MCPHeadersHandlePendingHeadersRefreshRequest `json:"result"`
+}
+
+// Indicates whether the pending MCP headers refresh response was accepted.
+// Experimental: MCPHeadersHandlePendingHeadersRefreshRequestResult is part of an
+// experimental API and may change or be removed.
+type MCPHeadersHandlePendingHeadersRefreshRequestResult struct {
+	// Whether the response was accepted. False if the request was unknown, timed out, or
+	// already resolved.
+	Success bool `json:"success"`
+}
+
 // Host-level state, omitted when no MCP host is initialized.
 // Experimental: MCPHostState is part of an experimental API and may change or be removed.
 type MCPHostState struct {
@@ -2393,8 +2933,27 @@ type MCPListToolsResult struct {
 	Tools []MCPTools `json:"tools"`
 }
 
+// Pending MCP OAuth request ID and host-provided token or cancellation response.
+// Experimental: MCPOauthHandlePendingRequest is part of an experimental API and may change
+// or be removed.
+type MCPOauthHandlePendingRequest struct {
+	// OAuth request identifier from the mcp.oauth_required event
+	RequestID string `json:"requestId"`
+	// Host response to the pending OAuth request.
+	Result MCPOauthPendingRequestResponse `json:"result"`
+}
+
+// Indicates whether the pending MCP OAuth response was accepted.
+// Experimental: MCPOauthHandlePendingResult is part of an experimental API and may change
+// or be removed.
+type MCPOauthHandlePendingResult struct {
+	// Whether the response was accepted. False if the request was unknown, timed out, or
+	// already resolved.
+	Success bool `json:"success"`
+}
+
 // Remote MCP server name and optional overrides controlling reauthentication, OAuth client
-// display name, and the callback success-page copy.
+// display name, callback success-page copy, and static OAuth client selection.
 // Experimental: MCPOauthLoginRequest is part of an experimental API and may change or be
 // removed.
 type MCPOauthLoginRequest struct {
@@ -2402,16 +2961,30 @@ type MCPOauthLoginRequest struct {
 	// When omitted, the runtime applies a neutral fallback; callers driving interactive auth
 	// should pass surface-specific copy telling the user where to return.
 	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Optional OAuth client ID override for this login. When set, the runtime uses this
+	// pre-registered static client instead of dynamic client registration.
+	ClientID *string `json:"clientId,omitempty"`
 	// Optional override for the OAuth client display name shown on the consent screen. Applies
 	// to newly registered dynamic clients only — existing registrations keep the name they were
 	// created with. When omitted, the runtime applies a neutral fallback; callers driving
 	// interactive auth should pass their own surface-specific label so the consent screen
 	// matches the product the user sees.
 	ClientName *string `json:"clientName,omitempty"`
+	// Optional OAuth client secret override for this login. The runtime treats this as an
+	// ephemeral host-owned secret, uses it for this authentication attempt and does not persist
+	// it.
+	ClientSecret *string `json:"clientSecret,omitempty"`
 	// When true, clears any cached OAuth token for the server and runs a full new
 	// authorization. Use when the user explicitly wants to switch accounts or believes their
 	// session is stuck.
 	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Optional OAuth grant type override for this login. Defaults to the server configuration,
+	// or authorization_code when no grant type is specified.
+	GrantType *MCPOauthLoginGrantType `json:"grantType,omitempty"`
+	// Optional override indicating whether the static OAuth client is public. When false, the
+	// runtime treats it as confidential and uses the per-login clientSecret if provided,
+	// otherwise retrieving the client secret from the MCP OAuth secret store.
+	PublicClient *bool `json:"publicClient,omitempty"`
 	// Name of the remote MCP server to authenticate
 	ServerName string `json:"serverName"`
 }
@@ -2427,6 +3000,46 @@ type MCPOauthLoginResult struct {
 	// returning and continues the flow in the background; completion is signaled via
 	// session.mcp_server_status_changed.
 	AuthorizationURL *string `json:"authorizationUrl,omitempty"`
+}
+
+// Host response to the pending OAuth request.
+// Experimental: MCPOauthPendingRequestResponse is part of an experimental API and may
+// change or be removed.
+type MCPOauthPendingRequestResponse interface {
+	mcpOauthPendingRequestResponse()
+	Kind() MCPOauthPendingRequestResponseKind
+}
+
+type RawMCPOauthPendingRequestResponseData struct {
+	Discriminator MCPOauthPendingRequestResponseKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPOauthPendingRequestResponseData) mcpOauthPendingRequestResponse() {}
+func (r RawMCPOauthPendingRequestResponseData) Kind() MCPOauthPendingRequestResponseKind {
+	return r.Discriminator
+}
+
+type MCPOauthPendingRequestResponseCancelled struct {
+}
+
+func (MCPOauthPendingRequestResponseCancelled) mcpOauthPendingRequestResponse() {}
+func (MCPOauthPendingRequestResponseCancelled) Kind() MCPOauthPendingRequestResponseKind {
+	return MCPOauthPendingRequestResponseKindCancelled
+}
+
+type MCPOauthPendingRequestResponseToken struct {
+	// Access token acquired by the SDK host
+	AccessToken string `json:"accessToken"`
+	// Token lifetime in seconds, if known.
+	ExpiresIn *int64 `json:"expiresIn,omitempty"`
+	// OAuth token type. Defaults to Bearer when omitted.
+	TokenType *string `json:"tokenType,omitempty"`
+}
+
+func (MCPOauthPendingRequestResponseToken) mcpOauthPendingRequestResponse() {}
+func (MCPOauthPendingRequestResponseToken) Kind() MCPOauthPendingRequestResponseKind {
+	return MCPOauthPendingRequestResponseKindToken
 }
 
 // MCP OAuth request id and optional provider response.
@@ -2531,6 +3144,10 @@ type MCPServer struct {
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *MCPServerSource `json:"source,omitempty"`
+	// Plugin name that provided this server, when source is plugin.
+	SourcePlugin *string `json:"sourcePlugin,omitempty"`
+	// Plugin version that provided this server, when source is plugin.
+	SourcePluginVersion *string `json:"sourcePluginVersion,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 	Status MCPServerStatus `json:"status"`
 }
@@ -2882,6 +3499,10 @@ type Model struct {
 
 // Billing information
 type ModelBilling struct {
+	// Whole-number percentage discount (0-100) applied to usage billed through this model.
+	// Populated for the synthetic `auto` model, where requests routed by auto-mode are billed
+	// at a reduced rate; absent for concrete models.
+	DiscountPercent *int32 `json:"discountPercent,omitempty"`
 	// Billing cost multiplier relative to the base rate
 	Multiplier *float64 `json:"multiplier,omitempty"`
 	// Token-level pricing information for this model
@@ -2892,28 +3513,46 @@ type ModelBilling struct {
 type ModelBillingTokenPrices struct {
 	// Number of tokens per standard billing batch
 	BatchSize *int64 `json:"batchSize,omitempty"`
-	// AI Credits cost per billing batch of cached tokens
+	// Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
+	// Deprecated: CachePrice is deprecated.
 	CachePrice *float64 `json:"cachePrice,omitempty"`
-	// Prompt token budget (max_prompt_tokens) for the default tier. The total context window is
-	// this value plus the model's max_output_tokens.
+	// AI Credits cost per billing batch of cached (read) tokens
+	CacheReadPrice *float64 `json:"cacheReadPrice,omitempty"`
+	// AI Credits cost per billing batch of cache-write (cache creation) tokens.
+	CacheWritePrice *float64 `json:"cacheWritePrice,omitempty"`
+	// Use maxPromptTokens instead. Prompt token budget for the default tier. The total context
+	// window is this value plus the model's max_output_tokens.
+	// Deprecated: ContextMax is deprecated.
 	ContextMax *int64 `json:"contextMax,omitempty"`
 	// AI Credits cost per billing batch of input tokens
 	InputPrice *float64 `json:"inputPrice,omitempty"`
 	// Long context tier pricing (available for models with extended context windows)
 	LongContext *ModelBillingTokenPricesLongContext `json:"longContext,omitempty"`
+	// Prompt token budget for the default tier. The total context window is this value plus the
+	// model's max_output_tokens.
+	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// AI Credits cost per billing batch of output tokens
 	OutputPrice *float64 `json:"outputPrice,omitempty"`
 }
 
 // Long context tier pricing (available for models with extended context windows)
 type ModelBillingTokenPricesLongContext struct {
-	// AI Credits cost per billing batch of cached tokens
+	// Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
+	// Deprecated: CachePrice is deprecated.
 	CachePrice *float64 `json:"cachePrice,omitempty"`
-	// Prompt token budget (max_prompt_tokens) for the long context tier. The total context
-	// window is this value plus the model's max_output_tokens.
+	// AI Credits cost per billing batch of cached (read) tokens
+	CacheReadPrice *float64 `json:"cacheReadPrice,omitempty"`
+	// AI Credits cost per billing batch of cache-write (cache creation) tokens.
+	CacheWritePrice *float64 `json:"cacheWritePrice,omitempty"`
+	// Use maxPromptTokens instead. Prompt token budget for the long context tier. The total
+	// context window is this value plus the model's max_output_tokens.
+	// Deprecated: ContextMax is deprecated.
 	ContextMax *int64 `json:"contextMax,omitempty"`
 	// AI Credits cost per billing batch of input tokens
 	InputPrice *float64 `json:"inputPrice,omitempty"`
+	// Prompt token budget for the long context tier. The total context window is this value
+	// plus the model's max_output_tokens.
+	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// AI Credits cost per billing batch of output tokens
 	OutputPrice *float64 `json:"outputPrice,omitempty"`
 }
@@ -2948,7 +3587,7 @@ type ModelCapabilitiesLimitsVision struct {
 	SupportedMediaTypes []string `json:"supported_media_types"`
 }
 
-// Initial model capability overrides.
+// Optional capability overrides (vision, tool_calls, reasoning, etc.).
 // Experimental: ModelCapabilitiesOverride is part of an experimental API and may change or
 // be removed.
 type ModelCapabilitiesOverride struct {
@@ -3060,7 +3699,9 @@ type ModelSwitchToRequest struct {
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Override individual model capabilities resolved by the runtime
 	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
-	// Model identifier to switch to
+	// Model selection id to switch to, as returned by `list`. A bare id (e.g.
+	// `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id
+	// (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
 	ModelID string `json:"modelId"`
 	// Reasoning effort level to use for the model. "none" disables reasoning.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
@@ -3081,6 +3722,42 @@ type ModelSwitchToResult struct {
 type ModeSetRequest struct {
 	// The session mode the agent is operating in
 	Mode SessionMode `json:"mode"`
+}
+
+// A named BYOK provider connection (transport + credentials).
+// Experimental: NamedProviderConfig is part of an experimental API and may change or be
+// removed.
+type NamedProviderConfig struct {
+	// API key. Optional for local providers like Ollama.
+	APIKey *string `json:"apiKey,omitempty"`
+	// Azure-specific provider options.
+	Azure *ProviderConfigAzure `json:"azure,omitempty"`
+	// API endpoint URL.
+	BaseURL string `json:"baseUrl"`
+	// Bearer token for authentication. Sets the Authorization header directly. Takes precedence
+	// over apiKey when both are set.
+	BearerToken *string `json:"bearerToken,omitempty"`
+	// When true, the SDK client supplies bearer tokens on demand: the runtime calls the
+	// client-session `providerToken.getToken` callback before each request and applies the
+	// returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth
+	// scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens
+	// (including Anthropic's), not a provider-specific API-key header such as Anthropic's
+	// `x-api-key`. The token-acquiring function itself stays on the SDK side and is never
+	// serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`,
+	// the callback takes precedence: the runtime applies the token returned by
+	// `providerToken.getToken` as the `Authorization: Bearer` header for each request and does
+	// not send the static credential.
+	HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
+	// Custom HTTP headers to include in all outbound requests to the provider.
+	Headers map[string]string `json:"headers,omitzero"`
+	// Stable identifier referenced by BYOK model definitions. Must not contain '/'.
+	Name string `json:"name"`
+	// Provider transport. Defaults to "http".
+	Transport *ProviderConfigTransport `json:"transport,omitempty"`
+	// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+	Type *ProviderConfigType `json:"type,omitempty"`
+	// Wire API format (openai/azure only). Defaults to "completions".
+	WireAPI *ProviderConfigWireAPI `json:"wireApi,omitempty"`
 }
 
 // The session's friendly name, or null when not yet set.
@@ -3120,8 +3797,6 @@ type NameSetRequest struct {
 // Experimental: OpenCanvasInstance is part of an experimental API and may change or be
 // removed.
 type OpenCanvasInstance struct {
-	// Runtime-controlled routing state for an open canvas instance.
-	Availability CanvasInstanceAvailability `json:"availability"`
 	// Provider-local canvas identifier
 	CanvasID string `json:"canvasId"`
 	// Owning provider identifier
@@ -3132,8 +3807,6 @@ type OpenCanvasInstance struct {
 	Input any `json:"input,omitempty"`
 	// Stable caller-supplied canvas instance identifier
 	InstanceID string `json:"instanceId"`
-	// Whether this snapshot came from an idempotent reopen
-	Reopen bool `json:"reopen"`
 	// Provider-supplied status text
 	Status *string `json:"status,omitempty"`
 	// Rendered title
@@ -4485,6 +5158,9 @@ type PluginsReloadRequest struct {
 // Experimental: PluginsUninstallRequest is part of an experimental API and may change or be
 // removed.
 type PluginsUninstallRequest struct {
+	// Stable source identity for a direct (non-marketplace) install. Disambiguates uninstall
+	// when multiple installed plugins share the same name.
+	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Plugin name or "plugin@marketplace" spec to uninstall. When ambiguous, prefer the
 	// fully-qualified spec.
 	Name string `json:"name"`
@@ -4553,6 +5229,29 @@ type PollSpawnedSessionsResult struct {
 	Events []SessionsPollSpawnedSessionsEvent `json:"events"`
 }
 
+// BYOK providers and/or models to add to the session's registry at runtime. Both fields are
+// optional; provide providers, models, or both.
+// Experimental: ProviderAddRequest is part of an experimental API and may change or be
+// removed.
+type ProviderAddRequest struct {
+	// BYOK model definitions to register. Each must reference a provider that is already
+	// registered or included in this same call. Selection ids (`provider/id`) must be unique
+	// across the registry.
+	Models []ProviderModelConfig `json:"models,omitzero"`
+	// Named BYOK provider connections to register, additive to any providers already in the
+	// registry. Each name must be unique across the registry and must not contain '/'.
+	Providers []NamedProviderConfig `json:"providers,omitzero"`
+}
+
+// The selectable model entries synthesized for the models added by this call.
+// Experimental: ProviderAddResult is part of an experimental API and may change or be
+// removed.
+type ProviderAddResult struct {
+	// Synthesized selectable model entries for the newly added BYOK models, each under its
+	// provider-qualified selection id (`provider/id`). Empty when only providers were added.
+	Models []any `json:"models"`
+}
+
 // Custom model-provider configuration (BYOK).
 // Experimental: ProviderConfig is part of an experimental API and may change or be removed.
 type ProviderConfig struct {
@@ -4565,6 +5264,17 @@ type ProviderConfig struct {
 	// Bearer token for authentication. Sets the Authorization header directly. Takes precedence
 	// over apiKey when both are set.
 	BearerToken *string `json:"bearerToken,omitempty"`
+	// When true, the SDK client supplies bearer tokens on demand: the runtime calls the
+	// client-session `providerToken.getToken` callback before each request and applies the
+	// returned token as an `Authorization: Bearer <token>` header. This is the bearer/OAuth
+	// scheme used by Azure AD / managed-identity tokens and provider OAuth access tokens
+	// (including Anthropic's), not a provider-specific API-key header such as Anthropic's
+	// `x-api-key`. The token-acquiring function itself stays on the SDK side and is never
+	// serialized; only this flag crosses the wire. When set alongside `apiKey`/`bearerToken`,
+	// the callback takes precedence: the runtime applies the token returned by
+	// `providerToken.getToken` as the `Authorization: Bearer` header for each request and does
+	// not send the static credential.
+	HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
 	// Custom HTTP headers to include in all outbound requests to the provider.
 	Headers map[string]string `json:"headers,omitzero"`
 	// Maximum context window tokens for the model.
@@ -4576,6 +5286,8 @@ type ProviderConfig struct {
 	// Well-known model ID used for capability lookup. When set, agent behavior config and token
 	// limits are inferred from this model.
 	ModelID *string `json:"modelId,omitempty"`
+	// Provider transport. Defaults to "http".
+	Transport *ProviderConfigTransport `json:"transport,omitempty"`
 	// Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
 	Type *ProviderConfigType `json:"type,omitempty"`
 	// Wire API format (openai/azure only). Defaults to "completions".
@@ -4608,6 +5320,8 @@ type ProviderEndpoint struct {
 	// Short-lived, rotating credential the caller must send on every request, in addition to
 	// `apiKey` if one is present. Omitted when the endpoint does not require one.
 	SessionToken *ProviderSessionToken `json:"sessionToken,omitempty"`
+	// Transport to be used for provider requests.
+	Transport *ProviderEndpointTransport `json:"transport,omitempty"`
 	// Provider family. Matches the `type` field of a BYOK provider config.
 	Type ProviderEndpointType `json:"type"`
 	// Wire API to be used, when required for the provider type.
@@ -4621,6 +5335,32 @@ type ProviderGetEndpointRequest struct {
 	// Model identifier the caller intends to use against the returned endpoint. Used to pick
 	// the correct wire shape. Omit to use whichever model the session is currently using.
 	ModelID *string `json:"modelId,omitempty"`
+}
+
+// A BYOK model definition referencing a named provider.
+// Experimental: ProviderModelConfig is part of an experimental API and may change or be
+// removed.
+type ProviderModelConfig struct {
+	// Optional capability overrides (vision, tool_calls, reasoning, etc.).
+	Capabilities *ModelCapabilitiesOverride `json:"capabilities,omitempty"`
+	// Provider-local model id, unique within its provider. The session-wide selection id (shown
+	// in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+	ID string `json:"id"`
+	// Maximum context window tokens for the model.
+	MaxContextWindowTokens *float64 `json:"maxContextWindowTokens,omitempty"`
+	// Maximum output tokens for the model.
+	MaxOutputTokens *float64 `json:"maxOutputTokens,omitempty"`
+	// Maximum prompt/input tokens for the model.
+	MaxPromptTokens *float64 `json:"maxPromptTokens,omitempty"`
+	// Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+	ModelID *string `json:"modelId,omitempty"`
+	// Display name for model pickers. Defaults to the provider-qualified selection id
+	// (`provider/id`).
+	Name *string `json:"name,omitempty"`
+	// Name of the NamedProviderConfig that serves this model.
+	Provider string `json:"provider"`
+	// The model name sent to the provider API for inference. Defaults to `id`.
+	WireModel *string `json:"wireModel,omitempty"`
 }
 
 // Short-lived, rotating credential the caller must send on every request, in addition to
@@ -4637,6 +5377,29 @@ type ProviderSessionToken struct {
 	// requests against this model.
 	Model *string `json:"model,omitempty"`
 	// The short-lived token value.
+	Token string `json:"token"`
+}
+
+// Asks the SDK client to acquire a bearer token for a BYOK provider whose config set
+// `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request;
+// the runtime does no caching, so this is sent once per request.
+// Experimental: ProviderTokenAcquireRequest is part of an experimental API and may change
+// or be removed.
+type ProviderTokenAcquireRequest struct {
+	// Name of the BYOK provider needing a token. For the legacy whole-session `provider` this
+	// is the implicit provider name; for named providers it is `NamedProviderConfig.name`.
+	ProviderName string `json:"providerName"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as
+// `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK
+// consumer owns token caching and refresh.
+// Experimental: ProviderTokenAcquireResult is part of an experimental API and may change or
+// be removed.
+type ProviderTokenAcquireResult struct {
+	// The bearer token value (without the `Bearer ` prefix).
 	Token string `json:"token"`
 }
 
@@ -4721,6 +5484,85 @@ func (PushAttachmentFile) Type() PushAttachmentType {
 	return PushAttachmentTypeFile
 }
 
+// Pointer to a GitHub Actions job.
+// Experimental: PushAttachmentGitHubActionsJob is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGitHubActionsJob struct {
+	// Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent
+	// for in-progress jobs.
+	Conclusion *string `json:"conclusion,omitempty"`
+	// Job id within the workflow run
+	JobID int64 `json:"jobId"`
+	// Display name of the job
+	JobName string `json:"jobName"`
+	// Repository the workflow run belongs to
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the job on GitHub
+	URL string `json:"url"`
+	// Display name of the workflow the job ran in
+	WorkflowName string `json:"workflowName"`
+}
+
+func (PushAttachmentGitHubActionsJob) pushAttachment() {}
+func (PushAttachmentGitHubActionsJob) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubActionsJob
+}
+
+// Pointer to a GitHub commit.
+// Experimental: PushAttachmentGitHubCommit is part of an experimental API and may change or
+// be removed.
+type PushAttachmentGitHubCommit struct {
+	// First line of the commit message
+	Message string `json:"message"`
+	// Full commit SHA
+	Oid string `json:"oid"`
+	// Repository the commit belongs to
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the commit on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubCommit) pushAttachment() {}
+func (PushAttachmentGitHubCommit) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubCommit
+}
+
+// Pointer to a file in a GitHub repository at a specific ref.
+// Experimental: PushAttachmentGitHubFile is part of an experimental API and may change or
+// be removed.
+type PushAttachmentGitHubFile struct {
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref the file is read at (branch, tag, or commit SHA)
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the file on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubFile) pushAttachment() {}
+func (PushAttachmentGitHubFile) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubFile
+}
+
+// Pointer to a single-file diff. At least one of `head` and `base` must be present.
+// Experimental: PushAttachmentGitHubFileDiff is part of an experimental API and may change
+// or be removed.
+type PushAttachmentGitHubFileDiff struct {
+	// File location on the base side of the diff. Absent for additions.
+	Base *PushAttachmentGitHubFileDiffSide `json:"base,omitempty"`
+	// File location on the head side of the diff. Absent for deletions.
+	Head *PushAttachmentGitHubFileDiffSide `json:"head,omitempty"`
+	// URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL)
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubFileDiff) pushAttachment() {}
+func (PushAttachmentGitHubFileDiff) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubFileDiff
+}
+
 // GitHub issue, pull request, or discussion reference
 // Experimental: PushAttachmentGitHubReference is part of an experimental API and may change
 // or be removed.
@@ -4740,6 +5582,96 @@ type PushAttachmentGitHubReference struct {
 func (PushAttachmentGitHubReference) pushAttachment() {}
 func (PushAttachmentGitHubReference) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubReference
+}
+
+// Pointer to a GitHub release.
+// Experimental: PushAttachmentGitHubRelease is part of an experimental API and may change
+// or be removed.
+type PushAttachmentGitHubRelease struct {
+	// Human-readable release name
+	Name string `json:"name"`
+	// Repository the release belongs to
+	Repo PushGitHubRepoRef `json:"repo"`
+	// Git tag the release is anchored to
+	TagName string `json:"tagName"`
+	// URL to the release on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubRelease) pushAttachment() {}
+func (PushAttachmentGitHubRelease) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubRelease
+}
+
+// Pointer to a GitHub repository.
+// Experimental: PushAttachmentGitHubRepository is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGitHubRepository struct {
+	// Short description of the repository
+	Description *string `json:"description,omitempty"`
+	// Git ref this attachment is anchored at (branch, tag, or commit). When absent the default
+	// branch is implied.
+	Ref *string `json:"ref,omitempty"`
+	// Repository pointer
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the repository on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubRepository) pushAttachment() {}
+func (PushAttachmentGitHubRepository) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubRepository
+}
+
+// Pointer to a line range inside a file in a GitHub repository.
+// Experimental: PushAttachmentGitHubSnippet is part of an experimental API and may change
+// or be removed.
+type PushAttachmentGitHubSnippet struct {
+	// Line range the snippet covers
+	LineRange PushAttachmentFileLineRange `json:"lineRange"`
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref the file is read at (branch, tag, or commit SHA)
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo PushGitHubRepoRef `json:"repo"`
+	// URL to the snippet on GitHub (with line anchor)
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubSnippet) pushAttachment() {}
+func (PushAttachmentGitHubSnippet) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubSnippet
+}
+
+// Pointer to a comparison between two git revisions.
+// Experimental: PushAttachmentGitHubTreeComparison is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGitHubTreeComparison struct {
+	// Base side of the comparison
+	Base PushAttachmentGitHubTreeComparisonSide `json:"base"`
+	// Head side of the comparison
+	Head PushAttachmentGitHubTreeComparisonSide `json:"head"`
+	// URL to the comparison on GitHub
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubTreeComparison) pushAttachment() {}
+func (PushAttachmentGitHubTreeComparison) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubTreeComparison
+}
+
+// Generic GitHub URL reference.
+// Experimental: PushAttachmentGitHubURL is part of an experimental API and may change or be
+// removed.
+type PushAttachmentGitHubURL struct {
+	// URL to the GitHub resource
+	URL string `json:"url"`
+}
+
+func (PushAttachmentGitHubURL) pushAttachment() {}
+func (PushAttachmentGitHubURL) Type() PushAttachmentType {
+	return PushAttachmentTypeGitHubURL
 }
 
 // Code selection attachment from an editor
@@ -4771,6 +5703,28 @@ type PushAttachmentFileLineRange struct {
 	Start int64 `json:"start"`
 }
 
+// One side of a file diff (head or base)
+// Experimental: PushAttachmentGitHubFileDiffSide is part of an experimental API and may
+// change or be removed.
+type PushAttachmentGitHubFileDiffSide struct {
+	// Repository-relative path to the file
+	Path string `json:"path"`
+	// Git ref (branch, tag, or commit SHA) the file is read at
+	Ref string `json:"ref"`
+	// Repository the file lives in
+	Repo PushGitHubRepoRef `json:"repo"`
+}
+
+// One side of a tree comparison (head or base)
+// Experimental: PushAttachmentGitHubTreeComparisonSide is part of an experimental API and
+// may change or be removed.
+type PushAttachmentGitHubTreeComparisonSide struct {
+	// Repository the revision belongs to
+	Repo PushGitHubRepoRef `json:"repo"`
+	// Git revision (branch, tag, or commit SHA)
+	Revision string `json:"revision"`
+}
+
 // Position range of the selection within the file
 // Experimental: PushAttachmentSelectionDetails is part of an experimental API and may
 // change or be removed.
@@ -4799,6 +5753,18 @@ type PushAttachmentSelectionDetailsStart struct {
 	Character int64 `json:"character"`
 	// Start line number (0-based)
 	Line int64 `json:"line"`
+}
+
+// Pointer to a GitHub repository.
+// Experimental: PushGitHubRepoRef is part of an experimental API and may change or be
+// removed.
+type PushGitHubRepoRef struct {
+	// Numeric GitHub repository id
+	ID *int64 `json:"id,omitempty"`
+	// Repository name (without owner)
+	Name string `json:"name"`
+	// Repository owner login (user or organization)
+	Owner string `json:"owner"`
 }
 
 // Result of the queued command execution.
@@ -5148,6 +6114,16 @@ type RemoteSessionRepository struct {
 	Owner string `json:"owner"`
 }
 
+// Optional response budget limits.
+// Experimental: ResponseBudgetConfig is part of an experimental API and may change or be
+// removed.
+type ResponseBudgetConfig struct {
+	// Maximum AI Credits allowed while responding to one top-level user message.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+	// Maximum model-call iterations allowed while responding to one top-level user message.
+	MaxModelIterations *int64 `json:"maxModelIterations,omitempty"`
+}
+
 type RuntimeShutdownResult struct {
 }
 
@@ -5156,9 +6132,6 @@ type RuntimeShutdownResult struct {
 type SandboxConfig struct {
 	// Whether to auto-add the current working directory to readwritePaths. Default: true.
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
-	// Raw `ContainerConfig` (per `@microsoft/mxc-sdk`) passed directly to
-	// `spawnSandboxFromConfig`, bypassing policy merging.
-	Config map[string]any `json:"config,omitzero"`
 	// Whether sandboxing is enabled for the session.
 	Enabled bool `json:"enabled"`
 	// User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -5169,12 +6142,15 @@ type SandboxConfig struct {
 // Experimental: SandboxConfigUserPolicy is part of an experimental API and may change or be
 // removed.
 type SandboxConfigUserPolicy struct {
-	// Platform-specific experimental policy fields.
+	// Deprecated legacy location for `seatbelt`; read only when the top-level `seatbelt` is
+	// absent.
 	Experimental *SandboxConfigUserPolicyExperimental `json:"experimental,omitempty"`
 	// Filesystem rules to merge into the base policy.
 	Filesystem *SandboxConfigUserPolicyFilesystem `json:"filesystem,omitempty"`
 	// Network rules to merge into the base policy.
 	Network *SandboxConfigUserPolicyNetwork `json:"network,omitempty"`
+	// macOS seatbelt options to merge into the base policy.
+	Seatbelt *SandboxConfigUserPolicySeatbelt `json:"seatbelt,omitempty"`
 }
 
 // Platform-specific experimental policy fields.
@@ -5221,6 +6197,14 @@ type SandboxConfigUserPolicyNetwork struct {
 	BlockedHosts []string `json:"blockedHosts,omitzero"`
 }
 
+// macOS seatbelt-specific options.
+// Experimental: SandboxConfigUserPolicySeatbelt is part of an experimental API and may
+// change or be removed.
+type SandboxConfigUserPolicySeatbelt struct {
+	// Whether the macOS seatbelt profile may access the keychain.
+	KeychainAccess *bool `json:"keychainAccess,omitempty"`
+}
+
 // Schema for the `ScheduleEntry` type.
 // Experimental: ScheduleEntry is part of an experimental API and may change or be removed.
 type ScheduleEntry struct {
@@ -5242,6 +6226,9 @@ type ScheduleEntry struct {
 	Prompt string `json:"prompt"`
 	// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`).
 	Recurring bool `json:"recurring"`
+	// True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next
+	// run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled.
+	SelfPaced *bool `json:"selfPaced,omitempty"`
 	// IANA timezone the `cron` expression is evaluated in.
 	Tz *string `json:"tz,omitempty"`
 }
@@ -5364,6 +6351,9 @@ type ServerInstructionSourceList struct {
 
 // Schema for the `ServerSkill` type.
 type ServerSkill struct {
+	// Optional freeform hint describing the skill's expected arguments, from the
+	// `argument-hint` frontmatter field
+	ArgumentHint *string `json:"argumentHint,omitempty"`
 	// Description of what the skill does
 	Description string `json:"description"`
 	// Whether the skill is currently enabled (based on global config)
@@ -6030,7 +7020,9 @@ type SessionMetadataSnapshot struct {
 // Experimental: SessionModelList is part of an experimental API and may change or be
 // removed.
 type SessionModelList struct {
-	// Available models, ordered with the most preferred default first.
+	// Available models, ordered with the most preferred default first. Includes both Copilot
+	// (CAPI) models and any registry BYOK models; a BYOK model appears under its
+	// provider-qualified selection id (`provider/id`).
 	List []any `json:"list"`
 	// Per-quota snapshots returned alongside the model list, keyed by quota type.
 	QuotaSnapshots map[string]any `json:"quotaSnapshots,omitzero"`
@@ -6056,12 +7048,17 @@ type SessionOpenOptions struct {
 	AdditionalContentExclusionPolicies []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 	// Runtime context discriminator for agent filtering.
 	AgentContext *string `json:"agentContext,omitempty"`
+	// Whether to include instructions from every MCP server in the system prompt instead of
+	// only allowlisted servers.
+	AllowAllMCPServerInstructions *bool `json:"allowAllMcpServerInstructions,omitempty"`
 	// Whether ask_user is explicitly disabled.
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// Initial authentication info for the session.
 	AuthInfo AuthInfo `json:"authInfo,omitempty"`
 	// Allowlist of available tool names.
 	AvailableTools []string `json:"availableTools,omitzero"`
+	// Options scoped to the built-in CAPI (Copilot API) provider.
+	Capi *CapiSessionOptions `json:"capi,omitempty"`
 	// Structured client kind used for runtime behavior gates.
 	ClientKind *string `json:"clientKind,omitempty"`
 	// Identifier of the client driving the session.
@@ -6084,6 +7081,11 @@ type SessionOpenOptions struct {
 	DisabledInstructionSources []string `json:"disabledInstructionSources,omitzero"`
 	// Skill IDs disabled for this session.
 	DisabledSkills []string `json:"disabledSkills,omitzero"`
+	// Experimental: enable native model citations (Anthropic models today), normalized onto the
+	// `assistant.message` event. Off by default; may change or be removed while the citations
+	// surface is experimental.
+	// Experimental: EnableCitations is part of an experimental API and may change or be removed.
+	EnableCitations *bool `json:"enableCitations,omitempty"`
 	// Whether on-demand custom instruction discovery is enabled.
 	EnableOnDemandInstructionDiscovery *bool `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	// Whether shell-script safety heuristics are enabled.
@@ -6115,16 +7117,27 @@ type SessionOpenOptions struct {
 	LogInteractiveShells *bool `json:"logInteractiveShells,omitempty"`
 	// Identifier sent to LSP-style integrations.
 	LspClientName *string `json:"lspClientName,omitempty"`
+	// Maximum decoded byte size of a single inline model-facing binary tool result persisted in
+	// session events (default 10 MB).
+	MaxInlineBinaryBytes *int64 `json:"maxInlineBinaryBytes,omitempty"`
 	// Memory configuration for this session.
 	Memory *MemoryConfiguration `json:"memory,omitempty"`
 	// Initial model identifier.
 	Model *string `json:"model,omitempty"`
 	// Initial model capability overrides.
 	ModelCapabilitiesOverrides *ModelCapabilitiesOverride `json:"modelCapabilitiesOverrides,omitempty"`
+	// BYOK model definitions added to the selectable model list, each referencing a provider
+	// name.
+	// Experimental: Models is part of an experimental API and may change or be removed.
+	Models []ProviderModelConfig `json:"models,omitzero"`
 	// Optional human-friendly session name.
 	Name *string `json:"name,omitempty"`
 	// Custom model-provider configuration (BYOK).
 	Provider *ProviderConfig `json:"provider,omitempty"`
+	// Named BYOK provider connections, additive to CAPI auth. Combining with `provider` is
+	// rejected.
+	// Experimental: Providers is part of an experimental API and may change or be removed.
+	Providers []NamedProviderConfig `json:"providers,omitzero"`
 	// Initial reasoning effort level.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Initial reasoning summary mode for supported model clients.
@@ -6135,6 +7148,8 @@ type SessionOpenOptions struct {
 	RemoteExporting *bool `json:"remoteExporting,omitempty"`
 	// Whether this session supports remote steering.
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
+	// Initial response budget limits for the session.
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Whether the host is an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -6469,10 +7484,14 @@ type SessionsEnrichMetadataRequest struct {
 // or be removed.
 type SessionSetCredentialsParams struct {
 	// The new auth credentials to install on the session. When omitted or `undefined`, the call
-	// is a no-op and the session's existing credentials are preserved. The runtime stores the
-	// value verbatim and uses it for outbound model/API requests; it does NOT re-validate or
-	// re-fetch the associated Copilot user response. Several variants carry secret material;
-	// treat this method's params as containing secrets at rest and in transit.
+	// is a no-op and the session's existing credentials are preserved. The runtime installs the
+	// supplied value immediately for outbound model/API requests. When the credential carries a
+	// raw token (`token`, `env`, or `gh-cli`) but no `copilotUser`, the runtime additionally
+	// re-resolves `copilotUser` server-side (best-effort, asynchronously, after the synchronous
+	// install) so plan/quota/billing metadata regains fidelity; on resolution failure the
+	// verbatim credential remains installed. It does NOT otherwise validate the credential.
+	// Several variants carry secret material; treat this method's params as containing secrets
+	// at rest and in transit.
 	Credentials AuthInfo `json:"credentials,omitempty"`
 }
 
@@ -6480,6 +7499,15 @@ type SessionSetCredentialsParams struct {
 // Experimental: SessionSetCredentialsResult is part of an experimental API and may change
 // or be removed.
 type SessionSetCredentialsResult struct {
+	// Whether the session ended up with a populated `copilotUser` for the installed
+	// credentials. `true` when the supplied credential already carried `copilotUser` or it was
+	// successfully re-resolved server-side. `false` when the credential is installed without
+	// `copilotUser` — either re-resolution failed, or the variant cannot be re-resolved from
+	// the credential alone (only the raw-token variants `token`, `env`, and `gh-cli` can). In
+	// both `false` cases the token swap still applied, but plan/quota/billing metadata is
+	// degraded. Present whenever a credential was supplied; omitted only when no credential was
+	// supplied (no-op call).
+	CopilotUserResolved *bool `json:"copilotUserResolved,omitempty"`
 	// Whether the operation succeeded
 	Success bool `json:"success"`
 }
@@ -6857,10 +7885,15 @@ type SessionUpdateOptionsParams struct {
 	AdditionalContentExclusionPolicies []OptionsUpdateAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 	// Runtime context discriminator (e.g., `cli`, `actions`).
 	AgentContext *string `json:"agentContext,omitempty"`
+	// Whether to include instructions from every MCP server in the system prompt instead of
+	// only allowlisted servers.
+	AllowAllMCPServerInstructions *bool `json:"allowAllMcpServerInstructions,omitempty"`
 	// Whether to disable the `ask_user` tool (encourages autonomous behavior).
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// Allowlist of tool names available to this session.
 	AvailableTools []string `json:"availableTools,omitzero"`
+	// Options scoped to the built-in CAPI (Copilot API) provider.
+	Capi *CapiSessionOptions `json:"capi,omitempty"`
 	// Identifier of the client driving the session.
 	ClientName *string `json:"clientName,omitempty"`
 	// Whether to include the `Co-authored-by` trailer in commit messages.
@@ -6925,6 +7958,11 @@ type SessionUpdateOptionsParams struct {
 	// per-session schedule registry; this flag only controls tool exposure (typically gated to
 	// staff users).
 	ManageScheduleEnabled *bool `json:"manageScheduleEnabled,omitempty"`
+	// Maximum decoded byte size of a single model-facing binary tool result (e.g. an image)
+	// persisted inline in session events and re-presented to the model on later turns / resume.
+	// Larger results are persisted as a metadata-only marker and shown to the model as a short
+	// text note. Defaults to 10 MB.
+	MaxInlineBinaryBytes *int64 `json:"maxInlineBinaryBytes,omitempty"`
 	// The model ID to use for assistant turns.
 	Model *string `json:"model,omitempty"`
 	// Per-property model capability overrides for the selected model.
@@ -6937,6 +7975,8 @@ type SessionUpdateOptionsParams struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode for supported model clients.
 	ReasoningSummary *OptionsUpdateReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Optional response budget limits. Pass null to clear the response budget.
+	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Whether the session is running in an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -7074,6 +8114,9 @@ type ShutdownRequest struct {
 // Schema for the `Skill` type.
 // Experimental: Skill is part of an experimental API and may change or be removed.
 type Skill struct {
+	// Optional freeform hint describing the skill's expected arguments, from the
+	// `argument-hint` frontmatter field
+	ArgumentHint *string `json:"argumentHint,omitempty"`
 	// Description of what the skill does
 	Description string `json:"description"`
 	// Whether the skill is currently enabled
@@ -7088,6 +8131,30 @@ type Skill struct {
 	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`
+}
+
+// Schema for the `SkillDiscoveryPath` type.
+// Experimental: SkillDiscoveryPath is part of an experimental API and may change or be
+// removed.
+type SkillDiscoveryPath struct {
+	// Absolute path of the create/discovery target (may not exist on disk yet)
+	Path string `json:"path"`
+	// Whether this is the canonical directory to create a new skill in its tier. At most one
+	// entry per tier is preferred; the `personal-agents` and `custom` scopes are never
+	// preferred.
+	PreferredForCreation bool `json:"preferredForCreation"`
+	// The input project path this directory was derived from (only for project scope)
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Which tier this directory belongs to
+	Scope SkillDiscoveryScope `json:"scope"`
+}
+
+// Canonical locations where skills can be created so the runtime will recognize them.
+// Experimental: SkillDiscoveryPathList is part of an experimental API and may change or be
+// removed.
+type SkillDiscoveryPathList struct {
+	// Canonical skill create/discovery directories, in priority order
+	Paths []SkillDiscoveryPath `json:"paths"`
 }
 
 // Skills available to the session, with their enabled state.
@@ -7116,6 +8183,9 @@ type SkillsDisableRequest struct {
 
 // Optional project paths and additional skill directories to include in discovery.
 type SkillsDiscoverRequest struct {
+	// When true, omit skills from the host's global sources (personal, custom, plugin, and
+	// built-in), returning only project-scoped skills. For multitenant deployments.
+	ExcludeHostSkills *bool `json:"excludeHostSkills,omitempty"`
 	// Optional list of project directory paths to scan for project-scoped skills
 	ProjectPaths []string `json:"projectPaths,omitzero"`
 	// Optional list of additional skill directory paths to include
@@ -7128,6 +8198,18 @@ type SkillsDiscoverRequest struct {
 type SkillsEnableRequest struct {
 	// Name of the skill to enable
 	Name string `json:"name"`
+}
+
+// Optional project paths to enumerate.
+// Experimental: SkillsGetDiscoveryPathsRequest is part of an experimental API and may
+// change or be removed.
+type SkillsGetDiscoveryPathsRequest struct {
+	// When true, omit the host's personal and custom skill directories, leaving only project
+	// directories. For multitenant deployments.
+	ExcludeHostSkills *bool `json:"excludeHostSkills,omitempty"`
+	// Optional list of project directory paths. When omitted or empty, only personal and custom
+	// directories are returned.
+	ProjectPaths []string `json:"projectPaths,omitzero"`
 }
 
 // Skills invoked during this session, ordered by invocation time (most recent last).
@@ -7205,8 +8287,8 @@ type SlashCommandInput struct {
 	Required *bool `json:"required,omitempty"`
 }
 
-// Result of invoking the slash command (text output, prompt to send to the agent, or
-// completion).
+// Result of invoking the slash command (text output, prompt to send to the agent,
+// completion, or subcommand selection).
 // Experimental: SlashCommandInvocationResult is part of an experimental API and may change
 // or be removed.
 type SlashCommandInvocationResult interface {
@@ -7320,6 +8402,11 @@ type SubagentSettings struct {
 	Agents map[string]SubagentSettingsEntry `json:"agents,omitzero"`
 	// Names of subagents the user has turned off; they cannot be dispatched
 	DisabledSubagents []string `json:"disabledSubagents,omitzero"`
+	// Maximum number of subagents that can run concurrently; applies to usage-based billing
+	// users only
+	MaxConcurrency *int32 `json:"maxConcurrency,omitempty"`
+	// Maximum subagent nesting depth; applies to usage-based billing users only
+	MaxDepth *int32 `json:"maxDepth,omitempty"`
 }
 
 // Subagent model, reasoning effort, and context tier settings
@@ -8594,6 +9681,18 @@ const (
 	AbortReasonUserInitiated AbortReason = "user_initiated"
 )
 
+// Which tier this directory belongs to
+// Experimental: AgentDiscoveryPathScope is part of an experimental API and may change or be
+// removed.
+type AgentDiscoveryPathScope string
+
+const (
+	// A project's repository agent directory.
+	AgentDiscoveryPathScopeProject AgentDiscoveryPathScope = "project"
+	// The user's personal agent configuration directory.
+	AgentDiscoveryPathScopeUser AgentDiscoveryPathScope = "user"
+)
+
 // Where the agent definition was loaded from
 // Experimental: AgentInfoSource is part of an experimental API and may change or be removed.
 type AgentInfoSource string
@@ -8768,12 +9867,21 @@ const (
 type AttachmentType string
 
 const (
-	AttachmentTypeBlob             AttachmentType = "blob"
-	AttachmentTypeDirectory        AttachmentType = "directory"
-	AttachmentTypeExtensionContext AttachmentType = "extension_context"
-	AttachmentTypeFile             AttachmentType = "file"
-	AttachmentTypeGitHubReference  AttachmentType = "github_reference"
-	AttachmentTypeSelection        AttachmentType = "selection"
+	AttachmentTypeBlob                 AttachmentType = "blob"
+	AttachmentTypeDirectory            AttachmentType = "directory"
+	AttachmentTypeExtensionContext     AttachmentType = "extension_context"
+	AttachmentTypeFile                 AttachmentType = "file"
+	AttachmentTypeGitHubActionsJob     AttachmentType = "github_actions_job"
+	AttachmentTypeGitHubCommit         AttachmentType = "github_commit"
+	AttachmentTypeGitHubFile           AttachmentType = "github_file"
+	AttachmentTypeGitHubFileDiff       AttachmentType = "github_file_diff"
+	AttachmentTypeGitHubReference      AttachmentType = "github_reference"
+	AttachmentTypeGitHubRelease        AttachmentType = "github_release"
+	AttachmentTypeGitHubRepository     AttachmentType = "github_repository"
+	AttachmentTypeGitHubSnippet        AttachmentType = "github_snippet"
+	AttachmentTypeGitHubTreeComparison AttachmentType = "github_tree_comparison"
+	AttachmentTypeGitHubURL            AttachmentType = "github_url"
+	AttachmentTypeSelection            AttachmentType = "selection"
 )
 
 // Type discriminator for AuthInfo.
@@ -8788,20 +9896,6 @@ const (
 	AuthInfoTypeHMAC            AuthInfoType = "hmac"
 	AuthInfoTypeToken           AuthInfoType = "token"
 	AuthInfoTypeUser            AuthInfoType = "user"
-)
-
-// Runtime-controlled routing state for an open canvas instance.
-// Experimental: CanvasInstanceAvailability is part of an experimental API and may change or
-// be removed.
-type CanvasInstanceAvailability string
-
-const (
-	// The owning provider is currently connected and routing calls will be dispatched normally.
-	CanvasInstanceAvailabilityReady CanvasInstanceAvailability = "ready"
-	// The owning provider is not currently connected. Routing calls fail with
-	// canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a
-	// fresh canvas.open) or the provider reconnects.
-	CanvasInstanceAvailabilityStale CanvasInstanceAvailability = "stale"
 )
 
 // Neutral SDK discriminator for the connected remote session kind.
@@ -8994,6 +10088,34 @@ const (
 	InstalledPluginSourceURLSourceURL InstalledPluginSourceURLSource = "url"
 )
 
+// Whether the target is a single file or a directory of instruction files
+// Experimental: InstructionDiscoveryPathKind is part of an experimental API and may change
+// or be removed.
+type InstructionDiscoveryPathKind string
+
+const (
+	// The target is a directory that holds instruction files.
+	InstructionDiscoveryPathKindDirectory InstructionDiscoveryPathKind = "directory"
+	// The target is a single instruction file.
+	InstructionDiscoveryPathKindFile InstructionDiscoveryPathKind = "file"
+)
+
+// Which tier this target belongs to
+// Experimental: InstructionDiscoveryPathLocation is part of an experimental API and may
+// change or be removed.
+type InstructionDiscoveryPathLocation string
+
+const (
+	// Instructions live in plugin-provided configuration.
+	InstructionDiscoveryPathLocationPlugin InstructionDiscoveryPathLocation = "plugin"
+	// Instructions live in repository-level configuration.
+	InstructionDiscoveryPathLocationRepository InstructionDiscoveryPathLocation = "repository"
+	// Instructions live in user-level configuration.
+	InstructionDiscoveryPathLocationUser InstructionDiscoveryPathLocation = "user"
+	// Instructions live under the current working directory.
+	InstructionDiscoveryPathLocationWorkingDirectory InstructionDiscoveryPathLocation = "working-directory"
+)
+
 // Where this source lives — used for UI grouping
 // Experimental: InstructionSourceLocation is part of an experimental API and may change or
 // be removed.
@@ -9030,6 +10152,24 @@ const (
 	InstructionSourceTypeRepo InstructionSourceType = "repo"
 	// Instructions loaded from VS Code instruction files.
 	InstructionSourceTypeVscode InstructionSourceType = "vscode"
+)
+
+// Transport the runtime would otherwise use for this request. `http` (the default when
+// absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message
+// channel where each body chunk maps to one WebSocket message and the `binary` flag
+// distinguishes text from binary frames. The SDK consumer uses this to decide whether to
+// service the request with an HTTP client or a WebSocket client. It is the one piece of
+// request metadata the consumer cannot reliably infer from the URL or headers alone.
+type LlmInferenceHTTPRequestStartTransport string
+
+const (
+	// Plain HTTP or SSE response. Each body chunk is an opaque byte range; the response is a
+	// status line, headers, and a (possibly streamed) body.
+	LlmInferenceHTTPRequestStartTransportHTTP LlmInferenceHTTPRequestStartTransport = "http"
+	// Full-duplex WebSocket channel. Each body chunk maps to exactly one WebSocket message and
+	// the `binary` flag distinguishes text from binary frames; request and response chunks flow
+	// concurrently.
+	LlmInferenceHTTPRequestStartTransportWebsocket LlmInferenceHTTPRequestStartTransport = "websocket"
 )
 
 // Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.
@@ -9138,6 +10278,35 @@ const (
 	MCPAppsSetHostContextDetailsThemeDark MCPAppsSetHostContextDetailsTheme = "dark"
 	// Light UI theme
 	MCPAppsSetHostContextDetailsThemeLight MCPAppsSetHostContextDetailsTheme = "light"
+)
+
+// Kind discriminator for MCPHeadersHandlePendingHeadersRefreshRequest.
+type MCPHeadersHandlePendingHeadersRefreshRequestKind string
+
+const (
+	MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders MCPHeadersHandlePendingHeadersRefreshRequestKind = "headers"
+	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
+)
+
+// OAuth grant type override for this login.
+// Experimental: MCPOauthLoginGrantType is part of an experimental API and may change or be
+// removed.
+type MCPOauthLoginGrantType string
+
+const (
+	// Interactive browser-based OAuth flow using an authorization code, typically with PKCE.
+	MCPOauthLoginGrantTypeAuthorizationCode MCPOauthLoginGrantType = "authorization_code"
+	// Headless OAuth flow where a confidential client authenticates directly with a client
+	// secret.
+	MCPOauthLoginGrantTypeClientCredentials MCPOauthLoginGrantType = "client_credentials"
+)
+
+// Kind discriminator for MCPOauthPendingRequestResponse.
+type MCPOauthPendingRequestResponseKind string
+
+const (
+	MCPOauthPendingRequestResponseKindCancelled MCPOauthPendingRequestResponseKind = "cancelled"
+	MCPOauthPendingRequestResponseKindToken     MCPOauthPendingRequestResponseKind = "token"
 )
 
 // Outcome of the sampling inference. 'success' produced a response; 'failure' encountered
@@ -9299,6 +10468,19 @@ const (
 	ModelPolicyStateEnabled ModelPolicyState = "enabled"
 	// No explicit policy is configured for the model.
 	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
+)
+
+// Why the binary data is absent: it exceeded the inline size limit, or its asset was
+// unavailable
+// Experimental: OmittedBinaryOmittedReason is part of an experimental API and may change or
+// be removed.
+type OmittedBinaryOmittedReason string
+
+const (
+	// The referenced binary asset could not be found (e.g. a truncated log).
+	OmittedBinaryOmittedReasonAssetUnavailable OmittedBinaryOmittedReason = "asset_unavailable"
+	// Bytes exceeded the session's inline size limit.
+	OmittedBinaryOmittedReasonTooLarge OmittedBinaryOmittedReason = "too_large"
 )
 
 // Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
@@ -9507,6 +10689,18 @@ const (
 	PermissionsSetApproveAllSourceSlashCommand PermissionsSetApproveAllSource = "slash_command"
 )
 
+// Provider transport. Defaults to "http".
+// Experimental: ProviderConfigTransport is part of an experimental API and may change or be
+// removed.
+type ProviderConfigTransport string
+
+const (
+	// HTTP request/streaming transport.
+	ProviderConfigTransportHTTP ProviderConfigTransport = "http"
+	// WebSocket transport.
+	ProviderConfigTransportWebsockets ProviderConfigTransport = "websockets"
+)
+
 // Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
 // Experimental: ProviderConfigType is part of an experimental API and may change or be
 // removed.
@@ -9531,6 +10725,18 @@ const (
 	ProviderConfigWireAPICompletions ProviderConfigWireAPI = "completions"
 	// OpenAI Responses API wire format.
 	ProviderConfigWireAPIResponses ProviderConfigWireAPI = "responses"
+)
+
+// Transport to be used for provider requests.
+// Experimental: ProviderEndpointTransport is part of an experimental API and may change or
+// be removed.
+type ProviderEndpointTransport string
+
+const (
+	// HTTP request/streaming transport.
+	ProviderEndpointTransportHTTP ProviderEndpointTransport = "http"
+	// WebSocket transport.
+	ProviderEndpointTransportWebsockets ProviderEndpointTransport = "websockets"
 )
 
 // Provider family. Matches the `type` field of a BYOK provider config.
@@ -9577,12 +10783,21 @@ const (
 type PushAttachmentType string
 
 const (
-	PushAttachmentTypeBlob             PushAttachmentType = "blob"
-	PushAttachmentTypeDirectory        PushAttachmentType = "directory"
-	PushAttachmentTypeExtensionContext PushAttachmentType = "extension_context"
-	PushAttachmentTypeFile             PushAttachmentType = "file"
-	PushAttachmentTypeGitHubReference  PushAttachmentType = "github_reference"
-	PushAttachmentTypeSelection        PushAttachmentType = "selection"
+	PushAttachmentTypeBlob                 PushAttachmentType = "blob"
+	PushAttachmentTypeDirectory            PushAttachmentType = "directory"
+	PushAttachmentTypeExtensionContext     PushAttachmentType = "extension_context"
+	PushAttachmentTypeFile                 PushAttachmentType = "file"
+	PushAttachmentTypeGitHubActionsJob     PushAttachmentType = "github_actions_job"
+	PushAttachmentTypeGitHubCommit         PushAttachmentType = "github_commit"
+	PushAttachmentTypeGitHubFile           PushAttachmentType = "github_file"
+	PushAttachmentTypeGitHubFileDiff       PushAttachmentType = "github_file_diff"
+	PushAttachmentTypeGitHubReference      PushAttachmentType = "github_reference"
+	PushAttachmentTypeGitHubRelease        PushAttachmentType = "github_release"
+	PushAttachmentTypeGitHubRepository     PushAttachmentType = "github_repository"
+	PushAttachmentTypeGitHubSnippet        PushAttachmentType = "github_snippet"
+	PushAttachmentTypeGitHubTreeComparison PushAttachmentType = "github_tree_comparison"
+	PushAttachmentTypeGitHubURL            PushAttachmentType = "github_url"
+	PushAttachmentTypeSelection            PushAttachmentType = "selection"
 )
 
 // Whether this item is a queued user message or a queued slash command / model change
@@ -9979,6 +11194,22 @@ const (
 	ShutdownTypeRoutine ShutdownType = "routine"
 )
 
+// Which tier this directory belongs to
+// Experimental: SkillDiscoveryScope is part of an experimental API and may change or be
+// removed.
+type SkillDiscoveryScope string
+
+const (
+	// A configured custom skill directory.
+	SkillDiscoveryScopeCustom SkillDiscoveryScope = "custom"
+	// The user's personal agents skill directory.
+	SkillDiscoveryScopePersonalAgents SkillDiscoveryScope = "personal-agents"
+	// The user's personal Copilot skill directory.
+	SkillDiscoveryScopePersonalCopilot SkillDiscoveryScope = "personal-copilot"
+	// A project's repository skill directory.
+	SkillDiscoveryScopeProject SkillDiscoveryScope = "project"
+)
+
 // Source location type (e.g., project, personal-copilot, plugin, builtin)
 type SkillSource string
 
@@ -10243,6 +11474,9 @@ type WorkspaceDiffMode string
 const (
 	// Return changes compared with the default branch.
 	WorkspaceDiffModeBranch WorkspaceDiffMode = "branch"
+	// Return the cumulative diff of files Copilot changed this session (used in non-git
+	// workspaces).
+	WorkspaceDiffModeSession WorkspaceDiffMode = "session"
 	// Return staged, unstaged, and untracked working tree changes.
 	WorkspaceDiffModeUnstaged WorkspaceDiffMode = "unstaged"
 )
@@ -10277,6 +11511,41 @@ type serverAPI struct {
 
 type ServerAccountAPI serverAPI
 
+// GetAllUsers gets all authenticated users available for account switching.
+//
+// RPC method: account.getAllUsers.
+//
+// Returns: List of all authenticated users
+func (a *ServerAccountAPI) GetAllUsers(ctx context.Context) (*AccountGetAllUsersResult, error) {
+	raw, err := a.client.Request(ctx, "account.getAllUsers", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountGetAllUsersResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetCurrentAuth gets the currently active authentication credentials from the global auth
+// manager.
+//
+// RPC method: account.getCurrentAuth.
+//
+// Returns: Current authentication state
+func (a *ServerAccountAPI) GetCurrentAuth(ctx context.Context) (*AccountGetCurrentAuthResult, error) {
+	raw, err := a.client.Request(ctx, "account.getCurrentAuth", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountGetCurrentAuthResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetQuota gets Copilot quota usage for the authenticated user or supplied GitHub token.
 //
 // RPC method: account.getQuota.
@@ -10291,6 +11560,44 @@ func (a *ServerAccountAPI) GetQuota(ctx context.Context, params *AccountGetQuota
 		return nil, err
 	}
 	var result AccountGetQuotaResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Login stores authentication credentials after successful login (e.g., device code flow).
+//
+// RPC method: account.login.
+//
+// Parameters: Credentials to store after successful authentication
+//
+// Returns: Result of a successful login; throws on failure
+func (a *ServerAccountAPI) Login(ctx context.Context, params *AccountLoginRequest) (*AccountLoginResult, error) {
+	raw, err := a.client.Request(ctx, "account.login", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountLoginResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Logout removes user authentication from keychain and persisted state.
+//
+// RPC method: account.logout.
+//
+// Parameters: User to log out
+//
+// Returns: Logout result indicating if more users remain
+func (a *ServerAccountAPI) Logout(ctx context.Context, params *AccountLogoutRequest) (*AccountLogoutResult, error) {
+	raw, err := a.client.Request(ctx, "account.logout", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountLogoutResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -10345,6 +11652,29 @@ func (a *ServerAgentsAPI) Discover(ctx context.Context, params *AgentsDiscoverRe
 	return &result, nil
 }
 
+// GetDiscoveryPaths returns the canonical directories where a client may create custom
+// agents that the runtime will recognize, including ones that do not exist yet. Project
+// directories become active once created.
+//
+// RPC method: agents.getDiscoveryPaths.
+//
+// Parameters: Optional project paths to include when enumerating agent discovery
+// directories.
+//
+// Returns: Canonical locations where custom agents can be created so the runtime will
+// recognize them.
+func (a *ServerAgentsAPI) GetDiscoveryPaths(ctx context.Context, params *AgentsGetDiscoveryPathsRequest) (*AgentDiscoveryPathList, error) {
+	raw, err := a.client.Request(ctx, "agents.getDiscoveryPaths", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AgentDiscoveryPathList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerInstructionsAPI contains experimental APIs that may change or be
 // removed.
 type ServerInstructionsAPI serverAPI
@@ -10362,6 +11692,94 @@ func (a *ServerInstructionsAPI) Discover(ctx context.Context, params *Instructio
 		return nil, err
 	}
 	var result ServerInstructionSourceList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetDiscoveryPaths returns the canonical files and directories where a client may create
+// custom instructions that the runtime will recognize, including ones that do not exist
+// yet. Repository targets become active once created.
+//
+// RPC method: instructions.getDiscoveryPaths.
+//
+// Parameters: Optional project paths to include when enumerating instruction discovery
+// targets.
+//
+// Returns: Canonical files and directories where custom instructions can be created so the
+// runtime will recognize them.
+func (a *ServerInstructionsAPI) GetDiscoveryPaths(ctx context.Context, params *InstructionsGetDiscoveryPathsRequest) (*InstructionDiscoveryPathList, error) {
+	raw, err := a.client.Request(ctx, "instructions.getDiscoveryPaths", params)
+	if err != nil {
+		return nil, err
+	}
+	var result InstructionDiscoveryPathList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerLlmInferenceAPI contains experimental APIs that may change or be
+// removed.
+type ServerLlmInferenceAPI serverAPI
+
+// HttpResponseChunk delivers a body byte range (or a terminal transport error) for an
+// in-flight response, correlated by requestId. Set `end` true on the last chunk. When
+// `error` is set the response terminates with a transport-level failure and the runtime
+// raises an APIConnectionError.
+//
+// RPC method: llmInference.httpResponseChunk.
+//
+// Parameters: A response body chunk or terminal error.
+//
+// Returns: Whether the chunk was accepted.
+func (a *ServerLlmInferenceAPI) HttpResponseChunk(ctx context.Context, params *LlmInferenceHTTPResponseChunkRequest) (*LlmInferenceHTTPResponseChunkResult, error) {
+	raw, err := a.client.Request(ctx, "llmInference.httpResponseChunk", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LlmInferenceHTTPResponseChunkResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// HttpResponseStart delivers the response head (status + headers) for an in-flight request,
+// correlated by the requestId the runtime supplied in httpRequestStart. Must be called
+// exactly once per request before any httpResponseChunk frames.
+//
+// RPC method: llmInference.httpResponseStart.
+//
+// Parameters: Response head.
+//
+// Returns: Whether the start frame was accepted.
+func (a *ServerLlmInferenceAPI) HttpResponseStart(ctx context.Context, params *LlmInferenceHTTPResponseStartRequest) (*LlmInferenceHTTPResponseStartResult, error) {
+	raw, err := a.client.Request(ctx, "llmInference.httpResponseStart", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LlmInferenceHTTPResponseStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetProvider registers an SDK client as the LLM inference callback provider.
+//
+// RPC method: llmInference.setProvider.
+//
+// Returns: Indicates whether the calling client was registered as the LLM inference
+// provider.
+func (a *ServerLlmInferenceAPI) SetProvider(ctx context.Context) (*LlmInferenceSetProviderResult, error) {
+	raw, err := a.client.Request(ctx, "llmInference.setProvider", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result LlmInferenceSetProviderResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -11330,6 +12748,30 @@ func (a *ServerSkillsAPI) Discover(ctx context.Context, params *SkillsDiscoverRe
 	return &result, nil
 }
 
+// GetDiscoveryPaths returns the canonical directories where a client may create skills that
+// the runtime will recognize, including ones that do not exist yet. Project directories
+// become active once created.
+//
+// RPC method: skills.getDiscoveryPaths.
+//
+// Parameters: Optional project paths to enumerate.
+//
+// Returns: Canonical locations where skills can be created so the runtime will recognize
+// them.
+// Experimental: GetDiscoveryPaths is an experimental API and may change or be removed in
+// future versions.
+func (a *ServerSkillsAPI) GetDiscoveryPaths(ctx context.Context, params *SkillsGetDiscoveryPathsRequest) (*SkillDiscoveryPathList, error) {
+	raw, err := a.client.Request(ctx, "skills.getDiscoveryPaths", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SkillDiscoveryPathList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type ServerSkillsConfigAPI serverAPI
 
 // SetDisabledSkills replaces the global list of disabled skills.
@@ -11410,6 +12852,7 @@ type ServerRPC struct {
 	AgentRegistry *ServerAgentRegistryAPI
 	Agents        *ServerAgentsAPI
 	Instructions  *ServerInstructionsAPI
+	LlmInference  *ServerLlmInferenceAPI
 	MCP           *ServerMCPAPI
 	Models        *ServerModelsAPI
 	Plugins       *ServerPluginsAPI
@@ -11449,6 +12892,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
 	r.Agents = (*ServerAgentsAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
+	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
 	r.Models = (*ServerModelsAPI)(&r.common)
 	r.Plugins = (*ServerPluginsAPI)(&r.common)
@@ -11770,54 +13214,6 @@ func (a *AgentAPI) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 	return &result, nil
 }
 
-// Experimental: AuthAPI contains experimental APIs that may change or be removed.
-type AuthAPI sessionAPI
-
-// GetStatus gets authentication status and account metadata for the session.
-//
-// RPC method: session.auth.getStatus.
-//
-// Returns: Authentication status and account metadata for the session.
-func (a *AuthAPI) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request(ctx, "session.auth.getStatus", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionAuthStatus
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// SetCredentials updates the session's auth credentials used for outbound model and API
-// requests.
-//
-// RPC method: session.auth.setCredentials.
-//
-// Parameters: New auth credentials to install on the session. Omit to leave credentials
-// unchanged.
-//
-// Returns: Indicates whether the credential update succeeded.
-func (a *AuthAPI) SetCredentials(ctx context.Context, params *SessionSetCredentialsParams) (*SessionSetCredentialsResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Credentials != nil {
-			req["credentials"] = params.Credentials
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.auth.setCredentials", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionSetCredentialsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // Experimental: CanvasAPI contains experimental APIs that may change or be removed.
 type CanvasAPI sessionAPI
 
@@ -12026,7 +13422,7 @@ func (a *CommandsAPI) HandlePendingCommand(ctx context.Context, params *Commands
 // Parameters: Slash command name and optional raw input string to invoke.
 //
 // Returns: Result of invoking the slash command (text output, prompt to send to the agent,
-// or completion).
+// completion, or subcommand selection).
 func (a *CommandsAPI) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -12344,6 +13740,54 @@ func (a *FleetAPI) Start(ctx context.Context, params *FleetStartRequest) (*Fleet
 		return nil, err
 	}
 	var result FleetStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: GitHubAuthAPI contains experimental APIs that may change or be removed.
+type GitHubAuthAPI sessionAPI
+
+// GetStatus gets authentication status and account metadata for the session.
+//
+// RPC method: session.gitHubAuth.getStatus.
+//
+// Returns: Authentication status and account metadata for the session.
+func (a *GitHubAuthAPI) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.gitHubAuth.getStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAuthStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetCredentials updates the session's auth credentials used for outbound model and API
+// requests.
+//
+// RPC method: session.gitHubAuth.setCredentials.
+//
+// Parameters: New auth credentials to install on the session. Omit to leave credentials
+// unchanged.
+//
+// Returns: Indicates whether the credential update succeeded.
+func (a *GitHubAuthAPI) SetCredentials(ctx context.Context, params *SessionSetCredentialsParams) (*SessionSetCredentialsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Credentials != nil {
+			req["credentials"] = params.Credentials
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.gitHubAuth.setCredentials", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSetCredentialsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -12917,15 +14361,76 @@ func (s *MCPAPI) Apps() *MCPAppsAPI {
 	return (*MCPAppsAPI)(s)
 }
 
+// Experimental: MCPHeadersAPI contains experimental APIs that may change or be removed.
+type MCPHeadersAPI sessionAPI
+
+// HandlePendingHeadersRefreshRequest responds to a pending MCP dynamic headers refresh
+// request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide
+// short-lived per-server headers or to indicate that no dynamic headers are available for
+// this refresh.
+//
+// RPC method: session.mcp.headers.handlePendingHeadersRefreshRequest.
+//
+// Parameters: MCP headers refresh request id and the host response.
+//
+// Returns: Indicates whether the pending MCP headers refresh response was accepted.
+func (a *MCPHeadersAPI) HandlePendingHeadersRefreshRequest(ctx context.Context, params *MCPHeadersHandlePendingHeadersRefreshRequestRequest) (*MCPHeadersHandlePendingHeadersRefreshRequestResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.headers.handlePendingHeadersRefreshRequest", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPHeadersHandlePendingHeadersRefreshRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Headers returns experimental APIs that may change or be removed.
+func (s *MCPAPI) Headers() *MCPHeadersAPI {
+	return (*MCPHeadersAPI)(s)
+}
+
 // Experimental: MCPOauthAPI contains experimental APIs that may change or be removed.
 type MCPOauthAPI sessionAPI
+
+// HandlePendingRequest resolves a pending MCP OAuth request with a host-provided token or
+// cancellation. The pending request is emitted as mcp.oauth_required with the data
+// necessary to authorize the request.
+//
+// RPC method: session.mcp.oauth.handlePendingRequest.
+//
+// Parameters: Pending MCP OAuth request ID and host-provided token or cancellation response.
+//
+// Returns: Indicates whether the pending MCP OAuth response was accepted.
+func (a *MCPOauthAPI) HandlePendingRequest(ctx context.Context, params *MCPOauthHandlePendingRequest) (*MCPOauthHandlePendingResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.handlePendingRequest", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPOauthHandlePendingResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // Login starts OAuth authentication for a remote MCP server.
 //
 // RPC method: session.mcp.oauth.login.
 //
 // Parameters: Remote MCP server name and optional overrides controlling reauthentication,
-// OAuth client display name, and the callback success-page copy.
+// OAuth client display name, callback success-page copy, and static OAuth client selection.
 //
 // Returns: OAuth authorization URL the caller should open, or empty when cached tokens
 // already authenticated the server.
@@ -12935,11 +14440,23 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 		if params.CallbackSuccessMessage != nil {
 			req["callbackSuccessMessage"] = *params.CallbackSuccessMessage
 		}
+		if params.ClientID != nil {
+			req["clientId"] = *params.ClientID
+		}
 		if params.ClientName != nil {
 			req["clientName"] = *params.ClientName
 		}
+		if params.ClientSecret != nil {
+			req["clientSecret"] = *params.ClientSecret
+		}
 		if params.ForceReauth != nil {
 			req["forceReauth"] = *params.ForceReauth
+		}
+		if params.GrantType != nil {
+			req["grantType"] = *params.GrantType
+		}
+		if params.PublicClient != nil {
+			req["publicClient"] = *params.PublicClient
 		}
 		req["serverName"] = params.ServerName
 	}
@@ -13372,11 +14889,17 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.AgentContext != nil {
 			req["agentContext"] = *params.AgentContext
 		}
+		if params.AllowAllMCPServerInstructions != nil {
+			req["allowAllMcpServerInstructions"] = *params.AllowAllMCPServerInstructions
+		}
 		if params.AskUserDisabled != nil {
 			req["askUserDisabled"] = *params.AskUserDisabled
 		}
 		if params.AvailableTools != nil {
 			req["availableTools"] = params.AvailableTools
+		}
+		if params.Capi != nil {
+			req["capi"] = *params.Capi
 		}
 		if params.ClientName != nil {
 			req["clientName"] = *params.ClientName
@@ -13456,6 +14979,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.ManageScheduleEnabled != nil {
 			req["manageScheduleEnabled"] = *params.ManageScheduleEnabled
 		}
+		if params.MaxInlineBinaryBytes != nil {
+			req["maxInlineBinaryBytes"] = *params.MaxInlineBinaryBytes
+		}
 		if params.Model != nil {
 			req["model"] = *params.Model
 		}
@@ -13473,6 +14999,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.ReasoningSummary != nil {
 			req["reasoningSummary"] = *params.ReasoningSummary
+		}
+		if params.ResponseBudget != nil {
+			req["responseBudget"] = *params.ResponseBudget
 		}
 		if params.RunningInInteractiveMode != nil {
 			req["runningInInteractiveMode"] = *params.RunningInInteractiveMode
@@ -14240,6 +15769,42 @@ func (a *PluginsAPI) Reload(ctx context.Context, params ...*PluginsReloadRequest
 
 // Experimental: ProviderAPI contains experimental APIs that may change or be removed.
 type ProviderAPI sessionAPI
+
+// Adds BYOK providers and/or models to the session's registry at runtime, extending the
+// additive registry built from the session's `providers`/`models` options. Both fields are
+// optional, so a call may add providers only, models only, or both. Within a single call
+// providers are registered before models, so a model may reference a provider added in the
+// same call; across calls a model may reference any provider already registered (from
+// session creation or a prior add). A model whose referenced provider is not registered by
+// the end of the call is rejected. Newly added models become selectable via `model.list` /
+// `model.switchTo` and are inherited by sub-agents spawned afterwards.
+//
+// RPC method: session.provider.add.
+//
+// Parameters: BYOK providers and/or models to add to the session's registry at runtime.
+// Both fields are optional; provide providers, models, or both.
+//
+// Returns: The selectable model entries synthesized for the models added by this call.
+func (a *ProviderAPI) Add(ctx context.Context, params *ProviderAddRequest) (*ProviderAddResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Models != nil {
+			req["models"] = params.Models
+		}
+		if params.Providers != nil {
+			req["providers"] = params.Providers
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.provider.add", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ProviderAddResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // GetEndpoint returns the provider endpoint and credentials the session is currently
 // configured to talk to, so the caller can make inference calls directly against the same
@@ -15516,12 +17081,12 @@ type SessionRPC struct {
 	common sessionAPI
 
 	Agent        *AgentAPI
-	Auth         *AuthAPI
 	Canvas       *CanvasAPI
 	Commands     *CommandsAPI
 	EventLog     *EventLogAPI
 	Extensions   *ExtensionsAPI
 	Fleet        *FleetAPI
+	GitHubAuth   *GitHubAuthAPI
 	History      *HistoryAPI
 	Instructions *InstructionsAPI
 	Lsp          *LspAPI
@@ -15727,12 +17292,12 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r := &SessionRPC{}
 	r.common = sessionAPI{client: client, sessionID: sessionID}
 	r.Agent = (*AgentAPI)(&r.common)
-	r.Auth = (*AuthAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)
+	r.GitHubAuth = (*GitHubAuthAPI)(&r.common)
 	r.History = (*HistoryAPI)(&r.common)
 	r.Instructions = (*InstructionsAPI)(&r.common)
 	r.Lsp = (*LspAPI)(&r.common)
@@ -15931,10 +17496,10 @@ func (a *InternalMCPAPI) UnregisterExternalClient(ctx context.Context, params *M
 // removed.
 type InternalMCPOauthAPI internalSessionAPI
 
-// Responds to a pending MCP OAuth provider request. Marked internal because the `provider`
-// argument is an in-process OAuthClientProvider instance that cannot be carried over the
-// wire; the public OAuth surface will route the response through a wire-clean handshake
-// once the CLI moves on top of the SDK.
+// Responds to a pending MCP OAuth request with an in-process provider. This internal
+// CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK
+// JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public
+// SDK-safe response path.
 //
 // RPC method: session.mcp.oauth.respond.
 //
@@ -16007,6 +17572,30 @@ type CanvasHandler interface {
 	//
 	// Returns: Canvas open result returned by the provider.
 	Open(request *CanvasProviderOpenRequest) (*CanvasProviderOpenResult, error)
+}
+
+// Experimental: ProviderTokenHandler contains experimental APIs that may change or be
+// removed.
+type ProviderTokenHandler interface {
+	// GetToken asks the SDK client to get a bearer token for a BYOK provider whose config set
+	// `hasBearerTokenProvider: true`. Session-scoped: the runtime calls it back on the
+	// connection that most recently supplied that provider's config for the session (the
+	// creating connection, or a resuming connection if the session was resumed — distinct
+	// providers may be owned by different connections), passing the provider name, and uses the
+	// returned token as the Authorization header for the outbound model request. The runtime
+	// does no caching — it calls this once per outbound request; the SDK consumer owns token
+	// acquisition, caching, and refresh.
+	//
+	// RPC method: providerToken.getToken.
+	//
+	// Parameters: Asks the SDK client to acquire a bearer token for a BYOK provider whose
+	// config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound
+	// model request; the runtime does no caching, so this is sent once per request.
+	//
+	// Returns: A bearer token supplied by the SDK client for a BYOK provider. The runtime sets
+	// it as `Authorization: Bearer <token>` on the outbound request and does no caching; the
+	// SDK consumer owns token caching and refresh.
+	GetToken(request *ProviderTokenAcquireRequest) (*ProviderTokenAcquireResult, error)
 }
 
 // Experimental: SessionFSHandler contains experimental APIs that may change or be removed.
@@ -16127,8 +17716,9 @@ type SessionFSHandler interface {
 
 // ClientSessionAPIHandlers provides all client session API handler groups for a session.
 type ClientSessionAPIHandlers struct {
-	Canvas    CanvasHandler
-	SessionFS SessionFSHandler
+	Canvas        CanvasHandler
+	ProviderToken ProviderTokenHandler
+	SessionFS     SessionFSHandler
 }
 
 func clientSessionHandlerError(err error) *jsonrpc2.Error {
@@ -16193,6 +17783,25 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.Canvas.Open(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("providerToken.getToken", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request ProviderTokenAcquireRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.ProviderToken == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No providerToken handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.ProviderToken.GetToken(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -16423,6 +18032,97 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 		result, err := handlers.SessionFS.WriteFile(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+}
+
+// Experimental: LlmInferenceHandler contains experimental APIs that may change or be
+// removed.
+type LlmInferenceHandler interface {
+	// HttpRequestChunk delivers a body byte range (or a cancellation signal) for a request
+	// previously announced via httpRequestStart, correlated by requestId. The runtime fires at
+	// least one chunk per request — when there is no body, a single chunk with empty data and
+	// end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request;
+	// the SDK then stops issuing httpResponseChunk frames and may emit a terminal
+	// httpResponseChunk with error set.
+	//
+	// RPC method: llmInference.httpRequestChunk.
+	//
+	// Parameters: A request body chunk or cancellation signal.
+	//
+	// Returns: Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as
+	// fire-and-forget.
+	HttpRequestChunk(request *LlmInferenceHTTPRequestChunkRequest) (*LlmInferenceHTTPRequestChunkResult, error)
+	// HttpRequestStart announces an outbound model-layer HTTP request the runtime wants the SDK
+	// client to service. Carries the request head only; the body always follows as one or more
+	// httpRequestChunk frames keyed by the same requestId, even when the body is empty (a
+	// single chunk with end=true).
+	//
+	// RPC method: llmInference.httpRequestStart.
+	//
+	// Parameters: The head of an outbound model-layer HTTP request.
+	//
+	// Returns: Acknowledgement. Returning successfully simply means the SDK accepted the start
+	// frame; it does not imply the request will succeed.
+	HttpRequestStart(request *LlmInferenceHTTPRequestStartRequest) (*LlmInferenceHTTPRequestStartResult, error)
+}
+
+// ClientGlobalAPIHandlers provides all client-global API handler groups.
+//
+// Unlike client-session handlers these carry no implicit session id dispatch
+// key; a single set of handlers serves the entire connection.
+type ClientGlobalAPIHandlers struct {
+	LlmInference LlmInferenceHandler
+}
+
+func clientGlobalHandlerError(err error) *jsonrpc2.Error {
+	if err == nil {
+		return nil
+	}
+	var rpcErr *jsonrpc2.Error
+	if errors.As(err, &rpcErr) {
+		return rpcErr
+	}
+	return &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+}
+
+// RegisterClientGlobalAPIHandlers registers handlers for server-to-client client-global API
+// calls.
+func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGlobalAPIHandlers) {
+	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request LlmInferenceHTTPRequestChunkRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.LlmInference == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No llmInference client-global handler registered"}
+		}
+		result, err := handlers.LlmInference.HttpRequestChunk(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("llmInference.httpRequestStart", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request LlmInferenceHTTPRequestStartRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.LlmInference == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No llmInference client-global handler registered"}
+		}
+		result, err := handlers.LlmInference.HttpRequestStart(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
 		}
 		raw, err := json.Marshal(result)
 		if err != nil {

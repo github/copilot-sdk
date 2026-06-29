@@ -130,6 +130,7 @@ class SessionEventType(Enum):
     SESSION_TITLE_CHANGED = "session.title_changed"
     SESSION_SCHEDULE_CREATED = "session.schedule_created"
     SESSION_SCHEDULE_CANCELLED = "session.schedule_cancelled"
+    SESSION_SCHEDULE_REARMED = "session.schedule_rearmed"
     SESSION_AUTOPILOT_OBJECTIVE_CHANGED = "session.autopilot_objective_changed"
     SESSION_INFO = "session.info"
     SESSION_WARNING = "session.warning"
@@ -159,6 +160,7 @@ class SessionEventType(Enum):
     ASSISTANT_MESSAGE_START = "assistant.message_start"
     ASSISTANT_MESSAGE_DELTA = "assistant.message_delta"
     ASSISTANT_TURN_END = "assistant.turn_end"
+    ASSISTANT_IDLE = "assistant.idle"
     ASSISTANT_USAGE = "assistant.usage"
     MODEL_CALL_FAILURE = "model.call_failure"
     ABORT = "abort"
@@ -176,6 +178,8 @@ class SessionEventType(Enum):
     HOOK_START = "hook.start"
     HOOK_END = "hook.end"
     HOOK_PROGRESS = "hook.progress"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_BINARY_ASSET = "session.binary_asset"
     SYSTEM_MESSAGE = "system.message"
     SYSTEM_NOTIFICATION = "system.notification"
     PERMISSION_REQUESTED = "permission.requested"
@@ -188,6 +192,8 @@ class SessionEventType(Enum):
     SAMPLING_COMPLETED = "sampling.completed"
     MCP_OAUTH_REQUIRED = "mcp.oauth_required"
     MCP_OAUTH_COMPLETED = "mcp.oauth_completed"
+    MCP_HEADERS_REFRESH_REQUIRED = "mcp.headers_refresh_required"
+    MCP_HEADERS_REFRESH_COMPLETED = "mcp.headers_refresh_completed"
     SESSION_CUSTOM_NOTIFICATION = "session.custom_notification"
     EXTERNAL_TOOL_REQUESTED = "external_tool.requested"
     EXTERNAL_TOOL_COMPLETED = "external_tool.completed"
@@ -207,9 +213,18 @@ class SessionEventType(Enum):
     SESSION_MCP_SERVERS_LOADED = "session.mcp_servers_loaded"
     SESSION_MCP_SERVER_STATUS_CHANGED = "session.mcp_server_status_changed"
     SESSION_EXTENSIONS_LOADED = "session.extensions_loaded"
+    # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_CANVAS_OPENED = "session.canvas.opened"
+    # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_CANVAS_REGISTRY_CHANGED = "session.canvas.registry_changed"
+    # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_CANVAS_CLOSED = "session.canvas.closed"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_CANVAS_UNAVAILABLE = "session.canvas.unavailable"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_CANVAS_RECORDED = "session.canvas.recorded"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_CANVAS_REMOVED = "session.canvas.removed"
     SESSION_EXTENSIONS_ATTACHMENTS_PUSHED = "session.extensions.attachments_pushed"
     MCP_APP_TOOL_CALL_COMPLETE = "mcp_app.tool_call_complete"
     UNKNOWN = "unknown"
@@ -327,6 +342,605 @@ class AssistantMessageServerTools:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class BinaryAssetReference:
+    "A reference to binary data persisted once on a session.binary_asset event and shared by id"
+    asset_id: str
+    byte_length: int
+    mime_type: str
+    type: BinaryAssetReferenceType
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "BinaryAssetReference":
+        assert isinstance(obj, dict)
+        asset_id = from_str(obj.get("assetId"))
+        byte_length = from_int(obj.get("byteLength"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = parse_enum(BinaryAssetReferenceType, obj.get("type"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        metadata = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("metadata"))
+        return BinaryAssetReference(
+            asset_id=asset_id,
+            byte_length=byte_length,
+            mime_type=mime_type,
+            type=type,
+            description=description,
+            metadata=metadata,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["assetId"] = from_str(self.asset_id)
+        result["byteLength"] = to_int(self.byte_length)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(BinaryAssetReferenceType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.metadata is not None:
+            result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CanvasRegistryChangedCanvas:
+    "Schema for the `CanvasRegistryChangedCanvas` type."
+    canvas_id: str
+    description: str
+    display_name: str
+    extension_id: str
+    actions: list[CanvasRegistryChangedCanvasAction] | None = None
+    extension_name: str | None = None
+    input_schema: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CanvasRegistryChangedCanvas":
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        description = from_str(obj.get("description"))
+        display_name = from_str(obj.get("displayName"))
+        extension_id = from_str(obj.get("extensionId"))
+        actions = from_union([from_none, lambda x: from_list(CanvasRegistryChangedCanvasAction.from_dict, x)], obj.get("actions"))
+        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
+        input_schema = obj.get("inputSchema")
+        return CanvasRegistryChangedCanvas(
+            canvas_id=canvas_id,
+            description=description,
+            display_name=display_name,
+            extension_id=extension_id,
+            actions=actions,
+            extension_name=extension_name,
+            input_schema=input_schema,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["description"] = from_str(self.description)
+        result["displayName"] = from_str(self.display_name)
+        result["extensionId"] = from_str(self.extension_id)
+        if self.actions is not None:
+            result["actions"] = from_union([from_none, lambda x: from_list(lambda x: to_class(CanvasRegistryChangedCanvasAction, x), x)], self.actions)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
+        if self.input_schema is not None:
+            result["inputSchema"] = self.input_schema
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CanvasRegistryChangedCanvasAction:
+    "Schema for the `CanvasRegistryChangedCanvasAction` type."
+    name: str
+    description: str | None = None
+    input_schema: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CanvasRegistryChangedCanvasAction":
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        input_schema = obj.get("inputSchema")
+        return CanvasRegistryChangedCanvasAction(
+            name=name,
+            description=description,
+            input_schema=input_schema,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.input_schema is not None:
+            result["inputSchema"] = self.input_schema
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CitableSource:
+    "A source supplied by a tool that should be made available to the model as citable content."
+    content: str
+    id: str
+    path: str | None = None
+    title: str | None = None
+    url: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CitableSource":
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        id = from_str(obj.get("id"))
+        path = from_union([from_none, from_str], obj.get("path"))
+        title = from_union([from_none, from_str], obj.get("title"))
+        url = from_union([from_none, from_str], obj.get("url"))
+        return CitableSource(
+            content=content,
+            id=id,
+            path=path,
+            title=title,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        result["id"] = from_str(self.id)
+        if self.path is not None:
+            result["path"] = from_union([from_none, from_str], self.path)
+        if self.title is not None:
+            result["title"] = from_union([from_none, from_str], self.title)
+        if self.url is not None:
+            result["url"] = from_union([from_none, from_str], self.url)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CitationLocationBlock:
+    "A content-block range within a structured source document."
+    end_block: int
+    start_block: int
+    type: ClassVar[str] = "block"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CitationLocationBlock":
+        assert isinstance(obj, dict)
+        end_block = from_int(obj.get("endBlock"))
+        start_block = from_int(obj.get("startBlock"))
+        return CitationLocationBlock(
+            end_block=end_block,
+            start_block=start_block,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["endBlock"] = to_int(self.end_block)
+        result["startBlock"] = to_int(self.start_block)
+        result["type"] = self.type
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CitationLocationChar:
+    "A character range within the source's text content."
+    end_index: int
+    start_index: int
+    type: ClassVar[str] = "char"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CitationLocationChar":
+        assert isinstance(obj, dict)
+        end_index = from_int(obj.get("endIndex"))
+        start_index = from_int(obj.get("startIndex"))
+        return CitationLocationChar(
+            end_index=end_index,
+            start_index=start_index,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["endIndex"] = to_int(self.end_index)
+        result["startIndex"] = to_int(self.start_index)
+        result["type"] = self.type
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CitationLocationPage:
+    "A page range within a paginated source document."
+    end_page: int
+    start_page: int
+    type: ClassVar[str] = "page"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CitationLocationPage":
+        assert isinstance(obj, dict)
+        end_page = from_int(obj.get("endPage"))
+        start_page = from_int(obj.get("startPage"))
+        return CitationLocationPage(
+            end_page=end_page,
+            start_page=start_page,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["endPage"] = to_int(self.end_page)
+        result["startPage"] = to_int(self.start_page)
+        result["type"] = self.type
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CitationReference:
+    "A single citation occurrence linking a span of generated text to a supporting source."
+    source_id: str
+    cited_text: str | None = None
+    location: CitationLocation | None = None
+    provider_metadata: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CitationReference":
+        assert isinstance(obj, dict)
+        source_id = from_str(obj.get("sourceId"))
+        cited_text = from_union([from_none, from_str], obj.get("citedText"))
+        location = from_union([from_none, _load_CitationLocation], obj.get("location"))
+        provider_metadata = obj.get("providerMetadata")
+        return CitationReference(
+            source_id=source_id,
+            cited_text=cited_text,
+            location=location,
+            provider_metadata=provider_metadata,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sourceId"] = from_str(self.source_id)
+        if self.cited_text is not None:
+            result["citedText"] = from_union([from_none, from_str], self.cited_text)
+        if self.location is not None:
+            result["location"] = from_union([from_none, lambda x: x.to_dict()], self.location)
+        if self.provider_metadata is not None:
+            result["providerMetadata"] = self.provider_metadata
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CitationSource:
+    "A source that backs one or more cited spans in the assistant's response."
+    id: str
+    provider: CitationProvider
+    path: str | None = None
+    title: str | None = None
+    url: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CitationSource":
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        provider = parse_enum(CitationProvider, obj.get("provider"))
+        path = from_union([from_none, from_str], obj.get("path"))
+        title = from_union([from_none, from_str], obj.get("title"))
+        url = from_union([from_none, from_str], obj.get("url"))
+        return CitationSource(
+            id=id,
+            provider=provider,
+            path=path,
+            title=title,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        result["provider"] = to_enum(CitationProvider, self.provider)
+        if self.path is not None:
+            result["path"] = from_union([from_none, from_str], self.path)
+        if self.title is not None:
+            result["title"] = from_union([from_none, from_str], self.title)
+        if self.url is not None:
+            result["url"] = from_union([from_none, from_str], self.url)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CitationSpan:
+    "A contiguous span of generated assistant text and the source references that support it."
+    end_index: int
+    references: list[CitationReference]
+    start_index: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CitationSpan":
+        assert isinstance(obj, dict)
+        end_index = from_int(obj.get("endIndex"))
+        references = from_list(CitationReference.from_dict, obj.get("references"))
+        start_index = from_int(obj.get("startIndex"))
+        return CitationSpan(
+            end_index=end_index,
+            references=references,
+            start_index=start_index,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["endIndex"] = to_int(self.end_index)
+        result["references"] = from_list(lambda x: to_class(CitationReference, x), self.references)
+        result["startIndex"] = to_int(self.start_index)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class Citations:
+    "Provider-agnostic citations linking spans of the assistant's response to their supporting sources."
+    sources: list[CitationSource]
+    spans: list[CitationSpan]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "Citations":
+        assert isinstance(obj, dict)
+        sources = from_list(CitationSource.from_dict, obj.get("sources"))
+        spans = from_list(CitationSpan.from_dict, obj.get("spans"))
+        return Citations(
+            sources=sources,
+            spans=spans,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sources"] = from_list(lambda x: to_class(CitationSource, x), self.sources)
+        result["spans"] = from_list(lambda x: to_class(CitationSpan, x), self.spans)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class OmittedBinaryResult:
+    "A binary result whose data was omitted from persistence due to the inline size limit"
+    byte_length: int
+    mime_type: str
+    omitted_reason: OmittedBinaryOmittedReason
+    type: OmittedBinaryType
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "OmittedBinaryResult":
+        assert isinstance(obj, dict)
+        byte_length = from_int(obj.get("byteLength"))
+        mime_type = from_str(obj.get("mimeType"))
+        omitted_reason = parse_enum(OmittedBinaryOmittedReason, obj.get("omittedReason"))
+        type = parse_enum(OmittedBinaryType, obj.get("type"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        metadata = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("metadata"))
+        return OmittedBinaryResult(
+            byte_length=byte_length,
+            mime_type=mime_type,
+            omitted_reason=omitted_reason,
+            type=type,
+            description=description,
+            metadata=metadata,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["byteLength"] = to_int(self.byte_length)
+        result["mimeType"] = from_str(self.mime_type)
+        result["omittedReason"] = to_enum(OmittedBinaryOmittedReason, self.omitted_reason)
+        result["type"] = to_enum(OmittedBinaryType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.metadata is not None:
+            result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionCanvasClosedData:
+    "Schema for the `CanvasClosedData` type."
+    canvas_id: str
+    extension_id: str
+    instance_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCanvasClosedData":
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        extension_id = from_str(obj.get("extensionId"))
+        instance_id = from_str(obj.get("instanceId"))
+        return SessionCanvasClosedData(
+            canvas_id=canvas_id,
+            extension_id=extension_id,
+            instance_id=instance_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["extensionId"] = from_str(self.extension_id)
+        result["instanceId"] = from_str(self.instance_id)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionCanvasOpenedData:
+    "Schema for the `CanvasOpenedData` type."
+    canvas_id: str
+    extension_id: str
+    instance_id: str
+    extension_name: str | None = None
+    input: Any = None
+    status: str | None = None
+    title: str | None = None
+    url: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCanvasOpenedData":
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        extension_id = from_str(obj.get("extensionId"))
+        instance_id = from_str(obj.get("instanceId"))
+        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
+        input = obj.get("input")
+        status = from_union([from_none, from_str], obj.get("status"))
+        title = from_union([from_none, from_str], obj.get("title"))
+        url = from_union([from_none, from_str], obj.get("url"))
+        return SessionCanvasOpenedData(
+            canvas_id=canvas_id,
+            extension_id=extension_id,
+            instance_id=instance_id,
+            extension_name=extension_name,
+            input=input,
+            status=status,
+            title=title,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["extensionId"] = from_str(self.extension_id)
+        result["instanceId"] = from_str(self.instance_id)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
+        if self.input is not None:
+            result["input"] = self.input
+        if self.status is not None:
+            result["status"] = from_union([from_none, from_str], self.status)
+        if self.title is not None:
+            result["title"] = from_union([from_none, from_str], self.title)
+        if self.url is not None:
+            result["url"] = from_union([from_none, from_str], self.url)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionCanvasRecordedData:
+    "Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability."
+    canvas_id: str
+    extension_id: str
+    instance_id: str
+    input: Any = None
+    title: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCanvasRecordedData":
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        extension_id = from_str(obj.get("extensionId"))
+        instance_id = from_str(obj.get("instanceId"))
+        input = obj.get("input")
+        title = from_union([from_none, from_str], obj.get("title"))
+        return SessionCanvasRecordedData(
+            canvas_id=canvas_id,
+            extension_id=extension_id,
+            instance_id=instance_id,
+            input=input,
+            title=title,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["extensionId"] = from_str(self.extension_id)
+        result["instanceId"] = from_str(self.instance_id)
+        if self.input is not None:
+            result["input"] = self.input
+        if self.title is not None:
+            result["title"] = from_union([from_none, from_str], self.title)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionCanvasRegistryChangedData:
+    "Schema for the `CanvasRegistryChangedData` type."
+    canvases: list[CanvasRegistryChangedCanvas]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCanvasRegistryChangedData":
+        assert isinstance(obj, dict)
+        canvases = from_list(CanvasRegistryChangedCanvas.from_dict, obj.get("canvases"))
+        return SessionCanvasRegistryChangedData(
+            canvases=canvases,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvases"] = from_list(lambda x: to_class(CanvasRegistryChangedCanvas, x), self.canvases)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionCanvasRemovedData:
+    "Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay."
+    canvas_id: str
+    extension_id: str
+    instance_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCanvasRemovedData":
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        extension_id = from_str(obj.get("extensionId"))
+        instance_id = from_str(obj.get("instanceId"))
+        return SessionCanvasRemovedData(
+            canvas_id=canvas_id,
+            extension_id=extension_id,
+            instance_id=instance_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["extensionId"] = from_str(self.extension_id)
+        result["instanceId"] = from_str(self.instance_id)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionCanvasUnavailableData:
+    "Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume."
+    canvas_id: str
+    extension_id: str
+    instance_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCanvasUnavailableData":
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        extension_id = from_str(obj.get("extensionId"))
+        instance_id = from_str(obj.get("instanceId"))
+        return SessionCanvasUnavailableData(
+            canvas_id=canvas_id,
+            extension_id=extension_id,
+            instance_id=instance_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["extensionId"] = from_str(self.extension_id)
+        result["instanceId"] = from_str(self.instance_id)
+        return result
+
+
 @dataclass
 class AbortData:
     "Turn abort information including the reason for termination"
@@ -343,6 +957,26 @@ class AbortData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["reason"] = to_enum(AbortReason, self.reason)
+        return result
+
+
+@dataclass
+class AssistantIdleData:
+    "Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred"
+    aborted: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistantIdleData":
+        assert isinstance(obj, dict)
+        aborted = from_union([from_none, from_bool], obj.get("aborted"))
+        return AssistantIdleData(
+            aborted=aborted,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.aborted is not None:
+            result["aborted"] = from_union([from_none, from_bool], self.aborted)
         return result
 
 
@@ -371,6 +1005,8 @@ class AssistantMessageData:
     content: str
     message_id: str
     api_call_id: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    citations: Citations | None = None
     encrypted_content: str | None = None
     interaction_id: str | None = None
     model: str | None = None
@@ -392,6 +1028,7 @@ class AssistantMessageData:
         content = from_str(obj.get("content"))
         message_id = from_str(obj.get("messageId"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
+        citations = from_union([from_none, Citations.from_dict], obj.get("citations"))
         encrypted_content = from_union([from_none, from_str], obj.get("encryptedContent"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
@@ -409,6 +1046,7 @@ class AssistantMessageData:
             content=content,
             message_id=message_id,
             api_call_id=api_call_id,
+            citations=citations,
             encrypted_content=encrypted_content,
             interaction_id=interaction_id,
             model=model,
@@ -430,6 +1068,8 @@ class AssistantMessageData:
         result["messageId"] = from_str(self.message_id)
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
+        if self.citations is not None:
+            result["citations"] = from_union([from_none, lambda x: to_class(Citations, x)], self.citations)
         if self.encrypted_content is not None:
             result["encryptedContent"] = from_union([from_none, from_str], self.encrypted_content)
         if self.interaction_id is not None:
@@ -674,25 +1314,27 @@ class AssistantTurnStartData:
 
 
 @dataclass
-class _AssistantUsageCopilotUsage:
+class AssistantUsageCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
-    token_details: list[AssistantUsageCopilotUsageTokenDetail]
     total_nano_aiu: float
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _token_details: list[AssistantUsageCopilotUsageTokenDetail] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "_AssistantUsageCopilotUsage":
+    def from_dict(obj: Any) -> "AssistantUsageCopilotUsage":
         assert isinstance(obj, dict)
-        token_details = from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
-        return _AssistantUsageCopilotUsage(
-            token_details=token_details,
+        _token_details = from_union([from_none, lambda x: from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, x)], obj.get("tokenDetails"))
+        return AssistantUsageCopilotUsage(
             total_nano_aiu=total_nano_aiu,
+            _token_details=_token_details,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["tokenDetails"] = from_list(lambda x: to_class(AssistantUsageCopilotUsageTokenDetail, x), self.token_details)
         result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        if self._token_details is not None:
+            result["tokenDetails"] = from_union([from_none, lambda x: from_list(lambda x: to_class(AssistantUsageCopilotUsageTokenDetail, x), x)], self._token_details)
         return result
 
 
@@ -736,8 +1378,7 @@ class AssistantUsageData:
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
     content_filter_triggered: bool | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _copilot_usage: _AssistantUsageCopilotUsage | None = None
+    copilot_usage: AssistantUsageCopilotUsage | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     cost: float | None = None
     duration: timedelta | None = None
@@ -765,7 +1406,7 @@ class AssistantUsageData:
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
         content_filter_triggered = from_union([from_none, from_bool], obj.get("contentFilterTriggered"))
-        _copilot_usage = from_union([from_none, _AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
+        copilot_usage = from_union([from_none, AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
         cost = from_union([from_none, from_float], obj.get("cost"))
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
         finish_reason = from_union([from_none, from_str], obj.get("finishReason"))
@@ -787,7 +1428,7 @@ class AssistantUsageData:
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
             content_filter_triggered=content_filter_triggered,
-            _copilot_usage=_copilot_usage,
+            copilot_usage=copilot_usage,
             cost=cost,
             duration=duration,
             finish_reason=finish_reason,
@@ -817,8 +1458,8 @@ class AssistantUsageData:
             result["cacheWriteTokens"] = from_union([from_none, to_int], self.cache_write_tokens)
         if self.content_filter_triggered is not None:
             result["contentFilterTriggered"] = from_union([from_none, from_bool], self.content_filter_triggered)
-        if self._copilot_usage is not None:
-            result["copilotUsage"] = from_union([from_none, lambda x: to_class(_AssistantUsageCopilotUsage, x)], self._copilot_usage)
+        if self.copilot_usage is not None:
+            result["copilotUsage"] = from_union([from_none, lambda x: to_class(AssistantUsageCopilotUsage, x)], self.copilot_usage)
         if self.cost is not None:
             result["cost"] = from_union([from_none, to_float], self.cost)
         if self.duration is not None:
@@ -868,7 +1509,13 @@ class _AssistantUsageQuotaSnapshot:
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _used_requests: int
     # Internal: this field is an internal SDK API and is not part of the public surface.
+    _has_quota: bool | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _overage_entitlement: float | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
     _reset_date: datetime | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _token_based_billing: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "_AssistantUsageQuotaSnapshot":
@@ -880,7 +1527,10 @@ class _AssistantUsageQuotaSnapshot:
         _remaining_percentage = from_float(obj.get("remainingPercentage"))
         _usage_allowed_with_exhausted_quota = from_bool(obj.get("usageAllowedWithExhaustedQuota"))
         _used_requests = from_int(obj.get("usedRequests"))
+        _has_quota = from_union([from_none, from_bool], obj.get("hasQuota"))
+        _overage_entitlement = from_union([from_none, from_float], obj.get("overageEntitlement"))
         _reset_date = from_union([from_none, from_datetime], obj.get("resetDate"))
+        _token_based_billing = from_union([from_none, from_bool], obj.get("tokenBasedBilling"))
         return _AssistantUsageQuotaSnapshot(
             _entitlement_requests=_entitlement_requests,
             _is_unlimited_entitlement=_is_unlimited_entitlement,
@@ -889,7 +1539,10 @@ class _AssistantUsageQuotaSnapshot:
             _remaining_percentage=_remaining_percentage,
             _usage_allowed_with_exhausted_quota=_usage_allowed_with_exhausted_quota,
             _used_requests=_used_requests,
+            _has_quota=_has_quota,
+            _overage_entitlement=_overage_entitlement,
             _reset_date=_reset_date,
+            _token_based_billing=_token_based_billing,
         )
 
     def to_dict(self) -> dict:
@@ -901,38 +1554,60 @@ class _AssistantUsageQuotaSnapshot:
         result["remainingPercentage"] = to_float(self._remaining_percentage)
         result["usageAllowedWithExhaustedQuota"] = from_bool(self._usage_allowed_with_exhausted_quota)
         result["usedRequests"] = to_int(self._used_requests)
+        if self._has_quota is not None:
+            result["hasQuota"] = from_union([from_none, from_bool], self._has_quota)
+        if self._overage_entitlement is not None:
+            result["overageEntitlement"] = from_union([from_none, to_float], self._overage_entitlement)
         if self._reset_date is not None:
             result["resetDate"] = from_union([from_none, to_datetime], self._reset_date)
+        if self._token_based_billing is not None:
+            result["tokenBasedBilling"] = from_union([from_none, from_bool], self._token_based_billing)
         return result
 
 
 @dataclass
 class AttachmentBlob:
     "Blob attachment with inline base64-encoded data"
-    data: str
     mime_type: str
     type: ClassVar[str] = "blob"
+    asset_id: str | None = None
+    byte_length: int | None = None
+    data: str | None = None
     display_name: str | None = None
+    omitted_reason: OmittedBinaryOmittedReason | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AttachmentBlob":
         assert isinstance(obj, dict)
-        data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
+        asset_id = from_union([from_none, from_str], obj.get("assetId"))
+        byte_length = from_union([from_none, from_int], obj.get("byteLength"))
+        data = from_union([from_none, from_str], obj.get("data"))
         display_name = from_union([from_none, from_str], obj.get("displayName"))
+        omitted_reason = from_union([from_none, lambda x: parse_enum(OmittedBinaryOmittedReason, x)], obj.get("omittedReason"))
         return AttachmentBlob(
-            data=data,
             mime_type=mime_type,
+            asset_id=asset_id,
+            byte_length=byte_length,
+            data=data,
             display_name=display_name,
+            omitted_reason=omitted_reason,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["data"] = from_str(self.data)
         result["mimeType"] = from_str(self.mime_type)
         result["type"] = self.type
+        if self.asset_id is not None:
+            result["assetId"] = from_union([from_none, from_str], self.asset_id)
+        if self.byte_length is not None:
+            result["byteLength"] = from_union([from_none, to_int], self.byte_length)
+        if self.data is not None:
+            result["data"] = from_union([from_none, from_str], self.data)
         if self.display_name is not None:
             result["displayName"] = from_union([from_none, from_str], self.display_name)
+        if self.omitted_reason is not None:
+            result["omittedReason"] = from_union([from_none, lambda x: to_enum(OmittedBinaryOmittedReason, x)], self.omitted_reason)
         return result
 
 
@@ -942,15 +1617,18 @@ class AttachmentDirectory:
     display_name: str
     path: str
     type: ClassVar[str] = "directory"
+    tagged_files_entry: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AttachmentDirectory":
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         path = from_str(obj.get("path"))
+        tagged_files_entry = from_union([from_none, from_str], obj.get("taggedFilesEntry"))
         return AttachmentDirectory(
             display_name=display_name,
             path=path,
+            tagged_files_entry=tagged_files_entry,
         )
 
     def to_dict(self) -> dict:
@@ -958,6 +1636,8 @@ class AttachmentDirectory:
         result["displayName"] = from_str(self.display_name)
         result["path"] = from_str(self.path)
         result["type"] = self.type
+        if self.tagged_files_entry is not None:
+            result["taggedFilesEntry"] = from_union([from_none, from_str], self.tagged_files_entry)
         return result
 
 
@@ -1011,18 +1691,33 @@ class AttachmentFile:
     display_name: str
     path: str
     type: ClassVar[str] = "file"
+    asset_id: str | None = None
+    byte_length: int | None = None
     line_range: AttachmentFileLineRange | None = None
+    mime_type: str | None = None
+    omitted_reason: OmittedBinaryOmittedReason | None = None
+    tagged_files_entry: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AttachmentFile":
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         path = from_str(obj.get("path"))
+        asset_id = from_union([from_none, from_str], obj.get("assetId"))
+        byte_length = from_union([from_none, from_int], obj.get("byteLength"))
         line_range = from_union([from_none, AttachmentFileLineRange.from_dict], obj.get("lineRange"))
+        mime_type = from_union([from_none, from_str], obj.get("mimeType"))
+        omitted_reason = from_union([from_none, lambda x: parse_enum(OmittedBinaryOmittedReason, x)], obj.get("omittedReason"))
+        tagged_files_entry = from_union([from_none, from_str], obj.get("taggedFilesEntry"))
         return AttachmentFile(
             display_name=display_name,
             path=path,
+            asset_id=asset_id,
+            byte_length=byte_length,
             line_range=line_range,
+            mime_type=mime_type,
+            omitted_reason=omitted_reason,
+            tagged_files_entry=tagged_files_entry,
         )
 
     def to_dict(self) -> dict:
@@ -1030,8 +1725,18 @@ class AttachmentFile:
         result["displayName"] = from_str(self.display_name)
         result["path"] = from_str(self.path)
         result["type"] = self.type
+        if self.asset_id is not None:
+            result["assetId"] = from_union([from_none, from_str], self.asset_id)
+        if self.byte_length is not None:
+            result["byteLength"] = from_union([from_none, to_int], self.byte_length)
         if self.line_range is not None:
             result["lineRange"] = from_union([from_none, lambda x: to_class(AttachmentFileLineRange, x)], self.line_range)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_none, from_str], self.mime_type)
+        if self.omitted_reason is not None:
+            result["omittedReason"] = from_union([from_none, lambda x: to_enum(OmittedBinaryOmittedReason, x)], self.omitted_reason)
+        if self.tagged_files_entry is not None:
+            result["taggedFilesEntry"] = from_union([from_none, from_str], self.tagged_files_entry)
         return result
 
 
@@ -1055,6 +1760,172 @@ class AttachmentFileLineRange:
         result: dict = {}
         result["end"] = to_int(self.end)
         result["start"] = to_int(self.start)
+        return result
+
+
+@dataclass
+class AttachmentGitHubActionsJob:
+    "Pointer to a GitHub Actions job."
+    job_id: int
+    job_name: str
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_actions_job"
+    url: str
+    workflow_name: str
+    conclusion: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubActionsJob":
+        assert isinstance(obj, dict)
+        job_id = from_int(obj.get("jobId"))
+        job_name = from_str(obj.get("jobName"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        workflow_name = from_str(obj.get("workflowName"))
+        conclusion = from_union([from_none, from_str], obj.get("conclusion"))
+        return AttachmentGitHubActionsJob(
+            job_id=job_id,
+            job_name=job_name,
+            repo=repo,
+            url=url,
+            workflow_name=workflow_name,
+            conclusion=conclusion,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["jobId"] = to_int(self.job_id)
+        result["jobName"] = from_str(self.job_name)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        result["workflowName"] = from_str(self.workflow_name)
+        if self.conclusion is not None:
+            result["conclusion"] = from_union([from_none, from_str], self.conclusion)
+        return result
+
+
+@dataclass
+class AttachmentGitHubCommit:
+    "Pointer to a GitHub commit."
+    message: str
+    oid: str
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_commit"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubCommit":
+        assert isinstance(obj, dict)
+        message = from_str(obj.get("message"))
+        oid = from_str(obj.get("oid"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubCommit(
+            message=message,
+            oid=oid,
+            repo=repo,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["message"] = from_str(self.message)
+        result["oid"] = from_str(self.oid)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubFile:
+    "Pointer to a file in a GitHub repository at a specific ref."
+    path: str
+    ref: str
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_file"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubFile":
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        ref = from_str(obj.get("ref"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubFile(
+            path=path,
+            ref=ref,
+            repo=repo,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["ref"] = from_str(self.ref)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubFileDiff:
+    "Pointer to a single-file diff. At least one of `head` and `base` must be present."
+    type: ClassVar[str] = "github_file_diff"
+    url: str
+    base: AttachmentGitHubFileDiffSide | None = None
+    head: AttachmentGitHubFileDiffSide | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubFileDiff":
+        assert isinstance(obj, dict)
+        url = from_str(obj.get("url"))
+        base = from_union([from_none, AttachmentGitHubFileDiffSide.from_dict], obj.get("base"))
+        head = from_union([from_none, AttachmentGitHubFileDiffSide.from_dict], obj.get("head"))
+        return AttachmentGitHubFileDiff(
+            url=url,
+            base=base,
+            head=head,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        if self.base is not None:
+            result["base"] = from_union([from_none, lambda x: to_class(AttachmentGitHubFileDiffSide, x)], self.base)
+        if self.head is not None:
+            result["head"] = from_union([from_none, lambda x: to_class(AttachmentGitHubFileDiffSide, x)], self.head)
+        return result
+
+
+@dataclass
+class AttachmentGitHubFileDiffSide:
+    "One side of a file diff (head or base)"
+    path: str
+    ref: str
+    repo: GitHubRepoRef
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubFileDiffSide":
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        ref = from_str(obj.get("ref"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        return AttachmentGitHubFileDiffSide(
+            path=path,
+            ref=ref,
+            repo=repo,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["ref"] = from_str(self.ref)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
         return result
 
 
@@ -1090,6 +1961,184 @@ class AttachmentGitHubReference:
         result["referenceType"] = to_enum(AttachmentGitHubReferenceType, self.reference_type)
         result["state"] = from_str(self.state)
         result["title"] = from_str(self.title)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubRelease:
+    "Pointer to a GitHub release."
+    name: str
+    repo: GitHubRepoRef
+    tag_name: str
+    type: ClassVar[str] = "github_release"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubRelease":
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        tag_name = from_str(obj.get("tagName"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubRelease(
+            name=name,
+            repo=repo,
+            tag_name=tag_name,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["tagName"] = from_str(self.tag_name)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubRepository:
+    "Pointer to a GitHub repository."
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_repository"
+    url: str
+    description: str | None = None
+    ref: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubRepository":
+        assert isinstance(obj, dict)
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        ref = from_union([from_none, from_str], obj.get("ref"))
+        return AttachmentGitHubRepository(
+            repo=repo,
+            url=url,
+            description=description,
+            ref=ref,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.ref is not None:
+            result["ref"] = from_union([from_none, from_str], self.ref)
+        return result
+
+
+@dataclass
+class AttachmentGitHubSnippet:
+    "Pointer to a line range inside a file in a GitHub repository."
+    line_range: AttachmentFileLineRange
+    path: str
+    ref: str
+    repo: GitHubRepoRef
+    type: ClassVar[str] = "github_snippet"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubSnippet":
+        assert isinstance(obj, dict)
+        line_range = AttachmentFileLineRange.from_dict(obj.get("lineRange"))
+        path = from_str(obj.get("path"))
+        ref = from_str(obj.get("ref"))
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubSnippet(
+            line_range=line_range,
+            path=path,
+            ref=ref,
+            repo=repo,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["lineRange"] = to_class(AttachmentFileLineRange, self.line_range)
+        result["path"] = from_str(self.path)
+        result["ref"] = from_str(self.ref)
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubTreeComparison:
+    "Pointer to a comparison between two git revisions."
+    base: AttachmentGitHubTreeComparisonSide
+    head: AttachmentGitHubTreeComparisonSide
+    type: ClassVar[str] = "github_tree_comparison"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubTreeComparison":
+        assert isinstance(obj, dict)
+        base = AttachmentGitHubTreeComparisonSide.from_dict(obj.get("base"))
+        head = AttachmentGitHubTreeComparisonSide.from_dict(obj.get("head"))
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubTreeComparison(
+            base=base,
+            head=head,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["base"] = to_class(AttachmentGitHubTreeComparisonSide, self.base)
+        result["head"] = to_class(AttachmentGitHubTreeComparisonSide, self.head)
+        result["type"] = self.type
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class AttachmentGitHubTreeComparisonSide:
+    "One side of a tree comparison (head or base)"
+    repo: GitHubRepoRef
+    revision: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubTreeComparisonSide":
+        assert isinstance(obj, dict)
+        repo = GitHubRepoRef.from_dict(obj.get("repo"))
+        revision = from_str(obj.get("revision"))
+        return AttachmentGitHubTreeComparisonSide(
+            repo=repo,
+            revision=revision,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["repo"] = to_class(GitHubRepoRef, self.repo)
+        result["revision"] = from_str(self.revision)
+        return result
+
+
+@dataclass
+class AttachmentGitHubUrl:
+    "Generic GitHub URL reference."
+    type: ClassVar[str] = "github_url"
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentGitHubUrl":
+        assert isinstance(obj, dict)
+        url = from_str(obj.get("url"))
+        return AttachmentGitHubUrl(
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
         result["type"] = self.type
         result["url"] = from_str(self.url)
         return result
@@ -1246,81 +2295,6 @@ class AutoModeSwitchRequestedData:
             result["errorCode"] = from_union([from_none, from_str], self.error_code)
         if self.retry_after_seconds is not None:
             result["retryAfterSeconds"] = from_union([from_none, to_int], self.retry_after_seconds)
-        return result
-
-
-@dataclass
-class CanvasRegistryChangedCanvas:
-    "Schema for the `CanvasRegistryChangedCanvas` type."
-    canvas_id: str
-    description: str
-    display_name: str
-    extension_id: str
-    actions: list[CanvasRegistryChangedCanvasAction] | None = None
-    extension_name: str | None = None
-    input_schema: dict[str, Any] | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "CanvasRegistryChangedCanvas":
-        assert isinstance(obj, dict)
-        canvas_id = from_str(obj.get("canvasId"))
-        description = from_str(obj.get("description"))
-        display_name = from_str(obj.get("displayName"))
-        extension_id = from_str(obj.get("extensionId"))
-        actions = from_union([from_none, lambda x: from_list(CanvasRegistryChangedCanvasAction.from_dict, x)], obj.get("actions"))
-        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
-        input_schema = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("inputSchema"))
-        return CanvasRegistryChangedCanvas(
-            canvas_id=canvas_id,
-            description=description,
-            display_name=display_name,
-            extension_id=extension_id,
-            actions=actions,
-            extension_name=extension_name,
-            input_schema=input_schema,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["canvasId"] = from_str(self.canvas_id)
-        result["description"] = from_str(self.description)
-        result["displayName"] = from_str(self.display_name)
-        result["extensionId"] = from_str(self.extension_id)
-        if self.actions is not None:
-            result["actions"] = from_union([from_none, lambda x: from_list(lambda x: to_class(CanvasRegistryChangedCanvasAction, x), x)], self.actions)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
-        if self.input_schema is not None:
-            result["inputSchema"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.input_schema)
-        return result
-
-
-@dataclass
-class CanvasRegistryChangedCanvasAction:
-    "Schema for the `CanvasRegistryChangedCanvasAction` type."
-    name: str
-    description: str | None = None
-    input_schema: dict[str, Any] | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "CanvasRegistryChangedCanvasAction":
-        assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        description = from_union([from_none, from_str], obj.get("description"))
-        input_schema = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("inputSchema"))
-        return CanvasRegistryChangedCanvasAction(
-            name=name,
-            description=description,
-            input_schema=input_schema,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["name"] = from_str(self.name)
-        if self.description is not None:
-            result["description"] = from_union([from_none, from_str], self.description)
-        if self.input_schema is not None:
-            result["inputSchema"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.input_schema)
         return result
 
 
@@ -1544,23 +2518,25 @@ class CompactionCompleteCompactionTokensUsed:
 @dataclass
 class _CompactionCompleteCompactionTokensUsedCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
-    token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail]
     total_nano_aiu: float
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail] | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "_CompactionCompleteCompactionTokensUsedCopilotUsage":
         assert isinstance(obj, dict)
-        token_details = from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        _token_details = from_union([from_none, lambda x: from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, x)], obj.get("tokenDetails"))
         return _CompactionCompleteCompactionTokensUsedCopilotUsage(
-            token_details=token_details,
             total_nano_aiu=total_nano_aiu,
+            _token_details=_token_details,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["tokenDetails"] = from_list(lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail, x), self.token_details)
         result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        if self._token_details is not None:
+            result["tokenDetails"] = from_union([from_none, lambda x: from_list(lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail, x), x)], self._token_details)
         return result
 
 
@@ -1980,6 +2956,34 @@ class ExternalToolRequestedData:
 
 
 @dataclass
+class GitHubRepoRef:
+    "Pointer to a GitHub repository."
+    name: str
+    owner: str
+    id: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "GitHubRepoRef":
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        owner = from_str(obj.get("owner"))
+        id = from_union([from_none, from_int], obj.get("id"))
+        return GitHubRepoRef(
+            name=name,
+            owner=owner,
+            id=id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["owner"] = from_str(self.owner)
+        if self.id is not None:
+            result["id"] = from_union([from_none, to_int], self.id)
+        return result
+
+
+@dataclass
 class HandoffRepository:
     "Repository context for the handed-off session"
     name: str
@@ -2241,20 +3245,78 @@ class McpAppToolCallCompleteToolMetaUI:
 
 
 @dataclass
-class McpOauthCompletedData:
-    "MCP OAuth request completion notification"
+class McpHeadersRefreshCompletedData:
+    "MCP headers refresh request completion notification"
+    outcome: McpHeadersRefreshCompletedOutcome
     request_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "McpOauthCompletedData":
+    def from_dict(obj: Any) -> "McpHeadersRefreshCompletedData":
         assert isinstance(obj, dict)
+        outcome = parse_enum(McpHeadersRefreshCompletedOutcome, obj.get("outcome"))
         request_id = from_str(obj.get("requestId"))
-        return McpOauthCompletedData(
+        return McpHeadersRefreshCompletedData(
+            outcome=outcome,
             request_id=request_id,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
+        result["outcome"] = to_enum(McpHeadersRefreshCompletedOutcome, self.outcome)
+        result["requestId"] = from_str(self.request_id)
+        return result
+
+
+@dataclass
+class McpHeadersRefreshRequiredData:
+    "Dynamic headers refresh request for a remote MCP server"
+    reason: McpHeadersRefreshRequiredReason
+    request_id: str
+    server_name: str
+    server_url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpHeadersRefreshRequiredData":
+        assert isinstance(obj, dict)
+        reason = parse_enum(McpHeadersRefreshRequiredReason, obj.get("reason"))
+        request_id = from_str(obj.get("requestId"))
+        server_name = from_str(obj.get("serverName"))
+        server_url = from_str(obj.get("serverUrl"))
+        return McpHeadersRefreshRequiredData(
+            reason=reason,
+            request_id=request_id,
+            server_name=server_name,
+            server_url=server_url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reason"] = to_enum(McpHeadersRefreshRequiredReason, self.reason)
+        result["requestId"] = from_str(self.request_id)
+        result["serverName"] = from_str(self.server_name)
+        result["serverUrl"] = from_str(self.server_url)
+        return result
+
+
+@dataclass
+class McpOauthCompletedData:
+    "MCP OAuth request completion notification"
+    outcome: McpOauthCompletionOutcome
+    request_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpOauthCompletedData":
+        assert isinstance(obj, dict)
+        outcome = parse_enum(McpOauthCompletionOutcome, obj.get("outcome"))
+        request_id = from_str(obj.get("requestId"))
+        return McpOauthCompletedData(
+            outcome=outcome,
+            request_id=request_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["outcome"] = to_enum(McpOauthCompletionOutcome, self.outcome)
         result["requestId"] = from_str(self.request_id)
         return result
 
@@ -2262,32 +3324,46 @@ class McpOauthCompletedData:
 @dataclass
 class McpOauthRequiredData:
     "OAuth authentication request for an MCP server"
+    reason: McpOauthRequestReason
     request_id: str
     server_name: str
     server_url: str
+    resource_metadata: str | None = None
     static_client_config: McpOauthRequiredStaticClientConfig | None = None
+    www_authenticate_params: McpOauthWWWAuthenticateParams | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "McpOauthRequiredData":
         assert isinstance(obj, dict)
+        reason = parse_enum(McpOauthRequestReason, obj.get("reason"))
         request_id = from_str(obj.get("requestId"))
         server_name = from_str(obj.get("serverName"))
         server_url = from_str(obj.get("serverUrl"))
+        resource_metadata = from_union([from_none, from_str], obj.get("resourceMetadata"))
         static_client_config = from_union([from_none, McpOauthRequiredStaticClientConfig.from_dict], obj.get("staticClientConfig"))
+        www_authenticate_params = from_union([from_none, McpOauthWWWAuthenticateParams.from_dict], obj.get("wwwAuthenticateParams"))
         return McpOauthRequiredData(
+            reason=reason,
             request_id=request_id,
             server_name=server_name,
             server_url=server_url,
+            resource_metadata=resource_metadata,
             static_client_config=static_client_config,
+            www_authenticate_params=www_authenticate_params,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
+        result["reason"] = to_enum(McpOauthRequestReason, self.reason)
         result["requestId"] = from_str(self.request_id)
         result["serverName"] = from_str(self.server_name)
         result["serverUrl"] = from_str(self.server_url)
+        if self.resource_metadata is not None:
+            result["resourceMetadata"] = from_union([from_none, from_str], self.resource_metadata)
         if self.static_client_config is not None:
             result["staticClientConfig"] = from_union([from_none, lambda x: to_class(McpOauthRequiredStaticClientConfig, x)], self.static_client_config)
+        if self.www_authenticate_params is not None:
+            result["wwwAuthenticateParams"] = from_union([from_none, lambda x: to_class(McpOauthWWWAuthenticateParams, x)], self.www_authenticate_params)
         return result
 
 
@@ -2295,6 +3371,7 @@ class McpOauthRequiredData:
 class McpOauthRequiredStaticClientConfig:
     "Static OAuth client configuration, if the server specifies one"
     client_id: str
+    client_secret: str | None = None
     grant_type: str | None = None
     public_client: bool | None = None
 
@@ -2302,10 +3379,12 @@ class McpOauthRequiredStaticClientConfig:
     def from_dict(obj: Any) -> "McpOauthRequiredStaticClientConfig":
         assert isinstance(obj, dict)
         client_id = from_str(obj.get("clientId"))
+        client_secret = from_union([from_none, from_str], obj.get("clientSecret"))
         grant_type = from_union([from_none, from_str], obj.get("grantType"))
         public_client = from_union([from_none, from_bool], obj.get("publicClient"))
         return McpOauthRequiredStaticClientConfig(
             client_id=client_id,
+            client_secret=client_secret,
             grant_type=grant_type,
             public_client=public_client,
         )
@@ -2313,10 +3392,42 @@ class McpOauthRequiredStaticClientConfig:
     def to_dict(self) -> dict:
         result: dict = {}
         result["clientId"] = from_str(self.client_id)
+        if self.client_secret is not None:
+            result["clientSecret"] = from_union([from_none, from_str], self.client_secret)
         if self.grant_type is not None:
             result["grantType"] = from_union([from_none, from_str], self.grant_type)
         if self.public_client is not None:
             result["publicClient"] = from_union([from_none, from_bool], self.public_client)
+        return result
+
+
+@dataclass
+class McpOauthWWWAuthenticateParams:
+    "OAuth WWW-Authenticate parameters parsed from an MCP auth challenge"
+    error: str | None = None
+    resource_metadata_url: str | None = None
+    scope: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpOauthWWWAuthenticateParams":
+        assert isinstance(obj, dict)
+        error = from_union([from_none, from_str], obj.get("error"))
+        resource_metadata_url = from_union([from_none, from_str], obj.get("resourceMetadataUrl"))
+        scope = from_union([from_none, from_str], obj.get("scope"))
+        return McpOauthWWWAuthenticateParams(
+            error=error,
+            resource_metadata_url=resource_metadata_url,
+            scope=scope,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.error is not None:
+            result["error"] = from_union([from_none, from_str], self.error)
+        if self.resource_metadata_url is not None:
+            result["resourceMetadataUrl"] = from_union([from_none, from_str], self.resource_metadata_url)
+        if self.scope is not None:
+            result["scope"] = from_union([from_none, from_str], self.scope)
         return result
 
 
@@ -2373,11 +3484,17 @@ class ModelCallFailureData:
     "Failed LLM API call metadata for telemetry"
     source: ModelCallFailureSource
     api_call_id: str | None = None
+    bad_request_kind: ModelCallFailureBadRequestKind | None = None
     duration: timedelta | None = None
+    error_code: str | None = None
     error_message: str | None = None
+    error_type: str | None = None
     initiator: str | None = None
     model: str | None = None
     provider_call_id: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _quota_snapshots: dict[str, _AssistantUsageQuotaSnapshot] | None = None
+    request_fingerprint: ModelCallFailureRequestFingerprint | None = None
     service_request_id: str | None = None
     status_code: int | None = None
 
@@ -2386,21 +3503,31 @@ class ModelCallFailureData:
         assert isinstance(obj, dict)
         source = parse_enum(ModelCallFailureSource, obj.get("source"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
+        bad_request_kind = from_union([from_none, lambda x: parse_enum(ModelCallFailureBadRequestKind, x)], obj.get("badRequestKind"))
         duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
+        error_code = from_union([from_none, from_str], obj.get("errorCode"))
         error_message = from_union([from_none, from_str], obj.get("errorMessage"))
+        error_type = from_union([from_none, from_str], obj.get("errorType"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
         model = from_union([from_none, from_str], obj.get("model"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
+        _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
+        request_fingerprint = from_union([from_none, ModelCallFailureRequestFingerprint.from_dict], obj.get("requestFingerprint"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         return ModelCallFailureData(
             source=source,
             api_call_id=api_call_id,
+            bad_request_kind=bad_request_kind,
             duration=duration,
+            error_code=error_code,
             error_message=error_message,
+            error_type=error_type,
             initiator=initiator,
             model=model,
             provider_call_id=provider_call_id,
+            _quota_snapshots=_quota_snapshots,
+            request_fingerprint=request_fingerprint,
             service_request_id=service_request_id,
             status_code=status_code,
         )
@@ -2410,20 +3537,74 @@ class ModelCallFailureData:
         result["source"] = to_enum(ModelCallFailureSource, self.source)
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
+        if self.bad_request_kind is not None:
+            result["badRequestKind"] = from_union([from_none, lambda x: to_enum(ModelCallFailureBadRequestKind, x)], self.bad_request_kind)
         if self.duration is not None:
             result["durationMs"] = from_union([from_none, to_timedelta_int], self.duration)
+        if self.error_code is not None:
+            result["errorCode"] = from_union([from_none, from_str], self.error_code)
         if self.error_message is not None:
             result["errorMessage"] = from_union([from_none, from_str], self.error_message)
+        if self.error_type is not None:
+            result["errorType"] = from_union([from_none, from_str], self.error_type)
         if self.initiator is not None:
             result["initiator"] = from_union([from_none, from_str], self.initiator)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
+        if self._quota_snapshots is not None:
+            result["quotaSnapshots"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(_AssistantUsageQuotaSnapshot, x), x)], self._quota_snapshots)
+        if self.request_fingerprint is not None:
+            result["requestFingerprint"] = from_union([from_none, lambda x: to_class(ModelCallFailureRequestFingerprint, x)], self.request_fingerprint)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
             result["statusCode"] = from_union([from_none, to_int], self.status_code)
+        return result
+
+
+@dataclass
+class ModelCallFailureRequestFingerprint:
+    "Content-free structural summary of the failing request for diagnosing malformed 4xx calls"
+    image_part_count: int
+    image_parts_missing_media_type: int
+    message_count: int
+    nameless_tool_call_count: int
+    tool_call_count: int
+    tool_result_message_count: int
+    last_message_role: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ModelCallFailureRequestFingerprint":
+        assert isinstance(obj, dict)
+        image_part_count = from_int(obj.get("imagePartCount"))
+        image_parts_missing_media_type = from_int(obj.get("imagePartsMissingMediaType"))
+        message_count = from_int(obj.get("messageCount"))
+        nameless_tool_call_count = from_int(obj.get("namelessToolCallCount"))
+        tool_call_count = from_int(obj.get("toolCallCount"))
+        tool_result_message_count = from_int(obj.get("toolResultMessageCount"))
+        last_message_role = from_union([from_none, from_str], obj.get("lastMessageRole"))
+        return ModelCallFailureRequestFingerprint(
+            image_part_count=image_part_count,
+            image_parts_missing_media_type=image_parts_missing_media_type,
+            message_count=message_count,
+            nameless_tool_call_count=nameless_tool_call_count,
+            tool_call_count=tool_call_count,
+            tool_result_message_count=tool_result_message_count,
+            last_message_role=last_message_role,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["imagePartCount"] = to_int(self.image_part_count)
+        result["imagePartsMissingMediaType"] = to_int(self.image_parts_missing_media_type)
+        result["messageCount"] = to_int(self.message_count)
+        result["namelessToolCallCount"] = to_int(self.nameless_tool_call_count)
+        result["toolCallCount"] = to_int(self.tool_call_count)
+        result["toolResultMessageCount"] = to_int(self.tool_result_message_count)
+        if self.last_message_role is not None:
+            result["lastMessageRole"] = from_union([from_none, from_str], self.last_message_role)
         return result
 
 
@@ -2851,7 +4032,7 @@ class PermissionPromptRequestMcp:
     server_name: str
     tool_name: str
     tool_title: str
-    args: Any | None = None
+    args: Any = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -2860,7 +4041,7 @@ class PermissionPromptRequestMcp:
         server_name = from_str(obj.get("serverName"))
         tool_name = from_str(obj.get("toolName"))
         tool_title = from_str(obj.get("toolTitle"))
-        args = from_union([from_none, lambda x: x], obj.get("args"))
+        args = obj.get("args")
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestMcp(
             server_name=server_name,
@@ -2877,7 +4058,7 @@ class PermissionPromptRequestMcp:
         result["toolName"] = from_str(self.tool_name)
         result["toolTitle"] = from_str(self.tool_title)
         if self.args is not None:
-            result["args"] = from_union([from_none, lambda x: x], self.args)
+            result["args"] = self.args
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -3334,6 +4515,8 @@ class PermissionRequestShell:
     kind: ClassVar[str] = "shell"
     possible_paths: list[str]
     possible_urls: list[PermissionRequestShellPossibleUrl]
+    request_sandbox_bypass: bool | None = None
+    request_sandbox_bypass_reason: str | None = None
     tool_call_id: str | None = None
     warning: str | None = None
 
@@ -3347,6 +4530,8 @@ class PermissionRequestShell:
         intention = from_str(obj.get("intention"))
         possible_paths = from_list(from_str, obj.get("possiblePaths"))
         possible_urls = from_list(PermissionRequestShellPossibleUrl.from_dict, obj.get("possibleUrls"))
+        request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
+        request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         warning = from_union([from_none, from_str], obj.get("warning"))
         return PermissionRequestShell(
@@ -3357,6 +4542,8 @@ class PermissionRequestShell:
             intention=intention,
             possible_paths=possible_paths,
             possible_urls=possible_urls,
+            request_sandbox_bypass=request_sandbox_bypass,
+            request_sandbox_bypass_reason=request_sandbox_bypass_reason,
             tool_call_id=tool_call_id,
             warning=warning,
         )
@@ -3371,6 +4558,10 @@ class PermissionRequestShell:
         result["kind"] = self.kind
         result["possiblePaths"] = from_list(from_str, self.possible_paths)
         result["possibleUrls"] = from_list(lambda x: to_class(PermissionRequestShellPossibleUrl, x), self.possible_urls)
+        if self.request_sandbox_bypass is not None:
+            result["requestSandboxBypass"] = from_union([from_none, from_bool], self.request_sandbox_bypass)
+        if self.request_sandbox_bypass_reason is not None:
+            result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         if self.warning is not None:
@@ -3550,6 +4741,68 @@ class PermissionRule:
 
 
 @dataclass
+class PersistedBinaryImage:
+    "Binary result returned by a tool for the model"
+    data: str
+    mime_type: str
+    type: PersistedBinaryImageType
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PersistedBinaryImage":
+        assert isinstance(obj, dict)
+        data = from_str(obj.get("data"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = parse_enum(PersistedBinaryImageType, obj.get("type"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        metadata = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("metadata"))
+        return PersistedBinaryImage(
+            data=data,
+            mime_type=mime_type,
+            type=type,
+            description=description,
+            metadata=metadata,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["data"] = from_str(self.data)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(PersistedBinaryImageType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.metadata is not None:
+            result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
+        return result
+
+
+@dataclass
+class ResponseBudgetConfig:
+    "Optional response budget limits."
+    max_ai_credits: float | None = None
+    max_model_iterations: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ResponseBudgetConfig":
+        assert isinstance(obj, dict)
+        max_ai_credits = from_union([from_none, from_float], obj.get("maxAiCredits"))
+        max_model_iterations = from_union([from_none, from_int], obj.get("maxModelIterations"))
+        return ResponseBudgetConfig(
+            max_ai_credits=max_ai_credits,
+            max_model_iterations=max_model_iterations,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_ai_credits is not None:
+            result["maxAiCredits"] = from_union([from_none, to_float], self.max_ai_credits)
+        if self.max_model_iterations is not None:
+            result["maxModelIterations"] = from_union([from_none, to_int], self.max_model_iterations)
+        return result
+
+
+@dataclass
 class SamplingCompletedData:
     "Sampling request completion notification signaling UI dismissal"
     request_id: str
@@ -3637,108 +4890,47 @@ class SessionBackgroundTasksChangedData:
 
 
 @dataclass
-class SessionCanvasClosedData:
-    "Schema for the `CanvasClosedData` type."
-    canvas_id: str
-    extension_id: str
-    instance_id: str
+class SessionBinaryAssetData:
+    "Canonical bytes for a content-addressed binary asset shared by reference across events"
+    asset_id: str
+    byte_length: int
+    data: str
+    mime_type: str
+    type: BinaryAssetType
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionCanvasClosedData":
+    def from_dict(obj: Any) -> "SessionBinaryAssetData":
         assert isinstance(obj, dict)
-        canvas_id = from_str(obj.get("canvasId"))
-        extension_id = from_str(obj.get("extensionId"))
-        instance_id = from_str(obj.get("instanceId"))
-        return SessionCanvasClosedData(
-            canvas_id=canvas_id,
-            extension_id=extension_id,
-            instance_id=instance_id,
+        asset_id = from_str(obj.get("assetId"))
+        byte_length = from_int(obj.get("byteLength"))
+        data = from_str(obj.get("data"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = parse_enum(BinaryAssetType, obj.get("type"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        metadata = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("metadata"))
+        return SessionBinaryAssetData(
+            asset_id=asset_id,
+            byte_length=byte_length,
+            data=data,
+            mime_type=mime_type,
+            type=type,
+            description=description,
+            metadata=metadata,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["canvasId"] = from_str(self.canvas_id)
-        result["extensionId"] = from_str(self.extension_id)
-        result["instanceId"] = from_str(self.instance_id)
-        return result
-
-
-@dataclass
-class SessionCanvasOpenedData:
-    "Schema for the `CanvasOpenedData` type."
-    availability: CanvasOpenedAvailability
-    canvas_id: str
-    extension_id: str
-    instance_id: str
-    reopen: bool
-    extension_name: str | None = None
-    input: Any = None
-    status: str | None = None
-    title: str | None = None
-    url: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionCanvasOpenedData":
-        assert isinstance(obj, dict)
-        availability = parse_enum(CanvasOpenedAvailability, obj.get("availability"))
-        canvas_id = from_str(obj.get("canvasId"))
-        extension_id = from_str(obj.get("extensionId"))
-        instance_id = from_str(obj.get("instanceId"))
-        reopen = from_bool(obj.get("reopen"))
-        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
-        input = obj.get("input")
-        status = from_union([from_none, from_str], obj.get("status"))
-        title = from_union([from_none, from_str], obj.get("title"))
-        url = from_union([from_none, from_str], obj.get("url"))
-        return SessionCanvasOpenedData(
-            availability=availability,
-            canvas_id=canvas_id,
-            extension_id=extension_id,
-            instance_id=instance_id,
-            reopen=reopen,
-            extension_name=extension_name,
-            input=input,
-            status=status,
-            title=title,
-            url=url,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["availability"] = to_enum(CanvasOpenedAvailability, self.availability)
-        result["canvasId"] = from_str(self.canvas_id)
-        result["extensionId"] = from_str(self.extension_id)
-        result["instanceId"] = from_str(self.instance_id)
-        result["reopen"] = from_bool(self.reopen)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
-        if self.input is not None:
-            result["input"] = self.input
-        if self.status is not None:
-            result["status"] = from_union([from_none, from_str], self.status)
-        if self.title is not None:
-            result["title"] = from_union([from_none, from_str], self.title)
-        if self.url is not None:
-            result["url"] = from_union([from_none, from_str], self.url)
-        return result
-
-
-@dataclass
-class SessionCanvasRegistryChangedData:
-    "Schema for the `CanvasRegistryChangedData` type."
-    canvases: list[CanvasRegistryChangedCanvas]
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionCanvasRegistryChangedData":
-        assert isinstance(obj, dict)
-        canvases = from_list(CanvasRegistryChangedCanvas.from_dict, obj.get("canvases"))
-        return SessionCanvasRegistryChangedData(
-            canvases=canvases,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["canvases"] = from_list(lambda x: to_class(CanvasRegistryChangedCanvas, x), self.canvases)
+        result["assetId"] = from_str(self.asset_id)
+        result["byteLength"] = to_int(self.byte_length)
+        result["data"] = from_str(self.data)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(BinaryAssetType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.metadata is not None:
+            result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
         return result
 
 
@@ -3758,6 +4950,7 @@ class SessionCompactionCompleteData:
     pre_compaction_tokens: int | None = None
     request_id: str | None = None
     service_request_id: str | None = None
+    status_code: int | None = None
     summary_content: str | None = None
     system_tokens: int | None = None
     tokens_removed: int | None = None
@@ -3779,6 +4972,7 @@ class SessionCompactionCompleteData:
         pre_compaction_tokens = from_union([from_none, from_int], obj.get("preCompactionTokens"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
+        status_code = from_union([from_none, from_int], obj.get("statusCode"))
         summary_content = from_union([from_none, from_str], obj.get("summaryContent"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
         tokens_removed = from_union([from_none, from_int], obj.get("tokensRemoved"))
@@ -3797,6 +4991,7 @@ class SessionCompactionCompleteData:
             pre_compaction_tokens=pre_compaction_tokens,
             request_id=request_id,
             service_request_id=service_request_id,
+            status_code=status_code,
             summary_content=summary_content,
             system_tokens=system_tokens,
             tokens_removed=tokens_removed,
@@ -3830,6 +5025,8 @@ class SessionCompactionCompleteData:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
+        if self.status_code is not None:
+            result["statusCode"] = from_union([from_none, to_int], self.status_code)
         if self.summary_content is not None:
             result["summaryContent"] = from_union([from_none, from_str], self.summary_content)
         if self.system_tokens is not None:
@@ -4384,6 +5581,7 @@ class SessionResumeData:
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
+    response_budget: ResponseBudgetConfig | None = None
     selected_model: str | None = None
     session_was_active: bool | None = None
 
@@ -4400,6 +5598,7 @@ class SessionResumeData:
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
+        response_budget = from_union([from_none, ResponseBudgetConfig.from_dict], obj.get("responseBudget"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
         session_was_active = from_union([from_none, from_bool], obj.get("sessionWasActive"))
         return SessionResumeData(
@@ -4413,6 +5612,7 @@ class SessionResumeData:
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
+            response_budget=response_budget,
             selected_model=selected_model,
             session_was_active=session_was_active,
         )
@@ -4437,6 +5637,8 @@ class SessionResumeData:
             result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
+        if self.response_budget is not None:
+            result["responseBudget"] = from_union([from_none, lambda x: to_class(ResponseBudgetConfig, x)], self.response_budget)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
         if self.session_was_active is not None:
@@ -4473,6 +5675,7 @@ class SessionScheduleCreatedData:
     display_prompt: str | None = None
     interval: timedelta | None = None
     recurring: bool | None = None
+    self_paced: bool | None = None
     tz: str | None = None
 
     @staticmethod
@@ -4485,6 +5688,7 @@ class SessionScheduleCreatedData:
         display_prompt = from_union([from_none, from_str], obj.get("displayPrompt"))
         interval = from_union([from_none, from_timedelta], obj.get("intervalMs"))
         recurring = from_union([from_none, from_bool], obj.get("recurring"))
+        self_paced = from_union([from_none, from_bool], obj.get("selfPaced"))
         tz = from_union([from_none, from_str], obj.get("tz"))
         return SessionScheduleCreatedData(
             id=id,
@@ -4494,6 +5698,7 @@ class SessionScheduleCreatedData:
             display_prompt=display_prompt,
             interval=interval,
             recurring=recurring,
+            self_paced=self_paced,
             tz=tz,
         )
 
@@ -4511,8 +5716,33 @@ class SessionScheduleCreatedData:
             result["intervalMs"] = from_union([from_none, to_timedelta_int], self.interval)
         if self.recurring is not None:
             result["recurring"] = from_union([from_none, from_bool], self.recurring)
+        if self.self_paced is not None:
+            result["selfPaced"] = from_union([from_none, from_bool], self.self_paced)
         if self.tz is not None:
             result["tz"] = from_union([from_none, from_str], self.tz)
+        return result
+
+
+@dataclass
+class SessionScheduleRearmedData:
+    "Self-paced schedule re-armed for its next run"
+    id: int
+    next_run_at: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionScheduleRearmedData":
+        assert isinstance(obj, dict)
+        id = from_int(obj.get("id"))
+        next_run_at = from_int(obj.get("nextRunAt"))
+        return SessionScheduleRearmedData(
+            id=id,
+            next_run_at=next_run_at,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = to_int(self.id)
+        result["nextRunAt"] = to_int(self.next_run_at)
         return result
 
 
@@ -4660,6 +5890,7 @@ class SessionStartData:
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
+    response_budget: ResponseBudgetConfig | None = None
     selected_model: str | None = None
 
     @staticmethod
@@ -4677,6 +5908,7 @@ class SessionStartData:
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
+        response_budget = from_union([from_none, ResponseBudgetConfig.from_dict], obj.get("responseBudget"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
         return SessionStartData(
             copilot_version=copilot_version,
@@ -4691,6 +5923,7 @@ class SessionStartData:
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
+            response_budget=response_budget,
             selected_model=selected_model,
         )
 
@@ -4715,6 +5948,8 @@ class SessionStartData:
             result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
+        if self.response_budget is not None:
+            result["responseBudget"] = from_union([from_none, lambda x: to_class(ResponseBudgetConfig, x)], self.response_budget)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
         return result
@@ -5167,6 +6402,7 @@ class SkillsLoadedSkill:
     name: str
     source: SkillSource
     user_invocable: bool
+    argument_hint: str | None = None
     path: str | None = None
 
     @staticmethod
@@ -5177,6 +6413,7 @@ class SkillsLoadedSkill:
         name = from_str(obj.get("name"))
         source = parse_enum(SkillSource, obj.get("source"))
         user_invocable = from_bool(obj.get("userInvocable"))
+        argument_hint = from_union([from_none, from_str], obj.get("argumentHint"))
         path = from_union([from_none, from_str], obj.get("path"))
         return SkillsLoadedSkill(
             description=description,
@@ -5184,6 +6421,7 @@ class SkillsLoadedSkill:
             name=name,
             source=source,
             user_invocable=user_invocable,
+            argument_hint=argument_hint,
             path=path,
         )
 
@@ -5194,6 +6432,8 @@ class SkillsLoadedSkill:
         result["name"] = from_str(self.name)
         result["source"] = to_enum(SkillSource, self.source)
         result["userInvocable"] = from_bool(self.user_invocable)
+        if self.argument_hint is not None:
+            result["argumentHint"] = from_union([from_none, from_str], self.argument_hint)
         if self.path is not None:
             result["path"] = from_union([from_none, from_str], self.path)
         return result
@@ -5955,6 +7195,10 @@ class ToolExecutionCompleteError:
 class ToolExecutionCompleteResult:
     "Tool execution result on success"
     content: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    binary_results_for_llm: list[PersistedBinaryResult] | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    citable_sources: list[CitableSource] | None = None
     contents: list[ToolExecutionCompleteContent] | None = None
     detailed_content: str | None = None
     structured_content: Any = None
@@ -5964,12 +7208,16 @@ class ToolExecutionCompleteResult:
     def from_dict(obj: Any) -> "ToolExecutionCompleteResult":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
+        binary_results_for_llm = from_union([from_none, lambda x: from_list(lambda x: from_union([PersistedBinaryImage.from_dict, OmittedBinaryResult.from_dict, BinaryAssetReference.from_dict], x), x)], obj.get("binaryResultsForLlm"))
+        citable_sources = from_union([from_none, lambda x: from_list(CitableSource.from_dict, x)], obj.get("citableSources"))
         contents = from_union([from_none, lambda x: from_list(_load_ToolExecutionCompleteContent, x)], obj.get("contents"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
         structured_content = obj.get("structuredContent")
         ui_resource = from_union([from_none, ToolExecutionCompleteUIResource.from_dict], obj.get("uiResource"))
         return ToolExecutionCompleteResult(
             content=content,
+            binary_results_for_llm=binary_results_for_llm,
+            citable_sources=citable_sources,
             contents=contents,
             detailed_content=detailed_content,
             structured_content=structured_content,
@@ -5979,6 +7227,10 @@ class ToolExecutionCompleteResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
+        if self.binary_results_for_llm is not None:
+            result["binaryResultsForLlm"] = from_union([from_none, lambda x: from_list(lambda x: from_union([lambda x: to_class(PersistedBinaryImage, x), lambda x: to_class(OmittedBinaryResult, x), lambda x: to_class(BinaryAssetReference, x)], x), x)], self.binary_results_for_llm)
+        if self.citable_sources is not None:
+            result["citableSources"] = from_union([from_none, lambda x: from_list(lambda x: to_class(CitableSource, x), x)], self.citable_sources)
         if self.contents is not None:
             result["contents"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.contents)
         if self.detailed_content is not None:
@@ -6333,6 +7585,7 @@ class ToolExecutionStartData:
     model: str | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
+    shell_tool_info: ToolExecutionStartShellToolInfo | None = None
     tool_description: ToolExecutionStartToolDescription | None = None
     turn_id: str | None = None
 
@@ -6347,6 +7600,7 @@ class ToolExecutionStartData:
         mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        shell_tool_info = from_union([from_none, ToolExecutionStartShellToolInfo.from_dict], obj.get("shellToolInfo"))
         tool_description = from_union([from_none, ToolExecutionStartToolDescription.from_dict], obj.get("toolDescription"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionStartData(
@@ -6358,6 +7612,7 @@ class ToolExecutionStartData:
             mcp_tool_name=mcp_tool_name,
             model=model,
             parent_tool_call_id=parent_tool_call_id,
+            shell_tool_info=shell_tool_info,
             tool_description=tool_description,
             turn_id=turn_id,
         )
@@ -6378,10 +7633,35 @@ class ToolExecutionStartData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
+        if self.shell_tool_info is not None:
+            result["shellToolInfo"] = from_union([from_none, lambda x: to_class(ToolExecutionStartShellToolInfo, x)], self.shell_tool_info)
         if self.tool_description is not None:
             result["toolDescription"] = from_union([from_none, lambda x: to_class(ToolExecutionStartToolDescription, x)], self.tool_description)
         if self.turn_id is not None:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
+        return result
+
+
+@dataclass
+class ToolExecutionStartShellToolInfo:
+    "Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs."
+    has_write_file_redirection: bool
+    possible_paths: list[str]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionStartShellToolInfo":
+        assert isinstance(obj, dict)
+        has_write_file_redirection = from_bool(obj.get("hasWriteFileRedirection"))
+        possible_paths = from_list(from_str, obj.get("possiblePaths"))
+        return ToolExecutionStartShellToolInfo(
+            has_write_file_redirection=has_write_file_redirection,
+            possible_paths=possible_paths,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hasWriteFileRedirection"] = from_bool(self.has_write_file_redirection)
+        result["possiblePaths"] = from_list(from_str, self.possible_paths)
         return result
 
 
@@ -6560,6 +7840,7 @@ class UserMessageData:
     content: str
     agent_mode: UserMessageAgentMode | None = None
     attachments: list[Attachment] | None = None
+    delivery: UserMessageDelivery | None = None
     interaction_id: str | None = None
     is_autopilot_continuation: bool | None = None
     native_document_path_fallback_paths: list[str] | None = None
@@ -6574,6 +7855,7 @@ class UserMessageData:
         content = from_str(obj.get("content"))
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
         attachments = from_union([from_none, lambda x: from_list(_load_Attachment, x)], obj.get("attachments"))
+        delivery = from_union([from_none, lambda x: parse_enum(UserMessageDelivery, x)], obj.get("delivery"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         is_autopilot_continuation = from_union([from_none, from_bool], obj.get("isAutopilotContinuation"))
         native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("nativeDocumentPathFallbackPaths"))
@@ -6585,6 +7867,7 @@ class UserMessageData:
             content=content,
             agent_mode=agent_mode,
             attachments=attachments,
+            delivery=delivery,
             interaction_id=interaction_id,
             is_autopilot_continuation=is_autopilot_continuation,
             native_document_path_fallback_paths=native_document_path_fallback_paths,
@@ -6601,6 +7884,8 @@ class UserMessageData:
             result["agentMode"] = from_union([from_none, lambda x: to_enum(UserMessageAgentMode, x)], self.agent_mode)
         if self.attachments is not None:
             result["attachments"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.attachments)
+        if self.delivery is not None:
+            result["delivery"] = from_union([from_none, lambda x: to_enum(UserMessageDelivery, x)], self.delivery)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.is_autopilot_continuation is not None:
@@ -6841,9 +8126,28 @@ def _load_Attachment(obj: Any) -> "Attachment":
         case "directory": return AttachmentDirectory.from_dict(obj)
         case "selection": return AttachmentSelection.from_dict(obj)
         case "github_reference": return AttachmentGitHubReference.from_dict(obj)
+        case "github_commit": return AttachmentGitHubCommit.from_dict(obj)
+        case "github_release": return AttachmentGitHubRelease.from_dict(obj)
+        case "github_actions_job": return AttachmentGitHubActionsJob.from_dict(obj)
+        case "github_repository": return AttachmentGitHubRepository.from_dict(obj)
+        case "github_file_diff": return AttachmentGitHubFileDiff.from_dict(obj)
+        case "github_tree_comparison": return AttachmentGitHubTreeComparison.from_dict(obj)
+        case "github_url": return AttachmentGitHubUrl.from_dict(obj)
+        case "github_file": return AttachmentGitHubFile.from_dict(obj)
+        case "github_snippet": return AttachmentGitHubSnippet.from_dict(obj)
         case "blob": return AttachmentBlob.from_dict(obj)
         case "extension_context": return AttachmentExtensionContext.from_dict(obj)
         case _: raise ValueError(f"Unknown Attachment type: {kind!r}")
+
+
+def _load_CitationLocation(obj: Any) -> "CitationLocation":
+    assert isinstance(obj, dict)
+    kind = obj.get("type")
+    match kind:
+        case "char": return CitationLocationChar.from_dict(obj)
+        case "page": return CitationLocationPage.from_dict(obj)
+        case "block": return CitationLocationBlock.from_dict(obj)
+        case _: raise ValueError(f"Unknown CitationLocation type: {kind!r}")
 
 
 def _load_PermissionPromptRequest(obj: Any) -> "PermissionPromptRequest":
@@ -6942,8 +8246,12 @@ def _load_UserToolSessionApproval(obj: Any) -> "UserToolSessionApproval":
 ToolExecutionCompleteContent = ToolExecutionCompleteContentText | ToolExecutionCompleteContentTerminal | ToolExecutionCompleteContentImage | ToolExecutionCompleteContentAudio | ToolExecutionCompleteContentResourceLink | ToolExecutionCompleteContentResource
 
 
-# A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload
-Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentBlob | AttachmentExtensionContext
+# A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference
+PersistedBinaryResult = PersistedBinaryImage | OmittedBinaryResult | BinaryAssetReference
+
+
+# A user message attachment — a file, directory, code selection, blob, GitHub reference, GitHub-anchored pointer, or extension-supplied context payload
+Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentGitHubCommit | AttachmentGitHubRelease | AttachmentGitHubActionsJob | AttachmentGitHubRepository | AttachmentGitHubFileDiff | AttachmentGitHubTreeComparison | AttachmentGitHubUrl | AttachmentGitHubFile | AttachmentGitHubSnippet | AttachmentBlob | AttachmentExtensionContext
 
 
 # Derived user-facing permission prompt details for UI consumers
@@ -6952,6 +8260,10 @@ PermissionPromptRequest = PermissionPromptRequestCommands | PermissionPromptRequ
 
 # Details of the permission being requested
 PermissionRequest = PermissionRequestShell | PermissionRequestWrite | PermissionRequestRead | PermissionRequestMcp | PermissionRequestUrl | PermissionRequestMemory | PermissionRequestCustomTool | PermissionRequestHook | PermissionRequestExtensionManagement | PermissionRequestExtensionPermissionAccess
+
+
+# Location within a cited source (character, page, or content-block range) that supports a span.
+CitationLocation = CitationLocationChar | CitationLocationPage | CitationLocationBlock
 
 
 # Structured metadata identifying what triggered this notification
@@ -6968,6 +8280,17 @@ ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceContents | Emb
 
 # The result of the permission request
 PermissionResult = PermissionApproved | PermissionApprovedForSession | PermissionApprovedForLocation | PermissionCancelled | PermissionDeniedByRules | PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser | PermissionDeniedInteractivelyByUser | PermissionDeniedByContentExclusionPolicy | PermissionDeniedByPermissionRequestHook
+
+
+# Experimental: this enum is part of an experimental API and may change or be removed.
+class CitationProvider(Enum):
+    "The system that produced a citation."
+    # Citation produced by an Anthropic (Claude) model response.
+    ANTHROPIC = "anthropic"
+    # Citation produced by an OpenAI model response.
+    OPENAI = "openai"
+    # Citation synthesized client-side by the runtime from tool output.
+    CLIENT = "client"
 
 
 class AbortReason(Enum):
@@ -7042,12 +8365,20 @@ class AutopilotObjectiveChangedStatus(Enum):
     COMPLETED = "completed"
 
 
-class CanvasOpenedAvailability(Enum):
-    "Runtime-controlled routing state for the instance. \"ready\" when the provider connection is live; \"stale\" when the provider has gone away and the instance is awaiting rebinding."
-    # Provider connection is live; actions can be invoked.
-    READY = "ready"
-    # Provider has gone away; the instance is awaiting rebinding.
-    STALE = "stale"
+class BinaryAssetReferenceType(Enum):
+    "Binary result type discriminator. Use \"image\" for images and \"resource\" for other binary data."
+    # Binary image data.
+    IMAGE = "image"
+    # Other binary resource data.
+    RESOURCE = "resource"
+
+
+class BinaryAssetType(Enum):
+    "Binary asset type discriminator. Use \"image\" for images and \"resource\" otherwise."
+    # Binary image data.
+    IMAGE = "image"
+    # Other binary resource data.
+    RESOURCE = "resource"
 
 
 class ContextTier(Enum):
@@ -7120,6 +8451,46 @@ class HandoffSourceType(Enum):
     LOCAL = "local"
 
 
+class McpHeadersRefreshCompletedOutcome(Enum):
+    "How the pending MCP headers refresh request resolved."
+    # The host supplied dynamic headers.
+    HEADERS = "headers"
+    # The host responded with no dynamic headers.
+    NONE = "none"
+    # No response arrived within the bounded window.
+    TIMEOUT = "timeout"
+
+
+class McpHeadersRefreshRequiredReason(Enum):
+    "Why dynamic headers are being requested."
+    # The transport is making its first dynamic header request for this server.
+    STARTUP = "startup"
+    # The previously cached dynamic headers expired.
+    TTL_EXPIRED = "ttl-expired"
+    # The server returned 401 and stale dynamic headers were invalidated.
+    AUTH_FAILED = "auth-failed"
+
+
+class McpOauthCompletionOutcome(Enum):
+    "How the pending MCP OAuth request was completed"
+    # The request completed with a token-backed OAuth provider.
+    TOKEN = "token"
+    # The request completed without an OAuth provider.
+    CANCELLED = "cancelled"
+
+
+class McpOauthRequestReason(Enum):
+    "Reason the runtime is requesting host-provided MCP OAuth credentials"
+    # Initial credentials are required before connecting to the MCP server.
+    INITIAL = "initial"
+    # The current host-provided credential was rejected and a replacement is requested.
+    REFRESH = "refresh"
+    # The server requires a new host authorization flow before continuing.
+    REAUTH = "reauth"
+    # The server requires a credential with additional scope or audience.
+    UPSCOPE = "upscope"
+
+
 class McpServerSource(Enum):
     "Configuration source: user, workspace, plugin, or builtin"
     # Server configured in the user's global MCP configuration.
@@ -7160,6 +8531,14 @@ class McpServerTransport(Enum):
     MEMORY = "memory"
 
 
+class ModelCallFailureBadRequestKind(Enum):
+    "For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures."
+    # The 400 response carried no error body (transient gateway/proxy signature).
+    BODYLESS = "bodyless"
+    # The 400 response carried a structured CAPI error envelope (deterministic validation failure).
+    STRUCTURED_ERROR = "structured_error"
+
+
 class ModelCallFailureSource(Enum):
     "Where the failed model call originated"
     # Model call from the top-level agent.
@@ -7168,6 +8547,22 @@ class ModelCallFailureSource(Enum):
     SUBAGENT = "subagent"
     # Model call from MCP sampling.
     MCP_SAMPLING = "mcp_sampling"
+
+
+class OmittedBinaryOmittedReason(Enum):
+    "Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable"
+    # Bytes exceeded the session's inline size limit.
+    TOO_LARGE = "too_large"
+    # The referenced binary asset could not be found (e.g. a truncated log).
+    ASSET_UNAVAILABLE = "asset_unavailable"
+
+
+class OmittedBinaryType(Enum):
+    "Binary result type discriminator. Use \"image\" for images and \"resource\" for other binary data."
+    # Binary image data.
+    IMAGE = "image"
+    # Other binary resource data.
+    RESOURCE = "resource"
 
 
 class PermissionPromptRequestPathAccessKind(Enum):
@@ -7194,6 +8589,14 @@ class PermissionRequestMemoryDirection(Enum):
     UPVOTE = "upvote"
     # Vote that the memory is incorrect or outdated.
     DOWNVOTE = "downvote"
+
+
+class PersistedBinaryImageType(Enum):
+    "Binary result type discriminator. Use \"image\" for images and \"resource\" for other binary data."
+    # Binary image data.
+    IMAGE = "image"
+    # Other binary resource data.
+    RESOURCE = "resource"
 
 
 class PlanChangedOperation(Enum):
@@ -7314,6 +8717,16 @@ class UserMessageAgentMode(Enum):
     SHELL = "shell"
 
 
+class UserMessageDelivery(Enum):
+    "How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn."
+    # Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent).
+    IDLE = "idle"
+    # Injected into the current in-flight run while the agent was busy (immediate mode).
+    STEERING = "steering"
+    # Enqueued while the agent was busy; processed as its own run afterward.
+    QUEUED = "queued"
+
+
 class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
     # Repository is hosted on GitHub.
@@ -7330,7 +8743,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -7364,6 +8777,7 @@ class SessionEvent:
             case SessionEventType.SESSION_TITLE_CHANGED: data = SessionTitleChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_SCHEDULE_CREATED: data = SessionScheduleCreatedData.from_dict(data_obj)
             case SessionEventType.SESSION_SCHEDULE_CANCELLED: data = SessionScheduleCancelledData.from_dict(data_obj)
+            case SessionEventType.SESSION_SCHEDULE_REARMED: data = SessionScheduleRearmedData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTOPILOT_OBJECTIVE_CHANGED: data = SessionAutopilotObjectiveChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_INFO: data = SessionInfoData.from_dict(data_obj)
             case SessionEventType.SESSION_WARNING: data = SessionWarningData.from_dict(data_obj)
@@ -7393,6 +8807,7 @@ class SessionEvent:
             case SessionEventType.ASSISTANT_MESSAGE_START: data = AssistantMessageStartData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_MESSAGE_DELTA: data = AssistantMessageDeltaData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_TURN_END: data = AssistantTurnEndData.from_dict(data_obj)
+            case SessionEventType.ASSISTANT_IDLE: data = AssistantIdleData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_USAGE: data = AssistantUsageData.from_dict(data_obj)
             case SessionEventType.MODEL_CALL_FAILURE: data = ModelCallFailureData.from_dict(data_obj)
             case SessionEventType.ABORT: data = AbortData.from_dict(data_obj)
@@ -7410,6 +8825,7 @@ class SessionEvent:
             case SessionEventType.HOOK_START: data = HookStartData.from_dict(data_obj)
             case SessionEventType.HOOK_END: data = HookEndData.from_dict(data_obj)
             case SessionEventType.HOOK_PROGRESS: data = HookProgressData.from_dict(data_obj)
+            case SessionEventType.SESSION_BINARY_ASSET: data = SessionBinaryAssetData.from_dict(data_obj)
             case SessionEventType.SYSTEM_MESSAGE: data = SystemMessageData.from_dict(data_obj)
             case SessionEventType.SYSTEM_NOTIFICATION: data = SystemNotificationData.from_dict(data_obj)
             case SessionEventType.PERMISSION_REQUESTED: data = PermissionRequestedData.from_dict(data_obj)
@@ -7422,6 +8838,8 @@ class SessionEvent:
             case SessionEventType.SAMPLING_COMPLETED: data = SamplingCompletedData.from_dict(data_obj)
             case SessionEventType.MCP_OAUTH_REQUIRED: data = McpOauthRequiredData.from_dict(data_obj)
             case SessionEventType.MCP_OAUTH_COMPLETED: data = McpOauthCompletedData.from_dict(data_obj)
+            case SessionEventType.MCP_HEADERS_REFRESH_REQUIRED: data = McpHeadersRefreshRequiredData.from_dict(data_obj)
+            case SessionEventType.MCP_HEADERS_REFRESH_COMPLETED: data = McpHeadersRefreshCompletedData.from_dict(data_obj)
             case SessionEventType.SESSION_CUSTOM_NOTIFICATION: data = SessionCustomNotificationData.from_dict(data_obj)
             case SessionEventType.EXTERNAL_TOOL_REQUESTED: data = ExternalToolRequestedData.from_dict(data_obj)
             case SessionEventType.EXTERNAL_TOOL_COMPLETED: data = ExternalToolCompletedData.from_dict(data_obj)
@@ -7444,6 +8862,9 @@ class SessionEvent:
             case SessionEventType.SESSION_CANVAS_OPENED: data = SessionCanvasOpenedData.from_dict(data_obj)
             case SessionEventType.SESSION_CANVAS_REGISTRY_CHANGED: data = SessionCanvasRegistryChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_CANVAS_CLOSED: data = SessionCanvasClosedData.from_dict(data_obj)
+            case SessionEventType.SESSION_CANVAS_UNAVAILABLE: data = SessionCanvasUnavailableData.from_dict(data_obj)
+            case SessionEventType.SESSION_CANVAS_RECORDED: data = SessionCanvasRecordedData.from_dict(data_obj)
+            case SessionEventType.SESSION_CANVAS_REMOVED: data = SessionCanvasRemovedData.from_dict(data_obj)
             case SessionEventType.SESSION_EXTENSIONS_ATTACHMENTS_PUSHED: data = SessionExtensionsAttachmentsPushedData.from_dict(data_obj)
             case SessionEventType.MCP_APP_TOOL_CALL_COMPLETE: data = McpAppToolCallCompleteData.from_dict(data_obj)
             case _: data = RawSessionEventData.from_dict(data_obj)
@@ -7482,6 +8903,7 @@ def session_event_to_dict(x: SessionEvent) -> Any:
 __all__ = [
     "AbortData",
     "AbortReason",
+    "AssistantIdleData",
     "AssistantIntentData",
     "AssistantMessageData",
     "AssistantMessageDeltaData",
@@ -7495,6 +8917,7 @@ __all__ = [
     "AssistantTurnEndData",
     "AssistantTurnStartData",
     "AssistantUsageApiEndpoint",
+    "AssistantUsageCopilotUsage",
     "AssistantUsageCopilotUsageTokenDetail",
     "AssistantUsageData",
     "Attachment",
@@ -7503,8 +8926,19 @@ __all__ = [
     "AttachmentExtensionContext",
     "AttachmentFile",
     "AttachmentFileLineRange",
+    "AttachmentGitHubActionsJob",
+    "AttachmentGitHubCommit",
+    "AttachmentGitHubFile",
+    "AttachmentGitHubFileDiff",
+    "AttachmentGitHubFileDiffSide",
     "AttachmentGitHubReference",
     "AttachmentGitHubReferenceType",
+    "AttachmentGitHubRelease",
+    "AttachmentGitHubRepository",
+    "AttachmentGitHubSnippet",
+    "AttachmentGitHubTreeComparison",
+    "AttachmentGitHubTreeComparisonSide",
+    "AttachmentGitHubUrl",
     "AttachmentSelection",
     "AttachmentSelectionDetails",
     "AttachmentSelectionDetailsEnd",
@@ -7514,11 +8948,23 @@ __all__ = [
     "AutoModeSwitchResponse",
     "AutopilotObjectiveChangedOperation",
     "AutopilotObjectiveChangedStatus",
-    "CanvasOpenedAvailability",
+    "BinaryAssetReference",
+    "BinaryAssetReferenceType",
+    "BinaryAssetType",
     "CanvasRegistryChangedCanvas",
     "CanvasRegistryChangedCanvasAction",
     "CapabilitiesChangedData",
     "CapabilitiesChangedUI",
+    "CitableSource",
+    "CitationLocation",
+    "CitationLocationBlock",
+    "CitationLocationChar",
+    "CitationLocationPage",
+    "CitationProvider",
+    "CitationReference",
+    "CitationSource",
+    "CitationSpan",
+    "Citations",
     "CommandCompletedData",
     "CommandExecuteData",
     "CommandQueuedData",
@@ -7544,6 +8990,7 @@ __all__ = [
     "ExtensionsLoadedExtensionStatus",
     "ExternalToolCompletedData",
     "ExternalToolRequestedData",
+    "GitHubRepoRef",
     "HandoffRepository",
     "HandoffSourceType",
     "HookEndData",
@@ -7554,15 +9001,27 @@ __all__ = [
     "McpAppToolCallCompleteError",
     "McpAppToolCallCompleteToolMeta",
     "McpAppToolCallCompleteToolMetaUI",
+    "McpHeadersRefreshCompletedData",
+    "McpHeadersRefreshCompletedOutcome",
+    "McpHeadersRefreshRequiredData",
+    "McpHeadersRefreshRequiredReason",
     "McpOauthCompletedData",
+    "McpOauthCompletionOutcome",
+    "McpOauthRequestReason",
     "McpOauthRequiredData",
     "McpOauthRequiredStaticClientConfig",
+    "McpOauthWWWAuthenticateParams",
     "McpServerSource",
     "McpServerStatus",
     "McpServerTransport",
     "McpServersLoadedServer",
+    "ModelCallFailureBadRequestKind",
     "ModelCallFailureData",
+    "ModelCallFailureRequestFingerprint",
     "ModelCallFailureSource",
+    "OmittedBinaryOmittedReason",
+    "OmittedBinaryResult",
+    "OmittedBinaryType",
     "PendingMessagesModifiedData",
     "PermissionApproved",
     "PermissionApprovedForLocation",
@@ -7605,16 +9064,24 @@ __all__ = [
     "PermissionRequestedData",
     "PermissionResult",
     "PermissionRule",
+    "PersistedBinaryImage",
+    "PersistedBinaryImageType",
+    "PersistedBinaryResult",
     "PlanChangedOperation",
     "RawSessionEventData",
     "ReasoningSummary",
+    "ResponseBudgetConfig",
     "SamplingCompletedData",
     "SamplingRequestedData",
     "SessionAutopilotObjectiveChangedData",
     "SessionBackgroundTasksChangedData",
+    "SessionBinaryAssetData",
     "SessionCanvasClosedData",
     "SessionCanvasOpenedData",
+    "SessionCanvasRecordedData",
     "SessionCanvasRegistryChangedData",
+    "SessionCanvasRemovedData",
+    "SessionCanvasUnavailableData",
     "SessionCompactionCompleteData",
     "SessionCompactionStartData",
     "SessionContextChangedData",
@@ -7640,6 +9107,7 @@ __all__ = [
     "SessionResumeData",
     "SessionScheduleCancelledData",
     "SessionScheduleCreatedData",
+    "SessionScheduleRearmedData",
     "SessionShutdownData",
     "SessionSkillsLoadedData",
     "SessionSnapshotRewindData",
@@ -7709,6 +9177,7 @@ __all__ = [
     "ToolExecutionPartialResultData",
     "ToolExecutionProgressData",
     "ToolExecutionStartData",
+    "ToolExecutionStartShellToolInfo",
     "ToolExecutionStartToolDescription",
     "ToolExecutionStartToolDescriptionMeta",
     "ToolExecutionStartToolDescriptionMetaUI",
@@ -7718,6 +9187,7 @@ __all__ = [
     "UserInputRequestedData",
     "UserMessageAgentMode",
     "UserMessageData",
+    "UserMessageDelivery",
     "UserToolSessionApproval",
     "UserToolSessionApprovalCommands",
     "UserToolSessionApprovalCustomTool",

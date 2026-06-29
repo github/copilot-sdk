@@ -9,6 +9,7 @@
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
+import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
     ReasoningSummary,
     SessionEvent as GeneratedSessionEvent,
@@ -33,6 +34,14 @@ export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
+export type { LlmInferenceHeaders } from "./generated/rpc.js";
+export type { CopilotRequestContext } from "./copilotRequestHandler.js";
+export {
+    CopilotRequestHandler,
+    CopilotWebSocketHandler,
+    CopilotWebSocketCloseStatus,
+    CopilotWebSocketForwarder,
+} from "./copilotRequestHandler.js";
 
 /**
  * Options for creating a CopilotClient
@@ -304,6 +313,30 @@ export interface CopilotClientOptions {
      * instead of the server's default local filesystem storage.
      */
     sessionFs?: SessionFsConfig;
+
+    /**
+     * Custom handler for outbound model-layer requests (experimental).
+     *
+     * When provided, the client registers as the runtime's request handler
+     * on connection: every outbound model-layer request the runtime would
+     * otherwise have issued itself — plain HTTP, streaming SSE, and
+     * WebSocket — is dispatched back to the handler over JSON-RPC. The
+     * handler returns the response verbatim, exactly as if the runtime had
+     * issued the request itself.
+     *
+     * Subclass {@link CopilotRequestHandler} and override the hooks you need;
+     * an instance that overrides nothing is a transparent pass-through.
+     *
+     * v1 notes:
+     * - HTTP (buffered and streaming SSE) and WebSocket transports are all
+     *   intercepted. The handler receives a `transport` discriminator on the
+     *   {@link CopilotRequestContext} for both.
+     * - The handler is set process-globally on the runtime; the same
+     *   handler is invoked for every session created on this client.
+     *
+     * @experimental
+     */
+    requestHandler?: CopilotRequestHandler;
 
     /**
      * Server-wide idle timeout for sessions in seconds.
@@ -802,6 +835,7 @@ export interface ToolCallResponsePayload {
  * Each section corresponds to a distinct part of the system prompt.
  */
 export type SystemMessageSection =
+    | "preamble"
     | "identity"
     | "tone"
     | "tool_efficiency"
@@ -816,7 +850,11 @@ export type SystemMessageSection =
 
 /** Section metadata for documentation and tooling. */
 export const SYSTEM_MESSAGE_SECTIONS: Record<SystemMessageSection, { description: string }> = {
-    identity: { description: "Agent identity preamble and mode statement" },
+    preamble: { description: "Agent identity preamble and mode statement" },
+    identity: {
+        description:
+            "Section group covering the identity preamble and its sibling sub-sections (tone, tool efficiency, etc.)",
+    },
     tone: { description: "Response style, conciseness rules, output formatting preferences" },
     tool_efficiency: { description: "Tool usage patterns, parallel calling, batching guidelines" },
     environment_context: { description: "CWD, OS, git root, directory listing, available tools" },
@@ -847,6 +885,8 @@ export type SectionTransformFn = (currentContent: string) => string | Promise<st
  * - `"remove"`: Remove the section
  * - `"append"`: Append to existing section content
  * - `"prepend"`: Prepend to existing section content
+ * - `"preserve"`: No-op marker that opts an individually-addressable section out of a
+ *   group-level `"remove"` (e.g. keep `tone` when removing the `identity` group)
  * - `function`: Transform callback — receives current section content, returns new content
  */
 export type SectionOverrideAction =
@@ -854,6 +894,7 @@ export type SectionOverrideAction =
     | "remove"
     | "append"
     | "prepend"
+    | "preserve"
     | SectionTransformFn;
 
 /**
@@ -1585,6 +1626,31 @@ export interface ExtensionInfo {
 }
 
 /**
+ * Provider-scoped options for the Copilot API (CAPI).
+ *
+ * These settings apply to the built-in Copilot API provider only. They live
+ * under their own namespace because a single session can host multiple
+ * providers (CAPI alongside BYOK via {@link ProviderConfig}), so transport and
+ * provider-level choices are conceptually per-provider rather than global.
+ */
+export interface CapiSessionOptions {
+    /**
+     * Whether to use the WebSocket transport for the CAPI Responses API.
+     *
+     * WebSocket transport is enabled by default whenever the selected model
+     * advertises the `ws:/responses` endpoint. Set this to `false` to fall back
+     * to the HTTP Responses transport instead — useful for users behind proxies
+     * where WebSocket connections fail.
+     *
+     * Setting this to `false` is equivalent to setting the
+     * `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
+     *
+     * @default true
+     */
+    enableWebSocketResponses?: boolean;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -1744,6 +1810,39 @@ export interface SessionConfigBase {
      * When specified, uses the provided API endpoint instead of the Copilot API.
      */
     provider?: ProviderConfig;
+
+    /**
+     * Provider-scoped options for the built-in Copilot API (CAPI), such as
+     * opting out of the WebSocket Responses transport. See
+     * {@link CapiSessionOptions}.
+     */
+    capi?: CapiSessionOptions;
+
+    /**
+     * Named BYOK provider connections (transport + credentials), referenced by
+     * {@link models} entries via {@link NamedProviderConfig.name}.
+     *
+     * Unlike the singular {@link provider} — which makes the entire session BYOK
+     * and bypasses Copilot API authentication — named providers are **additive**:
+     * they coexist with Copilot API auth so models from CAPI and one or more BYOK
+     * providers can be mixed within a single session and across sub-agents.
+     * Combining `providers`/`models` with {@link provider} is rejected.
+     *
+     * @experimental This is part of an experimental multi-provider BYOK surface
+     * and may change or be removed in future SDK or CLI releases.
+     */
+    providers?: NamedProviderConfig[];
+
+    /**
+     * BYOK model definitions added to the session's selectable model list, each
+     * referencing a `providers[].name`. Each model surfaces under the
+     * provider-qualified selection id `providerName/id`, so BYOK ids never collide
+     * with — and cannot shadow — bare CAPI ids; duplicate selection ids are rejected.
+     *
+     * @experimental This is part of an experimental multi-provider BYOK surface
+     * and may change or be removed in future SDK or CLI releases.
+     */
+    models?: ProviderModelConfig[];
 
     /**
      * Enables or disables internal session telemetry for this session.
@@ -2052,6 +2151,20 @@ export interface SessionConfigBase {
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
     createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
+
+    /**
+     * ExP assignment ("flight") data injected by a trusted integrator, in the
+     * same JSON shape the Copilot CLI fetches from the experimentation service
+     * (`CopilotExpAssignmentResponse`). When supplied, the runtime feeds it
+     * into the same feature-flag path as CLI-fetched assignments and stamps it
+     * onto telemetry and the CAPI request header. When absent, the session does
+     * not block on ExP. Intended for out-of-process integrators that fetch ExP
+     * data themselves; malformed payloads are dropped by the runtime
+     * (fail-open). Applies to both session creation and resume.
+     *
+     * @internal
+     */
+    expAssignments?: Record<string, unknown>;
 }
 
 /**
@@ -2102,6 +2215,47 @@ export interface ResumeSessionConfig extends SessionConfigBase {
 }
 
 /**
+ * Arguments passed to a {@link BearerTokenProvider} callback when the runtime needs a
+ * fresh bearer token for a BYOK provider.
+ *
+ * @experimental Part of the experimental managed-identity / bearer-token-provider
+ * surface and may change or be removed in future SDK or CLI releases.
+ */
+export interface ProviderTokenArgs {
+    /**
+     * Name of the BYOK provider needing a token. For the singular, whole-session
+     * {@link ProviderConfig} this is the implicit provider name (`"default"`); for
+     * {@link NamedProviderConfig} entries it is {@link NamedProviderConfig.name}.
+     *
+     * The callback closes over its own token scope/audience; the runtime is
+     * provider-agnostic and forwards only the provider name.
+     */
+    readonly providerName: string;
+
+    /**
+     * Id of the session that triggered this token request. A client-level shared
+     * callback registered for many sessions can use this to resolve the owning
+     * session (e.g. via the client's session lookup) to scope token acquisition
+     * or caching per session.
+     */
+    readonly sessionId: string;
+}
+
+/**
+ * Per-provider callback that resolves a bearer token on demand, returning the
+ * raw token string (without the `Bearer ` prefix). The Copilot SDK itself takes
+ * no Azure dependency: the consumer supplies this callback backed by their own
+ * identity library (for example `@azure/identity`'s
+ * `DefaultAzureCredential.getToken(scope)`), and the runtime calls it once before
+ * each outbound model request. The runtime does no caching of its own, so the
+ * callback (or the identity library it wraps) owns token caching and refresh.
+ *
+ * @experimental Part of the experimental managed-identity / bearer-token-provider
+ * surface and may change or be removed in future SDK or CLI releases.
+ */
+export type BearerTokenProvider = (args: ProviderTokenArgs) => Promise<string>;
+
+/**
  * Configuration for a custom API provider.
  */
 export interface ProviderConfig {
@@ -2114,6 +2268,17 @@ export interface ProviderConfig {
      * API format (openai/azure only). Defaults to "completions".
      */
     wireApi?: "completions" | "responses";
+
+    /**
+     * Transport for OpenAI Responses requests. Defaults to "http".
+     *
+     * Set to "websockets" to deliver Responses API requests over a persistent
+     * WebSocket connection instead of HTTP. Useful for long-running,
+     * tool-call-heavy sessions that benefit from incremental
+     * `previous_response_id` continuations. Applies to OpenAI-compatible
+     * providers using `wireApi: "responses"`.
+     */
+    transport?: "http" | "websockets";
 
     /**
      * API endpoint URL
@@ -2131,6 +2296,20 @@ export interface ProviderConfig {
      * Takes precedence over apiKey when both are set.
      */
     bearerToken?: string;
+
+    /**
+     * Per-request bearer-token provider for managed-identity / on-demand auth.
+     * When set, the SDK keeps this function client-side (it is never serialized)
+     * and the runtime calls back into this client to acquire a token before each
+     * outbound request. The runtime does no caching of its own, so the callback
+     * owns token caching and refresh. When set alongside {@link apiKey} /
+     * {@link bearerToken}, this callback takes precedence: the runtime applies
+     * the token it returns as the `Authorization: Bearer` header for each
+     * request and does not send the static credential.
+     *
+     * @experimental
+     */
+    bearerTokenProvider?: BearerTokenProvider;
 
     /**
      * Azure-specific options
@@ -2179,8 +2358,147 @@ export interface ProviderConfig {
 }
 
 /**
- * Options for sending a message to a session
+ * A named BYOK provider connection (transport + credentials only), referenced by
+ * {@link ProviderModelConfig} entries via {@link NamedProviderConfig.name}.
+ *
+ * Unlike the singular, whole-session {@link ProviderConfig} — which bypasses
+ * Copilot API authentication — named providers are **additive** and coexist with
+ * Copilot API auth, so CAPI and BYOK models can be mixed within one session and
+ * across sub-agents. See {@link SessionConfigBase.providers}.
+ *
+ * @experimental This type is part of an experimental multi-provider BYOK surface
+ * and may change or be removed in future SDK or CLI releases.
  */
+export interface NamedProviderConfig {
+    /**
+     * Stable identifier referenced by {@link ProviderModelConfig.provider}.
+     * Must not contain `/`.
+     */
+    name: string;
+
+    /**
+     * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+     */
+    type?: "openai" | "azure" | "anthropic";
+
+    /**
+     * Wire API format (openai/azure only). Defaults to "completions".
+     */
+    wireApi?: "completions" | "responses";
+
+    /**
+     * API endpoint URL.
+     */
+    baseUrl: string;
+
+    /**
+     * API key. Optional for local providers like Ollama.
+     */
+    apiKey?: string;
+
+    /**
+     * Bearer token for authentication. Sets the Authorization header directly.
+     * Takes precedence over {@link apiKey} when both are set.
+     */
+    bearerToken?: string;
+
+    /**
+     * Per-request bearer-token provider for managed-identity / on-demand auth.
+     * When set, the SDK keeps this function client-side (it is never serialized)
+     * and the runtime calls back into this client to acquire a token before each
+     * outbound request. The runtime does no caching of its own, so the callback
+     * owns token caching and refresh. When set alongside {@link apiKey} /
+     * {@link bearerToken}, this callback takes precedence: the runtime applies
+     * the token it returns as the `Authorization: Bearer` header for each
+     * request and does not send the static credential.
+     *
+     * @experimental
+     */
+    bearerTokenProvider?: BearerTokenProvider;
+
+    /**
+     * Azure-specific options.
+     */
+    azure?: {
+        /**
+         * API version. When set, uses the versioned deployment route. When
+         * omitted, uses the GA versionless v1 route.
+         */
+        apiVersion?: string;
+    };
+
+    /**
+     * Custom HTTP headers to include in all outbound requests to the provider.
+     */
+    headers?: Record<string, string>;
+}
+
+/**
+ * A BYOK model definition that references a {@link NamedProviderConfig} by name
+ * and is added to the session's selectable model list.
+ *
+ * Each model has three identities:
+ *  - {@link id}: the provider-local model id, unique within its provider. The
+ *    session-wide selection id (shown in the model list and passed to model
+ *    switching) is the provider-qualified `provider/id`.
+ *  - {@link modelId}: the well-known behavior base model used for
+ *    capability/config lookup. Defaults to {@link id}.
+ *  - {@link wireModel}: the model name actually sent to the provider API for
+ *    inference. Defaults to {@link id}.
+ *
+ * @experimental This type is part of an experimental multi-provider BYOK surface
+ * and may change or be removed in future SDK or CLI releases.
+ */
+export interface ProviderModelConfig {
+    /**
+     * Provider-local model id, unique within its provider. The session-wide
+     * selection id is the provider-qualified `provider/id`.
+     */
+    id: string;
+
+    /**
+     * Name of the {@link NamedProviderConfig} that serves this model.
+     */
+    provider: string;
+
+    /**
+     * The model name sent to the provider API for inference. Defaults to {@link id}.
+     */
+    wireModel?: string;
+
+    /**
+     * Well-known base model id used for behavior/capability/config lookup.
+     * Defaults to {@link id}.
+     */
+    modelId?: string;
+
+    /**
+     * Display name for model pickers. Defaults to the provider-qualified
+     * selection id (`provider/id`).
+     */
+    name?: string;
+
+    /**
+     * Maximum prompt/input tokens for the model.
+     */
+    maxPromptTokens?: number;
+
+    /**
+     * Maximum context window tokens for the model.
+     */
+    maxContextWindowTokens?: number;
+
+    /**
+     * Maximum output tokens for the model.
+     */
+    maxOutputTokens?: number;
+
+    /**
+     * Optional capability overrides (vision, tool_calls, reasoning, etc.) for
+     * the synthesized model.
+     */
+    capabilities?: ModelCapabilitiesOverride;
+}
 export interface MessageOptions {
     /**
      * The prompt/message to send
