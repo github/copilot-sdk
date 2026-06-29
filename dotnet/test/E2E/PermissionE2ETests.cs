@@ -377,7 +377,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        var sendTask = session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Run 'echo slow_handler_test'"
         });
@@ -391,7 +391,13 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
         releaseHandler.SetResult();
 
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var message = await sendTask;
+        var persistedEvents = await WaitForPersistedEventsAsync(
+            session,
+            events =>
+                events.OfType<ToolExecutionStartEvent>().Any(evt => evt.Data.ToolCallId == targetToolId) &&
+                events.OfType<ToolExecutionCompleteEvent>().Any(evt => evt.Data.ToolCallId == targetToolId),
+            $"Timed out waiting for persisted tool lifecycle for tool call '{targetToolId}'.");
 
         List<(string Phase, string? ToolCallId)> orderedLifecycle;
         lock (lifecycleLock)
@@ -401,20 +407,23 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
         var permissionStartIndex = orderedLifecycle.FindIndex(evt => evt.Phase == "permission-start" && evt.ToolCallId == targetToolId);
         var permissionCompleteIndex = orderedLifecycle.FindIndex(evt => evt.Phase == "permission-complete" && evt.ToolCallId == targetToolId);
-        var toolStartIndex = orderedLifecycle.FindIndex(evt => evt.Phase == "tool-start" && evt.ToolCallId == targetToolId);
-        var toolCompleteIndex = orderedLifecycle.FindIndex(evt => evt.Phase == "tool-complete" && evt.ToolCallId == targetToolId);
         var observedLifecycle = string.Join(", ", orderedLifecycle.Select(evt => $"{evt.Phase}:{evt.ToolCallId}"));
+        var toolStartIndex = persistedEvents.FindIndex(evt =>
+            evt is ToolExecutionStartEvent started && started.Data.ToolCallId == targetToolId);
+        var toolCompleteIndex = persistedEvents.FindIndex(evt =>
+            evt is ToolExecutionCompleteEvent completed && completed.Data.ToolCallId == targetToolId);
+        var observedPersistedEvents = string.Join(", ", persistedEvents.Select(DescribeEvent));
 
         Assert.InRange(permissionStartIndex, 0, orderedLifecycle.Count - 1);
         Assert.InRange(permissionCompleteIndex, 0, orderedLifecycle.Count - 1);
-        Assert.InRange(toolStartIndex, 0, orderedLifecycle.Count - 1);
-        Assert.InRange(toolCompleteIndex, 0, orderedLifecycle.Count - 1);
         Assert.True(
-            permissionCompleteIndex < toolCompleteIndex,
-            $"Expected permission completion before target tool completion. Observed: {observedLifecycle}");
+            permissionStartIndex < permissionCompleteIndex,
+            $"Expected permission handler to complete after it started. Observed: {observedLifecycle}");
+        Assert.InRange(toolStartIndex, 0, persistedEvents.Count - 1);
+        Assert.InRange(toolCompleteIndex, 0, persistedEvents.Count - 1);
         Assert.True(
             toolStartIndex < toolCompleteIndex,
-            $"Expected target tool start before target tool completion. Observed: {observedLifecycle}");
+            $"Expected target tool start before target tool completion. Observed: {observedPersistedEvents}");
 
         // The tool should have actually run after permission was granted
         Assert.Contains("slow_handler_test", message?.Data.Content ?? string.Empty);
@@ -573,24 +582,21 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
         try
         {
-            var toolCompleted = new TaskCompletionSource<ToolExecutionCompleteEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var subscription = session.On<SessionEvent>(evt =>
-            {
-                if (evt is ToolExecutionCompleteEvent done && done.Data.Success)
-                {
-                    toolCompleted.TrySetResult(done);
-                }
-            });
-
             await session.SendAndWaitAsync(new MessageOptions
             {
                 Prompt = "Run 'echo test' and tell me what happens",
             });
 
-            // A real shell tool must have completed successfully under the runtime-level approval.
-            await toolCompleted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            var persistedEvents = await WaitForPersistedEventsAsync(
+                session,
+                events => events.OfType<ToolExecutionCompleteEvent>().Any(evt =>
+                    evt.Data.Success && ToolCompleteContains(evt, "test")),
+                "Timed out waiting for persisted successful shell tool completion.");
 
             Assert.Equal(0, Volatile.Read(ref handlerCallCount));
+            Assert.Contains(
+                persistedEvents.OfType<ToolExecutionCompleteEvent>(),
+                evt => evt.Data.Success && ToolCompleteContains(evt, "test"));
         }
         finally
         {
@@ -757,6 +763,40 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             NormalizePath(actual),
             OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     }
+
+    private static async Task<List<SessionEvent>> WaitForPersistedEventsAsync(
+        CopilotSession session,
+        Func<List<SessionEvent>, bool> condition,
+        string timeoutMessage)
+    {
+        List<SessionEvent> events = [];
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                events = (await session.GetEventsAsync()).ToList();
+                return condition(events);
+            },
+            timeoutMessage: timeoutMessage);
+        return events;
+    }
+
+    private static string DescribeEvent(SessionEvent evt)
+        => evt switch
+        {
+            ToolExecutionStartEvent started => $"{evt.Type}:{started.Data.ToolCallId}",
+            ToolExecutionCompleteEvent completed => $"{evt.Type}:{completed.Data.ToolCallId}:{completed.Data.Success}",
+            _ => evt.Type,
+        };
+
+    private static bool ToolCompleteContains(ToolExecutionCompleteEvent evt, string expected)
+        => evt.Data.Result?.Content.Contains(expected, StringComparison.OrdinalIgnoreCase) == true ||
+            evt.Data.Result?.DetailedContent?.Contains(expected, StringComparison.OrdinalIgnoreCase) == true ||
+            evt.Data.Result?.Contents?.Any(content => content switch
+            {
+                ToolExecutionCompleteContentText text => text.Text.Contains(expected, StringComparison.OrdinalIgnoreCase),
+                ToolExecutionCompleteContentTerminal terminal => terminal.Text.Contains(expected, StringComparison.OrdinalIgnoreCase),
+                _ => false,
+            }) == true;
 
     private static string NormalizePath(string path)
     {
