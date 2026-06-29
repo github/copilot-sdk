@@ -11,10 +11,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP server name and replacement configuration to write to user configuration.
+ * Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,10 +24,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpConfigUpdateParams(
-    /** Name of the MCP server to update */
-    @JsonProperty("name") String name,
-    /** MCP server configuration (stdio process or remote HTTP/SSE) */
-    @JsonProperty("config") Object config
+public record UserSettingsGetResult(
+    /** Every known user setting keyed by setting name, each with its effective value, default, and whether it is at the default. */
+    @JsonProperty("settings") Map<String, UserSettingMetadata> settings
 ) {
 }

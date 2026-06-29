@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP server name and replacement configuration to write to user configuration.
+ * Desired sharing status for the session.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,10 +23,10 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpConfigUpdateParams(
-    /** Name of the MCP server to update */
-    @JsonProperty("name") String name,
-    /** MCP server configuration (stdio process or remote HTTP/SSE) */
-    @JsonProperty("config") Object config
+public record SessionVisibilitySetParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Sharing status to apply. "repo" makes the session visible to repository readers; "unshared" restricts it to the creator and collaborators. */
+    @JsonProperty("status") SessionVisibilityStatus status
 ) {
 }

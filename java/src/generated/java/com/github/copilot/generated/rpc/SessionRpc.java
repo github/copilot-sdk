@@ -89,6 +89,8 @@ public final class SessionRpc {
     public final SessionUsageApi usage;
     /** API methods for the {@code remote} namespace. */
     public final SessionRemoteApi remote;
+    /** API methods for the {@code visibility} namespace. */
+    public final SessionVisibilityApi visibility;
     /** API methods for the {@code schedule} namespace. */
     public final SessionScheduleApi schedule;
 
@@ -131,6 +133,7 @@ public final class SessionRpc {
         this.eventLog = new SessionEventLogApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
         this.remote = new SessionRemoteApi(caller, sessionId);
+        this.visibility = new SessionVisibilityApi(caller, sessionId);
         this.schedule = new SessionScheduleApi(caller, sessionId);
     }
 

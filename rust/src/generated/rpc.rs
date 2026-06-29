@@ -137,6 +137,14 @@ impl<'a> ClientRpc<'a> {
     /// # Returns
     ///
     /// Server liveness response, including the echoed message, current server timestamp, and protocol version.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn ping(&self, params: PingRequest) -> Result<PingResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -157,6 +165,14 @@ impl<'a> ClientRpc<'a> {
     /// # Returns
     ///
     /// Handshake result reporting the server's protocol version and package version on success.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub(crate) async fn connect(&self, params: ConnectRequest) -> Result<ConnectResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -181,6 +197,14 @@ impl<'a> ClientRpcAccount<'a> {
     /// # Returns
     ///
     /// Quota usage snapshots for the resolved user, keyed by quota type.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn get_quota(&self) -> Result<AccountGetQuotaResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -201,6 +225,14 @@ impl<'a> ClientRpcAccount<'a> {
     /// # Returns
     ///
     /// Quota usage snapshots for the resolved user, keyed by quota type.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn get_quota_with_params(
         &self,
         params: AccountGetQuotaRequest,
@@ -220,6 +252,14 @@ impl<'a> ClientRpcAccount<'a> {
     /// # Returns
     ///
     /// Current authentication state
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn get_current_auth(&self) -> Result<AccountGetCurrentAuthResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -236,6 +276,14 @@ impl<'a> ClientRpcAccount<'a> {
     /// # Returns
     ///
     /// List of all authenticated users
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn get_all_users(&self) -> Result<AccountGetAllUsersResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -256,6 +304,14 @@ impl<'a> ClientRpcAccount<'a> {
     /// # Returns
     ///
     /// Result of a successful login; throws on failure
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn login(&self, params: AccountLoginRequest) -> Result<AccountLoginResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -276,6 +332,14 @@ impl<'a> ClientRpcAccount<'a> {
     /// # Returns
     ///
     /// Logout result indicating if more users remain
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn logout(&self, params: AccountLogoutRequest) -> Result<AccountLogoutResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -590,6 +654,14 @@ impl<'a> ClientRpcMcp<'a> {
     /// # Returns
     ///
     /// MCP servers discovered from user, workspace, plugin, and built-in sources.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn discover(&self, params: McpDiscoverRequest) -> Result<McpDiscoverResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -614,6 +686,14 @@ impl<'a> ClientRpcMcpConfig<'a> {
     /// # Returns
     ///
     /// User-configured MCP servers, keyed by server name.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self) -> Result<McpConfigList, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -630,6 +710,14 @@ impl<'a> ClientRpcMcpConfig<'a> {
     /// # Parameters
     ///
     /// * `params` - MCP server name and configuration to add to user configuration.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn add(&self, params: McpConfigAddRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -646,6 +734,14 @@ impl<'a> ClientRpcMcpConfig<'a> {
     /// # Parameters
     ///
     /// * `params` - MCP server name and replacement configuration to write to user configuration.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn update(&self, params: McpConfigUpdateRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -662,6 +758,14 @@ impl<'a> ClientRpcMcpConfig<'a> {
     /// # Parameters
     ///
     /// * `params` - MCP server name to remove from user configuration.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn remove(&self, params: McpConfigRemoveRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -678,6 +782,14 @@ impl<'a> ClientRpcMcpConfig<'a> {
     /// # Parameters
     ///
     /// * `params` - MCP server names to enable for new sessions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn enable(&self, params: McpConfigEnableRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -694,6 +806,14 @@ impl<'a> ClientRpcMcpConfig<'a> {
     /// # Parameters
     ///
     /// * `params` - MCP server names to disable for new sessions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn disable(&self, params: McpConfigDisableRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -706,6 +826,14 @@ impl<'a> ClientRpcMcpConfig<'a> {
     /// Drops this runtime process's in-memory MCP server-definition cache so the next MCP config read observes disk.
     ///
     /// Wire method: `mcp.config.reload`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn reload(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -730,6 +858,14 @@ impl<'a> ClientRpcModels<'a> {
     /// # Returns
     ///
     /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self) -> Result<ModelList, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -750,6 +886,14 @@ impl<'a> ClientRpcModels<'a> {
     /// # Returns
     ///
     /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list_with_params(&self, params: ModelsListRequest) -> Result<ModelList, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -1144,6 +1288,14 @@ impl<'a> ClientRpcRuntime<'a> {
     /// Gracefully shuts down an SDK-owned runtime. The response is sent only after cleanup completes; callers may then terminate the owned runtime process.
     ///
     /// Wire method: `runtime.shutdown`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn shutdown(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -1172,6 +1324,14 @@ impl<'a> ClientRpcSecrets<'a> {
     /// # Returns
     ///
     /// Confirmation that the secret values were registered.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn add_filter_values(
         &self,
         params: SecretsAddFilterValuesRequest,
@@ -1203,6 +1363,14 @@ impl<'a> ClientRpcSessionFs<'a> {
     /// # Returns
     ///
     /// Indicates whether the calling client was registered as the session filesystem provider.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn set_provider(
         &self,
         params: SessionFsSetProviderRequest,
@@ -2210,6 +2378,14 @@ impl<'a> ClientRpcSkills<'a> {
     /// # Returns
     ///
     /// Skills discovered across global and project sources.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn discover(&self, params: SkillsDiscoverRequest) -> Result<ServerSkillList, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -2265,6 +2441,14 @@ impl<'a> ClientRpcSkillsConfig<'a> {
     /// # Parameters
     ///
     /// * `params` - Skill names to mark as disabled in global configuration, replacing any previous list.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn set_disabled_skills(
         &self,
         params: SkillsConfigSetDisabledSkillsRequest,
@@ -2299,6 +2483,14 @@ impl<'a> ClientRpcTools<'a> {
     /// # Returns
     ///
     /// Built-in tools available for the requested model, with their parameters and instructions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self, params: ToolsListRequest) -> Result<ToolList, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -2334,6 +2526,14 @@ impl<'a> ClientRpcUserSettings<'a> {
     /// Drops this runtime process's in-memory user settings cache so the next settings read observes disk.
     ///
     /// Wire method: `user.settings.reload`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn reload(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -2341,6 +2541,61 @@ impl<'a> ClientRpcUserSettings<'a> {
             .call(rpc_methods::USER_SETTINGS_RELOAD, Some(wire_params))
             .await?;
         Ok(())
+    }
+
+    /// Lists every known user setting (settings.json overlaid with the legacy config.json, config.json wins), each with its effective value, its default, and whether it is at the default — so settings the user has never set still appear with their default value. Does not include repository- or enterprise-managed overrides that the runtime layers on top at session time.
+    ///
+    /// Wire method: `user.settings.get`.
+    ///
+    /// # Returns
+    ///
+    /// Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get(&self) -> Result<UserSettingsGetResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::USER_SETTINGS_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Writes one or more user settings to settings.json, replacing each provided top-level key. A key whose value is null is removed. Returns the keys whose new value is shadowed by a legacy config.json entry (config.json wins on read), which the runtime leaves in place — such writes do not take effect until the legacy value is removed.
+    ///
+    /// Wire method: `user.settings.set`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of writing user settings.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set(
+        &self,
+        params: UserSettingsSetRequest,
+    ) -> Result<UserSettingsSetResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::USER_SETTINGS_SET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
@@ -2557,6 +2812,13 @@ impl<'a> SessionRpc<'a> {
     /// `session.usage.*` sub-namespace.
     pub fn usage(&self) -> SessionRpcUsage<'a> {
         SessionRpcUsage {
+            session: self.session,
+        }
+    }
+
+    /// `session.visibility.*` sub-namespace.
+    pub fn visibility(&self) -> SessionRpcVisibility<'a> {
+        SessionRpcVisibility {
             session: self.session,
         }
     }
@@ -7866,6 +8128,69 @@ impl<'a> SessionRpcUsage<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_USAGE_GETMETRICS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.visibility.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcVisibility<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcVisibility<'a> {
+    /// Returns the session's current Mission Control sharing status and shareable GitHub URL. Reflects whether the synced session is visible to repository readers ("repo") or restricted to its creator and collaborators ("unshared").
+    ///
+    /// Wire method: `session.visibility.get`.
+    ///
+    /// # Returns
+    ///
+    /// Current sharing status and shareable GitHub URL for a session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get(&self) -> Result<VisibilityGetResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_VISIBILITY_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Sets the session's Mission Control sharing status, controlling whether the synced session is visible to repository readers. Returns the effective status and shareable GitHub URL after the change.
+    ///
+    /// Wire method: `session.visibility.set`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Desired sharing status for the session.
+    ///
+    /// # Returns
+    ///
+    /// Effective sharing status and shareable GitHub URL after updating session visibility.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set(&self, params: VisibilitySetRequest) -> Result<VisibilitySetResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_VISIBILITY_SET, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

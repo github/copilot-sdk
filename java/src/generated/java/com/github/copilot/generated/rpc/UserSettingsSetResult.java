@@ -11,10 +11,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP server name and replacement configuration to write to user configuration.
+ * Outcome of writing user settings.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,10 +24,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpConfigUpdateParams(
-    /** Name of the MCP server to update */
-    @JsonProperty("name") String name,
-    /** MCP server configuration (stdio process or remote HTTP/SSE) */
-    @JsonProperty("config") Object config
+public record UserSettingsSetResult(
+    /** Top-level keys whose write landed in settings.json but is shadowed by a value still present in the legacy config.json (config.json wins on read). The write does not take effect until the legacy value is removed. */
+    @JsonProperty("shadowedKeys") List<String> shadowedKeys
 ) {
 }

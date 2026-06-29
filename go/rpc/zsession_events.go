@@ -133,6 +133,7 @@ const (
 	SessionEventTypeSessionPermissionsChanged          SessionEventType = "session.permissions_changed"
 	SessionEventTypeSessionPlanChanged                 SessionEventType = "session.plan_changed"
 	SessionEventTypeSessionRemoteSteerableChanged      SessionEventType = "session.remote_steerable_changed"
+	SessionEventTypeSessionResponseLimitsChanged       SessionEventType = "session.response_limits_changed"
 	SessionEventTypeSessionResume                      SessionEventType = "session.resume"
 	SessionEventTypeSessionScheduleCancelled           SessionEventType = "session.schedule_cancelled"
 	SessionEventTypeSessionScheduleCreated             SessionEventType = "session.schedule_created"
@@ -992,6 +993,17 @@ type CommandExecuteData struct {
 func (*CommandExecuteData) sessionEventData()      {}
 func (*CommandExecuteData) Type() SessionEventType { return SessionEventTypeCommandExecute }
 
+// Response limits update details. Null clears the limits.
+type SessionResponseLimitsChangedData struct {
+	// Current response limits for the session, or null when no limits are active
+	ResponseLimits *ResponseLimitsConfig `json:"responseLimits"`
+}
+
+func (*SessionResponseLimitsChangedData) sessionEventData() {}
+func (*SessionResponseLimitsChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionResponseLimitsChanged
+}
+
 // SDK command registration change notification
 type CommandsChangedData struct {
 	// Current list of registered SDK commands
@@ -1293,8 +1305,8 @@ type SessionStartData struct {
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
-	// Response budget limits configured at session creation time, if any
-	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
+	// Response limits configured at session creation time, if any
+	ResponseLimits *ResponseLimitsConfig `json:"responseLimits,omitempty"`
 	// Model selected at session creation time, if any
 	SelectedModel *string `json:"selectedModel,omitempty"`
 	// Unique identifier for the session
@@ -1328,8 +1340,8 @@ type SessionResumeData struct {
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
-	// Response budget limits currently configured at resume time; null when no budget is active
-	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
+	// Response limits currently configured at resume time; null when no limits are active
+	ResponseLimits *ResponseLimitsConfig `json:"responseLimits,omitempty"`
 	// ISO 8601 timestamp when the session was resumed
 	ResumeTime time.Time `json:"resumeTime"`
 	// Model currently selected at resume time
@@ -3156,7 +3168,26 @@ func (ToolExecutionCompleteContentResourceLink) Type() ToolExecutionCompleteCont
 	return ToolExecutionCompleteContentTypeResourceLink
 }
 
-// Terminal/shell output content block with optional exit code and working directory
+// Shell command exit metadata with optional output preview
+type ToolExecutionCompleteContentShellExit struct {
+	// Working directory where the shell command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Exit code from the completed shell command
+	ExitCode int64 `json:"exitCode"`
+	// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+	OutputPreview *string `json:"outputPreview,omitempty"`
+	// Whether outputPreview is known to be incomplete or truncated
+	OutputTruncated *bool `json:"outputTruncated,omitempty"`
+	// Shell id, as assigned by Copilot runtime
+	ShellID string `json:"shellId"`
+}
+
+func (ToolExecutionCompleteContentShellExit) toolExecutionCompleteContent() {}
+func (ToolExecutionCompleteContentShellExit) Type() ToolExecutionCompleteContentType {
+	return ToolExecutionCompleteContentTypeShellExit
+}
+
+// Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.
 type ToolExecutionCompleteContentTerminal struct {
 	// Working directory where the command was executed
 	Cwd *string `json:"cwd,omitempty"`
@@ -3830,6 +3861,7 @@ const (
 	ToolExecutionCompleteContentTypeImage        ToolExecutionCompleteContentType = "image"
 	ToolExecutionCompleteContentTypeResource     ToolExecutionCompleteContentType = "resource"
 	ToolExecutionCompleteContentTypeResourceLink ToolExecutionCompleteContentType = "resource_link"
+	ToolExecutionCompleteContentTypeShellExit    ToolExecutionCompleteContentType = "shell_exit"
 	ToolExecutionCompleteContentTypeTerminal     ToolExecutionCompleteContentType = "terminal"
 	ToolExecutionCompleteContentTypeText         ToolExecutionCompleteContentType = "text"
 )

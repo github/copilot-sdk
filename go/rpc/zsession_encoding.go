@@ -431,6 +431,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionResponseLimitsChanged:
+		var d SessionResponseLimitsChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionResume:
 		var d SessionResumeData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -1014,6 +1020,12 @@ func unmarshalToolExecutionCompleteContent(data []byte) (ToolExecutionCompleteCo
 			return nil, err
 		}
 		return &d, nil
+	case ToolExecutionCompleteContentTypeShellExit:
+		var d ToolExecutionCompleteContentShellExit
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case ToolExecutionCompleteContentTypeTerminal:
 		var d ToolExecutionCompleteContentTerminal
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1139,6 +1151,17 @@ func (r ToolExecutionCompleteContentResource) MarshalJSON() ([]byte, error) {
 
 func (r ToolExecutionCompleteContentResourceLink) MarshalJSON() ([]byte, error) {
 	type alias ToolExecutionCompleteContentResourceLink
+	return json.Marshal(struct {
+		Type ToolExecutionCompleteContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r ToolExecutionCompleteContentShellExit) MarshalJSON() ([]byte, error) {
+	type alias ToolExecutionCompleteContentShellExit
 	return json.Marshal(struct {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias

@@ -29,6 +29,7 @@ type AbortResult struct {
 }
 
 // Schema for the `AccountAllUsers` type.
+// Experimental: AccountAllUsers is part of an experimental API and may change or be removed.
 type AccountAllUsers struct {
 	// Authentication information for this user
 	AuthInfo AuthInfo `json:"authInfo"`
@@ -37,9 +38,13 @@ type AccountAllUsers struct {
 }
 
 // List of all authenticated users
+// Experimental: AccountGetAllUsersResult is part of an experimental API and may change or
+// be removed.
 type AccountGetAllUsersResult []AccountAllUsers
 
 // Current authentication state
+// Experimental: AccountGetCurrentAuthResult is part of an experimental API and may change
+// or be removed.
 type AccountGetCurrentAuthResult struct {
 	// Authentication errors from the last auth attempt, if any
 	AuthErrors []string `json:"authErrors,omitzero"`
@@ -47,6 +52,8 @@ type AccountGetCurrentAuthResult struct {
 	AuthInfo AuthInfo `json:"authInfo,omitempty"`
 }
 
+// Experimental: AccountGetQuotaRequest is part of an experimental API and may change or be
+// removed.
 type AccountGetQuotaRequest struct {
 	// GitHub token for per-user quota lookup. When provided, resolves this token to determine
 	// the user's quota instead of using the global auth.
@@ -54,12 +61,16 @@ type AccountGetQuotaRequest struct {
 }
 
 // Quota usage snapshots for the resolved user, keyed by quota type.
+// Experimental: AccountGetQuotaResult is part of an experimental API and may change or be
+// removed.
 type AccountGetQuotaResult struct {
 	// Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
 	QuotaSnapshots map[string]AccountQuotaSnapshot `json:"quotaSnapshots"`
 }
 
 // Credentials to store after successful authentication
+// Experimental: AccountLoginRequest is part of an experimental API and may change or be
+// removed.
 type AccountLoginRequest struct {
 	// GitHub host URL
 	Host string `json:"host"`
@@ -70,6 +81,8 @@ type AccountLoginRequest struct {
 }
 
 // Result of a successful login; throws on failure
+// Experimental: AccountLoginResult is part of an experimental API and may change or be
+// removed.
 type AccountLoginResult struct {
 	// Whether the credential was persisted to a secure store (system keychain, or the config
 	// file when plaintext storage is enabled). False when no secure store was available and the
@@ -78,18 +91,24 @@ type AccountLoginResult struct {
 }
 
 // User to log out
+// Experimental: AccountLogoutRequest is part of an experimental API and may change or be
+// removed.
 type AccountLogoutRequest struct {
 	// Authentication information for the user to log out
 	AuthInfo AuthInfo `json:"authInfo"`
 }
 
 // Logout result indicating if more users remain
+// Experimental: AccountLogoutResult is part of an experimental API and may change or be
+// removed.
 type AccountLogoutResult struct {
 	// Whether other authenticated users remain after logout
 	HasMoreUsers bool `json:"hasMoreUsers"`
 }
 
 // Schema for the `AccountQuotaSnapshot` type.
+// Experimental: AccountQuotaSnapshot is part of an experimental API and may change or be
+// removed.
 type AccountQuotaSnapshot struct {
 	// Number of requests included in the entitlement, or -1 for unlimited entitlements
 	EntitlementRequests int64 `json:"entitlementRequests"`
@@ -817,6 +836,7 @@ type AttachmentSelectionDetailsStart struct {
 }
 
 // Initial authentication info for the session.
+// Experimental: AuthInfo is part of an experimental API and may change or be removed.
 type AuthInfo interface {
 	authInfo()
 	Type() AuthInfoType
@@ -833,6 +853,7 @@ func (r RawAuthInfoData) Type() AuthInfoType {
 }
 
 // Schema for the `ApiKeyAuthInfo` type.
+// Experimental: APIKeyAuthInfo is part of an experimental API and may change or be removed.
 type APIKeyAuthInfo struct {
 	// The API key. Treat as a secret.
 	APIKey string `json:"apiKey"`
@@ -850,6 +871,8 @@ func (APIKeyAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `CopilotApiTokenAuthInfo` type.
+// Experimental: CopilotAPITokenAuthInfo is part of an experimental API and may change or be
+// removed.
 type CopilotAPITokenAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -865,6 +888,7 @@ func (CopilotAPITokenAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `EnvAuthInfo` type.
+// Experimental: EnvAuthInfo is part of an experimental API and may change or be removed.
 type EnvAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -887,6 +911,7 @@ func (EnvAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `GhCliAuthInfo` type.
+// Experimental: GhCLIAuthInfo is part of an experimental API and may change or be removed.
 type GhCLIAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -906,6 +931,7 @@ func (GhCLIAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `HMACAuthInfo` type.
+// Experimental: HMACAuthInfo is part of an experimental API and may change or be removed.
 type HMACAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -923,6 +949,7 @@ func (HMACAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `TokenAuthInfo` type.
+// Experimental: TokenAuthInfo is part of an experimental API and may change or be removed.
 type TokenAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -940,6 +967,7 @@ func (TokenAuthInfo) Type() AuthInfoType {
 }
 
 // Schema for the `UserAuthInfo` type.
+// Experimental: UserAuthInfo is part of an experimental API and may change or be removed.
 type UserAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 	// GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
@@ -1284,6 +1312,7 @@ type ConnectRemoteSessionParams struct {
 }
 
 // Optional connection token presented by the SDK client during the handshake.
+// Experimental: ConnectRequest is part of an experimental API and may change or be removed.
 // Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
 	// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
@@ -1291,6 +1320,7 @@ type ConnectRequest struct {
 }
 
 // Handshake result reporting the server's protocol version and package version on success.
+// Experimental: ConnectResult is part of an experimental API and may change or be removed.
 // Internal: ConnectResult is an internal SDK API and is not part of the public surface.
 type ConnectResult struct {
 	// Always true on success
@@ -1304,6 +1334,8 @@ type ConnectResult struct {
 // Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 // GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
 // verbatim and does not re-fetch when set.
+// Experimental: CopilotUserResponse is part of an experimental API and may change or be
+// removed.
 type CopilotUserResponse struct {
 	AccessTypeSku              *string `json:"access_type_sku,omitempty"`
 	AnalyticsTrackingID        *string `json:"analytics_tracking_id,omitempty"`
@@ -1335,6 +1367,8 @@ type CopilotUserResponse struct {
 }
 
 // Schema for the `CopilotUserResponseEndpoints` type.
+// Experimental: CopilotUserResponseEndpoints is part of an experimental API and may change
+// or be removed.
 type CopilotUserResponseEndpoints struct {
 	API           *string `json:"api,omitempty"`
 	OriginTracker *string `json:"origin-tracker,omitempty"`
@@ -1348,6 +1382,8 @@ type CopilotUserResponseOrganizationListItem struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshots` type.
+// Experimental: CopilotUserResponseQuotaSnapshots is part of an experimental API and may
+// change or be removed.
 type CopilotUserResponseQuotaSnapshots struct {
 	// Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
 	Chat *CopilotUserResponseQuotaSnapshotsChat `json:"chat,omitempty"`
@@ -1358,6 +1394,8 @@ type CopilotUserResponseQuotaSnapshots struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
+// Experimental: CopilotUserResponseQuotaSnapshotsChat is part of an experimental API and
+// may change or be removed.
 type CopilotUserResponseQuotaSnapshotsChat struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -1374,6 +1412,8 @@ type CopilotUserResponseQuotaSnapshotsChat struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
+// Experimental: CopilotUserResponseQuotaSnapshotsCompletions is part of an experimental API
+// and may change or be removed.
 type CopilotUserResponseQuotaSnapshotsCompletions struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -1390,6 +1430,8 @@ type CopilotUserResponseQuotaSnapshotsCompletions struct {
 }
 
 // Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
+// Experimental: CopilotUserResponseQuotaSnapshotsPremiumInteractions is part of an
+// experimental API and may change or be removed.
 type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 	Entitlement       *float64 `json:"entitlement,omitempty"`
 	HasQuota          *bool    `json:"has_quota,omitempty"`
@@ -1461,6 +1503,8 @@ type DiscoveredCanvas struct {
 }
 
 // Schema for the `DiscoveredMcpServer` type.
+// Experimental: DiscoveredMCPServer is part of an experimental API and may change or be
+// removed.
 type DiscoveredMCPServer struct {
 	// Whether the server is enabled (not in the disabled list)
 	Enabled bool `json:"enabled"`
@@ -1766,6 +1810,28 @@ func (ExternalToolTextResultForLlmContentResourceLink) Type() ExternalToolTextRe
 	return ExternalToolTextResultForLlmContentTypeResourceLink
 }
 
+// Shell command exit metadata with optional output preview
+// Experimental: ExternalToolTextResultForLlmContentShellExit is part of an experimental API
+// and may change or be removed.
+type ExternalToolTextResultForLlmContentShellExit struct {
+	// Working directory where the shell command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Exit code from the completed shell command
+	ExitCode int64 `json:"exitCode"`
+	// Output associated with this shell command, if available. May be partial, truncated, or a
+	// preview; not guaranteed to be full output.
+	OutputPreview *string `json:"outputPreview,omitempty"`
+	// Whether outputPreview is known to be incomplete or truncated
+	OutputTruncated *bool `json:"outputTruncated,omitempty"`
+	// Shell id, as assigned by Copilot runtime
+	ShellID string `json:"shellId"`
+}
+
+func (ExternalToolTextResultForLlmContentShellExit) externalToolTextResultForLlmContent() {}
+func (ExternalToolTextResultForLlmContentShellExit) Type() ExternalToolTextResultForLlmContentType {
+	return ExternalToolTextResultForLlmContentTypeShellExit
+}
+
 // Terminal/shell output content block with optional exit code and working directory
 // Experimental: ExternalToolTextResultForLlmContentTerminal is part of an experimental API
 // and may change or be removed.
@@ -1854,6 +1920,7 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
 // mode.
+// Experimental: FilterMapping is part of an experimental API and may change or be removed.
 type FilterMapping interface {
 	filterMapping()
 }
@@ -2666,6 +2733,8 @@ type MCPCancelSamplingExecutionResult struct {
 }
 
 // MCP server name and configuration to add to user configuration.
+// Experimental: MCPConfigAddRequest is part of an experimental API and may change or be
+// removed.
 type MCPConfigAddRequest struct {
 	// MCP server configuration (stdio process or remote HTTP/SSE)
 	Config MCPServerConfig `json:"config"`
@@ -2673,10 +2742,14 @@ type MCPConfigAddRequest struct {
 	Name string `json:"name"`
 }
 
+// Experimental: MCPConfigAddResult is part of an experimental API and may change or be
+// removed.
 type MCPConfigAddResult struct {
 }
 
 // MCP server names to disable for new sessions.
+// Experimental: MCPConfigDisableRequest is part of an experimental API and may change or be
+// removed.
 type MCPConfigDisableRequest struct {
 	// Names of MCP servers to disable. Each server is added to the persisted disabled list so
 	// new sessions skip it. Already-disabled names are ignored. Active sessions keep their
@@ -2684,38 +2757,53 @@ type MCPConfigDisableRequest struct {
 	Names []string `json:"names"`
 }
 
+// Experimental: MCPConfigDisableResult is part of an experimental API and may change or be
+// removed.
 type MCPConfigDisableResult struct {
 }
 
 // MCP server names to enable for new sessions.
+// Experimental: MCPConfigEnableRequest is part of an experimental API and may change or be
+// removed.
 type MCPConfigEnableRequest struct {
 	// Names of MCP servers to enable. Each server is removed from the persisted disabled list
 	// so new sessions spawn it. Unknown or already-enabled names are ignored.
 	Names []string `json:"names"`
 }
 
+// Experimental: MCPConfigEnableResult is part of an experimental API and may change or be
+// removed.
 type MCPConfigEnableResult struct {
 }
 
 // User-configured MCP servers, keyed by server name.
+// Experimental: MCPConfigList is part of an experimental API and may change or be removed.
 type MCPConfigList struct {
 	// All MCP servers from user config, keyed by name
 	Servers map[string]MCPServerConfig `json:"servers"`
 }
 
+// Experimental: MCPConfigReloadResult is part of an experimental API and may change or be
+// removed.
 type MCPConfigReloadResult struct {
 }
 
 // MCP server name to remove from user configuration.
+// Experimental: MCPConfigRemoveRequest is part of an experimental API and may change or be
+// removed.
 type MCPConfigRemoveRequest struct {
 	// Name of the MCP server to remove
 	Name string `json:"name"`
 }
 
+// Experimental: MCPConfigRemoveResult is part of an experimental API and may change or be
+// removed.
 type MCPConfigRemoveResult struct {
 }
 
 // MCP server name and replacement configuration to write to user configuration.
+// Experimental: MCPConfigUpdateRequest is part of an experimental API and may change or be
+// removed.
 type MCPConfigUpdateRequest struct {
 	// MCP server configuration (stdio process or remote HTTP/SSE)
 	Config MCPServerConfig `json:"config"`
@@ -2723,6 +2811,8 @@ type MCPConfigUpdateRequest struct {
 	Name string `json:"name"`
 }
 
+// Experimental: MCPConfigUpdateResult is part of an experimental API and may change or be
+// removed.
 type MCPConfigUpdateResult struct {
 }
 
@@ -2754,12 +2844,16 @@ type MCPDisableRequest struct {
 }
 
 // Optional working directory used as context for MCP server discovery.
+// Experimental: MCPDiscoverRequest is part of an experimental API and may change or be
+// removed.
 type MCPDiscoverRequest struct {
 	// Working directory used as context for discovery (e.g., plugin resolution)
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // MCP servers discovered from user, workspace, plugin, and built-in sources.
+// Experimental: MCPDiscoverResult is part of an experimental API and may change or be
+// removed.
 type MCPDiscoverResult struct {
 	// MCP servers discovered from all sources
 	Servers []DiscoveredMCPServer `json:"servers"`
@@ -3153,6 +3247,8 @@ type MCPServer struct {
 }
 
 // Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
+// Experimental: MCPServerAuthConfig is part of an experimental API and may change or be
+// removed.
 type MCPServerAuthConfig interface {
 	mcpServerAuthConfig()
 }
@@ -3164,12 +3260,15 @@ func (MCPServerAuthConfigBoolean) mcpServerAuthConfig() {}
 func (MCPServerAuthConfigRedirectPort) mcpServerAuthConfig() {}
 
 // Authentication settings with optional redirect port configuration.
+// Experimental: MCPServerAuthConfigRedirectPort is part of an experimental API and may
+// change or be removed.
 type MCPServerAuthConfigRedirectPort struct {
 	// Fixed port for the OAuth redirect callback server.
 	RedirectPort *int32 `json:"redirectPort,omitempty"`
 }
 
 // MCP server configuration (stdio process or remote HTTP/SSE)
+// Experimental: MCPServerConfig is part of an experimental API and may change or be removed.
 type MCPServerConfig interface {
 	mcpServerConfig()
 }
@@ -3181,6 +3280,8 @@ type RawMCPServerConfigData struct {
 func (RawMCPServerConfigData) mcpServerConfig() {}
 
 // Remote MCP server configuration accessed over HTTP or SSE.
+// Experimental: MCPServerConfigHTTP is part of an experimental API and may change or be
+// removed.
 type MCPServerConfigHTTP struct {
 	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
 	Auth MCPServerAuthConfig `json:"auth,omitempty"`
@@ -3216,6 +3317,8 @@ type MCPServerConfigHTTP struct {
 func (MCPServerConfigHTTP) mcpServerConfig() {}
 
 // Stdio MCP server configuration launched as a child process.
+// Experimental: MCPServerConfigStdio is part of an experimental API and may change or be
+// removed.
 type MCPServerConfigStdio struct {
 	// Command-line arguments passed to the Stdio MCP server process.
 	Args []string `json:"args,omitzero"`
@@ -3476,6 +3579,7 @@ type MetadataSnapshotRemoteMetadataRepository struct {
 }
 
 // Schema for the `Model` type.
+// Experimental: Model is part of an experimental API and may change or be removed.
 type Model struct {
 	// Billing information
 	Billing *ModelBilling `json:"billing,omitempty"`
@@ -3498,6 +3602,7 @@ type Model struct {
 }
 
 // Billing information
+// Experimental: ModelBilling is part of an experimental API and may change or be removed.
 type ModelBilling struct {
 	// Whole-number percentage discount (0-100) applied to usage billed through this model.
 	// Populated for the synthetic `auto` model, where requests routed by auto-mode are billed
@@ -3510,6 +3615,8 @@ type ModelBilling struct {
 }
 
 // Token-level pricing information for this model
+// Experimental: ModelBillingTokenPrices is part of an experimental API and may change or be
+// removed.
 type ModelBillingTokenPrices struct {
 	// Number of tokens per standard billing batch
 	BatchSize *int64 `json:"batchSize,omitempty"`
@@ -3536,6 +3643,8 @@ type ModelBillingTokenPrices struct {
 }
 
 // Long context tier pricing (available for models with extended context windows)
+// Experimental: ModelBillingTokenPricesLongContext is part of an experimental API and may
+// change or be removed.
 type ModelBillingTokenPricesLongContext struct {
 	// Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens
 	// Deprecated: CachePrice is deprecated.
@@ -3558,6 +3667,8 @@ type ModelBillingTokenPricesLongContext struct {
 }
 
 // Model capabilities and limits
+// Experimental: ModelCapabilities is part of an experimental API and may change or be
+// removed.
 type ModelCapabilities struct {
 	// Token limits for prompts, outputs, and context window
 	Limits *ModelCapabilitiesLimits `json:"limits,omitempty"`
@@ -3566,6 +3677,8 @@ type ModelCapabilities struct {
 }
 
 // Token limits for prompts, outputs, and context window
+// Experimental: ModelCapabilitiesLimits is part of an experimental API and may change or be
+// removed.
 type ModelCapabilitiesLimits struct {
 	// Maximum total context window size in tokens
 	MaxContextWindowTokens *int64 `json:"max_context_window_tokens,omitempty"`
@@ -3578,6 +3691,8 @@ type ModelCapabilitiesLimits struct {
 }
 
 // Vision-specific limits
+// Experimental: ModelCapabilitiesLimitsVision is part of an experimental API and may change
+// or be removed.
 type ModelCapabilitiesLimitsVision struct {
 	// Maximum number of images per prompt
 	MaxPromptImages int64 `json:"max_prompt_images"`
@@ -3634,6 +3749,8 @@ type ModelCapabilitiesOverrideSupports struct {
 }
 
 // Feature flags indicating what the model supports
+// Experimental: ModelCapabilitiesSupports is part of an experimental API and may change or
+// be removed.
 type ModelCapabilitiesSupports struct {
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
@@ -3643,6 +3760,7 @@ type ModelCapabilitiesSupports struct {
 
 // List of Copilot models available to the resolved user, including capabilities and billing
 // metadata.
+// Experimental: ModelList is part of an experimental API and may change or be removed.
 type ModelList struct {
 	// List of available models with full metadata
 	Models []Model `json:"models"`
@@ -3657,6 +3775,7 @@ type ModelListRequest struct {
 }
 
 // Policy state (if applicable)
+// Experimental: ModelPolicy is part of an experimental API and may change or be removed.
 type ModelPolicy struct {
 	// Current policy state for this model
 	State ModelPolicyState `json:"state"`
@@ -3683,6 +3802,8 @@ type ModelSetReasoningEffortResult struct {
 	ReasoningEffort string `json:"reasoningEffort"`
 }
 
+// Experimental: ModelsListRequest is part of an experimental API and may change or be
+// removed.
 type ModelsListRequest struct {
 	// GitHub token for per-user model listing. When provided, resolves this token to determine
 	// the user's Copilot plan and available models instead of using the global auth.
@@ -4932,6 +5053,7 @@ type PermissionURLsSetUnrestrictedModeParams struct {
 }
 
 // Optional message to echo back to the caller.
+// Experimental: PingRequest is part of an experimental API and may change or be removed.
 type PingRequest struct {
 	// Optional message to echo back
 	Message *string `json:"message,omitempty"`
@@ -4939,6 +5061,7 @@ type PingRequest struct {
 
 // Server liveness response, including the echoed message, current server timestamp, and
 // protocol version.
+// Experimental: PingResult is part of an experimental API and may change or be removed.
 type PingResult struct {
 	// Echoed message (or default greeting)
 	Message string `json:"message"`
@@ -6114,16 +6237,16 @@ type RemoteSessionRepository struct {
 	Owner string `json:"owner"`
 }
 
-// Optional response budget limits.
-// Experimental: ResponseBudgetConfig is part of an experimental API and may change or be
+// Optional response limits.
+// Experimental: ResponseLimitsConfig is part of an experimental API and may change or be
 // removed.
-type ResponseBudgetConfig struct {
+type ResponseLimitsConfig struct {
 	// Maximum AI Credits allowed while responding to one top-level user message.
 	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
-	// Maximum model-call iterations allowed while responding to one top-level user message.
-	MaxModelIterations *int64 `json:"maxModelIterations,omitempty"`
 }
 
+// Experimental: RuntimeShutdownResult is part of an experimental API and may change or be
+// removed.
 type RuntimeShutdownResult struct {
 }
 
@@ -6257,12 +6380,16 @@ type ScheduleStopResult struct {
 }
 
 // Secret values to add to the redaction filter.
+// Experimental: SecretsAddFilterValuesRequest is part of an experimental API and may change
+// or be removed.
 type SecretsAddFilterValuesRequest struct {
 	// Raw secret values to register for redaction
 	Values []string `json:"values"`
 }
 
 // Confirmation that the secret values were registered.
+// Experimental: SecretsAddFilterValuesResult is part of an experimental API and may change
+// or be removed.
 type SecretsAddFilterValuesResult struct {
 	// Whether the values were successfully registered
 	Ok bool `json:"ok"`
@@ -6350,6 +6477,7 @@ type ServerInstructionSourceList struct {
 }
 
 // Schema for the `ServerSkill` type.
+// Experimental: ServerSkill is part of an experimental API and may change or be removed.
 type ServerSkill struct {
 	// Optional freeform hint describing the skill's expected arguments, from the
 	// `argument-hint` frontmatter field
@@ -6371,6 +6499,7 @@ type ServerSkill struct {
 }
 
 // Skills discovered across global and project sources.
+// Experimental: ServerSkillList is part of an experimental API and may change or be removed.
 type ServerSkillList struct {
 	// All discovered skills across all sources
 	Skills []ServerSkill `json:"skills"`
@@ -6654,6 +6783,8 @@ type SessionFSRmRequest struct {
 }
 
 // Optional capabilities declared by the provider
+// Experimental: SessionFSSetProviderCapabilities is part of an experimental API and may
+// change or be removed.
 type SessionFSSetProviderCapabilities struct {
 	// Whether the provider supports SQLite query/exists operations
 	Sqlite *bool `json:"sqlite,omitempty"`
@@ -6661,6 +6792,8 @@ type SessionFSSetProviderCapabilities struct {
 
 // Initial working directory, session-state path layout, and path conventions used to
 // register the calling SDK client as the session filesystem provider.
+// Experimental: SessionFSSetProviderRequest is part of an experimental API and may change
+// or be removed.
 type SessionFSSetProviderRequest struct {
 	// Optional capabilities declared by the provider
 	Capabilities *SessionFSSetProviderCapabilities `json:"capabilities,omitempty"`
@@ -6673,6 +6806,8 @@ type SessionFSSetProviderRequest struct {
 }
 
 // Indicates whether the calling client was registered as the session filesystem provider.
+// Experimental: SessionFSSetProviderResult is part of an experimental API and may change or
+// be removed.
 type SessionFSSetProviderResult struct {
 	// Whether the provider was set successfully
 	Success bool `json:"success"`
@@ -6996,6 +7131,8 @@ type SessionMetadataSnapshot struct {
 	// Remote-session-specific metadata. Populated only when `isRemote` is true. Fields are
 	// immutable for the lifetime of the session.
 	RemoteMetadata *MetadataSnapshotRemoteMetadata `json:"remoteMetadata,omitempty"`
+	// Current response limits for the session, or null when no limits are active
+	ResponseLimits *ResponseLimitsConfig `json:"responseLimits"`
 	// Currently selected model identifier, if any
 	SelectedModel *string `json:"selectedModel,omitempty"`
 	// The unique identifier of the session
@@ -7148,8 +7285,8 @@ type SessionOpenOptions struct {
 	RemoteExporting *bool `json:"remoteExporting,omitempty"`
 	// Whether this session supports remote steering.
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
-	// Initial response budget limits for the session.
-	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
+	// Initial response limits for the session.
+	ResponseLimits *ResponseLimitsConfig `json:"responseLimits,omitempty"`
 	// Whether the host is an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -7975,8 +8112,8 @@ type SessionUpdateOptionsParams struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode for supported model clients.
 	ReasoningSummary *OptionsUpdateReasoningSummary `json:"reasoningSummary,omitempty"`
-	// Optional response budget limits. Pass null to clear the response budget.
-	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
+	// Optional response limits. Pass null to clear the response limits.
+	ResponseLimits *ResponseLimitsConfig `json:"responseLimits,omitempty"`
 	// Whether the session is running in an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -8165,11 +8302,15 @@ type SkillList struct {
 }
 
 // Skill names to mark as disabled in global configuration, replacing any previous list.
+// Experimental: SkillsConfigSetDisabledSkillsRequest is part of an experimental API and may
+// change or be removed.
 type SkillsConfigSetDisabledSkillsRequest struct {
 	// List of skill names to disable
 	DisabledSkills []string `json:"disabledSkills"`
 }
 
+// Experimental: SkillsConfigSetDisabledSkillsResult is part of an experimental API and may
+// change or be removed.
 type SkillsConfigSetDisabledSkillsResult struct {
 }
 
@@ -8182,6 +8323,8 @@ type SkillsDisableRequest struct {
 }
 
 // Optional project paths and additional skill directories to include in discovery.
+// Experimental: SkillsDiscoverRequest is part of an experimental API and may change or be
+// removed.
 type SkillsDiscoverRequest struct {
 	// When true, omit skills from the host's global sources (personal, custom, plugin, and
 	// built-in), returning only project-scoped skills. For multitenant deployments.
@@ -8744,6 +8887,7 @@ type TelemetrySetFeatureOverridesRequest struct {
 }
 
 // Schema for the `Tool` type.
+// Experimental: Tool is part of an experimental API and may change or be removed.
 type Tool struct {
 	// Description of what the tool does
 	Description string `json:"description"`
@@ -8759,6 +8903,7 @@ type Tool struct {
 }
 
 // Built-in tools available for the requested model, with their parameters and instructions.
+// Experimental: ToolList is part of an experimental API and may change or be removed.
 type ToolList struct {
 	// List of available built-in tools with metadata
 	Tools []Tool `json:"tools"`
@@ -8781,6 +8926,8 @@ type ToolsInitializeAndValidateResult struct {
 }
 
 // Optional model identifier whose tool overrides should be applied to the listing.
+// Experimental: ToolsListRequest is part of an experimental API and may change or be
+// removed.
 type ToolsListRequest struct {
 	// Optional model ID — when provided, the returned tool list reflects model-specific
 	// overrides
@@ -9350,7 +9497,55 @@ type UserRequestedShellCommandResult struct {
 	ToolCallID string `json:"toolCallId"`
 }
 
+// A single user setting's effective value alongside its default, so consumers can render
+// settings left at their default.
+// Experimental: UserSettingMetadata is part of an experimental API and may change or be
+// removed.
+type UserSettingMetadata struct {
+	// The centrally-known default for this setting (null when no default is registered).
+	Default any `json:"default"`
+	// True when the user has not set an explicit value for this setting (i.e. it is left at its
+	// default). Reflects whether the user has overridden the key, not whether the effective
+	// value happens to equal the default — a key explicitly set to a value identical to the
+	// default still reports false.
+	IsDefault bool `json:"isDefault"`
+	// The effective value: the user's value if set, otherwise the default.
+	Value any `json:"value"`
+}
+
+// Per-key metadata for every known user setting (settings.json overlaid with the legacy
+// config.json, config.json wins), including settings left at their default. Excludes
+// repository- and enterprise-managed overrides.
+// Experimental: UserSettingsGetResult is part of an experimental API and may change or be
+// removed.
+type UserSettingsGetResult struct {
+	// Every known user setting keyed by setting name, each with its effective value, default,
+	// and whether it is at the default.
+	Settings map[string]UserSettingMetadata `json:"settings"`
+}
+
+// Experimental: UserSettingsReloadResult is part of an experimental API and may change or
+// be removed.
 type UserSettingsReloadResult struct {
+}
+
+// Partial user settings to write to settings.json. Each top-level key is written
+// individually, replacing the existing value; a key whose value is null is removed.
+// Experimental: UserSettingsSetRequest is part of an experimental API and may change or be
+// removed.
+type UserSettingsSetRequest struct {
+	// Partial user settings to write, as a free-form object keyed by setting name
+	Settings any `json:"settings"`
+}
+
+// Outcome of writing user settings.
+// Experimental: UserSettingsSetResult is part of an experimental API and may change or be
+// removed.
+type UserSettingsSetResult struct {
+	// Top-level keys whose write landed in settings.json but is shadowed by a value still
+	// present in the legacy config.json (config.json wins on read). The write does not take
+	// effect until the legacy value is removed.
+	ShadowedKeys []string `json:"shadowedKeys"`
 }
 
 // The approval to add as a session-scoped rule
@@ -9469,6 +9664,46 @@ type UserToolSessionApprovalWrite struct {
 func (UserToolSessionApprovalWrite) userToolSessionApproval() {}
 func (UserToolSessionApprovalWrite) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindWrite
+}
+
+// Current sharing status and shareable GitHub URL for a session.
+// Experimental: VisibilityGetResult is part of an experimental API and may change or be
+// removed.
+type VisibilityGetResult struct {
+	// Shareable GitHub URL for the session. Present when the session is synced and the URL can
+	// be resolved.
+	ShareURL *string `json:"shareUrl,omitempty"`
+	// Current sharing status. Absent when the session is not synced or the status could not be
+	// retrieved (e.g. the user is not authenticated).
+	Status *SessionVisibilityStatus `json:"status,omitempty"`
+	// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When
+	// false, the session cannot be shared and `status`/`shareUrl` are absent.
+	Synced bool `json:"synced"`
+}
+
+// Desired sharing status for the session.
+// Experimental: VisibilitySetRequest is part of an experimental API and may change or be
+// removed.
+type VisibilitySetRequest struct {
+	// Sharing status to apply. "repo" makes the session visible to repository readers;
+	// "unshared" restricts it to the creator and collaborators.
+	Status SessionVisibilityStatus `json:"status"`
+}
+
+// Effective sharing status and shareable GitHub URL after updating session visibility.
+// Experimental: VisibilitySetResult is part of an experimental API and may change or be
+// removed.
+type VisibilitySetResult struct {
+	// Shareable GitHub URL for the session. Present when the session is synced and the URL can
+	// be resolved.
+	ShareURL *string `json:"shareUrl,omitempty"`
+	// Effective sharing status after the update. May differ from the requested status for task
+	// types that are already visible to repository readers by default. Absent when the update
+	// could not be applied (e.g. the session is not synced or the user is not authenticated).
+	Status *SessionVisibilityStatus `json:"status,omitempty"`
+	// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When
+	// false, the visibility change could not be applied and `status`/`shareUrl` are absent.
+	Synced bool `json:"synced"`
 }
 
 // A single changed file and its unified diff.
@@ -9913,6 +10148,8 @@ const (
 // Controls how MCP tool result content is filtered: none leaves content unchanged, markdown
 // sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes
 // characters that can hide directives.
+// Experimental: ContentFilterMode is part of an experimental API and may change or be
+// removed.
 type ContentFilterMode string
 
 const (
@@ -9943,6 +10180,8 @@ const (
 )
 
 // Server transport type: stdio, http, sse (deprecated), or memory
+// Experimental: DiscoveredMCPServerType is part of an experimental API and may change or be
+// removed.
 type DiscoveredMCPServerType string
 
 const (
@@ -10056,6 +10295,7 @@ const (
 	ExternalToolTextResultForLlmContentTypeImage        ExternalToolTextResultForLlmContentType = "image"
 	ExternalToolTextResultForLlmContentTypeResource     ExternalToolTextResultForLlmContentType = "resource"
 	ExternalToolTextResultForLlmContentTypeResourceLink ExternalToolTextResultForLlmContentType = "resource_link"
+	ExternalToolTextResultForLlmContentTypeShellExit    ExternalToolTextResultForLlmContentType = "shell_exit"
 	ExternalToolTextResultForLlmContentTypeTerminal     ExternalToolTextResultForLlmContentType = "terminal"
 	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
 )
@@ -10327,6 +10567,8 @@ const (
 
 // Controls if tools provided by this server can be loaded on demand via tool search (auto)
 // or always included in the initial tool list (never)
+// Experimental: MCPServerConfigDeferTools is part of an experimental API and may change or
+// be removed.
 type MCPServerConfigDeferTools string
 
 const (
@@ -10337,6 +10579,8 @@ const (
 )
 
 // OAuth grant type to use when authenticating to the remote MCP server.
+// Experimental: MCPServerConfigHTTPOauthGrantType is part of an experimental API and may
+// change or be removed.
 type MCPServerConfigHTTPOauthGrantType string
 
 const (
@@ -10347,6 +10591,8 @@ const (
 )
 
 // Remote transport type. Defaults to "http" when omitted.
+// Experimental: MCPServerConfigHTTPType is part of an experimental API and may change or be
+// removed.
 type MCPServerConfigHTTPType string
 
 const (
@@ -10357,6 +10603,7 @@ const (
 )
 
 // Configuration source: user, workspace, plugin, or builtin
+// Experimental: MCPServerSource is part of an experimental API and may change or be removed.
 type MCPServerSource string
 
 const (
@@ -10433,6 +10680,8 @@ const (
 )
 
 // Model capability category for grouping in the model picker
+// Experimental: ModelPickerCategory is part of an experimental API and may change or be
+// removed.
 type ModelPickerCategory string
 
 const (
@@ -10445,6 +10694,8 @@ const (
 )
 
 // Relative cost tier for token-based billing users
+// Experimental: ModelPickerPriceCategory is part of an experimental API and may change or
+// be removed.
 type ModelPickerPriceCategory string
 
 const (
@@ -10459,6 +10710,8 @@ const (
 )
 
 // Current policy state for this model
+// Experimental: ModelPolicyState is part of an experimental API and may change or be
+// removed.
 type ModelPolicyState string
 
 const (
@@ -10958,6 +11211,8 @@ const (
 )
 
 // Path conventions used by this filesystem
+// Experimental: SessionFSSetProviderConventions is part of an experimental API and may
+// change or be removed.
 type SessionFSSetProviderConventions string
 
 const (
@@ -11158,6 +11413,19 @@ const (
 	SessionSourceRemote SessionSource = "remote"
 )
 
+// Sharing status for a synced session. "repo" makes the session visible to anyone with read
+// access to the repository; "unshared" restricts it to the creator and collaborators.
+// Experimental: SessionVisibilityStatus is part of an experimental API and may change or be
+// removed.
+type SessionVisibilityStatus string
+
+const (
+	// The session is visible to repository readers.
+	SessionVisibilityStatusRepo SessionVisibilityStatus = "repo"
+	// The session is restricted to its creator and collaborators.
+	SessionVisibilityStatusUnshared SessionVisibilityStatus = "unshared"
+)
+
 // Hosting platform type of the repository
 // Experimental: SessionWorkingDirectoryContextHostType is part of an experimental API and
 // may change or be removed.
@@ -11211,6 +11479,7 @@ const (
 )
 
 // Source location type (e.g., project, personal-copilot, plugin, builtin)
+// Experimental: SkillSource is part of an experimental API and may change or be removed.
 type SkillSource string
 
 const (
@@ -11509,6 +11778,7 @@ type serverAPI struct {
 	client *jsonrpc2.Client
 }
 
+// Experimental: ServerAccountAPI contains experimental APIs that may change or be removed.
 type ServerAccountAPI serverAPI
 
 // GetAllUsers gets all authenticated users available for account switching.
@@ -11786,6 +12056,7 @@ func (a *ServerLlmInferenceAPI) SetProvider(ctx context.Context) (*LlmInferenceS
 	return &result, nil
 }
 
+// Experimental: ServerMCPAPI contains experimental APIs that may change or be removed.
 type ServerMCPAPI serverAPI
 
 // Discovers MCP servers from user, workspace, plugin, and builtin sources.
@@ -11807,6 +12078,7 @@ func (a *ServerMCPAPI) Discover(ctx context.Context, params *MCPDiscoverRequest)
 	return &result, nil
 }
 
+// Experimental: ServerMCPConfigAPI contains experimental APIs that may change or be removed.
 type ServerMCPConfigAPI serverAPI
 
 // Adds an MCP server to user configuration.
@@ -11927,10 +12199,12 @@ func (a *ServerMCPConfigAPI) Update(ctx context.Context, params *MCPConfigUpdate
 	return &result, nil
 }
 
+// Experimental: Config returns experimental APIs that may change or be removed.
 func (s *ServerMCPAPI) Config() *ServerMCPConfigAPI {
 	return (*ServerMCPConfigAPI)(s)
 }
 
+// Experimental: ServerModelsAPI contains experimental APIs that may change or be removed.
 type ServerModelsAPI serverAPI
 
 // Lists Copilot models available to the authenticated user.
@@ -12184,6 +12458,7 @@ func (s *ServerPluginsAPI) Marketplaces() *ServerPluginsMarketplacesAPI {
 	return (*ServerPluginsMarketplacesAPI)(s)
 }
 
+// Experimental: ServerRuntimeAPI contains experimental APIs that may change or be removed.
 type ServerRuntimeAPI serverAPI
 
 // Shutdown gracefully shuts down an SDK-owned runtime. The response is sent only after
@@ -12202,6 +12477,7 @@ func (a *ServerRuntimeAPI) Shutdown(ctx context.Context) (*RuntimeShutdownResult
 	return &result, nil
 }
 
+// Experimental: ServerSecretsAPI contains experimental APIs that may change or be removed.
 type ServerSecretsAPI serverAPI
 
 // AddFilterValues registers secret values for redaction in session logs and exports. The
@@ -12224,6 +12500,7 @@ func (a *ServerSecretsAPI) AddFilterValues(ctx context.Context, params *SecretsA
 	return &result, nil
 }
 
+// Experimental: ServerSessionFSAPI contains experimental APIs that may change or be removed.
 type ServerSessionFSAPI serverAPI
 
 // SetProvider registers an SDK client as the session filesystem provider.
@@ -12726,6 +13003,7 @@ func (a *ServerSessionsAPI) TransferRemoteControl(ctx context.Context, params *S
 	return &result, nil
 }
 
+// Experimental: ServerSkillsAPI contains experimental APIs that may change or be removed.
 type ServerSkillsAPI serverAPI
 
 // Discovers skills across global and project sources.
@@ -12758,8 +13036,6 @@ func (a *ServerSkillsAPI) Discover(ctx context.Context, params *SkillsDiscoverRe
 //
 // Returns: Canonical locations where skills can be created so the runtime will recognize
 // them.
-// Experimental: GetDiscoveryPaths is an experimental API and may change or be removed in
-// future versions.
 func (a *ServerSkillsAPI) GetDiscoveryPaths(ctx context.Context, params *SkillsGetDiscoveryPathsRequest) (*SkillDiscoveryPathList, error) {
 	raw, err := a.client.Request(ctx, "skills.getDiscoveryPaths", params)
 	if err != nil {
@@ -12772,6 +13048,8 @@ func (a *ServerSkillsAPI) GetDiscoveryPaths(ctx context.Context, params *SkillsG
 	return &result, nil
 }
 
+// Experimental: ServerSkillsConfigAPI contains experimental APIs that may change or be
+// removed.
 type ServerSkillsConfigAPI serverAPI
 
 // SetDisabledSkills replaces the global list of disabled skills.
@@ -12792,10 +13070,12 @@ func (a *ServerSkillsConfigAPI) SetDisabledSkills(ctx context.Context, params *S
 	return &result, nil
 }
 
+// Experimental: Config returns experimental APIs that may change or be removed.
 func (s *ServerSkillsAPI) Config() *ServerSkillsConfigAPI {
 	return (*ServerSkillsConfigAPI)(s)
 }
 
+// Experimental: ServerToolsAPI contains experimental APIs that may change or be removed.
 type ServerToolsAPI serverAPI
 
 // Lists built-in tools available for a model.
@@ -12819,9 +13099,35 @@ func (a *ServerToolsAPI) List(ctx context.Context, params *ToolsListRequest) (*T
 	return &result, nil
 }
 
+// Experimental: ServerUserAPI contains experimental APIs that may change or be removed.
 type ServerUserAPI serverAPI
 
+// Experimental: ServerUserSettingsAPI contains experimental APIs that may change or be
+// removed.
 type ServerUserSettingsAPI serverAPI
+
+// Get lists every known user setting (settings.json overlaid with the legacy config.json,
+// config.json wins), each with its effective value, its default, and whether it is at the
+// default — so settings the user has never set still appear with their default value. Does
+// not include repository- or enterprise-managed overrides that the runtime layers on top at
+// session time.
+//
+// RPC method: user.settings.get.
+//
+// Returns: Per-key metadata for every known user setting (settings.json overlaid with the
+// legacy config.json, config.json wins), including settings left at their default. Excludes
+// repository- and enterprise-managed overrides.
+func (a *ServerUserSettingsAPI) Get(ctx context.Context) (*UserSettingsGetResult, error) {
+	raw, err := a.client.Request(ctx, "user.settings.get", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result UserSettingsGetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // Reload drops this runtime process's in-memory user settings cache so the next settings
 // read observes disk.
@@ -12839,6 +13145,30 @@ func (a *ServerUserSettingsAPI) Reload(ctx context.Context) (*UserSettingsReload
 	return &result, nil
 }
 
+// Set writes one or more user settings to settings.json, replacing each provided top-level
+// key. A key whose value is null is removed. Returns the keys whose new value is shadowed
+// by a legacy config.json entry (config.json wins on read), which the runtime leaves in
+// place — such writes do not take effect until the legacy value is removed.
+//
+// RPC method: user.settings.set.
+//
+// Parameters: Partial user settings to write to settings.json. Each top-level key is
+// written individually, replacing the existing value; a key whose value is null is removed.
+//
+// Returns: Outcome of writing user settings.
+func (a *ServerUserSettingsAPI) Set(ctx context.Context, params *UserSettingsSetRequest) (*UserSettingsSetResult, error) {
+	raw, err := a.client.Request(ctx, "user.settings.set", params)
+	if err != nil {
+		return nil, err
+	}
+	var result UserSettingsSetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Settings returns experimental APIs that may change or be removed.
 func (s *ServerUserAPI) Settings() *ServerUserSettingsAPI {
 	return (*ServerUserSettingsAPI)(s)
 }
@@ -12873,6 +13203,7 @@ type ServerRPC struct {
 //
 // Returns: Server liveness response, including the echoed message, current server
 // timestamp, and protocol version.
+// Experimental: Ping is an experimental API and may change or be removed in future versions.
 func (a *ServerRPC) Ping(ctx context.Context, params *PingRequest) (*PingResult, error) {
 	raw, err := a.common.client.Request(ctx, "ping", params)
 	if err != nil {
@@ -13092,6 +13423,8 @@ type InternalServerRPC struct {
 //
 // Returns: Handshake result reporting the server's protocol version and package version on
 // success.
+// Experimental: Connect is an experimental API and may change or be removed in future
+// versions.
 // Internal: Connect is part of the SDK's internal handshake/plumbing; external callers
 // should not use it.
 func (a *InternalServerRPC) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
@@ -15000,8 +15333,8 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.ReasoningSummary != nil {
 			req["reasoningSummary"] = *params.ReasoningSummary
 		}
-		if params.ResponseBudget != nil {
-			req["responseBudget"] = *params.ResponseBudget
+		if params.ResponseLimits != nil {
+			req["responseLimits"] = *params.ResponseLimits
 		}
 		if params.RunningInInteractiveMode != nil {
 			req["runningInInteractiveMode"] = *params.RunningInInteractiveMode
@@ -16898,6 +17231,55 @@ func (a *UsageAPI) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 	return &result, nil
 }
 
+// Experimental: VisibilityAPI contains experimental APIs that may change or be removed.
+type VisibilityAPI sessionAPI
+
+// Get returns the session's current Mission Control sharing status and shareable GitHub
+// URL. Reflects whether the synced session is visible to repository readers ("repo") or
+// restricted to its creator and collaborators ("unshared").
+//
+// RPC method: session.visibility.get.
+//
+// Returns: Current sharing status and shareable GitHub URL for a session.
+func (a *VisibilityAPI) Get(ctx context.Context) (*VisibilityGetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.visibility.get", req)
+	if err != nil {
+		return nil, err
+	}
+	var result VisibilityGetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Sets the session's Mission Control sharing status, controlling whether the synced session
+// is visible to repository readers. Returns the effective status and shareable GitHub URL
+// after the change.
+//
+// RPC method: session.visibility.set.
+//
+// Parameters: Desired sharing status for the session.
+//
+// Returns: Effective sharing status and shareable GitHub URL after updating session
+// visibility.
+func (a *VisibilityAPI) Set(ctx context.Context, params *VisibilitySetRequest) (*VisibilitySetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["status"] = params.Status
+	}
+	raw, err := a.client.Request(ctx, "session.visibility.set", req)
+	if err != nil {
+		return nil, err
+	}
+	var result VisibilitySetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: WorkspacesAPI contains experimental APIs that may change or be removed.
 type WorkspacesAPI sessionAPI
 
@@ -17110,6 +17492,7 @@ type SessionRPC struct {
 	Tools        *ToolsAPI
 	UI           *UIAPI
 	Usage        *UsageAPI
+	Visibility   *VisibilityAPI
 	Workspaces   *WorkspacesAPI
 }
 
@@ -17321,6 +17704,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Tools = (*ToolsAPI)(&r.common)
 	r.UI = (*UIAPI)(&r.common)
 	r.Usage = (*UsageAPI)(&r.common)
+	r.Visibility = (*VisibilityAPI)(&r.common)
 	r.Workspaces = (*WorkspacesAPI)(&r.common)
 	return r
 }
