@@ -33,7 +33,7 @@ import {
     registerClientGlobalApiHandlers,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
-import type { OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated/rpc.js";
+import type { GitHubTelemetryNotification, OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
@@ -514,7 +514,8 @@ export class CopilotClient {
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
-    private llmInferenceHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+    private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void;
+    private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
 
     /**
      * Typed server-scoped RPC methods.
@@ -634,7 +635,8 @@ export class CopilotClient {
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
-        this.setupLlmInference();
+        this.onGitHubTelemetry = options.onGitHubTelemetry;
+        this.setupClientGlobalHandlers();
 
         const effectiveEnv = options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
@@ -751,19 +753,26 @@ export class CopilotClient {
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
     }
 
-    private setupLlmInference(): void {
-        if (!this.requestHandler) {
-            return;
-        }
-        this.llmInferenceHandlers = {
-            llmInference: createCopilotRequestAdapter(this.requestHandler, () => {
+    private setupClientGlobalHandlers(): void {
+        const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        if (this.requestHandler) {
+            handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
                     return undefined;
                 }
                 this._rpc ??= createServerRpc(this.connection);
                 return this._rpc;
-            }),
-        };
+            });
+        }
+        if (this.onGitHubTelemetry) {
+            const onGitHubTelemetry = this.onGitHubTelemetry;
+            handlers.gitHubTelemetry = {
+                event: async (notification) => {
+                    onGitHubTelemetry(notification);
+                },
+            };
+        }
+        this.clientGlobalHandlers = handlers;
     }
 
     /**
@@ -1422,6 +1431,7 @@ export class CopilotClient {
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
+                enableGitHubTelemetryRedirection: this.onGitHubTelemetry != null,
                 mcpServers: toWireMcpServers(config.mcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
@@ -1628,6 +1638,7 @@ export class CopilotClient {
                 enableSkills: config.enableSkills,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
+                enableGitHubTelemetryRedirection: this.onGitHubTelemetry != null,
                 mcpServers: toWireMcpServers(config.mcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
@@ -2545,7 +2556,7 @@ export class CopilotClient {
         // Register client *global* API handlers (e.g. LLM inference) on the
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
-        registerClientGlobalApiHandlers(this.connection, this.llmInferenceHandlers);
+        registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
 
         this.connection.onClose(() => {
             this.state = "disconnected";

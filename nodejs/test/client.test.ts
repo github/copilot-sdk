@@ -7,6 +7,7 @@ import {
     CopilotClient,
     createCanvas,
     RuntimeConnection,
+    type GitHubTelemetryNotification,
     type ModelInfo,
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
@@ -186,6 +187,136 @@ describe("CopilotClient", () => {
         )![1] as any;
         expect(createPayload.contextTier).toBe("long_context");
         expect(resumePayload.contextTier).toBe("default");
+    });
+
+    it("opts into GitHub telemetry redirection when onGitHubTelemetry is provided", async () => {
+        const client = new CopilotClient({ onGitHubTelemetry: () => {} });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.enableGitHubTelemetryRedirection).toBe(true);
+        expect(resumePayload.enableGitHubTelemetryRedirection).toBe(true);
+    });
+
+    it("does not opt into GitHub telemetry redirection without a handler", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        expect(createPayload.enableGitHubTelemetryRedirection).toBe(false);
+    });
+
+    it("dispatches a real gitHubTelemetry.event wire notification to the handler", async () => {
+        const { createMessageConnection, StreamMessageReader, StreamMessageWriter } = await import(
+            "vscode-jsonrpc/node.js"
+        );
+        const { registerClientGlobalApiHandlers } = await import("../src/generated/rpc.js");
+
+        const clientToServer = new PassThrough();
+        const serverToClient = new PassThrough();
+
+        const clientConn = createMessageConnection(
+            new StreamMessageReader(serverToClient),
+            new StreamMessageWriter(clientToServer)
+        );
+        const serverConn = createMessageConnection(
+            new StreamMessageReader(clientToServer),
+            new StreamMessageWriter(serverToClient)
+        );
+        onTestFinished(() => {
+            clientConn.dispose();
+            serverConn.dispose();
+        });
+
+        const received: GitHubTelemetryNotification[] = [];
+        let resolveReceived: () => void;
+        const got = new Promise<void>((resolve) => {
+            resolveReceived = resolve;
+        });
+
+        registerClientGlobalApiHandlers(clientConn, {
+            gitHubTelemetry: {
+                event: async (notification) => {
+                    received.push(notification);
+                    resolveReceived();
+                },
+            },
+        });
+
+        clientConn.listen();
+        serverConn.listen();
+
+        const notification: GitHubTelemetryNotification = {
+            sessionId: "session-1",
+            restricted: false,
+            event: {
+                kind: "tool_call_executed",
+                properties: { tool: "shell" },
+                metrics: { duration_ms: 42 },
+            },
+        };
+
+        // Send as a real JSON-RPC notification (no id). A regression that wires
+        // this method up as a request handler would never fire and this await
+        // would hang.
+        await serverConn.sendNotification("gitHubTelemetry.event", notification);
+        await got;
+
+        expect(received).toEqual([notification]);
+    });
+
+    it("registers no gitHubTelemetry handler when onGitHubTelemetry is omitted", () => {
+        const client = new CopilotClient();
+        onTestFinished(() => client.forceStop());
+
+        const handlers = (client as any).clientGlobalHandlers;
+        expect(handlers.gitHubTelemetry).toBeUndefined();
+    });
+
+    it("forwards gitHubTelemetry events to the onGitHubTelemetry handler", () => {
+        const received: GitHubTelemetryNotification[] = [];
+        const client = new CopilotClient({ onGitHubTelemetry: (n) => received.push(n) });
+        onTestFinished(() => client.forceStop());
+
+        const handlers = (client as any).clientGlobalHandlers;
+        expect(handlers.gitHubTelemetry).toBeDefined();
+
+        const notification: GitHubTelemetryNotification = {
+            sessionId: "session-1",
+            restricted: false,
+            event: { kind: "tool_call_executed", properties: {}, metrics: {} },
+        };
+        handlers.gitHubTelemetry.event(notification);
+        expect(received).toEqual([notification]);
     });
 
     it("forwards expAssignments in session.create and session.resume", async () => {
