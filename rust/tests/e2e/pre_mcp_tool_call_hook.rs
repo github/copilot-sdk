@@ -6,9 +6,7 @@ use github_copilot_sdk::hooks::{
 };
 use serde_json::json;
 
-use super::support::with_e2e_context;
-
-const UNSUPPORTED_SDK_HOOKS_MESSAGE: &str = "SDK hook callbacks are no longer supported";
+use super::support::{assert_unsupported_hooks_error, with_e2e_context};
 
 #[tokio::test]
 async fn rejects_sdk_premcptoolcall_callback_hooks() {
@@ -30,10 +28,7 @@ async fn rejects_sdk_premcptoolcall_callback_hooks() {
                         session.disconnect().await.expect("disconnect session");
                         panic!("expected SDK callback hooks to be rejected");
                     }
-                    Err(err) => assert!(
-                        err.to_string().contains(UNSUPPORTED_SDK_HOOKS_MESSAGE),
-                        "expected unsupported hooks error, got: {err}"
-                    ),
+                    Err(err) => assert_unsupported_hooks_error(err),
                 }
                 client.stop().await.expect("stop client");
             })
