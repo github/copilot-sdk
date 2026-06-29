@@ -3956,6 +3956,55 @@ pub enum GitHubReferenceType {
     Discussion,
 }
 
+/// Pointer to a GitHub repository (owner/name plus optional numeric id).
+///
+/// Used by the GitHub-anchored [`Attachment`] variants. Mirrors the field
+/// shape of the generated `GitHubRepoRef`, but defined locally so it can
+/// derive `Eq` for use inside the `Attachment` enum.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubRepoPointer {
+    /// Numeric GitHub repository id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    /// Repository name (without owner).
+    pub name: String,
+    /// Repository owner login (user or organization).
+    pub owner: String,
+}
+
+/// One side (head or base) of a GitHub single-file diff.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubFileDiffSide {
+    /// Repository-relative path to the file.
+    pub path: String,
+    /// Git ref (branch, tag, or commit SHA) the file is read at.
+    pub r#ref: String,
+    /// Repository the file lives in.
+    pub repo: GitHubRepoPointer,
+}
+
+/// One side (head or base) of a GitHub tree comparison.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTreeComparisonSide {
+    /// Repository the revision belongs to.
+    pub repo: GitHubRepoPointer,
+    /// Git revision (branch, tag, or commit SHA).
+    pub revision: String,
+}
+
+/// Line range covered by a GitHub snippet attachment (1-based, inclusive end).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubSnippetLineRange {
+    /// Start line number (1-based).
+    pub start: i64,
+    /// End line number (1-based, inclusive).
+    pub end: i64,
+}
+
 /// An attachment included with a user message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
@@ -4020,6 +4069,117 @@ pub enum Attachment {
         /// URL to the referenced item.
         url: String,
     },
+    /// A pointer to a GitHub commit.
+    #[serde(rename = "github_commit")]
+    GitHubCommit {
+        /// First line of the commit message.
+        message: String,
+        /// Full commit SHA.
+        oid: String,
+        /// Repository the commit belongs to.
+        repo: GitHubRepoPointer,
+        /// URL to the commit on GitHub.
+        url: String,
+    },
+    /// A pointer to a GitHub release.
+    #[serde(rename = "github_release")]
+    GitHubRelease {
+        /// Human-readable release name.
+        name: String,
+        /// Repository the release belongs to.
+        repo: GitHubRepoPointer,
+        /// Git tag the release is anchored to.
+        tag_name: String,
+        /// URL to the release on GitHub.
+        url: String,
+    },
+    /// A pointer to a GitHub Actions job.
+    #[serde(rename = "github_actions_job")]
+    GitHubActionsJob {
+        /// Terminal conclusion of the job when finished (e.g. "success",
+        /// "failure", "cancelled"). Absent for in-progress jobs.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        conclusion: Option<String>,
+        /// Job id within the workflow run.
+        job_id: i64,
+        /// Display name of the job.
+        job_name: String,
+        /// Repository the workflow run belongs to.
+        repo: GitHubRepoPointer,
+        /// URL to the job on GitHub.
+        url: String,
+        /// Display name of the workflow the job ran in.
+        workflow_name: String,
+    },
+    /// A pointer to a GitHub repository.
+    #[serde(rename = "github_repository")]
+    GitHubRepository {
+        /// Short description of the repository.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        /// Git ref this attachment is anchored at (branch, tag, or commit).
+        /// When absent the default branch is implied.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        r#ref: Option<String>,
+        /// Repository pointer.
+        repo: GitHubRepoPointer,
+        /// URL to the repository on GitHub.
+        url: String,
+    },
+    /// A pointer to a single-file diff. At least one of `head` and `base` is present.
+    #[serde(rename = "github_file_diff")]
+    GitHubFileDiff {
+        /// File location on the base side of the diff. Absent for additions.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        base: Option<GitHubFileDiffSide>,
+        /// File location on the head side of the diff. Absent for deletions.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        head: Option<GitHubFileDiffSide>,
+        /// URL to the diff on GitHub (e.g. a commit, compare, or PR-file URL).
+        url: String,
+    },
+    /// A pointer to a comparison between two git revisions.
+    #[serde(rename = "github_tree_comparison")]
+    GitHubTreeComparison {
+        /// Base side of the comparison.
+        base: GitHubTreeComparisonSide,
+        /// Head side of the comparison.
+        head: GitHubTreeComparisonSide,
+        /// URL to the comparison on GitHub.
+        url: String,
+    },
+    /// A generic GitHub URL reference.
+    #[serde(rename = "github_url")]
+    GitHubUrl {
+        /// URL to the GitHub resource.
+        url: String,
+    },
+    /// A pointer to a file in a GitHub repository at a specific ref.
+    #[serde(rename = "github_file")]
+    GitHubFile {
+        /// Repository-relative path to the file.
+        path: String,
+        /// Git ref the file is read at (branch, tag, or commit SHA).
+        r#ref: String,
+        /// Repository the file lives in.
+        repo: GitHubRepoPointer,
+        /// URL to the file on GitHub.
+        url: String,
+    },
+    /// A pointer to a line range inside a file in a GitHub repository.
+    #[serde(rename = "github_snippet")]
+    GitHubSnippet {
+        /// Line range the snippet covers.
+        line_range: GitHubSnippetLineRange,
+        /// Repository-relative path to the file.
+        path: String,
+        /// Git ref the file is read at (branch, tag, or commit SHA).
+        r#ref: String,
+        /// Repository the file lives in.
+        repo: GitHubRepoPointer,
+        /// URL to the snippet on GitHub (with line anchor).
+        url: String,
+    },
 }
 
 impl Attachment {
@@ -4030,7 +4190,16 @@ impl Attachment {
             | Self::Directory { display_name, .. }
             | Self::Selection { display_name, .. }
             | Self::Blob { display_name, .. } => display_name.as_deref(),
-            Self::GitHubReference { .. } => None,
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => None,
         }
     }
 
@@ -4073,7 +4242,16 @@ impl Attachment {
             | Self::Directory { display_name, .. }
             | Self::Selection { display_name, .. }
             | Self::Blob { display_name, .. } => *display_name = Some(derived_display_name),
-            Self::GitHubReference { .. } => {}
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => {}
         }
     }
 
@@ -4084,7 +4262,16 @@ impl Attachment {
             }
             Self::Selection { file_path, .. } => Some(attachment_name_from_path(file_path)),
             Self::Blob { .. } => Some("attachment".to_string()),
-            Self::GitHubReference { .. } => None,
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => None,
         }
     }
 }
@@ -6039,6 +6226,153 @@ mod tests {
             attachments[3].label(),
             Some("Track regressions".to_string())
         );
+    }
+
+    #[test]
+    fn github_anchored_attachment_variants_round_trip() {
+        let cases = vec![
+            (
+                "github_commit",
+                json!({
+                    "type": "github_commit",
+                    "message": "Fix the thing",
+                    "oid": "abc123",
+                    "repo": { "id": 1, "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo/commit/abc123"
+                }),
+            ),
+            (
+                "github_release",
+                json!({
+                    "type": "github_release",
+                    "name": "v1.2.3",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "tagName": "v1.2.3",
+                    "url": "https://github.com/octocat/repo/releases/tag/v1.2.3"
+                }),
+            ),
+            (
+                "github_actions_job",
+                json!({
+                    "type": "github_actions_job",
+                    "conclusion": "failure",
+                    "jobId": 99,
+                    "jobName": "build",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo/actions/runs/1/job/99",
+                    "workflowName": "CI"
+                }),
+            ),
+            (
+                "github_repository",
+                json!({
+                    "type": "github_repository",
+                    "description": "An example repository",
+                    "ref": "main",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo"
+                }),
+            ),
+            (
+                "github_file_diff",
+                json!({
+                    "type": "github_file_diff",
+                    "base": {
+                        "path": "src/lib.rs",
+                        "ref": "main",
+                        "repo": { "name": "repo", "owner": "octocat" }
+                    },
+                    "head": {
+                        "path": "src/lib.rs",
+                        "ref": "feature",
+                        "repo": { "name": "repo", "owner": "octocat" }
+                    },
+                    "url": "https://github.com/octocat/repo/compare/main...feature"
+                }),
+            ),
+            (
+                "github_tree_comparison",
+                json!({
+                    "type": "github_tree_comparison",
+                    "base": {
+                        "repo": { "name": "repo", "owner": "octocat" },
+                        "revision": "main"
+                    },
+                    "head": {
+                        "repo": { "name": "repo", "owner": "octocat" },
+                        "revision": "feature"
+                    },
+                    "url": "https://github.com/octocat/repo/compare/main...feature"
+                }),
+            ),
+            (
+                "github_url",
+                json!({
+                    "type": "github_url",
+                    "url": "https://github.com/octocat/repo/wiki"
+                }),
+            ),
+            (
+                "github_file",
+                json!({
+                    "type": "github_file",
+                    "path": "src/main.rs",
+                    "ref": "main",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo/blob/main/src/main.rs"
+                }),
+            ),
+            (
+                "github_snippet",
+                json!({
+                    "type": "github_snippet",
+                    "lineRange": { "start": 10, "end": 20 },
+                    "path": "src/main.rs",
+                    "ref": "main",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo/blob/main/src/main.rs#L10-L20"
+                }),
+            ),
+        ];
+
+        for (expected_type, input) in cases {
+            let attachment: Attachment = serde_json::from_value(input.clone())
+                .unwrap_or_else(|err| panic!("{expected_type} should deserialize: {err}"));
+
+            // Serialize to a string first: parsing into `serde_json::Value` would
+            // silently dedupe a duplicate `type` key, hiding the exact regression
+            // this test guards against (e.g. a wrapped generated struct emitting its
+            // own `type` alongside the enum tag).
+            let serialized_string = serde_json::to_string(&attachment)
+                .unwrap_or_else(|err| panic!("{expected_type} should serialize: {err}"));
+
+            // Exactly one `type` key, carrying the expected discriminator.
+            assert_eq!(
+                serialized_string.matches("\"type\":").count(),
+                1,
+                "{expected_type} must serialize a single `type` key"
+            );
+
+            let serialized: serde_json::Value = serde_json::from_str(&serialized_string)
+                .unwrap_or_else(|err| panic!("{expected_type} should reparse: {err}"));
+            assert_eq!(
+                serialized.get("type").and_then(|value| value.as_str()),
+                Some(expected_type),
+                "{expected_type} must serialize the correct discriminator"
+            );
+
+            // Round-trips without dropping fields.
+            assert_eq!(
+                serialized, input,
+                "{expected_type} should round-trip without data loss"
+            );
+            let reparsed: Attachment = serde_json::from_value(serialized)
+                .unwrap_or_else(|err| panic!("{expected_type} should re-deserialize: {err}"));
+            assert_eq!(
+                reparsed, attachment,
+                "{expected_type} should re-deserialize to the same value"
+            );
+        }
     }
 }
 
