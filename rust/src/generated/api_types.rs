@@ -1,6 +1,7 @@
 //! Auto-generated from api.schema.json — do not edit manually.
 
 #![allow(clippy::large_enum_variant)]
+#![allow(deprecated)]
 #![allow(dead_code)]
 #![allow(rustdoc::invalid_html_tags)]
 

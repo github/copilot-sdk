@@ -76,7 +76,11 @@ public sealed class ModelBillingTokenPricesLongContext
 {
     /// <summary>Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
@@ -90,7 +94,11 @@ public sealed class ModelBillingTokenPricesLongContext
 
     /// <summary>Use maxPromptTokens instead. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
@@ -117,7 +125,11 @@ public sealed class ModelBillingTokenPrices
 
     /// <summary>Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
@@ -131,7 +143,11 @@ public sealed class ModelBillingTokenPrices
 
     /// <summary>Use maxPromptTokens instead. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 

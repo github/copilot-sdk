@@ -1,5 +1,7 @@
 //! Auto-generated from session-events.schema.json — do not edit manually.
 
+#![allow(deprecated)]
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};

@@ -2419,7 +2419,11 @@ public sealed partial class AssistantMessageData
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2491,7 +2495,11 @@ public sealed partial class AssistantMessageDeltaData
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2591,7 +2599,11 @@ public sealed partial class AssistantUsageData
 
     /// <summary>Parent tool call ID when this usage originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2759,7 +2771,11 @@ public sealed partial class ToolExecutionStartData
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2837,7 +2853,11 @@ public sealed partial class ToolExecutionCompleteData
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
     [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -5360,7 +5380,11 @@ public sealed partial class ToolExecutionCompleteContentText : ToolExecutionComp
 /// <summary>Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.</summary>
 /// <remarks>The <c>terminal</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
 [Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
 public sealed partial class ToolExecutionCompleteContentTerminal : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
