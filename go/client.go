@@ -757,6 +757,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	} else {
 		req.IncludeSubAgentStreamingEvents = Bool(true)
 	}
+	if c.options.OnGitHubTelemetry != nil {
+		req.EnableGitHubTelemetryRedirection = Bool(true)
+	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
 	}
@@ -1022,6 +1025,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
 	} else {
 		req.IncludeSubAgentStreamingEvents = Bool(true)
+	}
+	if c.options.OnGitHubTelemetry != nil {
+		req.EnableGitHubTelemetryRedirection = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
@@ -2029,15 +2035,33 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
-	if c.options.RequestHandler != nil {
-		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
-			if c.RPC == nil {
-				return nil
-			}
-			return c.RPC.LlmInference
-		})
-		rpc.RegisterClientGlobalAPIHandlers(c.client, &rpc.ClientGlobalAPIHandlers{LlmInference: adapter})
+	if c.options.RequestHandler != nil || c.options.OnGitHubTelemetry != nil {
+		handlers := &rpc.ClientGlobalAPIHandlers{}
+		if c.options.RequestHandler != nil {
+			handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+				if c.RPC == nil {
+					return nil
+				}
+				return c.RPC.LlmInference
+			})
+		}
+		if c.options.OnGitHubTelemetry != nil {
+			handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
+		}
+		rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
 	}
+}
+
+// gitHubTelemetryAdapter adapts the OnGitHubTelemetry option to the generated
+// rpc.GitHubTelemetryHandler interface.
+type gitHubTelemetryAdapter struct {
+	callback func(notification *rpc.GitHubTelemetryNotification)
+}
+
+func (a *gitHubTelemetryAdapter) Event(request *rpc.GitHubTelemetryNotification) error {
+	defer func() { recover() }() // Ignore handler panics
+	a.callback(request)
+	return nil
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {
