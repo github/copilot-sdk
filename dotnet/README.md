@@ -125,6 +125,7 @@ Create a new conversation session.
 - `Provider` - Custom API provider configuration (BYOK)
 - `Streaming` - Enable streaming of response chunks (default: false)
 - `InfiniteSessions` - Configure automatic context compaction (see below)
+- `EnableSessionStore` - Enables the cross-session store for search and retrieval across sessions. When unset in `CopilotCli` mode, the runtime default applies (enabled). In `Empty` mode, defaults to disabled. See [One-shot / Hosted Environments](#one-shot--hosted-environments).
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
@@ -415,6 +416,27 @@ When enabled, sessions emit compaction events:
 
 - `SessionCompactionStartEvent` - Background compaction started
 - `SessionCompactionCompleteEvent` - Compaction finished (includes token counts)
+
+## One-shot / Hosted Environments
+
+When running the SDK in ephemeral containers or other one-shot environments (one request per container), the default session configuration enables SQLite-backed persistence features that you typically do not need:
+
+- **Infinite sessions** — background compaction and workspace persistence (enabled by default)
+- **Session store** — cross-session search and retrieval via a shared SQLite store (enabled by default in `CopilotCli` mode when `EnableSessionStore` is unset)
+
+In restricted or short-lived environments, explicitly disable both to avoid unnecessary disk I/O and transient SQLite lock errors:
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    EnableSessionStore = false,
+    InfiniteSessions = new InfiniteSessionConfig { Enabled = false },
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+```
+
+In `CopilotClientMode.Empty`, the SDK already defaults `EnableSessionStore` to `false`; in the default `CopilotCli` mode, you must set it explicitly.
 
 ## Memory
 

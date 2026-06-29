@@ -217,6 +217,7 @@ These are passed as keyword arguments to `create_session()`:
 - `streaming` (bool): Enable streaming delta events
 - `provider` (ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `infinite_sessions` (InfiniteSessionConfig): Automatic context compaction configuration
+- `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled. See [One-shot / Hosted Environments](#one-shot--hosted-environments).
 - `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `PermissionHandler.approve_all` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
@@ -501,6 +502,27 @@ When enabled, sessions emit compaction events:
 
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
+
+## One-shot / Hosted Environments
+
+When running the SDK in ephemeral containers or other one-shot environments (one request per container), the default session configuration enables SQLite-backed persistence features that you typically do not need:
+
+- **Infinite sessions** — background compaction and workspace persistence (enabled by default)
+- **Session store** — cross-session search and retrieval via a shared SQLite store (enabled by default in `"copilot-cli"` mode when `enable_session_store` is unset)
+
+In restricted or short-lived environments, explicitly disable both to avoid unnecessary disk I/O and transient SQLite lock errors:
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    enable_session_store=False,
+    infinite_sessions={"enabled": False},
+) as session:
+    ...
+```
+
+In `"empty"` mode, the SDK already defaults `enable_session_store` to `False`; in the default `"copilot-cli"` mode, you must set it explicitly.
 
 ## Memory
 

@@ -571,6 +571,28 @@ config.infinite_sessions = Some(infinite);
 
 The CLI emits `session.compaction_start` / `session.compaction_complete` events around each compaction. The session id remains stable across compactions; resume with `Client::resume_session` to pick up a prior conversation. Workspace state lives under `~/.copilot/session-state/{sessionId}` by default — override with `workspace_path` to relocate.
 
+`enable_session_store` on `SessionConfig` controls the cross-session store for search and retrieval across sessions. When unset in the default client mode, the runtime default applies (enabled). In empty mode, the SDK defaults it to disabled.
+
+### One-shot / Hosted Environments
+
+When running the SDK in ephemeral containers or other one-shot environments (one request per container), the default session configuration enables SQLite-backed persistence features that you typically do not need:
+
+- **Infinite sessions** — background compaction and workspace persistence (enabled by default)
+- **Session store** — cross-session search and retrieval via a shared SQLite store (enabled by default when `enable_session_store` is unset)
+
+In restricted or short-lived environments, explicitly disable both to avoid unnecessary disk I/O and transient SQLite lock errors:
+
+```rust,ignore
+let config = SessionConfig::default()
+    .with_enable_session_store(false)
+    .with_infinite_sessions(InfiniteSessionConfig {
+        enabled: Some(false),
+        ..Default::default()
+    });
+```
+
+In empty mode, the SDK already defaults `enable_session_store` to `false`; in the default client mode, you must set it explicitly.
+
 ### Memory
 
 Configure the runtime memory feature for a session:
