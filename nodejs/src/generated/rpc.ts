@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, ResponseBudgetConfig, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, ResponseLimitsConfig, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
 
 /**
  * Initial authentication info for the session.
@@ -13,6 +13,7 @@ import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AuthInfo".
  */
+/** @experimental */
 export type AuthInfo =
   | HMACAuthInfo
   | EnvAuthInfo
@@ -257,6 +258,7 @@ export type ConnectedRemoteSessionMetadataKind =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ContentFilterMode".
  */
+/** @experimental */
 export type ContentFilterMode =
   /** Leave MCP tool result content unchanged. */
   | "none"
@@ -270,6 +272,7 @@ export type ContentFilterMode =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DiscoveredMcpServerType".
  */
+/** @experimental */
 export type DiscoveredMcpServerType =
   /** Server communicates over stdio with a local child process. */
   | "stdio"
@@ -373,6 +376,7 @@ export type ExternalToolTextResultForLlmBinaryResultsForLlmType =
 export type ExternalToolTextResultForLlmContent =
   | ExternalToolTextResultForLlmContentText
   | ExternalToolTextResultForLlmContentTerminal
+  | ExternalToolTextResultForLlmContentShellExit
   | ExternalToolTextResultForLlmContentImage
   | ExternalToolTextResultForLlmContentAudio
   | ExternalToolTextResultForLlmContentResourceLink
@@ -405,6 +409,7 @@ export type ExternalToolTextResultForLlmContentResourceDetails =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "FilterMapping".
  */
+/** @experimental */
 export type FilterMapping =
   | {
       [k: string]: ContentFilterMode;
@@ -640,6 +645,7 @@ export type McpAppsSetHostContextDetailsPlatform =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfig".
  */
+/** @experimental */
 export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
 /**
  * Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
@@ -647,6 +653,7 @@ export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerAuthConfig".
  */
+/** @experimental */
 export type McpServerAuthConfig = boolean | McpServerAuthConfigRedirectPort;
 /**
  * Controls if tools provided by this server can be loaded on demand via tool search (auto) or always included in the initial tool list (never)
@@ -654,6 +661,7 @@ export type McpServerAuthConfig = boolean | McpServerAuthConfigRedirectPort;
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfigDeferTools".
  */
+/** @experimental */
 export type McpServerConfigDeferTools =
   /** Tools may be deferred under certain conditions */
   | "auto"
@@ -665,6 +673,7 @@ export type McpServerConfigDeferTools =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfigHttpType".
  */
+/** @experimental */
 export type McpServerConfigHttpType =
   /** Streamable HTTP transport. */
   | "http"
@@ -676,6 +685,7 @@ export type McpServerConfigHttpType =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfigHttpOauthGrantType".
  */
+/** @experimental */
 export type McpServerConfigHttpOauthGrantType =
   /** Interactive browser-based authorization code flow with PKCE. */
   | "authorization_code"
@@ -858,6 +868,7 @@ export type MetadataSnapshotRemoteMetadataTaskType =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelPolicyState".
  */
+/** @experimental */
 export type ModelPolicyState =
   /** The model is enabled by policy. */
   | "enabled"
@@ -871,6 +882,7 @@ export type ModelPolicyState =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelPickerCategory".
  */
+/** @experimental */
 export type ModelPickerCategory =
   /** Lightweight model category optimized for faster, lower-cost interactions. */
   | "lightweight"
@@ -884,6 +896,7 @@ export type ModelPickerCategory =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelPickerPriceCategory".
  */
+/** @experimental */
 export type ModelPickerPriceCategory =
   /** Lowest relative token cost tier. */
   | "low"
@@ -1348,6 +1361,7 @@ export type SessionFsReaddirWithTypesEntryType =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSetProviderConventions".
  */
+/** @experimental */
 export type SessionFsSetProviderConventions =
   /** Paths use Windows path conventions. */
   | "windows"
@@ -1574,6 +1588,18 @@ export type SessionSource =
   | "remote"
   /** Return both local and remote sessions. */
   | "all";
+/**
+ * Sharing status for a synced session. "repo" makes the session visible to anyone with read access to the repository; "unshared" restricts it to the creator and collaborators.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionVisibilityStatus".
+ */
+/** @experimental */
+export type SessionVisibilityStatus =
+  /** The session is visible to repository readers. */
+  | "repo"
+  /** The session is restricted to its creator and collaborators. */
+  | "unshared";
 /**
  * Signal to send (default: SIGTERM)
  *
@@ -1861,6 +1887,7 @@ export type WorkspacesWorkspaceDetailsHostType =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountGetAllUsersResult".
  */
+/** @experimental */
 export type AccountGetAllUsersResult = AccountAllUsers[];
 
 /**
@@ -1896,6 +1923,7 @@ export interface AbortResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountAllUsers".
  */
+/** @experimental */
 export interface AccountAllUsers {
   authInfo: AuthInfo;
   /**
@@ -1909,6 +1937,7 @@ export interface AccountAllUsers {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "HMACAuthInfo".
  */
+/** @experimental */
 export interface HMACAuthInfo {
   /**
    * HMAC-based authentication used by GitHub-internal services.
@@ -1930,6 +1959,7 @@ export interface HMACAuthInfo {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponse".
  */
+/** @experimental */
 export interface CopilotUserResponse {
   login?: string;
   access_type_sku?: string;
@@ -2005,6 +2035,7 @@ export interface CopilotUserResponse {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseEndpoints".
  */
+/** @experimental */
 export interface CopilotUserResponseEndpoints {
   api?: string;
   "origin-tracker"?: string;
@@ -2017,6 +2048,7 @@ export interface CopilotUserResponseEndpoints {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseQuotaSnapshots".
  */
+/** @experimental */
 export interface CopilotUserResponseQuotaSnapshots {
   chat?: CopilotUserResponseQuotaSnapshotsChat;
   completions?: CopilotUserResponseQuotaSnapshotsCompletions;
@@ -2044,6 +2076,7 @@ export interface CopilotUserResponseQuotaSnapshots {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseQuotaSnapshotsChat".
  */
+/** @experimental */
 export interface CopilotUserResponseQuotaSnapshotsChat {
   entitlement?: number;
   overage_count?: number;
@@ -2064,6 +2097,7 @@ export interface CopilotUserResponseQuotaSnapshotsChat {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseQuotaSnapshotsCompletions".
  */
+/** @experimental */
 export interface CopilotUserResponseQuotaSnapshotsCompletions {
   entitlement?: number;
   overage_count?: number;
@@ -2084,6 +2118,7 @@ export interface CopilotUserResponseQuotaSnapshotsCompletions {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseQuotaSnapshotsPremiumInteractions".
  */
+/** @experimental */
 export interface CopilotUserResponseQuotaSnapshotsPremiumInteractions {
   entitlement?: number;
   overage_count?: number;
@@ -2104,6 +2139,7 @@ export interface CopilotUserResponseQuotaSnapshotsPremiumInteractions {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "EnvAuthInfo".
  */
+/** @experimental */
 export interface EnvAuthInfo {
   /**
    * Personal access token (PAT) or server-to-server token sourced from an environment variable.
@@ -2133,6 +2169,7 @@ export interface EnvAuthInfo {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TokenAuthInfo".
  */
+/** @experimental */
 export interface TokenAuthInfo {
   /**
    * SDK-side token authentication; the host configured the token directly via the SDK.
@@ -2154,6 +2191,7 @@ export interface TokenAuthInfo {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotApiTokenAuthInfo".
  */
+/** @experimental */
 export interface CopilotApiTokenAuthInfo {
   /**
    * Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL` environment-variable pair. The token itself is read from the environment by the runtime, not carried in this struct.
@@ -2171,6 +2209,7 @@ export interface CopilotApiTokenAuthInfo {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UserAuthInfo".
  */
+/** @experimental */
 export interface UserAuthInfo {
   /**
    * OAuth user authentication. The token itself is held in the runtime's secret token store (keyed by host+login) and is NOT carried in this struct.
@@ -2192,6 +2231,7 @@ export interface UserAuthInfo {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "GhCliAuthInfo".
  */
+/** @experimental */
 export interface GhCliAuthInfo {
   /**
    * Authentication via the `gh` CLI's saved credentials.
@@ -2217,6 +2257,7 @@ export interface GhCliAuthInfo {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ApiKeyAuthInfo".
  */
+/** @experimental */
 export interface ApiKeyAuthInfo {
   /**
    * API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
@@ -2238,6 +2279,7 @@ export interface ApiKeyAuthInfo {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountGetCurrentAuthResult".
  */
+/** @experimental */
 export interface AccountGetCurrentAuthResult {
   authInfo?: AuthInfo;
   /**
@@ -2246,6 +2288,7 @@ export interface AccountGetCurrentAuthResult {
   authErrors?: string[];
 }
 
+/** @experimental */
 export interface AccountGetQuotaRequest {
   /**
    * GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.
@@ -2258,6 +2301,7 @@ export interface AccountGetQuotaRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountGetQuotaResult".
  */
+/** @experimental */
 export interface AccountGetQuotaResult {
   /**
    * Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
@@ -2272,6 +2316,7 @@ export interface AccountGetQuotaResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountQuotaSnapshot".
  */
+/** @experimental */
 export interface AccountQuotaSnapshot {
   /**
    * Whether the user has an unlimited usage entitlement
@@ -2312,6 +2357,7 @@ export interface AccountQuotaSnapshot {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountLoginRequest".
  */
+/** @experimental */
 export interface AccountLoginRequest {
   /**
    * GitHub host URL
@@ -2332,6 +2378,7 @@ export interface AccountLoginRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountLoginResult".
  */
+/** @experimental */
 export interface AccountLoginResult {
   /**
    * Whether the credential was persisted to a secure store (system keychain, or the config file when plaintext storage is enabled). False when no secure store was available and the token was not saved, so the consumer can decide how to proceed.
@@ -2344,6 +2391,7 @@ export interface AccountLoginResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountLogoutRequest".
  */
+/** @experimental */
 export interface AccountLogoutRequest {
   authInfo: AuthInfo;
 }
@@ -2353,6 +2401,7 @@ export interface AccountLogoutRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountLogoutResult".
  */
+/** @experimental */
 export interface AccountLogoutResult {
   /**
    * Whether other authenticated users remain after logout
@@ -3468,6 +3517,7 @@ export interface ConnectRemoteSessionParams {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ConnectRequest".
  */
+/** @experimental */
 /** @internal */
 export interface ConnectRequest {
   /**
@@ -3481,6 +3531,7 @@ export interface ConnectRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ConnectResult".
  */
+/** @experimental */
 /** @internal */
 export interface ConnectResult {
   /**
@@ -3559,6 +3610,7 @@ export interface CurrentToolMetadata {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DiscoveredMcpServer".
  */
+/** @experimental */
 export interface DiscoveredMcpServer {
   /**
    * Server name (config key)
@@ -3899,6 +3951,39 @@ export interface ExternalToolTextResultForLlmContentTerminal {
    * Working directory where the command was executed
    */
   cwd?: string;
+}
+/**
+ * Shell command exit metadata with optional output preview
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentShellExit".
+ */
+/** @experimental */
+export interface ExternalToolTextResultForLlmContentShellExit {
+  /**
+   * Content block type discriminator
+   */
+  type: "shell_exit";
+  /**
+   * Shell id, as assigned by Copilot runtime
+   */
+  shellId: string;
+  /**
+   * Exit code from the completed shell command
+   */
+  exitCode: number;
+  /**
+   * Working directory where the shell command was executed
+   */
+  cwd?: string;
+  /**
+   * Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+   */
+  outputPreview?: string;
+  /**
+   * Whether outputPreview is known to be incomplete or truncated
+   */
+  outputTruncated?: boolean;
 }
 /**
  * Image content block with base64-encoded data
@@ -5258,6 +5343,7 @@ export interface McpCancelSamplingExecutionResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpConfigAddRequest".
  */
+/** @experimental */
 export interface McpConfigAddRequest {
   /**
    * Unique name for the MCP server
@@ -5271,6 +5357,7 @@ export interface McpConfigAddRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfigStdio".
  */
+/** @experimental */
 export interface McpServerConfigStdio {
   /**
    * Tools to include. Defaults to all tools if not specified.
@@ -5313,6 +5400,7 @@ export interface McpServerConfigStdio {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerAuthConfigRedirectPort".
  */
+/** @experimental */
 export interface McpServerAuthConfigRedirectPort {
   /**
    * Fixed port for the OAuth redirect callback server.
@@ -5325,6 +5413,7 @@ export interface McpServerAuthConfigRedirectPort {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfigHttp".
  */
+/** @experimental */
 export interface McpServerConfigHttp {
   /**
    * Tools to include. Defaults to all tools if not specified.
@@ -5369,6 +5458,7 @@ export interface McpServerConfigHttp {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpConfigDisableRequest".
  */
+/** @experimental */
 export interface McpConfigDisableRequest {
   /**
    * Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.
@@ -5381,6 +5471,7 @@ export interface McpConfigDisableRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpConfigEnableRequest".
  */
+/** @experimental */
 export interface McpConfigEnableRequest {
   /**
    * Names of MCP servers to enable. Each server is removed from the persisted disabled list so new sessions spawn it. Unknown or already-enabled names are ignored.
@@ -5393,6 +5484,7 @@ export interface McpConfigEnableRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpConfigList".
  */
+/** @experimental */
 export interface McpConfigList {
   /**
    * All MCP servers from user config, keyed by name
@@ -5407,6 +5499,7 @@ export interface McpConfigList {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpConfigRemoveRequest".
  */
+/** @experimental */
 export interface McpConfigRemoveRequest {
   /**
    * Name of the MCP server to remove
@@ -5419,6 +5512,7 @@ export interface McpConfigRemoveRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpConfigUpdateRequest".
  */
+/** @experimental */
 export interface McpConfigUpdateRequest {
   /**
    * Name of the MCP server to update
@@ -5476,6 +5570,7 @@ export interface McpDisableRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpDiscoverRequest".
  */
+/** @experimental */
 export interface McpDiscoverRequest {
   /**
    * Working directory used as context for discovery (e.g., plugin resolution)
@@ -5488,6 +5583,7 @@ export interface McpDiscoverRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpDiscoverResult".
  */
+/** @experimental */
 export interface McpDiscoverResult {
   /**
    * MCP servers discovered from all sources
@@ -6306,6 +6402,7 @@ export interface MetadataSnapshotRemoteMetadataRepository {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Model".
  */
+/** @experimental */
 export interface Model {
   /**
    * Model identifier (e.g., "claude-sonnet-4.5")
@@ -6335,6 +6432,7 @@ export interface Model {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelCapabilities".
  */
+/** @experimental */
 export interface ModelCapabilities {
   supports?: ModelCapabilitiesSupports;
   limits?: ModelCapabilitiesLimits;
@@ -6345,6 +6443,7 @@ export interface ModelCapabilities {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelCapabilitiesSupports".
  */
+/** @experimental */
 export interface ModelCapabilitiesSupports {
   /**
    * Whether this model supports vision/image input
@@ -6361,6 +6460,7 @@ export interface ModelCapabilitiesSupports {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelCapabilitiesLimits".
  */
+/** @experimental */
 export interface ModelCapabilitiesLimits {
   /**
    * Maximum number of prompt/input tokens
@@ -6382,6 +6482,7 @@ export interface ModelCapabilitiesLimits {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelCapabilitiesLimitsVision".
  */
+/** @experimental */
 export interface ModelCapabilitiesLimitsVision {
   /**
    * MIME types the model accepts
@@ -6402,6 +6503,7 @@ export interface ModelCapabilitiesLimitsVision {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelPolicy".
  */
+/** @experimental */
 export interface ModelPolicy {
   state: ModelPolicyState;
   /**
@@ -6415,6 +6517,7 @@ export interface ModelPolicy {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelBilling".
  */
+/** @experimental */
 export interface ModelBilling {
   /**
    * Billing cost multiplier relative to the base rate
@@ -6432,6 +6535,7 @@ export interface ModelBilling {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelBillingTokenPrices".
  */
+/** @experimental */
 export interface ModelBillingTokenPrices {
   /**
    * AI Credits cost per billing batch of input tokens
@@ -6475,6 +6579,7 @@ export interface ModelBillingTokenPrices {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelBillingTokenPricesLongContext".
  */
+/** @experimental */
 export interface ModelBillingTokenPricesLongContext {
   /**
    * AI Credits cost per billing batch of input tokens
@@ -6584,6 +6689,7 @@ export interface ModelCapabilitiesOverrideLimitsVision {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelList".
  */
+/** @experimental */
 export interface ModelList {
   /**
    * List of available models with full metadata
@@ -6630,6 +6736,7 @@ export interface ModelSetReasoningEffortResult {
   reasoningEffort: string;
 }
 
+/** @experimental */
 export interface ModelsListRequest {
   /**
    * GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.
@@ -7902,6 +8009,7 @@ export interface PermissionsFolderTrustAddTrustedResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsGetAllowAllRequest".
  */
+/** @experimental */
 export interface PermissionsGetAllowAllRequest {}
 /**
  * Indicates whether the operation succeeded.
@@ -7983,6 +8091,7 @@ export interface PermissionsPathsAddResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsPathsListRequest".
  */
+/** @experimental */
 export interface PermissionsPathsListRequest {}
 /**
  * Indicates whether the operation succeeded.
@@ -8003,6 +8112,7 @@ export interface PermissionsPathsUpdatePrimaryResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsPendingRequestsRequest".
  */
+/** @experimental */
 export interface PermissionsPendingRequestsRequest {}
 /**
  * No parameters; clears all session-scoped tool permission approvals.
@@ -8010,6 +8120,7 @@ export interface PermissionsPendingRequestsRequest {}
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsResetSessionApprovalsRequest".
  */
+/** @experimental */
 export interface PermissionsResetSessionApprovalsRequest {}
 /**
  * Indicates whether the operation succeeded.
@@ -8123,6 +8234,7 @@ export interface PermissionUrlsSetUnrestrictedModeParams {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PingRequest".
  */
+/** @experimental */
 export interface PingRequest {
   /**
    * Optional message to echo back
@@ -8135,6 +8247,7 @@ export interface PingRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PingResult".
  */
+/** @experimental */
 export interface PingResult {
   /**
    * Echoed message (or default greeting)
@@ -9941,6 +10054,7 @@ export interface ScheduleStopResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SecretsAddFilterValuesRequest".
  */
+/** @experimental */
 export interface SecretsAddFilterValuesRequest {
   /**
    * Raw secret values to register for redaction
@@ -9953,6 +10067,7 @@ export interface SecretsAddFilterValuesRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SecretsAddFilterValuesResult".
  */
+/** @experimental */
 export interface SecretsAddFilterValuesResult {
   /**
    * Whether the values were successfully registered
@@ -10080,6 +10195,7 @@ export interface ServerInstructionSourceList {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ServerSkill".
  */
+/** @experimental */
 export interface ServerSkill {
   /**
    * Unique identifier for the skill
@@ -10117,6 +10233,7 @@ export interface ServerSkill {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ServerSkillList".
  */
+/** @experimental */
 export interface ServerSkillList {
   /**
    * All discovered skills across all sources
@@ -10451,6 +10568,7 @@ export interface SessionFsRmRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSetProviderCapabilities".
  */
+/** @experimental */
 export interface SessionFsSetProviderCapabilities {
   /**
    * Whether the provider supports SQLite query/exists operations
@@ -10463,6 +10581,7 @@ export interface SessionFsSetProviderCapabilities {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSetProviderRequest".
  */
+/** @experimental */
 export interface SessionFsSetProviderRequest {
   /**
    * Initial working directory for sessions
@@ -10481,6 +10600,7 @@ export interface SessionFsSetProviderRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSetProviderResult".
  */
+/** @experimental */
 export interface SessionFsSetProviderResult {
   /**
    * Whether the provider was set successfully
@@ -10814,6 +10934,10 @@ export interface SessionMetadataSnapshot {
    */
   selectedModel?: string;
   /**
+   * Current response limits for the session, or null when no limits are active
+   */
+  responseLimits: ResponseLimitsConfig | null;
+  /**
    * Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
    */
   workspace?: WorkspaceSummary | null;
@@ -11033,7 +11157,7 @@ export interface SessionOpenOptions {
    */
   maxInlineBinaryBytes?: number;
   modelCapabilitiesOverrides?: ModelCapabilitiesOverride;
-  responseBudget?: ResponseBudgetConfig;
+  responseLimits?: ResponseLimitsConfig;
   /**
    * Runtime context discriminator for agent filtering.
    */
@@ -12054,9 +12178,9 @@ export interface SessionUpdateOptionsParams {
   enableSkills?: boolean;
   contextTier?: OptionsUpdateContextTier;
   /**
-   * Optional response budget limits. Pass null to clear the response budget.
+   * Optional response limits. Pass null to clear the response limits.
    */
-  responseBudget?: ResponseBudgetConfig | null;
+  responseLimits?: ResponseLimitsConfig | null;
 }
 /**
  * Indicates whether the session options patch was applied successfully.
@@ -12268,6 +12392,7 @@ export interface SkillList {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SkillsConfigSetDisabledSkillsRequest".
  */
+/** @experimental */
 export interface SkillsConfigSetDisabledSkillsRequest {
   /**
    * List of skill names to disable
@@ -12293,6 +12418,7 @@ export interface SkillsDisableRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SkillsDiscoverRequest".
  */
+/** @experimental */
 export interface SkillsDiscoverRequest {
   /**
    * Optional list of project directory paths to scan for project-scoped skills
@@ -12980,6 +13106,7 @@ export interface TelemetrySetFeatureOverridesRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Tool".
  */
+/** @experimental */
 export interface Tool {
   /**
    * Tool identifier (e.g., "bash", "grep", "str_replace_editor")
@@ -13010,6 +13137,7 @@ export interface Tool {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ToolList".
  */
+/** @experimental */
 export interface ToolList {
   /**
    * List of available built-in tools with metadata
@@ -13043,6 +13171,7 @@ export interface ToolsInitializeAndValidateResult {}
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ToolsListRequest".
  */
+/** @experimental */
 export interface ToolsListRequest {
   /**
    * Optional model ID — when provided, the returned tool list reflects model-specific overrides
@@ -13839,6 +13968,120 @@ export interface UserRequestedShellCommandResult {
   error?: string;
 }
 /**
+ * A single user setting's effective value alongside its default, so consumers can render settings left at their default.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UserSettingMetadata".
+ */
+/** @experimental */
+export interface UserSettingMetadata {
+  /**
+   * The effective value: the user's value if set, otherwise the default.
+   */
+  value: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * The centrally-known default for this setting (null when no default is registered).
+   */
+  default: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * True when the user has not set an explicit value for this setting (i.e. it is left at its default). Reflects whether the user has overridden the key, not whether the effective value happens to equal the default — a key explicitly set to a value identical to the default still reports false.
+   */
+  isDefault: boolean;
+}
+/**
+ * Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UserSettingsGetResult".
+ */
+/** @experimental */
+export interface UserSettingsGetResult {
+  /**
+   * Every known user setting keyed by setting name, each with its effective value, default, and whether it is at the default.
+   */
+  settings: {
+    [k: string]: UserSettingMetadata;
+  };
+}
+/**
+ * Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UserSettingsSetRequest".
+ */
+/** @experimental */
+export interface UserSettingsSetRequest {
+  /**
+   * Partial user settings to write, as a free-form object keyed by setting name
+   */
+  settings: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Outcome of writing user settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UserSettingsSetResult".
+ */
+/** @experimental */
+export interface UserSettingsSetResult {
+  /**
+   * Top-level keys whose write landed in settings.json but is shadowed by a value still present in the legacy config.json (config.json wins on read). The write does not take effect until the legacy value is removed.
+   */
+  shadowedKeys: string[];
+}
+/**
+ * Current sharing status and shareable GitHub URL for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "VisibilityGetResult".
+ */
+/** @experimental */
+export interface VisibilityGetResult {
+  /**
+   * Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the session cannot be shared and `status`/`shareUrl` are absent.
+   */
+  synced: boolean;
+  status?: SessionVisibilityStatus;
+  /**
+   * Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
+   */
+  shareUrl?: string;
+}
+/**
+ * Desired sharing status for the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "VisibilitySetRequest".
+ */
+/** @experimental */
+export interface VisibilitySetRequest {
+  status: SessionVisibilityStatus;
+}
+/**
+ * Effective sharing status and shareable GitHub URL after updating session visibility.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "VisibilitySetResult".
+ */
+/** @experimental */
+export interface VisibilitySetResult {
+  /**
+   * Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the visibility change could not be applied and `status`/`shareUrl` are absent.
+   */
+  synced: boolean;
+  status?: SessionVisibilityStatus;
+  /**
+   * Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
+   */
+  shareUrl?: string;
+}
+/**
  * A single changed file and its unified diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -14124,9 +14367,12 @@ export function createServerRpc(connection: MessageConnection) {
          * @param params Optional message to echo back to the caller.
          *
          * @returns Server liveness response, including the echoed message, current server timestamp, and protocol version.
+         *
+         * @experimental
          */
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
+        /** @experimental */
         models: {
             /**
              * Lists Copilot models available to the authenticated user.
@@ -14138,6 +14384,7 @@ export function createServerRpc(connection: MessageConnection) {
             list: async (params: ModelsListRequest): Promise<ModelList> =>
                 connection.sendRequest("models.list", params),
         },
+        /** @experimental */
         tools: {
             /**
              * Lists built-in tools available for a model.
@@ -14149,6 +14396,7 @@ export function createServerRpc(connection: MessageConnection) {
             list: async (params: ToolsListRequest): Promise<ToolList> =>
                 connection.sendRequest("tools.list", params),
         },
+        /** @experimental */
         account: {
             /**
              * Gets Copilot quota usage for the authenticated user or supplied GitHub token.
@@ -14192,6 +14440,7 @@ export function createServerRpc(connection: MessageConnection) {
             logout: async (params: AccountLogoutRequest): Promise<AccountLogoutResult> =>
                 connection.sendRequest("account.logout", params),
         },
+        /** @experimental */
         secrets: {
             /**
              * Registers secret values for redaction in session logs and exports. The SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).
@@ -14203,7 +14452,9 @@ export function createServerRpc(connection: MessageConnection) {
             addFilterValues: async (params: SecretsAddFilterValuesRequest): Promise<SecretsAddFilterValuesResult> =>
                 connection.sendRequest("secrets.addFilterValues", params),
         },
+        /** @experimental */
         mcp: {
+            /** @experimental */
             config: {
                 /**
                  * Lists MCP servers from user configuration.
@@ -14365,7 +14616,9 @@ export function createServerRpc(connection: MessageConnection) {
                     connection.sendRequest("plugins.marketplaces.refresh", params),
             },
         },
+        /** @experimental */
         skills: {
+            /** @experimental */
             config: {
                 /**
                  * Replaces the global list of disabled skills.
@@ -14390,8 +14643,6 @@ export function createServerRpc(connection: MessageConnection) {
              * @param params Optional project paths to enumerate.
              *
              * @returns Canonical locations where skills can be created so the runtime will recognize them.
-             *
-             * @experimental
              */
             getDiscoveryPaths: async (params: SkillsGetDiscoveryPathsRequest): Promise<SkillDiscoveryPathList> =>
                 connection.sendRequest("skills.getDiscoveryPaths", params),
@@ -14438,15 +14689,34 @@ export function createServerRpc(connection: MessageConnection) {
             getDiscoveryPaths: async (params: InstructionsGetDiscoveryPathsRequest): Promise<InstructionDiscoveryPathList> =>
                 connection.sendRequest("instructions.getDiscoveryPaths", params),
         },
+        /** @experimental */
         user: {
+            /** @experimental */
             settings: {
                 /**
                  * Drops this runtime process's in-memory user settings cache so the next settings read observes disk.
                  */
                 reload: async (): Promise<void> =>
                     connection.sendRequest("user.settings.reload", {}),
+                /**
+                 * Lists every known user setting (settings.json overlaid with the legacy config.json, config.json wins), each with its effective value, its default, and whether it is at the default — so settings the user has never set still appear with their default value. Does not include repository- or enterprise-managed overrides that the runtime layers on top at session time.
+                 *
+                 * @returns Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
+                 */
+                get: async (): Promise<UserSettingsGetResult> =>
+                    connection.sendRequest("user.settings.get", {}),
+                /**
+                 * Writes one or more user settings to settings.json, replacing each provided top-level key. A key whose value is null is removed. Returns the keys whose new value is shadowed by a legacy config.json entry (config.json wins on read), which the runtime leaves in place — such writes do not take effect until the legacy value is removed.
+                 *
+                 * @param params Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.
+                 *
+                 * @returns Outcome of writing user settings.
+                 */
+                set: async (params: UserSettingsSetRequest): Promise<UserSettingsSetResult> =>
+                    connection.sendRequest("user.settings.set", params),
             },
         },
+        /** @experimental */
         runtime: {
             /**
              * Gracefully shuts down an SDK-owned runtime. The response is sent only after cleanup completes; callers may then terminate the owned runtime process.
@@ -14454,6 +14724,7 @@ export function createServerRpc(connection: MessageConnection) {
             shutdown: async (): Promise<void> =>
                 connection.sendRequest("runtime.shutdown", {}),
         },
+        /** @experimental */
         sessionFs: {
             /**
              * Registers an SDK client as the session filesystem provider.
@@ -14727,6 +14998,8 @@ export function createInternalServerRpc(connection: MessageConnection) {
          * @param params Optional connection token presented by the SDK client during the handshake.
          *
          * @returns Handshake result reporting the server's protocol version and package version on success.
+         *
+         * @experimental
          */
         connect: async (params: ConnectRequest): Promise<ConnectResult> =>
             connection.sendRequest("connect", params),
@@ -16174,6 +16447,25 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             notifySteerableChanged: async (params: RemoteNotifySteerableChangedRequest): Promise<RemoteNotifySteerableChangedResult> =>
                 connection.sendRequest("session.remote.notifySteerableChanged", { sessionId, ...params }),
+        },
+        /** @experimental */
+        visibility: {
+            /**
+             * Returns the session's current Mission Control sharing status and shareable GitHub URL. Reflects whether the synced session is visible to repository readers ("repo") or restricted to its creator and collaborators ("unshared").
+             *
+             * @returns Current sharing status and shareable GitHub URL for a session.
+             */
+            get: async (): Promise<VisibilityGetResult> =>
+                connection.sendRequest("session.visibility.get", { sessionId }),
+            /**
+             * Sets the session's Mission Control sharing status, controlling whether the synced session is visible to repository readers. Returns the effective status and shareable GitHub URL after the change.
+             *
+             * @param params Desired sharing status for the session.
+             *
+             * @returns Effective sharing status and shareable GitHub URL after updating session visibility.
+             */
+            set: async (params: VisibilitySetRequest): Promise<VisibilitySetResult> =>
+                connection.sendRequest("session.visibility.set", { sessionId, ...params }),
         },
         /** @experimental */
         schedule: {

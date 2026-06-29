@@ -19,6 +19,7 @@ using System.Threading;
 namespace GitHub.Copilot.Rpc;
 
 /// <summary>Server liveness response, including the echoed message, current server timestamp, and protocol version.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PingResult
 {
     /// <summary>Echoed message (or default greeting).</summary>
@@ -35,6 +36,7 @@ public sealed class PingResult
 }
 
 /// <summary>Optional message to echo back to the caller.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PingRequest
 {
     /// <summary>Optional message to echo back.</summary>
@@ -43,6 +45,7 @@ internal sealed class PingRequest
 }
 
 /// <summary>Handshake result reporting the server's protocol version and package version on success.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ConnectResult
 {
     /// <summary>Always true on success.</summary>
@@ -59,6 +62,7 @@ internal sealed class ConnectResult
 }
 
 /// <summary>Optional connection token presented by the SDK client during the handshake.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ConnectRequest
 {
     /// <summary>Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</summary>
@@ -67,11 +71,14 @@ internal sealed class ConnectRequest
 }
 
 /// <summary>Long context tier pricing (available for models with extended context windows).</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelBillingTokenPricesLongContext
 {
     /// <summary>Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
@@ -85,7 +92,9 @@ public sealed class ModelBillingTokenPricesLongContext
 
     /// <summary>Use maxPromptTokens instead. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
@@ -103,6 +112,7 @@ public sealed class ModelBillingTokenPricesLongContext
 }
 
 /// <summary>Token-level pricing information for this model.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelBillingTokenPrices
 {
     /// <summary>Number of tokens per standard billing batch.</summary>
@@ -111,7 +121,9 @@ public sealed class ModelBillingTokenPrices
 
     /// <summary>Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonPropertyName("cachePrice")]
     public double? CachePrice { get; set; }
 
@@ -125,7 +137,9 @@ public sealed class ModelBillingTokenPrices
 
     /// <summary>Use maxPromptTokens instead. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonPropertyName("contextMax")]
     public long? ContextMax { get; set; }
 
@@ -147,6 +161,7 @@ public sealed class ModelBillingTokenPrices
 }
 
 /// <summary>Billing information.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelBilling
 {
     /// <summary>Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models.</summary>
@@ -163,6 +178,7 @@ public sealed class ModelBilling
 }
 
 /// <summary>Vision-specific limits.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesLimitsVision
 {
     /// <summary>Maximum image size in bytes.</summary>
@@ -179,6 +195,7 @@ public sealed class ModelCapabilitiesLimitsVision
 }
 
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesLimits
 {
     /// <summary>Maximum total context window size in tokens.</summary>
@@ -199,6 +216,7 @@ public sealed class ModelCapabilitiesLimits
 }
 
 /// <summary>Feature flags indicating what the model supports.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesSupports
 {
     /// <summary>Whether this model supports reasoning effort configuration.</summary>
@@ -211,6 +229,7 @@ public sealed class ModelCapabilitiesSupports
 }
 
 /// <summary>Model capabilities and limits.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilities
 {
     /// <summary>Token limits for prompts, outputs, and context window.</summary>
@@ -223,6 +242,7 @@ public sealed class ModelCapabilities
 }
 
 /// <summary>Policy state (if applicable).</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelPolicy
 {
     /// <summary>Current policy state for this model.</summary>
@@ -235,6 +255,7 @@ public sealed class ModelPolicy
 }
 
 /// <summary>Schema for the `Model` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class Model
 {
     /// <summary>Billing information.</summary>
@@ -275,6 +296,7 @@ public sealed class Model
 }
 
 /// <summary>List of Copilot models available to the resolved user, including capabilities and billing metadata.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelList
 {
     /// <summary>List of available models with full metadata.</summary>
@@ -283,6 +305,7 @@ public sealed class ModelList
 }
 
 /// <summary>RPC data type for ModelsList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ModelsListRequest
 {
     /// <summary>GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.</summary>
@@ -291,6 +314,7 @@ internal sealed class ModelsListRequest
 }
 
 /// <summary>Schema for the `Tool` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class Tool
 {
     /// <summary>Description of what the tool does.</summary>
@@ -315,6 +339,7 @@ public sealed class Tool
 }
 
 /// <summary>Built-in tools available for the requested model, with their parameters and instructions.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ToolList
 {
     /// <summary>List of available built-in tools with metadata.</summary>
@@ -323,6 +348,7 @@ public sealed class ToolList
 }
 
 /// <summary>Optional model identifier whose tool overrides should be applied to the listing.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ToolsListRequest
 {
     /// <summary>Optional model ID — when provided, the returned tool list reflects model-specific overrides.</summary>
@@ -331,6 +357,7 @@ internal sealed class ToolsListRequest
 }
 
 /// <summary>Schema for the `AccountQuotaSnapshot` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AccountQuotaSnapshot
 {
     /// <summary>Number of requests included in the entitlement, or -1 for unlimited entitlements.</summary>
@@ -367,6 +394,7 @@ public sealed class AccountQuotaSnapshot
 }
 
 /// <summary>Quota usage snapshots for the resolved user, keyed by quota type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AccountGetQuotaResult
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions).</summary>
@@ -375,6 +403,7 @@ public sealed class AccountGetQuotaResult
 }
 
 /// <summary>RPC data type for AccountGetQuota operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class AccountGetQuotaRequest
 {
     /// <summary>GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.</summary>
@@ -384,6 +413,7 @@ internal sealed class AccountGetQuotaRequest
 
 /// <summary>Initial authentication info for the session.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -403,6 +433,7 @@ public partial class AuthInfo
 
 
 /// <summary>Schema for the `CopilotUserResponseEndpoints` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseEndpoints
 {
     /// <summary>Gets or sets the <c>api</c> value.</summary>
@@ -435,6 +466,7 @@ public sealed class CopilotUserResponseOrganizationListItem
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsChat
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -487,6 +519,7 @@ public sealed class CopilotUserResponseQuotaSnapshotsChat
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsCompletions
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -539,6 +572,7 @@ public sealed class CopilotUserResponseQuotaSnapshotsCompletions
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsPremiumInteractions
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -591,6 +625,7 @@ public sealed class CopilotUserResponseQuotaSnapshotsPremiumInteractions
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshots` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshots
 {
     /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
@@ -607,6 +642,7 @@ public sealed class CopilotUserResponseQuotaSnapshots
 }
 
 /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponse
 {
     /// <summary>Gets or sets the <c>access_type_sku</c> value.</summary>
@@ -712,6 +748,7 @@ public sealed class CopilotUserResponse
 
 /// <summary>Schema for the `HMACAuthInfo` type.</summary>
 /// <remarks>The <c>hmac</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoHmac : AuthInfo
 {
     /// <inheritdoc />
@@ -734,6 +771,7 @@ public partial class AuthInfoHmac : AuthInfo
 
 /// <summary>Schema for the `EnvAuthInfo` type.</summary>
 /// <remarks>The <c>env</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoEnv : AuthInfo
 {
     /// <inheritdoc />
@@ -765,6 +803,7 @@ public partial class AuthInfoEnv : AuthInfo
 
 /// <summary>Schema for the `TokenAuthInfo` type.</summary>
 /// <remarks>The <c>token</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoToken : AuthInfo
 {
     /// <inheritdoc />
@@ -787,6 +826,7 @@ public partial class AuthInfoToken : AuthInfo
 
 /// <summary>Schema for the `CopilotApiTokenAuthInfo` type.</summary>
 /// <remarks>The <c>copilot-api-token</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoCopilotApiToken : AuthInfo
 {
     /// <inheritdoc />
@@ -805,6 +845,7 @@ public partial class AuthInfoCopilotApiToken : AuthInfo
 
 /// <summary>Schema for the `UserAuthInfo` type.</summary>
 /// <remarks>The <c>user</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoUser : AuthInfo
 {
     /// <inheritdoc />
@@ -827,6 +868,7 @@ public partial class AuthInfoUser : AuthInfo
 
 /// <summary>Schema for the `GhCliAuthInfo` type.</summary>
 /// <remarks>The <c>gh-cli</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoGhCli : AuthInfo
 {
     /// <inheritdoc />
@@ -853,6 +895,7 @@ public partial class AuthInfoGhCli : AuthInfo
 
 /// <summary>Schema for the `ApiKeyAuthInfo` type.</summary>
 /// <remarks>The <c>api-key</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoApiKey : AuthInfo
 {
     /// <inheritdoc />
@@ -874,6 +917,7 @@ public partial class AuthInfoApiKey : AuthInfo
 }
 
 /// <summary>Current authentication state.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AccountGetCurrentAuthResult
 {
     /// <summary>Authentication errors from the last auth attempt, if any.</summary>
@@ -886,6 +930,7 @@ public sealed class AccountGetCurrentAuthResult
 }
 
 /// <summary>Schema for the `AccountAllUsers` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AccountAllUsers
 {
     /// <summary>Authentication information for this user.</summary>
@@ -898,6 +943,7 @@ public sealed class AccountAllUsers
 }
 
 /// <summary>Result of a successful login; throws on failure.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AccountLoginResult
 {
     /// <summary>Whether the credential was persisted to a secure store (system keychain, or the config file when plaintext storage is enabled). False when no secure store was available and the token was not saved, so the consumer can decide how to proceed.</summary>
@@ -906,6 +952,7 @@ public sealed class AccountLoginResult
 }
 
 /// <summary>Credentials to store after successful authentication.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class AccountLoginRequest
 {
     /// <summary>GitHub host URL.</summary>
@@ -922,6 +969,7 @@ internal sealed class AccountLoginRequest
 }
 
 /// <summary>Logout result indicating if more users remain.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AccountLogoutResult
 {
     /// <summary>Whether other authenticated users remain after logout.</summary>
@@ -930,6 +978,7 @@ public sealed class AccountLogoutResult
 }
 
 /// <summary>User to log out.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class AccountLogoutRequest
 {
     /// <summary>Authentication information for the user to log out.</summary>
@@ -938,6 +987,7 @@ internal sealed class AccountLogoutRequest
 }
 
 /// <summary>Confirmation that the secret values were registered.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SecretsAddFilterValuesResult
 {
     /// <summary>Whether the values were successfully registered.</summary>
@@ -946,6 +996,7 @@ public sealed class SecretsAddFilterValuesResult
 }
 
 /// <summary>Secret values to add to the redaction filter.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SecretsAddFilterValuesRequest
 {
     /// <summary>Raw secret values to register for redaction.</summary>
@@ -954,6 +1005,7 @@ internal sealed class SecretsAddFilterValuesRequest
 }
 
 /// <summary>Schema for the `DiscoveredMcpServer` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class DiscoveredMcpServer
 {
     /// <summary>Whether the server is enabled (not in the disabled list).</summary>
@@ -985,6 +1037,7 @@ public sealed class DiscoveredMcpServer
 }
 
 /// <summary>MCP servers discovered from user, workspace, plugin, and built-in sources.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class McpDiscoverResult
 {
     /// <summary>MCP servers discovered from all sources.</summary>
@@ -993,6 +1046,7 @@ public sealed class McpDiscoverResult
 }
 
 /// <summary>Optional working directory used as context for MCP server discovery.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class McpDiscoverRequest
 {
     /// <summary>Working directory used as context for discovery (e.g., plugin resolution).</summary>
@@ -1001,6 +1055,7 @@ internal sealed class McpDiscoverRequest
 }
 
 /// <summary>User-configured MCP servers, keyed by server name.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class McpConfigList
 {
     /// <summary>All MCP servers from user config, keyed by name.</summary>
@@ -1009,6 +1064,7 @@ public sealed class McpConfigList
 }
 
 /// <summary>MCP server name and configuration to add to user configuration.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class McpConfigAddRequest
 {
     /// <summary>MCP server configuration (stdio process or remote HTTP/SSE).</summary>
@@ -1024,6 +1080,7 @@ internal sealed class McpConfigAddRequest
 }
 
 /// <summary>MCP server name and replacement configuration to write to user configuration.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class McpConfigUpdateRequest
 {
     /// <summary>MCP server configuration (stdio process or remote HTTP/SSE).</summary>
@@ -1039,6 +1096,7 @@ internal sealed class McpConfigUpdateRequest
 }
 
 /// <summary>MCP server name to remove from user configuration.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class McpConfigRemoveRequest
 {
     /// <summary>Name of the MCP server to remove.</summary>
@@ -1050,6 +1108,7 @@ internal sealed class McpConfigRemoveRequest
 }
 
 /// <summary>MCP server names to enable for new sessions.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class McpConfigEnableRequest
 {
     /// <summary>Names of MCP servers to enable. Each server is removed from the persisted disabled list so new sessions spawn it. Unknown or already-enabled names are ignored.</summary>
@@ -1058,6 +1117,7 @@ internal sealed class McpConfigEnableRequest
 }
 
 /// <summary>MCP server names to disable for new sessions.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class McpConfigDisableRequest
 {
     /// <summary>Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.</summary>
@@ -1369,6 +1429,7 @@ internal sealed class PluginsMarketplacesRefreshRequest
 }
 
 /// <summary>Schema for the `ServerSkill` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerSkill
 {
     /// <summary>Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field.</summary>
@@ -1405,6 +1466,7 @@ public sealed class ServerSkill
 }
 
 /// <summary>Skills discovered across global and project sources.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerSkillList
 {
     /// <summary>All discovered skills across all sources.</summary>
@@ -1413,6 +1475,7 @@ public sealed class ServerSkillList
 }
 
 /// <summary>Optional project paths and additional skill directories to include in discovery.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SkillsDiscoverRequest
 {
     /// <summary>When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.</summary>
@@ -1472,6 +1535,7 @@ internal sealed class SkillsGetDiscoveryPathsRequest
 }
 
 /// <summary>Skill names to mark as disabled in global configuration, replacing any previous list.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SkillsConfigSetDisabledSkillsRequest
 {
     /// <summary>List of skill names to disable.</summary>
@@ -1708,7 +1772,52 @@ internal sealed class InstructionsGetDiscoveryPathsRequest
     public IList<string>? ProjectPaths { get; set; }
 }
 
+/// <summary>A single user setting's effective value alongside its default, so consumers can render settings left at their default.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class UserSettingMetadata
+{
+    /// <summary>The centrally-known default for this setting (null when no default is registered).</summary>
+    [JsonPropertyName("default")]
+    public JsonElement Default { get; set; }
+
+    /// <summary>True when the user has not set an explicit value for this setting (i.e. it is left at its default). Reflects whether the user has overridden the key, not whether the effective value happens to equal the default — a key explicitly set to a value identical to the default still reports false.</summary>
+    [JsonPropertyName("isDefault")]
+    public bool IsDefault { get; set; }
+
+    /// <summary>The effective value: the user's value if set, otherwise the default.</summary>
+    [JsonPropertyName("value")]
+    public JsonElement Value { get; set; }
+}
+
+/// <summary>Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class UserSettingsGetResult
+{
+    /// <summary>Every known user setting keyed by setting name, each with its effective value, default, and whether it is at the default.</summary>
+    [JsonPropertyName("settings")]
+    public IDictionary<string, UserSettingMetadata> Settings { get => field ??= new Dictionary<string, UserSettingMetadata>(); set; }
+}
+
+/// <summary>Outcome of writing user settings.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class UserSettingsSetResult
+{
+    /// <summary>Top-level keys whose write landed in settings.json but is shadowed by a value still present in the legacy config.json (config.json wins on read). The write does not take effect until the legacy value is removed.</summary>
+    [JsonPropertyName("shadowedKeys")]
+    public IList<string> ShadowedKeys { get => field ??= []; set; }
+}
+
+/// <summary>Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class UserSettingsSetRequest
+{
+    /// <summary>Partial user settings to write, as a free-form object keyed by setting name.</summary>
+    [JsonPropertyName("settings")]
+    public JsonElement Settings { get; set; }
+}
+
 /// <summary>Indicates whether the calling client was registered as the session filesystem provider.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSetProviderResult
 {
     /// <summary>Whether the provider was set successfully.</summary>
@@ -1717,6 +1826,7 @@ public sealed class SessionFsSetProviderResult
 }
 
 /// <summary>Optional capabilities declared by the provider.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSetProviderCapabilities
 {
     /// <summary>Whether the provider supports SQLite query/exists operations.</summary>
@@ -1725,6 +1835,7 @@ public sealed class SessionFsSetProviderCapabilities
 }
 
 /// <summary>Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionFsSetProviderRequest
 {
     /// <summary>Optional capabilities declared by the provider.</summary>
@@ -6775,9 +6886,9 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("reasoningSummary")]
     public OptionsUpdateReasoningSummary? ReasoningSummary { get; set; }
 
-    /// <summary>Optional response budget limits. Pass null to clear the response budget.</summary>
-    [JsonPropertyName("responseBudget")]
-    public ResponseBudgetConfig? ResponseBudget { get; set; }
+    /// <summary>Optional response limits. Pass null to clear the response limits.</summary>
+    [JsonPropertyName("responseLimits")]
+    public ResponseLimitsConfig? ResponseLimits { get; set; }
 
     /// <summary>Whether the session is running in an interactive UI.</summary>
     [JsonPropertyName("runningInInteractiveMode")]
@@ -9703,6 +9814,10 @@ public sealed class SessionMetadataSnapshot
     [JsonPropertyName("remoteMetadata")]
     public MetadataSnapshotRemoteMetadata? RemoteMetadata { get; set; }
 
+    /// <summary>Current response limits for the session, or null when no limits are active.</summary>
+    [JsonPropertyName("responseLimits")]
+    public ResponseLimitsConfig? ResponseLimits { get; set; }
+
     /// <summary>Currently selected model identifier, if any.</summary>
     [JsonPropertyName("selectedModel")]
     public string? SelectedModel { get; set; }
@@ -10628,6 +10743,66 @@ internal sealed class RemoteNotifySteerableChangedRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Current sharing status and shareable GitHub URL for a session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class VisibilityGetResult
+{
+    /// <summary>Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("shareUrl")]
+    public string? ShareUrl { get; set; }
+
+    /// <summary>Current sharing status. Absent when the session is not synced or the status could not be retrieved (e.g. the user is not authenticated).</summary>
+    [JsonPropertyName("status")]
+    public SessionVisibilityStatus? Status { get; set; }
+
+    /// <summary>Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the session cannot be shared and `status`/`shareUrl` are absent.</summary>
+    [JsonPropertyName("synced")]
+    public bool Synced { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionVisibilityGetRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Effective sharing status and shareable GitHub URL after updating session visibility.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class VisibilitySetResult
+{
+    /// <summary>Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("shareUrl")]
+    public string? ShareUrl { get; set; }
+
+    /// <summary>Effective sharing status after the update. May differ from the requested status for task types that are already visible to repository readers by default. Absent when the update could not be applied (e.g. the session is not synced or the user is not authenticated).</summary>
+    [JsonPropertyName("status")]
+    public SessionVisibilityStatus? Status { get; set; }
+
+    /// <summary>Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the visibility change could not be applied and `status`/`shareUrl` are absent.</summary>
+    [JsonPropertyName("synced")]
+    public bool Synced { get; set; }
+}
+
+/// <summary>Desired sharing status for the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class VisibilitySetRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Sharing status to apply. "repo" makes the session visible to repository readers; "unshared" restricts it to the creator and collaborators.</summary>
+    [JsonPropertyName("status")]
+    public SessionVisibilityStatus Status { get; set; }
+}
+
 /// <summary>Schema for the `ScheduleEntry` type.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ScheduleEntry
@@ -10724,6 +10899,7 @@ public sealed class ProviderTokenAcquireResult
 }
 
 /// <summary>Asks the SDK client to acquire a bearer token for a BYOK provider whose config set `hasBearerTokenProvider: true`. Issued by the runtime before each outbound model request; the runtime does no caching, so this is sent once per request.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ProviderTokenAcquireRequest
 {
     /// <summary>Name of the BYOK provider needing a token. For the legacy whole-session `provider` this is the implicit provider name; for named providers it is `NamedProviderConfig.name`.</summary>
@@ -10762,6 +10938,7 @@ public sealed class SessionFsReadFileResult
 }
 
 /// <summary>Path of the file to read from the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsReadFileRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -10774,6 +10951,7 @@ public sealed class SessionFsReadFileRequest
 }
 
 /// <summary>File path, content to write, and optional mode for the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsWriteFileRequest
 {
     /// <summary>Content to write.</summary>
@@ -10794,6 +10972,7 @@ public sealed class SessionFsWriteFileRequest
 }
 
 /// <summary>File path, content to append, and optional mode for the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsAppendFileRequest
 {
     /// <summary>Content to append.</summary>
@@ -10823,6 +11002,7 @@ public sealed class SessionFsExistsResult
 }
 
 /// <summary>Path to test for existence in the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsExistsRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -10864,6 +11044,7 @@ public sealed class SessionFsStatResult
 }
 
 /// <summary>Path whose metadata should be returned from the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsStatRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -10876,6 +11057,7 @@ public sealed class SessionFsStatRequest
 }
 
 /// <summary>Directory path to create in the client-provided session filesystem, with options for recursive creation and POSIX mode.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsMkdirRequest
 {
     /// <summary>Optional POSIX-style mode for newly created directories.</summary>
@@ -10909,6 +11091,7 @@ public sealed class SessionFsReaddirResult
 }
 
 /// <summary>Directory path whose entries should be listed from the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsReaddirRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -10947,6 +11130,7 @@ public sealed class SessionFsReaddirWithTypesResult
 }
 
 /// <summary>Directory path whose entries (with type information) should be listed from the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsReaddirWithTypesRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -10959,6 +11143,7 @@ public sealed class SessionFsReaddirWithTypesRequest
 }
 
 /// <summary>Path to remove from the client-provided session filesystem, with options for recursive removal and force.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsRmRequest
 {
     /// <summary>Ignore errors if the path does not exist.</summary>
@@ -10979,6 +11164,7 @@ public sealed class SessionFsRmRequest
 }
 
 /// <summary>Source and destination paths for renaming or moving an entry in the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsRenameRequest
 {
     /// <summary>Destination path using SessionFs conventions.</summary>
@@ -11020,6 +11206,7 @@ public sealed class SessionFsSqliteQueryResult
 }
 
 /// <summary>SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSqliteQueryRequest
 {
     /// <summary>Optional named bind parameters.</summary>
@@ -11270,6 +11457,7 @@ public sealed class LlmInferenceHttpRequestChunkRequest
 }
 
 /// <summary>Model capability category for grouping in the model picker.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ModelPickerCategory : IEquatable<ModelPickerCategory>
@@ -11335,6 +11523,7 @@ public readonly struct ModelPickerCategory : IEquatable<ModelPickerCategory>
 
 
 /// <summary>Relative cost tier for token-based billing users.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ModelPickerPriceCategory : IEquatable<ModelPickerPriceCategory>
@@ -11403,6 +11592,7 @@ public readonly struct ModelPickerPriceCategory : IEquatable<ModelPickerPriceCat
 
 
 /// <summary>Current policy state for this model.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
@@ -11468,6 +11658,7 @@ public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
 
 
 /// <summary>Server transport type: stdio, http, sse (deprecated), or memory.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerType>
@@ -12022,6 +12213,7 @@ public readonly struct InstructionDiscoveryPathLocation : IEquatable<Instruction
 
 
 /// <summary>Path conventions used by this filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSetProviderConventions>
@@ -16769,6 +16961,69 @@ public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>
 }
 
 
+/// <summary>Sharing status for a synced session. "repo" makes the session visible to anyone with read access to the repository; "unshared" restricts it to the creator and collaborators.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionVisibilityStatus : IEquatable<SessionVisibilityStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionVisibilityStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionVisibilityStatus"/>.</param>
+    [JsonConstructor]
+    public SessionVisibilityStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionVisibilityStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The session is visible to repository readers.</summary>
+    public static SessionVisibilityStatus Repo { get; } = new("repo");
+
+    /// <summary>The session is restricted to its creator and collaborators.</summary>
+    public static SessionVisibilityStatus Unshared { get; } = new("unshared");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionVisibilityStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionVisibilityStatus left, SessionVisibilityStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionVisibilityStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionVisibilityStatus left, SessionVisibilityStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionVisibilityStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionVisibilityStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionVisibilityStatus}"/> for serializing <see cref="SessionVisibilityStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionVisibilityStatus>
+    {
+        /// <inheritdoc />
+        public override SessionVisibilityStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionVisibilityStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionVisibilityStatus));
+        }
+    }
+}
+
+
 /// <summary>Error classification.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -17038,6 +17293,7 @@ public sealed class ServerRpc
     /// <param name="message">Optional message to echo back.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Server liveness response, including the echoed message, current server timestamp, and protocol version.</returns>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<PingResult> PingAsync(string? message = null, CancellationToken cancellationToken = default)
     {
         var request = new PingRequest { Message = message };
@@ -17048,6 +17304,7 @@ public sealed class ServerRpc
     /// <param name="token">Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Handshake result reporting the server's protocol version and package version on success.</returns>
+    [Experimental(Diagnostics.Experimental)]
     internal async Task<ConnectResult> ConnectAsync(string? token = null, CancellationToken cancellationToken = default)
     {
         var request = new ConnectRequest { Token = token };
@@ -17146,6 +17403,7 @@ public sealed class ServerRpc
 }
 
 /// <summary>Provides server-scoped Models APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerModelsApi
 {
     private readonly JsonRpc _rpc;
@@ -17167,6 +17425,7 @@ public sealed class ServerModelsApi
 }
 
 /// <summary>Provides server-scoped Tools APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerToolsApi
 {
     private readonly JsonRpc _rpc;
@@ -17188,6 +17447,7 @@ public sealed class ServerToolsApi
 }
 
 /// <summary>Provides server-scoped Account APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerAccountApi
 {
     private readonly JsonRpc _rpc;
@@ -17253,6 +17513,7 @@ public sealed class ServerAccountApi
 }
 
 /// <summary>Provides server-scoped Secrets APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerSecretsApi
 {
     private readonly JsonRpc _rpc;
@@ -17276,6 +17537,7 @@ public sealed class ServerSecretsApi
 }
 
 /// <summary>Provides server-scoped Mcp APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerMcpApi
 {
     private readonly JsonRpc _rpc;
@@ -17303,6 +17565,7 @@ public sealed class ServerMcpApi
 }
 
 /// <summary>Provides server-scoped McpConfig APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerMcpConfigApi
 {
     private readonly JsonRpc _rpc;
@@ -17548,6 +17811,7 @@ public sealed class ServerPluginsMarketplacesApi
 }
 
 /// <summary>Provides server-scoped Skills APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerSkillsApi
 {
     private readonly JsonRpc _rpc;
@@ -17574,7 +17838,6 @@ public sealed class ServerSkillsApi
     /// <param name="excludeHostSkills">When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Canonical locations where skills can be created so the runtime will recognize them.</returns>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<SkillDiscoveryPathList> GetDiscoveryPathsAsync(IList<string>? projectPaths = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
     {
         var request = new SkillsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, ExcludeHostSkills = excludeHostSkills };
@@ -17589,6 +17852,7 @@ public sealed class ServerSkillsApi
 }
 
 /// <summary>Provides server-scoped SkillsConfig APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerSkillsConfigApi
 {
     private readonly JsonRpc _rpc;
@@ -17679,6 +17943,7 @@ public sealed class ServerInstructionsApi
 }
 
 /// <summary>Provides server-scoped User APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerUserApi
 {
     private readonly JsonRpc _rpc;
@@ -17696,6 +17961,7 @@ public sealed class ServerUserApi
 }
 
 /// <summary>Provides server-scoped UserSettings APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerUserSettingsApi
 {
     private readonly JsonRpc _rpc;
@@ -17711,9 +17977,30 @@ public sealed class ServerUserSettingsApi
     {
         await CopilotClient.InvokeRpcAsync(_rpc, "user.settings.reload", [], cancellationToken);
     }
+
+    /// <summary>Lists every known user setting (settings.json overlaid with the legacy config.json, config.json wins), each with its effective value, its default, and whether it is at the default — so settings the user has never set still appear with their default value. Does not include repository- or enterprise-managed overrides that the runtime layers on top at session time.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.</returns>
+    public async Task<UserSettingsGetResult> GetAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<UserSettingsGetResult>(_rpc, "user.settings.get", [], cancellationToken);
+    }
+
+    /// <summary>Writes one or more user settings to settings.json, replacing each provided top-level key. A key whose value is null is removed. Returns the keys whose new value is shadowed by a legacy config.json entry (config.json wins on read), which the runtime leaves in place — such writes do not take effect until the legacy value is removed.</summary>
+    /// <param name="settings">Partial user settings to write, as a free-form object keyed by setting name.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of writing user settings.</returns>
+    public async Task<UserSettingsSetResult> SetAsync(object settings, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var request = new UserSettingsSetRequest { Settings = CopilotClient.ToJsonElementForWire(settings)!.Value };
+        return await CopilotClient.InvokeRpcAsync<UserSettingsSetResult>(_rpc, "user.settings.set", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped Runtime APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerRuntimeApi
 {
     private readonly JsonRpc _rpc;
@@ -17732,6 +18019,7 @@ public sealed class ServerRuntimeApi
 }
 
 /// <summary>Provides server-scoped SessionFs APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ServerSessionFsApi
 {
     private readonly JsonRpc _rpc;
@@ -18382,6 +18670,12 @@ public sealed class SessionRpc
 
     /// <summary>Remote APIs.</summary>
     public RemoteApi Remote =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
+    /// <summary>Visibility APIs.</summary>
+    public VisibilityApi Visibility =>
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
@@ -19849,14 +20143,14 @@ public sealed class OptionsApi
     /// <param name="enableSessionStore">Whether to enable cross-session store writes and reads.</param>
     /// <param name="enableSkills">Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</param>
     /// <param name="contextTier">Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier.</param>
-    /// <param name="responseBudget">Optional response budget limits. Pass null to clear the response budget.</param>
+    /// <param name="responseLimits">Optional response limits. Pass null to clear the response limits.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, ResponseBudgetConfig? responseBudget = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, ResponseLimitsConfig? responseLimits = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, ResponseBudget = responseBudget };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, ResponseLimits = responseLimits };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -21058,6 +21352,41 @@ public sealed class RemoteApi
     }
 }
 
+/// <summary>Provides session-scoped Visibility APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class VisibilityApi
+{
+    private readonly CopilotSession _session;
+
+    internal VisibilityApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Returns the session's current Mission Control sharing status and shareable GitHub URL. Reflects whether the synced session is visible to repository readers ("repo") or restricted to its creator and collaborators ("unshared").</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Current sharing status and shareable GitHub URL for a session.</returns>
+    public async Task<VisibilityGetResult> GetAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionVisibilityGetRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<VisibilityGetResult>(_session.Rpc, "session.visibility.get", [request], cancellationToken);
+    }
+
+    /// <summary>Sets the session's Mission Control sharing status, controlling whether the synced session is visible to repository readers. Returns the effective status and shareable GitHub URL after the change.</summary>
+    /// <param name="status">Sharing status to apply. "repo" makes the session visible to repository readers; "unshared" restricts it to the creator and collaborators.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Effective sharing status and shareable GitHub URL after updating session visibility.</returns>
+    public async Task<VisibilitySetResult> SetAsync(SessionVisibilityStatus status, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new VisibilitySetRequest { SessionId = _session.SessionId, Status = status };
+        return await CopilotClient.InvokeRpcAsync<VisibilitySetResult>(_session.Rpc, "session.visibility.set", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides session-scoped Schedule APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ScheduleApi
@@ -21563,7 +21892,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PersistedBinaryResult), TypeInfoPropertyName = "SessionEventsPersistedBinaryResult")]
 [JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
-[JsonSerializable(typeof(GitHub.Copilot.ResponseBudgetConfig), TypeInfoPropertyName = "SessionEventsResponseBudgetConfig")]
+[JsonSerializable(typeof(GitHub.Copilot.ResponseLimitsConfig), TypeInfoPropertyName = "SessionEventsResponseLimitsConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
@@ -21614,6 +21943,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLink), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLink")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLinkIcon), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIcon")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLinkIconTheme), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIconTheme")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentShellExit), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentShellExit")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentTerminal), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentTerminal")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentText), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentText")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteData), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteData")]
@@ -22129,6 +22459,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionUpdateOptionsParams))]
 [JsonSerializable(typeof(SessionUpdateOptionsResult))]
 [JsonSerializable(typeof(SessionUsageGetMetricsRequest))]
+[JsonSerializable(typeof(SessionVisibilityGetRequest))]
 [JsonSerializable(typeof(SessionWorkingDirectoryContext))]
 [JsonSerializable(typeof(SessionWorkspacesGetWorkspaceRequest))]
 [JsonSerializable(typeof(SessionWorkspacesListCheckpointsRequest))]
@@ -22251,6 +22582,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(UsageMetricsModelMetricUsage))]
 [JsonSerializable(typeof(UsageMetricsTokenDetail))]
 [JsonSerializable(typeof(UserRequestedShellCommandResult))]
+[JsonSerializable(typeof(UserSettingMetadata))]
+[JsonSerializable(typeof(UserSettingsGetResult))]
+[JsonSerializable(typeof(UserSettingsSetRequest))]
+[JsonSerializable(typeof(UserSettingsSetResult))]
+[JsonSerializable(typeof(VisibilityGetResult))]
+[JsonSerializable(typeof(VisibilitySetRequest))]
+[JsonSerializable(typeof(VisibilitySetResult))]
 [JsonSerializable(typeof(WorkspaceDiffFileChange))]
 [JsonSerializable(typeof(WorkspaceDiffResult))]
 [JsonSerializable(typeof(WorkspacesCheckpoints))]

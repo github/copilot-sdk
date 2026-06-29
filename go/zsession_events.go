@@ -192,7 +192,7 @@ type (
 	RawSystemNotification                                          = rpc.RawSystemNotification
 	RawToolExecutionCompleteContent                                = rpc.RawToolExecutionCompleteContent
 	ReasoningSummary                                               = rpc.ReasoningSummary
-	ResponseBudgetConfig                                           = rpc.ResponseBudgetConfig
+	ResponseLimitsConfig                                           = rpc.ResponseLimitsConfig
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
@@ -226,6 +226,7 @@ type (
 	SessionPermissionsChangedData                                  = rpc.SessionPermissionsChangedData
 	SessionPlanChangedData                                         = rpc.SessionPlanChangedData
 	SessionRemoteSteerableChangedData                              = rpc.SessionRemoteSteerableChangedData
+	SessionResponseLimitsChangedData                               = rpc.SessionResponseLimitsChangedData
 	SessionResumeData                                              = rpc.SessionResumeData
 	SessionScheduleCancelledData                                   = rpc.SessionScheduleCancelledData
 	SessionScheduleCreatedData                                     = rpc.SessionScheduleCreatedData
@@ -279,6 +280,7 @@ type (
 	ToolExecutionCompleteContentResourceLink                       = rpc.ToolExecutionCompleteContentResourceLink
 	ToolExecutionCompleteContentResourceLinkIcon                   = rpc.ToolExecutionCompleteContentResourceLinkIcon
 	ToolExecutionCompleteContentResourceLinkIconTheme              = rpc.ToolExecutionCompleteContentResourceLinkIconTheme
+	ToolExecutionCompleteContentShellExit                          = rpc.ToolExecutionCompleteContentShellExit
 	ToolExecutionCompleteContentTerminal                           = rpc.ToolExecutionCompleteContentTerminal
 	ToolExecutionCompleteContentText                               = rpc.ToolExecutionCompleteContentText
 	ToolExecutionCompleteContentType                               = rpc.ToolExecutionCompleteContentType
@@ -547,6 +549,7 @@ const (
 	SessionEventTypeSessionPermissionsChanged                          = rpc.SessionEventTypeSessionPermissionsChanged
 	SessionEventTypeSessionPlanChanged                                 = rpc.SessionEventTypeSessionPlanChanged
 	SessionEventTypeSessionRemoteSteerableChanged                      = rpc.SessionEventTypeSessionRemoteSteerableChanged
+	SessionEventTypeSessionResponseLimitsChanged                       = rpc.SessionEventTypeSessionResponseLimitsChanged
 	SessionEventTypeSessionResume                                      = rpc.SessionEventTypeSessionResume
 	SessionEventTypeSessionScheduleCancelled                           = rpc.SessionEventTypeSessionScheduleCancelled
 	SessionEventTypeSessionScheduleCreated                             = rpc.SessionEventTypeSessionScheduleCreated
@@ -610,6 +613,7 @@ const (
 	ToolExecutionCompleteContentTypeImage                              = rpc.ToolExecutionCompleteContentTypeImage
 	ToolExecutionCompleteContentTypeResource                           = rpc.ToolExecutionCompleteContentTypeResource
 	ToolExecutionCompleteContentTypeResourceLink                       = rpc.ToolExecutionCompleteContentTypeResourceLink
+	ToolExecutionCompleteContentTypeShellExit                          = rpc.ToolExecutionCompleteContentTypeShellExit
 	ToolExecutionCompleteContentTypeTerminal                           = rpc.ToolExecutionCompleteContentTypeTerminal
 	ToolExecutionCompleteContentTypeText                               = rpc.ToolExecutionCompleteContentTypeText
 	ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp            = rpc.ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp

@@ -13,16 +13,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional response budget limits.
+ * Optional response limits.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ResponseBudgetConfig(
-    /** Maximum model-call iterations allowed while responding to one top-level user message. */
-    @JsonProperty("maxModelIterations") Long maxModelIterations,
+public record ResponseLimitsConfig(
     /** Maximum AI Credits allowed while responding to one top-level user message. */
     @JsonProperty("maxAiCredits") Double maxAiCredits
 ) {

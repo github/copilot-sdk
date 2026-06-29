@@ -21,6 +21,7 @@ export type SessionEvent =
   | WarningEvent
   | ModelChangeEvent
   | ModeChangedEvent
+  | ResponseLimitsChangedEvent
   | PermissionsChangedEvent
   | PlanChangedEvent
   | TodosChangedEvent
@@ -363,6 +364,7 @@ export type BinaryAssetReferenceType =
 export type ToolExecutionCompleteContent =
   | ToolExecutionCompleteContentText
   | ToolExecutionCompleteContentTerminal
+  | ToolExecutionCompleteContentShellExit
   | ToolExecutionCompleteContentImage
   | ToolExecutionCompleteContentAudio
   | ToolExecutionCompleteContentResourceLink
@@ -738,7 +740,7 @@ export interface StartData {
    * Whether this session supports remote steering via GitHub
    */
   remoteSteerable?: boolean;
-  responseBudget?: ResponseBudgetConfig;
+  responseLimits?: ResponseLimitsConfig;
   /**
    * Model selected at session creation time, if any
    */
@@ -791,17 +793,13 @@ export interface WorkingDirectoryContext {
   repositoryHost?: string;
 }
 /**
- * Optional response budget limits.
+ * Optional response limits.
  */
-export interface ResponseBudgetConfig {
+export interface ResponseLimitsConfig {
   /**
    * Maximum AI Credits allowed while responding to one top-level user message.
    */
   maxAiCredits?: number;
-  /**
-   * Maximum model-call iterations allowed while responding to one top-level user message.
-   */
-  maxModelIterations?: number;
 }
 /**
  * Session event "session.resume". Session resume metadata including current context and event count
@@ -868,9 +866,9 @@ export interface ResumeData {
    */
   remoteSteerable?: boolean;
   /**
-   * Response budget limits currently configured at resume time; null when no budget is active
+   * Response limits currently configured at resume time; null when no limits are active
    */
-  responseBudget?: ResponseBudgetConfig | null;
+  responseLimits?: ResponseLimitsConfig | null;
   /**
    * ISO 8601 timestamp when the session was resumed
    */
@@ -1461,6 +1459,45 @@ export interface ModeChangedEvent {
 export interface ModeChangedData {
   newMode: SessionMode;
   previousMode: SessionMode;
+}
+/**
+ * Session event "session.response_limits_changed". Response limits update details. Null clears the limits.
+ */
+export interface ResponseLimitsChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ResponseLimitsChangedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.response_limits_changed".
+   */
+  type: "session.response_limits_changed";
+}
+/**
+ * Response limits update details. Null clears the limits.
+ */
+export interface ResponseLimitsChangedData {
+  /**
+   * Current response limits for the session, or null when no limits are active
+   */
+  responseLimits: ResponseLimitsConfig | null;
 }
 /**
  * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
@@ -4441,7 +4478,8 @@ export interface ToolExecutionCompleteContentText {
   type: "text";
 }
 /**
- * Terminal/shell output content block with optional exit code and working directory
+ * @deprecated
+ * Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.
  */
 export interface ToolExecutionCompleteContentTerminal {
   /**
@@ -4460,6 +4498,35 @@ export interface ToolExecutionCompleteContentTerminal {
    * Content block type discriminator
    */
   type: "terminal";
+}
+/**
+ * Shell command exit metadata with optional output preview
+ */
+export interface ToolExecutionCompleteContentShellExit {
+  /**
+   * Working directory where the shell command was executed
+   */
+  cwd?: string;
+  /**
+   * Exit code from the completed shell command
+   */
+  exitCode: number;
+  /**
+   * Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+   */
+  outputPreview?: string;
+  /**
+   * Whether outputPreview is known to be incomplete or truncated
+   */
+  outputTruncated?: boolean;
+  /**
+   * Shell id, as assigned by Copilot runtime
+   */
+  shellId: string;
+  /**
+   * Content block type discriminator
+   */
+  type: "shell_exit";
 }
 /**
  * Image content block with base64-encoded data

@@ -90,6 +90,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionPermissionsChangedEvent), "session.permissions_changed")]
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
 [JsonDerivedType(typeof(SessionRemoteSteerableChangedEvent), "session.remote_steerable_changed")]
+[JsonDerivedType(typeof(SessionResponseLimitsChangedEvent), "session.response_limits_changed")]
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
 [JsonDerivedType(typeof(SessionScheduleCancelledEvent), "session.schedule_cancelled")]
 [JsonDerivedType(typeof(SessionScheduleCreatedEvent), "session.schedule_created")]
@@ -344,6 +345,19 @@ public sealed partial class SessionModeChangedEvent : SessionEvent
     /// <summary>The <c>session.mode_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionModeChangedData Data { get; set; }
+}
+
+/// <summary>Response limits update details. Null clears the limits.</summary>
+/// <remarks>Represents the <c>session.response_limits_changed</c> event.</remarks>
+public sealed partial class SessionResponseLimitsChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.response_limits_changed";
+
+    /// <summary>The <c>session.response_limits_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionResponseLimitsChangedData Data { get; set; }
 }
 
 /// <summary>Permissions change details carrying the aggregate allow-all boolean transition.</summary>
@@ -1491,10 +1505,10 @@ public sealed partial class SessionStartData
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
 
-    /// <summary>Response budget limits configured at session creation time, if any.</summary>
+    /// <summary>Response limits configured at session creation time, if any.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("responseBudget")]
-    public ResponseBudgetConfig? ResponseBudget { get; set; }
+    [JsonPropertyName("responseLimits")]
+    public ResponseLimitsConfig? ResponseLimits { get; set; }
 
     /// <summary>Model selected at session creation time, if any.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1561,10 +1575,10 @@ public sealed partial class SessionResumeData
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
 
-    /// <summary>Response budget limits currently configured at resume time; null when no budget is active.</summary>
+    /// <summary>Response limits currently configured at resume time; null when no limits are active.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("responseBudget")]
-    public ResponseBudgetConfig? ResponseBudget { get; set; }
+    [JsonPropertyName("responseLimits")]
+    public ResponseLimitsConfig? ResponseLimits { get; set; }
 
     /// <summary>ISO 8601 timestamp when the session was resumed.</summary>
     [JsonPropertyName("resumeTime")]
@@ -1831,6 +1845,14 @@ public sealed partial class SessionModeChangedData
     /// <summary>The session mode the agent is operating in.</summary>
     [JsonPropertyName("previousMode")]
     public required SessionMode PreviousMode { get; set; }
+}
+
+/// <summary>Response limits update details. Null clears the limits.</summary>
+public sealed partial class SessionResponseLimitsChangedData
+{
+    /// <summary>Current response limits for the session, or null when no limits are active.</summary>
+    [JsonPropertyName("responseLimits")]
+    public ResponseLimitsConfig? ResponseLimits { get; set; }
 }
 
 /// <summary>Permissions change details carrying the aggregate allow-all boolean transition.</summary>
@@ -2397,7 +2419,9 @@ public sealed partial class AssistantMessageData
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2469,7 +2493,9 @@ public sealed partial class AssistantMessageDeltaData
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2569,7 +2595,9 @@ public sealed partial class AssistantUsageData
 
     /// <summary>Parent tool call ID when this usage originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2737,7 +2765,9 @@ public sealed partial class ToolExecutionStartData
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2815,7 +2845,9 @@ public sealed partial class ToolExecutionCompleteData
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -3907,19 +3939,14 @@ public sealed partial class WorkingDirectoryContext
     public string? RepositoryHost { get; set; }
 }
 
-/// <summary>Optional response budget limits.</summary>
-/// <remarks>Nested data type for <c>ResponseBudgetConfig</c>.</remarks>
-public sealed partial class ResponseBudgetConfig
+/// <summary>Optional response limits.</summary>
+/// <remarks>Nested data type for <c>ResponseLimitsConfig</c>.</remarks>
+public sealed partial class ResponseLimitsConfig
 {
     /// <summary>Maximum AI Credits allowed while responding to one top-level user message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("maxAiCredits")]
     public double? MaxAiCredits { get; set; }
-
-    /// <summary>Maximum model-call iterations allowed while responding to one top-level user message.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("maxModelIterations")]
-    public long? MaxModelIterations { get; set; }
 }
 
 /// <summary>Repository context for the handed-off session.</summary>
@@ -5340,8 +5367,12 @@ public sealed partial class ToolExecutionCompleteContentText : ToolExecutionComp
     public required string Text { get; set; }
 }
 
-/// <summary>Terminal/shell output content block with optional exit code and working directory.</summary>
+/// <summary>Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.</summary>
 /// <remarks>The <c>terminal</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
 public sealed partial class ToolExecutionCompleteContentTerminal : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
@@ -5361,6 +5392,38 @@ public sealed partial class ToolExecutionCompleteContentTerminal : ToolExecution
     /// <summary>Terminal/shell output text.</summary>
     [JsonPropertyName("text")]
     public required string Text { get; set; }
+}
+
+/// <summary>Shell command exit metadata with optional output preview.</summary>
+/// <remarks>The <c>shell_exit</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
+public sealed partial class ToolExecutionCompleteContentShellExit : ToolExecutionCompleteContent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "shell_exit";
+
+    /// <summary>Working directory where the shell command was executed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+
+    /// <summary>Exit code from the completed shell command.</summary>
+    [JsonPropertyName("exitCode")]
+    public required long ExitCode { get; set; }
+
+    /// <summary>Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputPreview")]
+    public string? OutputPreview { get; set; }
+
+    /// <summary>Whether outputPreview is known to be incomplete or truncated.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputTruncated")]
+    public bool? OutputTruncated { get; set; }
+
+    /// <summary>Shell id, as assigned by Copilot runtime.</summary>
+    [JsonPropertyName("shellId")]
+    public required string ShellId { get; set; }
 }
 
 /// <summary>Image content block with base64-encoded data.</summary>
@@ -5600,6 +5663,7 @@ public sealed partial class ToolExecutionCompleteContentResource : ToolExecution
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(ToolExecutionCompleteContentText), "text")]
 [JsonDerivedType(typeof(ToolExecutionCompleteContentTerminal), "terminal")]
+[JsonDerivedType(typeof(ToolExecutionCompleteContentShellExit), "shell_exit")]
 [JsonDerivedType(typeof(ToolExecutionCompleteContentImage), "image")]
 [JsonDerivedType(typeof(ToolExecutionCompleteContentAudio), "audio")]
 [JsonDerivedType(typeof(ToolExecutionCompleteContentResourceLink), "resource_link")]
@@ -10500,7 +10564,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionRule))]
 [JsonSerializable(typeof(PersistedBinaryImage))]
 [JsonSerializable(typeof(PersistedBinaryResult))]
-[JsonSerializable(typeof(ResponseBudgetConfig))]
+[JsonSerializable(typeof(ResponseLimitsConfig))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
@@ -10560,6 +10624,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionPlanChangedEvent))]
 [JsonSerializable(typeof(SessionRemoteSteerableChangedData))]
 [JsonSerializable(typeof(SessionRemoteSteerableChangedEvent))]
+[JsonSerializable(typeof(SessionResponseLimitsChangedData))]
+[JsonSerializable(typeof(SessionResponseLimitsChangedEvent))]
 [JsonSerializable(typeof(SessionResumeData))]
 [JsonSerializable(typeof(SessionResumeEvent))]
 [JsonSerializable(typeof(SessionScheduleCancelledData))]
@@ -10630,6 +10696,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionCompleteContentResourceDetails))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentResourceLink))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentResourceLinkIcon))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentShellExit))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentTerminal))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentText))]
 [JsonSerializable(typeof(ToolExecutionCompleteData))]

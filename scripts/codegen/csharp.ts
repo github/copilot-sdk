@@ -493,7 +493,9 @@ const COPYRIGHT = `/*-----------------------------------------------------------
 
 const EXPERIMENTAL_ATTRIBUTE = "[Experimental(Diagnostics.Experimental)]";
 const EDITOR_BROWSABLE_NEVER_ATTRIBUTE = "[EditorBrowsable(EditorBrowsableState.Never)]";
-const OBSOLETE_ATTRIBUTE = `[Obsolete("This member is deprecated and will be removed in a future version.")]`;
+const OBSOLETE_ATTRIBUTE = `#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif`;
 const STRING_ENUM_RESERVED_MEMBER_NAMES = new Set(["Value", "Equals", "GetHashCode", "ToString", "Converter"]);
 
 function experimentalAttribute(indent = ""): string {
@@ -507,7 +509,7 @@ function pushExperimentalAttribute(lines: string[], indent = ""): void {
 function obsoleteAttributes(indent = ""): string[] {
     return [
         `${indent}${EDITOR_BROWSABLE_NEVER_ATTRIBUTE}`,
-        `${indent}${OBSOLETE_ATTRIBUTE}`,
+        ...OBSOLETE_ATTRIBUTE.split("\n").map((line) => line.startsWith("#") ? line : `${indent}${line}`),
     ];
 }
 
