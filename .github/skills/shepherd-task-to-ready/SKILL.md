@@ -28,13 +28,19 @@ Automate the lifecycle of a child **Task** issue from "assigned to Copilot" thro
 ### Step 1: Assign the task to @Copilot
 
 ```bash
-gh issue edit $TASK_ISSUE --add-assignee @copilot -R $REPO
+gh issue edit $TASK_ISSUE --add-assignee "@copilot" -R $REPO
 ```
 
 This triggers Copilot to:
 1. Create a topic branch from `$BASE_BRANCH`.
 2. Open a draft PR targeting `$BASE_BRANCH`.
 3. Push initial commits.
+
+**Important:** After the PR is created, verify it targets `$BASE_BRANCH`. Copilot sometimes targets `main` instead. If the PR base is wrong, fix it:
+
+```bash
+gh pr edit $PR_NUMBER -R $REPO --base "$BASE_BRANCH"
+```
 
 ### Step 2: Find the corresponding PR
 
@@ -65,6 +71,16 @@ done
 
 If no PR is found after timeout, report failure and stop.
 
+Once the PR is found, verify and fix the base branch if needed:
+
+```bash
+# Check the PR targets the correct base branch
+ACTUAL_BASE=$(gh pr view $PR_NUMBER -R $REPO --json baseRefName --jq '.baseRefName')
+if [ "$ACTUAL_BASE" != "$BASE_BRANCH" ]; then
+  gh pr edit $PR_NUMBER -R $REPO --base "$BASE_BRANCH"
+fi
+```
+
 ### Step 3: Wait for initial commits and workflow trigger
 
 After the PR is created, Copilot pushes commits which trigger workflow runs. These runs require approval because every Copilot push triggers the "Approve workflows to run" gate.
@@ -85,15 +101,15 @@ gh run list -R $REPO --branch "$JTBDTASK_BRANCH" --status action_required \
 
 ### Step 4: Approve pending workflow runs
 
-For each run in `action_required` status on the PR's branch, approve it:
+For each run in `action_required` status on the PR's branch, re-run it. The correct mechanism is `gh run rerun` (the `POST .../actions/runs/{id}/approve` endpoint is for fork PRs only and will return HTTP 403 here).
 
 ```bash
-# Get all pending runs for the PR branch
+# Get all action_required runs for the PR branch
 PENDING_RUNS=$(gh run list -R $REPO --branch "$JTBDTASK_BRANCH" \
-  --status action_required --json databaseId --jq '.[].databaseId')
+  --json databaseId,conclusion --jq '.[] | select(.conclusion == "action_required") | .databaseId')
 
 for RUN_ID in $PENDING_RUNS; do
-  gh api --method POST "/repos/$REPO/actions/runs/$RUN_ID/approve"
+  gh run rerun $RUN_ID -R $REPO
 done
 ```
 
@@ -115,13 +131,15 @@ gh run list -R $REPO --branch "$JTBDTASK_BRANCH" \
 
 ### Step 6: Evaluate workflow results
 
+**Note:** Ignore failures from the "Block remove-before-merge paths" / "No remove-before-merge directories" workflow. This failure is expected on feature branches and is not a real problem.
+
 ```bash
-# Get check results
+# Get check results, excluding the expected "Block remove-before-merge paths" failure
 RESULTS=$(gh pr checks $PR_NUMBER -R $REPO --json name,state,bucket \
-  --jq '.[] | select(.bucket == "fail")')
+  --jq '.[] | select(.bucket == "fail") | select(.name != "No remove-before-merge directories")')
 ```
 
-If there are failures, proceed to Step 7. If all pass, proceed to Step 8.
+If there are real failures (after excluding the expected one), proceed to Step 7. If all pass, proceed to Step 8.
 
 ### Step 7: Request changes from Copilot (iteration loop)
 
