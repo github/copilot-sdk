@@ -145,17 +145,46 @@ cd "$GH_CURRENT_USER/review-copilot-pr-$PR_NUMBER"
 git push upstream HEAD:$JTBDTASK_BRANCH
 ```
 
-### Step 8: Reply to each review comment
+### Step 8: Reply to each review comment and resolve the thread
 
 For each `jtbdtask-pr-comments-comment`:
 
 1. State what you did to address the comment. If the action corresponds to a commit, include the hash: "Fixed in `<hash>`".
-2. Mark the comment as resolved.
+2. Reply to the comment.
+3. Resolve the review thread.
 
 ```bash
 # Reply to a specific review comment
 gh api --method POST "/repos/$REPO/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies" \
   -f "body=Fixed in \`$COMMIT_HASH\`. [explanation of the fix]"
+```
+
+To resolve the thread, use the GraphQL API (the REST API does not support thread resolution):
+
+```bash
+# 1. Get the GraphQL thread node ID for the comment
+THREAD_ID=$(gh api graphql -F number=$PR_NUMBER -f query='
+query($number: Int!) {
+  repository(owner: "github", name: "copilot-sdk") {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) {
+        nodes {
+          id
+          isResolved
+          comments(first: 1) { nodes { databaseId } }
+        }
+      }
+    }
+  }
+}' --jq ".data.repository.pullRequest.reviewThreads.nodes[] | select(.comments.nodes[0].databaseId == $COMMENT_ID) | .id")
+
+# 2. Resolve the thread
+gh api graphql -f query="
+mutation {
+  resolveReviewThread(input: {threadId: \"$THREAD_ID\"}) {
+    thread { id isResolved }
+  }
+}"
 ```
 
 ### Step 9: Wait for CI to run
