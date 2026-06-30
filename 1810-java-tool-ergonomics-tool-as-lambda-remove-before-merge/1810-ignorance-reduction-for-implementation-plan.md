@@ -17,7 +17,7 @@ Issue: #1810
 
 ---
 
-## Phase 2 — Baseline verification before new API work
+## Phase 2 ✅ — Baseline verification before new API work
 
 This phase confirms the current runtime behavior we must preserve.
 
@@ -43,7 +43,7 @@ Use existing tests and code as ground truth:
 
 ---
 
-## Phase 3 — Ignorance reduction: questions to answer before writing code
+## Phase 3 ✅ — Ignorance reduction: questions to answer before writing code
 
 Resolve these unknowns before production edits.
 
