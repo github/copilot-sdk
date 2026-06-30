@@ -49,29 +49,25 @@ public class ParamTest {
 
     @Test
     void rejectsNullName() {
-        var ex = assertThrows(IllegalArgumentException.class,
-                () -> Param.of(String.class, null, "desc"));
+        var ex = assertThrows(IllegalArgumentException.class, () -> Param.of(String.class, null, "desc"));
         assertTrue(ex.getMessage().contains("name"));
     }
 
     @Test
     void rejectsBlankName() {
-        var ex = assertThrows(IllegalArgumentException.class,
-                () -> Param.of(String.class, "  ", "desc"));
+        var ex = assertThrows(IllegalArgumentException.class, () -> Param.of(String.class, "  ", "desc"));
         assertTrue(ex.getMessage().contains("name"));
     }
 
     @Test
     void rejectsNullDescription() {
-        var ex = assertThrows(IllegalArgumentException.class,
-                () -> Param.of(String.class, "n", null));
+        var ex = assertThrows(IllegalArgumentException.class, () -> Param.of(String.class, "n", null));
         assertTrue(ex.getMessage().contains("description"));
     }
 
     @Test
     void rejectsBlankDescription() {
-        var ex = assertThrows(IllegalArgumentException.class,
-                () -> Param.of(String.class, "n", ""));
+        var ex = assertThrows(IllegalArgumentException.class, () -> Param.of(String.class, "n", ""));
         assertTrue(ex.getMessage().contains("description"));
     }
 
@@ -81,8 +77,7 @@ public class ParamTest {
 
     @Test
     void rejectsRequiredWithNonEmptyDefault() {
-        var ex = assertThrows(IllegalArgumentException.class,
-                () -> Param.of(String.class, "x", "desc", true, "val"));
+        var ex = assertThrows(IllegalArgumentException.class, () -> Param.of(String.class, "x", "desc", true, "val"));
         assertTrue(ex.getMessage().contains("required=true"));
     }
 
@@ -111,8 +106,7 @@ public class ParamTest {
         assertEquals("42", p.defaultValue());
 
         // invalid
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(Integer.class, "n", "num", false, "abc"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(Integer.class, "n", "num", false, "abc"));
     }
 
     @Test
@@ -120,8 +114,7 @@ public class ParamTest {
         Param<Long> p = Param.of(Long.class, "n", "num", false, "999999999999");
         assertEquals("999999999999", p.defaultValue());
 
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(Long.class, "n", "num", false, "notlong"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(Long.class, "n", "num", false, "notlong"));
     }
 
     @Test
@@ -129,8 +122,7 @@ public class ParamTest {
         Param<Double> p = Param.of(Double.class, "d", "decimal", false, "3.14");
         assertEquals("3.14", p.defaultValue());
 
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(Double.class, "d", "decimal", false, "xyz"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(Double.class, "d", "decimal", false, "xyz"));
     }
 
     @Test
@@ -138,8 +130,7 @@ public class ParamTest {
         Param<Float> p = Param.of(Float.class, "f", "float val", false, "1.5");
         assertEquals("1.5", p.defaultValue());
 
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(Float.class, "f", "float val", false, "notfloat"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(Float.class, "f", "float val", false, "notfloat"));
     }
 
     @Test
@@ -147,8 +138,7 @@ public class ParamTest {
         Param<Short> p = Param.of(Short.class, "s", "short val", false, "100");
         assertEquals("100", p.defaultValue());
 
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(Short.class, "s", "short val", false, "99999"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(Short.class, "s", "short val", false, "99999"));
     }
 
     @Test
@@ -156,8 +146,7 @@ public class ParamTest {
         Param<Byte> p = Param.of(Byte.class, "b", "byte val", false, "127");
         assertEquals("127", p.defaultValue());
 
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(Byte.class, "b", "byte val", false, "999"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(Byte.class, "b", "byte val", false, "999"));
     }
 
     @Test
@@ -168,8 +157,7 @@ public class ParamTest {
         Param<Boolean> p2 = Param.of(Boolean.class, "b", "flag", false, "FALSE");
         assertEquals("FALSE", p2.defaultValue());
 
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(Boolean.class, "b", "flag", false, "yes"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(Boolean.class, "b", "flag", false, "yes"));
     }
 
     @Test
@@ -177,14 +165,12 @@ public class ParamTest {
         Param<TestEnum> p = Param.of(TestEnum.class, "e", "enum val", false, "ALPHA");
         assertEquals("ALPHA", p.defaultValue());
 
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(TestEnum.class, "e", "enum val", false, "INVALID"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(TestEnum.class, "e", "enum val", false, "INVALID"));
     }
 
     @Test
     void rejectsUnsupportedTypeWithDefault() {
-        assertThrows(IllegalArgumentException.class,
-                () -> Param.of(Object.class, "o", "object", false, "something"));
+        assertThrows(IllegalArgumentException.class, () -> Param.of(Object.class, "o", "object", false, "something"));
     }
 
     @Test

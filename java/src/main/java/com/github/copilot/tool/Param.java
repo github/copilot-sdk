@@ -14,8 +14,8 @@ import com.github.copilot.CopilotExperimental;
  * <p>
  * Each {@code Param} instance describes a single parameter that a tool accepts,
  * including its Java type, wire name, description, whether it is required, and
- * an optional default value. Instances are immutable; fluent mutators return new
- * copies.
+ * an optional default value. Instances are immutable; fluent mutators return
+ * new copies.
  *
  * <h2>Example Usage</h2>
  *
@@ -25,7 +25,8 @@ import com.github.copilot.CopilotExperimental;
  * Param<Integer> limit = Param.of(Integer.class, "limit", "Max results", false, "10");
  * }</pre>
  *
- * @param <T> the Java type of the parameter value
+ * @param <T>
+ *            the Java type of the parameter value
  * @since 1.0.2
  */
 @CopilotExperimental
@@ -54,13 +55,19 @@ public final class Param<T> {
     /**
      * Creates a required parameter with no default value.
      *
-     * @param <T>         the parameter type
-     * @param type        the Java class of the parameter
-     * @param name        the wire name sent to the model (must not be blank)
-     * @param description a human-readable description (must not be blank)
+     * @param <T>
+     *            the parameter type
+     * @param type
+     *            the Java class of the parameter
+     * @param name
+     *            the wire name sent to the model (must not be blank)
+     * @param description
+     *            a human-readable description (must not be blank)
      * @return a new {@code Param} instance
-     * @throws NullPointerException     if {@code type} is null
-     * @throws IllegalArgumentException if {@code name} or {@code description} is blank
+     * @throws NullPointerException
+     *             if {@code type} is null
+     * @throws IllegalArgumentException
+     *             if {@code name} or {@code description} is blank
      */
     public static <T> Param<T> of(Class<T> type, String name, String description) {
         return new Param<>(type, name, description, true, "");
@@ -69,15 +76,23 @@ public final class Param<T> {
     /**
      * Creates a parameter with explicit required/default settings.
      *
-     * @param <T>          the parameter type
-     * @param type         the Java class of the parameter
-     * @param name         the wire name sent to the model (must not be blank)
-     * @param description  a human-readable description (must not be blank)
-     * @param required     whether the parameter is required
-     * @param defaultValue the default value as a string, or {@code null}/empty for none
+     * @param <T>
+     *            the parameter type
+     * @param type
+     *            the Java class of the parameter
+     * @param name
+     *            the wire name sent to the model (must not be blank)
+     * @param description
+     *            a human-readable description (must not be blank)
+     * @param required
+     *            whether the parameter is required
+     * @param defaultValue
+     *            the default value as a string, or {@code null}/empty for none
      * @return a new {@code Param} instance
-     * @throws NullPointerException     if {@code type} is null
-     * @throws IllegalArgumentException if validation fails
+     * @throws NullPointerException
+     *             if {@code type} is null
+     * @throws IllegalArgumentException
+     *             if validation fails
      */
     public static <T> Param<T> of(Class<T> type, String name, String description, boolean required,
             String defaultValue) {
@@ -87,7 +102,8 @@ public final class Param<T> {
     /**
      * Returns a copy with a different name.
      *
-     * @param name the new parameter name
+     * @param name
+     *            the new parameter name
      * @return a new {@code Param} with the updated name
      */
     public Param<T> name(String name) {
@@ -97,7 +113,8 @@ public final class Param<T> {
     /**
      * Returns a copy with a different description.
      *
-     * @param description the new description
+     * @param description
+     *            the new description
      * @return a new {@code Param} with the updated description
      */
     public Param<T> description(String description) {
@@ -107,7 +124,8 @@ public final class Param<T> {
     /**
      * Returns a copy with a different required flag.
      *
-     * @param required whether the parameter is required
+     * @param required
+     *            whether the parameter is required
      * @return a new {@code Param} with the updated required flag
      */
     public Param<T> required(boolean required) {
@@ -118,8 +136,10 @@ public final class Param<T> {
      * Returns an optional copy with the given default value. Setting a default
      * implicitly makes the parameter optional ({@code required=false}).
      *
-     * @param defaultValue the default value as a string
-     * @return a new {@code Param} with the default applied and required set to false
+     * @param defaultValue
+     *            the default value as a string
+     * @return a new {@code Param} with the default applied and required set to
+     *         false
      */
     public Param<T> defaultValue(String defaultValue) {
         return new Param<>(this.type, this.name, this.description, false, defaultValue);
@@ -160,9 +180,8 @@ public final class Param<T> {
         if (!(o instanceof Param<?> other)) {
             return false;
         }
-        return required == other.required && Objects.equals(type, other.type)
-                && Objects.equals(name, other.name) && Objects.equals(description, other.description)
-                && Objects.equals(defaultValue, other.defaultValue);
+        return required == other.required && Objects.equals(type, other.type) && Objects.equals(name, other.name)
+                && Objects.equals(description, other.description) && Objects.equals(defaultValue, other.defaultValue);
     }
 
     @Override
