@@ -38,7 +38,7 @@ This triggers Copilot to:
 
 ### Step 2: Find the corresponding PR
 
-Look for the corresponding PR created and mentioned in the issue. The issue will often have text like "linked a pull request that will close this issue". First, try to find the PR this way.
+Look for the corresponding PR created and mentioned in the issue. The issue will often have text like "linked a pull request that will close this issue". First, try to find the PR this way. If you find it, let `PR_NUMBER` be that PR number.
 
 If that doesn't work, wait for Copilot to create the PR.
 
@@ -239,7 +239,7 @@ Use the same pattern as Step 7: compose a review requesting changes with specifi
 When all checks pass and no unresolved review comments remain:
 
 ```
-SHEPHERD COMPLETE: PR #$PR_NUMBER for task #$TASK_ISSUE is ready.
+SHEPHERD COMPLETE: PR #$PR_NUMBER for task #$TASK_ISSUE is ready to review for marking as **Ready to review**.
 All CI checks pass. No unresolved review comments.
 Next step: Mark as Ready for Review (use separate skill).
 ```
