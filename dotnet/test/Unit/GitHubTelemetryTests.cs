@@ -213,7 +213,8 @@ public sealed class GitHubTelemetryTests
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or SocketException)
             {
                 // Expected during teardown: the listener/socket is torn down while the
-                // server loop is still awaiting I/O. Nothing to clean up beyond this.
+                // server loop is still awaiting I/O. Observe the exception and move on.
+                _ = ex;
             }
 
             _cts.Dispose();
