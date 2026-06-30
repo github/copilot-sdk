@@ -270,7 +270,13 @@ gh pr merge $PR_NUMBER -R $REPO --merge --delete-branch
 
 This merges the work to `BASE_BRANCH`.
 
-### Step 23: Final status report
+### Step 23: Close the corresponding issue
+
+```bash
+gh issue close $TASK_ISSUE -R $REPO
+```
+
+### Step 24: Final status report
 
 ```
 SHEPHERD COMPLETE: PR #$PR_NUMBER for task #$TASK_ISSUE has been merged to $BASE_BRANCH.
