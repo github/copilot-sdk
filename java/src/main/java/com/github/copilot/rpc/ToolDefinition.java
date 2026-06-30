@@ -744,7 +744,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             Map<String, Object> enriched = new LinkedHashMap<>(propSchema);
             enriched.put("description", param.description());
             if (param.hasDefaultValue()) {
-                enriched.put("default", param.defaultValue());
+                enriched.put("default", coerceDefaultValue(param, getConfiguredMapper()));
             }
 
             properties.put(param.name(), Collections.unmodifiableMap(enriched));
@@ -812,10 +812,16 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             return Map.of("type", "string", "enum", Collections.unmodifiableList(constants));
         }
 
-        // List / array types — fallback: treat as array of any
+        // List / Collection / Set types — treat as array of any
         if (java.util.List.class.isAssignableFrom(type) || java.util.Collection.class.isAssignableFrom(type)
-                || java.util.Set.class.isAssignableFrom(type) || type.isArray()) {
+                || java.util.Set.class.isAssignableFrom(type)) {
             return Map.of("type", "array");
+        }
+
+        // Array types — include items schema from component type
+        if (type.isArray()) {
+            Map<String, Object> itemsSchema = schemaForClass(type.getComponentType());
+            return Map.of("type", "array", "items", itemsSchema);
         }
 
         // Map types
@@ -874,25 +880,39 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
                 return type.cast(defaultValue);
             }
             if (type == Integer.class || type == int.class) {
-                return type.cast(Integer.parseInt(defaultValue));
+                @SuppressWarnings("unchecked")
+                T result = (T) Integer.valueOf(defaultValue);
+                return result;
             }
             if (type == Long.class || type == long.class) {
-                return type.cast(Long.parseLong(defaultValue));
+                @SuppressWarnings("unchecked")
+                T result = (T) Long.valueOf(defaultValue);
+                return result;
             }
             if (type == Double.class || type == double.class) {
-                return type.cast(Double.parseDouble(defaultValue));
+                @SuppressWarnings("unchecked")
+                T result = (T) Double.valueOf(defaultValue);
+                return result;
             }
             if (type == Float.class || type == float.class) {
-                return type.cast(Float.parseFloat(defaultValue));
+                @SuppressWarnings("unchecked")
+                T result = (T) Float.valueOf(defaultValue);
+                return result;
             }
             if (type == Short.class || type == short.class) {
-                return type.cast(Short.parseShort(defaultValue));
+                @SuppressWarnings("unchecked")
+                T result = (T) Short.valueOf(defaultValue);
+                return result;
             }
             if (type == Byte.class || type == byte.class) {
-                return type.cast(Byte.parseByte(defaultValue));
+                @SuppressWarnings("unchecked")
+                T result = (T) Byte.valueOf(defaultValue);
+                return result;
             }
             if (type == Boolean.class || type == boolean.class) {
-                return type.cast(Boolean.parseBoolean(defaultValue));
+                @SuppressWarnings("unchecked")
+                T result = (T) Boolean.valueOf(defaultValue);
+                return result;
             }
             if (type.isEnum()) {
                 Class<? extends Enum> enumType = (Class<? extends Enum>) type;
