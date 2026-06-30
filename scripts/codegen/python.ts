@@ -895,6 +895,95 @@ function collapsePlaceholderPythonDataclasses(code: string, knownDefinitionNames
     return code.replace(/\n{3,}/g, "\n\n");
 }
 
+function removeUnusedSyntheticPythonDataclasses(code: string, knownDefinitionNames: Set<string>): string {
+    interface DataclassBlock {
+        name: string;
+        text: string;
+        start: number;
+        end: number;
+        synthetic: boolean;
+    }
+
+    const classBlockRe =
+        /((?:^# (?:Experimental|Deprecated|Internal):[^\n]*\r?\n)*@dataclass(?:\([^\r\n]*\))?\r?\nclass\s+(\w+):[\s\S]*?)(?=^(?:# (?:Experimental|Deprecated|Internal):[^\n]*\r?\n)*@dataclass(?:\([^\r\n]*\))?\r?\nclass\s+\w|^class\s+\w|^def\s+\w|^[A-Z]\w+\s*=|\Z)/gm;
+    const blocks: DataclassBlock[] = [...code.matchAll(classBlockRe)].map((match) => ({
+        name: match[2],
+        text: match[1],
+        start: match.index ?? 0,
+        end: (match.index ?? 0) + match[1].length,
+        synthetic: !knownDefinitionNames.has(match[2].toLowerCase()),
+    }));
+    const syntheticBlocks = blocks.filter((block) => block.synthetic);
+    if (syntheticBlocks.length === 0) return code;
+
+    let outsideSyntheticBlocks = "";
+    let cursor = 0;
+    for (const block of syntheticBlocks) {
+        outsideSyntheticBlocks += code.slice(cursor, block.start);
+        cursor = block.end;
+    }
+    outsideSyntheticBlocks += code.slice(cursor);
+
+    const syntheticNames = new Set(syntheticBlocks.map((block) => block.name));
+    const dependencies = new Map<string, Set<string>>();
+    const live = new Set<string>();
+
+    for (const block of syntheticBlocks) {
+        const referenceRe = new RegExp(`\\b${escapeRegExp(block.name)}\\b`);
+        if (referenceRe.test(outsideSyntheticBlocks)) {
+            live.add(block.name);
+        }
+
+        const blockDependencies = new Set<string>();
+        for (const dependency of syntheticNames) {
+            if (dependency === block.name) continue;
+            const dependencyRe = new RegExp(`\\b${escapeRegExp(dependency)}\\b`);
+            if (dependencyRe.test(block.text)) {
+                blockDependencies.add(dependency);
+            }
+        }
+        dependencies.set(block.name, blockDependencies);
+    }
+
+    const worklist = [...live];
+    while (worklist.length > 0) {
+        const name = worklist.pop()!;
+        for (const dependency of dependencies.get(name) ?? []) {
+            if (live.has(dependency)) continue;
+            live.add(dependency);
+            worklist.push(dependency);
+        }
+    }
+
+    const blocksToRemove = new Set(syntheticBlocks.filter((block) => !live.has(block.name)).map((block) => block.name));
+    if (blocksToRemove.size === 0) return code;
+
+    const appendSegment = (parts: string[], segment: string): void => {
+        if (parts.length === 0 || segment.length === 0) {
+            parts.push(segment);
+            return;
+        }
+        const previous = parts[parts.length - 1];
+        const trailingNewlines = previous.match(/\n+$/)?.[0].length ?? 0;
+        const leadingNewlines = segment.match(/^\n+/)?.[0].length ?? 0;
+        if (trailingNewlines + leadingNewlines > 2) {
+            segment = "\n".repeat(Math.max(0, 2 - trailingNewlines)) + segment.slice(leadingNewlines);
+        }
+        parts.push(segment);
+    };
+
+    const parts: string[] = [];
+    cursor = 0;
+    for (const block of blocks) {
+        if (!blocksToRemove.has(block.name)) continue;
+        appendSegment(parts, code.slice(cursor, block.start));
+        cursor = block.end;
+    }
+    appendSegment(parts, code.slice(cursor));
+
+    return parts.join("");
+}
+
 /**
  * Reorder Python class/enum definitions so forward references are resolved.
  * Quicktype may emit classes in an order where a class references another
@@ -3212,6 +3301,10 @@ def _patch_model_capabilities(data: dict) -> dict:
     finalCode = applyUnionRewritesToPython(finalCode, refBasedUnions);
     finalCode = postProcessDiscriminatorDefaultsForPython(finalCode, refBasedUnions);
     finalCode = unwrapRedundantPythonLambdas(finalCode);
+    finalCode = removeUnusedSyntheticPythonDataclasses(
+        finalCode,
+        new Set(Object.keys(allDefinitions).map((name) => name.toLowerCase()))
+    );
 
     // Apply `_`-prefix to type names of internal RPC types so the leading-underscore
     // Python convention signals "internal, no stability guarantees" to consumers.
