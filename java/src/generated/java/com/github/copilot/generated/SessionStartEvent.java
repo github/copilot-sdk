@@ -53,8 +53,8 @@ public final class SessionStartEvent extends SessionEvent {
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model) */
         @JsonProperty("contextTier") ContextTier contextTier,
-        /** Response limits configured at session creation time, if any */
-        @JsonProperty("responseLimits") ResponseLimitsConfig responseLimits,
+        /** Session limits configured at session creation time, if any */
+        @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Working directory and git context at session start */
         @JsonProperty("context") WorkingDirectoryContext context,
         /** Whether the session was already in use by another client at start time */

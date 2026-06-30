@@ -10,22 +10,22 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Feature flags indicating what the model supports
+ * Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ModelCapabilitiesSupports(
-    /** Whether this model supports vision/image input */
-    @JsonProperty("vision") Boolean vision,
-    /** Whether this model supports reasoning effort configuration */
-    @JsonProperty("reasoningEffort") Boolean reasoningEffort,
-    /** Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8). */
-    @JsonProperty("adaptive_thinking") AdaptiveThinkingSupport adaptiveThinking
+public record SessionCompletionsRequestResult(
+    /** Completion items in host-ranked order. */
+    @JsonProperty("items") List<SessionCompletionItem> items
 ) {
 }

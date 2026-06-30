@@ -51,8 +51,8 @@ public record SessionMetadataSnapshotResult(
     @JsonProperty("currentMode") MetadataSnapshotCurrentMode currentMode,
     /** Currently selected model identifier, if any */
     @JsonProperty("selectedModel") String selectedModel,
-    /** Current response limits for the session, or null when no limits are active */
-    @JsonProperty("responseLimits") ResponseLimitsConfig responseLimits,
+    /** Current session limits, or null when no limits are active */
+    @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
     /** Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags). */
     @JsonProperty("workspace") SessionMetadataSnapshotResultWorkspace workspace
 ) {

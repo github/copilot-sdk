@@ -192,7 +192,6 @@ type (
 	RawSystemNotification                                          = rpc.RawSystemNotification
 	RawToolExecutionCompleteContent                                = rpc.RawToolExecutionCompleteContent
 	ReasoningSummary                                               = rpc.ReasoningSummary
-	ResponseLimitsConfig                                           = rpc.ResponseLimitsConfig
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
@@ -218,6 +217,11 @@ type (
 	SessionHandoffData                                             = rpc.SessionHandoffData
 	SessionIdleData                                                = rpc.SessionIdleData
 	SessionInfoData                                                = rpc.SessionInfoData
+	SessionLimitsConfig                                            = rpc.SessionLimitsConfig
+	SessionLimitsExhaustedCompletedData                            = rpc.SessionLimitsExhaustedCompletedData
+	SessionLimitsExhaustedRequestedData                            = rpc.SessionLimitsExhaustedRequestedData
+	SessionLimitsExhaustedResponse                                 = rpc.SessionLimitsExhaustedResponse
+	SessionLimitsExhaustedResponseAction                           = rpc.SessionLimitsExhaustedResponseAction
 	SessionMCPServersLoadedData                                    = rpc.SessionMCPServersLoadedData
 	SessionMCPServerStatusChangedData                              = rpc.SessionMCPServerStatusChangedData
 	SessionMode                                                    = rpc.SessionMode
@@ -226,11 +230,11 @@ type (
 	SessionPermissionsChangedData                                  = rpc.SessionPermissionsChangedData
 	SessionPlanChangedData                                         = rpc.SessionPlanChangedData
 	SessionRemoteSteerableChangedData                              = rpc.SessionRemoteSteerableChangedData
-	SessionResponseLimitsChangedData                               = rpc.SessionResponseLimitsChangedData
 	SessionResumeData                                              = rpc.SessionResumeData
 	SessionScheduleCancelledData                                   = rpc.SessionScheduleCancelledData
 	SessionScheduleCreatedData                                     = rpc.SessionScheduleCreatedData
 	SessionScheduleRearmedData                                     = rpc.SessionScheduleRearmedData
+	SessionSessionLimitsChangedData                                = rpc.SessionSessionLimitsChangedData
 	SessionShutdownData                                            = rpc.SessionShutdownData
 	SessionSkillsLoadedData                                        = rpc.SessionSkillsLoadedData
 	SessionSnapshotRewindData                                      = rpc.SessionSnapshotRewindData
@@ -240,6 +244,7 @@ type (
 	SessionTodosChangedData                                        = rpc.SessionTodosChangedData
 	SessionToolsUpdatedData                                        = rpc.SessionToolsUpdatedData
 	SessionTruncationData                                          = rpc.SessionTruncationData
+	SessionUsageCheckpointData                                     = rpc.SessionUsageCheckpointData
 	SessionUsageInfoData                                           = rpc.SessionUsageInfoData
 	SessionWarningData                                             = rpc.SessionWarningData
 	SessionWorkspaceFileChangedData                                = rpc.SessionWorkspaceFileChangedData
@@ -542,6 +547,8 @@ const (
 	SessionEventTypeSessionHandoff                                     = rpc.SessionEventTypeSessionHandoff
 	SessionEventTypeSessionIdle                                        = rpc.SessionEventTypeSessionIdle
 	SessionEventTypeSessionInfo                                        = rpc.SessionEventTypeSessionInfo
+	SessionEventTypeSessionLimitsExhaustedCompleted                    = rpc.SessionEventTypeSessionLimitsExhaustedCompleted
+	SessionEventTypeSessionLimitsExhaustedRequested                    = rpc.SessionEventTypeSessionLimitsExhaustedRequested
 	SessionEventTypeSessionMCPServersLoaded                            = rpc.SessionEventTypeSessionMCPServersLoaded
 	SessionEventTypeSessionMCPServerStatusChanged                      = rpc.SessionEventTypeSessionMCPServerStatusChanged
 	SessionEventTypeSessionModeChanged                                 = rpc.SessionEventTypeSessionModeChanged
@@ -549,11 +556,11 @@ const (
 	SessionEventTypeSessionPermissionsChanged                          = rpc.SessionEventTypeSessionPermissionsChanged
 	SessionEventTypeSessionPlanChanged                                 = rpc.SessionEventTypeSessionPlanChanged
 	SessionEventTypeSessionRemoteSteerableChanged                      = rpc.SessionEventTypeSessionRemoteSteerableChanged
-	SessionEventTypeSessionResponseLimitsChanged                       = rpc.SessionEventTypeSessionResponseLimitsChanged
 	SessionEventTypeSessionResume                                      = rpc.SessionEventTypeSessionResume
 	SessionEventTypeSessionScheduleCancelled                           = rpc.SessionEventTypeSessionScheduleCancelled
 	SessionEventTypeSessionScheduleCreated                             = rpc.SessionEventTypeSessionScheduleCreated
 	SessionEventTypeSessionScheduleRearmed                             = rpc.SessionEventTypeSessionScheduleRearmed
+	SessionEventTypeSessionSessionLimitsChanged                        = rpc.SessionEventTypeSessionSessionLimitsChanged
 	SessionEventTypeSessionShutdown                                    = rpc.SessionEventTypeSessionShutdown
 	SessionEventTypeSessionSkillsLoaded                                = rpc.SessionEventTypeSessionSkillsLoaded
 	SessionEventTypeSessionSnapshotRewind                              = rpc.SessionEventTypeSessionSnapshotRewind
@@ -563,6 +570,7 @@ const (
 	SessionEventTypeSessionTodosChanged                                = rpc.SessionEventTypeSessionTodosChanged
 	SessionEventTypeSessionToolsUpdated                                = rpc.SessionEventTypeSessionToolsUpdated
 	SessionEventTypeSessionTruncation                                  = rpc.SessionEventTypeSessionTruncation
+	SessionEventTypeSessionUsageCheckpoint                             = rpc.SessionEventTypeSessionUsageCheckpoint
 	SessionEventTypeSessionUsageInfo                                   = rpc.SessionEventTypeSessionUsageInfo
 	SessionEventTypeSessionWarning                                     = rpc.SessionEventTypeSessionWarning
 	SessionEventTypeSessionWorkspaceFileChanged                        = rpc.SessionEventTypeSessionWorkspaceFileChanged
@@ -582,6 +590,10 @@ const (
 	SessionEventTypeUserInputCompleted                                 = rpc.SessionEventTypeUserInputCompleted
 	SessionEventTypeUserInputRequested                                 = rpc.SessionEventTypeUserInputRequested
 	SessionEventTypeUserMessage                                        = rpc.SessionEventTypeUserMessage
+	SessionLimitsExhaustedResponseActionAdd                            = rpc.SessionLimitsExhaustedResponseActionAdd
+	SessionLimitsExhaustedResponseActionCancel                         = rpc.SessionLimitsExhaustedResponseActionCancel
+	SessionLimitsExhaustedResponseActionSet                            = rpc.SessionLimitsExhaustedResponseActionSet
+	SessionLimitsExhaustedResponseActionUnset                          = rpc.SessionLimitsExhaustedResponseActionUnset
 	SessionModeAutopilot                                               = rpc.SessionModeAutopilot
 	SessionModeInteractive                                             = rpc.SessionModeInteractive
 	SessionModePlan                                                    = rpc.SessionModePlan

@@ -2628,6 +2628,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.completions.*` sub-namespace.
+    pub fn completions(&self) -> SessionRpcCompletions<'a> {
+        SessionRpcCompletions {
+            session: self.session,
+        }
+    }
+
     /// `session.eventLog.*` sub-namespace.
     pub fn event_log(&self) -> SessionRpcEventLog<'a> {
         SessionRpcEventLog {
@@ -3497,6 +3504,77 @@ impl<'a> SessionRpcCommands<'a> {
                 rpc_methods::SESSION_COMMANDS_RESPONDTOQUEUEDCOMMAND,
                 Some(wire_params),
             )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.completions.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcCompletions<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcCompletions<'a> {
+    /// Gets the characters that should trigger host-driven completions for the session. Empty disables host-driven completions (e.g. local sessions, or a relay host that does not advertise them).
+    ///
+    /// Wire method: `session.completions.getTriggerCharacters`.
+    ///
+    /// # Returns
+    ///
+    /// Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_trigger_characters(
+        &self,
+    ) -> Result<CompletionsGetTriggerCharactersResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_COMPLETIONS_GETTRIGGERCHARACTERS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests host-driven completion items for the current composer input. Returns an empty list when the host has no items or does not support completions.
+    ///
+    /// Wire method: `session.completions.request`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request host-driven completions for the current composer input.
+    ///
+    /// # Returns
+    ///
+    /// Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn request(
+        &self,
+        params: CompletionsRequestRequest,
+    ) -> Result<CompletionsRequestResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMPLETIONS_REQUEST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -7992,6 +8070,42 @@ impl<'a> SessionRpcUi<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_UI_HANDLEPENDINGAUTOMODESWITCH,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Resolves a pending `session_limits_exhausted.requested` event with the user's selected limit action.
+    ///
+    /// Wire method: `session.ui.handlePendingSessionLimitsExhausted`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the pending UI request was resolved by this call.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn handle_pending_session_limits_exhausted(
+        &self,
+        params: UIHandlePendingSessionLimitsExhaustedRequest,
+    ) -> Result<UIHandlePendingResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_HANDLEPENDINGSESSIONLIMITSEXHAUSTED,
                 Some(wire_params),
             )
             .await?;

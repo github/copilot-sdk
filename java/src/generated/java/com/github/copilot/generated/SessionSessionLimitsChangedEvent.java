@@ -13,29 +13,29 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.response_limits_changed". Response limits update details. Null clears the limits.
+ * Session event "session.session_limits_changed". Session limits update details. Null clears the limits.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class SessionResponseLimitsChangedEvent extends SessionEvent {
+public final class SessionSessionLimitsChangedEvent extends SessionEvent {
 
     @Override
-    public String getType() { return "session.response_limits_changed"; }
+    public String getType() { return "session.session_limits_changed"; }
 
     @JsonProperty("data")
-    private SessionResponseLimitsChangedEventData data;
+    private SessionSessionLimitsChangedEventData data;
 
-    public SessionResponseLimitsChangedEventData getData() { return data; }
-    public void setData(SessionResponseLimitsChangedEventData data) { this.data = data; }
+    public SessionSessionLimitsChangedEventData getData() { return data; }
+    public void setData(SessionSessionLimitsChangedEventData data) { this.data = data; }
 
-    /** Data payload for {@link SessionResponseLimitsChangedEvent}. */
+    /** Data payload for {@link SessionSessionLimitsChangedEvent}. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionResponseLimitsChangedEventData(
-        /** Current response limits for the session, or null when no limits are active */
-        @JsonProperty("responseLimits") ResponseLimitsConfig responseLimits
+    public record SessionSessionLimitsChangedEventData(
+        /** Current session limits, or null when no limits are active */
+        @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits
     ) {
     }
 }

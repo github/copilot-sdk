@@ -219,6 +219,10 @@ public sealed class ModelCapabilitiesLimits
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesSupports
 {
+    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    [JsonPropertyName("adaptive_thinking")]
+    public AdaptiveThinkingSupport? AdaptiveThinking { get; set; }
+
     /// <summary>Whether this model supports reasoning effort configuration.</summary>
     [JsonPropertyName("reasoningEffort")]
     public bool? ReasoningEffort { get; set; }
@@ -3794,6 +3798,10 @@ public sealed class ModelCapabilitiesOverrideLimits
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideSupports
 {
+    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    [JsonPropertyName("adaptive_thinking")]
+    public AdaptiveThinkingSupport? AdaptiveThinking { get; set; }
+
     /// <summary>Whether this model supports reasoning effort configuration.</summary>
     [JsonPropertyName("reasoningEffort")]
     public bool? ReasoningEffort { get; set; }
@@ -4415,6 +4423,75 @@ internal sealed class WorkspacesDiffRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CompletionsGetTriggerCharactersResult
+{
+    /// <summary>Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session.</summary>
+    [JsonPropertyName("triggerCharacters")]
+    public IList<string> TriggerCharacters { get => field ??= []; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionCompletionsGetTriggerCharactersRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>A single host-driven completion. Accepting an item replaces `[rangeStart, rangeEnd)` (UTF-16 code units) in the composer with `insertText`; when the range is absent, the active token around the cursor is replaced.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SessionCompletionItem
+{
+    /// <summary>Text spliced into the composer when the item is accepted.</summary>
+    [JsonPropertyName("insertText")]
+    public string InsertText { get; set; } = string.Empty;
+
+    /// <summary>Render-kind hint for the picker row (e.g. `"document"`, `"directory"`), derived from the host's display kind.</summary>
+    [JsonPropertyName("kind")]
+    public string? Kind { get; set; }
+
+    /// <summary>Primary display label for the picker row. Falls back to `insertText` when absent.</summary>
+    [JsonPropertyName("label")]
+    public string? Label { get; set; }
+
+    /// <summary>End (exclusive) of the replacement range in `text`, in UTF-16 code units.</summary>
+    [JsonPropertyName("rangeEnd")]
+    public long? RangeEnd { get; set; }
+
+    /// <summary>Start of the replacement range in `text`, in UTF-16 code units.</summary>
+    [JsonPropertyName("rangeStart")]
+    public long? RangeStart { get; set; }
+}
+
+/// <summary>Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CompletionsRequestResult
+{
+    /// <summary>Completion items in host-ranked order.</summary>
+    [JsonPropertyName("items")]
+    public IList<SessionCompletionItem> Items { get => field ??= []; set; }
+}
+
+/// <summary>Request host-driven completions for the current composer input.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class CompletionsRequestRequest
+{
+    /// <summary>Cursor offset within `text`, in UTF-16 code units.</summary>
+    [JsonPropertyName("offset")]
+    public long Offset { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>The full composed composer input.</summary>
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
 }
 
 /// <summary>Instruction sources loaded for the session, in merge order.</summary>
@@ -6826,6 +6903,10 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("eventsLogDirectory")]
     public string? EventsLogDirectory { get; set; }
 
+    /// <summary>Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.</summary>
+    [JsonPropertyName("excludedBuiltinAgents")]
+    public IList<string>? ExcludedBuiltinAgents { get; set; }
+
     /// <summary>Denylist of tool names for this session.</summary>
     [JsonPropertyName("excludedTools")]
     public IList<string>? ExcludedTools { get; set; }
@@ -6886,10 +6967,6 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("reasoningSummary")]
     public OptionsUpdateReasoningSummary? ReasoningSummary { get; set; }
 
-    /// <summary>Optional response limits. Pass null to clear the response limits.</summary>
-    [JsonPropertyName("responseLimits")]
-    public ResponseLimitsConfig? ResponseLimits { get; set; }
-
     /// <summary>Whether the session is running in an interactive UI.</summary>
     [JsonPropertyName("runningInInteractiveMode")]
     public bool? RunningInInteractiveMode { get; set; }
@@ -6905,6 +6982,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Optional session limits. Pass null to clear the session limits.</summary>
+    [JsonPropertyName("sessionLimits")]
+    public SessionLimitsConfig? SessionLimits { get; set; }
 
     /// <summary>Shell init profile (`None` or `NonInteractive`).</summary>
     [JsonPropertyName("shellInitProfile")]
@@ -8296,6 +8377,40 @@ internal sealed class UIHandlePendingAutoModeSwitchRequest
     /// <summary>User's choice for auto-mode switching: yes (allow this turn), yes_always (allow + persist as setting), or no (decline).</summary>
     [JsonPropertyName("response")]
     public UIAutoModeSwitchResponse Response { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>The user's selected action for an exhausted session limit.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class UISessionLimitsExhaustedResponse
+{
+    /// <summary>Action selected by the user.</summary>
+    [JsonPropertyName("action")]
+    public UISessionLimitsExhaustedResponseAction Action { get; set; }
+
+    /// <summary>AI Credits to add to the current max when action is 'add'.</summary>
+    [JsonPropertyName("additionalAiCredits")]
+    public double? AdditionalAiCredits { get; set; }
+
+    /// <summary>New absolute max AI Credits when action is 'set'.</summary>
+    [JsonPropertyName("maxAiCredits")]
+    public double? MaxAiCredits { get; set; }
+}
+
+/// <summary>Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class UIHandlePendingSessionLimitsExhaustedRequest
+{
+    /// <summary>The unique request ID from the session_limits_exhausted.requested event.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>The selected session-limit action.</summary>
+    [JsonPropertyName("response")]
+    public UISessionLimitsExhaustedResponse Response { get => field ??= new(); set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -9814,10 +9929,6 @@ public sealed class SessionMetadataSnapshot
     [JsonPropertyName("remoteMetadata")]
     public MetadataSnapshotRemoteMetadata? RemoteMetadata { get; set; }
 
-    /// <summary>Current response limits for the session, or null when no limits are active.</summary>
-    [JsonPropertyName("responseLimits")]
-    public ResponseLimitsConfig? ResponseLimits { get; set; }
-
     /// <summary>Currently selected model identifier, if any.</summary>
     [JsonPropertyName("selectedModel")]
     public string? SelectedModel { get; set; }
@@ -9825,6 +9936,10 @@ public sealed class SessionMetadataSnapshot
     /// <summary>The unique identifier of the session.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Current session limits, or null when no limits are active.</summary>
+    [JsonPropertyName("sessionLimits")]
+    public SessionLimitsConfig? SessionLimits { get; set; }
 
     /// <summary>ISO 8601 timestamp of when the session started.</summary>
     [JsonPropertyName("startTime")]
@@ -10499,7 +10614,7 @@ public sealed class RegisterEventInterestResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class RegisterEventInterestParams
 {
-    /// <summary>The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.</summary>
+    /// <summary>The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.</summary>
     [JsonPropertyName("eventType")]
     public string EventType { get; set; } = string.Empty;
 
@@ -11455,6 +11570,72 @@ public sealed class LlmInferenceHttpRequestChunkRequest
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
 }
+
+/// <summary>Resolved Anthropic adaptive-thinking capability for a model.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AdaptiveThinkingSupport : IEquatable<AdaptiveThinkingSupport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AdaptiveThinkingSupport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AdaptiveThinkingSupport"/>.</param>
+    [JsonConstructor]
+    public AdaptiveThinkingSupport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AdaptiveThinkingSupport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The model does not accept thinking.type='adaptive'.</summary>
+    public static AdaptiveThinkingSupport Unsupported { get; } = new("unsupported");
+
+    /// <summary>The model accepts adaptive thinking but also accepts thinking.type='enabled'.</summary>
+    public static AdaptiveThinkingSupport Optional { get; } = new("optional");
+
+    /// <summary>The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).</summary>
+    public static AdaptiveThinkingSupport Required { get; } = new("required");
+
+    /// <summary>Returns a value indicating whether two <see cref="AdaptiveThinkingSupport"/> instances are equivalent.</summary>
+    public static bool operator ==(AdaptiveThinkingSupport left, AdaptiveThinkingSupport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AdaptiveThinkingSupport"/> instances are not equivalent.</summary>
+    public static bool operator !=(AdaptiveThinkingSupport left, AdaptiveThinkingSupport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AdaptiveThinkingSupport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AdaptiveThinkingSupport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AdaptiveThinkingSupport}"/> for serializing <see cref="AdaptiveThinkingSupport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AdaptiveThinkingSupport>
+    {
+        /// <inheritdoc />
+        public override AdaptiveThinkingSupport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AdaptiveThinkingSupport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AdaptiveThinkingSupport));
+        }
+    }
+}
+
 
 /// <summary>Model capability category for grouping in the model picker.</summary>
 [Experimental(Diagnostics.Experimental)]
@@ -15989,6 +16170,75 @@ public readonly struct UIAutoModeSwitchResponse : IEquatable<UIAutoModeSwitchRes
 }
 
 
+/// <summary>User action selected for an exhausted session limit.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct UISessionLimitsExhaustedResponseAction : IEquatable<UISessionLimitsExhaustedResponseAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="UISessionLimitsExhaustedResponseAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="UISessionLimitsExhaustedResponseAction"/>.</param>
+    [JsonConstructor]
+    public UISessionLimitsExhaustedResponseAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="UISessionLimitsExhaustedResponseAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Increase the current max by an exact AI Credits amount.</summary>
+    public static UISessionLimitsExhaustedResponseAction Add { get; } = new("add");
+
+    /// <summary>Set a new absolute max AI Credits value.</summary>
+    public static UISessionLimitsExhaustedResponseAction Set { get; } = new("set");
+
+    /// <summary>Remove the current session limit.</summary>
+    public static UISessionLimitsExhaustedResponseAction Unset { get; } = new("unset");
+
+    /// <summary>Leave the limit unchanged and cancel the blocked model request.</summary>
+    public static UISessionLimitsExhaustedResponseAction Cancel { get; } = new("cancel");
+
+    /// <summary>Returns a value indicating whether two <see cref="UISessionLimitsExhaustedResponseAction"/> instances are equivalent.</summary>
+    public static bool operator ==(UISessionLimitsExhaustedResponseAction left, UISessionLimitsExhaustedResponseAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="UISessionLimitsExhaustedResponseAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(UISessionLimitsExhaustedResponseAction left, UISessionLimitsExhaustedResponseAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is UISessionLimitsExhaustedResponseAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(UISessionLimitsExhaustedResponseAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{UISessionLimitsExhaustedResponseAction}"/> for serializing <see cref="UISessionLimitsExhaustedResponseAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<UISessionLimitsExhaustedResponseAction>
+    {
+        /// <inheritdoc />
+        public override UISessionLimitsExhaustedResponseAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, UISessionLimitsExhaustedResponseAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UISessionLimitsExhaustedResponseAction));
+        }
+    }
+}
+
+
 /// <summary>The action the user selected. Defaults to 'autopilot' when autoApproveEdits is true, otherwise 'interactive'.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -18536,6 +18786,12 @@ public sealed class SessionRpc
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>Completions APIs.</summary>
+    public CompletionsApi Completions =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Instructions APIs.</summary>
     public InstructionsApi Instructions =>
         field ??
@@ -19222,6 +19478,43 @@ public sealed class WorkspacesApi
 
         var request = new WorkspacesDiffRequest { SessionId = _session.SessionId, Mode = mode, IgnoreWhitespace = ignoreWhitespace };
         return await CopilotClient.InvokeRpcAsync<WorkspaceDiffResult>(_session.Rpc, "session.workspaces.diff", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Completions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CompletionsApi
+{
+    private readonly CopilotSession _session;
+
+    internal CompletionsApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Gets the characters that should trigger host-driven completions for the session. Empty disables host-driven completions (e.g. local sessions, or a relay host that does not advertise them).</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).</returns>
+    public async Task<CompletionsGetTriggerCharactersResult> GetTriggerCharactersAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionCompletionsGetTriggerCharactersRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<CompletionsGetTriggerCharactersResult>(_session.Rpc, "session.completions.getTriggerCharacters", [request], cancellationToken);
+    }
+
+    /// <summary>Requests host-driven completion items for the current composer input. Returns an empty list when the host has no items or does not support completions.</summary>
+    /// <param name="text">The full composed composer input.</param>
+    /// <param name="offset">Cursor offset within `text`, in UTF-16 code units.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.</returns>
+    public async Task<CompletionsRequestResult> RequestAsync(string text, long offset, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        _session.ThrowIfDisposed();
+
+        var request = new CompletionsRequestRequest { SessionId = _session.SessionId, Text = text, Offset = offset };
+        return await CopilotClient.InvokeRpcAsync<CompletionsRequestResult>(_session.Rpc, "session.completions.request", [request], cancellationToken);
     }
 }
 
@@ -20106,6 +20399,7 @@ public sealed class OptionsApi
     /// <param name="workingDirectory">Absolute working-directory path for shell tools.</param>
     /// <param name="availableTools">Allowlist of tool names available to this session.</param>
     /// <param name="excludedTools">Denylist of tool names for this session.</param>
+    /// <param name="excludedBuiltinAgents">Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.</param>
     /// <param name="toolFilterPrecedence">Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</param>
     /// <param name="enableScriptSafety">Whether shell-script safety heuristics are enabled.</param>
     /// <param name="shellInitProfile">Shell init profile (`None` or `NonInteractive`).</param>
@@ -20143,14 +20437,14 @@ public sealed class OptionsApi
     /// <param name="enableSessionStore">Whether to enable cross-session store writes and reads.</param>
     /// <param name="enableSkills">Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</param>
     /// <param name="contextTier">Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier.</param>
-    /// <param name="responseLimits">Optional response limits. Pass null to clear the response limits.</param>
+    /// <param name="sessionLimits">Optional session limits. Pass null to clear the session limits.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, ResponseLimitsConfig? responseLimits = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, IList<string>? excludedBuiltinAgents = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, SessionLimitsConfig? sessionLimits = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, ResponseLimits = responseLimits };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ExcludedBuiltinAgents = excludedBuiltinAgents, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, SessionLimits = sessionLimits };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -20538,6 +20832,21 @@ public sealed class UiApi
 
         var request = new UIHandlePendingAutoModeSwitchRequest { SessionId = _session.SessionId, RequestId = requestId, Response = response };
         return await CopilotClient.InvokeRpcAsync<UIHandlePendingResult>(_session.Rpc, "session.ui.handlePendingAutoModeSwitch", [request], cancellationToken);
+    }
+
+    /// <summary>Resolves a pending `session_limits_exhausted.requested` event with the user's selected limit action.</summary>
+    /// <param name="requestId">The unique request ID from the session_limits_exhausted.requested event.</param>
+    /// <param name="response">The selected session-limit action.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the pending UI request was resolved by this call.</returns>
+    public async Task<UIHandlePendingResult> HandlePendingSessionLimitsExhaustedAsync(string requestId, UISessionLimitsExhaustedResponse response, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentNullException.ThrowIfNull(response);
+        _session.ThrowIfDisposed();
+
+        var request = new UIHandlePendingSessionLimitsExhaustedRequest { SessionId = _session.SessionId, RequestId = requestId, Response = response };
+        return await CopilotClient.InvokeRpcAsync<UIHandlePendingResult>(_session.Rpc, "session.ui.handlePendingSessionLimitsExhausted", [request], cancellationToken);
     }
 
     /// <summary>Resolves a pending `exit_plan_mode.requested` event with the user's response.</summary>
@@ -21257,7 +21566,7 @@ public sealed class EventLogApi
     }
 
     /// <summary>Registers consumer interest in an event type for runtime gating purposes.</summary>
-    /// <param name="eventType">The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.</param>
+    /// <param name="eventType">The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Opaque handle representing an event-type interest registration.</returns>
     public async Task<RegisterEventInterestResult> RegisterInterestAsync(string eventType, CancellationToken cancellationToken = default)
@@ -21892,12 +22201,18 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PersistedBinaryResult), TypeInfoPropertyName = "SessionEventsPersistedBinaryResult")]
 [JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
-[JsonSerializable(typeof(GitHub.Copilot.ResponseLimitsConfig), TypeInfoPropertyName = "SessionEventsResponseLimitsConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedEvent), TypeInfoPropertyName = "SessionEventsSamplingRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SessionEvent), TypeInfoPropertyName = "SessionEventsSessionEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionLimitsConfig), TypeInfoPropertyName = "SessionEventsSessionLimitsConfig")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionLimitsExhaustedCompletedData), TypeInfoPropertyName = "SessionEventsSessionLimitsExhaustedCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionLimitsExhaustedCompletedEvent), TypeInfoPropertyName = "SessionEventsSessionLimitsExhaustedCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionLimitsExhaustedRequestedData), TypeInfoPropertyName = "SessionEventsSessionLimitsExhaustedRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionLimitsExhaustedRequestedEvent), TypeInfoPropertyName = "SessionEventsSessionLimitsExhaustedRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionLimitsExhaustedResponse), TypeInfoPropertyName = "SessionEventsSessionLimitsExhaustedResponse")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionLimitsExhaustedResponseAction), TypeInfoPropertyName = "SessionEventsSessionLimitsExhaustedResponseAction")]
 [JsonSerializable(typeof(GitHub.Copilot.SessionMode), TypeInfoPropertyName = "SessionEventsSessionMode")]
 [JsonSerializable(typeof(GitHub.Copilot.ShutdownCodeChanges), TypeInfoPropertyName = "SessionEventsShutdownCodeChanges")]
 [JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetric), TypeInfoPropertyName = "SessionEventsShutdownModelMetric")]
@@ -22047,6 +22362,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CommandsListRequestWithSession))]
 [JsonSerializable(typeof(CommandsRespondToQueuedCommandRequest))]
 [JsonSerializable(typeof(CommandsRespondToQueuedCommandResult))]
+[JsonSerializable(typeof(CompletionsGetTriggerCharactersResult))]
+[JsonSerializable(typeof(CompletionsRequestRequest))]
+[JsonSerializable(typeof(CompletionsRequestResult))]
 [JsonSerializable(typeof(ConfigureSessionExtensionsParams))]
 [JsonSerializable(typeof(ConnectRemoteSessionParams))]
 [JsonSerializable(typeof(ConnectRequest))]
@@ -22374,6 +22692,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionBulkDeleteResult))]
 [JsonSerializable(typeof(SessionCanvasListOpenRequest))]
 [JsonSerializable(typeof(SessionCanvasListRequest))]
+[JsonSerializable(typeof(SessionCompletionItem))]
+[JsonSerializable(typeof(SessionCompletionsGetTriggerCharactersRequest))]
 [JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionEnrichMetadataResult))]
 [JsonSerializable(typeof(SessionEventLogTailRequest))]
@@ -22567,8 +22887,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(UIHandlePendingResult))]
 [JsonSerializable(typeof(UIHandlePendingSamplingRequest))]
 [JsonSerializable(typeof(UIHandlePendingSamplingResponse))]
+[JsonSerializable(typeof(UIHandlePendingSessionLimitsExhaustedRequest))]
 [JsonSerializable(typeof(UIHandlePendingUserInputRequest))]
 [JsonSerializable(typeof(UIRegisterDirectAutoModeSwitchHandlerResult))]
+[JsonSerializable(typeof(UISessionLimitsExhaustedResponse))]
 [JsonSerializable(typeof(UIUnregisterDirectAutoModeSwitchHandlerRequest))]
 [JsonSerializable(typeof(UIUnregisterDirectAutoModeSwitchHandlerResult))]
 [JsonSerializable(typeof(UIUserInputResponse))]

@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -13,19 +13,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Feature flags indicating what the model supports
+ * The user's selected action for an exhausted session limit.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ModelCapabilitiesSupports(
-    /** Whether this model supports vision/image input */
-    @JsonProperty("vision") Boolean vision,
-    /** Whether this model supports reasoning effort configuration */
-    @JsonProperty("reasoningEffort") Boolean reasoningEffort,
-    /** Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8). */
-    @JsonProperty("adaptive_thinking") AdaptiveThinkingSupport adaptiveThinking
+public record SessionLimitsExhaustedResponse(
+    /** Action selected by the user. */
+    @JsonProperty("action") SessionLimitsExhaustedResponseAction action,
+    /** AI Credits to add to the current max when action is 'add'. */
+    @JsonProperty("additionalAiCredits") Double additionalAiCredits,
+    /** New absolute max AI Credits when action is 'set'. */
+    @JsonProperty("maxAiCredits") Double maxAiCredits
 ) {
 }

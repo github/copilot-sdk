@@ -389,6 +389,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionLimitsExhaustedCompleted:
+		var d SessionLimitsExhaustedCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionLimitsExhaustedRequested:
+		var d SessionLimitsExhaustedRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionMCPServersLoaded:
 		var d SessionMCPServersLoadedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -431,12 +443,6 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionResponseLimitsChanged:
-		var d SessionResponseLimitsChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
 	case SessionEventTypeSessionResume:
 		var d SessionResumeData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -457,6 +463,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionScheduleRearmed:
 		var d SessionScheduleRearmedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionSessionLimitsChanged:
+		var d SessionSessionLimitsChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -511,6 +523,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionTruncation:
 		var d SessionTruncationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionUsageCheckpoint:
+		var d SessionUsageCheckpointData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
