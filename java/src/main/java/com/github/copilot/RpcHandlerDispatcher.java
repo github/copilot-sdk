@@ -498,6 +498,7 @@ final class RpcHandlerDispatcher {
                 });
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Error handling canvas open request", e);
+                sendCanvasError(rpc, requestIdLong, "canvas.open", e);
             }
         });
     }
@@ -527,6 +528,7 @@ final class RpcHandlerDispatcher {
                 });
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Error handling canvas close request", e);
+                sendCanvasError(rpc, requestIdLong, "canvas.close", e);
             }
         });
     }
@@ -556,6 +558,7 @@ final class RpcHandlerDispatcher {
                 });
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Error handling canvas action invoke request", e);
+                sendCanvasError(rpc, requestIdLong, "canvas.action.invoke", e);
             }
         });
     }
