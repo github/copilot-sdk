@@ -849,6 +849,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @throws IllegalArgumentException
      *             if coercion fails
      */
+    @SuppressWarnings("unchecked")
     private static <T> T coerceArg(ToolInvocation invocation, Param<T> param, ObjectMapper mapper) {
         Map<String, Object> args = invocation.getArguments();
         Object raw = (args != null) ? args.get(param.name()) : null;
@@ -858,19 +859,49 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
                 // Default is stored as a validated String; parse it to the target type
                 return coerceDefaultValue(param, mapper);
             } else if (!param.required()) {
-                return null;
+                // Return empty Optional* for optional primitive types, null otherwise
+                return (T) emptyOptionalOrNull(param.type());
             } else {
                 throw new IllegalArgumentException(
                         "Required parameter '" + param.name() + "' is missing from tool invocation");
             }
         }
 
+        // Handle Optional* types explicitly
+        Class<T> type = param.type();
+        if (type == java.util.OptionalInt.class) {
+            return (T) java.util.OptionalInt.of(((Number) raw).intValue());
+        }
+        if (type == java.util.OptionalLong.class) {
+            return (T) java.util.OptionalLong.of(((Number) raw).longValue());
+        }
+        if (type == java.util.OptionalDouble.class) {
+            return (T) java.util.OptionalDouble.of(((Number) raw).doubleValue());
+        }
+
         try {
-            return mapper.convertValue(raw, param.type());
+            return mapper.convertValue(raw, type);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(
-                    "Failed to coerce parameter '" + param.name() + "' to type " + param.type().getSimpleName(), ex);
+                    "Failed to coerce parameter '" + param.name() + "' to type " + type.getSimpleName(), ex);
         }
+    }
+
+    /**
+     * Returns an empty Optional variant for Optional primitive types, or null for
+     * other types.
+     */
+    private static Object emptyOptionalOrNull(Class<?> type) {
+        if (type == java.util.OptionalInt.class) {
+            return java.util.OptionalInt.empty();
+        }
+        if (type == java.util.OptionalLong.class) {
+            return java.util.OptionalLong.empty();
+        }
+        if (type == java.util.OptionalDouble.class) {
+            return java.util.OptionalDouble.empty();
+        }
+        return null;
     }
 
     /**
