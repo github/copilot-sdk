@@ -799,7 +799,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void modelsListResult_nested() {
-        var supports = new ModelCapabilitiesSupports(true, false);
+        var supports = new ModelCapabilitiesSupports(true, false, null);
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
