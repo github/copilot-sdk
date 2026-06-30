@@ -71,4 +71,4 @@ SHEPHERD TASK FAILED: Task #$TASK_ISSUE failed during [Phase 1|Phase 2].
 
 - This skill runs in a `copilot --yolo` session on a Dev Box, executing as the authenticated user.
 - The `PR_NUMBER` is determined during Phase 1 and passed implicitly to Phase 2.
-- **Do NOT edit any plan/checklist files** (e.g., `1810-ignorance-reduction-for-implementation-plan.md`) to mark tasks as complete. Marking checklist items is outside the scope of this skill.
+- **Do edit the plan/checklist files** (e.g., `1810-ignorance-reduction-for-implementation-plan.md`) to mark the task as complete.
