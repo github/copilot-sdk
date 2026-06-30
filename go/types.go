@@ -2053,7 +2053,7 @@ type createSessionRequest struct {
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
-	EnableGitHubTelemetryForwarding   *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
+	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2149,7 +2149,7 @@ type resumeSessionRequest struct {
 	ContinuePendingWork                *bool                                  `json:"continuePendingWork,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
-	EnableGitHubTelemetryForwarding   *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
+	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`

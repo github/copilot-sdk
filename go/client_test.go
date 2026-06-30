@@ -2293,7 +2293,7 @@ func TestCreateSessionRequest_EnableGitHubTelemetryForwarding(t *testing.T) {
 func TestResumeSessionRequest_EnableGitHubTelemetryForwarding(t *testing.T) {
 	t.Run("forwards explicit true", func(t *testing.T) {
 		req := resumeSessionRequest{
-			SessionID:                        "s1",
+			SessionID:                       "s1",
 			EnableGitHubTelemetryForwarding: Bool(true),
 		}
 		data, err := json.Marshal(req)
