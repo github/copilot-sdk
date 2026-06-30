@@ -27,6 +27,17 @@ Automate the lifecycle of a child **Task** issue from "assigned to Copilot" thro
 
 ### Step 1: Assign the task to @Copilot
 
+First, prepend an instruction to the issue body telling Copilot which base branch to use. This must happen **before** assignment to avoid a race condition where Copilot targets `main` instead.
+
+```bash
+# Prepend base branch instruction to issue body
+CURRENT_BODY=$(gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body')
+INSTRUCTION="**Base branch:** Create your PR targeting \`$BASE_BRANCH\` (not \`main\`).\n\n"
+gh issue edit $TASK_ISSUE -R $REPO --body "${INSTRUCTION}${CURRENT_BODY}"
+```
+
+Then assign:
+
 ```bash
 gh issue edit $TASK_ISSUE --add-assignee "@copilot" -R $REPO
 ```
@@ -36,7 +47,7 @@ This triggers Copilot to:
 2. Open a draft PR targeting `$BASE_BRANCH`.
 3. Push initial commits.
 
-**Important:** After the PR is created, verify it targets `$BASE_BRANCH`. Copilot sometimes targets `main` instead. If the PR base is wrong, fix it:
+**Fallback:** After the PR is created (Step 2), verify it targets `$BASE_BRANCH`. If Copilot ignored the instruction, fix the base:
 
 ```bash
 gh pr edit $PR_NUMBER -R $REPO --base "$BASE_BRANCH"
