@@ -27,7 +27,7 @@ import com.github.copilot.CopilotExperimental;
  *
  * @param <T>
  *            the Java type of the parameter value
- * @since 1.0.2
+ * @since 1.0.6
  */
 @CopilotExperimental
 public final class Param<T> {

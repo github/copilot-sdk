@@ -196,7 +196,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @throws IllegalStateException
      *             if the generated {@code $$CopilotToolMeta} class is not found
      *             (annotation processor did not run)
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static List<ToolDefinition> fromObject(Object instance) {
@@ -219,7 +219,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @throws IllegalStateException
      *             if the generated {@code $$CopilotToolMeta} class is not found
      *             (annotation processor did not run)
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static List<ToolDefinition> fromClass(Class<?> clazz) {
@@ -248,7 +248,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      *            {@code true} to indicate this tool intentionally overrides a
      *            built-in CLI tool with the same name
      * @return a new {@code ToolDefinition} with the flag applied
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public ToolDefinition overridesBuiltInTool(boolean value) {
@@ -262,7 +262,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      *            {@code true} to skip the permission request for this tool
      *            invocation
      * @return a new {@code ToolDefinition} with the flag applied
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public ToolDefinition skipPermission(boolean value) {
@@ -276,7 +276,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      *            the deferral mode; use {@link ToolDefer#AUTO} to allow deferral or
      *            {@link ToolDefer#NEVER} to force the tool to always be pre-loaded
      * @return a new {@code ToolDefinition} with the defer mode applied
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public ToolDefinition defer(ToolDefer value) {
@@ -311,7 +311,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @throws IllegalArgumentException
      *             if {@code name} or {@code description} is blank, or if
      *             {@code handler} is null
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <R> ToolDefinition from(String name, String description, Supplier<R> handler) {
@@ -351,7 +351,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <T1, R> ToolDefinition from(String name, String description, Param<T1> p1, Function<T1, R> handler) {
@@ -397,7 +397,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <T1, T2, R> ToolDefinition from(String name, String description, Param<T1> p1, Param<T2> p2,
@@ -446,7 +446,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <R> ToolDefinition fromAsync(String name, String description,
@@ -455,8 +455,14 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
         Map<String, Object> schema = buildSchemaFromParams();
-        ToolHandler toolHandler = invocation -> handler.get()
-                .thenApply(result -> formatResult(result, getConfiguredMapper()));
+        ToolHandler toolHandler = invocation -> {
+            CompletableFuture<R> future = handler.get();
+            if (future == null) {
+                return CompletableFuture.failedFuture(
+                        new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
+            }
+            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
+        };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
 
@@ -486,7 +492,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <T1, R> ToolDefinition fromAsync(String name, String description, Param<T1> p1,
@@ -498,7 +504,12 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         Map<String, Object> schema = buildSchemaFromParams(p1);
         ToolHandler toolHandler = invocation -> {
             T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
-            return handler.apply(arg1).thenApply(result -> formatResult(result, getConfiguredMapper()));
+            CompletableFuture<R> future = handler.apply(arg1);
+            if (future == null) {
+                return CompletableFuture.failedFuture(
+                        new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
+            }
+            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -525,7 +536,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <T1, T2, R> ToolDefinition fromAsync(String name, String description, Param<T1> p1, Param<T2> p2,
@@ -540,7 +551,12 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         ToolHandler toolHandler = invocation -> {
             T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
             T2 arg2 = coerceArg(invocation, p2, getConfiguredMapper());
-            return handler.apply(arg1, arg2).thenApply(result -> formatResult(result, getConfiguredMapper()));
+            CompletableFuture<R> future = handler.apply(arg1, arg2);
+            if (future == null) {
+                return CompletableFuture.failedFuture(
+                        new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
+            }
+            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -571,7 +587,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <R> ToolDefinition fromWithToolInvocation(String name, String description,
@@ -615,7 +631,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <T1, R> ToolDefinition fromWithToolInvocation(String name, String description, Param<T1> p1,
@@ -661,7 +677,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <R> ToolDefinition fromAsyncWithToolInvocation(String name, String description,
@@ -670,8 +686,14 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
         Map<String, Object> schema = buildSchemaFromParams();
-        ToolHandler toolHandler = invocation -> handler.apply(invocation)
-                .thenApply(result -> formatResult(result, getConfiguredMapper()));
+        ToolHandler toolHandler = invocation -> {
+            CompletableFuture<R> future = handler.apply(invocation);
+            if (future == null) {
+                return CompletableFuture.failedFuture(
+                        new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
+            }
+            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
+        };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
 
@@ -705,7 +727,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @return a new tool definition
      * @throws IllegalArgumentException
      *             if validation fails
-     * @since 1.0.2
+     * @since 1.0.6
      */
     @CopilotExperimental
     public static <T1, R> ToolDefinition fromAsyncWithToolInvocation(String name, String description, Param<T1> p1,
@@ -717,7 +739,12 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         Map<String, Object> schema = buildSchemaFromParams(p1);
         ToolHandler toolHandler = invocation -> {
             T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
-            return handler.apply(arg1, invocation).thenApply(result -> formatResult(result, getConfiguredMapper()));
+            CompletableFuture<R> future = handler.apply(arg1, invocation);
+            if (future == null) {
+                return CompletableFuture.failedFuture(
+                        new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
+            }
+            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -870,13 +897,28 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         // Handle Optional* types explicitly
         Class<T> type = param.type();
         if (type == java.util.OptionalInt.class) {
-            return (T) java.util.OptionalInt.of(((Number) raw).intValue());
+            try {
+                return (T) java.util.OptionalInt.of(((Number) raw).intValue());
+            } catch (ClassCastException ex) {
+                throw new IllegalArgumentException("Parameter '" + param.name()
+                        + "' expected a numeric value for OptionalInt, got: " + raw.getClass().getSimpleName(), ex);
+            }
         }
         if (type == java.util.OptionalLong.class) {
-            return (T) java.util.OptionalLong.of(((Number) raw).longValue());
+            try {
+                return (T) java.util.OptionalLong.of(((Number) raw).longValue());
+            } catch (ClassCastException ex) {
+                throw new IllegalArgumentException("Parameter '" + param.name()
+                        + "' expected a numeric value for OptionalLong, got: " + raw.getClass().getSimpleName(), ex);
+            }
         }
         if (type == java.util.OptionalDouble.class) {
-            return (T) java.util.OptionalDouble.of(((Number) raw).doubleValue());
+            try {
+                return (T) java.util.OptionalDouble.of(((Number) raw).doubleValue());
+            } catch (ClassCastException ex) {
+                throw new IllegalArgumentException("Parameter '" + param.name()
+                        + "' expected a numeric value for OptionalDouble, got: " + raw.getClass().getSimpleName(), ex);
+            }
         }
 
         try {
