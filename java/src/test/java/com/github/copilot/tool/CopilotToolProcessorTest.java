@@ -55,18 +55,18 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class MyTools {
                     @CopilotTool("Sets the current phase")
-                    public String setCurrentPhase(@Param("The phase") String phase) {
+                    public String setCurrentPhase(@CopilotToolParam("The phase") String phase) {
                         return "done";
                     }
                     @CopilotTool("Search for items")
-                    public String searchItems(@Param("Keyword") String keyword) {
+                    public String searchItems(@CopilotToolParam("Keyword") String keyword) {
                         return "found";
                     }
                     @CopilotTool(value = "Custom grep", name = "grep")
-                    public String grepOverride(@Param("Query") String query) {
+                    public String grepOverride(@CopilotToolParam("Query") String query) {
                         return "result";
                     }
                 }
@@ -111,10 +111,10 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class ConflictTools {
                     @CopilotTool("Conflicting params")
-                    public String doSomething(@Param(value = "desc", required = true, defaultValue = "hello") String param) {
+                    public String doSomething(@CopilotToolParam(value = "desc", required = true, defaultValue = "hello") String param) {
                         return "done";
                     }
                 }
@@ -131,10 +131,10 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class OptionalPrimitiveTools {
                     @CopilotTool("Optional primitive")
-                    public String doSomething(@Param(value = "Limit", required = false) int limit) {
+                    public String doSomething(@CopilotToolParam(value = "Limit", required = false) int limit) {
                         return "done";
                     }
                 }
@@ -151,11 +151,11 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class SingleRecordDefaultTools {
                     public record SearchArgs(String query, int limit) {}
                     @CopilotTool("Single record")
-                    public String search(@Param(defaultValue = "fallback") SearchArgs req) {
+                    public String search(@CopilotToolParam(defaultValue = "fallback") SearchArgs req) {
                         return req.query();
                     }
                 }
@@ -173,11 +173,11 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class SingleRecordMetaTools {
                     public record SearchArgs(String query, int limit) {}
                     @CopilotTool("Single record")
-                    public String search(@Param(value = "Search input", required = false, name = "input") SearchArgs req) {
+                    public String search(@CopilotToolParam(value = "Search input", required = false, name = "input") SearchArgs req) {
                         return req.query();
                     }
                 }
@@ -196,10 +196,10 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class StringReturn {
                     @CopilotTool("Returns string")
-                    public String doSomething(@Param("Input") String input) {
+                    public String doSomething(@CopilotToolParam("Input") String input) {
                         return input;
                     }
                 }
@@ -217,10 +217,10 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class VoidReturn {
                     @CopilotTool("Void method")
-                    public void doSomething(@Param("Input") String input) {
+                    public void doSomething(@CopilotToolParam("Input") String input) {
                     }
                 }
                 """;
@@ -238,11 +238,11 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 import java.util.concurrent.CompletableFuture;
                 public class AsyncReturn {
                     @CopilotTool("Async method")
-                    public CompletableFuture<String> doSomething(@Param("Input") String input) {
+                    public CompletableFuture<String> doSomething(@CopilotToolParam("Input") String input) {
                         return CompletableFuture.completedFuture(input);
                     }
                 }
@@ -262,10 +262,10 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class IntReturn {
                     @CopilotTool("Returns int")
-                    public int doSomething(@Param("Input") String input) {
+                    public int doSomething(@CopilotToolParam("Input") String input) {
                         return 42;
                     }
                 }
@@ -285,13 +285,13 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class ArgTypes {
                     @CopilotTool("Mixed args")
                     public String doSomething(
-                            @Param("Name") String name,
-                            @Param("Count") int count,
-                            @Param("Flag") boolean flag) {
+                            @CopilotToolParam("Name") String name,
+                            @CopilotToolParam("Count") int count,
+                            @CopilotToolParam("Flag") boolean flag) {
                         return "done";
                     }
                 }
@@ -313,10 +313,10 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class ArrayArgs {
                     @CopilotTool("Array tool")
-                    public String doSomething(@Param("Ids") String[] ids) {
+                    public String doSomething(@CopilotToolParam("Ids") String[] ids) {
                         return String.valueOf(ids.length);
                     }
                 }
@@ -340,14 +340,14 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class GenericArgTypes {
                     public record MyRecord(String name) {}
                     @CopilotTool("Generic args")
                     public String doSomething(
-                            @Param("Ids") java.util.List<java.util.UUID> ids,
-                            @Param("Values") java.util.Map<String, Long> values,
-                            @Param("Records") java.util.List<MyRecord> records) {
+                            @CopilotToolParam("Ids") java.util.List<java.util.UUID> ids,
+                            @CopilotToolParam("Values") java.util.Map<String, Long> values,
+                            @CopilotToolParam("Records") java.util.List<MyRecord> records) {
                         return "done";
                     }
                 }
@@ -405,12 +405,12 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class SchemaTools {
                     @CopilotTool("Search items")
                     public String search(
-                            @Param(value = "Query", required = true) String query,
-                            @Param(value = "Limit", required = false) Integer limit) {
+                            @CopilotToolParam(value = "Query", required = true) String query,
+                            @CopilotToolParam(value = "Limit", required = false) Integer limit) {
                         return "done";
                     }
                 }
@@ -480,6 +480,212 @@ class CopilotToolProcessorTest {
                 "Single-record path should avoid local args map collision, got:\n" + generated);
     }
 
+    @Test
+    void supportsInjectedToolInvocation_forSchemaAndMethodCall() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class InvocationAwareTools {
+                    @CopilotTool("Reports progress")
+                    public String report(@CopilotToolParam("Phase") String phase, ToolInvocation toolInvocation) {
+                        return phase + ":" + toolInvocation.getSessionId();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.InvocationAwareTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.InvocationAwareTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for InvocationAwareTools$$CopilotToolMeta");
+        assertTrue(generated.contains("Map.entry(\"phase\""),
+                "Expected normal parameter in schema, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"invocation\""),
+                "ToolInvocation must not appear in schema properties, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"toolInvocation\""),
+                "ToolInvocation must not appear in schema properties, got:\n" + generated);
+        assertTrue(generated.contains("required\", List.of(\"phase\")"),
+                "Expected only normal parameters in required list, got:\n" + generated);
+        assertFalse(generated.contains("args.get(\"toolInvocation\")"),
+                "ToolInvocation must not be read from invocation arguments, got:\n" + generated);
+        assertTrue(generated.contains("instance.report(phase, invocation)"),
+                "ToolInvocation parameter should be injected from runtime invocation, got:\n" + generated);
+    }
+
+    @Test
+    void supportsInjectedToolInvocation_forStaticAndAsyncMethods() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                import java.util.concurrent.CompletableFuture;
+                public class StaticInvocationAwareTools {
+                    @CopilotTool("Reports progress statically")
+                    public static String report(@CopilotToolParam("Phase") String phase, ToolInvocation toolInvocation) {
+                        return phase + ":" + toolInvocation.getToolCallId();
+                    }
+                    @CopilotTool("Reports progress asynchronously")
+                    public CompletableFuture<String> reportAsync(@CopilotToolParam("Phase") String phase, ToolInvocation toolInvocation) {
+                        return CompletableFuture.completedFuture(phase + ":" + toolInvocation.getToolCallId());
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.StaticInvocationAwareTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.StaticInvocationAwareTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for StaticInvocationAwareTools$$CopilotToolMeta");
+        assertTrue(generated.contains("test.StaticInvocationAwareTools.report(phase, invocation)"),
+                "Expected static method call with injected invocation, got:\n" + generated);
+        assertTrue(generated.contains("return instance.reportAsync(phase, invocation).thenApply(r -> (Object) r);"),
+                "Expected async method call with injected invocation, got:\n" + generated);
+    }
+
+    @Test
+    void supportsInjectedToolInvocation_whenItIsTheOnlyParameter() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                public class InvocationOnlyTools {
+                    @CopilotTool("Reports invocation context only")
+                    public String onlyContext(ToolInvocation invocation) {
+                        return invocation.getSessionId();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.InvocationOnlyTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.InvocationOnlyTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for InvocationOnlyTools$$CopilotToolMeta");
+        assertTrue(generated.contains("\"properties\", Map.of(), \"required\", List.of()"),
+                "Expected empty schema for invocation-only method, got:\n" + generated);
+        assertFalse(generated.contains("Map<String, Object> args = invocation.getArguments();"),
+                "Invocation-only method should not read argument map, got:\n" + generated);
+        assertTrue(generated.contains("instance.onlyContext(invocation)"),
+                "Invocation-only method should inject invocation directly, got:\n" + generated);
+    }
+
+    @Test
+    void supportsInjectedToolInvocation_whenItAppearsFirstOrMiddle() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class InvocationPositionTools {
+                    @CopilotTool("Invocation first")
+                    public String reportFirst(ToolInvocation invocation, @CopilotToolParam("Phase") String phase) {
+                        return phase + ":" + invocation.getToolCallId();
+                    }
+                    @CopilotTool("Invocation middle")
+                    public String reportMiddle(@CopilotToolParam("Phase") String phase, ToolInvocation invocation, @CopilotToolParam("Limit") int limit) {
+                        return phase + ":" + limit + ":" + invocation.getToolCallId();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.InvocationPositionTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.InvocationPositionTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for InvocationPositionTools$$CopilotToolMeta");
+        assertTrue(generated.contains("instance.reportFirst(invocation, phase)"),
+                "Expected invocation to be passed in first position, got:\n" + generated);
+        assertTrue(generated.contains("instance.reportMiddle(phase, invocation, limit)"),
+                "Expected invocation to be passed in middle position, got:\n" + generated);
+        assertFalse(generated.contains("args.get(\"invocation\")"),
+                "ToolInvocation must not be read from invocation arguments, got:\n" + generated);
+        assertTrue(generated.contains("Map.entry(\"phase\""),
+                "Expected schema-visible phase parameter, got:\n" + generated);
+        assertTrue(generated.contains("Map.entry(\"limit\""),
+                "Expected schema-visible limit parameter, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"invocation\""),
+                "ToolInvocation must not appear in schema properties, got:\n" + generated);
+    }
+
+    @Test
+    void supportsInjectedToolInvocation_withSingleRecordSchemaParameter() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                public class RecordInvocationTools {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Record plus invocation")
+                    public String report(SearchArgs args, ToolInvocation invocation) {
+                        return args.query() + ":" + invocation.getSessionId();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.RecordInvocationTools", source)));
+        assertNoErrors(result);
+
+        String generated = result.getGeneratedSource("test.RecordInvocationTools$$CopilotToolMeta");
+        assertNotNull(generated, "Expected generated source for RecordInvocationTools$$CopilotToolMeta");
+        assertTrue(generated.contains(
+                "test.RecordInvocationTools.SearchArgs args = mapper.convertValue(invocation.getArguments(), test.RecordInvocationTools.SearchArgs.class);"),
+                "Expected single-record conversion for schema-visible parameter, got:\n" + generated);
+        assertTrue(generated.contains("instance.report(args, invocation)"),
+                "Expected record + invocation method call order, got:\n" + generated);
+        assertFalse(generated.contains("Map.entry(\"args\""),
+                "Single-record schema should be flattened, got:\n" + generated);
+        assertFalse(generated.contains("args.get(\"invocation\")"),
+                "ToolInvocation must not be read from invocation arguments, got:\n" + generated);
+    }
+
+    @Test
+    void emitsError_forDuplicateToolInvocationParameters() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                public class DuplicateInvocationTools {
+                    @CopilotTool("Invalid duplicate ToolInvocation")
+                    public String report(String phase, ToolInvocation first, ToolInvocation second) {
+                        return phase;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.DuplicateInvocationTools", source)));
+
+        assertTrue(hasErrorContaining(result, "at most one ToolInvocation parameter"),
+                "Expected compile error for duplicate ToolInvocation parameters, got: " + result.diagnostics);
+    }
+
+    @Test
+    void emitsError_forParamAnnotatedToolInvocationParameter() {
+        String source = """
+                package test;
+                import com.github.copilot.rpc.ToolInvocation;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class AnnotatedInvocationTools {
+                    @CopilotTool("Invalid @CopilotToolParam on ToolInvocation")
+                    public String report(@CopilotToolParam("Invocation context") ToolInvocation invocation) {
+                        return invocation.getToolName();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.AnnotatedInvocationTools", source)));
+
+        assertTrue(hasErrorContaining(result, "@CopilotToolParam is not supported on ToolInvocation parameters"),
+                "Expected compile error for @CopilotToolParam ToolInvocation parameter, got: " + result.diagnostics);
+    }
+
     // ── Test: Typed default values in schema ────────────────────────────────────
 
     @Test
@@ -487,13 +693,13 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class DefaultTools {
                     @CopilotTool("Tool with defaults")
                     public String doWork(
-                            @Param(value = "Limit", required = false, defaultValue = "10") int limit,
-                            @Param(value = "Enabled", required = false, defaultValue = "true") boolean enabled,
-                            @Param(value = "Label", required = false, defaultValue = "hello") String label) {
+                            @CopilotToolParam(value = "Limit", required = false, defaultValue = "10") int limit,
+                            @CopilotToolParam(value = "Enabled", required = false, defaultValue = "true") boolean enabled,
+                            @CopilotToolParam(value = "Label", required = false, defaultValue = "hello") String label) {
                         return "done";
                     }
                 }
@@ -520,10 +726,10 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class MismatchedDefaults {
                     @CopilotTool("Tool with bad default")
-                    public String doWork(@Param(value = "Limit", required = false, defaultValue = "1.5") int limit) {
+                    public String doWork(@CopilotToolParam(value = "Limit", required = false, defaultValue = "1.5") int limit) {
                         return String.valueOf(limit);
                     }
                 }
@@ -579,10 +785,10 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 public class OverrideTools {
                     @CopilotTool(value = "Custom grep", name = "grep", overridesBuiltInTool = true)
-                    public String grep(@Param("Query") String query) {
+                    public String grep(@CopilotToolParam("Query") String query) {
                         return "result";
                     }
                 }
@@ -683,26 +889,26 @@ class CopilotToolProcessorTest {
         String source = """
                 package test;
                 import com.github.copilot.tool.CopilotTool;
-                import com.github.copilot.tool.Param;
+                import com.github.copilot.tool.CopilotToolParam;
                 import java.util.Optional;
                 import java.util.OptionalInt;
                 import java.util.OptionalLong;
                 import java.util.OptionalDouble;
                 public class OptionalTools {
                     @CopilotTool("Tool with optional string")
-                    public String withOptionalString(@Param("A name") Optional<String> name) {
+                    public String withOptionalString(@CopilotToolParam("A name") Optional<String> name) {
                         return name.orElse("default");
                     }
                     @CopilotTool("Tool with optional int")
-                    public String withOptionalInt(@Param("A count") OptionalInt count) {
+                    public String withOptionalInt(@CopilotToolParam("A count") OptionalInt count) {
                         return String.valueOf(count.orElse(0));
                     }
                     @CopilotTool("Tool with optional long")
-                    public String withOptionalLong(@Param("A timestamp") OptionalLong ts) {
+                    public String withOptionalLong(@CopilotToolParam("A timestamp") OptionalLong ts) {
                         return String.valueOf(ts.orElse(0L));
                     }
                     @CopilotTool("Tool with optional double")
-                    public String withOptionalDouble(@Param("A ratio") OptionalDouble ratio) {
+                    public String withOptionalDouble(@CopilotToolParam("A ratio") OptionalDouble ratio) {
                         return String.valueOf(ratio.orElse(0.0));
                     }
                 }

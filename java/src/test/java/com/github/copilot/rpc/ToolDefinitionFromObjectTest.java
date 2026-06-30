@@ -27,10 +27,12 @@ import com.github.copilot.AllowCopilotExperimental;
 import com.github.copilot.rpc.fixtures.ArgCoercionTools;
 import com.github.copilot.rpc.fixtures.DateTimeTools;
 import com.github.copilot.rpc.fixtures.DefaultValueTools;
+import com.github.copilot.rpc.fixtures.InvocationAwareTools;
 import com.github.copilot.rpc.fixtures.MultiReturnTools;
 import com.github.copilot.rpc.fixtures.OptionalParamTools;
 import com.github.copilot.rpc.fixtures.OverrideTools;
 import com.github.copilot.rpc.fixtures.SimpleTools;
+import com.github.copilot.rpc.fixtures.StaticInvocationTools;
 import com.github.copilot.rpc.fixtures.StaticTools;
 
 /**
@@ -307,6 +309,163 @@ class ToolDefinitionFromObjectTest {
 
         var result = tool.handler().invoke(createInvocation("offset", Map.of("base", 100))).get();
         assertEquals("100", result);
+    }
+
+    // ── Test 11: ToolInvocation injection ───────────────────────────────────────
+
+    @Test
+    void fromObject_toolInvocationInjection_instanceMethod() throws Exception {
+        var instance = new InvocationAwareTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "report_progress");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("report_progress", Map.of("phase", "analyzing"))
+                .setSessionId("session-123").setToolCallId("call-456")).get();
+        assertEquals("phase=analyzing,sessionId=session-123,toolCallId=call-456,toolName=report_progress", result);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_schemaExcludesToolInvocation() {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "report_progress");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.containsKey("phase"));
+        assertFalse(properties.containsKey("invocation"));
+        assertEquals(List.of("phase"), required);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_asyncMethod() throws Exception {
+        var instance = new InvocationAwareTools();
+        var tools = ToolDefinition.fromObject(instance);
+        var tool = findTool(tools, "report_progress_async");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("report_progress_async", Map.of("phase", "planning"))
+                .setSessionId("session-789").setToolCallId("call-012")).get();
+        assertEquals("async phase=planning,sessionId=session-789,toolCallId=call-012,toolName=report_progress_async",
+                result);
+    }
+
+    @Test
+    void fromClass_toolInvocationInjection_staticMethod() throws Exception {
+        var tools = ToolDefinition.fromClass(StaticInvocationTools.class);
+        var tool = findTool(tools, "report_static");
+        assertNotNull(tool);
+
+        var result = tool.handler().invoke(createInvocation("report_static", Map.of("phase", "completed"))
+                .setSessionId("session-321").setToolCallId("call-654")).get();
+        assertEquals("phase=completed,sessionId=session-321,toolCallId=call-654,toolName=report_static", result);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_firstParameter() throws Exception {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "report_progress_first");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.containsKey("phase"));
+        assertFalse(properties.containsKey("invocation"));
+        assertEquals(List.of("phase"), required);
+
+        var result = tool.handler().invoke(createInvocation("report_progress_first", Map.of("phase", "starting"))
+                .setSessionId("session-first").setToolCallId("call-first")).get();
+        assertEquals(
+                "first phase=starting,sessionId=session-first,toolCallId=call-first,toolName=report_progress_first",
+                result);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_onlyParameter() throws Exception {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "only_context");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.isEmpty());
+        assertTrue(required.isEmpty());
+
+        var result = tool.handler().invoke(
+                createInvocation("only_context", Map.of()).setSessionId("session-only").setToolCallId("call-only"))
+                .get();
+        assertEquals("only sessionId=session-only,toolCallId=call-only,toolName=only_context", result);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_middleParameter() throws Exception {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "report_progress_middle");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.containsKey("phase"));
+        assertTrue(properties.containsKey("limit"));
+        assertFalse(properties.containsKey("invocation"));
+        assertEquals(List.of("phase", "limit"), required);
+
+        var result = tool.handler()
+                .invoke(createInvocation("report_progress_middle", Map.of("phase", "running", "limit", 7))
+                        .setSessionId("session-middle").setToolCallId("call-middle"))
+                .get();
+        assertEquals(
+                "middle phase=running,limit=7,sessionId=session-middle,toolCallId=call-middle,toolName=report_progress_middle",
+                result);
+    }
+
+    @Test
+    void fromObject_toolInvocationInjection_singleRecordAndInvocation() throws Exception {
+        var tools = ToolDefinition.fromObject(new InvocationAwareTools());
+        var tool = findTool(tools, "report_progress_with_record");
+        assertNotNull(tool);
+
+        @SuppressWarnings("unchecked")
+        var schema = (Map<String, Object>) tool.parameters();
+        @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        var required = (List<String>) schema.get("required");
+
+        assertTrue(properties.containsKey("query"));
+        assertTrue(properties.containsKey("limit"));
+        assertFalse(properties.containsKey("args"));
+        assertFalse(properties.containsKey("invocation"));
+        assertEquals(List.of("query", "limit"), required);
+
+        var result = tool.handler()
+                .invoke(createInvocation("report_progress_with_record", Map.of("query", "logs", "limit", 3))
+                        .setSessionId("session-record").setToolCallId("call-record"))
+                .get();
+        assertEquals(
+                "record query=logs,limit=3,sessionId=session-record,toolCallId=call-record,toolName=report_progress_with_record",
+                result);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────

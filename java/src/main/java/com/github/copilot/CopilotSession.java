@@ -33,6 +33,7 @@ import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.generated.rpc.SessionCommandsHandlePendingCommandParams;
 import com.github.copilot.generated.rpc.SessionLogParams;
 import com.github.copilot.generated.rpc.SessionLogLevel;
+import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParams;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverride;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideLimits;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideSupports;
@@ -49,6 +50,7 @@ import com.github.copilot.generated.CapabilitiesChangedEvent;
 import com.github.copilot.generated.CommandExecuteEvent;
 import com.github.copilot.generated.ElicitationRequestedEvent;
 import com.github.copilot.generated.ExternalToolRequestedEvent;
+import com.github.copilot.generated.McpOauthRequiredEvent;
 import com.github.copilot.generated.PermissionRequestedEvent;
 import com.github.copilot.generated.SessionCanvasClosedEvent;
 import com.github.copilot.generated.SessionCanvasOpenedEvent;
@@ -79,6 +81,10 @@ import com.github.copilot.rpc.GetMessagesResponse;
 import com.github.copilot.rpc.HookInvocation;
 import com.github.copilot.rpc.InputOptions;
 import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.McpAuthHandler;
+import com.github.copilot.rpc.McpAuthInvocation;
+import com.github.copilot.rpc.McpAuthRequest;
+import com.github.copilot.rpc.McpAuthResult;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PermissionInvocation;
 import com.github.copilot.rpc.PermissionRequest;
@@ -171,6 +177,7 @@ public final class CopilotSession implements AutoCloseable {
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
+    private final AtomicReference<McpAuthHandler> mcpAuthHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
     private final AtomicReference<ExitPlanModeHandler> exitPlanModeHandler = new AtomicReference<>();
@@ -839,6 +846,20 @@ public final class CopilotSession implements AutoCloseable {
             }
             executePermissionAndRespondAsync(data.requestId(),
                     MAPPER.convertValue(data.permissionRequest(), PermissionRequest.class), handler);
+        } else if (event instanceof McpOauthRequiredEvent authEvent) {
+            var data = authEvent.getData();
+            if (data == null || data.requestId() == null) {
+                return;
+            }
+            McpAuthHandler handler = mcpAuthHandler.get();
+            if (handler == null) {
+                LOG.warning(() -> "Received MCP OAuth request without a registered MCP auth handler. SessionId="
+                        + sessionId + ", RequestId=" + data.requestId());
+                return;
+            }
+            executeMcpAuthAndRespondAsync(new McpAuthRequest(data.requestId(), data.serverName(), data.serverUrl(),
+                    data.reason(), data.wwwAuthenticateParams(), data.resourceMetadata(), data.staticClientConfig()),
+                    handler);
         } else if (event instanceof CommandExecuteEvent cmdEvent) {
             var data = cmdEvent.getData();
             if (data == null || data.requestId() == null || data.commandName() == null) {
@@ -1003,6 +1024,58 @@ public final class CopilotSession implements AutoCloseable {
         } catch (RejectedExecutionException e) {
             LOG.log(Level.WARNING, "Executor rejected perm task for requestId=" + requestId + "; running inline", e);
             task.run();
+        }
+    }
+
+    private void executeMcpAuthAndRespondAsync(McpAuthRequest request, McpAuthHandler handler) {
+        Runnable task = () -> {
+            try {
+                var invocation = new McpAuthInvocation().setSessionId(sessionId);
+                handler.handle(request, invocation)
+                        .thenAccept(result -> sendMcpAuthResponse(request.requestId(), result)).exceptionally(ex -> {
+                            sendMcpAuthResponse(request.requestId(), McpAuthResult.cancelled());
+                            return null;
+                        });
+            } catch (Exception e) {
+                LOG.log(Level.WARNING, "Error executing MCP auth handler for requestId=" + request.requestId(), e);
+                sendMcpAuthResponse(request.requestId(), McpAuthResult.cancelled());
+            }
+        };
+        try {
+            if (executor != null) {
+                CompletableFuture.runAsync(task, executor);
+            } else {
+                CompletableFuture.runAsync(task);
+            }
+        } catch (RejectedExecutionException e) {
+            LOG.log(Level.WARNING,
+                    "Executor rejected MCP auth task for requestId=" + request.requestId() + "; running inline", e);
+            task.run();
+        }
+    }
+
+    private void sendMcpAuthResponse(String requestId, McpAuthResult result) {
+        try {
+            Object response;
+            if (result == null || result.isCancelled() || result.token() == null) {
+                response = Map.of("kind", "cancelled");
+            } else {
+                var token = result.token();
+                var tokenResponse = new java.util.HashMap<String, Object>();
+                tokenResponse.put("kind", "token");
+                tokenResponse.put("accessToken", token.accessToken());
+                if (token.tokenType() != null) {
+                    tokenResponse.put("tokenType", token.tokenType());
+                }
+                if (token.expiresIn() != null) {
+                    tokenResponse.put("expiresIn", token.expiresIn());
+                }
+                response = tokenResponse;
+            }
+            getRpc().mcp.oauth.handlePendingRequest(
+                    new SessionMcpOauthHandlePendingRequestParams(sessionId, requestId, response));
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Error sending MCP auth response for requestId=" + requestId, e);
         }
     }
 
@@ -1267,6 +1340,10 @@ public final class CopilotSession implements AutoCloseable {
      */
     void registerPermissionHandler(PermissionHandler handler) {
         permissionHandler.set(handler);
+    }
+
+    void registerMcpAuthHandler(McpAuthHandler handler) {
+        mcpAuthHandler.set(handler);
     }
 
     /**

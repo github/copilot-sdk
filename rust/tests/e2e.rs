@@ -37,6 +37,8 @@ mod hooks;
 mod hooks_extended;
 #[path = "e2e/mcp_and_agents.rs"]
 mod mcp_and_agents;
+#[path = "e2e/mcp_oauth.rs"]
+mod mcp_oauth;
 #[path = "e2e/mode_empty.rs"]
 mod mode_empty;
 #[path = "e2e/mode_handlers.rs"]

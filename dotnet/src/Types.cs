@@ -1137,6 +1137,72 @@ public sealed class ElicitationContext
     public string? Url { get; set; }
 }
 
+/// <summary>
+/// Context for an MCP OAuth request callback.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAuthContext
+{
+    /// <summary>Identifier of the session that triggered the MCP OAuth request.</summary>
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Identifier of the pending MCP OAuth request.</summary>
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Display name of the MCP server that requires OAuth.</summary>
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>URL of the MCP server that requires OAuth.</summary>
+    public string ServerUrl { get; set; } = string.Empty;
+
+    /// <summary>Why the runtime is requesting host-provided OAuth credentials.</summary>
+    public McpOauthRequestReason Reason { get; set; }
+
+    /// <summary>Parsed WWW-Authenticate parameters from the MCP server, if available.</summary>
+    public McpOauthWWWAuthenticateParams? WwwAuthenticateParams { get; set; }
+
+    /// <summary>Raw RFC 9728 protected-resource metadata JSON fetched by the runtime, if available.</summary>
+    public string? ResourceMetadata { get; set; }
+
+    /// <summary>Static OAuth client configuration, if the server specifies one.</summary>
+    public McpOauthRequiredStaticClientConfig? StaticClientConfig { get; set; }
+}
+
+/// <summary>
+/// Host-provided OAuth token data for a pending MCP OAuth request.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAuthToken
+{
+    /// <summary>Access token acquired by the SDK host.</summary>
+    public required string AccessToken { get; set; }
+
+    /// <summary>OAuth token type. Defaults to Bearer when omitted.</summary>
+    public string? TokenType { get; set; }
+
+    /// <summary>Token lifetime in seconds, if known.</summary>
+    public long? ExpiresIn { get; set; }
+}
+
+/// <summary>
+/// Result returned by an MCP auth request handler.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAuthResult
+{
+    /// <summary>Whether the request should be cancelled instead of resolved with a token.</summary>
+    public bool Cancelled { get; set; }
+
+    /// <summary>Host-provided token data. Ignored when <see cref="Cancelled"/> is true.</summary>
+    public McpAuthToken? Token { get; set; }
+
+    /// <summary>Create a token result.</summary>
+    public static McpAuthResult FromToken(McpAuthToken token) => new() { Token = token };
+
+    /// <summary>Create a cancellation result.</summary>
+    public static McpAuthResult Cancel() => new() { Cancelled = true };
+}
+
 // ============================================================================
 // Session Capabilities
 // ============================================================================
@@ -2728,6 +2794,7 @@ public abstract class SessionConfigBase
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnExitPlanModeRequest = other.OnExitPlanModeRequest;
+        OnMcpAuthRequest = other.OnMcpAuthRequest;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
@@ -3189,6 +3256,14 @@ public abstract class SessionConfigBase
     [JsonIgnore]
     public ICanvasHandler? CanvasHandler { get; set; }
 #pragma warning restore GHCP001
+
+    /// <summary>
+    /// Optional handler for MCP OAuth requests from MCP servers.
+    /// When provided, the SDK can satisfy MCP server OAuth requests with host-provided token data or cancellation.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public Func<McpAuthContext, Task<McpAuthResult?>>? OnMcpAuthRequest { get; set; }
 }
 
 /// <summary>
