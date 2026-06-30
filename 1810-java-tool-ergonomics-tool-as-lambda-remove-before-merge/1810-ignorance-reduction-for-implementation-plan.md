@@ -627,7 +627,7 @@ After Phase 3 is resolved, implement in this order.
 
 ### Phase 4 progress checklist
 
-- [x] 4.1 — Add public API types ([#1839](https://github.com/github/copilot-sdk/issues/1839))
+- [ ] 4.1 — Add public API types ([#1839](https://github.com/github/copilot-sdk/issues/1839))
 - [ ] 4.2 — Implement `ToolDefinition.from(...)` overloads ([#1840](https://github.com/github/copilot-sdk/issues/1840))
 - [ ] 4.3 — Implement schema and coercion internals ([#1841](https://github.com/github/copilot-sdk/issues/1841))
 - [ ] 4.4 — Unit tests for API behavior and validation ([#1842](https://github.com/github/copilot-sdk/issues/1842))
