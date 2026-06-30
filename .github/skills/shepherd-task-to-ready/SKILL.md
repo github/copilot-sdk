@@ -32,7 +32,7 @@ First, prepend an instruction to the issue body telling Copilot which base branc
 ```bash
 # Prepend base branch instruction to issue body
 CURRENT_BODY=$(gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body')
-INSTRUCTION="**Base branch:** Create your PR targeting \`$BASE_BRANCH\` (not \`main\`).\n\n"
+INSTRUCTION="**Base branch:** Create your PR targeting \`$BASE_BRANCH\` (not \`main\`).\n\n\n\n\n--------\n\n"
 gh issue edit $TASK_ISSUE -R $REPO --body "${INSTRUCTION}${CURRENT_BODY}"
 ```
 
