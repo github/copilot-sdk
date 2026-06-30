@@ -65,7 +65,7 @@ Yes, a GitHub Copilot subscription is required to use the GitHub Copilot SDK, **
 
 ### How does billing work for SDK usage?
 
-Billing for the GitHub Copilot SDK is based on the same model as the Copilot CLI, with each prompt being counted towards your premium request quota. For more information on premium requests, see [Requests in GitHub Copilot](https://docs.github.com/en/copilot/concepts/billing/copilot-requests).
+Billing for the GitHub Copilot SDK is based on the same model as the Copilot CLI, with each prompt being counted towards your usage allowance. For more information on Copilot usage Billing, see [Usage in GitHub Copilot](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing).
 
 ### Does it support BYOK (Bring Your Own Key)?
 
