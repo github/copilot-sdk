@@ -288,3 +288,4 @@ Next step: Mark as Ready for Review (use separate skill).
 - The skill does NOT mark the PR as "Ready for review" — that is a separate skill.
 - The `gh api .../actions/runs/{id}/approve` endpoint is the programmatic equivalent of the "Approve and run" button in the GitHub UI.
 - Review comments from bots/agents are treated the same as CI failures for iteration purposes.
+- **Do NOT edit any plan/checklist files** (e.g., `1810-ignorance-reduction-for-implementation-plan.md`) to mark tasks as complete. This skill only shepherds the PR — marking checklist items is the human DRI's responsibility.
