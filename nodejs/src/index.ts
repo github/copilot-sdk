@@ -51,6 +51,7 @@ export type {
     CommandContext,
     CommandDefinition,
     CommandHandler,
+    CanvasProviderIdentity,
     CloudSessionOptions,
     CloudSessionRepository,
     AutoModeSwitchHandler,

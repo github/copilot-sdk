@@ -18,10 +18,10 @@ use github_copilot_sdk::rpc::{
 };
 use github_copilot_sdk::session_events::{McpOauthRequiredData, ReasoningSummary};
 use github_copilot_sdk::types::{
-    CloudSessionOptions, CloudSessionRepository, CommandContext, CommandDefinition, CommandHandler,
-    DeliveryMode, ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo,
-    MessageOptions, RequestId, SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation,
-    ToolResult,
+    CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
+    CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest, ElicitationResult,
+    ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig, SessionId,
+    SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, ContextTier, tool};
 use serde_json::Value;
@@ -637,7 +637,11 @@ async fn create_session_sends_canvas_wire_fields() {
                         .with_canvases([test_canvas("counter")])
                         .with_request_canvas_renderer(true)
                         .with_request_extensions(true)
-                        .with_extension_info(ExtensionInfo::new("github-app", "counter-provider")),
+                        .with_extension_info(ExtensionInfo::new("github-app", "counter-provider"))
+                        .with_canvas_provider(
+                            CanvasProviderIdentity::new("app:builtin:window-1")
+                                .with_name("Built-in"),
+                        ),
                 )
                 .await
                 .unwrap()
@@ -658,6 +662,11 @@ async fn create_session_sends_canvas_wire_fields() {
         request["params"]["extensionInfo"]["name"],
         "counter-provider"
     );
+    assert_eq!(
+        request["params"]["canvasProvider"]["id"],
+        "app:builtin:window-1"
+    );
+    assert_eq!(request["params"]["canvasProvider"]["name"], "Built-in");
 
     let id = request["id"].as_u64().unwrap();
     let session_id = requested_session_id(&request).to_string();
@@ -2912,6 +2921,7 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                 .with_request_canvas_renderer(true)
                 .with_request_extensions(true)
                 .with_extension_info(ExtensionInfo::new("github-app", "counter-provider"))
+                .with_canvas_provider(CanvasProviderIdentity::new("app:builtin:window-1"))
                 .with_open_canvases([OpenCanvasInstance {
                     instance_id: "counter-1".to_string(),
                     extension_id: "github-app:counter-provider".to_string(),
@@ -2936,6 +2946,11 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
         request["params"]["extensionInfo"]["name"],
         "counter-provider"
     );
+    assert_eq!(
+        request["params"]["canvasProvider"]["id"],
+        "app:builtin:window-1"
+    );
+    assert!(request["params"]["canvasProvider"]["name"].is_null());
     assert_eq!(
         request["params"]["openCanvases"][0]["instanceId"],
         "counter-1"

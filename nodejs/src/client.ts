@@ -1398,6 +1398,7 @@ export class CopilotClient {
                 requestExtensions: config.requestExtensions,
                 extensionSdkPath: config.extensionSdkPath,
                 extensionInfo: config.extensionInfo,
+                canvasProvider: config.canvasProvider,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -1611,6 +1612,7 @@ export class CopilotClient {
                 requestExtensions: config.requestExtensions,
                 extensionSdkPath: config.extensionSdkPath,
                 extensionInfo: config.extensionInfo,
+                canvasProvider: config.canvasProvider,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,

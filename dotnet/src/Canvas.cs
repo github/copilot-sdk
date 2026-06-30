@@ -57,6 +57,32 @@ public sealed class ExtensionInfo
     public string Name { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Stable identity for a host/SDK connection that supplies built-in canvases.
+/// </summary>
+/// <remarks>
+/// When set on session create or resume, the runtime uses <see cref="Id"/>
+/// verbatim as the agent-facing canvas extension id, so canvases declared on a
+/// control connection survive stdio reconnect and CLI process restart instead
+/// of being re-keyed to a per-connection id. The id is opaque to the runtime; a
+/// per-window-stable value such as <c>app:builtin:&lt;windowId&gt;</c> is
+/// recommended. An id beginning with <c>connection:</c> is reserved and ignored
+/// by the runtime.
+/// </remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasProviderIdentity
+{
+    /// <summary>
+    /// Opaque, stable provider id used verbatim as the canvas extension id.
+    /// </summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Optional display name surfaced as the canvas extension name.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+}
+
 /// <summary>Structured exception returned from canvas handlers.</summary>
 /// <remarks>
 /// Throw this from <see cref="ICanvasHandler"/> implementations to surface a
