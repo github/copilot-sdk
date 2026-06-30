@@ -2950,7 +2950,10 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
         request["params"]["canvasProvider"]["id"],
         "app:builtin:window-1"
     );
-    assert!(request["params"]["canvasProvider"]["name"].is_null());
+    assert!(
+        request["params"]["canvasProvider"].get("name").is_none(),
+        "name should be omitted from the wire when None, not serialized as null"
+    );
     assert_eq!(
         request["params"]["openCanvases"][0]["instanceId"],
         "counter-1"
