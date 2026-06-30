@@ -902,17 +902,24 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 | Feature        | Default | Description                                                                                                                                               |
 | -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bundled-cli`  | ✓       | Build-time CLI embedding. Pulls in `tar`+`flate2` (Linux/macOS) or `zip` (Windows). Disable via `default-features = false` to opt out (e.g. when shipping a smaller binary or when always supplying the CLI via `CliProgram::Path` / `COPILOT_CLI_PATH`). |
+| `rustls-tls`   | ✓       | TLS backend for the `CopilotRequestHandler` HTTP/WebSocket transport: rustls + `ring` with the OS trust store. OpenSSL-free, so `*-unknown-linux-musl` and other static targets cross-compile without a system OpenSSL sysroot. |
+| `native-tls`   | —       | Alternative TLS backend linking the platform-native stack (OpenSSL on Linux, Secure Transport on macOS, SChannel on Windows). Use with `default-features = false` when you want the system TLS stack instead of rustls. |
 | `derive`       | —       | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration).             |
+
+> **Note:** `default-features = false` drops `rustls-tls` (and `bundled-cli`). Re-add a TLS backend — `rustls-tls` or `native-tls` — so the transport can reach HTTPS upstreams.
 
 ```toml
 # These examples use registry syntax for illustration; until the crate is
 # published, use a path or git dependency instead.
 
-# Default — bundles the Copilot CLI in your binary.
+# Default — bundles the Copilot CLI and uses the rustls TLS backend.
 github-copilot-sdk = "0.1"
 
-# Opt out of bundling — resolve CLI from COPILOT_CLI_PATH or system PATH instead.
-github-copilot-sdk = { version = "0.1", default-features = false }
+# Opt out of bundling; re-add a TLS backend since defaults are off.
+github-copilot-sdk = { version = "0.1", default-features = false, features = ["rustls-tls"] }
+
+# Use the platform-native TLS stack instead of rustls.
+github-copilot-sdk = { version = "0.1", default-features = false, features = ["bundled-cli", "native-tls"] }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
 github-copilot-sdk = { version = "0.1", features = ["derive"] }
