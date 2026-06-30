@@ -60,6 +60,205 @@ func TestSession_SetModelOmitsContextTierWhenUnset(t *testing.T) {
 	}
 }
 
+func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	paramsCh := make(chan map[string]any, 1)
+	errCh := make(chan error, 1)
+
+	go func() {
+		frame, err := readTestJSONRPCFrame(stdinR)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params map[string]any  `json:"params"`
+		}
+		if err := json.Unmarshal(frame, &request); err != nil {
+			errCh <- err
+			return
+		}
+		if request.Method != "session.mcp.oauth.handlePendingRequest" {
+			errCh <- fmt.Errorf("expected session.mcp.oauth.handlePendingRequest, got %s", request.Method)
+			return
+		}
+
+		paramsCh <- request.Params
+
+		response := map[string]any{
+			"jsonrpc": "2.0",
+			"id":      json.RawMessage(request.ID),
+			"result":  map[string]any{"success": true},
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+			errCh <- err
+		}
+	}()
+
+	session := &Session{
+		SessionID: "session-1",
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, "session-1"),
+	}
+	var observedRequest MCPAuthRequest
+	session.registerMCPAuthHandler(func(request MCPAuthRequest, invocation MCPAuthInvocation) (*MCPAuthResult, error) {
+		observedRequest = request
+		if invocation.SessionID != "session-1" {
+			t.Fatalf("expected invocation session-1, got %s", invocation.SessionID)
+		}
+		if request.RequestID != "oauth-request" {
+			t.Fatalf("expected oauth-request, got %s", request.RequestID)
+		}
+		tokenType := "Bearer"
+		return MCPAuthResultToken(&MCPAuthToken{
+			AccessToken: "host-token",
+			TokenType:   &tokenType,
+		}), nil
+	})
+	resourceMetadataURL := "https://example.com/.well-known/oauth-protected-resource"
+	resourceMetadata := `{"resource":"https://example.com/mcp"}`
+	clientSecret := "static-secret"
+	grantType := rpc.MCPOauthRequiredStaticClientConfigGrantTypeClientCredentials
+	publicClient := false
+	session.handleBroadcastEvent(SessionEvent{
+		Data: &MCPOauthRequiredData{
+			RequestID:        "oauth-request",
+			Reason:           rpc.MCPOauthRequestReasonInitial,
+			ServerName:       "oauth-server",
+			ServerURL:        "https://example.com/mcp",
+			ResourceMetadata: &resourceMetadata,
+			StaticClientConfig: &MCPOauthRequiredStaticClientConfig{
+				ClientID:     "static-client",
+				ClientSecret: &clientSecret,
+				GrantType:    &grantType,
+				PublicClient: &publicClient,
+			},
+			WwwAuthenticateParams: &MCPOauthWwwAuthenticateParams{
+				ResourceMetadataURL: &resourceMetadataURL,
+			},
+		},
+	})
+	if observedRequest.ResourceMetadata == nil || *observedRequest.ResourceMetadata != `{"resource":"https://example.com/mcp"}` {
+		t.Fatalf("expected resource metadata to be propagated, got %#v", observedRequest.ResourceMetadata)
+	}
+	if observedRequest.Reason != MCPOauthRequestReasonInitial {
+		t.Fatalf("expected initial reason, got %q", observedRequest.Reason)
+	}
+	if observedRequest.WwwAuthenticateParams == nil {
+		t.Fatal("expected WWW-Authenticate params to be propagated")
+	}
+	if observedRequest.StaticClientConfig == nil {
+		t.Fatal("expected static client config to be propagated")
+	}
+	if observedRequest.StaticClientConfig.ClientSecret == nil || *observedRequest.StaticClientConfig.ClientSecret != "static-secret" {
+		t.Fatalf("expected static client secret to be propagated, got %#v", observedRequest.StaticClientConfig.ClientSecret)
+	}
+	if observedRequest.StaticClientConfig.GrantType == nil || *observedRequest.StaticClientConfig.GrantType != "client_credentials" {
+		t.Fatalf("expected static client grant type to be propagated, got %#v", observedRequest.StaticClientConfig.GrantType)
+	}
+
+	select {
+	case params := <-paramsCh:
+		if params["sessionId"] != "session-1" {
+			t.Fatalf("expected sessionId session-1, got %v", params["sessionId"])
+		}
+		if params["requestId"] != "oauth-request" {
+			t.Fatalf("expected requestId oauth-request, got %v", params["requestId"])
+		}
+		result, ok := params["result"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected result object, got %T", params["result"])
+		}
+		if result["kind"] != "token" {
+			t.Fatalf("expected token kind, got %v", result["kind"])
+		}
+		if result["accessToken"] != "host-token" {
+			t.Fatalf("expected accessToken host-token, got %v", result["accessToken"])
+		}
+		if result["tokenType"] != "Bearer" {
+			t.Fatalf("expected tokenType Bearer, got %v", result["tokenType"])
+		}
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for MCP OAuth request")
+	}
+}
+
+func TestMCPAuthRequestAllowsMissingOptionalMetadata(t *testing.T) {
+	request := MCPAuthRequest{RequestID: "oauth-request"}
+	if request.ResourceMetadata != nil {
+		t.Fatalf("expected no resource metadata, got %#v", request.ResourceMetadata)
+	}
+	if request.WwwAuthenticateParams != nil {
+		t.Fatalf("expected no WWW-Authenticate params, got %#v", request.WwwAuthenticateParams)
+	}
+}
+
+func TestMCPOauthRequiredDataAllowsOptionalMetadata(t *testing.T) {
+	var withMetadata rpc.MCPOauthRequiredData
+	if err := json.Unmarshal([]byte(`{
+		"requestId": "oauth-request",
+		"reason": "initial",
+		"serverName": "oauth-server",
+		"serverUrl": "https://example.com/mcp",
+		"wwwAuthenticateParams": {
+			"resourceMetadataUrl": "https://example.com/.well-known/oauth-protected-resource"
+		},
+		"resourceMetadata": "{\"resource\":\"https://example.com/mcp\"}",
+		"staticClientConfig": {
+		    "clientId": "static-client",
+		    "clientSecret": "static-secret",
+		    "publicClient": false
+		}
+	}`), &withMetadata); err != nil {
+		t.Fatal(err)
+	}
+	if withMetadata.ResourceMetadata == nil || *withMetadata.ResourceMetadata != `{"resource":"https://example.com/mcp"}` {
+		t.Fatalf("expected resource metadata, got %#v", withMetadata.ResourceMetadata)
+	}
+	if withMetadata.WwwAuthenticateParams == nil {
+		t.Fatal("expected WWW-Authenticate params")
+	}
+	if withMetadata.StaticClientConfig == nil || withMetadata.StaticClientConfig.ClientSecret == nil || *withMetadata.StaticClientConfig.ClientSecret != "static-secret" {
+		t.Fatalf("expected static client secret, got %#v", withMetadata.StaticClientConfig)
+	}
+
+	var withoutMetadata rpc.MCPOauthRequiredData
+	if err := json.Unmarshal([]byte(`{
+		"requestId": "oauth-request",
+		"reason": "initial",
+		"serverName": "oauth-server",
+		"serverUrl": "https://example.com/mcp"
+	}`), &withoutMetadata); err != nil {
+		t.Fatal(err)
+	}
+	if withoutMetadata.ResourceMetadata != nil {
+		t.Fatalf("expected no resource metadata, got %#v", withoutMetadata.ResourceMetadata)
+	}
+	if withoutMetadata.WwwAuthenticateParams != nil {
+		t.Fatalf("expected no WWW-Authenticate params, got %#v", withoutMetadata.WwwAuthenticateParams)
+	}
+}
+
 func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any {
 	t.Helper()
 

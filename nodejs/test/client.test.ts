@@ -41,6 +41,228 @@ describe("CopilotClient", () => {
         expect(spy).not.toHaveBeenCalled();
     });
 
+    it("responds to MCP OAuth requests with host token data", async () => {
+        const sendRequest = vi.fn(async () => ({ success: true }));
+        let observedRequest: any;
+        const session = new CopilotSession(
+            "session-1",
+            { sendRequest } as any,
+            undefined,
+            undefined,
+            {
+                mcpAuthHandler: async (request) => {
+                    observedRequest = request;
+                    return {
+                        accessToken: "host-token",
+                        tokenType: "Bearer",
+                        expiresIn: 3600,
+                    };
+                },
+            }
+        );
+
+        await (session as any)._executeMcpAuthAndRespond({
+            requestId: "oauth-request",
+            serverName: "oauth-server",
+            serverUrl: "https://example.com/mcp",
+            reason: "initial",
+            wwwAuthenticateParams: {
+                resourceMetadataUrl: "https://example.com/.well-known/oauth-protected-resource",
+            },
+            resourceMetadata: '{"resource":"https://example.com/mcp"}',
+            staticClientConfig: {
+                clientId: "static-client",
+                clientSecret: "static-secret",
+                grantType: "client_credentials",
+                publicClient: false,
+            },
+        });
+
+        expect(observedRequest.resourceMetadata).toBe('{"resource":"https://example.com/mcp"}');
+        expect(observedRequest.staticClientConfig).toEqual({
+            clientId: "static-client",
+            clientSecret: "static-secret",
+            grantType: "client_credentials",
+            publicClient: false,
+        });
+        expect(sendRequest).toHaveBeenCalledWith("session.mcp.oauth.handlePendingRequest", {
+            sessionId: "session-1",
+            requestId: "oauth-request",
+            result: {
+                kind: "token",
+                accessToken: "host-token",
+                tokenType: "Bearer",
+                expiresIn: 3600,
+            },
+        });
+    });
+
+    it("passes MCP OAuth requests through when optional metadata is absent", async () => {
+        let observedRequest: any;
+        const session = new CopilotSession(
+            "session-1",
+            { sendRequest: vi.fn(async () => ({ success: true })) } as any,
+            undefined,
+            undefined,
+            {
+                mcpAuthHandler: async (request) => {
+                    observedRequest = request;
+                    return { kind: "cancelled" };
+                },
+            }
+        );
+
+        await (session as any)._executeMcpAuthAndRespond({
+            requestId: "oauth-request",
+            serverName: "oauth-server",
+            serverUrl: "https://example.com/mcp",
+            reason: "initial",
+        });
+
+        expect(observedRequest.reason).toBe("initial");
+        expect(observedRequest.resourceMetadata).toBeUndefined();
+        expect(observedRequest.wwwAuthenticateParams).toBeUndefined();
+    });
+
+    it("registers interest in MCP OAuth required events after create when an auth handler is configured", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.eventLog.registerInterest") {
+                    return { id: "interest-1" };
+                }
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            onMcpAuthRequest: () => ({ kind: "cancelled" }),
+        });
+
+        expect(spy.mock.calls[0][0]).toBe("session.create");
+        expect(spy.mock.calls[1]).toEqual([
+            "session.eventLog.registerInterest",
+            expect.objectContaining({ eventType: "mcp.oauth_required" }),
+        ]);
+        expect(spy.mock.calls[1][1].sessionId).toBe(spy.mock.calls[0][1].sessionId);
+    });
+
+    it("does not register MCP OAuth interest without an auth handler", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            onEvent: () => {},
+        });
+
+        expect(spy).not.toHaveBeenCalledWith(
+            "session.eventLog.registerInterest",
+            expect.objectContaining({ eventType: "mcp.oauth_required" })
+        );
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({ requestPermission: true })
+        );
+    });
+
+    it("registers MCP OAuth interest after cloud create only when an auth handler is configured", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        let cloudCreateCount = 0;
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.eventLog.registerInterest") {
+                    return { id: "interest-1" };
+                }
+                if (method === "session.create")
+                    return { sessionId: `server-assigned-session-${++cloudCreateCount}` };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            cloud: { repository: { owner: "github", name: "copilot-sdk", branch: "main" } },
+        });
+
+        expect(spy).not.toHaveBeenCalledWith(
+            "session.eventLog.registerInterest",
+            expect.objectContaining({ eventType: "mcp.oauth_required" })
+        );
+
+        spy.mockClear();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            onMcpAuthRequest: () => ({ kind: "cancelled" }),
+            cloud: { repository: { owner: "github", name: "copilot-sdk", branch: "main" } },
+        });
+
+        expect(spy.mock.calls[0][0]).toBe("session.create");
+        expect(spy.mock.calls[1]).toEqual([
+            "session.eventLog.registerInterest",
+            { sessionId: "server-assigned-session-2", eventType: "mcp.oauth_required" },
+        ]);
+    });
+
+    it("registers MCP OAuth interest before resuming only when an auth handler is configured", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.eventLog.registerInterest") {
+                    return { id: "interest-1" };
+                }
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession("session-with-auth", {
+            onPermissionRequest: approveAll,
+            onMcpAuthRequest: () => ({ kind: "cancelled" }),
+        });
+
+        expect(spy.mock.calls[0]).toEqual([
+            "session.eventLog.registerInterest",
+            { sessionId: "session-with-auth", eventType: "mcp.oauth_required" },
+        ]);
+        expect(spy.mock.calls[1][0]).toBe("session.resume");
+        expect(spy.mock.calls[1][1]).toEqual(expect.objectContaining({ requestPermission: true }));
+
+        spy.mockClear();
+        await client.resumeSession("session-without-auth", {
+            onPermissionRequest: approveAll,
+            onEvent: () => {},
+        });
+
+        expect(spy).not.toHaveBeenCalledWith(
+            "session.eventLog.registerInterest",
+            expect.objectContaining({ eventType: "mcp.oauth_required" })
+        );
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({ sessionId: "session-without-auth", requestPermission: true })
+        );
+    });
+
     it("forwards canvas declarations and request flags in session.create", async () => {
         const client = new CopilotClient();
         await client.start();

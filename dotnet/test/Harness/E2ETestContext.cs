@@ -192,6 +192,8 @@ public sealed class E2ETestContext : IAsyncDisposable
         env["GH_CONFIG_DIR"] = HomeDir;
         env["XDG_CONFIG_HOME"] = HomeDir;
         env["XDG_STATE_HOME"] = HomeDir;
+        env["COPILOT_MCP_APPS"] = "true";
+        env["MCP_APPS"] = "true";
         if (!string.IsNullOrEmpty(_proxy.ConnectProxyUrl) && !string.IsNullOrEmpty(_proxy.CaFilePath))
         {
             const string noProxy = "127.0.0.1,localhost,::1";

@@ -92,6 +92,7 @@ from .session import (
     ExitPlanModeHandler,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
+    McpAuthHandler,
     MCPServerConfig,
     MemoryConfiguration,
     ModelCapabilitiesOverride,
@@ -1697,6 +1698,7 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        on_mcp_auth_request: McpAuthHandler | None = None,
         enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
@@ -2149,6 +2151,7 @@ class CopilotClient:
             s._register_tools(tools)
             s._register_commands(commands)
             s._register_permission_handler(on_permission_request)
+            s._register_mcp_auth_handler(on_mcp_auth_request)
             if on_user_input_request:
                 s._register_user_input_handler(on_user_input_request)
             if on_elicitation_request:
@@ -2228,6 +2231,11 @@ class CopilotClient:
                 raise RuntimeError(
                     f"session.create returned sessionId {response.get('sessionId')} "
                     f"but the caller requested {local_session_id}"
+                )
+            if on_mcp_auth_request is not None:
+                await self._client.request(
+                    "session.eventLog.registerInterest",
+                    {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
@@ -2319,6 +2327,7 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        on_mcp_auth_request: McpAuthHandler | None = None,
         enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
@@ -2723,6 +2732,7 @@ class CopilotClient:
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
+        session._register_mcp_auth_handler(on_mcp_auth_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
@@ -2744,6 +2754,11 @@ class CopilotClient:
             session.on(on_event)
         with self._sessions_lock:
             self._sessions[session_id] = session
+        if on_mcp_auth_request is not None:
+            await self._client.request(
+                "session.eventLog.registerInterest",
+                {"sessionId": session_id, "eventType": "mcp.oauth_required"},
+            )
         log_timing(
             logger,
             logging.DEBUG,

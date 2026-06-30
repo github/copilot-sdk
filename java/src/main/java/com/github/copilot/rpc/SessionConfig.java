@@ -60,6 +60,7 @@ public class SessionConfig {
     private Boolean coauthorEnabled;
     private Boolean manageScheduleEnabled;
     private PermissionHandler onPermissionRequest;
+    private McpAuthHandler onMcpAuthRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
@@ -675,6 +676,31 @@ public class SessionConfig {
      */
     public SessionConfig setOnPermissionRequest(PermissionHandler onPermissionRequest) {
         this.onPermissionRequest = onPermissionRequest;
+        return this;
+    }
+
+    /**
+     * Gets the MCP OAuth request handler.
+     *
+     * @return the handler, or {@code null} if not set
+     */
+    @JsonIgnore
+    public McpAuthHandler getOnMcpAuthRequest() {
+        return onMcpAuthRequest;
+    }
+
+    /**
+     * Sets the MCP OAuth request handler.
+     * <p>
+     * When provided, the SDK can satisfy MCP server OAuth requests with
+     * host-provided token data or cancellation.
+     *
+     * @param onMcpAuthRequest
+     *            the handler
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setOnMcpAuthRequest(McpAuthHandler onMcpAuthRequest) {
+        this.onMcpAuthRequest = onMcpAuthRequest;
         return this;
     }
 
@@ -1829,6 +1855,7 @@ public class SessionConfig {
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
+        copy.onMcpAuthRequest = this.onMcpAuthRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;

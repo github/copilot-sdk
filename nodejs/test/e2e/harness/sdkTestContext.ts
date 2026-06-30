@@ -20,6 +20,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
 
+function getCliPathForTests(): string | undefined {
+    if (process.env.COPILOT_CLI_PATH) {
+        return process.env.COPILOT_CLI_PATH;
+    }
+    return undefined;
+}
+
 export async function createSdkTestContext({
     logLevel,
     useStdio,
@@ -39,6 +46,7 @@ export async function createSdkTestContext({
     await openAiEndpoint.setCopilotUserByToken(DEFAULT_GITHUB_TOKEN, {
         login: "e2e-test-user",
         copilot_plan: "individual_pro",
+        is_mcp_enabled: true,
         endpoints: {
             api: proxyUrl,
             telemetry: "https://localhost:1/telemetry",
@@ -72,6 +80,7 @@ export async function createSdkTestContext({
     };
 
     const userConn = copilotClientOptions?.connection;
+    const cliPath = getCliPathForTests();
     let connection: RuntimeConnection;
     if (userConn) {
         // Caller supplied a RuntimeConnection — merge in the harness-managed
@@ -82,13 +91,13 @@ export async function createSdkTestContext({
             const { kind: _k, ...tcp } = userConn;
             connection = RuntimeConnection.forTcp({
                 ...tcp,
-                path: tcp.path ?? process.env.COPILOT_CLI_PATH,
+                path: tcp.path ?? cliPath,
             });
         } else if (userConn.kind === "stdio") {
             const { kind: _k, ...stdio } = userConn;
             connection = RuntimeConnection.forStdio({
                 ...stdio,
-                path: stdio.path ?? process.env.COPILOT_CLI_PATH,
+                path: stdio.path ?? cliPath,
             });
         } else {
             connection = userConn;
@@ -96,15 +105,18 @@ export async function createSdkTestContext({
     } else {
         connection =
             useStdio === false
-                ? RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH })
-                : RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH });
+                ? RuntimeConnection.forTcp({ path: cliPath })
+                : RuntimeConnection.forStdio({ path: cliPath });
     }
 
-    const { connection: _ignoredConnection, ...remainingClientOptions } =
-        copilotClientOptions ?? {};
+    const {
+        connection: _ignoredConnection,
+        env: userEnv,
+        ...remainingClientOptions
+    } = copilotClientOptions ?? {};
     const copilotClient = new CopilotClient({
         workingDirectory: workDir,
-        env,
+        env: { ...env, ...userEnv },
         logLevel: logLevel || "error",
         connection,
         gitHubToken: authTokenToUse,

@@ -156,9 +156,15 @@ public class SessionEventSerializationTests
                     StaticClientConfig = new McpOauthRequiredStaticClientConfig
                     {
                         ClientId = "client-id",
+                        ClientSecret = "static-secret",
                         GrantType = "client_credentials",
                         PublicClient = false,
                     },
+                    WwwAuthenticateParams = new McpOauthWWWAuthenticateParams
+                    {
+                        ResourceMetadataUrl = "https://example.com/.well-known/oauth-protected-resource",
+                    },
+                    ResourceMetadata = """{"resource":"https://example.com/mcp"}""",
                 },
             },
             "mcp.oauth_required"
@@ -282,6 +288,17 @@ public class SessionEventSerializationTests
                         .GetProperty("staticClientConfig")
                         .GetProperty("grantType")
                         .GetString());
+                Assert.Equal(
+                    "static-secret",
+                    root.GetProperty("data")
+                        .GetProperty("staticClientConfig")
+                        .GetProperty("clientSecret")
+                        .GetString());
+                Assert.Equal(
+                    """{"resource":"https://example.com/mcp"}""",
+                    root.GetProperty("data")
+                        .GetProperty("resourceMetadata")
+                        .GetString());
                 break;
 
             case "assistant.message_start":
@@ -297,5 +314,58 @@ public class SessionEventSerializationTests
                         .GetString());
                 break;
         }
+    }
+
+    [Fact]
+    public void McpOauthRequiredData_Allows_Missing_Optional_Metadata()
+    {
+        const string json = """
+            {
+              "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+              "timestamp": "2026-03-15T21:26:54.987Z",
+              "parentId": null,
+              "type": "mcp.oauth_required",
+              "data": {
+                "requestId": "oauth-request",
+                "reason": "initial",
+                "serverName": "oauth-server",
+                "serverUrl": "https://example.com/mcp"
+              }
+            }
+            """;
+
+        var authEvent = Assert.IsType<McpOauthRequiredEvent>(SessionEvent.FromJson(json));
+        Assert.Null(authEvent.Data.WwwAuthenticateParams);
+        Assert.Null(authEvent.Data.ResourceMetadata);
+    }
+
+    [Fact]
+    public void McpOauthRequiredData_Preserves_Static_Client_Secret()
+    {
+        const string json = """
+            {
+              "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+              "timestamp": "2026-03-15T21:26:54.987Z",
+              "parentId": null,
+              "type": "mcp.oauth_required",
+              "data": {
+                "requestId": "oauth-request",
+                "reason": "initial",
+                "serverName": "oauth-server",
+                "serverUrl": "https://example.com/mcp",
+                "staticClientConfig": {
+                  "clientId": "static-client",
+                  "clientSecret": "static-secret",
+                  "grantType": "client_credentials",
+                  "publicClient": false
+                }
+              }
+            }
+            """;
+
+        var authEvent = Assert.IsType<McpOauthRequiredEvent>(SessionEvent.FromJson(json));
+
+        Assert.NotNull(authEvent.Data.StaticClientConfig);
+        Assert.Equal("static-secret", authEvent.Data.StaticClientConfig.ClientSecret);
     }
 }

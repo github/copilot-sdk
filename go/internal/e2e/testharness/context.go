@@ -223,6 +223,8 @@ func (c *TestContext) Env() []string {
 		"GH_CONFIG_DIR="+c.HomeDir,
 		"GH_TOKEN="+defaultGitHubToken,
 		"GITHUB_TOKEN="+defaultGitHubToken,
+		"COPILOT_MCP_APPS=true",
+		"MCP_APPS=true",
 		"XDG_CONFIG_HOME="+c.HomeDir,
 		"XDG_STATE_HOME="+c.HomeDir,
 	)

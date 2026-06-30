@@ -630,6 +630,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             this);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
+        session.RegisterMcpAuthHandler(config.OnMcpAuthRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
         session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
@@ -1080,6 +1081,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     $"session.create returned sessionId {response.SessionId} but the caller requested {localSessionId}.");
             }
 
+            if (config.OnMcpAuthRequest is not null)
+            {
+                await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
+            }
+
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
             session.SetOpenCanvases(response.OpenCanvases);
@@ -1166,6 +1172,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             transformCallbacks,
             hasHooks,
             "CopilotClient.ResumeSessionAsync");
+        if (config.OnMcpAuthRequest is not null)
+        {
+            await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
+        }
 
         try
         {
