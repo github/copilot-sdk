@@ -772,7 +772,11 @@ export class CopilotClient {
             const onGitHubTelemetry = this.onGitHubTelemetry;
             handlers.gitHubTelemetry = {
                 event: async (notification) => {
-                    onGitHubTelemetry(notification);
+                    try {
+                        await onGitHubTelemetry(notification);
+                    } catch {
+                        // Ignore handler errors
+                    }
                 },
             };
         }
@@ -1436,7 +1440,9 @@ export class CopilotClient {
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
-                enableGitHubTelemetryForwarding: this.onGitHubTelemetry != null,
+                ...(this.onGitHubTelemetry != null
+                    ? { enableGitHubTelemetryForwarding: true }
+                    : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
@@ -1656,7 +1662,9 @@ export class CopilotClient {
                 enableSkills: config.enableSkills,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
-                enableGitHubTelemetryForwarding: this.onGitHubTelemetry != null,
+                ...(this.onGitHubTelemetry != null
+                    ? { enableGitHubTelemetryForwarding: true }
+                    : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",

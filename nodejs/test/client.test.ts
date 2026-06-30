@@ -454,7 +454,7 @@ describe("CopilotClient", () => {
         const createPayload = spy.mock.calls.find(
             ([method]) => method === "session.create"
         )![1] as any;
-        expect(createPayload.enableGitHubTelemetryForwarding).toBe(false);
+        expect(createPayload.enableGitHubTelemetryForwarding).toBeUndefined();
     });
 
     it("dispatches a real gitHubTelemetry.event wire notification to the handler", async () => {

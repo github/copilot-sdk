@@ -354,7 +354,7 @@ export interface CopilotClientOptions {
      *
      * @experimental
      */
-    onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void;
+    onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
 
     /**
      * Server-wide idle timeout for sessions in seconds.
