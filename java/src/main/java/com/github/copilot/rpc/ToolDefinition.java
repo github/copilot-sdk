@@ -787,6 +787,14 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             return Map.of("type", "string", "format", "uuid");
         }
 
+        // Optional primitive types
+        if (type == java.util.OptionalInt.class || type == java.util.OptionalLong.class) {
+            return Map.of("type", "integer");
+        }
+        if (type == java.util.OptionalDouble.class) {
+            return Map.of("type", "number");
+        }
+
         // Date-time types
         if (type == java.time.OffsetDateTime.class || type == java.time.LocalDateTime.class
                 || type == java.time.Instant.class || type == java.time.ZonedDateTime.class) {
@@ -942,6 +950,9 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             return "Success";
         }
         if (result instanceof String) {
+            return result;
+        }
+        if (result instanceof ToolResultObject) {
             return result;
         }
         try {
