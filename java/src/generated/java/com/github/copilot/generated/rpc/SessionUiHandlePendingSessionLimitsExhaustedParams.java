@@ -10,22 +10,25 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Feature flags indicating what the model supports
+ * Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ModelCapabilitiesSupports(
-    /** Whether this model supports vision/image input */
-    @JsonProperty("vision") Boolean vision,
-    /** Whether this model supports reasoning effort configuration */
-    @JsonProperty("reasoningEffort") Boolean reasoningEffort,
-    /** Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8). */
-    @JsonProperty("adaptive_thinking") AdaptiveThinkingSupport adaptiveThinking
+public record SessionUiHandlePendingSessionLimitsExhaustedParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** The unique request ID from the session_limits_exhausted.requested event */
+    @JsonProperty("requestId") String requestId,
+    /** The selected session-limit action. */
+    @JsonProperty("response") UISessionLimitsExhaustedResponse response
 ) {
 }

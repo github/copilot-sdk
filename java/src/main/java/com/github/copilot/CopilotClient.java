@@ -925,6 +925,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // workingDirectory
                 null, // availableTools
                 null, // excludedTools
+                null, // excludedBuiltinAgents
                 null, // toolFilterPrecedence
                 null, // enableScriptSafety
                 null, // shellInitProfile
@@ -962,7 +963,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // enableSessionStore
                 null, // enableSkills
                 null, // contextTier
-                null // responseBudget
+                null // sessionLimits
         );
 
         return session.getRpc().options.update(params).<Void>thenCompose(result -> {

@@ -127,6 +127,22 @@ public final class SessionUiApi {
     }
 
     /**
+     * Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionUiHandlePendingSessionLimitsExhaustedResult> handlePendingSessionLimitsExhausted(SessionUiHandlePendingSessionLimitsExhaustedParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handlePendingSessionLimitsExhausted", _p, SessionUiHandlePendingSessionLimitsExhaustedResult.class);
+    }
+
+    /**
      * Request ID of a pending `exit_plan_mode.requested` event and the user's response.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

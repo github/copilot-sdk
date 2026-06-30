@@ -49,8 +49,8 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Context tier currently selected at resume time; null when no tier is active */
         @JsonProperty("contextTier") ContextTier contextTier,
-        /** Response limits currently configured at resume time; null when no limits are active */
-        @JsonProperty("responseLimits") ResponseLimitsConfig responseLimits,
+        /** Session limits currently configured at resume time; null when no limits are active */
+        @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Updated working directory and git context at resume time */
         @JsonProperty("context") WorkingDirectoryContext context,
         /** Whether the session was already in use by another client at resume time */
