@@ -1995,7 +1995,7 @@ public final class CopilotSession implements AutoCloseable {
             if (modelCapabilities.getSupports() != null) {
                 var s = modelCapabilities.getSupports();
                 supports = new ModelCapabilitiesOverrideSupports(s.getVision().orElse(null),
-                        s.getReasoningEffort().orElse(null));
+                        s.getReasoningEffort().orElse(null), null);
             }
             ModelCapabilitiesOverrideLimits limits = null;
             if (modelCapabilities.getLimits() != null) {
