@@ -39,6 +39,7 @@ __all__ = [
     "CanvasHostContext",
     "CanvasHostContextCapabilities",
     "CanvasJsonSchema",
+    "CanvasProviderIdentity",
     "ExtensionInfo",
     "OpenCanvasInstance",
 ]
@@ -64,6 +65,33 @@ class ExtensionInfo:
 
     def to_dict(self) -> dict[str, Any]:
         return {"source": self.source, "name": self.name}
+
+
+@dataclass
+class CanvasProviderIdentity:
+    """Stable identity for a host/SDK connection that supplies built-in canvases.
+
+    Lets a host advertise a stable canvas-provider extension id so host-provided
+    canvases restore across a cold session resume. Serializes to
+    ``{"id": ...}`` (with an optional ``"name"``) on the wire.
+
+    .. note::
+
+        **Experimental.** This type is part of an experimental wire-protocol
+        surface and may change or be removed in future SDK or CLI releases.
+    """
+
+    id: str
+    """Stable provider identifier, e.g. ``"app:builtin:window-1"``."""
+
+    name: str | None = None
+    """Optional human-readable provider name."""
+
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {"id": self.id}
+        if self.name is not None:
+            result["name"] = self.name
+        return result
 
 
 @dataclass
