@@ -2342,8 +2342,6 @@ class TestGitHubTelemetry:
 
     @pytest.mark.asyncio
     async def test_event_routes_to_handler_via_notification_transport(self):
-        import asyncio
-
         from copilot.generated.rpc import GitHubTelemetryNotification
 
         received: list = []

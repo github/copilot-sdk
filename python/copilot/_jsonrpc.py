@@ -463,7 +463,7 @@ class JsonRpcClient:
                 except Exception:  # pylint: disable=broad-except
                     logger.warning("Notification handler raised", exc_info=True)
 
-            asyncio.ensure_future(_await_outcome())
+            asyncio.create_task(_await_outcome())
 
     async def _dispatch_request(self, message: dict, handler: RequestHandler):
         try:
