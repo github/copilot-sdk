@@ -39,6 +39,9 @@ from .generated.rpc import (
     ExternalToolTextResultForLlm,
     HandlePendingToolCallRequest,
     LogRequest,
+    MCPOauthHandlePendingRequest,
+    MCPOauthPendingRequestResponse,
+    MCPOauthPendingRequestResponseKind,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
@@ -67,6 +70,7 @@ from .generated.session_events import (
     CommandExecuteData,
     ElicitationRequestedData,
     ExternalToolRequestedData,
+    McpOauthRequiredData,
     PermissionRequest,
     PermissionRequestedData,
     SessionCanvasClosedData,
@@ -365,6 +369,72 @@ class PermissionHandler:
         request: PermissionRequest, invocation: dict[str, str]
     ) -> PermissionRequestResult:
         return PermissionDecisionApproveOnce()
+
+
+# ============================================================================
+# MCP Auth Types
+# ============================================================================
+
+
+class McpAuthWwwAuthenticateParams(TypedDict, total=False):
+    """Parsed parameters from an MCP server's WWW-Authenticate response."""
+
+    resourceMetadataUrl: str
+    scope: str
+    error: str
+
+
+class McpAuthStaticClientConfig(TypedDict, total=False):
+    """Static OAuth client configuration supplied by the MCP server, if available."""
+
+    clientId: Required[str]
+    clientSecret: str
+    grantType: Literal["client_credentials"]
+    publicClient: bool
+
+
+class McpAuthRequest(TypedDict, total=False):
+    """MCP OAuth request that the SDK host can satisfy with a host-acquired token."""
+
+    requestId: Required[str]
+    serverName: Required[str]
+    serverUrl: Required[str]
+    reason: Required[Literal["initial", "refresh", "reauth", "upscope"]]
+    wwwAuthenticateParams: McpAuthWwwAuthenticateParams
+    resourceMetadata: str
+    staticClientConfig: McpAuthStaticClientConfig
+
+
+class McpAuthToken(TypedDict, total=False):
+    """Host-provided OAuth token data for a pending MCP OAuth request."""
+
+    accessToken: Required[str]
+    tokenType: str
+    expiresIn: int
+
+
+class McpAuthResult(TypedDict, total=False):
+    """Result returned by an MCP auth request handler."""
+
+    kind: Required[Literal["token", "cancelled"]]
+    accessToken: str
+    tokenType: str
+    expiresIn: int
+
+
+class McpAuthContext(TypedDict):
+    """Context for an MCP auth request handler invocation."""
+
+    sessionId: str
+
+
+McpAuthHandlerResult = McpAuthResult | McpAuthToken | None
+
+
+McpAuthHandler = Callable[
+    [McpAuthRequest, McpAuthContext],
+    McpAuthHandlerResult | Awaitable[McpAuthHandlerResult],
+]
 
 
 # ============================================================================
@@ -1340,6 +1410,8 @@ class CopilotSession:
         self._tool_handlers_lock = threading.Lock()
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
+        self._mcp_auth_handler: McpAuthHandler | None = None
+        self._mcp_auth_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
         self._user_input_handler_lock = threading.Lock()
         self._exit_plan_mode_handler: ExitPlanModeHandler | None = None
@@ -1729,6 +1801,58 @@ class CopilotSession:
                     )
                 )
 
+            case McpOauthRequiredData() as data:
+                with self._mcp_auth_handler_lock:
+                    handler = self._mcp_auth_handler
+                if not data.request_id:
+                    return
+                if not handler:
+                    logger.warning(
+                        "Received MCP OAuth request without a registered MCP auth handler. "
+                        "SessionId=%s, RequestId=%s",
+                        self.session_id,
+                        data.request_id,
+                    )
+                    return
+                request: McpAuthRequest = {
+                    "requestId": data.request_id,
+                    "serverName": data.server_name,
+                    "serverUrl": data.server_url,
+                    "reason": data.reason.value,
+                }
+                if data.www_authenticate_params is not None:
+                    request["wwwAuthenticateParams"] = {}
+                    if data.www_authenticate_params.resource_metadata_url is not None:
+                        request["wwwAuthenticateParams"]["resourceMetadataUrl"] = (
+                            data.www_authenticate_params.resource_metadata_url
+                        )
+                    if data.www_authenticate_params.scope is not None:
+                        request["wwwAuthenticateParams"]["scope"] = (
+                            data.www_authenticate_params.scope
+                        )
+                    if data.www_authenticate_params.error is not None:
+                        request["wwwAuthenticateParams"]["error"] = (
+                            data.www_authenticate_params.error
+                        )
+                if data.resource_metadata is not None:
+                    request["resourceMetadata"] = data.resource_metadata
+                if data.static_client_config is not None:
+                    static_client_config: McpAuthStaticClientConfig = {
+                        "clientId": data.static_client_config.client_id,
+                    }
+                    if data.static_client_config.client_secret is not None:
+                        static_client_config["clientSecret"] = (
+                            data.static_client_config.client_secret
+                        )
+                    if data.static_client_config.grant_type is not None:
+                        static_client_config["grantType"] = data.static_client_config.grant_type
+                    if data.static_client_config.public_client is not None:
+                        static_client_config["publicClient"] = (
+                            data.static_client_config.public_client
+                        )
+                    request["staticClientConfig"] = static_client_config
+                asyncio.ensure_future(self._execute_mcp_auth_and_respond(request, handler))
+
             case CommandExecuteData() as data:
                 request_id = data.request_id
                 command_name = data.command_name
@@ -1942,6 +2066,59 @@ class CopilotSession:
             except (JsonRpcError, ProcessExitedError, OSError):
                 pass  # Connection lost or RPC error — nothing we can do
 
+    async def _execute_mcp_auth_and_respond(
+        self,
+        request: McpAuthRequest,
+        handler: McpAuthHandler,
+    ) -> None:
+        """Execute an MCP auth handler and respond via RPC."""
+        request_id = request["requestId"]
+        try:
+            handler_start = time.perf_counter()
+            maybe_result = handler(request, {"sessionId": self.session_id})
+            if inspect.isawaitable(maybe_result):
+                result = cast(McpAuthHandlerResult, await maybe_result)
+            else:
+                result = maybe_result
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._execute_mcp_auth_and_respond dispatch",
+                handler_start,
+                session_id=self.session_id,
+                request_id=request_id,
+            )
+
+            if result and result.get("kind", "token") == "token":
+                rpc_result = MCPOauthPendingRequestResponse(
+                    kind=MCPOauthPendingRequestResponseKind.TOKEN,
+                    access_token=result["accessToken"],
+                    expires_in=result.get("expiresIn"),
+                    token_type=result.get("tokenType"),
+                )
+            else:
+                rpc_result = MCPOauthPendingRequestResponse(
+                    kind=MCPOauthPendingRequestResponseKind.CANCELLED
+                )
+            await self.rpc.mcp.oauth.handle_pending_request(
+                MCPOauthHandlePendingRequest(
+                    request_id=request_id,
+                    result=rpc_result,
+                )
+            )
+        except Exception:
+            try:
+                await self.rpc.mcp.oauth.handle_pending_request(
+                    MCPOauthHandlePendingRequest(
+                        request_id=request_id,
+                        result=MCPOauthPendingRequestResponse(
+                            kind=MCPOauthPendingRequestResponseKind.CANCELLED
+                        ),
+                    )
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass  # Connection lost or RPC error — nothing we can do
+
     async def _execute_command_and_respond(
         self,
         request_id: str,
@@ -2125,6 +2302,11 @@ class CopilotSession:
         """
         with self._elicitation_handler_lock:
             self._elicitation_handler = handler
+
+    def _register_mcp_auth_handler(self, handler: McpAuthHandler | None) -> None:
+        """Register the MCP auth handler for this session."""
+        with self._mcp_auth_handler_lock:
+            self._mcp_auth_handler = handler
 
     def _register_exit_plan_mode_handler(self, handler: ExitPlanModeHandler | None) -> None:
         """Register the exit-plan-mode handler for this session."""
