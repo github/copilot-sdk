@@ -26,6 +26,12 @@ Automate the lifecycle of a task PR from marking as **Ready for review** through
 
 ## Procedure
 
+### Step 0: Find the PR
+
+Look for the corresponding PR created and mentioned in the issue. The issue will often have text like "linked a pull request that will close this issue". First, try to find the PR this way. If you find it, let `PR_NUMBER` be that PR number.
+
+If you don't find it, fail the skill and report the error.
+
 ### Step 1: Mark the PR as Ready for Review
 
 ```bash
