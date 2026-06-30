@@ -1,6 +1,6 @@
 ---
 name: shepherd-task-to-ready
-description: "Use this skill to shepherd a child Task issue from 'assigned to Copilot' through CI approval and review-agent feedback resolution, stopping just before marking the PR as Ready for Review."
+description: "Use this skill to shepherd a child Task issue from 'assigned to Copilot' through CI approval and review-agent feedback resolution, stopping just before marking the PR as **Ready for review**."
 ---
 
 # Skill: Shepherd Task to Ready for Review
@@ -36,7 +36,11 @@ This triggers Copilot to:
 2. Open a draft PR targeting `$BASE_BRANCH`.
 3. Push initial commits.
 
-### Step 2: Wait for Copilot to create the PR
+### Step 2: Find the corresponding PR
+
+Look for the corresponding PR created and mentioned in the issue. The issue will often have text like "linked a pull request that will close this issue". First, try to find the PR this way.
+
+If that doesn't work, wait for Copilot to create the PR.
 
 Poll until a PR exists with the task issue linked or with a head branch referencing the issue number.
 
@@ -65,7 +69,13 @@ If no PR is found after timeout, report failure and stop.
 
 After the PR is created, Copilot pushes commits which trigger workflow runs. These runs require approval because every Copilot push triggers the "Approve workflows to run" gate.
 
-Wait for runs to appear in `action_required` status:
+You may be coming to this PR after all the runs have been manually approved. In that case, you need to wait for the runs to complete, then, skip to step 6. Here is how you wait for the runs to complete.
+
+```bash
+gh pr checks $PR_NUMBER -R $REPO --watch
+```
+
+Otherwise, wait for runs to appear in `action_required` status:
 
 ```bash
 # Wait for workflow runs needing approval
