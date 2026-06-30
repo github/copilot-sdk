@@ -5,7 +5,7 @@
 package com.github.copilot.rpc.fixtures;
 
 import com.github.copilot.tool.CopilotTool;
-import com.github.copilot.tool.Param;
+import com.github.copilot.tool.CopilotToolParam;
 
 /**
  * Fixture testing argument coercion with multiple types including an enum.
@@ -17,8 +17,8 @@ public class ArgCoercionTools {
     }
 
     @CopilotTool("Method with mixed argument types")
-    public String mixedArgs(@Param("Text input") String text, @Param("A count") int count,
-            @Param("A flag") boolean flag, @Param("A color") Color color) {
+    public String mixedArgs(@CopilotToolParam("Text input") String text, @CopilotToolParam("A count") int count,
+            @CopilotToolParam("A flag") boolean flag, @CopilotToolParam("A color") Color color) {
         return text + "-" + count + "-" + flag + "-" + color.name();
     }
 }

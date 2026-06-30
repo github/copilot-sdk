@@ -21,8 +21,9 @@ import com.github.copilot.CopilotExperimental;
  *
  * <pre>
  * &#64;CopilotTool("Search for issues")
- * public CompletableFuture&lt;String&gt; searchIssues(&#64;Param(value = "Search query", required = true) String query,
- * 		&#64;Param(value = "Max results", required = false, defaultValue = "10") int limit) {
+ * public CompletableFuture&lt;String&gt; searchIssues(
+ * 		&#64;CopilotToolParam(value = "Search query", required = true) String query,
+ * 		&#64;CopilotToolParam(value = "Max results", required = false, defaultValue = "10") int limit) {
  * 	// ...
  * }
  * </pre>
@@ -33,7 +34,7 @@ import com.github.copilot.CopilotExperimental;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
 @CopilotExperimental
-public @interface Param {
+public @interface CopilotToolParam {
 
     /** Parameter description (sent to the model). */
     String value() default "";

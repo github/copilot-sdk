@@ -22,7 +22,8 @@ import com.github.copilot.rpc.ToolDefer;
  *
  * <pre>
  * &#64;CopilotTool("Get weather for a location")
- * public CompletableFuture&lt;String&gt; getWeather(&#64;Param(value = "City name", required = true) String location) {
+ * public CompletableFuture&lt;String&gt; getWeather(
+ * 		&#64;CopilotToolParam(value = "City name", required = true) String location) {
  * 	return CompletableFuture.completedFuture("Sunny in " + location);
  * }
  * </pre>

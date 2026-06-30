@@ -140,12 +140,12 @@ When you define tools with `@CopilotTool`, parameters of type `ToolInvocation` a
 ```java
 import com.github.copilot.rpc.ToolInvocation;
 import com.github.copilot.tool.CopilotTool;
-import com.github.copilot.tool.Param;
+import com.github.copilot.tool.CopilotToolParam;
 
 class ProgressTools {
     @CopilotTool("Reports the current phase and session")
     public String reportProgress(
-            @Param("Current phase") String phase,
+            @CopilotToolParam("Current phase") String phase,
             ToolInvocation invocation) {
         return "phase=" + phase + ", sessionId=" + invocation.getSessionId();
     }
@@ -156,13 +156,13 @@ Position examples:
 
 ```java
 @CopilotTool("Invocation first")
-public String report(ToolInvocation invocation, @Param("Phase") String phase) { ... }
+public String report(ToolInvocation invocation, @CopilotToolParam("Phase") String phase) { ... }
 
 @CopilotTool("Invocation only")
 public String onlyContext(ToolInvocation invocation) { ... }
 
 @CopilotTool("Invocation middle")
-public String report(@Param("Phase") String phase, ToolInvocation invocation, @Param("Limit") int limit) { ... }
+public String report(@CopilotToolParam("Phase") String phase, ToolInvocation invocation, @CopilotToolParam("Limit") int limit) { ... }
 ```
 
 ## Memory

@@ -90,7 +90,7 @@ public class SchemaGenerator {
             propertyEntries.add("Map.entry(\"" + paramName + "\", " + schema + ")");
 
             if (!isOptional) {
-                Param paramAnnotation = param.getAnnotation(Param.class);
+                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                 if (paramAnnotation == null || paramAnnotation.required()) {
                     requiredNames.add("\"" + paramName + "\"");
                 }

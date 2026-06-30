@@ -7,7 +7,7 @@ package com.github.copilot.rpc.fixtures;
 import java.time.LocalDateTime;
 
 import com.github.copilot.tool.CopilotTool;
-import com.github.copilot.tool.Param;
+import com.github.copilot.tool.CopilotToolParam;
 
 /**
  * Fixture testing java.time argument deserialization via ObjectMapper with
@@ -16,7 +16,7 @@ import com.github.copilot.tool.Param;
 public class DateTimeTools {
 
     @CopilotTool("Schedule an event at a given time")
-    public String scheduleEvent(@Param(value = "When to schedule", required = true) LocalDateTime when) {
+    public String scheduleEvent(@CopilotToolParam(value = "When to schedule", required = true) LocalDateTime when) {
         return "Scheduled at " + when.getYear() + "-" + String.format("%02d", when.getMonthValue()) + "-"
                 + String.format("%02d", when.getDayOfMonth()) + "T" + String.format("%02d", when.getHour()) + ":"
                 + String.format("%02d", when.getMinute());

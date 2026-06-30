@@ -68,23 +68,23 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 continue;
             }
 
-            // Validate @Param conflicts
+            // Validate @CopilotToolParam conflicts
             int toolInvocationParamCount = 0;
             for (VariableElement param : method.getParameters()) {
                 if (isToolInvocationType(param.asType())) {
                     toolInvocationParamCount++;
-                    if (param.getAnnotation(Param.class) != null) {
+                    if (param.getAnnotation(CopilotToolParam.class) != null) {
                         processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                                "@Param is not supported on ToolInvocation parameters because ToolInvocation is injected runtime context and not part of the tool schema",
+                                "@CopilotToolParam is not supported on ToolInvocation parameters because ToolInvocation is injected runtime context and not part of the tool schema",
                                 param);
                     }
                     continue;
                 }
-                Param paramAnnotation = param.getAnnotation(Param.class);
+                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                 if (paramAnnotation != null && paramAnnotation.required()
                         && !paramAnnotation.defaultValue().isEmpty()) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                            "@Param cannot have both required=true and a non-empty defaultValue", param);
+                            "@CopilotToolParam cannot have both required=true and a non-empty defaultValue", param);
                 }
                 if (paramAnnotation != null && !paramAnnotation.defaultValue().isEmpty()) {
                     String defaultValidationError = validateDefaultValueCompatibility(param.asType(),
@@ -96,7 +96,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 if (paramAnnotation != null && !paramAnnotation.required() && paramAnnotation.defaultValue().isEmpty()
                         && param.asType().getKind().isPrimitive()) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                            "@Param(required=false) primitive parameters must provide defaultValue or use a boxed/Optional type",
+                            "@CopilotToolParam(required=false) primitive parameters must provide defaultValue or use a boxed/Optional type",
                             param);
                 }
             }
@@ -111,17 +111,17 @@ public class CopilotToolProcessor extends AbstractProcessor {
             if (schemaParameters.size() == 1) {
                 VariableElement singleParam = schemaParameters.get(0);
                 if (isRecord(singleParam.asType())) {
-                    Param paramAnnotation = singleParam.getAnnotation(Param.class);
+                    CopilotToolParam paramAnnotation = singleParam.getAnnotation(CopilotToolParam.class);
                     if (paramAnnotation != null) {
                         if (!paramAnnotation.defaultValue().isEmpty()) {
                             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                                    "@Param(defaultValue=...) is not supported on single-record tool parameters; use record component defaults or a non-record parameter",
+                                    "@CopilotToolParam(defaultValue=...) is not supported on single-record tool parameters; use record component defaults or a non-record parameter",
                                     singleParam);
                         }
                         if (!paramAnnotation.name().isEmpty() || !paramAnnotation.value().isEmpty()
                                 || !paramAnnotation.required()) {
                             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                                    "@Param name/value/required are not supported on single-record tool parameters; annotate record components instead",
+                                    "@CopilotToolParam name/value/required are not supported on single-record tool parameters; annotate record components instead",
                                     singleParam);
                         }
                     }
@@ -235,7 +235,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
     private boolean needsWithMetaHelper(List<ExecutableElement> methods) {
         for (ExecutableElement method : methods) {
             for (VariableElement param : method.getParameters()) {
-                Param paramAnnotation = param.getAnnotation(Param.class);
+                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                 if (paramAnnotation != null
                         && (!paramAnnotation.value().isEmpty() || !paramAnnotation.defaultValue().isEmpty())) {
                     return true;
@@ -255,7 +255,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
         boolean skipPermission = annotation.skipPermission();
         com.github.copilot.rpc.ToolDefer defer = annotation.defer();
 
-        // Generate schema with @Param metadata (descriptions, names, defaults)
+        // Generate schema with @CopilotToolParam metadata (descriptions, names,
+        // defaults)
         String schemaSource = generateSchemaWithParamMetadata(method.getParameters());
 
         // Generate invocation lambda
@@ -296,7 +297,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         for (VariableElement param : schemaParameters) {
             String paramName = getParamName(param);
             TypeMirror paramType = param.asType();
-            Param paramAnnotation = param.getAnnotation(Param.class);
+            CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
 
             // Generate the type schema for this parameter
             String typeSchema = schemaGenerator.generateSchemaSource(paramType, processingEnv.getTypeUtils(),
@@ -338,7 +339,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         return TOOL_INVOCATION_TYPE.equals(processingEnv.getTypeUtils().erasure(type).toString());
     }
 
-    private String buildPropertySchema(String typeSchema, Param paramAnnotation, TypeMirror paramType) {
+    private String buildPropertySchema(String typeSchema, CopilotToolParam paramAnnotation, TypeMirror paramType) {
         if (paramAnnotation == null) {
             return typeSchema;
         }
@@ -382,7 +383,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                     TypeMirror paramType = param.asType();
 
                     // Handle default values
-                    Param paramAnnotation = param.getAnnotation(Param.class);
+                    CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                     boolean hasDefault = paramAnnotation != null && !paramAnnotation.defaultValue().isEmpty();
 
                     if (hasDefault) {
@@ -695,7 +696,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                     return null;
             }
         } catch (NumberFormatException ex) {
-            return "@Param defaultValue '" + defaultValue + "' is not valid for " + kind.name().toLowerCase()
+            return "@CopilotToolParam defaultValue '" + defaultValue + "' is not valid for " + kind.name().toLowerCase()
                     + " parameters";
         }
     }
@@ -704,13 +705,13 @@ public class CopilotToolProcessor extends AbstractProcessor {
         if ("true".equalsIgnoreCase(defaultValue) || "false".equalsIgnoreCase(defaultValue)) {
             return null;
         }
-        return "@Param defaultValue '" + defaultValue + "' is not valid for boolean parameters";
+        return "@CopilotToolParam defaultValue '" + defaultValue + "' is not valid for boolean parameters";
     }
 
     private String validateCharacterDefault(String defaultValue) {
         return defaultValue != null && defaultValue.length() == 1
                 ? null
-                : "@Param defaultValue '" + defaultValue + "' is not valid for char parameters";
+                : "@CopilotToolParam defaultValue '" + defaultValue + "' is not valid for char parameters";
     }
 
     private TypeKind boxedTypeKind(String qualifiedName) {
@@ -733,7 +734,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
     }
 
     private String getParamName(VariableElement param) {
-        Param paramAnnotation = param.getAnnotation(Param.class);
+        CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
         if (paramAnnotation != null && !paramAnnotation.name().isEmpty()) {
             return paramAnnotation.name();
         }
