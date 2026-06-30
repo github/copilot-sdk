@@ -57,12 +57,18 @@ import com.github.copilot.generated.SessionCanvasOpenedEvent;
 import com.github.copilot.generated.SessionErrorEvent;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionIdleEvent;
+import com.github.copilot.generated.rpc.CanvasActionInvokeParams;
+import com.github.copilot.generated.rpc.CanvasCloseParams;
+import com.github.copilot.generated.rpc.CanvasOpenParams;
+import com.github.copilot.generated.rpc.CanvasOpenResult;
 import com.github.copilot.generated.rpc.OpenCanvasInstance;
 import com.github.copilot.rpc.AgentInfo;
 import com.github.copilot.rpc.AutoModeSwitchHandler;
 import com.github.copilot.rpc.AutoModeSwitchInvocation;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
+import com.github.copilot.rpc.CanvasException;
+import com.github.copilot.rpc.CanvasHandler;
 import com.github.copilot.rpc.CommandContext;
 import com.github.copilot.rpc.CommandDefinition;
 import com.github.copilot.rpc.CommandHandler;
@@ -182,6 +188,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
     private final AtomicReference<ExitPlanModeHandler> exitPlanModeHandler = new AtomicReference<>();
     private final AtomicReference<AutoModeSwitchHandler> autoModeSwitchHandler = new AtomicReference<>();
+    private final AtomicReference<CanvasHandler> canvasHandler = new AtomicReference<>();
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
@@ -1480,6 +1487,87 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Registers the canvas lifecycle handler for this session.
+     * <p>
+     * Called internally when creating or resuming a session that declares canvases.
+     * The handler receives inbound {@code canvas.open} / {@code canvas.close} /
+     * {@code canvas.action.invoke} requests.
+     *
+     * @param handler
+     *            the handler to invoke for inbound canvas requests
+     */
+    void registerCanvasHandler(CanvasHandler handler) {
+        canvasHandler.set(handler);
+    }
+
+    /**
+     * Routes an inbound {@code canvas.open} request to the registered
+     * {@link CanvasHandler}.
+     * <p>
+     * Called internally by the RPC dispatcher.
+     *
+     * @param params
+     *            the open request from the runtime
+     * @return a future that completes with the open result
+     */
+    CompletableFuture<CanvasOpenResult> handleCanvasOpen(CanvasOpenParams params) {
+        CanvasHandler handler = canvasHandler.get();
+        if (handler == null) {
+            return CompletableFuture.failedFuture(
+                    new CanvasException("canvas_no_handler", "No canvas handler registered for this session"));
+        }
+        try {
+            return handler.onOpen(params);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Routes an inbound {@code canvas.action.invoke} request to the registered
+     * {@link CanvasHandler}.
+     * <p>
+     * Called internally by the RPC dispatcher.
+     *
+     * @param params
+     *            the action-invoke request from the runtime
+     * @return a future that completes with the JSON-serializable action result
+     */
+    CompletableFuture<Object> handleCanvasAction(CanvasActionInvokeParams params) {
+        CanvasHandler handler = canvasHandler.get();
+        if (handler == null) {
+            return CompletableFuture.failedFuture(CanvasException.noHandler());
+        }
+        try {
+            return handler.onAction(params);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Routes an inbound {@code canvas.close} request to the registered
+     * {@link CanvasHandler}.
+     * <p>
+     * Called internally by the RPC dispatcher.
+     *
+     * @param params
+     *            the close request from the runtime
+     * @return a future that completes when the close has been handled
+     */
+    CompletableFuture<Void> handleCanvasClose(CanvasCloseParams params) {
+        CanvasHandler handler = canvasHandler.get();
+        if (handler == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        try {
+            return handler.onClose(params);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
      * Sets the capabilities reported by the host for this session.
      * <p>
      * Called internally after session create/resume response.
@@ -2245,6 +2333,7 @@ public final class CopilotSession implements AutoCloseable {
         elicitationHandler.set(null);
         exitPlanModeHandler.set(null);
         autoModeSwitchHandler.set(null);
+        canvasHandler.set(null);
         hooksHandler.set(null);
     }
 

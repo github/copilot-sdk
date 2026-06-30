@@ -17,7 +17,11 @@ import java.util.logging.Logger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.CanvasActionInvokeParams;
+import com.github.copilot.generated.rpc.CanvasCloseParams;
+import com.github.copilot.generated.rpc.CanvasOpenParams;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
+import com.github.copilot.rpc.CanvasException;
 import com.github.copilot.rpc.ExitPlanModeRequest;
 import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.ProviderTokenArgs;
@@ -92,6 +96,10 @@ final class RpcHandlerDispatcher {
                 (requestId, params) -> handleSystemMessageTransform(rpc, requestId, params));
         rpc.registerMethodHandler("providerToken.getToken",
                 (requestId, params) -> handleProviderTokenGetToken(rpc, requestId, params));
+        rpc.registerMethodHandler("canvas.open", (requestId, params) -> handleCanvasOpen(rpc, requestId, params));
+        rpc.registerMethodHandler("canvas.close", (requestId, params) -> handleCanvasClose(rpc, requestId, params));
+        rpc.registerMethodHandler("canvas.action.invoke",
+                (requestId, params) -> handleCanvasActionInvoke(rpc, requestId, params));
     }
 
     private void handleSessionEvent(JsonNode params) {
@@ -463,6 +471,111 @@ final class RpcHandlerDispatcher {
                 LOG.log(Level.SEVERE, "Error handling auto mode switch request", e);
             }
         });
+    }
+
+    private void handleCanvasOpen(JsonRpcClient rpc, String requestId, JsonNode params) {
+        runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "canvas.open");
+            if (requestIdLong == -1) {
+                return;
+            }
+            try {
+                CanvasOpenParams openParams = MAPPER.treeToValue(params, CanvasOpenParams.class);
+                CopilotSession session = sessions.get(openParams.sessionId());
+                if (session == null) {
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + openParams.sessionId());
+                    return;
+                }
+                session.handleCanvasOpen(openParams).thenAccept(result -> {
+                    try {
+                        rpc.sendResponse(requestIdLong, result);
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending canvas open response", e);
+                    }
+                }).exceptionally(ex -> {
+                    sendCanvasError(rpc, requestIdLong, "canvas.open", ex);
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Error handling canvas open request", e);
+            }
+        });
+    }
+
+    private void handleCanvasClose(JsonRpcClient rpc, String requestId, JsonNode params) {
+        runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "canvas.close");
+            if (requestIdLong == -1) {
+                return;
+            }
+            try {
+                CanvasCloseParams closeParams = MAPPER.treeToValue(params, CanvasCloseParams.class);
+                CopilotSession session = sessions.get(closeParams.sessionId());
+                if (session == null) {
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + closeParams.sessionId());
+                    return;
+                }
+                session.handleCanvasClose(closeParams).thenAccept(ignored -> {
+                    try {
+                        rpc.sendResponse(requestIdLong, null);
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending canvas close response", e);
+                    }
+                }).exceptionally(ex -> {
+                    sendCanvasError(rpc, requestIdLong, "canvas.close", ex);
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Error handling canvas close request", e);
+            }
+        });
+    }
+
+    private void handleCanvasActionInvoke(JsonRpcClient rpc, String requestId, JsonNode params) {
+        runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "canvas.action.invoke");
+            if (requestIdLong == -1) {
+                return;
+            }
+            try {
+                CanvasActionInvokeParams actionParams = MAPPER.treeToValue(params, CanvasActionInvokeParams.class);
+                CopilotSession session = sessions.get(actionParams.sessionId());
+                if (session == null) {
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + actionParams.sessionId());
+                    return;
+                }
+                session.handleCanvasAction(actionParams).thenAccept(result -> {
+                    try {
+                        rpc.sendResponse(requestIdLong, result);
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending canvas action response", e);
+                    }
+                }).exceptionally(ex -> {
+                    sendCanvasError(rpc, requestIdLong, "canvas.action.invoke", ex);
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Error handling canvas action invoke request", e);
+            }
+        });
+    }
+
+    /**
+     * Sends a structured error response for a failed canvas callback. A
+     * {@link CanvasException} carries a machine-readable {@code code}; any other
+     * exception is wrapped in a generic {@code canvas_handler_error} envelope.
+     */
+    private void sendCanvasError(JsonRpcClient rpc, long requestIdLong, String label, Throwable ex) {
+        Throwable cause = (ex instanceof java.util.concurrent.CompletionException && ex.getCause() != null)
+                ? ex.getCause()
+                : ex;
+        String code = cause instanceof CanvasException ? ((CanvasException) cause).getCode() : "canvas_handler_error";
+        String message = cause.getMessage() != null ? cause.getMessage() : cause.toString();
+        try {
+            rpc.sendErrorResponse(requestIdLong, -32603, message, Map.of("code", code, "message", message));
+        } catch (IOException e) {
+            LOG.log(Level.SEVERE, "Error sending " + label + " error", e);
+        }
     }
 
     private void handleHooksInvoke(JsonRpcClient rpc, String requestId, JsonNode params) {

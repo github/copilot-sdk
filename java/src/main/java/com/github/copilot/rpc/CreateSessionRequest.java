@@ -199,6 +199,24 @@ public final class CreateSessionRequest {
     @JsonProperty("expAssignments")
     private JsonNode expAssignments;
 
+    @JsonProperty("canvases")
+    private List<CanvasDeclaration> canvases;
+
+    @JsonProperty("requestCanvasRenderer")
+    private Boolean requestCanvasRenderer;
+
+    @JsonProperty("requestExtensions")
+    private Boolean requestExtensions;
+
+    @JsonProperty("extensionSdkPath")
+    private String extensionSdkPath;
+
+    @JsonProperty("extensionInfo")
+    private ExtensionInfo extensionInfo;
+
+    @JsonProperty("canvasProvider")
+    private CanvasProviderIdentity canvasProvider;
+
     /** Gets the model name. @return the model */
     public String getModel() {
         return model;
@@ -899,5 +917,70 @@ public final class CreateSessionRequest {
      */
     public void setExpAssignments(JsonNode expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /** Gets the declared canvases. @return the canvas declarations */
+    public List<CanvasDeclaration> getCanvases() {
+        return canvases;
+    }
+
+    /** Sets the declared canvases. @param canvases the canvas declarations */
+    public void setCanvases(List<CanvasDeclaration> canvases) {
+        this.canvases = canvases;
+    }
+
+    /** Gets the request-canvas-renderer flag. @return the flag */
+    public Boolean getRequestCanvasRenderer() {
+        return requestCanvasRenderer;
+    }
+
+    /**
+     * Sets the request-canvas-renderer flag. @param requestCanvasRenderer the flag
+     */
+    public void setRequestCanvasRenderer(Boolean requestCanvasRenderer) {
+        this.requestCanvasRenderer = requestCanvasRenderer;
+    }
+
+    /** Gets the request-extensions flag. @return the flag */
+    public Boolean getRequestExtensions() {
+        return requestExtensions;
+    }
+
+    /** Sets the request-extensions flag. @param requestExtensions the flag */
+    public void setRequestExtensions(Boolean requestExtensions) {
+        this.requestExtensions = requestExtensions;
+    }
+
+    /** Gets the extension SDK path override. @return the path */
+    public String getExtensionSdkPath() {
+        return extensionSdkPath;
+    }
+
+    /** Sets the extension SDK path override. @param extensionSdkPath the path */
+    public void setExtensionSdkPath(String extensionSdkPath) {
+        this.extensionSdkPath = extensionSdkPath;
+    }
+
+    /** Gets the extension identity. @return the extension info */
+    public ExtensionInfo getExtensionInfo() {
+        return extensionInfo;
+    }
+
+    /** Sets the extension identity. @param extensionInfo the extension info */
+    public void setExtensionInfo(ExtensionInfo extensionInfo) {
+        this.extensionInfo = extensionInfo;
+    }
+
+    /** Gets the canvas provider identity. @return the canvas provider identity */
+    public CanvasProviderIdentity getCanvasProvider() {
+        return canvasProvider;
+    }
+
+    /**
+     * Sets the canvas provider identity. @param canvasProvider the canvas provider
+     * identity
+     */
+    public void setCanvasProvider(CanvasProviderIdentity canvasProvider) {
+        this.canvasProvider = canvasProvider;
     }
 }

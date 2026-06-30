@@ -182,6 +182,12 @@ final class SessionRequestBuilder {
         request.setRemoteSession(config.getRemoteSession());
         request.setCloud(config.getCloud());
         request.setExpAssignments(config.getExpAssignments());
+        request.setCanvases(config.getCanvases());
+        request.setRequestCanvasRenderer(config.getRequestCanvasRenderer());
+        request.setRequestExtensions(config.getRequestExtensions());
+        request.setExtensionSdkPath(config.getExtensionSdkPath());
+        request.setExtensionInfo(config.getExtensionInfo());
+        request.setCanvasProvider(config.getCanvasProvider());
 
         return request;
     }
@@ -300,6 +306,13 @@ final class SessionRequestBuilder {
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
         request.setExpAssignments(config.getExpAssignments());
+        request.setCanvases(config.getCanvases());
+        request.setOpenCanvases(config.getOpenCanvases());
+        request.setRequestCanvasRenderer(config.getRequestCanvasRenderer());
+        request.setRequestExtensions(config.getRequestExtensions());
+        request.setExtensionSdkPath(config.getExtensionSdkPath());
+        request.setExtensionInfo(config.getExtensionInfo());
+        request.setCanvasProvider(config.getCanvasProvider());
 
         return request;
     }
@@ -348,6 +361,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnAutoModeSwitch() != null) {
             session.registerAutoModeSwitchHandler(config.getOnAutoModeSwitch());
+        }
+        if (config.getCanvasHandler() != null) {
+            session.registerCanvasHandler(config.getCanvasHandler());
         }
         if (config.getOnEvent() != null) {
             session.on(config.getOnEvent());
@@ -398,6 +414,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnAutoModeSwitch() != null) {
             session.registerAutoModeSwitchHandler(config.getOnAutoModeSwitch());
+        }
+        if (config.getCanvasHandler() != null) {
+            session.registerCanvasHandler(config.getCanvasHandler());
         }
         if (config.getOnEvent() != null) {
             session.on(config.getOnEvent());

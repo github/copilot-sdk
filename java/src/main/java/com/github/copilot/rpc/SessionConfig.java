@@ -99,6 +99,13 @@ public class SessionConfig {
     private String remoteSession;
     private CloudSessionOptions cloud;
     private JsonNode expAssignments;
+    private List<CanvasDeclaration> canvases;
+    private CanvasHandler canvasHandler;
+    private Boolean requestCanvasRenderer;
+    private Boolean requestExtensions;
+    private String extensionSdkPath;
+    private ExtensionInfo extensionInfo;
+    private CanvasProviderIdentity canvasProvider;
 
     /**
      * Gets the custom session ID.
@@ -1790,6 +1797,183 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the canvas declarations advertised by this connection.
+     *
+     * @return the canvas declarations, or {@code null} if none
+     */
+    @CopilotExperimental
+    public List<CanvasDeclaration> getCanvases() {
+        return canvases;
+    }
+
+    /**
+     * Sets the canvas declarations advertised by this connection.
+     * <p>
+     * The runtime forwards these to the agent and routes inbound {@code canvas.*}
+     * requests for any declared canvas to the
+     * {@link #setCanvasHandler(CanvasHandler) canvas handler}. Set
+     * {@link #setExtensionInfo(ExtensionInfo)} so the runtime can attribute the
+     * declared canvases back to this provider.
+     *
+     * @param canvases
+     *            the canvas declarations
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setCanvases(List<CanvasDeclaration> canvases) {
+        this.canvases = canvases;
+        return this;
+    }
+
+    /**
+     * Gets the provider-side canvas lifecycle handler.
+     *
+     * @return the canvas handler, or {@code null} if none
+     */
+    @CopilotExperimental
+    public CanvasHandler getCanvasHandler() {
+        return canvasHandler;
+    }
+
+    /**
+     * Sets the provider-side canvas lifecycle handler.
+     * <p>
+     * The SDK routes inbound {@code canvas.open} / {@code canvas.close} /
+     * {@code canvas.action.invoke} requests for declared canvases to this handler.
+     * The handler stays SDK-side and is not serialized.
+     *
+     * @param canvasHandler
+     *            the canvas handler
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setCanvasHandler(CanvasHandler canvasHandler) {
+        this.canvasHandler = canvasHandler;
+        return this;
+    }
+
+    /**
+     * Gets whether host canvas renderer tools are requested for this connection.
+     *
+     * @return {@code true} to request canvas renderer tools, or {@code null} if
+     *         unset
+     */
+    @CopilotExperimental
+    public Boolean getRequestCanvasRenderer() {
+        return requestCanvasRenderer;
+    }
+
+    /**
+     * Requests host canvas renderer tools for this connection.
+     *
+     * @param requestCanvasRenderer
+     *            {@code true} to request canvas renderer tools
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setRequestCanvasRenderer(Boolean requestCanvasRenderer) {
+        this.requestCanvasRenderer = requestCanvasRenderer;
+        return this;
+    }
+
+    /**
+     * Gets whether extension tools and dispatch are requested for this connection.
+     *
+     * @return {@code true} to request extension tools, or {@code null} if unset
+     */
+    @CopilotExperimental
+    public Boolean getRequestExtensions() {
+        return requestExtensions;
+    }
+
+    /**
+     * Requests extension tools and dispatch for this connection.
+     *
+     * @param requestExtensions
+     *            {@code true} to request extension tools
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setRequestExtensions(Boolean requestExtensions) {
+        this.requestExtensions = requestExtensions;
+        return this;
+    }
+
+    /**
+     * Gets the override path used to launch extension subprocesses.
+     *
+     * @return the extension SDK path, or {@code null} if unset
+     */
+    @CopilotExperimental
+    public String getExtensionSdkPath() {
+        return extensionSdkPath;
+    }
+
+    /**
+     * Overrides the bundled {@code @github/copilot-sdk} drop injected into
+     * extension subprocesses for this session. Invalid paths fall back to the
+     * bundled SDK.
+     *
+     * @param extensionSdkPath
+     *            the extension SDK path
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setExtensionSdkPath(String extensionSdkPath) {
+        this.extensionSdkPath = extensionSdkPath;
+        return this;
+    }
+
+    /**
+     * Gets the stable extension identity for canvas/tool providers.
+     *
+     * @return the extension info, or {@code null} if unset
+     */
+    @CopilotExperimental
+    public ExtensionInfo getExtensionInfo() {
+        return extensionInfo;
+    }
+
+    /**
+     * Sets the stable extension identity for canvas/tool providers on this
+     * connection.
+     *
+     * @param extensionInfo
+     *            the extension identity
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setExtensionInfo(ExtensionInfo extensionInfo) {
+        this.extensionInfo = extensionInfo;
+        return this;
+    }
+
+    /**
+     * Gets the session-level canvas provider identity.
+     *
+     * @return the canvas provider identity, or {@code null} if unset
+     */
+    @CopilotExperimental
+    public CanvasProviderIdentity getCanvasProvider() {
+        return canvasProvider;
+    }
+
+    /**
+     * Sets the session-level identity for the participant that provides canvases on
+     * this connection. The {@link CanvasProviderIdentity#getId() id} is used
+     * verbatim as the canvas {@code extensionId}.
+     *
+     * @param canvasProvider
+     *            the canvas provider identity
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setCanvasProvider(CanvasProviderIdentity canvasProvider) {
+        this.canvasProvider = canvasProvider;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -1863,6 +2047,13 @@ public class SessionConfig {
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
         copy.expAssignments = this.expAssignments;
+        copy.canvases = this.canvases != null ? new ArrayList<>(this.canvases) : null;
+        copy.canvasHandler = this.canvasHandler;
+        copy.requestCanvasRenderer = this.requestCanvasRenderer;
+        copy.requestExtensions = this.requestExtensions;
+        copy.extensionSdkPath = this.extensionSdkPath;
+        copy.extensionInfo = this.extensionInfo;
+        copy.canvasProvider = this.canvasProvider;
         return copy;
     }
 }
