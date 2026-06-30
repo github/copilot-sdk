@@ -13,7 +13,7 @@ import com.github.copilot.CopilotExperimental;
  * event.
  *
  * <p>
- * Internal/experimental: this type is part of the GitHub telemetry redirection
+ * Internal/experimental: this type is part of the GitHub telemetry forwarding
  * surface and may change or be removed without notice.
  *
  * @since 1.0.0

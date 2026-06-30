@@ -189,7 +189,7 @@ describe("CopilotClient", () => {
         expect(resumePayload.contextTier).toBe("default");
     });
 
-    it("opts into GitHub telemetry redirection when onGitHubTelemetry is provided", async () => {
+    it("opts into GitHub telemetry forwarding when onGitHubTelemetry is provided", async () => {
         const client = new CopilotClient({ onGitHubTelemetry: () => {} });
         await client.start();
         onTestFinished(() => client.forceStop());
@@ -211,11 +211,11 @@ describe("CopilotClient", () => {
         const resumePayload = spy.mock.calls.find(
             ([method]) => method === "session.resume"
         )![1] as any;
-        expect(createPayload.enableGitHubTelemetryRedirection).toBe(true);
-        expect(resumePayload.enableGitHubTelemetryRedirection).toBe(true);
+        expect(createPayload.enableGitHubTelemetryForwarding).toBe(true);
+        expect(resumePayload.enableGitHubTelemetryForwarding).toBe(true);
     });
 
-    it("does not opt into GitHub telemetry redirection without a handler", async () => {
+    it("does not opt into GitHub telemetry forwarding without a handler", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => client.forceStop());
@@ -232,7 +232,7 @@ describe("CopilotClient", () => {
         const createPayload = spy.mock.calls.find(
             ([method]) => method === "session.create"
         )![1] as any;
-        expect(createPayload.enableGitHubTelemetryRedirection).toBe(false);
+        expect(createPayload.enableGitHubTelemetryForwarding).toBe(false);
     });
 
     it("dispatches a real gitHubTelemetry.event wire notification to the handler", async () => {

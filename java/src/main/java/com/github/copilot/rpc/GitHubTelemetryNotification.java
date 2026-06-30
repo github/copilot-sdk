@@ -11,10 +11,10 @@ import com.github.copilot.CopilotExperimental;
 /**
  * Payload for a {@code gitHubTelemetry.event} notification: a single GitHub
  * telemetry event the runtime forwards to a host connection that opted into
- * telemetry redirection for the session.
+ * telemetry forwarding for the session.
  *
  * <p>
- * Internal/experimental: this type is part of the GitHub telemetry redirection
+ * Internal/experimental: this type is part of the GitHub telemetry forwarding
  * surface and may change or be removed without notice.
  *
  * @since 1.0.0

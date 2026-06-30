@@ -1035,7 +1035,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
-                EnableGitHubTelemetryRedirection: _options.OnGitHubTelemetry != null ? true : null);
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1238,7 +1238,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
-                EnableGitHubTelemetryRedirection: _options.OnGitHubTelemetry != null ? true : null);
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -2483,7 +2483,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
-        bool? EnableGitHubTelemetryRedirection = null);
+        bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2580,7 +2580,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
-        bool? EnableGitHubTelemetryRedirection = null);
+        bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(

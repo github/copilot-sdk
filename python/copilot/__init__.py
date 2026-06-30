@@ -74,6 +74,9 @@ from .copilot_request_handler import (
     LlmInferenceHeaders,
 )
 from .generated.rpc import (
+    GitHubTelemetryClientInfo,
+    GitHubTelemetryEvent,
+    GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
 )
@@ -218,6 +221,9 @@ __all__ = [
     "GetAuthStatusResponse",
     "BearerTokenProvider",
     "GetStatusResponse",
+    "GitHubTelemetryClientInfo",
+    "GitHubTelemetryEvent",
+    "GitHubTelemetryNotification",
     "InfiniteSessionConfig",
     "InputOptions",
     "LargeToolOutputConfig",

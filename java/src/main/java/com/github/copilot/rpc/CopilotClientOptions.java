@@ -488,7 +488,7 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the connection-level GitHub telemetry redirection handler.
+     * Gets the connection-level GitHub telemetry forwarding handler.
      *
      * <p>
      * Experimental: this option may change or be removed without notice.
@@ -502,12 +502,12 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Sets a connection-level handler for GitHub telemetry redirection
+     * Sets a connection-level handler for GitHub telemetry forwarding
      * (experimental).
      *
      * <p>
      * When provided, the client opts every session it creates or resumes into
-     * telemetry redirection, and the runtime forwards each per-session telemetry
+     * telemetry forwarding, and the runtime forwards each per-session telemetry
      * event to this handler via the {@code gitHubTelemetry.event} notification.
      *
      * @param onGitHubTelemetry

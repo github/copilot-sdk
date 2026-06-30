@@ -257,7 +257,7 @@ public final class CopilotClient implements AutoCloseable {
                 llmAdapter.registerHandlers(rpc);
             }
 
-            // Register the GitHub telemetry redirection handler when configured.
+            // Register the GitHub telemetry forwarding handler when configured.
             java.util.function.Consumer<com.github.copilot.rpc.GitHubTelemetryNotification> onGitHubTelemetry = this.options
                     .getOnGitHubTelemetry();
             if (onGitHubTelemetry != null) {
@@ -586,11 +586,11 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
-            // Opt this session into GitHub telemetry redirection when a
+            // Opt this session into GitHub telemetry forwarding when a
             // connection-level handler is registered (mirrors the runtime's
             // hand-written capability flag, not part of the codegen'd contract).
             if (options.getOnGitHubTelemetry() != null) {
-                request.setEnableGitHubTelemetryRedirection(true);
+                request.setEnableGitHubTelemetryForwarding(true);
             }
 
             // Empty mode: validate availableTools and set toolFilterPrecedence
@@ -735,11 +735,11 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
-            // Opt this session into GitHub telemetry redirection when a
+            // Opt this session into GitHub telemetry forwarding when a
             // connection-level handler is registered (mirrors the runtime's
             // hand-written capability flag, not part of the codegen'd contract).
             if (options.getOnGitHubTelemetry() != null) {
-                request.setEnableGitHubTelemetryRedirection(true);
+                request.setEnableGitHubTelemetryForwarding(true);
             }
 
             // Empty mode: validate availableTools and set toolFilterPrecedence for resume

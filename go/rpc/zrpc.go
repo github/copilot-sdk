@@ -2038,7 +2038,7 @@ type GitHubTelemetryEvent struct {
 }
 
 // Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the
-// runtime forwards to a host connection that opted into telemetry redirection for the
+// runtime forwards to a host connection that opted into telemetry forwarding for the
 // session.
 // Experimental: GitHubTelemetryNotification is part of an experimental API and may change
 // or be removed.
@@ -18499,12 +18499,12 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 // removed.
 type GitHubTelemetryHandler interface {
 	// Event forwards a single GitHub telemetry event to a host connection that opted into
-	// telemetry redirection for the session.
+	// telemetry forwarding for the session.
 	//
 	// RPC method: gitHubTelemetry.event.
 	//
 	// Parameters: Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry
-	// event the runtime forwards to a host connection that opted into telemetry redirection for
+	// event the runtime forwards to a host connection that opted into telemetry forwarding for
 	// the session.
 	Event(request *GitHubTelemetryNotification) error
 }

@@ -14490,7 +14490,7 @@ pub struct GitHubTelemetryEvent {
     pub session_id: Option<String>,
 }
 
-/// Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session.
+/// Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
 ///
 /// <div class="warning">
 ///

@@ -1975,10 +1975,10 @@ func TestResumeSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 	})
 }
 
-func TestCreateSessionRequest_EnableGitHubTelemetryRedirection(t *testing.T) {
+func TestCreateSessionRequest_EnableGitHubTelemetryForwarding(t *testing.T) {
 	t.Run("forwards explicit true", func(t *testing.T) {
 		req := createSessionRequest{
-			EnableGitHubTelemetryRedirection: Bool(true),
+			EnableGitHubTelemetryForwarding: Bool(true),
 		}
 		data, err := json.Marshal(req)
 		if err != nil {
@@ -1988,8 +1988,8 @@ func TestCreateSessionRequest_EnableGitHubTelemetryRedirection(t *testing.T) {
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("Failed to unmarshal: %v", err)
 		}
-		if m["enableGitHubTelemetryRedirection"] != true {
-			t.Errorf("Expected enableGitHubTelemetryRedirection to be true, got %v", m["enableGitHubTelemetryRedirection"])
+		if m["enableGitHubTelemetryForwarding"] != true {
+			t.Errorf("Expected enableGitHubTelemetryForwarding to be true, got %v", m["enableGitHubTelemetryForwarding"])
 		}
 	})
 
@@ -1998,17 +1998,17 @@ func TestCreateSessionRequest_EnableGitHubTelemetryRedirection(t *testing.T) {
 		data, _ := json.Marshal(req)
 		var m map[string]any
 		json.Unmarshal(data, &m)
-		if _, ok := m["enableGitHubTelemetryRedirection"]; ok {
-			t.Error("Expected enableGitHubTelemetryRedirection to be omitted when not set")
+		if _, ok := m["enableGitHubTelemetryForwarding"]; ok {
+			t.Error("Expected enableGitHubTelemetryForwarding to be omitted when not set")
 		}
 	})
 }
 
-func TestResumeSessionRequest_EnableGitHubTelemetryRedirection(t *testing.T) {
+func TestResumeSessionRequest_EnableGitHubTelemetryForwarding(t *testing.T) {
 	t.Run("forwards explicit true", func(t *testing.T) {
 		req := resumeSessionRequest{
 			SessionID:                        "s1",
-			EnableGitHubTelemetryRedirection: Bool(true),
+			EnableGitHubTelemetryForwarding: Bool(true),
 		}
 		data, err := json.Marshal(req)
 		if err != nil {
@@ -2018,8 +2018,8 @@ func TestResumeSessionRequest_EnableGitHubTelemetryRedirection(t *testing.T) {
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("Failed to unmarshal: %v", err)
 		}
-		if m["enableGitHubTelemetryRedirection"] != true {
-			t.Errorf("Expected enableGitHubTelemetryRedirection to be true, got %v", m["enableGitHubTelemetryRedirection"])
+		if m["enableGitHubTelemetryForwarding"] != true {
+			t.Errorf("Expected enableGitHubTelemetryForwarding to be true, got %v", m["enableGitHubTelemetryForwarding"])
 		}
 	})
 
@@ -2028,13 +2028,13 @@ func TestResumeSessionRequest_EnableGitHubTelemetryRedirection(t *testing.T) {
 		data, _ := json.Marshal(req)
 		var m map[string]any
 		json.Unmarshal(data, &m)
-		if _, ok := m["enableGitHubTelemetryRedirection"]; ok {
-			t.Error("Expected enableGitHubTelemetryRedirection to be omitted when not set")
+		if _, ok := m["enableGitHubTelemetryForwarding"]; ok {
+			t.Error("Expected enableGitHubTelemetryForwarding to be omitted when not set")
 		}
 	})
 }
 
-func TestClient_ForwardsGitHubTelemetryRedirectionToSessionRequests(t *testing.T) {
+func TestClient_ForwardsGitHubTelemetryForwardingToSessionRequests(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)
 	client := &Client{
@@ -2054,7 +2054,7 @@ func TestClient_ForwardsGitHubTelemetryRedirectionToSessionRequests(t *testing.T
 	if _, err := client.CreateSession(t.Context(), &SessionConfig{}); err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertRedirectionFlagTrue(t, <-createParams)
+	assertForwardingFlagTrue(t, <-createParams)
 
 	resumeParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
@@ -2065,21 +2065,21 @@ func TestClient_ForwardsGitHubTelemetryRedirectionToSessionRequests(t *testing.T
 	if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed", &ResumeSessionConfig{}); err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertRedirectionFlagTrue(t, <-resumeParams)
+	assertForwardingFlagTrue(t, <-resumeParams)
 }
 
-func assertRedirectionFlagTrue(t *testing.T, params json.RawMessage) {
+func assertForwardingFlagTrue(t *testing.T, params json.RawMessage) {
 	t.Helper()
 	var decoded map[string]any
 	if err := json.Unmarshal(params, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal request params: %v", err)
 	}
-	if decoded["enableGitHubTelemetryRedirection"] != true {
-		t.Fatalf("expected enableGitHubTelemetryRedirection=true, got %v", decoded["enableGitHubTelemetryRedirection"])
+	if decoded["enableGitHubTelemetryForwarding"] != true {
+		t.Fatalf("expected enableGitHubTelemetryForwarding=true, got %v", decoded["enableGitHubTelemetryForwarding"])
 	}
 }
 
-func TestClient_OmitsGitHubTelemetryRedirectionWhenNoHandler(t *testing.T) {
+func TestClient_OmitsGitHubTelemetryForwardingWhenNoHandler(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)
 	client := &Client{
@@ -2099,7 +2099,7 @@ func TestClient_OmitsGitHubTelemetryRedirectionWhenNoHandler(t *testing.T) {
 	if _, err := client.CreateSession(t.Context(), &SessionConfig{}); err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertRedirectionFlagAbsent(t, <-createParams)
+	assertForwardingFlagAbsent(t, <-createParams)
 
 	resumeParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
@@ -2110,17 +2110,17 @@ func TestClient_OmitsGitHubTelemetryRedirectionWhenNoHandler(t *testing.T) {
 	if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed", &ResumeSessionConfig{}); err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertRedirectionFlagAbsent(t, <-resumeParams)
+	assertForwardingFlagAbsent(t, <-resumeParams)
 }
 
-func assertRedirectionFlagAbsent(t *testing.T, params json.RawMessage) {
+func assertForwardingFlagAbsent(t *testing.T, params json.RawMessage) {
 	t.Helper()
 	var decoded map[string]any
 	if err := json.Unmarshal(params, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal request params: %v", err)
 	}
-	if _, ok := decoded["enableGitHubTelemetryRedirection"]; ok {
-		t.Fatalf("expected enableGitHubTelemetryRedirection to be omitted, got %v", decoded["enableGitHubTelemetryRedirection"])
+	if _, ok := decoded["enableGitHubTelemetryForwarding"]; ok {
+		t.Fatalf("expected enableGitHubTelemetryForwarding to be omitted, got %v", decoded["enableGitHubTelemetryForwarding"])
 	}
 }
 

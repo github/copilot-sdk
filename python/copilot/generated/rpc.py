@@ -21427,7 +21427,7 @@ class GitHubTelemetryEvent:
 @dataclass
 class GitHubTelemetryNotification:
     """Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the
-    runtime forwards to a host connection that opted into telemetry redirection for the
+    runtime forwards to a host connection that opted into telemetry forwarding for the
     session.
     """
     event: GitHubTelemetryEvent
@@ -26789,7 +26789,7 @@ class LlmInferenceHandler(Protocol):
 # Experimental: this API group is experimental and may change or be removed.
 class GitHubTelemetryHandler(Protocol):
     async def event(self, params: GitHubTelemetryNotification) -> None:
-        "Forwards a single GitHub telemetry event to a host connection that opted into telemetry redirection for the session.\n\nArgs:\n    params: Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session."
+        "Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.\n\nArgs:\n    params: Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session."
         pass
 
 @dataclass

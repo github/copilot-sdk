@@ -1927,7 +1927,7 @@ class TestGitHubTelemetry:
     """Unit tests for the experimental gitHubTelemetry.event consumer surface."""
 
     @pytest.mark.asyncio
-    async def test_create_session_enables_redirection_when_handler_registered(self):
+    async def test_create_session_enables_forwarding_when_handler_registered(self):
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=CLI_PATH),
             on_github_telemetry=lambda _notification: None,
@@ -1946,12 +1946,12 @@ class TestGitHubTelemetry:
             await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
             )
-            assert captured["session.create"]["enableGitHubTelemetryRedirection"] is True
+            assert captured["session.create"]["enableGitHubTelemetryForwarding"] is True
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_create_session_omits_redirection_without_handler(self):
+    async def test_create_session_omits_forwarding_without_handler(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
@@ -1967,12 +1967,12 @@ class TestGitHubTelemetry:
             await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
             )
-            assert "enableGitHubTelemetryRedirection" not in captured["session.create"]
+            assert "enableGitHubTelemetryForwarding" not in captured["session.create"]
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_resume_session_enables_redirection_when_handler_registered(self):
+    async def test_resume_session_enables_forwarding_when_handler_registered(self):
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=CLI_PATH),
             on_github_telemetry=lambda _notification: None,
@@ -1998,12 +1998,12 @@ class TestGitHubTelemetry:
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
             )
-            assert captured["session.resume"]["enableGitHubTelemetryRedirection"] is True
+            assert captured["session.resume"]["enableGitHubTelemetryForwarding"] is True
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_resume_session_omits_redirection_without_handler(self):
+    async def test_resume_session_omits_forwarding_without_handler(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
@@ -2026,7 +2026,7 @@ class TestGitHubTelemetry:
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
             )
-            assert "enableGitHubTelemetryRedirection" not in captured["session.resume"]
+            assert "enableGitHubTelemetryForwarding" not in captured["session.resume"]
         finally:
             await client.force_stop()
 

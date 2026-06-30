@@ -15,7 +15,7 @@ pub use errors::*;
 /// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
 /// BYOK sessions.
 pub mod copilot_request_handler;
-/// GitHub telemetry redirection callback surface (experimental). Public but
+/// GitHub telemetry forwarding callback surface (experimental). Public but
 /// `#[doc(hidden)]` — re-exports the generated telemetry payload types.
 #[doc(hidden)]
 pub mod github_telemetry;
@@ -261,10 +261,10 @@ pub struct ClientOptions {
     /// [`CopilotRequestHandler`]
     /// instead of issuing the calls itself.
     pub request_handler: Option<Arc<dyn crate::copilot_request_handler::CopilotRequestHandler>>,
-    /// Connection-level GitHub telemetry redirection callback (experimental).
+    /// Connection-level GitHub telemetry forwarding callback (experimental).
     ///
     /// When set, every session created or resumed on this client opts into
-    /// telemetry redirection (`enableGitHubTelemetryRedirection`) and the
+    /// telemetry forwarding (`enableGitHubTelemetryForwarding`) and the
     /// callback is invoked for each `gitHubTelemetry.event` notification the
     /// runtime forwards. `#[doc(hidden)]`, consistent with the experimental
     /// telemetry payload types.
@@ -746,9 +746,9 @@ impl ClientOptions {
         self
     }
 
-    /// Register a connection-level GitHub telemetry redirection callback
+    /// Register a connection-level GitHub telemetry forwarding callback
     /// (internal/experimental). Registering a callback auto-enables telemetry
-    /// redirection on every session created or resumed on this client; the
+    /// forwarding on every session created or resumed on this client; the
     /// callback fires for each forwarded `gitHubTelemetry.event` notification.
     /// The callback is wrapped in `Arc` internally.
     #[doc(hidden)]
@@ -885,9 +885,9 @@ struct ClientInner {
     /// Inbound `llmInference.*` dispatcher, installed when
     /// [`ClientOptions::request_handler`] is set.
     llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
-    /// Connection-level GitHub telemetry redirection callback, set from
+    /// Connection-level GitHub telemetry forwarding callback, set from
     /// [`ClientOptions::on_github_telemetry`]. Drives the
-    /// `enableGitHubTelemetryRedirection` wire flag and the
+    /// `enableGitHubTelemetryForwarding` wire flag and the
     /// `gitHubTelemetry.event` notification dispatch.
     on_github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
     on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
@@ -1230,7 +1230,7 @@ impl Client {
     }
 
     /// Construct a [`Client`] from raw streams with a preset GitHub telemetry
-    /// callback, for integration testing telemetry redirection.
+    /// callback, for integration testing telemetry forwarding.
     #[doc(hidden)]
     #[cfg(any(test, feature = "test-support"))]
     pub fn from_streams_with_github_telemetry(

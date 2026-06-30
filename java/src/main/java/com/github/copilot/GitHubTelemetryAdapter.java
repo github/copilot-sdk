@@ -16,7 +16,7 @@ import com.github.copilot.rpc.GitHubTelemetryNotification;
  * Bridges the runtime's {@code gitHubTelemetry.event} client-global
  * notification to a consumer's {@code onGitHubTelemetry} callback. The
  * notification carries per-session GitHub (hydro) telemetry the runtime
- * forwards to connections that opted into telemetry redirection.
+ * forwards to connections that opted into telemetry forwarding.
  */
 final class GitHubTelemetryAdapter {
 

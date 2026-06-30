@@ -758,7 +758,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.IncludeSubAgentStreamingEvents = Bool(true)
 	}
 	if c.options.OnGitHubTelemetry != nil {
-		req.EnableGitHubTelemetryRedirection = Bool(true)
+		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
@@ -1027,7 +1027,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.IncludeSubAgentStreamingEvents = Bool(true)
 	}
 	if c.options.OnGitHubTelemetry != nil {
-		req.EnableGitHubTelemetryRedirection = Bool(true)
+		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)

@@ -125,7 +125,7 @@ type ClientOptions struct {
 	// OnGitHubTelemetry registers a connection-level callback (experimental)
 	// that receives GitHub telemetry events the runtime forwards for sessions
 	// opened by this client. When non-nil, every session created or resumed by
-	// this client opts into telemetry redirection (enableGitHubTelemetryRedirection).
+	// this client opts into telemetry forwarding (enableGitHubTelemetryForwarding).
 	OnGitHubTelemetry func(notification *rpc.GitHubTelemetryNotification)
 	// Telemetry configures OpenTelemetry integration for the runtime.
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
@@ -1982,7 +1982,7 @@ type createSessionRequest struct {
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
-	EnableGitHubTelemetryRedirection   *bool                                  `json:"enableGitHubTelemetryRedirection,omitempty"`
+	EnableGitHubTelemetryForwarding   *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2078,7 +2078,7 @@ type resumeSessionRequest struct {
 	ContinuePendingWork                *bool                                  `json:"continuePendingWork,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
-	EnableGitHubTelemetryRedirection   *bool                                  `json:"enableGitHubTelemetryRedirection,omitempty"`
+	EnableGitHubTelemetryForwarding   *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`

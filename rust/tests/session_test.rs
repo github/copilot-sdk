@@ -389,7 +389,7 @@ fn make_client_with_telemetry(
 }
 
 #[tokio::test]
-async fn create_and_resume_send_github_telemetry_redirection_when_callback_registered() {
+async fn create_and_resume_send_github_telemetry_forwarding_when_callback_registered() {
     use github_copilot_sdk::types::ResumeSessionConfig;
 
     let callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback =
@@ -408,7 +408,7 @@ async fn create_and_resume_send_github_telemetry_redirection_when_callback_regis
 
     let request = read_framed(&mut server_read).await;
     assert_eq!(request["method"], "session.create");
-    assert_eq!(request["params"]["enableGitHubTelemetryRedirection"], true);
+    assert_eq!(request["params"]["enableGitHubTelemetryForwarding"], true);
 
     let id = request["id"].as_u64().unwrap();
     let session_id = requested_session_id(&request).to_string();
@@ -433,7 +433,7 @@ async fn create_and_resume_send_github_telemetry_redirection_when_callback_regis
 
     let request = read_framed(&mut server_read).await;
     assert_eq!(request["method"], "session.resume");
-    assert_eq!(request["params"]["enableGitHubTelemetryRedirection"], true);
+    assert_eq!(request["params"]["enableGitHubTelemetryForwarding"], true);
 
     let id = request["id"].as_u64().unwrap();
     let response = serde_json::json!({
@@ -453,7 +453,7 @@ async fn create_and_resume_send_github_telemetry_redirection_when_callback_regis
 }
 
 #[tokio::test]
-async fn create_session_omits_github_telemetry_redirection_without_callback() {
+async fn create_session_omits_github_telemetry_forwarding_without_callback() {
     let (client, mut server_read, mut server_write) = make_client();
 
     let create_handle = tokio::spawn({
@@ -470,9 +470,9 @@ async fn create_session_omits_github_telemetry_redirection_without_callback() {
     assert_eq!(request["method"], "session.create");
     assert!(
         request["params"]
-            .get("enableGitHubTelemetryRedirection")
+            .get("enableGitHubTelemetryForwarding")
             .is_none_or(Value::is_null),
-        "redirection flag should be omitted when no callback is registered"
+        "forwarding flag should be omitted when no callback is registered"
     );
 
     let id = request["id"].as_u64().unwrap();
@@ -487,7 +487,7 @@ async fn create_session_omits_github_telemetry_redirection_without_callback() {
 }
 
 #[tokio::test]
-async fn resume_session_omits_github_telemetry_redirection_without_callback() {
+async fn resume_session_omits_github_telemetry_forwarding_without_callback() {
     use github_copilot_sdk::types::ResumeSessionConfig;
 
     let (client, mut server_read, mut server_write) = make_client();
@@ -508,9 +508,9 @@ async fn resume_session_omits_github_telemetry_redirection_without_callback() {
     assert_eq!(request["method"], "session.resume");
     assert!(
         request["params"]
-            .get("enableGitHubTelemetryRedirection")
+            .get("enableGitHubTelemetryForwarding")
             .is_none_or(Value::is_null),
-        "redirection flag should be omitted when no callback is registered"
+        "forwarding flag should be omitted when no callback is registered"
     );
 
     let id = request["id"].as_u64().unwrap();

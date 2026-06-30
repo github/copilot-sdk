@@ -92,8 +92,8 @@ public final class CreateSessionRequest {
     @JsonProperty("includeSubAgentStreamingEvents")
     private Boolean includeSubAgentStreamingEvents;
 
-    @JsonProperty("enableGitHubTelemetryRedirection")
-    private Boolean enableGitHubTelemetryRedirection;
+    @JsonProperty("enableGitHubTelemetryForwarding")
+    private Boolean enableGitHubTelemetryForwarding;
 
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
@@ -781,25 +781,25 @@ public final class CreateSessionRequest {
         this.includeSubAgentStreamingEvents = null;
     }
 
-    /** Gets the GitHub telemetry redirection flag. @return the flag */
-    public Boolean getEnableGitHubTelemetryRedirection() {
-        return enableGitHubTelemetryRedirection;
+    /** Gets the GitHub telemetry forwarding flag. @return the flag */
+    public Boolean getEnableGitHubTelemetryForwarding() {
+        return enableGitHubTelemetryForwarding;
     }
 
     /**
-     * Sets the GitHub telemetry redirection flag. @param
-     * enableGitHubTelemetryRedirection the flag
+     * Sets the GitHub telemetry forwarding flag. @param
+     * enableGitHubTelemetryForwarding the flag
      */
-    public void setEnableGitHubTelemetryRedirection(boolean enableGitHubTelemetryRedirection) {
-        this.enableGitHubTelemetryRedirection = enableGitHubTelemetryRedirection;
+    public void setEnableGitHubTelemetryForwarding(boolean enableGitHubTelemetryForwarding) {
+        this.enableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding;
     }
 
     /**
-     * Clears the enableGitHubTelemetryRedirection setting, reverting to the default
+     * Clears the enableGitHubTelemetryForwarding setting, reverting to the default
      * behavior.
      */
-    public void clearEnableGitHubTelemetryRedirection() {
-        this.enableGitHubTelemetryRedirection = null;
+    public void clearEnableGitHubTelemetryForwarding() {
+        this.enableGitHubTelemetryForwarding = null;
     }
 
     /** Gets the commands wire definitions. @return the commands */

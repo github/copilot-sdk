@@ -11546,7 +11546,7 @@ public sealed class GitHubTelemetryEvent
     public string? SessionId { get; set; }
 }
 
-/// <summary>Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session.</summary>
+/// <summary>Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class GitHubTelemetryNotification
 {
@@ -21768,8 +21768,8 @@ public interface ILlmInferenceHandler
 [Experimental(Diagnostics.Experimental)]
 public interface IGitHubTelemetryHandler
 {
-    /// <summary>Forwards a single GitHub telemetry event to a host connection that opted into telemetry redirection for the session.</summary>
-    /// <param name="request">Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session.</param>
+    /// <summary>Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.</summary>
+    /// <param name="request">Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task EventAsync(GitHubTelemetryNotification request, CancellationToken cancellationToken = default);
 }

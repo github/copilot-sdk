@@ -3,10 +3,10 @@
     "gitHubTelemetry": {
       "event": {
         "rpcMethod": "gitHubTelemetry.event",
-        "description": "Forwards a single GitHub telemetry event to a host connection that opted into telemetry redirection for the session.",
+        "description": "Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.",
         "params": {
           "$ref": "#/definitions/GitHubTelemetryNotification",
-          "description": "Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session."
+          "description": "Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session."
         },
         "result": {
           "type": "null"
@@ -158,7 +158,7 @@
         "event"
       ],
       "additionalProperties": false,
-      "description": "Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session.",
+      "description": "Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.",
       "title": "GitHubTelemetryNotification",
       "stability": "experimental"
     }

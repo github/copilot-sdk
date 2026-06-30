@@ -13,12 +13,12 @@ using GitHub.Copilot.Rpc;
 
 namespace GitHub.Copilot.Test.Unit;
 
-#pragma warning disable GHCP001 // GitHub telemetry redirection is experimental.
+#pragma warning disable GHCP001 // GitHub telemetry forwarding is experimental.
 
 public sealed class GitHubTelemetryTests
 {
     [Fact]
-    public async Task CreateSession_Opts_Into_Redirection_When_Handler_Provided()
+    public async Task CreateSession_Opts_Into_Forwarding_When_Handler_Provided()
     {
         await using var server = await FakeTelemetryServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions
@@ -31,12 +31,12 @@ public sealed class GitHubTelemetryTests
         await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         var createParams = server.LastCreateParams ?? throw new InvalidOperationException("session.create was not captured.");
-        Assert.True(createParams.TryGetProperty("enableGitHubTelemetryRedirection", out var flag));
+        Assert.True(createParams.TryGetProperty("enableGitHubTelemetryForwarding", out var flag));
         Assert.True(flag.GetBoolean());
     }
 
     [Fact]
-    public async Task ResumeSession_Opts_Into_Redirection_When_Handler_Provided()
+    public async Task ResumeSession_Opts_Into_Forwarding_When_Handler_Provided()
     {
         await using var server = await FakeTelemetryServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions
@@ -49,7 +49,7 @@ public sealed class GitHubTelemetryTests
         await client.ResumeSessionAsync("session-1", new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         var resumeParams = server.LastResumeParams ?? throw new InvalidOperationException("session.resume was not captured.");
-        Assert.True(resumeParams.TryGetProperty("enableGitHubTelemetryRedirection", out var flag));
+        Assert.True(resumeParams.TryGetProperty("enableGitHubTelemetryForwarding", out var flag));
         Assert.True(flag.GetBoolean());
     }
 
@@ -66,7 +66,7 @@ public sealed class GitHubTelemetryTests
         await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         var createParams = server.LastCreateParams ?? throw new InvalidOperationException("session.create was not captured.");
-        var optedIn = createParams.TryGetProperty("enableGitHubTelemetryRedirection", out var flag)
+        var optedIn = createParams.TryGetProperty("enableGitHubTelemetryForwarding", out var flag)
             && flag.ValueKind == JsonValueKind.True;
         Assert.False(optedIn);
     }
@@ -212,6 +212,8 @@ public sealed class GitHubTelemetryTests
             }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or SocketException)
             {
+                // Expected during teardown: the listener/socket is torn down while the
+                // server loop is still awaiting I/O. Nothing to clean up beyond this.
             }
 
             _cts.Dispose();

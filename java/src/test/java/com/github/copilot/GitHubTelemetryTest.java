@@ -30,9 +30,9 @@ import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
 
 /**
- * Exercises the hand-written GitHub telemetry redirection surface: the
+ * Exercises the hand-written GitHub telemetry forwarding surface: the
  * {@code gitHubTelemetry.event} notification adapter, the
- * {@code enableGitHubTelemetryRedirection} capability flag on the create/resume
+ * {@code enableGitHubTelemetryForwarding} capability flag on the create/resume
  * requests, and the {@code onGitHubTelemetry} client option.
  */
 @AllowCopilotExperimental
@@ -130,7 +130,7 @@ class GitHubTelemetryTest {
     }
 
     @Test
-    void clientOptsSessionsIntoRedirectionAndReceivesEvents() throws Exception {
+    void clientOptsSessionsIntoForwardingAndReceivesEvents() throws Exception {
         var received = new CompletableFuture<GitHubTelemetryNotification>();
         Consumer<GitHubTelemetryNotification> handler = received::complete;
 
@@ -140,12 +140,12 @@ class GitHubTelemetryTest {
 
             client.start().get(15, TimeUnit.SECONDS);
 
-            // Creating a session must opt it into telemetry redirection.
+            // Creating a session must opt it into telemetry forwarding.
             client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(15,
                     TimeUnit.SECONDS);
             JsonNode createParams = server.awaitCreate();
-            assertTrue(createParams.path("enableGitHubTelemetryRedirection").asBoolean(),
-                    "create request should carry enableGitHubTelemetryRedirection=true");
+            assertTrue(createParams.path("enableGitHubTelemetryForwarding").asBoolean(),
+                    "create request should carry enableGitHubTelemetryForwarding=true");
 
             // The adapter registered on connect should forward server-pushed events.
             server.sendTelemetry(Map.of("sessionId", "sess-xyz", "restricted", false, "event",
@@ -160,13 +160,13 @@ class GitHubTelemetryTest {
                     new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get(15, TimeUnit.SECONDS);
             JsonNode resumeParams = server.awaitResume();
-            assertTrue(resumeParams.path("enableGitHubTelemetryRedirection").asBoolean(),
-                    "resume request should carry enableGitHubTelemetryRedirection=true");
+            assertTrue(resumeParams.path("enableGitHubTelemetryForwarding").asBoolean(),
+                    "resume request should carry enableGitHubTelemetryForwarding=true");
         }
     }
 
     @Test
-    void clientOmitsRedirectionWhenNoHandler() throws Exception {
+    void clientOmitsForwardingWhenNoHandler() throws Exception {
         try (var server = new FakeRuntimeServer();
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
 
@@ -175,14 +175,14 @@ class GitHubTelemetryTest {
             client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(15,
                     TimeUnit.SECONDS);
             JsonNode createParams = server.awaitCreate();
-            assertFalse(createParams.has("enableGitHubTelemetryRedirection"),
+            assertFalse(createParams.has("enableGitHubTelemetryForwarding"),
                     "create request should omit the flag when no handler is registered");
 
             client.resumeSession("resume-1",
                     new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get(15, TimeUnit.SECONDS);
             JsonNode resumeParams = server.awaitResume();
-            assertFalse(resumeParams.has("enableGitHubTelemetryRedirection"),
+            assertFalse(resumeParams.has("enableGitHubTelemetryForwarding"),
                     "resume request should omit the flag when no handler is registered");
         }
     }

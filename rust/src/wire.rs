@@ -154,10 +154,10 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
     #[serde(
-        rename = "enableGitHubTelemetryRedirection",
+        rename = "enableGitHubTelemetryForwarding",
         skip_serializing_if = "Option::is_none"
     )]
-    pub enable_github_telemetry_redirection: Option<bool>,
+    pub enable_github_telemetry_forwarding: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -274,10 +274,10 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
     #[serde(
-        rename = "enableGitHubTelemetryRedirection",
+        rename = "enableGitHubTelemetryForwarding",
         skip_serializing_if = "Option::is_none"
     )]
-    pub enable_github_telemetry_redirection: Option<bool>,
+    pub enable_github_telemetry_forwarding: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
     /// Maps to wire field `disableResume`.

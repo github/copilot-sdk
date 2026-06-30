@@ -347,7 +347,7 @@ export interface CopilotClientOptions {
     /**
      * Experimental. Receives GitHub telemetry events the runtime forwards to
      * this connection. When set, the client opts each session it creates or
-     * resumes into telemetry redirection and dispatches each
+     * resumes into telemetry forwarding and dispatches each
      * `gitHubTelemetry.event` notification to this connection-global handler;
      * each {@link GitHubTelemetryNotification} carries its originating
      * `sessionId`.

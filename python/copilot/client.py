@@ -1161,7 +1161,7 @@ class CopilotClient:
             on_github_telemetry: Internal. Callback invoked when the runtime
                 forwards a GitHub telemetry event for a session. Registering a
                 handler opts every session opened by this client into telemetry
-                redirection.
+                forwarding.
 
         Example:
             >>> # Default — spawns runtime using stdio with the bundled binary
@@ -2004,7 +2004,7 @@ class CopilotClient:
         # Opt this connection into gitHubTelemetry.event notifications when a
         # telemetry handler was registered on the client.
         if self._on_github_telemetry is not None:
-            payload["enableGitHubTelemetryRedirection"] = True
+            payload["enableGitHubTelemetryForwarding"] = True
 
         # Add provider configuration if provided
         if provider:
@@ -2597,7 +2597,7 @@ class CopilotClient:
         # Opt this connection into gitHubTelemetry.event notifications when a
         # telemetry handler was registered on the client.
         if self._on_github_telemetry is not None:
-            payload["enableGitHubTelemetryRedirection"] = True
+            payload["enableGitHubTelemetryForwarding"] = True
 
         # Enable permission request callback if handler provided
         payload["requestPermission"] = bool(on_permission_request)

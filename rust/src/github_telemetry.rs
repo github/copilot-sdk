@@ -1,4 +1,4 @@
-//! GitHub telemetry redirection callback surface.
+//! GitHub telemetry forwarding callback surface.
 //!
 //! The runtime forwards per-session GitHub (hydro) telemetry to opted-in host
 //! connections via the `gitHubTelemetry.event` JSON-RPC notification. The
@@ -7,7 +7,7 @@
 //! re-exported here so consumers can register a callback against them via
 //! [`ClientOptions::on_github_telemetry`](crate::ClientOptions::on_github_telemetry).
 //!
-//! Experimental: this surface is part of the GitHub telemetry redirection
+//! Experimental: this surface is part of the GitHub telemetry forwarding
 //! feature and may change or be removed without notice.
 
 use std::sync::Arc;
@@ -18,11 +18,11 @@ pub use crate::generated::api_types::{
 };
 
 /// Callback invoked for each `gitHubTelemetry.event` notification forwarded by
-/// the runtime to a connection that opted into telemetry redirection.
+/// the runtime to a connection that opted into telemetry forwarding.
 ///
 /// Set via
 /// [`ClientOptions::on_github_telemetry`](crate::ClientOptions::on_github_telemetry).
-/// Registering a callback auto-enables telemetry redirection on every session
+/// Registering a callback auto-enables telemetry forwarding on every session
 /// created or resumed by the client.
 #[doc(hidden)]
 pub type GitHubTelemetryCallback = Arc<dyn Fn(GitHubTelemetryNotification) + Send + Sync>;

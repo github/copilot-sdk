@@ -381,7 +381,7 @@ public sealed class CopilotClientOptions
 
     /// <summary>
     /// Experimental. Receives GitHub telemetry events the runtime forwards to this
-    /// connection; setting a handler opts created/resumed sessions into redirection.
+    /// connection; setting a handler opts created/resumed sessions into forwarding.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     [EditorBrowsable(EditorBrowsableState.Never)]

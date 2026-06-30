@@ -14436,7 +14436,7 @@ export interface GitHubTelemetryEvent {
   client?: GitHubTelemetryClientInfo;
 }
 /**
- * Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session.
+ * Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "GitHubTelemetryNotification".
@@ -16944,9 +16944,9 @@ export interface LlmInferenceHandler {
 /** @experimental */
 export interface GitHubTelemetryHandler {
     /**
-     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry redirection for the session.
+     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.
      *
-     * @param params Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry redirection for the session.
+     * @param params Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
      */
     event(params: GitHubTelemetryNotification): Promise<void>;
 }
