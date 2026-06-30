@@ -745,6 +745,10 @@ public sealed class CopilotUserResponse
     [JsonPropertyName("restricted_telemetry")]
     public bool? RestrictedTelemetry { get; set; }
 
+    /// <summary>Gets or sets the <c>te</c> value.</summary>
+    [JsonPropertyName("te")]
+    public bool? Te { get; set; }
+
     /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
     [JsonPropertyName("token_based_billing")]
     public bool? TokenBasedBilling { get; set; }
@@ -11571,6 +11575,113 @@ public sealed class LlmInferenceHttpRequestChunkRequest
     public string RequestId { get; set; } = string.Empty;
 }
 
+/// <summary>Client environment metadata describing the process that produced a telemetry event.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class GitHubTelemetryClientInfo
+{
+    /// <summary>Copilot CLI version string.</summary>
+    [JsonPropertyName("cli_version")]
+    public string CliVersion { get; set; } = string.Empty;
+
+    /// <summary>Name of the client application.</summary>
+    [JsonPropertyName("client_name")]
+    public string? ClientName { get; set; }
+
+    /// <summary>Type of client.</summary>
+    [JsonPropertyName("client_type")]
+    public string? ClientType { get; set; }
+
+    /// <summary>Copilot subscription plan, when known.</summary>
+    [JsonPropertyName("copilot_plan")]
+    public string? CopilotPlan { get; set; }
+
+    /// <summary>Stable machine identifier for the device.</summary>
+    [JsonPropertyName("dev_device_id")]
+    public string? DevDeviceId { get; set; }
+
+    /// <summary>Whether the user is a GitHub/Microsoft staff member.</summary>
+    [JsonPropertyName("is_staff")]
+    public bool? IsStaff { get; set; }
+
+    /// <summary>Node.js runtime version string.</summary>
+    [JsonPropertyName("node_version")]
+    public string NodeVersion { get; set; } = string.Empty;
+
+    /// <summary>Operating system architecture (e.g. arm64, x64).</summary>
+    [JsonPropertyName("os_arch")]
+    public string OsArch { get; set; } = string.Empty;
+
+    /// <summary>Operating system platform (e.g. darwin, linux, win32).</summary>
+    [JsonPropertyName("os_platform")]
+    public string OsPlatform { get; set; } = string.Empty;
+
+    /// <summary>Operating system version string.</summary>
+    [JsonPropertyName("os_version")]
+    public string OsVersion { get; set; } = string.Empty;
+}
+
+/// <summary>A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class GitHubTelemetryEvent
+{
+    /// <summary>Client environment metadata.</summary>
+    [JsonPropertyName("client")]
+    public GitHubTelemetryClientInfo? Client { get; set; }
+
+    /// <summary>Copilot tracking ID for user-level attribution.</summary>
+    [JsonPropertyName("copilot_tracking_id")]
+    public string? CopilotTrackingId { get; set; }
+
+    /// <summary>Timestamp when the event was created (ISO 8601 format).</summary>
+    [JsonPropertyName("created_at")]
+    public string? CreatedAt { get; set; }
+
+    /// <summary>Experiment assignment context.</summary>
+    [JsonPropertyName("exp_assignment_context")]
+    public string? ExpAssignmentContext { get; set; }
+
+    /// <summary>Feature flags enabled for this session, as a map from flag to value.</summary>
+    [JsonPropertyName("features")]
+    public IDictionary<string, string>? Features { get; set; }
+
+    /// <summary>Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).</summary>
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Numeric metrics as a map from key to value.</summary>
+    [JsonPropertyName("metrics")]
+    public IDictionary<string, double> Metrics { get => field ??= new Dictionary<string, double>(); set; }
+
+    /// <summary>Reference to the model call that produced this event.</summary>
+    [JsonPropertyName("model_call_id")]
+    public string? ModelCallId { get; set; }
+
+    /// <summary>String-valued properties as a map from key to value.</summary>
+    [JsonPropertyName("properties")]
+    public IDictionary<string, string> Properties { get => field ??= new Dictionary<string, string>(); set; }
+
+    /// <summary>Session identifier the event belongs to.</summary>
+    [JsonPropertyName("session_id")]
+    public string? SessionId { get; set; }
+}
+
+/// <summary>Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class GitHubTelemetryNotification
+{
+    /// <summary>The telemetry event, in the runtime's native GitHub-shaped telemetry format.</summary>
+    [JsonPropertyName("event")]
+    public GitHubTelemetryEvent Event { get => field ??= new(); set; }
+
+    /// <summary>Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only.</summary>
+    [JsonPropertyName("restricted")]
+    public bool Restricted { get; set; }
+
+    /// <summary>Session the telemetry event belongs to.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Resolved Anthropic adaptive-thinking capability for a model.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -21966,11 +22077,24 @@ public interface ILlmInferenceHandler
     Task<LlmInferenceHttpRequestChunkResult> HttpRequestChunkAsync(LlmInferenceHttpRequestChunkRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Handles `gitHubTelemetry` client global API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
+public interface IGitHubTelemetryHandler
+{
+    /// <summary>Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.</summary>
+    /// <param name="request">Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    Task EventAsync(GitHubTelemetryNotification request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Provides all client global API handler groups for a connection.</summary>
 public sealed class ClientGlobalApiHandlers
 {
     /// <summary>Optional handler for LlmInference client global API methods.</summary>
     public ILlmInferenceHandler? LlmInference { get; set; }
+
+    /// <summary>Optional handler for GitHubTelemetry client global API methods.</summary>
+    public IGitHubTelemetryHandler? GitHubTelemetry { get; set; }
 }
 
 /// <summary>Registers client global API handlers on a JSON-RPC connection.</summary>
@@ -21993,6 +22117,11 @@ internal static class ClientGlobalApiRegistration
         {
             var handler = handlers.LlmInference ?? throw new InvalidOperationException("No llmInference client-global handler registered");
             return await handler.HttpRequestChunkAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("gitHubTelemetry.event", (Func<GitHubTelemetryNotification, CancellationToken, ValueTask>)(async (request, cancellationToken) =>
+        {
+            var handler = handlers.GitHubTelemetry ?? throw new InvalidOperationException("No gitHubTelemetry client-global handler registered");
+            await handler.EventAsync(request, cancellationToken);
         }), singleObjectParam: true);
     }
 }
@@ -22399,6 +22528,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(FolderTrustAddParams))]
 [JsonSerializable(typeof(FolderTrustCheckParams))]
 [JsonSerializable(typeof(FolderTrustCheckResult))]
+[JsonSerializable(typeof(GitHubTelemetryClientInfo))]
+[JsonSerializable(typeof(GitHubTelemetryEvent))]
+[JsonSerializable(typeof(GitHubTelemetryNotification))]
 [JsonSerializable(typeof(HandlePendingToolCallRequest))]
 [JsonSerializable(typeof(HandlePendingToolCallResult))]
 [JsonSerializable(typeof(HistoryAbortManualCompactionResult))]

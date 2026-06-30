@@ -2046,6 +2046,7 @@ export interface CopilotUserResponse {
   quota_snapshots?: CopilotUserResponseQuotaSnapshots;
   restricted_telemetry?: boolean;
   is_staff?: boolean;
+  te?: boolean;
   token_based_billing?: boolean;
   can_upgrade_plan?: boolean;
   quota_reset_date_utc?: string;
@@ -4270,6 +4271,125 @@ export interface FolderTrustCheckResult {
    * Whether the folder is trusted
    */
   trusted: boolean;
+}
+/**
+ * Client environment metadata describing the process that produced a telemetry event.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryClientInfo".
+ */
+/** @experimental */
+export interface GitHubTelemetryClientInfo {
+  /**
+   * Copilot CLI version string.
+   */
+  cli_version: string;
+  /**
+   * Operating system platform (e.g. darwin, linux, win32).
+   */
+  os_platform: string;
+  /**
+   * Operating system version string.
+   */
+  os_version: string;
+  /**
+   * Operating system architecture (e.g. arm64, x64).
+   */
+  os_arch: string;
+  /**
+   * Node.js runtime version string.
+   */
+  node_version: string;
+  /**
+   * Copilot subscription plan, when known.
+   */
+  copilot_plan?: string;
+  /**
+   * Type of client.
+   */
+  client_type?: string;
+  /**
+   * Name of the client application.
+   */
+  client_name?: string;
+  /**
+   * Whether the user is a GitHub/Microsoft staff member.
+   */
+  is_staff?: boolean;
+  /**
+   * Stable machine identifier for the device.
+   */
+  dev_device_id?: string;
+}
+/**
+ * A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryEvent".
+ */
+/** @experimental */
+export interface GitHubTelemetryEvent {
+  /**
+   * Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).
+   */
+  kind: string;
+  /**
+   * Timestamp when the event was created (ISO 8601 format).
+   */
+  created_at?: string;
+  /**
+   * Reference to the model call that produced this event.
+   */
+  model_call_id?: string;
+  /**
+   * String-valued properties as a map from key to value.
+   */
+  properties: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Numeric metrics as a map from key to value.
+   */
+  metrics: {
+    [k: string]: number | undefined;
+  };
+  /**
+   * Experiment assignment context.
+   */
+  exp_assignment_context?: string;
+  /**
+   * Feature flags enabled for this session, as a map from flag to value.
+   */
+  features?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Session identifier the event belongs to.
+   */
+  session_id?: string;
+  /**
+   * Copilot tracking ID for user-level attribution.
+   */
+  copilot_tracking_id?: string;
+  client?: GitHubTelemetryClientInfo;
+}
+/**
+ * Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryNotification".
+ */
+/** @experimental */
+export interface GitHubTelemetryNotification {
+  /**
+   * Session the telemetry event belongs to.
+   */
+  sessionId: string;
+  /**
+   * Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only.
+   */
+  restricted: boolean;
+  event: GitHubTelemetryEvent;
 }
 /**
  * Pending external tool call request ID, with the tool result or an error describing why it failed.
@@ -16993,9 +17113,21 @@ export interface LlmInferenceHandler {
     httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
 }
 
+/** Handler for `gitHubTelemetry` client global API methods. */
+/** @experimental */
+export interface GitHubTelemetryHandler {
+    /**
+     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.
+     *
+     * @param params Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+     */
+    event(params: GitHubTelemetryNotification): Promise<void>;
+}
+
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
     llmInference?: LlmInferenceHandler;
+    gitHubTelemetry?: GitHubTelemetryHandler;
 }
 
 /**
@@ -17018,5 +17150,10 @@ export function registerClientGlobalApiHandlers(
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
         return handler.httpRequestChunk(params);
+    });
+    connection.onRequest("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
+        const handler = handlers.gitHubTelemetry;
+        if (!handler) throw new Error("No gitHubTelemetry client-global handler registered");
+        return handler.event(params);
     });
 }
