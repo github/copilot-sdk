@@ -51,10 +51,10 @@ Explicit `ToolDefinition.create(name, description, schema, handler)` with a hand
 
 ### Option 2: Record-as-schema with generic factory
 
-Define a record for the tool's arguments, annotate its components with `@CopilotToolParam`, and use a generic factory method to auto-generate the schema from the record's `RecordComponent[]` metadata:
+Define a record for the tool's arguments and use a generic factory method to auto-generate the schema from the record's `RecordComponent[]` metadata. Because `@CopilotToolParam` targets `ElementType.PARAMETER` (method parameters only), it cannot be placed on record components; per-field descriptions are not supported in this option:
 
 ```java
-record PhaseArgs(@CopilotToolParam("The phase to transition to") Phase phase) {}
+record PhaseArgs(Phase phase) {}
 
 ToolDefinition.define("set_current_phase",
         "Sets the current phase of the agent.",
@@ -76,6 +76,7 @@ ToolDefinition.define("set_current_phase",
 - Tool name and description are still explicit string arguments.
 - Requires a separate record class for every tool's args (even trivial single-param tools).
 - The handler is still an explicit lambda — the "tool" is not the method itself.
+- Per-field descriptions cannot be provided: `@CopilotToolParam` targets method parameters only, not record components.
 - Nested or complex schemas (arrays of objects, polymorphic types) need additional mapping logic.
 - No analog in the broader Java ecosystem; Java developers are not accustomed to defining a record per function call.
 
