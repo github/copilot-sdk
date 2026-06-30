@@ -10,22 +10,21 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Feature flags indicating what the model supports
+ * Indicates whether the pending UI request was resolved by this call.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ModelCapabilitiesSupports(
-    /** Whether this model supports vision/image input */
-    @JsonProperty("vision") Boolean vision,
-    /** Whether this model supports reasoning effort configuration */
-    @JsonProperty("reasoningEffort") Boolean reasoningEffort,
-    /** Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8). */
-    @JsonProperty("adaptive_thinking") AdaptiveThinkingSupport adaptiveThinking
+public record SessionUiHandlePendingSessionLimitsExhaustedResult(
+    /** True if the request was still pending and was resolved by this call. False if the request ID was unknown, already resolved by another client (e.g. GitHub), expired, or otherwise no longer pending. */
+    @JsonProperty("success") Boolean success
 ) {
 }

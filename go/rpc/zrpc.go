@@ -1247,6 +1247,36 @@ type CommandsRespondToQueuedCommandResult struct {
 	Success bool `json:"success"`
 }
 
+// Characters that, when typed in the composer, should trigger a `completions.request`.
+// Empty when the session has no host-driven completions (e.g. local sessions, or a relay
+// host that does not advertise `completionTriggerCharacters`).
+// Experimental: CompletionsGetTriggerCharactersResult is part of an experimental API and
+// may change or be removed.
+type CompletionsGetTriggerCharactersResult struct {
+	// Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven
+	// completions for the session.
+	TriggerCharacters []string `json:"triggerCharacters"`
+}
+
+// Request host-driven completions for the current composer input.
+// Experimental: CompletionsRequestRequest is part of an experimental API and may change or
+// be removed.
+type CompletionsRequestRequest struct {
+	// Cursor offset within `text`, in UTF-16 code units.
+	Offset int64 `json:"offset"`
+	// The full composed composer input.
+	Text string `json:"text"`
+}
+
+// Host-driven completion items for the current composer input. Empty when the host returns
+// no items or does not support completions.
+// Experimental: CompletionsRequestResult is part of an experimental API and may change or
+// be removed.
+type CompletionsRequestResult struct {
+	// Completion items in host-ranked order.
+	Items []SessionCompletionItem `json:"items"`
+}
+
 // Params to attach or detach an in-process ExtensionController delegate.
 // Experimental: ConfigureSessionExtensionsParams is part of an experimental API and may
 // change or be removed.
@@ -3742,6 +3772,9 @@ type ModelCapabilitiesOverrideLimitsVision struct {
 // Experimental: ModelCapabilitiesOverrideSupports is part of an experimental API and may
 // change or be removed.
 type ModelCapabilitiesOverrideSupports struct {
+	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required.
+	// 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
 	// Whether this model supports vision/image input
@@ -3752,6 +3785,9 @@ type ModelCapabilitiesOverrideSupports struct {
 // Experimental: ModelCapabilitiesSupports is part of an experimental API and may change or
 // be removed.
 type ModelCapabilitiesSupports struct {
+	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required.
+	// 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
 	// Whether this model supports vision/image input
@@ -5969,8 +6005,8 @@ type RegisterEventInterestParams struct {
 	// count as having a consumer. Multiple registrations for the same event type from the same
 	// or different consumers are tracked independently and must each be released. See:
 	// `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`,
-	// `user_input.requested`, `elicitation.requested`, `command.queued`,
-	// `exit_plan_mode.requested`.
+	// `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`,
+	// `command.queued`, `exit_plan_mode.requested`.
 	EventType string `json:"eventType"`
 }
 
@@ -6235,14 +6271,6 @@ type RemoteSessionRepository struct {
 	Name string `json:"name"`
 	// Repository owner or organization login.
 	Owner string `json:"owner"`
-}
-
-// Optional response limits.
-// Experimental: ResponseLimitsConfig is part of an experimental API and may change or be
-// removed.
-type ResponseLimitsConfig struct {
-	// Maximum AI Credits allowed while responding to one top-level user message.
-	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
 }
 
 // Experimental: RuntimeShutdownResult is part of an experimental API and may change or be
@@ -6550,6 +6578,25 @@ type SessionBulkDeleteResult struct {
 // Experimental: SessionCanvasCloseResult is part of an experimental API and may change or
 // be removed.
 type SessionCanvasCloseResult struct {
+}
+
+// A single host-driven completion. Accepting an item replaces `[rangeStart, rangeEnd)`
+// (UTF-16 code units) in the composer with `insertText`; when the range is absent, the
+// active token around the cursor is replaced.
+// Experimental: SessionCompletionItem is part of an experimental API and may change or be
+// removed.
+type SessionCompletionItem struct {
+	// Text spliced into the composer when the item is accepted.
+	InsertText string `json:"insertText"`
+	// Render-kind hint for the picker row (e.g. `"document"`, `"directory"`), derived from the
+	// host's display kind.
+	Kind *string `json:"kind,omitempty"`
+	// Primary display label for the picker row. Falls back to `insertText` when absent.
+	Label *string `json:"label,omitempty"`
+	// End (exclusive) of the replacement range in `text`, in UTF-16 code units.
+	RangeEnd *int64 `json:"rangeEnd,omitempty"`
+	// Start of the replacement range in `text`, in UTF-16 code units.
+	RangeStart *int64 `json:"rangeStart,omitempty"`
 }
 
 // Pre-resolved working-directory context for session startup.
@@ -6965,6 +7012,14 @@ type SessionInstalledPluginSourceURL struct {
 	URL    string                                `json:"url"`
 }
 
+// Optional session limits.
+// Experimental: SessionLimitsConfig is part of an experimental API and may change or be
+// removed.
+type SessionLimitsConfig struct {
+	// Maximum AI Credits allowed across the session's current accounting window.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+}
+
 // Sessions matching the filter, ordered most-recently-modified first.
 // Experimental: SessionList is part of an experimental API and may change or be removed.
 type SessionList struct {
@@ -7131,12 +7186,12 @@ type SessionMetadataSnapshot struct {
 	// Remote-session-specific metadata. Populated only when `isRemote` is true. Fields are
 	// immutable for the lifetime of the session.
 	RemoteMetadata *MetadataSnapshotRemoteMetadata `json:"remoteMetadata,omitempty"`
-	// Current response limits for the session, or null when no limits are active
-	ResponseLimits *ResponseLimitsConfig `json:"responseLimits"`
 	// Currently selected model identifier, if any
 	SelectedModel *string `json:"selectedModel,omitempty"`
 	// The unique identifier of the session
 	SessionID string `json:"sessionId"`
+	// Current session limits, or null when no limits are active
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits"`
 	// ISO 8601 timestamp of when the session started
 	StartTime time.Time `json:"startTime"`
 	// Short human-readable summary of the session, if known. Omitted when no summary has been
@@ -7233,6 +7288,10 @@ type SessionOpenOptions struct {
 	EnvValueMode *SessionOpenOptionsEnvValueMode `json:"envValueMode,omitempty"`
 	// Override directory for session event logs.
 	EventsLogDirectory *string `json:"eventsLogDirectory,omitempty"`
+	// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from
+	// agent discovery and cannot be dispatched unless a custom agent with the same name is
+	// available.
+	ExcludedBuiltinAgents []string `json:"excludedBuiltinAgents,omitzero"`
 	// Denylist of tool names.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the
@@ -7285,8 +7344,6 @@ type SessionOpenOptions struct {
 	RemoteExporting *bool `json:"remoteExporting,omitempty"`
 	// Whether this session supports remote steering.
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
-	// Initial response limits for the session.
-	ResponseLimits *ResponseLimitsConfig `json:"responseLimits,omitempty"`
 	// Whether the host is an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -7295,6 +7352,8 @@ type SessionOpenOptions struct {
 	SessionCapabilities []SessionCapability `json:"sessionCapabilities,omitzero"`
 	// Optional stable session identifier to use for a new session.
 	SessionID *string `json:"sessionId,omitempty"`
+	// Initial session limits.
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// Shell init profile.
 	ShellInitProfile *string `json:"shellInitProfile,omitempty"`
 	// Per-shell process flags.
@@ -8076,6 +8135,10 @@ type SessionUpdateOptionsParams struct {
 	// Override directory for the session-events log. When unset, the runtime's default events
 	// log directory is used.
 	EventsLogDirectory *string `json:"eventsLogDirectory,omitempty"`
+	// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from
+	// agent discovery and cannot be dispatched unless a custom agent with the same name is
+	// available.
+	ExcludedBuiltinAgents []string `json:"excludedBuiltinAgents,omitzero"`
 	// Denylist of tool names for this session.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// Map of feature-flag IDs to their boolean enabled state.
@@ -8112,8 +8175,6 @@ type SessionUpdateOptionsParams struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode for supported model clients.
 	ReasoningSummary *OptionsUpdateReasoningSummary `json:"reasoningSummary,omitempty"`
-	// Optional response limits. Pass null to clear the response limits.
-	ResponseLimits *ResponseLimitsConfig `json:"responseLimits,omitempty"`
 	// Whether the session is running in an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -8122,6 +8183,8 @@ type SessionUpdateOptionsParams struct {
 	// capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the
 	// field to leave the existing capability set unchanged.
 	SessionCapabilities []SessionCapability `json:"sessionCapabilities,omitzero"`
+	// Optional session limits. Pass null to clear the session limits.
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// Shell init profile (`None` or `NonInteractive`).
 	ShellInitProfile *string `json:"shellInitProfile,omitempty"`
 	// Per-shell process flags (e.g., `pwsh` arguments).
@@ -9321,6 +9384,17 @@ type UIHandlePendingSamplingRequest struct {
 type UIHandlePendingSamplingResponse struct {
 }
 
+// Request ID of a pending `session_limits_exhausted.requested` event and the user's
+// selected limit action.
+// Experimental: UIHandlePendingSessionLimitsExhaustedRequest is part of an experimental API
+// and may change or be removed.
+type UIHandlePendingSessionLimitsExhaustedRequest struct {
+	// The unique request ID from the session_limits_exhausted.requested event
+	RequestID string `json:"requestId"`
+	// The selected session-limit action.
+	Response UISessionLimitsExhaustedResponse `json:"response"`
+}
+
 // Request ID of a pending `user_input.requested` event and the user's response.
 // Experimental: UIHandlePendingUserInputRequest is part of an experimental API and may
 // change or be removed.
@@ -9343,6 +9417,18 @@ type UIRegisterDirectAutoModeSwitchHandlerResult struct {
 	// Multiple registrations are reference-counted; the server bridge will only dispatch
 	// auto-mode-switch requests when no handles are active.
 	Handle string `json:"handle"`
+}
+
+// The user's selected action for an exhausted session limit.
+// Experimental: UISessionLimitsExhaustedResponse is part of an experimental API and may
+// change or be removed.
+type UISessionLimitsExhaustedResponse struct {
+	// Action selected by the user.
+	Action UISessionLimitsExhaustedResponseAction `json:"action"`
+	// AI Credits to add to the current max when action is 'add'.
+	AdditionalAiCredits *float64 `json:"additionalAiCredits,omitempty"`
+	// New absolute max AI Credits when action is 'set'.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
 }
 
 // Opaque handle previously returned by `registerDirectAutoModeSwitchHandler` to release.
@@ -9914,6 +10000,21 @@ const (
 	AbortReasonUserAbort AbortReason = "user_abort"
 	// The local user requested the abort, for example by pressing Ctrl+C in the CLI.
 	AbortReasonUserInitiated AbortReason = "user_initiated"
+)
+
+// Resolved Anthropic adaptive-thinking capability for a model.
+// Experimental: AdaptiveThinkingSupport is part of an experimental API and may change or be
+// removed.
+type AdaptiveThinkingSupport string
+
+const (
+	// The model accepts adaptive thinking but also accepts thinking.type='enabled'
+	AdaptiveThinkingSupportOptional AdaptiveThinkingSupport = "optional"
+	// The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP
+	// 400 (e.g. opus-4.7/4.8)
+	AdaptiveThinkingSupportRequired AdaptiveThinkingSupport = "required"
+	// The model does not accept thinking.type='adaptive'
+	AdaptiveThinkingSupportUnsupported AdaptiveThinkingSupport = "unsupported"
 )
 
 // Which tier this directory belongs to
@@ -11703,6 +11804,22 @@ const (
 	UIExitPlanModeActionExitOnly UIExitPlanModeAction = "exit_only"
 	// Exit plan mode and continue interactively.
 	UIExitPlanModeActionInteractive UIExitPlanModeAction = "interactive"
+)
+
+// User action selected for an exhausted session limit.
+// Experimental: UISessionLimitsExhaustedResponseAction is part of an experimental API and
+// may change or be removed.
+type UISessionLimitsExhaustedResponseAction string
+
+const (
+	// Increase the current max by an exact AI Credits amount.
+	UISessionLimitsExhaustedResponseActionAdd UISessionLimitsExhaustedResponseAction = "add"
+	// Leave the limit unchanged and cancel the blocked model request.
+	UISessionLimitsExhaustedResponseActionCancel UISessionLimitsExhaustedResponseAction = "cancel"
+	// Set a new absolute max AI Credits value.
+	UISessionLimitsExhaustedResponseActionSet UISessionLimitsExhaustedResponseAction = "set"
+	// Remove the current session limit.
+	UISessionLimitsExhaustedResponseActionUnset UISessionLimitsExhaustedResponseAction = "unset"
 )
 
 // Kind discriminator for UserToolSessionApproval.
@@ -13837,6 +13954,57 @@ func (a *CommandsAPI) RespondToQueuedCommand(ctx context.Context, params *Comman
 	return &result, nil
 }
 
+// Experimental: CompletionsAPI contains experimental APIs that may change or be removed.
+type CompletionsAPI sessionAPI
+
+// GetTriggerCharacters gets the characters that should trigger host-driven completions for
+// the session. Empty disables host-driven completions (e.g. local sessions, or a relay host
+// that does not advertise them).
+//
+// RPC method: session.completions.getTriggerCharacters.
+//
+// Returns: Characters that, when typed in the composer, should trigger a
+// `completions.request`. Empty when the session has no host-driven completions (e.g. local
+// sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+func (a *CompletionsAPI) GetTriggerCharacters(ctx context.Context) (*CompletionsGetTriggerCharactersResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.completions.getTriggerCharacters", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CompletionsGetTriggerCharactersResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Requests host-driven completion items for the current composer input. Returns an empty
+// list when the host has no items or does not support completions.
+//
+// RPC method: session.completions.request.
+//
+// Parameters: Request host-driven completions for the current composer input.
+//
+// Returns: Host-driven completion items for the current composer input. Empty when the host
+// returns no items or does not support completions.
+func (a *CompletionsAPI) Request(ctx context.Context, params *CompletionsRequestRequest) (*CompletionsRequestResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["offset"] = params.Offset
+		req["text"] = params.Text
+	}
+	raw, err := a.client.Request(ctx, "session.completions.request", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CompletionsRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: EventLogAPI contains experimental APIs that may change or be removed.
 type EventLogAPI sessionAPI
 
@@ -15288,6 +15456,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.EventsLogDirectory != nil {
 			req["eventsLogDirectory"] = *params.EventsLogDirectory
 		}
+		if params.ExcludedBuiltinAgents != nil {
+			req["excludedBuiltinAgents"] = params.ExcludedBuiltinAgents
+		}
 		if params.ExcludedTools != nil {
 			req["excludedTools"] = params.ExcludedTools
 		}
@@ -15333,9 +15504,6 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.ReasoningSummary != nil {
 			req["reasoningSummary"] = *params.ReasoningSummary
 		}
-		if params.ResponseLimits != nil {
-			req["responseLimits"] = *params.ResponseLimits
-		}
 		if params.RunningInInteractiveMode != nil {
 			req["runningInInteractiveMode"] = *params.RunningInInteractiveMode
 		}
@@ -15344,6 +15512,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.SessionCapabilities != nil {
 			req["sessionCapabilities"] = params.SessionCapabilities
+		}
+		if params.SessionLimits != nil {
+			req["sessionLimits"] = *params.SessionLimits
 		}
 		if params.ShellInitProfile != nil {
 			req["shellInitProfile"] = *params.ShellInitProfile
@@ -17136,6 +17307,32 @@ func (a *UIAPI) HandlePendingSampling(ctx context.Context, params *UIHandlePendi
 	return &result, nil
 }
 
+// HandlePendingSessionLimitsExhausted resolves a pending
+// `session_limits_exhausted.requested` event with the user's selected limit action.
+//
+// RPC method: session.ui.handlePendingSessionLimitsExhausted.
+//
+// Parameters: Request ID of a pending `session_limits_exhausted.requested` event and the
+// user's selected limit action.
+//
+// Returns: Indicates whether the pending UI request was resolved by this call.
+func (a *UIAPI) HandlePendingSessionLimitsExhausted(ctx context.Context, params *UIHandlePendingSessionLimitsExhaustedRequest) (*UIHandlePendingResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["response"] = params.Response
+	}
+	raw, err := a.client.Request(ctx, "session.ui.handlePendingSessionLimitsExhausted", req)
+	if err != nil {
+		return nil, err
+	}
+	var result UIHandlePendingResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // HandlePendingUserInput resolves a pending `user_input.requested` event with the user's
 // response.
 //
@@ -17465,6 +17662,7 @@ type SessionRPC struct {
 	Agent        *AgentAPI
 	Canvas       *CanvasAPI
 	Commands     *CommandsAPI
+	Completions  *CompletionsAPI
 	EventLog     *EventLogAPI
 	Extensions   *ExtensionsAPI
 	Fleet        *FleetAPI
@@ -17677,6 +17875,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Agent = (*AgentAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
+	r.Completions = (*CompletionsAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)

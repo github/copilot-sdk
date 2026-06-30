@@ -39,8 +39,8 @@ pub enum SessionEventType {
     SessionModelChange,
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged,
-    #[serde(rename = "session.response_limits_changed")]
-    SessionResponseLimitsChanged,
+    #[serde(rename = "session.session_limits_changed")]
+    SessionSessionLimitsChanged,
     #[serde(rename = "session.permissions_changed")]
     SessionPermissionsChanged,
     #[serde(rename = "session.plan_changed")]
@@ -57,6 +57,8 @@ pub enum SessionEventType {
     SessionSnapshotRewind,
     #[serde(rename = "session.shutdown")]
     SessionShutdown,
+    #[serde(rename = "session.usage_checkpoint")]
+    SessionUsageCheckpoint,
     #[serde(rename = "session.context_changed")]
     SessionContextChanged,
     #[serde(rename = "session.usage_info")]
@@ -178,6 +180,10 @@ pub enum SessionEventType {
     AutoModeSwitchRequested,
     #[serde(rename = "auto_mode_switch.completed")]
     AutoModeSwitchCompleted,
+    #[serde(rename = "session_limits_exhausted.requested")]
+    SessionLimitsExhaustedRequested,
+    #[serde(rename = "session_limits_exhausted.completed")]
+    SessionLimitsExhaustedCompleted,
     #[serde(rename = "commands.changed")]
     CommandsChanged,
     #[serde(rename = "capabilities.changed")]
@@ -298,8 +304,8 @@ pub enum SessionEventData {
     SessionModelChange(SessionModelChangeData),
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged(SessionModeChangedData),
-    #[serde(rename = "session.response_limits_changed")]
-    SessionResponseLimitsChanged(SessionResponseLimitsChangedData),
+    #[serde(rename = "session.session_limits_changed")]
+    SessionSessionLimitsChanged(SessionSessionLimitsChangedData),
     #[serde(rename = "session.permissions_changed")]
     SessionPermissionsChanged(SessionPermissionsChangedData),
     #[serde(rename = "session.plan_changed")]
@@ -316,6 +322,8 @@ pub enum SessionEventData {
     SessionSnapshotRewind(SessionSnapshotRewindData),
     #[serde(rename = "session.shutdown")]
     SessionShutdown(SessionShutdownData),
+    #[serde(rename = "session.usage_checkpoint")]
+    SessionUsageCheckpoint(SessionUsageCheckpointData),
     #[serde(rename = "session.context_changed")]
     SessionContextChanged(SessionContextChangedData),
     #[serde(rename = "session.usage_info")]
@@ -430,6 +438,10 @@ pub enum SessionEventData {
     AutoModeSwitchRequested(AutoModeSwitchRequestedData),
     #[serde(rename = "auto_mode_switch.completed")]
     AutoModeSwitchCompleted(AutoModeSwitchCompletedData),
+    #[serde(rename = "session_limits_exhausted.requested")]
+    SessionLimitsExhaustedRequested(SessionLimitsExhaustedRequestedData),
+    #[serde(rename = "session_limits_exhausted.completed")]
+    SessionLimitsExhaustedCompleted(SessionLimitsExhaustedCompletedData),
     #[serde(rename = "commands.changed")]
     CommandsChanged(CommandsChangedData),
     #[serde(rename = "capabilities.changed")]
@@ -568,11 +580,11 @@ pub struct WorkingDirectoryContext {
     pub repository_host: Option<String>,
 }
 
-/// Optional response limits.
+/// Optional session limits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResponseLimitsConfig {
-    /// Maximum AI Credits allowed while responding to one top-level user message.
+pub struct SessionLimitsConfig {
+    /// Maximum AI Credits allowed across the session's current accounting window.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_ai_credits: Option<f64>,
 }
@@ -606,14 +618,14 @@ pub struct SessionStartData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
-    /// Response limits configured at session creation time, if any
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_limits: Option<ResponseLimitsConfig>,
     /// Model selected at session creation time, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
     /// Unique identifier for the session
     pub session_id: SessionId,
+    /// Session limits configured at session creation time, if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     /// ISO 8601 timestamp when the session was created
     pub start_time: String,
     /// Schema version number for the session event format
@@ -650,14 +662,14 @@ pub struct SessionResumeData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
-    /// Response limits currently configured at resume time; null when no limits are active
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_limits: Option<ResponseLimitsConfig>,
     /// ISO 8601 timestamp when the session was resumed
     pub resume_time: String,
     /// Model currently selected at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
+    /// Session limits currently configured at resume time; null when no limits are active
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     /// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_was_active: Option<bool>,
@@ -850,12 +862,12 @@ pub struct SessionModeChangedData {
     pub previous_mode: SessionMode,
 }
 
-/// Session event "session.response_limits_changed". Response limits update details. Null clears the limits.
+/// Session event "session.session_limits_changed". Session limits update details. Null clears the limits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionResponseLimitsChangedData {
-    /// Current response limits for the session, or null when no limits are active
-    pub response_limits: Option<ResponseLimitsConfig>,
+pub struct SessionSessionLimitsChangedData {
+    /// Current session limits, or null when no limits are active
+    pub session_limits: Option<SessionLimitsConfig>,
 }
 
 /// Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
@@ -1104,6 +1116,18 @@ pub struct SessionShutdownData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_nano_aiu: Option<f64>,
     /// Total number of premium API requests used during the session
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) total_premium_requests: Option<f64>,
+}
+
+/// Session event "session.usage_checkpoint". Durable session usage checkpoint for reconstructing aggregate accounting on resume
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUsageCheckpointData {
+    /// Session-wide accumulated nano-AI units cost at checkpoint time
+    pub total_nano_aiu: f64,
+    /// Total number of premium API requests used at checkpoint time
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) total_premium_requests: Option<f64>,
@@ -1576,6 +1600,9 @@ pub struct AssistantMessageData {
     /// Readable reasoning text from the model's extended thinking
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_text: Option<String>,
+    /// OpenAI-compatible wire field the provider used for reasoning (e.g. reasoning_content/reasoning). Populated only when non-canonical, so the dialect round-trips across turns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_wire_field: Option<String>,
     /// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<RequestId>,
@@ -2694,6 +2721,12 @@ pub struct PermissionRequestRead {
     pub kind: PermissionRequestReadKind,
     /// Path of the file or directory being read
     pub path: String,
+    /// True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3552,6 +3585,42 @@ pub struct AutoModeSwitchCompletedData {
     pub request_id: RequestId,
     /// The user's auto-mode-switch choice
     pub response: AutoModeSwitchResponse,
+}
+
+/// Session event "session_limits_exhausted.requested". Session limit exhaustion notification requiring user action.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLimitsExhaustedRequestedData {
+    /// Configured max AI Credits for the current accounting window.
+    pub max_ai_credits: f64,
+    /// Unique identifier for this request; used to respond via session.ui.handlePendingSessionLimitsExhausted().
+    pub request_id: RequestId,
+    /// AI Credits already consumed in the current accounting window.
+    pub used_ai_credits: f64,
+}
+
+/// The user's selected action for an exhausted session limit.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLimitsExhaustedResponse {
+    /// Action selected by the user.
+    pub action: SessionLimitsExhaustedResponseAction,
+    /// AI Credits to add to the current max when action is 'add'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_ai_credits: Option<f64>,
+    /// New absolute max AI Credits when action is 'set'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ai_credits: Option<f64>,
+}
+
+/// Session event "session_limits_exhausted.completed". Session limit exhaustion prompt completion notification.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLimitsExhaustedCompletedData {
+    /// Request ID of the resolved request; clients should dismiss any UI for this request.
+    pub request_id: RequestId,
+    /// The user's selected session-limit action.
+    pub response: SessionLimitsExhaustedResponse,
 }
 
 /// Schema for the `CommandsChangedCommand` type.
@@ -5062,6 +5131,27 @@ pub enum AutoModeSwitchResponse {
     /// Do not switch models.
     #[serde(rename = "no")]
     No,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// User action selected for an exhausted session limit.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionLimitsExhaustedResponseAction {
+    /// Increase the current max by an exact AI Credits amount.
+    #[serde(rename = "add")]
+    Add,
+    /// Set a new absolute max AI Credits value.
+    #[serde(rename = "set")]
+    Set,
+    /// Remove the current session limit.
+    #[serde(rename = "unset")]
+    Unset,
+    /// Leave the limit unchanged and cancel the blocked model request.
+    #[serde(rename = "cancel")]
+    Cancel,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
