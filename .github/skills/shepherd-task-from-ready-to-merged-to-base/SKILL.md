@@ -153,10 +153,12 @@ For each `jtbdtask-pr-comments-comment`:
 2. Reply to the comment.
 3. Resolve the review thread.
 
+To reply to the comment:
+
 ```bash
 # Reply to a specific review comment
 gh api --method POST "/repos/$REPO/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies" \
-  -f "body=Fixed in \`$COMMIT_HASH\`. [explanation of the fix]"
+  -f "body=Fixed in $COMMIT_HASH. [explanation of the fix]"
 ```
 
 To resolve the thread, use the GraphQL API (the REST API does not support thread resolution):
@@ -207,7 +209,7 @@ gh pr edit $PR_NUMBER -R $REPO --add-reviewer "copilot-pull-request-reviewer"
 
 Go back to **Step 2**. Wait for the Copilot code review agent to post new findings.
 
-**Max iterations: 20.** If exhausted, report failure and stop:
+**Max iterations: 8.** If exhausted, report failure and stop:
 
 ```
 SHEPHERD FAILED: Exhausted 20 iterations on PR #$PR_NUMBER for task #$TASK_ISSUE.
