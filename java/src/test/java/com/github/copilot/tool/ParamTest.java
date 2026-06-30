@@ -134,6 +134,33 @@ public class ParamTest {
     }
 
     @Test
+    void validatesFloatDefault() {
+        Param<Float> p = Param.of(Float.class, "f", "float val", false, "1.5");
+        assertEquals("1.5", p.defaultValue());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Param.of(Float.class, "f", "float val", false, "notfloat"));
+    }
+
+    @Test
+    void validatesShortDefault() {
+        Param<Short> p = Param.of(Short.class, "s", "short val", false, "100");
+        assertEquals("100", p.defaultValue());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Param.of(Short.class, "s", "short val", false, "99999"));
+    }
+
+    @Test
+    void validatesByteDefault() {
+        Param<Byte> p = Param.of(Byte.class, "b", "byte val", false, "127");
+        assertEquals("127", p.defaultValue());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Param.of(Byte.class, "b", "byte val", false, "999"));
+    }
+
+    @Test
     void validatesBooleanDefault() {
         Param<Boolean> p1 = Param.of(Boolean.class, "b", "flag", false, "true");
         assertEquals("true", p1.defaultValue());
