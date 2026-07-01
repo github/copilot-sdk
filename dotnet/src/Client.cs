@@ -1175,11 +1175,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             transformCallbacks,
             hasHooks,
             "CopilotClient.ResumeSessionAsync");
-        if (config.OnMcpAuthRequest is not null)
-        {
-            await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
-        }
-
         try
         {
             var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
@@ -1264,6 +1259,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
             session.SetOpenCanvases(response.OpenCanvases);
+
+            if (config.OnMcpAuthRequest is not null)
+            {
+                await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
+            }
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
         }

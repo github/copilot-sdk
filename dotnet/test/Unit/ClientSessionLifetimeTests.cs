@@ -300,12 +300,12 @@ public sealed class ClientSessionLifetimeTests
 
         Assert.Collection(
             server.Requests.Take(2),
+            request => Assert.Equal("session.resume", request.Method),
             request =>
             {
                 Assert.Equal("session.eventLog.registerInterest", request.Method);
                 Assert.Equal("mcp.oauth_required", request.Params.GetProperty("eventType").GetString());
-            },
-            request => Assert.Equal("session.resume", request.Method));
+            });
     }
 
     [Fact]

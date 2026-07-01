@@ -220,7 +220,7 @@ describe("CopilotClient", () => {
         ]);
     });
 
-    it("registers MCP OAuth interest before resuming only when an auth handler is configured", async () => {
+    it("registers MCP OAuth interest after resuming only when an auth handler is configured", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => client.forceStop());
@@ -240,12 +240,23 @@ describe("CopilotClient", () => {
             onMcpAuthRequest: () => ({ kind: "cancelled" }),
         });
 
-        expect(spy.mock.calls[0]).toEqual([
-            "session.eventLog.registerInterest",
-            { sessionId: "session-with-auth", eventType: "mcp.oauth_required" },
-        ]);
-        expect(spy.mock.calls[1][0]).toBe("session.resume");
-        expect(spy.mock.calls[1][1]).toEqual(expect.objectContaining({ requestPermission: true }));
+        // `session.eventLog.registerInterest` is session-scoped: the runtime only
+        // registers the session id while handling `session.resume`, so resume must
+        // be sent BEFORE registering interest.
+        const resumeIndex = spy.mock.calls.findIndex(([method]) => method === "session.resume");
+        const interestIndex = spy.mock.calls.findIndex(
+            ([method]) => method === "session.eventLog.registerInterest"
+        );
+        expect(resumeIndex).toBeGreaterThanOrEqual(0);
+        expect(interestIndex).toBeGreaterThanOrEqual(0);
+        expect(resumeIndex).toBeLessThan(interestIndex);
+        expect(spy.mock.calls[resumeIndex][1]).toEqual(
+            expect.objectContaining({ sessionId: "session-with-auth", requestPermission: true })
+        );
+        expect(spy.mock.calls[interestIndex][1]).toEqual({
+            sessionId: "session-with-auth",
+            eventType: "mcp.oauth_required",
+        });
 
         spy.mockClear();
         await client.resumeSession("session-without-auth", {

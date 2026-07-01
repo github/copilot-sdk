@@ -1181,9 +1181,6 @@ impl Client {
         let mut params = serde_json::to_value(&wire)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
-        if has_mcp_auth_handler {
-            register_mcp_auth_interest(self, &session_id).await?;
-        }
 
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let setup_start = Instant::now();
@@ -1252,6 +1249,9 @@ impl Client {
                 returned: cli_session_id,
             })
             .into());
+        }
+        if has_mcp_auth_handler {
+            register_mcp_auth_interest(self, &session_id).await?;
         }
 
         // Reload skills after resume (best-effort).

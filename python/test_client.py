@@ -230,7 +230,7 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_mcp_auth_handler_registers_interest_before_resume(self):
+    async def test_mcp_auth_handler_registers_interest_after_resume(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
         try:
@@ -251,15 +251,15 @@ class TestCreateSessionConfig:
                 on_mcp_auth_request=lambda request: {"kind": "cancelled"},
             )
 
-            interest_method, interest_payload = captured[0]
-            resume_method, resume_payload = captured[1]
+            resume_method, resume_payload = captured[0]
+            interest_method, interest_payload = captured[1]
+            assert resume_method == "session.resume"
+            assert resume_payload["requestPermission"] is True
             assert interest_method == "session.eventLog.registerInterest"
             assert interest_payload == {
                 "sessionId": "session-with-auth",
                 "eventType": "mcp.oauth_required",
             }
-            assert resume_method == "session.resume"
-            assert resume_payload["requestPermission"] is True
         finally:
             await client.force_stop()
 

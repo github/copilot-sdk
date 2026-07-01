@@ -2797,11 +2797,6 @@ class CopilotClient:
             session.on(on_event)
         with self._sessions_lock:
             self._sessions[session_id] = session
-        if on_mcp_auth_request is not None:
-            await self._client.request(
-                "session.eventLog.registerInterest",
-                {"sessionId": session_id, "eventType": "mcp.oauth_required"},
-            )
         log_timing(
             logger,
             logging.DEBUG,
@@ -2830,6 +2825,11 @@ class CopilotClient:
             if isinstance(open_canvases_raw, list):
                 session._set_open_canvases(
                     [OpenCanvasInstance.from_dict(inst) for inst in open_canvases_raw]
+                )
+            if on_mcp_auth_request is not None:
+                await self._client.request(
+                    "session.eventLog.registerInterest",
+                    {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
         except BaseException as exc:
             with self._sessions_lock:

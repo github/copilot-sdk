@@ -2,7 +2,7 @@ import { rm } from "fs/promises";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
-import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, DEFAULT_GITHUB_TOKEN, isCI } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType, retry } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
@@ -462,6 +462,40 @@ describe("Sessions", async () => {
         });
 
         expect(session2.sessionId).toBe(sessionId);
+    });
+
+    it("resumes a persisted session from a new client when an MCP OAuth handler is configured", async () => {
+        // Take a turn so the session is persisted to the store and can be
+        // loaded by a different CLI process.
+        const session1 = await client.createSession({
+            onPermissionRequest: approveAll,
+            onMcpAuthRequest: () => ({ kind: "cancelled" }),
+        });
+        const sessionId = session1.sessionId;
+        const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
+        expect(answer?.data.content).toContain("2");
+
+        // Resume from a fresh client (new CLI process). Its routing table does
+        // not know the session until it handles `session.resume`. Because an MCP
+        // OAuth handler is configured, the SDK issues a session-scoped
+        // `session.eventLog.registerInterest` for `mcp.oauth_required`; that must
+        // be sent AFTER `session.resume`, otherwise the runtime rejects it with
+        // "Session not found: <id>".
+        const newClient = new CopilotClient({
+            env,
+            gitHubToken: isCI
+                ? DEFAULT_GITHUB_TOKEN
+                : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN),
+        });
+        onTestFinished(() => newClient.forceStop());
+
+        const session2 = await newClient.resumeSession(sessionId, {
+            onPermissionRequest: approveAll,
+            onMcpAuthRequest: () => ({ kind: "cancelled" }),
+        });
+
+        expect(session2.sessionId).toBe(sessionId);
+        await session2.disconnect();
     });
 
     it("should abort a session", async () => {

@@ -470,6 +470,11 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
         }
     });
 
+    let resume_req = read_framed(&mut server_read).await;
+    assert_eq!(resume_req["method"], "session.resume");
+    assert_eq!(resume_req["params"]["requestPermission"], true);
+    server_respond_create(&mut server_write, &resume_req, "session-with-auth").await;
+
     let interest_req = read_framed(&mut server_read).await;
     assert_eq!(interest_req["method"], "session.eventLog.registerInterest");
     assert_eq!(interest_req["params"]["eventType"], "mcp.oauth_required");
@@ -485,10 +490,6 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
     )
     .await;
 
-    let resume_req = read_framed(&mut server_read).await;
-    assert_eq!(resume_req["method"], "session.resume");
-    assert_eq!(resume_req["params"]["requestPermission"], true);
-    server_respond_create(&mut server_write, &resume_req, "session-with-auth").await;
     respond_to_reload(&mut server_read, &mut server_write).await;
     let _session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
 }

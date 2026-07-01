@@ -1578,12 +1578,6 @@ export class CopilotClient {
         }
         this.sessions.set(sessionId, session);
         this.setupSessionFs(session, config);
-        if (config.onMcpAuthRequest) {
-            await this.connection!.sendRequest("session.eventLog.registerInterest", {
-                sessionId,
-                eventType: "mcp.oauth_required",
-            });
-        }
 
         const toolFilterOptions = this.resolveToolFilterOptions(config);
 
@@ -1677,6 +1671,12 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
+            if (config.onMcpAuthRequest) {
+                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                    sessionId,
+                    eventType: "mcp.oauth_required",
+                });
+            }
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
