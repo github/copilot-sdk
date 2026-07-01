@@ -223,7 +223,7 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 Sub-agent events share the parent session stream and include envelope-level `agentId`. Root/main agent events and session-level events omit `agentId`, so main-chat renderers can ignore assistant events where `agentId` is set and route those events to traces or progress UI instead.
 
 <details open>
-<summary><strong>Node.js / TypeScript</strong></summary>
+<summary><strong>TypeScript</strong></summary>
 
 ```typescript
 session.on("assistant.message_delta", (event) => {
