@@ -833,7 +833,7 @@ session.idle                  → Ready for next message (ephemeral)
 
 ## All event types at a glance
 
-This table lists key `data` payload fields. For sub-agent attribution, use the envelope-level `agentId`.
+This table lists key `data` payload fields. Common envelope fields are documented above.
 
 | Event Type | Ephemeral | Category | Key Data Fields |
 |------------|-----------|----------|-----------------|
