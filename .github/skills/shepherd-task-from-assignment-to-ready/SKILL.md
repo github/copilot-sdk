@@ -188,35 +188,15 @@ gh run list -R $REPO --branch "$JTBDTASK_BRANCH" --status action_required \
   --json databaseId,name,status --jq '.[].databaseId'
 ```
 
-### Step 4: Approve pending workflow runs
+### Steps 4–5: Approve pending workflow runs and wait for completion
 
-For each run in `action_required` status on the PR's branch, re-run it. The correct mechanism is `gh run rerun` (the `POST .../actions/runs/{id}/approve` endpoint is for fork PRs only and will return HTTP 403 here).
+Invoke the **`shepherd-task-approve-workflows-and-wait-for-completion`** skill (`.github/skills/shepherd-task-approve-workflows-and-wait-for-completion/SKILL.md`) with:
 
-```bash
-# Get all action_required runs for the PR branch
-PENDING_RUNS=$(gh run list -R $REPO --branch "$JTBDTASK_BRANCH" \
-  --json databaseId,conclusion --jq '.[] | select(.conclusion == "action_required") | .databaseId')
+- `REPO` = `$REPO`
+- `JTBDTASK_BRANCH` = the PR's topic branch
+- `PR_NUMBER` = `$PR_NUMBER`
 
-for RUN_ID in $PENDING_RUNS; do
-  gh run rerun $RUN_ID -R $REPO
-done
-```
-
-### Step 5: Wait for workflow runs to complete
-
-```bash
-# Watch all runs on the branch until they complete
-# Use gh pr checks with --watch for convenience
-gh pr checks $PR_NUMBER -R $REPO --watch --fail-fast
-```
-
-Alternatively, poll with:
-
-```bash
-gh run list -R $REPO --branch "$JTBDTASK_BRANCH" \
-  --json databaseId,status,conclusion,name \
-  --jq '.[] | select(.status != "completed")'
-```
+This sub-skill approves all `action_required` runs via `gh run rerun` and waits for completion via `gh pr checks --watch`.
 
 ### Step 6: Evaluate workflow results
 
