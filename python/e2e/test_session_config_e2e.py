@@ -1,15 +1,29 @@
 """E2E tests for session configuration including model capabilities overrides."""
 
 import base64
+import json
 import os
 import uuid
 
+import httpx
 import pytest
 
-from copilot import ModelCapabilitiesOverride, ModelSupportsOverride
+from copilot import (
+    CopilotClient,
+    CopilotRequestHandler,
+    ModelCapabilitiesOverride,
+    ModelSupportsOverride,
+    RuntimeConnection,
+)
+from copilot.copilot_request_handler import CopilotRequestContext
 from copilot.session import PermissionHandler
 
-from .testharness import E2ETestContext
+from ._copilot_request_helpers import (
+    build_inference_response,
+    build_non_inference_response,
+    is_inference_url,
+)
+from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -84,6 +98,91 @@ def _get_tool_names(exchange: dict) -> list[str]:
             if isinstance(name, str):
                 names.append(name)
     return names
+
+
+async def _send_and_get_next_exchange(session, ctx: E2ETestContext, prompt: str) -> dict:
+    existing_count = len(await ctx.get_exchanges())
+    await session.send_and_wait(prompt)
+    exchanges = await ctx.get_exchanges()
+    assert len(exchanges) > existing_count
+    return exchanges[existing_count]
+
+
+def _assert_session_limits_status(exchange: dict, expected_remaining: str) -> None:
+    for message in exchange.get("request", {}).get("messages", []):
+        content = message.get("content")
+        if message.get("role") == "user" and isinstance(content, str):
+            if "<session_limits_status>" in content:
+                assert f"Remaining session limits: {expected_remaining}." in content
+                assert (
+                    "Be frugal; avoid optional exploration and unnecessary tool calls." in content
+                )
+                return
+    raise AssertionError("Expected session limits status message")
+
+
+def _get_task_agent_types(exchange: dict) -> list[str]:
+    for tool in exchange.get("request", {}).get("tools", []) or []:
+        function = tool.get("function") if isinstance(tool, dict) else None
+        if isinstance(function, dict) and function.get("name") == "task":
+            parameters = function.get("parameters")
+            assert isinstance(parameters, dict)
+            values = parameters["properties"]["agent_type"]["enum"]
+            assert isinstance(values, list)
+            return [str(value) for value in values]
+    raise AssertionError("Expected task tool in request")
+
+
+class _RecordingRequestHandler(CopilotRequestHandler):
+    def __init__(self):
+        self.records: list[tuple[str, bytes]] = []
+
+    async def send_request(
+        self, request: httpx.Request, ctx: CopilotRequestContext
+    ) -> httpx.Response:
+        del ctx
+        self.records.append((str(request.url), request.content))
+        if is_inference_url(str(request.url)):
+            return build_inference_response(request)
+        return build_non_inference_response(str(request.url))
+
+    def inference_requests(self) -> list[tuple[str, bytes]]:
+        return [(url, body) for url, body in self.records if is_inference_url(url)]
+
+
+def _create_pdf_attachment() -> dict:
+    pdf_text = (
+        "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
+    )
+    return {
+        "type": "blob",
+        "data": base64.b64encode(pdf_text.encode("ascii")).decode("ascii"),
+        "displayName": "citation-source.pdf",
+        "mimeType": "application/pdf",
+    }
+
+
+def _create_anthropic_provider() -> dict:
+    return {
+        "type": "anthropic",
+        "base_url": "https://anthropic-citations.invalid/v1",
+        "api_key": "test-provider-key",
+        "model_id": "claude-sonnet-4.5",
+        "wire_model": "claude-sonnet-4.5",
+    }
+
+
+def _assert_anthropic_document_citations_enabled(request_body: bytes) -> None:
+    body = json.loads(request_body.decode("utf-8"))
+    document_blocks = [
+        block
+        for message in body["messages"]
+        for block in message["content"]
+        if block.get("type") == "document"
+    ]
+    assert len(document_blocks) == 1
+    assert document_blocks[0]["title"] == "citation-source.pdf"
+    assert document_blocks[0]["citations"] == {"enabled": True}
 
 
 PNG_1X1 = base64.b64decode(
@@ -286,6 +385,161 @@ class TestSessionConfig:
         assert exchanges[0]["request"]["model"] == "claude-sonnet-4.5"
 
         await session.disconnect()
+
+    async def test_should_apply_session_limits_on_create(self, ctx: E2ETestContext):
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            session_limits={"max_ai_credits": 30},
+        )
+
+        exchange = await _send_and_get_next_exchange(
+            session, ctx, "Acknowledge the current session limits."
+        )
+        _assert_session_limits_status(exchange, "30 AI credits")
+
+        await session.disconnect()
+
+    async def test_should_apply_session_limits_on_resume(self, ctx: E2ETestContext):
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        session2 = await ctx.client.resume_session(
+            session1.session_id,
+            on_permission_request=PermissionHandler.approve_all,
+            session_limits={"max_ai_credits": 30},
+        )
+
+        exchange = await _send_and_get_next_exchange(
+            session2, ctx, "Acknowledge the current session limits."
+        )
+        _assert_session_limits_status(exchange, "30 AI credits")
+
+        await session2.disconnect()
+        await session1.disconnect()
+
+    async def test_should_apply_excluded_built_in_agents_on_create(self, ctx: E2ETestContext):
+        excluded_agent = "explore"
+        prompt = "What is 1+1?"
+
+        baseline_session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        baseline_exchange = await _send_and_get_next_exchange(baseline_session, ctx, prompt)
+        assert excluded_agent in _get_task_agent_types(baseline_exchange)
+        await baseline_session.disconnect()
+
+        excluded_session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            excluded_builtin_agents=[excluded_agent],
+        )
+        excluded_exchange = await _send_and_get_next_exchange(excluded_session, ctx, prompt)
+        agent_types = _get_task_agent_types(excluded_exchange)
+        assert agent_types
+        assert excluded_agent not in agent_types
+
+        await excluded_session.disconnect()
+
+    async def test_should_apply_excluded_built_in_agents_on_resume(self, ctx: E2ETestContext):
+        excluded_agent = "explore"
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        session2 = await ctx.client.resume_session(
+            session1.session_id,
+            on_permission_request=PermissionHandler.approve_all,
+            excluded_builtin_agents=[excluded_agent],
+        )
+
+        exchange = await _send_and_get_next_exchange(session2, ctx, "What is 1+1?")
+        agent_types = _get_task_agent_types(exchange)
+        assert agent_types
+        assert excluded_agent not in agent_types
+
+        await session2.disconnect()
+        await session1.disconnect()
+
+    async def test_should_enable_citations_for_anthropic_file_attachments_on_create(
+        self, ctx: E2ETestContext
+    ):
+        handler = _RecordingRequestHandler()
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=DEFAULT_GITHUB_TOKEN,
+            request_handler=handler,
+        )
+        await client.start()
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                model="claude-sonnet-4.5",
+                enable_citations=True,
+                provider=_create_anthropic_provider(),
+            )
+            try:
+                await session.send_and_wait(
+                    "Summarize the attached PDF with citations enabled.",
+                    attachments=[_create_pdf_attachment()],
+                )
+                inference_requests = handler.inference_requests()
+                assert len(inference_requests) == 1
+                _assert_anthropic_document_citations_enabled(inference_requests[0][1])
+            finally:
+                await session.disconnect()
+        finally:
+            await client.stop()
+
+    async def test_should_enable_citations_for_anthropic_file_attachments_on_resume(
+        self, ctx: E2ETestContext
+    ):
+        handler = _RecordingRequestHandler()
+        connection_token = "python-citation-resume-token"
+        server_client = CopilotClient(
+            connection=RuntimeConnection.for_tcp(
+                path=ctx.cli_path,
+                connection_token=connection_token,
+            ),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=DEFAULT_GITHUB_TOKEN,
+            request_handler=handler,
+        )
+        await server_client.start()
+        try:
+            session1 = await server_client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert server_client.runtime_port is not None
+            resume_client = CopilotClient(
+                connection=RuntimeConnection.for_uri(
+                    f"localhost:{server_client.runtime_port}",
+                    connection_token=connection_token,
+                )
+            )
+            try:
+                session2 = await resume_client.resume_session(
+                    session1.session_id,
+                    on_permission_request=PermissionHandler.approve_all,
+                    model="claude-sonnet-4.5",
+                    enable_citations=True,
+                    provider=_create_anthropic_provider(),
+                )
+                try:
+                    await session2.send_and_wait(
+                        "Summarize the attached PDF with citations enabled.",
+                        attachments=[_create_pdf_attachment()],
+                    )
+                    inference_requests = handler.inference_requests()
+                    assert len(inference_requests) == 1
+                    _assert_anthropic_document_citations_enabled(inference_requests[0][1])
+                finally:
+                    await session2.disconnect()
+            finally:
+                await resume_client.stop()
+                await session1.disconnect()
+        finally:
+            await server_client.stop()
 
     async def test_should_use_workingdirectory_for_tool_execution(self, ctx: E2ETestContext):
         sub_dir = os.path.join(ctx.work_dir, "subproject")

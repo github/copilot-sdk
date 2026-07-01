@@ -3784,6 +3784,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         ...collectRpcMethods(schema.server || {}),
         ...collectRpcMethods(schema.session || {}),
         ...collectRpcMethods(schema.clientSession || {}),
+        ...collectRpcMethods(schema.clientGlobal || {}),
     ].sort((left, right) => left.rpcMethod.localeCompare(right.rpcMethod));
 
     // Build a combined definition map, including shared API definitions plus

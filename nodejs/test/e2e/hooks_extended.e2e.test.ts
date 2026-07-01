@@ -3,41 +3,370 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll } from "../../src/index.js";
-import type { SessionHooks } from "../../src/types.js";
+import { z } from "zod";
+import { approveAll, defineTool } from "../../src/index.js";
+import type {
+    ErrorOccurredHookInput,
+    PostToolUseFailureHookInput,
+    PostToolUseHookInput,
+    PreToolUseHookInput,
+    SessionEndHookInput,
+    SessionStartHookInput,
+    UserPromptSubmittedHookInput,
+} from "../../src/types.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-
-const UNSUPPORTED_SDK_HOOKS_MESSAGE = "SDK hook callbacks are no longer supported";
 
 describe("Extended session hooks", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
-    async function expectUnsupportedHooks(hooks: SessionHooks) {
-        await expect(
-            client.createSession({
-                onPermissionRequest: approveAll,
-                hooks,
-            })
-        ).rejects.toThrow(UNSUPPORTED_SDK_HOOKS_MESSAGE);
-    }
+    it("should invoke onSessionStart hook on new session", async () => {
+        const sessionStartInputs: SessionStartHookInput[] = [];
+        const invocationSessionIds: string[] = [];
 
-    const hookCases: Array<[string, SessionHooks]> = [
-        ["userPromptSubmitted", { onUserPromptSubmitted: () => undefined }],
-        ["sessionStart", { onSessionStart: () => undefined }],
-        ["sessionEnd", { onSessionEnd: () => undefined }],
-        ["errorOccurred", { onErrorOccurred: () => undefined }],
-        ["preToolUse output", { onPreToolUse: () => ({ permissionDecision: "allow" }) }],
-        ["postToolUse output", { onPostToolUse: () => ({ suppressOutput: false }) }],
-        [
-            "postToolUseFailure output",
-            {
-                onPostToolUse: () => undefined,
-                onPostToolUseFailure: () => ({ additionalContext: "not used" }),
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onSessionStart: async (input, invocation) => {
+                    sessionStartInputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                },
             },
-        ],
-    ];
+        });
 
-    it.each(hookCases)("rejects SDK callback hook %s", async (_name, hooks) => {
-        await expectUnsupportedHooks(hooks);
+        await session.sendAndWait({
+            prompt: "Say hi",
+        });
+
+        expect(sessionStartInputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
+        expect(sessionStartInputs[0].source).toBe("new");
+        expect(sessionStartInputs[0].timestamp).toBeInstanceOf(Date);
+        expect(sessionStartInputs[0].workingDirectory).toBeDefined();
+
+        await session.disconnect();
+    });
+
+    it("should invoke onUserPromptSubmitted hook when sending a message", async () => {
+        const userPromptInputs: UserPromptSubmittedHookInput[] = [];
+        const invocationSessionIds: string[] = [];
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onUserPromptSubmitted: async (input, invocation) => {
+                    userPromptInputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                },
+            },
+        });
+
+        await session.sendAndWait({
+            prompt: "Say hello",
+        });
+
+        expect(userPromptInputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
+        expect(userPromptInputs[0].prompt).toContain("Say hello");
+        expect(userPromptInputs[0].timestamp).toBeInstanceOf(Date);
+        expect(userPromptInputs[0].workingDirectory).toBeDefined();
+
+        await session.disconnect();
+    });
+
+    it("should invoke onSessionEnd hook when session is disconnected", async () => {
+        const sessionEndInputs: SessionEndHookInput[] = [];
+        const invocationSessionIds: string[] = [];
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onSessionEnd: async (input, invocation) => {
+                    sessionEndInputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                },
+            },
+        });
+
+        await session.sendAndWait({
+            prompt: "Say hi",
+        });
+
+        await session.disconnect();
+
+        // Wait briefly for async hook
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(sessionEndInputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
+    });
+
+    it("should invoke onErrorOccurred hook when error occurs", async () => {
+        const errorInputs: ErrorOccurredHookInput[] = [];
+        const invocationSessionIds: string[] = [];
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onErrorOccurred: async (input, invocation) => {
+                    errorInputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                    expect(input.timestamp).toBeInstanceOf(Date);
+                    expect(input.workingDirectory).toBeDefined();
+                    expect(input.error).toBeDefined();
+                    expect(["model_call", "tool_execution", "system", "user_input"]).toContain(
+                        input.errorContext
+                    );
+                    expect(typeof input.recoverable).toBe("boolean");
+                },
+            },
+        });
+
+        await session.sendAndWait({
+            prompt: "Say hi",
+        });
+
+        // onErrorOccurred is dispatched by the runtime for actual errors (model failures, system errors).
+        // In a normal session it may not fire. Verify the hook is properly wired by checking
+        // that the session works correctly with the hook registered.
+        expect(session.sessionId).toBeDefined();
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
+
+        await session.disconnect();
+    });
+
+    it("should invoke userPromptSubmitted hook and modify prompt", async () => {
+        const inputs: UserPromptSubmittedHookInput[] = [];
+        const invocationSessionIds: string[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onUserPromptSubmitted: async (input, invocation) => {
+                    inputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                    return { modifiedPrompt: "Reply with exactly: HOOKED_PROMPT" };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({ prompt: "Say something else" });
+
+        expect(inputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
+        expect(inputs[0].prompt).toContain("Say something else");
+        expect(response?.data.content ?? "").toContain("HOOKED_PROMPT");
+
+        await session.disconnect();
+    });
+
+    it("should invoke sessionStart hook", async () => {
+        const inputs: SessionStartHookInput[] = [];
+        const invocationSessionIds: string[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onSessionStart: async (input, invocation) => {
+                    inputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                    return { additionalContext: "Session start hook context." };
+                },
+            },
+        });
+
+        await session.sendAndWait({ prompt: "Say hi" });
+
+        expect(inputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
+        expect(inputs[0].source).toBe("new");
+        expect(inputs[0].workingDirectory).toBeTruthy();
+
+        await session.disconnect();
+    });
+
+    it("should invoke sessionEnd hook", async () => {
+        const inputs: SessionEndHookInput[] = [];
+        const invocationSessionIds: string[] = [];
+        let resolveHook!: (value: SessionEndHookInput) => void;
+        const hookInvoked = new Promise<SessionEndHookInput>((resolve) => {
+            resolveHook = resolve;
+        });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onSessionEnd: async (input, invocation) => {
+                    inputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                    resolveHook(input);
+                    return { sessionSummary: "session ended" };
+                },
+            },
+        });
+
+        await session.sendAndWait({ prompt: "Say bye" });
+        await session.disconnect();
+
+        let timer: NodeJS.Timeout | undefined;
+        try {
+            await Promise.race([
+                hookInvoked,
+                new Promise<SessionEndHookInput>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error("Timeout: onSessionEnd")), 10_000);
+                }),
+            ]);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+
+        expect(inputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
+    });
+
+    it("should register erroroccurred hook", async () => {
+        const inputs: ErrorOccurredHookInput[] = [];
+        const invocationSessionIds: string[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onErrorOccurred: async (input, invocation) => {
+                    inputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                    return { errorHandling: "skip" };
+                },
+            },
+        });
+
+        await session.sendAndWait({ prompt: "Say hi" });
+
+        // OnErrorOccurred is dispatched only by genuine runtime errors. A normal turn
+        // cannot deterministically trigger one; this test is registration-only.
+        expect(inputs.length).toBe(0);
+        expect(invocationSessionIds).toHaveLength(0);
+        expect(session.sessionId).toBeTruthy();
+
+        await session.disconnect();
+    });
+
+    it("should allow preToolUse to return modifiedArgs and suppressOutput", async () => {
+        const inputs: PreToolUseHookInput[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("echo_value", {
+                    description: "Echoes the supplied value",
+                    parameters: z.object({ value: z.string() }),
+                    handler: ({ value }) => value,
+                }),
+            ],
+            hooks: {
+                onPreToolUse: async (input) => {
+                    inputs.push(input);
+                    if (input.toolName !== "echo_value") {
+                        return { permissionDecision: "allow" };
+                    }
+                    return {
+                        permissionDecision: "allow",
+                        modifiedArgs: { value: "modified by hook" },
+                        suppressOutput: false,
+                    };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Call echo_value with value 'original', then reply with the result.",
+        });
+
+        expect(inputs.length).toBeGreaterThan(0);
+        expect(inputs.some((input) => input.toolName === "echo_value")).toBe(true);
+        expect(response?.data.content ?? "").toContain("modified by hook");
+
+        await session.disconnect();
+    });
+
+    it("should allow postToolUse to return modifiedResult", async () => {
+        const inputs: PostToolUseHookInput[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onPostToolUse: async (input) => {
+                    inputs.push(input);
+                    if (input.toolName !== "view") {
+                        return undefined;
+                    }
+                    return {
+                        modifiedResult: {
+                            textResultForLlm: "modified by post hook",
+                            resultType: "success",
+                            toolTelemetry: {},
+                        },
+                        suppressOutput: false,
+                    };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Call the view tool to read the current directory, then reply done.",
+        });
+
+        expect(inputs.some((input) => input.toolName === "view")).toBe(true);
+        expect(response?.data.content?.toLowerCase()).toContain("done");
+
+        await session.disconnect();
+    });
+
+    it.skip("should invoke postToolUseFailure hook for failed tool result", async () => {
+        // TODO: This test fails with 1.0.64-0 runtime due to built-in tools not being
+        // available when hooks are configured. Runtime returns "Tool 'view' does not exist.
+        // Available tools: report_intent" even though view is a built-in and availableTools
+        // wasn't specified. Follow up with runtime team.
+        const failureInputs: PostToolUseFailureHookInput[] = [];
+        const postToolUseInputs: PostToolUseHookInput[] = [];
+        const invocationSessionIds: string[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onPostToolUse: async (input) => {
+                    postToolUseInputs.push(input);
+                },
+                onPostToolUseFailure: async (input, invocation) => {
+                    failureInputs.push(input);
+                    invocationSessionIds.push(invocation.sessionId);
+                    return { additionalContext: "HOOK_FAILURE_GUIDANCE_APPLIED" };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Call the view tool with path 'missing.txt'. If it fails, use the hook guidance to answer.",
+        });
+
+        expect(postToolUseInputs).toHaveLength(0);
+        expect(failureInputs).toHaveLength(1);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
+        expect(failureInputs[0].toolName).toBe("view");
+        expect(failureInputs[0].error).toContain("does not exist");
+        expect((failureInputs[0].toolArgs as { path?: string }).path).toContain("missing.txt");
+        expect(failureInputs[0].timestamp).toBeInstanceOf(Date);
+        expect(failureInputs[0].workingDirectory).toBeTruthy();
+        expect(response?.data.content ?? "").toContain("HOOK_FAILURE_GUIDANCE_APPLIED");
+
+        await session.disconnect();
     });
 });

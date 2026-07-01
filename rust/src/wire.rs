@@ -27,7 +27,7 @@ use crate::types::{
     CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions, CustomAgentConfig,
     DefaultAgentConfig, ExtensionInfo, InfiniteSessionConfig, LargeToolOutputConfig,
     McpServerConfig, MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
-    SessionId, SystemMessageConfig, Tool,
+    SessionId, SessionLimitsConfig, SystemMessageConfig, Tool,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -79,6 +79,8 @@ pub(crate) struct SessionCreateWire {
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// SDK always sends `"excluded"` so include + exclude lists compose
     /// naturally (everything matching X except Y).
     pub tool_filter_precedence: &'static str,
@@ -141,6 +143,10 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_telemetry: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_citations: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory: Option<MemoryConfiguration>,
@@ -167,6 +173,8 @@ pub(crate) struct SessionCreateWire {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionResumeWire {
     pub session_id: SessionId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -199,6 +207,8 @@ pub(crate) struct SessionResumeWire {
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// SDK always sends `"excluded"`. See create-wire docs.
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -259,6 +269,10 @@ pub(crate) struct SessionResumeWire {
     pub models: Option<Vec<ProviderModelConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_telemetry: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_citations: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
     #[serde(skip_serializing_if = "Option::is_none")]

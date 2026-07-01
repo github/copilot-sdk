@@ -105,6 +105,7 @@ from .session import (
     SectionTransformFn,
     SessionFsConfig,
     SessionHooks,
+    SessionLimitsConfig,
     SystemMessageConfig,
     UserInputHandler,
     _capabilities_to_dict,
@@ -244,6 +245,14 @@ def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
 def _memory_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     """Convert a ``MemoryConfiguration`` mapping to wire format."""
     return {"enabled": config["enabled"]}
+
+
+def _session_limits_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``SessionLimitsConfig`` mapping to wire format."""
+    wire: dict[str, Any] = {}
+    if "max_ai_credits" in config:
+        wire["maxAiCredits"] = config["max_ai_credits"]
+    return wire
 
 
 class TelemetryConfig(TypedDict, total=False):
@@ -1667,6 +1676,9 @@ class CopilotClient:
         providers: list[NamedProviderConfig] | None = None,
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
+        enable_citations: bool | None = None,
+        excluded_builtin_agents: list[str] | None = None,
+        session_limits: SessionLimitsConfig | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
         coauthor_enabled: bool | None = None,
@@ -1772,6 +1784,14 @@ class CopilotClient:
                 a custom provider (BYOK) is configured, session telemetry is always
                 disabled regardless of this setting. This is independent of the client
                 OpenTelemetry configuration.
+            enable_citations: **Experimental.** Enables native model citations for
+                supported providers.
+            excluded_builtin_agents: Built-in agent names to exclude from the
+                session. Excluded built-in agents are hidden from discovery and
+                cannot be selected or invoked unless a custom agent with the same
+                name is configured.
+            session_limits: **Experimental.** Limits applied to this session's
+                current accounting window.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -2000,6 +2020,12 @@ class CopilotClient:
 
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
+        if enable_citations is not None:
+            payload["enableCitations"] = enable_citations
+        if excluded_builtin_agents is not None:
+            payload["excludedBuiltinAgents"] = excluded_builtin_agents
+        if session_limits is not None:
+            payload["sessionLimits"] = _session_limits_to_wire(session_limits)
 
         # Add model capabilities override if provided
         if model_capabilities:
@@ -2299,6 +2325,9 @@ class CopilotClient:
         providers: list[NamedProviderConfig] | None = None,
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
+        enable_citations: bool | None = None,
+        excluded_builtin_agents: list[str] | None = None,
+        session_limits: SessionLimitsConfig | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
         coauthor_enabled: bool | None = None,
@@ -2405,6 +2434,14 @@ class CopilotClient:
                 a custom provider (BYOK) is configured, session telemetry is always
                 disabled regardless of this setting. This is independent of the client
                 OpenTelemetry configuration.
+            enable_citations: **Experimental.** Enables native model citations for
+                supported providers.
+            excluded_builtin_agents: Built-in agent names to exclude from the
+                resumed session. Excluded built-in agents are hidden from discovery
+                and cannot be selected or invoked unless a custom agent with the
+                same name is configured.
+            session_limits: **Experimental.** Limits applied to this session's
+                current accounting window.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -2570,6 +2607,12 @@ class CopilotClient:
             payload["models"] = [self._convert_model_to_wire_format(m) for m in models]
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
+        if enable_citations is not None:
+            payload["enableCitations"] = enable_citations
+        if excluded_builtin_agents is not None:
+            payload["excludedBuiltinAgents"] = excluded_builtin_agents
+        if session_limits is not None:
+            payload["sessionLimits"] = _session_limits_to_wire(session_limits)
         if model_capabilities:
             payload["modelCapabilities"] = _capabilities_to_dict(model_capabilities)
         if streaming is not None:
