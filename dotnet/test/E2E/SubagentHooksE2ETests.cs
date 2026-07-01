@@ -44,7 +44,7 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         });
 
         // Create a file for the sub-agent to read
-        await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "subagent-test.txt"), "Hello from subagent test!");
+        await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "subagent-test.txt"), "Hello from subagent test!");
 
         await session.SendAndWaitAsync(
             new MessageOptions
