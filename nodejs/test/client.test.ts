@@ -557,9 +557,12 @@ describe("CopilotClient", () => {
             },
         };
 
-        // Deliver the event over the real wire and confirm the generated
-        // dispatcher routes it to the registered handler.
-        await serverConn.sendRequest("gitHubTelemetry.event", notification);
+        // Deliver the event as a real JSON-RPC *notification* (no id) and confirm
+        // the generated dispatcher routes it to the registered handler. The runtime
+        // forwards telemetry via `sendNotification`, which only fires `onNotification`
+        // handlers — an `onRequest` registration would never be invoked, so sending a
+        // notification here guards against regressing back to request-style dispatch.
+        serverConn.sendNotification("gitHubTelemetry.event", notification);
         await got;
 
         expect(received).toEqual([notification]);

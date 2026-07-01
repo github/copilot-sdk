@@ -2397,24 +2397,37 @@ class TestGitHubTelemetry:
         await client.start()
 
         try:
-            # The generated client-global dispatcher wires gitHubTelemetry.event
-            # into the request-handler table; invoking it exercises the full
-            # from_dict decode + adapter + user-callback path.
-            assert "gitHubTelemetry.event" in client._client.request_handlers
+            # gitHubTelemetry.event is a JSON-RPC *notification*: the generated
+            # client-global dispatcher wires it into the notification-handler
+            # table, never the request-handler table. Regressing to request-style
+            # dispatch would drop the runtime's id-less telemetry frames.
+            assert "gitHubTelemetry.event" in client._client.notification_method_handlers
+            assert "gitHubTelemetry.event" not in client._client.request_handlers
 
-            handler = client._client.request_handlers["gitHubTelemetry.event"]
-            await handler(
+            # Drive a real id-less notification frame through the dispatcher to
+            # exercise the full from_dict decode + adapter + user-callback path.
+            client._client._handle_message(
                 {
-                    "sessionId": "sess-telemetry",
-                    "restricted": True,
-                    "event": {
-                        "kind": "tool_call_executed",
-                        "metrics": {"duration_ms": 12.5},
-                        "properties": {"tool": "shell"},
-                        "session_id": "sess-telemetry",
+                    "jsonrpc": "2.0",
+                    "method": "gitHubTelemetry.event",
+                    "params": {
+                        "sessionId": "sess-telemetry",
+                        "restricted": True,
+                        "event": {
+                            "kind": "tool_call_executed",
+                            "metrics": {"duration_ms": 12.5},
+                            "properties": {"tool": "shell"},
+                            "session_id": "sess-telemetry",
+                        },
                     },
                 }
             )
+
+            # Notifications dispatch onto the event loop; yield until delivered.
+            for _ in range(100):
+                if received:
+                    break
+                await asyncio.sleep(0.01)
 
             assert len(received) == 1
             notification = received[0]
@@ -2433,6 +2446,7 @@ class TestGitHubTelemetry:
         await client.start()
 
         try:
+            assert "gitHubTelemetry.event" not in client._client.notification_method_handlers
             assert "gitHubTelemetry.event" not in client._client.request_handlers
         finally:
             await client.force_stop()
