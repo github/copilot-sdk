@@ -76,7 +76,7 @@ done
 
 Search for similar text to identify the batch of review findings (`jtbdtask-pr-comments`).
 
-If **Comments generated: 0** (or no comments for this round), skip to **Step 18**.
+If **Comments generated: 0** (or no comments for this round), skip to **Step 15**.
 
 When `jtbdtask-pr-comments` has been identified, proceed.
 
@@ -104,7 +104,17 @@ git worktree add "$GH_CURRENT_USER/review-copilot-pr-$PR_NUMBER" "upstream/$JTBD
 
 For discussion, this worktree is the `jtbdtask-pr-comments-comment-worktree`.
 
-### Step 5: Gather all review comments
+### Step 5: Approve workflows and wait for completion
+
+Invoke the **`shepherd-task-approve-workflows-and-wait-for-completion`** skill (`.github/skills/shepherd-task-approve-workflows-and-wait-for-completion/SKILL.md`) with:
+
+- `REPO` = `$REPO`
+- `JTBDTASK_BRANCH` = the PR's topic branch
+- `PR_NUMBER` = `$PR_NUMBER`
+
+This ensures any pending workflow runs triggered by prior pushes are approved and complete before gathering review comments.
+
+### Step 6: Gather all review comments
 
 ```bash
 # Get all review comments from the Copilot code review batch
@@ -114,32 +124,32 @@ gh api "/repos/$REPO/pulls/$PR_NUMBER/comments" \
 
 Identify each individual comment. Each has a unique `id` (e.g., `discussion_r3456155645`-style reference). For discussion, each is a `jtbdtask-pr-comments-comment`.
 
-### Step 6: Address each review comment locally
+### Step 7: Address each review comment locally
 
 For each review comment (`jtbdtask-pr-comments-comment`), working in the `jtbdtask-pr-comments-comment-worktree`:
 
-#### 6.1: Evaluate the comment
+#### 7.1: Evaluate the comment
 
 - Carefully consider the comment and judge its merit.
-- **If there is no merit:** mark the comment as resolved with an explanatory note (defer the resolution reply until Step 13).
+- **If there is no merit:** mark the comment as resolved with an explanatory note (defer the resolution reply until Step 9).
 - **If there is merit:** evaluate the suggested remedy.
   - If you agree with the suggested remedy, proceed with it.
   - If you disagree with the suggested remedy, devise a better remedy and proceed with that.
 
-#### 6.2: Implement the fix
+#### 7.2: Implement the fix
 
 - Implement the remedy in the `jtbdtask-pr-comments-comment-worktree`.
 - Use the appropriate language coding skill in `.github/skills/` to know how to run tests.
 - ❌❌❌ DO NOT RUN THE FULL TEST SUITE at this stage. ❌❌❌ Only run the tests directly related to the fix, in isolation.
 - **If the commit has to do with Java, YOU MUST ALWAYS RUN `mvn spotless:apply` in the java directory before each commit.**
 
-#### 6.3: Commit locally (do not push)
+#### 7.3: Commit locally (do not push)
 
 - Once the relevant tests pass, commit the fix.
 - ❌❌❌ Do NOT push yet. ❌❌❌
 - Keep track of the commit hash — you will need it when replying to the review comment.
 
-### Step 7: Push all fixes to upstream
+### Step 8: Push all fixes to upstream
 
 Once **all** N review comments have been addressed locally:
 
@@ -149,7 +159,7 @@ cd "$GH_CURRENT_USER/review-copilot-pr-$PR_NUMBER"
 git push upstream HEAD:$JTBDTASK_BRANCH
 ```
 
-### Step 8: Reply to each review comment and resolve the thread
+### Step 9: Reply to each review comment and resolve the thread
 
 For each `jtbdtask-pr-comments-comment`:
 
@@ -193,9 +203,9 @@ mutation {
 }"
 ```
 
-### Step 9: Wait for CI to run
+### Step 10: Wait for CI to run
 
-The push triggers CI/CD. Use the same approach as `shepherd-task-from-assignment-to-ready` Steps 5, 6, and 7 to:
+The push triggers CI/CD. Use the same approach as `shepherd-task-from-assignment-to-ready` to:
 
 1. Wait for workflow runs to complete (`gh pr checks $PR_NUMBER -R $REPO --watch`).
 2. Evaluate results (excluding the expected "Block remove-before-merge paths" / "No remove-before-merge directories" failure).
@@ -203,13 +213,23 @@ The push triggers CI/CD. Use the same approach as `shepherd-task-from-assignment
 
 **Note:** Ignore failures from the "Block remove-before-merge paths" / "No remove-before-merge directories" workflow. This failure is expected on feature branches and is not a real problem.
 
-### Step 10: Re-request Copilot review
+### Step 11: Approve workflows and wait for completion
+
+Invoke the **`shepherd-task-approve-workflows-and-wait-for-completion`** skill (`.github/skills/shepherd-task-approve-workflows-and-wait-for-completion/SKILL.md`) with:
+
+- `REPO` = `$REPO`
+- `JTBDTASK_BRANCH` = the PR's topic branch
+- `PR_NUMBER` = `$PR_NUMBER`
+
+This ensures any pending workflow runs triggered by the push in Step 8 are approved and complete before re-requesting review.
+
+### Step 12: Re-request Copilot review
 
 ```bash
 gh pr edit $PR_NUMBER -R $REPO --add-reviewer "copilot-pull-request-reviewer"
 ```
 
-### Step 11: Loop back
+### Step 13: Loop back
 
 Go back to **Step 2**. Wait for the Copilot code review agent to post new findings.
 
@@ -220,13 +240,23 @@ SHEPHERD FAILED: Exhausted 20 iterations on PR #$PR_NUMBER for task #$TASK_ISSUE
 Manual intervention required.
 ```
 
-### Step 18: Final checks before merge
+### Step 14: Approve workflows and wait for completion
+
+Invoke the **`shepherd-task-approve-workflows-and-wait-for-completion`** skill (`.github/skills/shepherd-task-approve-workflows-and-wait-for-completion/SKILL.md`) with:
+
+- `REPO` = `$REPO`
+- `JTBDTASK_BRANCH` = the PR's topic branch
+- `PR_NUMBER` = `$PR_NUMBER`
+
+This ensures any pending workflow runs are approved and complete before performing final checks.
+
+### Step 15: Final checks before merge
 
 Verify:
 - The only failed check is "Block remove-before-merge paths" / "No remove-before-merge directories".
 - All other checks pass.
 
-### Step 19: Clean up worktree
+### Step 16: Clean up worktree
 
 ```bash
 # Remove the worktree
@@ -236,7 +266,7 @@ git worktree remove "$GH_CURRENT_USER/review-copilot-pr-$PR_NUMBER"
 git branch -D "$JTBDTASK_BRANCH" 2>/dev/null || true
 ```
 
-### Step 20: Verify base branch
+### Step 17: Verify base branch
 
 ❌❌❌ Ensure the base branch is NEVER `main` ❌❌❌ and always the `BASE_BRANCH` from this invocation.
 
@@ -248,7 +278,7 @@ if [ "$ACTUAL_BASE" = "main" ]; then
 fi
 ```
 
-### Step 21: Handle merge conflicts
+### Step 18: Handle merge conflicts
 
 If there are conflicts between the PR branch and `BASE_BRANCH`:
 
@@ -266,7 +296,7 @@ if [ "$MERGEABLE" = "CONFLICTING" ]; then
 fi
 ```
 
-### Step 22: Merge the PR
+### Step 19: Merge the PR
 
 ```bash
 gh pr merge $PR_NUMBER -R $REPO --merge --delete-branch
@@ -274,13 +304,13 @@ gh pr merge $PR_NUMBER -R $REPO --merge --delete-branch
 
 This merges the work to `BASE_BRANCH`.
 
-### Step 23: Close the corresponding issue
+### Step 20: Close the corresponding issue
 
 ```bash
 gh issue close $TASK_ISSUE -R $REPO
 ```
 
-### Step 24: Final status report
+### Step 21: Final status report
 
 ```
 SHEPHERD COMPLETE: PR #$PR_NUMBER for task #$TASK_ISSUE has been merged to $BASE_BRANCH.
@@ -291,7 +321,7 @@ SHEPHERD COMPLETE: PR #$PR_NUMBER for task #$TASK_ISSUE has been merged to $BASE
 ## Error handling
 
 - **Copilot review agent doesn't post within 10 minutes**: Report and stop.
-- **20 iterations exhausted**: Report and stop.
+- **8 iterations exhausted**: Report and stop.
 - **Merge conflicts that cannot be auto-resolved**: Report and stop.
 - **API errors**: Retry up to 3 times with 10-second backoff, then report and stop.
 
@@ -299,5 +329,4 @@ SHEPHERD COMPLETE: PR #$PR_NUMBER for task #$TASK_ISSUE has been merged to $BASE
 
 - This skill runs in a `copilot --yolo` session on a Dev Box, executing as the authenticated user.
 - All review comment resolution is done **locally** — not via the remote Copilot coding agent.
-- The step numbering intentionally skips from 11 to 18 to align with the original procedure description.
 - **Do NOT edit any plan/checklist files** (e.g., `1810-ignorance-reduction-for-implementation-plan.md`) to mark tasks as complete. Marking checklist items is outside the scope of this skill.
