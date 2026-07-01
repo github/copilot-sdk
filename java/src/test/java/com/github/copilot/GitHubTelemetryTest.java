@@ -23,8 +23,8 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.GitHubTelemetryNotification;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
@@ -104,28 +104,28 @@ class GitHubTelemetryTest {
             writeRpcMessage(pair.serverSide().getOutputStream(), notification);
 
             GitHubTelemetryNotification result = received.get(5, TimeUnit.SECONDS);
-            assertEquals("sess-123", result.getSessionId());
-            assertTrue(result.isRestricted());
+            assertEquals("sess-123", result.sessionId());
+            assertTrue(result.restricted());
 
-            var event = result.getEvent();
+            var event = result.event();
             assertNotNull(event);
-            assertEquals("tool_call_executed", event.getKind());
-            assertEquals("2024-01-01T00:00:00Z", event.getCreatedAt());
-            assertEquals("call-9", event.getModelCallId());
-            assertEquals("shell", event.getProperties().get("tool"));
-            assertEquals(42.5, event.getMetrics().get("duration_ms"));
-            assertEquals("ctx", event.getExpAssignmentContext());
-            assertEquals("on", event.getFeatures().get("flag_a"));
-            assertEquals("sess-123", event.getSessionId());
-            assertEquals("track-1", event.getCopilotTrackingId());
+            assertEquals("tool_call_executed", event.kind());
+            assertEquals("2024-01-01T00:00:00Z", event.createdAt());
+            assertEquals("call-9", event.modelCallId());
+            assertEquals("shell", event.properties().get("tool"));
+            assertEquals(42.5, event.metrics().get("duration_ms"));
+            assertEquals("ctx", event.expAssignmentContext());
+            assertEquals("on", event.features().get("flag_a"));
+            assertEquals("sess-123", event.sessionId());
+            assertEquals("track-1", event.copilotTrackingId());
 
-            var client = event.getClient();
+            var client = event.client();
             assertNotNull(client);
-            assertEquals("1.2.3", client.getCliVersion());
-            assertEquals("win32", client.getOsPlatform());
-            assertEquals("x64", client.getOsArch());
-            assertEquals("20.0.0", client.getNodeVersion());
-            assertEquals(Boolean.FALSE, client.getIsStaff());
+            assertEquals("1.2.3", client.cliVersion());
+            assertEquals("win32", client.osPlatform());
+            assertEquals("x64", client.osArch());
+            assertEquals("20.0.0", client.nodeVersion());
+            assertEquals(Boolean.FALSE, client.isStaff());
         }
     }
 
@@ -151,9 +151,9 @@ class GitHubTelemetryTest {
             server.sendTelemetry(Map.of("sessionId", "sess-xyz", "restricted", false, "event",
                     Map.of("kind", "session_started", "session_id", "sess-xyz")));
             GitHubTelemetryNotification event = received.get(5, TimeUnit.SECONDS);
-            assertEquals("sess-xyz", event.getSessionId());
-            assertFalse(event.isRestricted());
-            assertEquals("session_started", event.getEvent().getKind());
+            assertEquals("sess-xyz", event.sessionId());
+            assertFalse(event.restricted());
+            assertEquals("session_started", event.event().kind());
 
             // Resuming a session must opt it in as well.
             client.resumeSession("resume-1",

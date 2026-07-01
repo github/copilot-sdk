@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.CopilotRequestHandler;
+import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import java.util.Optional;
 import java.util.OptionalInt;
 

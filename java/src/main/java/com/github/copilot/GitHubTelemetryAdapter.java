@@ -10,7 +10,7 @@ import java.util.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.rpc.GitHubTelemetryNotification;
+import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 
 /**
  * Bridges the runtime's {@code gitHubTelemetry.event} client-global

@@ -259,7 +259,7 @@ public final class CopilotClient implements AutoCloseable {
             }
 
             // Register the GitHub telemetry forwarding handler when configured.
-            java.util.function.Consumer<com.github.copilot.rpc.GitHubTelemetryNotification> onGitHubTelemetry = this.options
+            java.util.function.Consumer<com.github.copilot.generated.rpc.GitHubTelemetryNotification> onGitHubTelemetry = this.options
                     .getOnGitHubTelemetry();
             if (onGitHubTelemetry != null) {
                 GitHubTelemetryAdapter telemetryAdapter = new GitHubTelemetryAdapter(onGitHubTelemetry);
