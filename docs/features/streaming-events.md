@@ -235,7 +235,6 @@ session.on("assistant.message_delta", (event) => {
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: hidden -->
 ```python
 from copilot import CopilotSession
 from copilot.session_events import SessionEventType
@@ -246,17 +245,6 @@ def subscribe_parent_response(session: CopilotSession):
             print(event.data.delta_content, end="", flush=True)
 
     session.on(handle)
-```
-<!-- /docs-validate: hidden -->
-
-```python
-from copilot.session_events import SessionEventType
-
-def handle(event):
-    if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA and event.agent_id is None:
-        print(event.data.delta_content, end="", flush=True)
-
-session.on(handle)
 ```
 
 </details>
