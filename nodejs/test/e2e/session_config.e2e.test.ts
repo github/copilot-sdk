@@ -335,7 +335,11 @@ describe("Session Configuration", async () => {
             ],
             [
                 "content_block_start",
-                { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+                {
+                    type: "content_block_start",
+                    index: 0,
+                    content_block: { type: "text", text: "" },
+                },
             ],
             [
                 "content_block_delta",
@@ -352,7 +356,9 @@ describe("Session Configuration", async () => {
             ],
             ["message_stop", { type: "message_stop" }],
         ];
-        return events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
+        return events
+            .map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+            .join("");
     }
 
     function buildNonInferenceResponse(url: string): Response {

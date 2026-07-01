@@ -331,7 +331,10 @@ fn http_response(status: u16, headers: HeaderMap, body: Value) -> CopilotHttpRes
 
 fn sse_response(body: String) -> CopilotHttpResponse {
     let mut headers = HeaderMap::new();
-    headers.insert("content-type", HeaderValue::from_static("text/event-stream"));
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("text/event-stream"),
+    );
     let stream = futures_util::stream::once(async move {
         Ok::<Bytes, CopilotRequestError>(Bytes::from(body.into_bytes()))
     });
