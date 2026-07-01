@@ -2068,6 +2068,11 @@ type GitHubTelemetryEvent struct {
 	SessionID *string `json:"session_id,omitempty"`
 }
 
+// Experimental: GitHubTelemetryEventResult is part of an experimental API and may change or
+// be removed.
+type GitHubTelemetryEventResult struct {
+}
+
 // Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the
 // runtime forwards to a host connection that opted into telemetry forwarding for the
 // session.
