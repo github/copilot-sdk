@@ -33,8 +33,9 @@ describe("GitHub telemetry forwarding", async () => {
                 onPermissionRequest: approveAll,
             });
 
-            // Telemetry forwarding is asynchronous and in-process; poll until the
-            // runtime has forwarded at least one event or we time out.
+            // The CLI forwards telemetry over the JSON-RPC connection
+            // asynchronously, so poll until at least one event arrives or we
+            // time out.
             const deadline = Date.now() + 30_000;
             while (received.length === 0 && Date.now() < deadline) {
                 await new Promise((resolve) => setTimeout(resolve, 100));
