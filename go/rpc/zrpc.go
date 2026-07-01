@@ -2371,6 +2371,8 @@ type InstructionSource struct {
 type LlmInferenceHeaders map[string][]string
 
 // A request body chunk or cancellation signal.
+// Experimental: LlmInferenceHTTPRequestChunkRequest is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestChunkRequest struct {
 	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
 	Binary *bool `json:"binary,omitempty"`
@@ -2391,10 +2393,14 @@ type LlmInferenceHTTPRequestChunkRequest struct {
 
 // Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as
 // fire-and-forget.
+// Experimental: LlmInferenceHTTPRequestChunkResult is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestChunkResult struct {
 }
 
 // The head of an outbound model-layer HTTP request.
+// Experimental: LlmInferenceHTTPRequestStartRequest is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestStartRequest struct {
 	Headers map[string][]string `json:"headers"`
 	// HTTP method, e.g. GET, POST.
@@ -2421,6 +2427,8 @@ type LlmInferenceHTTPRequestStartRequest struct {
 
 // Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it
 // does not imply the request will succeed.
+// Experimental: LlmInferenceHTTPRequestStartResult is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestStartResult struct {
 }
 
@@ -10577,6 +10585,8 @@ const (
 // distinguishes text from binary frames. The SDK consumer uses this to decide whether to
 // service the request with an HTTP client or a WebSocket client. It is the one piece of
 // request metadata the consumer cannot reliably infer from the URL or headers alone.
+// Experimental: LlmInferenceHTTPRequestStartTransport is part of an experimental API and
+// may change or be removed.
 type LlmInferenceHTTPRequestStartTransport string
 
 const (
