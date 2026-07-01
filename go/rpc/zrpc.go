@@ -1393,6 +1393,7 @@ type CopilotUserResponse struct {
 	// Schema for the `CopilotUserResponseQuotaSnapshots` type.
 	QuotaSnapshots      *CopilotUserResponseQuotaSnapshots `json:"quota_snapshots,omitempty"`
 	RestrictedTelemetry *bool                              `json:"restricted_telemetry,omitempty"`
+	Te                  *bool                              `json:"te,omitempty"`
 	TokenBasedBilling   *bool                              `json:"token_based_billing,omitempty"`
 }
 
@@ -2012,6 +2013,81 @@ type GitHubRepoRef struct {
 	Owner string `json:"owner"`
 }
 
+// Client environment metadata describing the process that produced a telemetry event.
+// Experimental: GitHubTelemetryClientInfo is part of an experimental API and may change or
+// be removed.
+type GitHubTelemetryClientInfo struct {
+	// Name of the client application.
+	ClientName *string `json:"client_name,omitempty"`
+	// Type of client.
+	ClientType *string `json:"client_type,omitempty"`
+	// Copilot CLI version string.
+	CLIVersion string `json:"cli_version"`
+	// Copilot subscription plan, when known.
+	CopilotPlan *string `json:"copilot_plan,omitempty"`
+	// Stable machine identifier for the device.
+	DevDeviceID *string `json:"dev_device_id,omitempty"`
+	// Whether the user is a GitHub/Microsoft staff member.
+	IsStaff *bool `json:"is_staff,omitempty"`
+	// Node.js runtime version string.
+	NodeVersion string `json:"node_version"`
+	// Operating system architecture (e.g. arm64, x64).
+	OsArch string `json:"os_arch"`
+	// Operating system platform (e.g. darwin, linux, win32).
+	OsPlatform string `json:"os_platform"`
+	// Operating system version string.
+	OsVersion string `json:"os_version"`
+}
+
+// A single telemetry event in the runtime's native GitHub-shaped telemetry format,
+// forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing
+// GitHubTelemetryNotification distinguishes standard from restricted events; the payload
+// shape is identical for both.
+// Experimental: GitHubTelemetryEvent is part of an experimental API and may change or be
+// removed.
+type GitHubTelemetryEvent struct {
+	// Client environment metadata.
+	Client *GitHubTelemetryClientInfo `json:"client,omitempty"`
+	// Copilot tracking ID for user-level attribution.
+	CopilotTrackingID *string `json:"copilot_tracking_id,omitempty"`
+	// Timestamp when the event was created (ISO 8601 format).
+	CreatedAt *string `json:"created_at,omitempty"`
+	// Experiment assignment context.
+	ExpAssignmentContext *string `json:"exp_assignment_context,omitempty"`
+	// Feature flags enabled for this session, as a map from flag to value.
+	Features map[string]string `json:"features,omitzero"`
+	// Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).
+	Kind string `json:"kind"`
+	// Numeric metrics as a map from key to value.
+	Metrics map[string]float64 `json:"metrics"`
+	// Reference to the model call that produced this event.
+	ModelCallID *string `json:"model_call_id,omitempty"`
+	// String-valued properties as a map from key to value.
+	Properties map[string]string `json:"properties"`
+	// Session identifier the event belongs to.
+	SessionID *string `json:"session_id,omitempty"`
+}
+
+// Experimental: GitHubTelemetryEventResult is part of an experimental API and may change or
+// be removed.
+type GitHubTelemetryEventResult struct {
+}
+
+// Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the
+// runtime forwards to a host connection that opted into telemetry forwarding for the
+// session.
+// Experimental: GitHubTelemetryNotification is part of an experimental API and may change
+// or be removed.
+type GitHubTelemetryNotification struct {
+	// The telemetry event, in the runtime's native GitHub-shaped telemetry format.
+	Event GitHubTelemetryEvent `json:"event"`
+	// Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route
+	// restricted events to first-party Microsoft stores only.
+	Restricted bool `json:"restricted"`
+	// Session the telemetry event belongs to.
+	SessionID string `json:"sessionId"`
+}
+
 // Pending external tool call request ID, with the tool result or an error describing why it
 // failed.
 // Experimental: HandlePendingToolCallRequest is part of an experimental API and may change
@@ -2295,6 +2371,8 @@ type InstructionSource struct {
 type LlmInferenceHeaders map[string][]string
 
 // A request body chunk or cancellation signal.
+// Experimental: LlmInferenceHTTPRequestChunkRequest is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestChunkRequest struct {
 	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
 	Binary *bool `json:"binary,omitempty"`
@@ -2315,10 +2393,14 @@ type LlmInferenceHTTPRequestChunkRequest struct {
 
 // Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as
 // fire-and-forget.
+// Experimental: LlmInferenceHTTPRequestChunkResult is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestChunkResult struct {
 }
 
 // The head of an outbound model-layer HTTP request.
+// Experimental: LlmInferenceHTTPRequestStartRequest is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestStartRequest struct {
 	Headers map[string][]string `json:"headers"`
 	// HTTP method, e.g. GET, POST.
@@ -2345,6 +2427,8 @@ type LlmInferenceHTTPRequestStartRequest struct {
 
 // Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it
 // does not imply the request will succeed.
+// Experimental: LlmInferenceHTTPRequestStartResult is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestStartResult struct {
 }
 
@@ -10501,6 +10585,8 @@ const (
 // distinguishes text from binary frames. The SDK consumer uses this to decide whether to
 // service the request with an HTTP client or a WebSocket client. It is the one piece of
 // request metadata the consumer cannot reliably infer from the URL or headers alone.
+// Experimental: LlmInferenceHTTPRequestStartTransport is part of an experimental API and
+// may change or be removed.
 type LlmInferenceHTTPRequestStartTransport string
 
 const (
@@ -18624,6 +18710,20 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 	})
 }
 
+// Experimental: GitHubTelemetryHandler contains experimental APIs that may change or be
+// removed.
+type GitHubTelemetryHandler interface {
+	// Event forwards a single GitHub telemetry event to a host connection that opted into
+	// telemetry forwarding for the session.
+	//
+	// RPC method: gitHubTelemetry.event.
+	//
+	// Parameters: Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry
+	// event the runtime forwards to a host connection that opted into telemetry forwarding for
+	// the session.
+	Event(request *GitHubTelemetryNotification) (*GitHubTelemetryEventResult, error)
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -18660,7 +18760,8 @@ type LlmInferenceHandler interface {
 // Unlike client-session handlers these carry no implicit session id dispatch
 // key; a single set of handlers serves the entire connection.
 type ClientGlobalAPIHandlers struct {
-	LlmInference LlmInferenceHandler
+	GitHubTelemetry GitHubTelemetryHandler
+	LlmInference    LlmInferenceHandler
 }
 
 func clientGlobalHandlerError(err error) *jsonrpc2.Error {
@@ -18677,6 +18778,24 @@ func clientGlobalHandlerError(err error) *jsonrpc2.Error {
 // RegisterClientGlobalAPIHandlers registers handlers for server-to-client client-global API
 // calls.
 func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGlobalAPIHandlers) {
+	client.SetRequestHandler("gitHubTelemetry.event", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request GitHubTelemetryNotification
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.GitHubTelemetry == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No gitHubTelemetry client-global handler registered"}
+		}
+		result, err := handlers.GitHubTelemetry.Event(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
 	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request LlmInferenceHTTPRequestChunkRequest
 		if err := json.Unmarshal(params, &request); err != nil {
