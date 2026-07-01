@@ -1,10 +1,10 @@
 # Session limits
 
-Session limits let an application set an AI Credits budget for a Copilot session. Use `sessionLimits` when creating or resuming a session to cap the current accounting window.
+Session limits let an application set an AI Credits budget for a Copilot session. Use `sessionLimits` when creating or resuming a session to set a soft cap for the current accounting window.
 
 ## Configure a session limit
 
-Set `maxAiCredits` to the maximum AI Credits the session can consume in its current accounting window. The SDK forwards this value to the Copilot CLI when it creates or resumes the session.
+Set `maxAiCredits` to the AI Credits soft cap for the session's current accounting window. Usage is checked after model calls return, so one response can exceed the configured value before the runtime blocks the next model call. The SDK forwards this value to the Copilot CLI when it creates or resumes the session.
 
 <details open>
 <summary><strong>TypeScript</strong></summary>
@@ -150,13 +150,13 @@ let resumed = client
 
 ## Observe budget events
 
-Applications can subscribe to session events to update UI when the limit changes or the session exhausts its budget.
+Applications can subscribe to session events to update UI when the soft cap changes or the session reaches the exhausted-budget flow.
 
 | Event type | When it is emitted | Important fields |
 |---|---|---|
 | `session.session_limits_changed` | Active session limits changed. A `null` `sessionLimits` value means no limits are active. | `sessionLimits.maxAiCredits?` |
 | `session.usage_checkpoint` | The runtime records durable aggregate usage for resume and accounting. | `totalNanoAiu`, `totalPremiumRequests?` |
-| `session_limits_exhausted.requested` | The session exhausted its configured budget and needs a user decision before continuing. | `requestId`, `maxAiCredits`, `usedAiCredits` |
+| `session_limits_exhausted.requested` | The session reached the exhausted-budget flow and needs a user decision before continuing. | `requestId`, `maxAiCredits`, `usedAiCredits` |
 | `session_limits_exhausted.completed` | The exhausted-limit prompt was resolved. | `requestId`, `response.action`, `response.additionalAiCredits?`, `response.maxAiCredits?` |
 
 Use the generated event types for the SDK language you are using. For example, TypeScript narrows by `event.type`:
@@ -172,7 +172,3 @@ session.on((event) => {
     }
 });
 ```
-
-## Current limitations
-
-The SDKs expose session limits when creating or resuming a session. They do not currently expose a high-level convenience API for changing or clearing limits on an already-running session. To apply a different limit through the public SDK surface, create or resume a session with a new `sessionLimits` value.
