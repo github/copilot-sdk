@@ -94,26 +94,65 @@ gh pr edit $PR_NUMBER -R $REPO --base "$BASE_BRANCH"
 
 ### Step 2: Find the corresponding PR
 
-Look for the corresponding PR created and mentioned in the issue. The issue will often have text like "linked a pull request that will close this issue". First, try to find the PR this way. If you find it, let `PR_NUMBER` be that PR number.
+Use **all three** of the following strategies (in order) each polling iteration. Copilot often creates PRs whose title or branch name does NOT contain the issue number — it may use a descriptive name instead. Therefore, relying on title/branch regex alone is insufficient.
 
-If that doesn't work, wait for Copilot to create the PR.
+#### Strategy A: Query the issue timeline for linked PRs
 
-Poll until a PR exists with the task issue linked or with a head branch referencing the issue number.
+The GitHub timeline API shows PRs linked via "Fixes #N" or the UI link feature. This is the most reliable signal.
 
 ```bash
-# Poll every 30 seconds for up to 10 minutes
-TIMEOUT=600
+# Query issue timeline for cross-referenced or connected PRs
+PR_NUMBER=$(gh api "/repos/$REPO/issues/$TASK_ISSUE/timeline" \
+  --jq '.[] | select(.event == "cross-referenced") | select(.source.issue.pull_request != null) | select(.source.issue.state == "open") | .source.issue.number' | head -1)
+```
+
+#### Strategy B: Search PR bodies for "Fixes #N" or "#N"
+
+Copilot PRs typically include "Fixes #1876" in the body even when the title is descriptive.
+
+```bash
+# Search open PR bodies for the issue number
+PR_NUMBER=$(gh pr list -R $REPO --state open --json number,body \
+  --jq ".[] | select(.body | test(\"#$TASK_ISSUE\")) | .number" | head -1)
+```
+
+#### Strategy C: Match title or branch name (original approach)
+
+```bash
+PR_NUMBER=$(gh pr list -R $REPO --state open --json number,title,headRefName \
+  --jq ".[] | select((.title | test(\"$TASK_ISSUE\"; \"i\")) or (.headRefName | test(\"$TASK_ISSUE\"))) | .number" | head -1)
+```
+
+#### Polling loop
+
+Try all three strategies each iteration. Poll every 30 seconds for up to 15 minutes (Copilot coding agent can take 5-12 minutes to produce a PR).
+
+```bash
+TIMEOUT=900
 INTERVAL=30
 ELAPSED=0
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
-  PR_NUMBER=$(gh pr list -R $REPO --state open --json number,title,headRefName \
-    --jq ".[] | select(.title | test(\"$TASK_ISSUE\"; \"i\")) | .number" | head -1)
-  
+  # Strategy A: issue timeline
+  PR_NUMBER=$(gh api "/repos/$REPO/issues/$TASK_ISSUE/timeline" \
+    --jq '.[] | select(.event == "cross-referenced") | select(.source.issue.pull_request != null) | select(.source.issue.state == "open") | .source.issue.number' 2>/dev/null | head -1)
+
+  # Strategy B: PR body search
+  if [ -z "$PR_NUMBER" ]; then
+    PR_NUMBER=$(gh pr list -R $REPO --state open --json number,body \
+      --jq ".[] | select(.body | test(\"#$TASK_ISSUE\")) | .number" | head -1)
+  fi
+
+  # Strategy C: title/branch match
+  if [ -z "$PR_NUMBER" ]; then
+    PR_NUMBER=$(gh pr list -R $REPO --state open --json number,title,headRefName \
+      --jq ".[] | select((.title | test(\"$TASK_ISSUE\"; \"i\")) or (.headRefName | test(\"$TASK_ISSUE\"))) | .number" | head -1)
+  fi
+
   if [ -n "$PR_NUMBER" ]; then
     break
   fi
-  
+
   sleep $INTERVAL
   ELAPSED=$((ELAPSED + INTERVAL))
 done

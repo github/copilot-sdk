@@ -28,9 +28,13 @@ Automate the lifecycle of a task PR from marking as **Ready for review** through
 
 ### Step 0: Find the PR
 
-Look for the corresponding PR created and mentioned in the issue. The issue will often have text like "linked a pull request that will close this issue". First, try to find the PR this way. If you find it, let `PR_NUMBER` be that PR number.
+Use the same multi-strategy approach as the assignment skill:
 
-If you don't find it, fail the skill and report the error.
+1. **Issue timeline** — query `gh api "/repos/$REPO/issues/$TASK_ISSUE/timeline"` for cross-referenced open PRs.
+2. **PR body search** — search open PR bodies for `#$TASK_ISSUE`.
+3. **Title/branch match** — regex match on title or headRefName.
+
+If none of these find the PR, fail the skill and report the error.
 
 ### Step 1: Mark the PR as Ready for Review
 
