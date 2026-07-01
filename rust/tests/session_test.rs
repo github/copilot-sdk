@@ -16,7 +16,9 @@ use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
     OpenCanvasInstance,
 };
-use github_copilot_sdk::session_events::{McpOauthRequiredData, ReasoningSummary};
+use github_copilot_sdk::session_events::{
+    McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
+};
 use github_copilot_sdk::types::{
     CloudSessionOptions, CloudSessionRepository, CommandContext, CommandDefinition, CommandHandler,
     DeliveryMode, ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo,
@@ -622,6 +624,86 @@ async fn create_session_sends_correct_rpc() {
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
     assert_eq!(session.id(), session_id.as_str());
     assert_eq!(session.workspace_path(), Some(Path::new("/ws")));
+}
+
+#[tokio::test]
+async fn create_session_sends_new_session_options() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_excluded_builtin_agents(["explore"])
+                        .with_enable_citations(true)
+                        .with_session_limits(SessionLimitsConfig {
+                            max_ai_credits: Some(30.0),
+                        }),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(
+        request["params"]["excludedBuiltinAgents"],
+        serde_json::json!(["explore"])
+    );
+    assert_eq!(request["params"]["enableCitations"], true);
+    assert_eq!(request["params"]["sessionLimits"]["maxAiCredits"], 30.0);
+
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id, "workspacePath": "/ws" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn resume_session_sends_new_session_options() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(SessionId::from("session-options"))
+                        .with_excluded_builtin_agents(["task"])
+                        .with_enable_citations(false)
+                        .with_session_limits(SessionLimitsConfig {
+                            max_ai_credits: Some(15.0),
+                        }),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["sessionId"], "session-options");
+    assert_eq!(
+        request["params"]["excludedBuiltinAgents"],
+        serde_json::json!(["task"])
+    );
+    assert_eq!(request["params"]["enableCitations"], false);
+    assert_eq!(request["params"]["sessionLimits"]["maxAiCredits"], 15.0);
+
+    server_respond_create(&mut server_write, &request, "session-options").await;
+    respond_to_reload(&mut server_read, &mut server_write).await;
+    timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
 }
 
 #[tokio::test]

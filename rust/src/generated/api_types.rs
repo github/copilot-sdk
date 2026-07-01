@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::session_events::{
     AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest,
-    PermissionRule, ReasoningSummary, ResponseLimitsConfig, SessionMode, ShutdownType, SkillSource,
+    PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
     UserToolSessionApproval,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
@@ -236,6 +236,11 @@ pub mod rpc_methods {
     pub const SESSION_WORKSPACES_SAVELARGEPASTE: &str = "session.workspaces.saveLargePaste";
     /// `session.workspaces.diff`
     pub const SESSION_WORKSPACES_DIFF: &str = "session.workspaces.diff";
+    /// `session.completions.getTriggerCharacters`
+    pub const SESSION_COMPLETIONS_GETTRIGGERCHARACTERS: &str =
+        "session.completions.getTriggerCharacters";
+    /// `session.completions.request`
+    pub const SESSION_COMPLETIONS_REQUEST: &str = "session.completions.request";
     /// `session.instructions.getSources`
     pub const SESSION_INSTRUCTIONS_GETSOURCES: &str = "session.instructions.getSources";
     /// `session.fleet.start`
@@ -402,6 +407,9 @@ pub mod rpc_methods {
     /// `session.ui.handlePendingAutoModeSwitch`
     pub const SESSION_UI_HANDLEPENDINGAUTOMODESWITCH: &str =
         "session.ui.handlePendingAutoModeSwitch";
+    /// `session.ui.handlePendingSessionLimitsExhausted`
+    pub const SESSION_UI_HANDLEPENDINGSESSIONLIMITSEXHAUSTED: &str =
+        "session.ui.handlePendingSessionLimitsExhausted";
     /// `session.ui.handlePendingExitPlanMode`
     pub const SESSION_UI_HANDLEPENDINGEXITPLANMODE: &str = "session.ui.handlePendingExitPlanMode";
     /// `session.ui.registerDirectAutoModeSwitchHandler`
@@ -1450,6 +1458,8 @@ pub struct CopilotUserResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub restricted_telemetry: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub te: Option<bool>,
     #[serde(
         rename = "token_based_billing",
         skip_serializing_if = "Option::is_none"
@@ -2536,6 +2546,80 @@ pub struct CommandsRespondToQueuedCommandResult {
     pub success: bool,
 }
 
+/// Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionsGetTriggerCharactersResult {
+    /// Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session.
+    pub trigger_characters: Vec<String>,
+}
+
+/// Request host-driven completions for the current composer input.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionsRequestRequest {
+    /// Cursor offset within `text`, in UTF-16 code units.
+    pub offset: i64,
+    /// The full composed composer input.
+    pub text: String,
+}
+
+/// A single host-driven completion. Accepting an item replaces `[rangeStart, rangeEnd)` (UTF-16 code units) in the composer with `insertText`; when the range is absent, the active token around the cursor is replaced.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompletionItem {
+    /// Text spliced into the composer when the item is accepted.
+    pub insert_text: String,
+    /// Render-kind hint for the picker row (e.g. `"document"`, `"directory"`), derived from the host's display kind.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// Primary display label for the picker row. Falls back to `insertText` when absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// End (exclusive) of the replacement range in `text`, in UTF-16 code units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range_end: Option<i64>,
+    /// Start of the replacement range in `text`, in UTF-16 code units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range_start: Option<i64>,
+}
+
+/// Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionsRequestResult {
+    /// Completion items in host-ranked order.
+    pub items: Vec<SessionCompletionItem>,
+}
+
 /// Params to attach or detach an in-process ExtensionController delegate.
 ///
 /// <div class="warning">
@@ -3361,6 +3445,114 @@ pub struct GhCliAuthInfo {
     pub token: String,
     /// Authentication via the `gh` CLI's saved credentials.
     pub r#type: GhCliAuthInfoType,
+}
+
+/// Client environment metadata describing the process that produced a telemetry event.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryClientInfo {
+    /// Copilot CLI version string.
+    #[serde(rename = "cli_version")]
+    pub cli_version: String,
+    /// Name of the client application.
+    #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    /// Type of client.
+    #[serde(rename = "client_type", skip_serializing_if = "Option::is_none")]
+    pub client_type: Option<String>,
+    /// Copilot subscription plan, when known.
+    #[serde(rename = "copilot_plan", skip_serializing_if = "Option::is_none")]
+    pub copilot_plan: Option<String>,
+    /// Stable machine identifier for the device.
+    #[serde(rename = "dev_device_id", skip_serializing_if = "Option::is_none")]
+    pub dev_device_id: Option<String>,
+    /// Whether the user is a GitHub/Microsoft staff member.
+    #[serde(rename = "is_staff", skip_serializing_if = "Option::is_none")]
+    pub is_staff: Option<bool>,
+    /// Node.js runtime version string.
+    #[serde(rename = "node_version")]
+    pub node_version: String,
+    /// Operating system architecture (e.g. arm64, x64).
+    #[serde(rename = "os_arch")]
+    pub os_arch: String,
+    /// Operating system platform (e.g. darwin, linux, win32).
+    #[serde(rename = "os_platform")]
+    pub os_platform: String,
+    /// Operating system version string.
+    #[serde(rename = "os_version")]
+    pub os_version: String,
+}
+
+/// A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryEvent {
+    /// Client environment metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client: Option<GitHubTelemetryClientInfo>,
+    /// Copilot tracking ID for user-level attribution.
+    #[serde(
+        rename = "copilot_tracking_id",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub copilot_tracking_id: Option<String>,
+    /// Timestamp when the event was created (ISO 8601 format).
+    #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    /// Experiment assignment context.
+    #[serde(
+        rename = "exp_assignment_context",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub exp_assignment_context: Option<String>,
+    /// Feature flags enabled for this session, as a map from flag to value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub features: Option<HashMap<String, String>>,
+    /// Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).
+    pub kind: String,
+    /// Numeric metrics as a map from key to value.
+    pub metrics: HashMap<String, f64>,
+    /// Reference to the model call that produced this event.
+    #[serde(rename = "model_call_id", skip_serializing_if = "Option::is_none")]
+    pub model_call_id: Option<String>,
+    /// String-valued properties as a map from key to value.
+    pub properties: HashMap<String, String>,
+    /// Session identifier the event belongs to.
+    #[serde(rename = "session_id", skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+/// Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryNotification {
+    /// The telemetry event, in the runtime's native GitHub-shaped telemetry format.
+    pub event: GitHubTelemetryEvent,
+    /// Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only.
+    pub restricted: bool,
+    /// Session the telemetry event belongs to.
+    pub session_id: SessionId,
 }
 
 /// Pending external tool call request ID, with the tool result or an error describing why it failed.
@@ -5902,6 +6094,9 @@ pub struct ModelCapabilitiesLimits {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesSupports {
+    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+    #[serde(rename = "adaptive_thinking", skip_serializing_if = "Option::is_none")]
+    pub adaptive_thinking: Option<AdaptiveThinkingSupport>,
     /// Whether this model supports reasoning effort configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<bool>,
@@ -6051,6 +6246,9 @@ pub struct ModelCapabilitiesOverrideLimits {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesOverrideSupports {
+    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+    #[serde(rename = "adaptive_thinking", skip_serializing_if = "Option::is_none")]
+    pub adaptive_thinking: Option<AdaptiveThinkingSupport>,
     /// Whether this model supports reasoning effort configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<bool>,
@@ -9075,7 +9273,7 @@ pub struct QueueRemoveMostRecentResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterEventInterestParams {
-    /// The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+    /// The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
     pub event_type: String,
 }
 
@@ -10677,13 +10875,13 @@ pub struct SessionMetadataSnapshot {
     /// Remote-session-specific metadata. Populated only when `isRemote` is true. Fields are immutable for the lifetime of the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_metadata: Option<MetadataSnapshotRemoteMetadata>,
-    /// Current response limits for the session, or null when no limits are active
-    pub response_limits: Option<ResponseLimitsConfig>,
     /// Currently selected model identifier, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
     /// The unique identifier of the session
     pub session_id: SessionId,
+    /// Current session limits, or null when no limits are active
+    pub session_limits: Option<SessionLimitsConfig>,
     /// ISO 8601 timestamp of when the session started
     pub start_time: String,
     /// Short human-readable summary of the session, if known. Omitted when no summary has been generated.
@@ -10866,6 +11064,9 @@ pub struct SessionOpenOptions {
     /// Override directory for session event logs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub events_log_directory: Option<String>,
+    /// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// Denylist of tool names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
@@ -10944,9 +11145,6 @@ pub struct SessionOpenOptions {
     /// Whether this session supports remote steering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
-    /// Initial response limits for the session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_limits: Option<ResponseLimitsConfig>,
     /// Whether the host is an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
@@ -10959,6 +11157,9 @@ pub struct SessionOpenOptions {
     /// Optional stable session identifier to use for a new session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<SessionId>,
+    /// Initial session limits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     /// Shell init profile.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_init_profile: Option<String>,
@@ -11959,6 +12160,9 @@ pub struct SessionUpdateOptionsParams {
     /// Override directory for the session-events log. When unset, the runtime's default events log directory is used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub events_log_directory: Option<String>,
+    /// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// Denylist of tool names for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
@@ -12004,9 +12208,6 @@ pub struct SessionUpdateOptionsParams {
     /// Reasoning summary mode for supported model clients.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<OptionsUpdateReasoningSummary>,
-    /// Optional response limits. Pass null to clear the response limits.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_limits: Option<ResponseLimitsConfig>,
     /// Whether the session is running in an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
@@ -12016,6 +12217,9 @@ pub struct SessionUpdateOptionsParams {
     /// Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
+    /// Optional session limits. Pass null to clear the session limits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     /// Shell init profile (`None` or `NonInteractive`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_init_profile: Option<String>,
@@ -13630,6 +13834,44 @@ pub struct UIHandlePendingSamplingRequest {
     /// Optional sampling result payload. Omit to reject/cancel the sampling request without providing a result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<UIHandlePendingSamplingResponse>,
+}
+
+/// The user's selected action for an exhausted session limit.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UISessionLimitsExhaustedResponse {
+    /// Action selected by the user.
+    pub action: UISessionLimitsExhaustedResponseAction,
+    /// AI Credits to add to the current max when action is 'add'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_ai_credits: Option<f64>,
+    /// New absolute max AI Credits when action is 'set'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ai_credits: Option<f64>,
+}
+
+/// Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UIHandlePendingSessionLimitsExhaustedRequest {
+    /// The unique request ID from the session_limits_exhausted.requested event
+    pub request_id: RequestId,
+    /// The selected session-limit action.
+    pub response: UISessionLimitsExhaustedResponse,
 }
 
 /// Schema for the `UIUserInputResponse` type.
@@ -15670,6 +15912,51 @@ pub struct SessionWorkspacesDiffResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionCompletionsGetTriggerCharactersParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompletionsGetTriggerCharactersResult {
+    /// Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session.
+    pub trigger_characters: Vec<String>,
+}
+
+/// Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompletionsRequestResult {
+    /// Completion items in host-ranked order.
+    pub items: Vec<SessionCompletionItem>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionInstructionsGetSourcesParams {
     /// Target session identifier
     pub session_id: SessionId,
@@ -16928,6 +17215,21 @@ pub struct SessionUiHandlePendingAutoModeSwitchResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionUiHandlePendingSessionLimitsExhaustedResult {
+    /// True if the request was still pending and was resolved by this call. False if the request ID was unknown, already resolved by another client (e.g. GitHub), expired, or otherwise no longer pending.
+    pub success: bool,
+}
+
+/// Indicates whether the pending UI request was resolved by this call.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionUiHandlePendingExitPlanModeResult {
     /// True if the request was still pending and was resolved by this call. False if the request ID was unknown, already resolved by another client (e.g. GitHub), expired, or otherwise no longer pending.
     pub success: bool,
@@ -17402,13 +17704,13 @@ pub struct SessionMetadataSnapshotResult {
     /// Remote-session-specific metadata. Populated only when `isRemote` is true. Fields are immutable for the lifetime of the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_metadata: Option<MetadataSnapshotRemoteMetadata>,
-    /// Current response limits for the session, or null when no limits are active
-    pub response_limits: Option<ResponseLimitsConfig>,
     /// Currently selected model identifier, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
     /// The unique identifier of the session
     pub session_id: SessionId,
+    /// Current session limits, or null when no limits are active
+    pub session_limits: Option<SessionLimitsConfig>,
     /// ISO 8601 timestamp of when the session started
     pub start_time: String,
     /// Short human-readable summary of the session, if known. Omitted when no summary has been generated.
@@ -18231,6 +18533,31 @@ pub type AccountGetAllUsersResult = Vec<AccountAllUsers>;
 ///
 /// </div>
 pub type SessionMcpAppsCallToolResult = HashMap<String, serde_json::Value>;
+
+/// Resolved Anthropic adaptive-thinking capability for a model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AdaptiveThinkingSupport {
+    /// The model does not accept thinking.type='adaptive'
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    /// The model accepts adaptive thinking but also accepts thinking.type='enabled'
+    #[serde(rename = "optional")]
+    Optional,
+    /// The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8)
+    #[serde(rename = "required")]
+    Required,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
 
 /// Which tier this directory belongs to
 ///
@@ -21863,6 +22190,34 @@ pub enum UIExitPlanModeAction {
     /// Exit plan mode and continue in autopilot mode with parallel subagent execution.
     #[serde(rename = "autopilot_fleet")]
     AutopilotFleet,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// User action selected for an exhausted session limit.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UISessionLimitsExhaustedResponseAction {
+    /// Increase the current max by an exact AI Credits amount.
+    #[serde(rename = "add")]
+    Add,
+    /// Set a new absolute max AI Credits value.
+    #[serde(rename = "set")]
+    Set,
+    /// Remove the current session limit.
+    #[serde(rename = "unset")]
+    Unset,
+    /// Leave the limit unchanged and cancel the blocked model request.
+    #[serde(rename = "cancel")]
+    Cancel,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

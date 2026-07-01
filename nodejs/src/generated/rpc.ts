@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, ResponseLimitsConfig, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
 
 /**
  * Initial authentication info for the session.
@@ -22,6 +22,20 @@ export type AuthInfo =
   | UserAuthInfo
   | GhCliAuthInfo
   | ApiKeyAuthInfo;
+/**
+ * Resolved Anthropic adaptive-thinking capability for a model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AdaptiveThinkingSupport".
+ */
+/** @experimental */
+export type AdaptiveThinkingSupport =
+  /** The model does not accept thinking.type='adaptive' */
+  | "unsupported"
+  /** The model accepts adaptive thinking but also accepts thinking.type='enabled' */
+  | "optional"
+  /** The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8) */
+  | "required";
 /**
  * Which tier this directory belongs to
  *
@@ -1840,6 +1854,22 @@ export type UIExitPlanModeAction =
   /** Exit plan mode and continue in autopilot mode with parallel subagent execution. */
   | "autopilot_fleet";
 /**
+ * User action selected for an exhausted session limit.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UISessionLimitsExhaustedResponseAction".
+ */
+/** @experimental */
+export type UISessionLimitsExhaustedResponseAction =
+  /** Increase the current max by an exact AI Credits amount. */
+  | "add"
+  /** Set a new absolute max AI Credits value. */
+  | "set"
+  /** Remove the current session limit. */
+  | "unset"
+  /** Leave the limit unchanged and cancel the blocked model request. */
+  | "cancel";
+/**
  * Type of change represented by this file diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2016,6 +2046,7 @@ export interface CopilotUserResponse {
   quota_snapshots?: CopilotUserResponseQuotaSnapshots;
   restricted_telemetry?: boolean;
   is_staff?: boolean;
+  te?: boolean;
   token_based_billing?: boolean;
   can_upgrade_plan?: boolean;
   quota_reset_date_utc?: string;
@@ -3407,6 +3438,78 @@ export interface CommandsRespondToQueuedCommandResult {
   success: boolean;
 }
 /**
+ * Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CompletionsGetTriggerCharactersResult".
+ */
+/** @experimental */
+export interface CompletionsGetTriggerCharactersResult {
+  /**
+   * Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session.
+   */
+  triggerCharacters: string[];
+}
+/**
+ * Request host-driven completions for the current composer input.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CompletionsRequestRequest".
+ */
+/** @experimental */
+export interface CompletionsRequestRequest {
+  /**
+   * The full composed composer input.
+   */
+  text: string;
+  /**
+   * Cursor offset within `text`, in UTF-16 code units.
+   */
+  offset: number;
+}
+/**
+ * Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CompletionsRequestResult".
+ */
+/** @experimental */
+export interface CompletionsRequestResult {
+  /**
+   * Completion items in host-ranked order.
+   */
+  items: SessionCompletionItem[];
+}
+/**
+ * A single host-driven completion. Accepting an item replaces `[rangeStart, rangeEnd)` (UTF-16 code units) in the composer with `insertText`; when the range is absent, the active token around the cursor is replaced.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionCompletionItem".
+ */
+/** @experimental */
+export interface SessionCompletionItem {
+  /**
+   * Text spliced into the composer when the item is accepted.
+   */
+  insertText: string;
+  /**
+   * Start of the replacement range in `text`, in UTF-16 code units.
+   */
+  rangeStart?: number;
+  /**
+   * End (exclusive) of the replacement range in `text`, in UTF-16 code units.
+   */
+  rangeEnd?: number;
+  /**
+   * Primary display label for the picker row. Falls back to `insertText` when absent.
+   */
+  label?: string;
+  /**
+   * Render-kind hint for the picker row (e.g. `"document"`, `"directory"`), derived from the host's display kind.
+   */
+  kind?: string;
+}
+/**
  * Params to attach or detach an in-process ExtensionController delegate.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4168,6 +4271,125 @@ export interface FolderTrustCheckResult {
    * Whether the folder is trusted
    */
   trusted: boolean;
+}
+/**
+ * Client environment metadata describing the process that produced a telemetry event.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryClientInfo".
+ */
+/** @experimental */
+export interface GitHubTelemetryClientInfo {
+  /**
+   * Copilot CLI version string.
+   */
+  cli_version: string;
+  /**
+   * Operating system platform (e.g. darwin, linux, win32).
+   */
+  os_platform: string;
+  /**
+   * Operating system version string.
+   */
+  os_version: string;
+  /**
+   * Operating system architecture (e.g. arm64, x64).
+   */
+  os_arch: string;
+  /**
+   * Node.js runtime version string.
+   */
+  node_version: string;
+  /**
+   * Copilot subscription plan, when known.
+   */
+  copilot_plan?: string;
+  /**
+   * Type of client.
+   */
+  client_type?: string;
+  /**
+   * Name of the client application.
+   */
+  client_name?: string;
+  /**
+   * Whether the user is a GitHub/Microsoft staff member.
+   */
+  is_staff?: boolean;
+  /**
+   * Stable machine identifier for the device.
+   */
+  dev_device_id?: string;
+}
+/**
+ * A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryEvent".
+ */
+/** @experimental */
+export interface GitHubTelemetryEvent {
+  /**
+   * Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).
+   */
+  kind: string;
+  /**
+   * Timestamp when the event was created (ISO 8601 format).
+   */
+  created_at?: string;
+  /**
+   * Reference to the model call that produced this event.
+   */
+  model_call_id?: string;
+  /**
+   * String-valued properties as a map from key to value.
+   */
+  properties: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Numeric metrics as a map from key to value.
+   */
+  metrics: {
+    [k: string]: number | undefined;
+  };
+  /**
+   * Experiment assignment context.
+   */
+  exp_assignment_context?: string;
+  /**
+   * Feature flags enabled for this session, as a map from flag to value.
+   */
+  features?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Session identifier the event belongs to.
+   */
+  session_id?: string;
+  /**
+   * Copilot tracking ID for user-level attribution.
+   */
+  copilot_tracking_id?: string;
+  client?: GitHubTelemetryClientInfo;
+}
+/**
+ * Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryNotification".
+ */
+/** @experimental */
+export interface GitHubTelemetryNotification {
+  /**
+   * Session the telemetry event belongs to.
+   */
+  sessionId: string;
+  /**
+   * Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only.
+   */
+  restricted: boolean;
+  event: GitHubTelemetryEvent;
 }
 /**
  * Pending external tool call request ID, with the tool result or an error describing why it failed.
@@ -6453,6 +6675,7 @@ export interface ModelCapabilitiesSupports {
    * Whether this model supports reasoning effort configuration
    */
   reasoningEffort?: boolean;
+  adaptive_thinking?: AdaptiveThinkingSupport;
 }
 /**
  * Token limits for prompts, outputs, and context window
@@ -6639,6 +6862,7 @@ export interface ModelCapabilitiesOverrideSupports {
    * Whether this model supports reasoning effort configuration
    */
   reasoningEffort?: boolean;
+  adaptive_thinking?: AdaptiveThinkingSupport;
 }
 /**
  * Token limits for prompts, outputs, and context window
@@ -9425,7 +9649,7 @@ export interface QueueRemoveMostRecentResult {
 /** @experimental */
 export interface RegisterEventInterestParams {
   /**
-   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
    */
   eventType: string;
 }
@@ -10934,9 +11158,9 @@ export interface SessionMetadataSnapshot {
    */
   selectedModel?: string;
   /**
-   * Current response limits for the session, or null when no limits are active
+   * Current session limits, or null when no limits are active
    */
-  responseLimits: ResponseLimitsConfig | null;
+  sessionLimits: SessionLimitsConfig | null;
   /**
    * Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
    */
@@ -11069,6 +11293,10 @@ export interface SessionOpenOptions {
    */
   excludedTools?: string[];
   /**
+   * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+   */
+  excludedBuiltinAgents?: string[];
+  /**
    * Whether shell-script safety heuristics are enabled.
    */
   enableScriptSafety?: boolean;
@@ -11157,7 +11385,7 @@ export interface SessionOpenOptions {
    */
   maxInlineBinaryBytes?: number;
   modelCapabilitiesOverrides?: ModelCapabilitiesOverride;
-  responseLimits?: ResponseLimitsConfig;
+  sessionLimits?: SessionLimitsConfig;
   /**
    * Runtime context discriminator for agent filtering.
    */
@@ -12039,6 +12267,10 @@ export interface SessionUpdateOptionsParams {
    * Denylist of tool names for this session.
    */
   excludedTools?: string[];
+  /**
+   * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+   */
+  excludedBuiltinAgents?: string[];
   toolFilterPrecedence?: OptionsUpdateToolFilterPrecedence;
   /**
    * Whether shell-script safety heuristics are enabled.
@@ -12178,9 +12410,9 @@ export interface SessionUpdateOptionsParams {
   enableSkills?: boolean;
   contextTier?: OptionsUpdateContextTier;
   /**
-   * Optional response limits. Pass null to clear the response limits.
+   * Optional session limits. Pass null to clear the session limits.
    */
-  responseLimits?: ResponseLimitsConfig | null;
+  sessionLimits?: SessionLimitsConfig | null;
 }
 /**
  * Indicates whether the session options patch was applied successfully.
@@ -13682,6 +13914,38 @@ export interface UIHandlePendingSamplingRequest {
 /** @experimental */
 export interface UIHandlePendingSamplingResponse {
   [k: string]: unknown | undefined;
+}
+/**
+ * Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UIHandlePendingSessionLimitsExhaustedRequest".
+ */
+/** @experimental */
+export interface UIHandlePendingSessionLimitsExhaustedRequest {
+  /**
+   * The unique request ID from the session_limits_exhausted.requested event
+   */
+  requestId: string;
+  response: UISessionLimitsExhaustedResponse;
+}
+/**
+ * The user's selected action for an exhausted session limit.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UISessionLimitsExhaustedResponse".
+ */
+/** @experimental */
+export interface UISessionLimitsExhaustedResponse {
+  action: UISessionLimitsExhaustedResponseAction;
+  /**
+   * AI Credits to add to the current max when action is 'add'.
+   */
+  additionalAiCredits?: number;
+  /**
+   * New absolute max AI Credits when action is 'set'.
+   */
+  maxAiCredits?: number;
 }
 /**
  * Request ID of a pending `user_input.requested` event and the user's response.
@@ -15350,6 +15614,25 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.workspaces.diff", { sessionId, ...params }),
         },
         /** @experimental */
+        completions: {
+            /**
+             * Gets the characters that should trigger host-driven completions for the session. Empty disables host-driven completions (e.g. local sessions, or a relay host that does not advertise them).
+             *
+             * @returns Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+             */
+            getTriggerCharacters: async (): Promise<CompletionsGetTriggerCharactersResult> =>
+                connection.sendRequest("session.completions.getTriggerCharacters", { sessionId }),
+            /**
+             * Requests host-driven completion items for the current composer input. Returns an empty list when the host has no items or does not support completions.
+             *
+             * @param params Request host-driven completions for the current composer input.
+             *
+             * @returns Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+             */
+            request: async (params: CompletionsRequestRequest): Promise<CompletionsRequestResult> =>
+                connection.sendRequest("session.completions.request", { sessionId, ...params }),
+        },
+        /** @experimental */
         instructions: {
             /**
              * Gets instruction sources loaded for the session.
@@ -15979,6 +16262,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             handlePendingAutoModeSwitch: async (params: UIHandlePendingAutoModeSwitchRequest): Promise<UIHandlePendingResult> =>
                 connection.sendRequest("session.ui.handlePendingAutoModeSwitch", { sessionId, ...params }),
+            /**
+             * Resolves a pending `session_limits_exhausted.requested` event with the user's selected limit action.
+             *
+             * @param params Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+             *
+             * @returns Indicates whether the pending UI request was resolved by this call.
+             */
+            handlePendingSessionLimitsExhausted: async (params: UIHandlePendingSessionLimitsExhaustedRequest): Promise<UIHandlePendingResult> =>
+                connection.sendRequest("session.ui.handlePendingSessionLimitsExhausted", { sessionId, ...params }),
             /**
              * Resolves a pending `exit_plan_mode.requested` event with the user's response.
              *
@@ -16821,9 +17113,21 @@ export interface LlmInferenceHandler {
     httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
 }
 
+/** Handler for `gitHubTelemetry` client global API methods. */
+/** @experimental */
+export interface GitHubTelemetryHandler {
+    /**
+     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.
+     *
+     * @param params Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+     */
+    event(params: GitHubTelemetryNotification): Promise<void>;
+}
+
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
     llmInference?: LlmInferenceHandler;
+    gitHubTelemetry?: GitHubTelemetryHandler;
 }
 
 /**
@@ -16846,5 +17150,10 @@ export function registerClientGlobalApiHandlers(
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
         return handler.httpRequestChunk(params);
+    });
+    connection.onRequest("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
+        const handler = handlers.gitHubTelemetry;
+        if (!handler) throw new Error("No gitHubTelemetry client-global handler registered");
+        return handler.event(params);
     });
 }

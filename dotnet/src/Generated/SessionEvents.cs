@@ -63,6 +63,8 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
 [JsonDerivedType(typeof(SamplingCompletedEvent), "sampling.completed")]
 [JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
+[JsonDerivedType(typeof(SessionLimitsExhaustedCompletedEvent), "session_limits_exhausted.completed")]
+[JsonDerivedType(typeof(SessionLimitsExhaustedRequestedEvent), "session_limits_exhausted.requested")]
 [JsonDerivedType(typeof(SessionAutopilotObjectiveChangedEvent), "session.autopilot_objective_changed")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
 [JsonDerivedType(typeof(SessionBinaryAssetEvent), "session.binary_asset")]
@@ -90,11 +92,11 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionPermissionsChangedEvent), "session.permissions_changed")]
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
 [JsonDerivedType(typeof(SessionRemoteSteerableChangedEvent), "session.remote_steerable_changed")]
-[JsonDerivedType(typeof(SessionResponseLimitsChangedEvent), "session.response_limits_changed")]
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
 [JsonDerivedType(typeof(SessionScheduleCancelledEvent), "session.schedule_cancelled")]
 [JsonDerivedType(typeof(SessionScheduleCreatedEvent), "session.schedule_created")]
 [JsonDerivedType(typeof(SessionScheduleRearmedEvent), "session.schedule_rearmed")]
+[JsonDerivedType(typeof(SessionSessionLimitsChangedEvent), "session.session_limits_changed")]
 [JsonDerivedType(typeof(SessionShutdownEvent), "session.shutdown")]
 [JsonDerivedType(typeof(SessionSkillsLoadedEvent), "session.skills_loaded")]
 [JsonDerivedType(typeof(SessionSnapshotRewindEvent), "session.snapshot_rewind")]
@@ -104,6 +106,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionTodosChangedEvent), "session.todos_changed")]
 [JsonDerivedType(typeof(SessionToolsUpdatedEvent), "session.tools_updated")]
 [JsonDerivedType(typeof(SessionTruncationEvent), "session.truncation")]
+[JsonDerivedType(typeof(SessionUsageCheckpointEvent), "session.usage_checkpoint")]
 [JsonDerivedType(typeof(SessionUsageInfoEvent), "session.usage_info")]
 [JsonDerivedType(typeof(SessionWarningEvent), "session.warning")]
 [JsonDerivedType(typeof(SessionWorkspaceFileChangedEvent), "session.workspace_file_changed")]
@@ -347,17 +350,17 @@ public sealed partial class SessionModeChangedEvent : SessionEvent
     public required SessionModeChangedData Data { get; set; }
 }
 
-/// <summary>Response limits update details. Null clears the limits.</summary>
-/// <remarks>Represents the <c>session.response_limits_changed</c> event.</remarks>
-public sealed partial class SessionResponseLimitsChangedEvent : SessionEvent
+/// <summary>Session limits update details. Null clears the limits.</summary>
+/// <remarks>Represents the <c>session.session_limits_changed</c> event.</remarks>
+public sealed partial class SessionSessionLimitsChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Type => "session.response_limits_changed";
+    public override string Type => "session.session_limits_changed";
 
-    /// <summary>The <c>session.response_limits_changed</c> event payload.</summary>
+    /// <summary>The <c>session.session_limits_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
-    public required SessionResponseLimitsChangedData Data { get; set; }
+    public required SessionSessionLimitsChangedData Data { get; set; }
 }
 
 /// <summary>Permissions change details carrying the aggregate allow-all boolean transition.</summary>
@@ -462,6 +465,19 @@ public sealed partial class SessionShutdownEvent : SessionEvent
     /// <summary>The <c>session.shutdown</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionShutdownData Data { get; set; }
+}
+
+/// <summary>Durable session usage checkpoint for reconstructing aggregate accounting on resume.</summary>
+/// <remarks>Represents the <c>session.usage_checkpoint</c> event.</remarks>
+public sealed partial class SessionUsageCheckpointEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.usage_checkpoint";
+
+    /// <summary>The <c>session.usage_checkpoint</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionUsageCheckpointData Data { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -1206,6 +1222,32 @@ public sealed partial class AutoModeSwitchCompletedEvent : SessionEvent
     public required AutoModeSwitchCompletedData Data { get; set; }
 }
 
+/// <summary>Session limit exhaustion notification requiring user action.</summary>
+/// <remarks>Represents the <c>session_limits_exhausted.requested</c> event.</remarks>
+public sealed partial class SessionLimitsExhaustedRequestedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session_limits_exhausted.requested";
+
+    /// <summary>The <c>session_limits_exhausted.requested</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionLimitsExhaustedRequestedData Data { get; set; }
+}
+
+/// <summary>Session limit exhaustion prompt completion notification.</summary>
+/// <remarks>Represents the <c>session_limits_exhausted.completed</c> event.</remarks>
+public sealed partial class SessionLimitsExhaustedCompletedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session_limits_exhausted.completed";
+
+    /// <summary>The <c>session_limits_exhausted.completed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionLimitsExhaustedCompletedData Data { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 /// <remarks>Represents the <c>commands.changed</c> event.</remarks>
 public sealed partial class CommandsChangedEvent : SessionEvent
@@ -1505,11 +1547,6 @@ public sealed partial class SessionStartData
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
 
-    /// <summary>Response limits configured at session creation time, if any.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("responseLimits")]
-    public ResponseLimitsConfig? ResponseLimits { get; set; }
-
     /// <summary>Model selected at session creation time, if any.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("selectedModel")]
@@ -1518,6 +1555,11 @@ public sealed partial class SessionStartData
     /// <summary>Unique identifier for the session.</summary>
     [JsonPropertyName("sessionId")]
     public required string SessionId { get; set; }
+
+    /// <summary>Session limits configured at session creation time, if any.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sessionLimits")]
+    public SessionLimitsConfig? SessionLimits { get; set; }
 
     /// <summary>ISO 8601 timestamp when the session was created.</summary>
     [JsonPropertyName("startTime")]
@@ -1575,11 +1617,6 @@ public sealed partial class SessionResumeData
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
 
-    /// <summary>Response limits currently configured at resume time; null when no limits are active.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("responseLimits")]
-    public ResponseLimitsConfig? ResponseLimits { get; set; }
-
     /// <summary>ISO 8601 timestamp when the session was resumed.</summary>
     [JsonPropertyName("resumeTime")]
     public required DateTimeOffset ResumeTime { get; set; }
@@ -1588,6 +1625,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("selectedModel")]
     public string? SelectedModel { get; set; }
+
+    /// <summary>Session limits currently configured at resume time; null when no limits are active.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sessionLimits")]
+    public SessionLimitsConfig? SessionLimits { get; set; }
 
     /// <summary>True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1847,12 +1889,12 @@ public sealed partial class SessionModeChangedData
     public required SessionMode PreviousMode { get; set; }
 }
 
-/// <summary>Response limits update details. Null clears the limits.</summary>
-public sealed partial class SessionResponseLimitsChangedData
+/// <summary>Session limits update details. Null clears the limits.</summary>
+public sealed partial class SessionSessionLimitsChangedData
 {
-    /// <summary>Current response limits for the session, or null when no limits are active.</summary>
-    [JsonPropertyName("responseLimits")]
-    public ResponseLimitsConfig? ResponseLimits { get; set; }
+    /// <summary>Current session limits, or null when no limits are active.</summary>
+    [JsonPropertyName("sessionLimits")]
+    public SessionLimitsConfig? SessionLimits { get; set; }
 }
 
 /// <summary>Permissions change details carrying the aggregate allow-all boolean transition.</summary>
@@ -2048,6 +2090,20 @@ public sealed partial class SessionShutdownData
     public double? TotalNanoAiu { get; set; }
 
     /// <summary>Total number of premium API requests used during the session.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("totalPremiumRequests")]
+    internal double? TotalPremiumRequests { get; set; }
+}
+
+/// <summary>Durable session usage checkpoint for reconstructing aggregate accounting on resume.</summary>
+public sealed partial class SessionUsageCheckpointData
+{
+    /// <summary>Session-wide accumulated nano-AI units cost at checkpoint time.</summary>
+    [JsonPropertyName("totalNanoAiu")]
+    public required double TotalNanoAiu { get; set; }
+
+    /// <summary>Total number of premium API requests used at checkpoint time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
     [JsonPropertyName("totalPremiumRequests")]
@@ -2440,6 +2496,11 @@ public sealed partial class AssistantMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningText")]
     public string? ReasoningText { get; set; }
+
+    /// <summary>OpenAI-compatible wire field the provider used for reasoning (e.g. reasoning_content/reasoning). Populated only when non-canonical, so the dialect round-trips across turns.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningWireField")]
+    public string? ReasoningWireField { get; set; }
 
     /// <summary>GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3571,6 +3632,34 @@ public sealed partial class AutoModeSwitchCompletedData
     public required AutoModeSwitchResponse Response { get; set; }
 }
 
+/// <summary>Session limit exhaustion notification requiring user action.</summary>
+public sealed partial class SessionLimitsExhaustedRequestedData
+{
+    /// <summary>Configured max AI Credits for the current accounting window.</summary>
+    [JsonPropertyName("maxAiCredits")]
+    public required double MaxAiCredits { get; set; }
+
+    /// <summary>Unique identifier for this request; used to respond via session.ui.handlePendingSessionLimitsExhausted().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>AI Credits already consumed in the current accounting window.</summary>
+    [JsonPropertyName("usedAiCredits")]
+    public required double UsedAiCredits { get; set; }
+}
+
+/// <summary>Session limit exhaustion prompt completion notification.</summary>
+public sealed partial class SessionLimitsExhaustedCompletedData
+{
+    /// <summary>Request ID of the resolved request; clients should dismiss any UI for this request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>The user's selected session-limit action.</summary>
+    [JsonPropertyName("response")]
+    public required SessionLimitsExhaustedResponse Response { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 public sealed partial class CommandsChangedData
 {
@@ -3939,11 +4028,11 @@ public sealed partial class WorkingDirectoryContext
     public string? RepositoryHost { get; set; }
 }
 
-/// <summary>Optional response limits.</summary>
-/// <remarks>Nested data type for <c>ResponseLimitsConfig</c>.</remarks>
-public sealed partial class ResponseLimitsConfig
+/// <summary>Optional session limits.</summary>
+/// <remarks>Nested data type for <c>SessionLimitsConfig</c>.</remarks>
+public sealed partial class SessionLimitsConfig
 {
-    /// <summary>Maximum AI Credits allowed while responding to one top-level user message.</summary>
+    /// <summary>Maximum AI Credits allowed across the session's current accounting window.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("maxAiCredits")]
     public double? MaxAiCredits { get; set; }
@@ -6226,6 +6315,16 @@ public sealed partial class PermissionRequestRead : PermissionRequest
     [JsonPropertyName("path")]
     public required string Path { get; set; }
 
+    /// <summary>True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypass")]
+    public bool? RequestSandboxBypass { get; set; }
+
+    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypassReason")]
+    public string? RequestSandboxBypassReason { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -7132,6 +7231,25 @@ public sealed partial class McpOauthWWWAuthenticateParams
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("scope")]
     public string? Scope { get; set; }
+}
+
+/// <summary>The user's selected action for an exhausted session limit.</summary>
+/// <remarks>Nested data type for <c>SessionLimitsExhaustedResponse</c>.</remarks>
+public sealed partial class SessionLimitsExhaustedResponse
+{
+    /// <summary>Action selected by the user.</summary>
+    [JsonPropertyName("action")]
+    public required SessionLimitsExhaustedResponseAction Action { get; set; }
+
+    /// <summary>AI Credits to add to the current max when action is 'add'.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("additionalAiCredits")]
+    public double? AdditionalAiCredits { get; set; }
+
+    /// <summary>New absolute max AI Credits when action is 'set'.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxAiCredits")]
+    public double? MaxAiCredits { get; set; }
 }
 
 /// <summary>Schema for the `CommandsChangedCommand` type.</summary>
@@ -9903,6 +10021,73 @@ public readonly struct AutoModeSwitchResponse : IEquatable<AutoModeSwitchRespons
     }
 }
 
+/// <summary>User action selected for an exhausted session limit.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionLimitsExhaustedResponseAction : IEquatable<SessionLimitsExhaustedResponseAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionLimitsExhaustedResponseAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionLimitsExhaustedResponseAction"/>.</param>
+    [JsonConstructor]
+    public SessionLimitsExhaustedResponseAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionLimitsExhaustedResponseAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Increase the current max by an exact AI Credits amount.</summary>
+    public static SessionLimitsExhaustedResponseAction Add { get; } = new("add");
+
+    /// <summary>Set a new absolute max AI Credits value.</summary>
+    public static SessionLimitsExhaustedResponseAction Set { get; } = new("set");
+
+    /// <summary>Remove the current session limit.</summary>
+    public static SessionLimitsExhaustedResponseAction Unset { get; } = new("unset");
+
+    /// <summary>Leave the limit unchanged and cancel the blocked model request.</summary>
+    public static SessionLimitsExhaustedResponseAction Cancel { get; } = new("cancel");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionLimitsExhaustedResponseAction"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionLimitsExhaustedResponseAction left, SessionLimitsExhaustedResponseAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionLimitsExhaustedResponseAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionLimitsExhaustedResponseAction left, SessionLimitsExhaustedResponseAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionLimitsExhaustedResponseAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionLimitsExhaustedResponseAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionLimitsExhaustedResponseAction}"/> for serializing <see cref="SessionLimitsExhaustedResponseAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionLimitsExhaustedResponseAction>
+    {
+        /// <inheritdoc />
+        public override SessionLimitsExhaustedResponseAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionLimitsExhaustedResponseAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionLimitsExhaustedResponseAction));
+        }
+    }
+}
+
 /// <summary>Exit plan mode action.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -10564,7 +10749,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionRule))]
 [JsonSerializable(typeof(PersistedBinaryImage))]
 [JsonSerializable(typeof(PersistedBinaryResult))]
-[JsonSerializable(typeof(ResponseLimitsConfig))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
@@ -10610,6 +10794,12 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionIdleEvent))]
 [JsonSerializable(typeof(SessionInfoData))]
 [JsonSerializable(typeof(SessionInfoEvent))]
+[JsonSerializable(typeof(SessionLimitsConfig))]
+[JsonSerializable(typeof(SessionLimitsExhaustedCompletedData))]
+[JsonSerializable(typeof(SessionLimitsExhaustedCompletedEvent))]
+[JsonSerializable(typeof(SessionLimitsExhaustedRequestedData))]
+[JsonSerializable(typeof(SessionLimitsExhaustedRequestedEvent))]
+[JsonSerializable(typeof(SessionLimitsExhaustedResponse))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedData))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedEvent))]
 [JsonSerializable(typeof(SessionMcpServersLoadedData))]
@@ -10624,8 +10814,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionPlanChangedEvent))]
 [JsonSerializable(typeof(SessionRemoteSteerableChangedData))]
 [JsonSerializable(typeof(SessionRemoteSteerableChangedEvent))]
-[JsonSerializable(typeof(SessionResponseLimitsChangedData))]
-[JsonSerializable(typeof(SessionResponseLimitsChangedEvent))]
 [JsonSerializable(typeof(SessionResumeData))]
 [JsonSerializable(typeof(SessionResumeEvent))]
 [JsonSerializable(typeof(SessionScheduleCancelledData))]
@@ -10634,6 +10822,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionScheduleCreatedEvent))]
 [JsonSerializable(typeof(SessionScheduleRearmedData))]
 [JsonSerializable(typeof(SessionScheduleRearmedEvent))]
+[JsonSerializable(typeof(SessionSessionLimitsChangedData))]
+[JsonSerializable(typeof(SessionSessionLimitsChangedEvent))]
 [JsonSerializable(typeof(SessionShutdownData))]
 [JsonSerializable(typeof(SessionShutdownEvent))]
 [JsonSerializable(typeof(SessionSkillsLoadedData))]
@@ -10652,6 +10842,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionToolsUpdatedEvent))]
 [JsonSerializable(typeof(SessionTruncationData))]
 [JsonSerializable(typeof(SessionTruncationEvent))]
+[JsonSerializable(typeof(SessionUsageCheckpointData))]
+[JsonSerializable(typeof(SessionUsageCheckpointEvent))]
 [JsonSerializable(typeof(SessionUsageInfoData))]
 [JsonSerializable(typeof(SessionUsageInfoEvent))]
 [JsonSerializable(typeof(SessionWarningData))]
