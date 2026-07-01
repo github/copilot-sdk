@@ -15,6 +15,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [MCP Servers](./mcp.md) | Integrate Model Context Protocol servers for external tool access |
 | [Skills](./skills.md) | Load reusable prompt modules from directories |
 | [Plugin Directories](./plugin-directories.md) | Bundle skills, hooks, MCP servers, and agents as a single loadable plugin |
+| [Session limits](./session-limits.md) | Set an AI Credits budget for a session and observe budget events |
 | [Image Input](./image-input.md) | Send images to sessions as attachments |
 | [Streaming Events](./streaming-events.md) | Subscribe to real-time session events (40+ event types) |
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery—immediate steering vs. sequential queueing |
