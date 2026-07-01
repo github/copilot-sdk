@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/internal/truncbuffer"
@@ -2335,6 +2336,235 @@ func TestResumeSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 			t.Errorf("Expected includeSubAgentStreamingEvents to be false, got %v", m["includeSubAgentStreamingEvents"])
 		}
 	})
+}
+
+func TestCreateSessionRequest_EnableGitHubTelemetryForwarding(t *testing.T) {
+	t.Run("forwards explicit true", func(t *testing.T) {
+		req := createSessionRequest{
+			EnableGitHubTelemetryForwarding: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableGitHubTelemetryForwarding"] != true {
+			t.Errorf("Expected enableGitHubTelemetryForwarding to be true, got %v", m["enableGitHubTelemetryForwarding"])
+		}
+	})
+
+	t.Run("omits when not set", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableGitHubTelemetryForwarding"]; ok {
+			t.Error("Expected enableGitHubTelemetryForwarding to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_EnableGitHubTelemetryForwarding(t *testing.T) {
+	t.Run("forwards explicit true", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:                       "s1",
+			EnableGitHubTelemetryForwarding: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableGitHubTelemetryForwarding"] != true {
+			t.Errorf("Expected enableGitHubTelemetryForwarding to be true, got %v", m["enableGitHubTelemetryForwarding"])
+		}
+	})
+
+	t.Run("omits when not set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableGitHubTelemetryForwarding"]; ok {
+			t.Error("Expected enableGitHubTelemetryForwarding to be omitted when not set")
+		}
+	})
+}
+
+func TestClient_ForwardsGitHubTelemetryForwardingToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options:  ClientOptions{OnGitHubTelemetry: func(*rpc.GitHubTelemetryNotification) {}},
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{}); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertForwardingFlagTrue(t, <-createParams)
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed", &ResumeSessionConfig{}); err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertForwardingFlagTrue(t, <-resumeParams)
+}
+
+func assertForwardingFlagTrue(t *testing.T, params json.RawMessage) {
+	t.Helper()
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if decoded["enableGitHubTelemetryForwarding"] != true {
+		t.Fatalf("expected enableGitHubTelemetryForwarding=true, got %v", decoded["enableGitHubTelemetryForwarding"])
+	}
+}
+
+func TestClient_OmitsGitHubTelemetryForwardingWhenNoHandler(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options:  ClientOptions{},
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{}); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertForwardingFlagAbsent(t, <-createParams)
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed", &ResumeSessionConfig{}); err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertForwardingFlagAbsent(t, <-resumeParams)
+}
+
+func assertForwardingFlagAbsent(t *testing.T, params json.RawMessage) {
+	t.Helper()
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if _, ok := decoded["enableGitHubTelemetryForwarding"]; ok {
+		t.Fatalf("expected enableGitHubTelemetryForwarding to be omitted, got %v", decoded["enableGitHubTelemetryForwarding"])
+	}
+}
+
+func TestGitHubTelemetryNotificationRoutesToCallback(t *testing.T) {
+	// The runtime forwards telemetry via a JSON-RPC *notification* (no id).
+	// Drive a real Content-Length-framed notification through the transport and
+	// verify that a real Client wired with OnGitHubTelemetry routes it to the
+	// callback through the client's own client-global handler registration
+	// (setupNotificationHandler), rather than registering the adapter by hand.
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	rpcClient := jsonrpc2.NewClient(clientConn, clientConn)
+	rpcClient.Start()
+	defer rpcClient.Stop()
+
+	// Drain the client->server direction so net.Pipe writes never block.
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			if _, err := serverConn.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+
+	received := make(chan *rpc.GitHubTelemetryNotification, 1)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options: ClientOptions{
+			OnGitHubTelemetry: func(n *rpc.GitHubTelemetryNotification) { received <- n },
+		},
+	}
+	// setupNotificationHandler is what registers the gitHubTelemetryAdapter when
+	// OnGitHubTelemetry is set; exercising it here covers the real client wiring.
+	client.setupNotificationHandler()
+
+	notification := map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "gitHubTelemetry.event",
+		"params": map[string]any{
+			"sessionId":  "sess-telemetry",
+			"restricted": true,
+			"event": map[string]any{
+				"kind":       "tool_call_executed",
+				"metrics":    map[string]any{"duration_ms": 12.5},
+				"properties": map[string]any{"tool": "shell"},
+			},
+		},
+	}
+	data, err := json.Marshal(notification)
+	if err != nil {
+		t.Fatalf("marshal notification: %v", err)
+	}
+	go func() {
+		_, _ = fmt.Fprintf(serverConn, "Content-Length: %d\r\n\r\n%s", len(data), data)
+	}()
+
+	select {
+	case n := <-received:
+		if n.SessionID != "sess-telemetry" {
+			t.Errorf("session id = %q, want sess-telemetry", n.SessionID)
+		}
+		if !n.Restricted {
+			t.Error("expected restricted to be true")
+		}
+		if n.Event.Kind != "tool_call_executed" {
+			t.Errorf("kind = %q, want tool_call_executed", n.Event.Kind)
+		}
+		if n.Event.Metrics["duration_ms"] != 12.5 {
+			t.Errorf("metrics[duration_ms] = %v, want 12.5", n.Event.Metrics["duration_ms"])
+		}
+		if n.Event.Properties["tool"] != "shell" {
+			t.Errorf("properties[tool] = %q, want shell", n.Event.Properties["tool"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for telemetry notification")
+	}
 }
 
 func TestCreateSessionRequest_EnableOnDemandInstructionDiscovery(t *testing.T) {

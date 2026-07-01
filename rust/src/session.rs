@@ -876,7 +876,9 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+        let (mut wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+        wire.enable_github_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -1139,7 +1141,9 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire()?;
+        let (mut wire, mut runtime) = config.into_wire()?;
+        wire.enable_github_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),

@@ -281,6 +281,7 @@ public sealed class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
+        OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
         Mode = other.Mode;
@@ -377,6 +378,15 @@ public sealed class CopilotClientOptions
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public CopilotRequestHandler? RequestHandler { get; set; }
+
+    /// <summary>
+    /// Experimental. Receives GitHub telemetry events the runtime forwards to this
+    /// connection; setting a handler opts created/resumed sessions into forwarding.
+    /// The SDK awaits the handler task so it may perform asynchronous work.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Func<Rpc.GitHubTelemetryNotification, Task>? OnGitHubTelemetry { get; set; }
 
     /// <summary>
     /// OpenTelemetry configuration for the runtime.

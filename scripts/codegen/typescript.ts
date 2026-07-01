@@ -1011,7 +1011,24 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
             const pType = paramsTypeName(method);
             const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
 
-            if (hasParams) {
+            if (method.notification) {
+                // Notification methods carry no response; the server dispatches
+                // them via `sendNotification`, which only fires `onNotification`
+                // handlers (an `onRequest` handler would never be invoked).
+                if (hasParams) {
+                    lines.push(`    connection.onNotification("${method.rpcMethod}", async (params: ${pType}) => {`);
+                    lines.push(`        const handler = handlers.${groupName};`);
+                    lines.push(`        if (!handler) return;`);
+                    lines.push(`        await handler.${name}(params);`);
+                    lines.push(`    });`);
+                } else {
+                    lines.push(`    connection.onNotification("${method.rpcMethod}", async () => {`);
+                    lines.push(`        const handler = handlers.${groupName};`);
+                    lines.push(`        if (!handler) return;`);
+                    lines.push(`        await handler.${name}();`);
+                    lines.push(`    });`);
+                }
+            } else if (hasParams) {
                 lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
                 lines.push(`        const handler = handlers.${groupName};`);
                 lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);

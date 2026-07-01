@@ -2163,6 +2163,7 @@ impl SessionConfig {
             remote_session: self.remote_session,
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
         };
@@ -3173,6 +3174,7 @@ impl ResumeSessionConfig {
             github_token: self.github_token,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
             suppress_resume_event: self.suppress_resume_event,

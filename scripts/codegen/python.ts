@@ -3791,6 +3791,20 @@ function emitClientGlobalRegistrationMethod(
     const handlerField = toSnakeCase(groupName);
     const handlerMethod = clientSessionHandlerMethodName(method.rpcMethod);
 
+    if (method.notification) {
+        // Notification methods carry no response and are dispatched via the
+        // notification path (an `id`-less message never reaches a request
+        // handler), so register on the method-specific notification registry.
+        lines.push(`    async def ${handlerVariableName}(params: dict) -> None:`);
+        lines.push(`        request = ${paramsType}.from_dict(params)`);
+        lines.push(`        handler = handlers.${handlerField}`);
+        lines.push(`        if handler is None: return None`);
+        lines.push(`        await handler.${handlerMethod}(request)`);
+        lines.push(`        return None`);
+        lines.push(`    client.set_notification_method_handler("${method.rpcMethod}", ${handlerVariableName})`);
+        return;
+    }
+
     lines.push(`    async def ${handlerVariableName}(params: dict) -> dict | None:`);
     lines.push(`        request = ${paramsType}.from_dict(params)`);
     lines.push(`        handler = handlers.${handlerField}`);

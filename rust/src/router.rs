@@ -86,6 +86,7 @@ impl SessionRouter {
         notification_tx: &broadcast::Sender<JsonRpcNotification>,
         request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
         llm_inference: Option<Arc<crate::copilot_request_handler::CopilotRequestDispatcher>>,
+        github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
     ) {
         let mut started = self.started.lock();
         if *started {
@@ -100,6 +101,40 @@ impl SessionRouter {
             loop {
                 match notif_rx.recv().await {
                     Ok(notification) => {
+                        // Client-global `gitHubTelemetry.event` notifications carry
+                        // no routable session and are surfaced to the consumer
+                        // callback (if any) registered at client construction.
+                        if notification.method == "gitHubTelemetry.event" {
+                            if let Some(ref callback) = github_telemetry {
+                                let Some(ref params) = notification.params else {
+                                    continue;
+                                };
+                                match serde_json::from_value::<
+                                    crate::github_telemetry::GitHubTelemetryNotification,
+                                >(params.clone())
+                                {
+                                    Ok(telemetry) => {
+                                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                                            || callback(telemetry),
+                                        ))
+                                        .is_err()
+                                        {
+                                            warn!(
+                                                "gitHubTelemetry.event callback panicked; \
+                                             continuing notification routing"
+                                            );
+                                        }
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            error = %e,
+                                            "failed to deserialize gitHubTelemetry.event notification"
+                                        );
+                                    }
+                                }
+                            }
+                            continue;
+                        }
                         if notification.method != "session.event" {
                             continue;
                         }

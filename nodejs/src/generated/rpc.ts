@@ -17151,9 +17151,9 @@ export function registerClientGlobalApiHandlers(
         if (!handler) throw new Error("No llmInference client-global handler registered");
         return handler.httpRequestChunk(params);
     });
-    connection.onRequest("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
+    connection.onNotification("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
         const handler = handlers.gitHubTelemetry;
-        if (!handler) throw new Error("No gitHubTelemetry client-global handler registered");
-        return handler.event(params);
+        if (!handler) return;
+        await handler.event(params);
     });
 }

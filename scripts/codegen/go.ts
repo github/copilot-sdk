@@ -4385,6 +4385,11 @@ function emitClientGlobalApiRegistration(lines: string[], clientSchema: Record<s
                 pushGoExperimentalMethodComment(lines, clientHandlerMethodName(method.rpcMethod), "\t");
             }
             const paramsType = resolveType(goParamsTypeName(method));
+            if (method.notification) {
+                // Notification methods carry no response; the handler returns only an error.
+                lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) error`);
+                continue;
+            }
             const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
             let returnType: string;
             if (isOpaqueJson(resultSchema)) {
@@ -4430,6 +4435,25 @@ function emitClientGlobalApiRegistration(lines: string[], clientSchema: Record<s
         const handlerField = toGoFieldName(groupName);
         for (const method of methods) {
             const paramsType = resolveType(goParamsTypeName(method));
+            if (method.notification) {
+                // Notification methods carry no response: return a nil result so the
+                // transport emits no JSON-RPC reply. Go's jsonrpc2 dispatches both
+                // requests and id-less notifications to SetRequestHandler by method name.
+                lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);
+                lines.push(`\t\tvar request ${paramsType}`);
+                lines.push(`\t\tif err := json.Unmarshal(params, &request); err != nil {`);
+                lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}`);
+                lines.push(`\t\t}`);
+                lines.push(`\t\tif handlers == nil || handlers.${handlerField} == nil {`);
+                lines.push(`\t\t\treturn nil, nil`);
+                lines.push(`\t\t}`);
+                lines.push(`\t\tif err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request); err != nil {`);
+                lines.push(`\t\t\treturn nil, clientGlobalHandlerError(err)`);
+                lines.push(`\t\t}`);
+                lines.push(`\t\treturn nil, nil`);
+                lines.push(`\t})`);
+                continue;
+            }
             lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);
             lines.push(`\t\tvar request ${paramsType}`);
             lines.push(`\t\tif err := json.Unmarshal(params, &request); err != nil {`);

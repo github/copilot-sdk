@@ -17,6 +17,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,6 +27,7 @@ import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
 import com.github.copilot.generated.rpc.ConnectParams;
+import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
 import com.github.copilot.rpc.DeleteSessionResponse;
@@ -256,6 +258,14 @@ public final class CopilotClient implements AutoCloseable {
                 LlmInferenceAdapter llmAdapter = new LlmInferenceAdapter(requestHandler,
                         () -> connection.serverRpc().llmInference, executor);
                 llmAdapter.registerHandlers(rpc);
+            }
+
+            // Register the GitHub telemetry forwarding handler when configured.
+            Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry = this.options
+                    .getOnGitHubTelemetry();
+            if (onGitHubTelemetry != null) {
+                GitHubTelemetryAdapter telemetryAdapter = new GitHubTelemetryAdapter(onGitHubTelemetry);
+                telemetryAdapter.registerHandlers(rpc);
             }
 
             // Verify protocol version
@@ -579,6 +589,13 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
+            // Opt this session into GitHub telemetry forwarding when a
+            // connection-level handler is registered (mirrors the runtime's
+            // hand-written capability flag, not part of the codegen'd contract).
+            if (options.getOnGitHubTelemetry() != null) {
+                request.setEnableGitHubTelemetryForwarding(true);
+            }
+
             // Empty mode: validate availableTools and set toolFilterPrecedence
             if (options.getMode() == CopilotClientMode.EMPTY) {
                 if (config.getAvailableTools() == null) {
@@ -731,6 +748,13 @@ public final class CopilotClient implements AutoCloseable {
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
+            }
+
+            // Opt this session into GitHub telemetry forwarding when a
+            // connection-level handler is registered (mirrors the runtime's
+            // hand-written capability flag, not part of the codegen'd contract).
+            if (options.getOnGitHubTelemetry() != null) {
+                request.setEnableGitHubTelemetryForwarding(true);
             }
 
             // Empty mode: validate availableTools and set toolFilterPrecedence for resume

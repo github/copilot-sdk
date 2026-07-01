@@ -157,12 +157,7 @@ impl E2eContext {
     }
 
     pub fn client_options(&self) -> ClientOptions {
-        ClientOptions::new()
-            .with_program(CliProgram::Path(PathBuf::from(node_program())))
-            .with_prefix_args([self.cli_path.as_os_str().to_owned()])
-            .with_cwd(self.work_dir.path())
-            .with_env(self.environment())
-            .with_use_logged_in_user(false)
+        client_options_for_cli(&self.cli_path, self.work_dir.path(), self.environment())
     }
 
     pub fn client_options_with_transport(&self, transport: Transport) -> ClientOptions {
@@ -188,12 +183,7 @@ impl E2eContext {
                 .iter()
                 .map(|(key, value)| (OsString::from(*key), OsString::from(*value))),
         );
-        let options = ClientOptions::new()
-            .with_program(CliProgram::Path(PathBuf::from(node_program())))
-            .with_prefix_args([self.cli_path.as_os_str().to_owned()])
-            .with_cwd(self.work_dir.path())
-            .with_env(env)
-            .with_use_logged_in_user(false)
+        let options = client_options_for_cli(&self.cli_path, self.work_dir.path(), env)
             .with_request_handler(handler);
         Client::start(options).await.expect("start E2E LLM client")
     }
@@ -625,6 +615,28 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
             github_dir.display()
         ),
     ))
+}
+
+fn client_options_for_cli(
+    cli_path: &Path,
+    cwd: &Path,
+    env: Vec<(OsString, OsString)>,
+) -> ClientOptions {
+    let options = ClientOptions::new()
+        .with_cwd(cwd)
+        .with_env(env)
+        .with_use_logged_in_user(false);
+    if cli_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("js"))
+    {
+        options
+            .with_program(CliProgram::Path(PathBuf::from(node_program())))
+            .with_prefix_args([cli_path.as_os_str().to_owned()])
+    } else {
+        options.with_program(CliProgram::Path(cli_path.to_path_buf()))
+    }
 }
 
 fn canonical_temp_path(path: &Path) -> PathBuf {
