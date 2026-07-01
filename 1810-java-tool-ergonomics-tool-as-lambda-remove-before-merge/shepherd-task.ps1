@@ -173,10 +173,11 @@ if ($prState -ne "MERGED") {
     exit 1
 }
 
-# Verify merged into correct branch
+# Verify merged into correct branch (strip remote prefix for comparison)
 $mergedBase = gh pr view $prNumber -R $Repo --json baseRefName --jq '.baseRefName'
-if ($mergedBase -ne $BaseBranch) {
-    Write-Fail "PR #$prNumber was merged into '$mergedBase', expected '$BaseBranch'."
+$expectedBase = $BaseBranch -replace '^[^/]+/', ''
+if ($mergedBase -ne $expectedBase) {
+    Write-Fail "PR #$prNumber was merged into '$mergedBase', expected '$expectedBase'."
     exit 1
 }
 
