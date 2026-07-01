@@ -27,8 +27,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * instances rather than Java source-code literals. Unlike
  * {@code SchemaGenerator}, it does not inspect generics or object members
  * (records/POJOs) and therefore produces flat type mappings only (no
- * {@code items}, {@code additionalProperties}, or nested object
- * {@code properties}).
+ * {@code additionalProperties} or nested object {@code properties}). It does
+ * produce {@code items} for plain Java arrays via component-type recursion.
  *
  * <p>
  * Package-private: not part of the public API.
