@@ -1458,6 +1458,8 @@ pub struct CopilotUserResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub restricted_telemetry: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub te: Option<bool>,
     #[serde(
         rename = "token_based_billing",
         skip_serializing_if = "Option::is_none"
@@ -3443,6 +3445,114 @@ pub struct GhCliAuthInfo {
     pub token: String,
     /// Authentication via the `gh` CLI's saved credentials.
     pub r#type: GhCliAuthInfoType,
+}
+
+/// Client environment metadata describing the process that produced a telemetry event.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryClientInfo {
+    /// Copilot CLI version string.
+    #[serde(rename = "cli_version")]
+    pub cli_version: String,
+    /// Name of the client application.
+    #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    /// Type of client.
+    #[serde(rename = "client_type", skip_serializing_if = "Option::is_none")]
+    pub client_type: Option<String>,
+    /// Copilot subscription plan, when known.
+    #[serde(rename = "copilot_plan", skip_serializing_if = "Option::is_none")]
+    pub copilot_plan: Option<String>,
+    /// Stable machine identifier for the device.
+    #[serde(rename = "dev_device_id", skip_serializing_if = "Option::is_none")]
+    pub dev_device_id: Option<String>,
+    /// Whether the user is a GitHub/Microsoft staff member.
+    #[serde(rename = "is_staff", skip_serializing_if = "Option::is_none")]
+    pub is_staff: Option<bool>,
+    /// Node.js runtime version string.
+    #[serde(rename = "node_version")]
+    pub node_version: String,
+    /// Operating system architecture (e.g. arm64, x64).
+    #[serde(rename = "os_arch")]
+    pub os_arch: String,
+    /// Operating system platform (e.g. darwin, linux, win32).
+    #[serde(rename = "os_platform")]
+    pub os_platform: String,
+    /// Operating system version string.
+    #[serde(rename = "os_version")]
+    pub os_version: String,
+}
+
+/// A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryEvent {
+    /// Client environment metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client: Option<GitHubTelemetryClientInfo>,
+    /// Copilot tracking ID for user-level attribution.
+    #[serde(
+        rename = "copilot_tracking_id",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub copilot_tracking_id: Option<String>,
+    /// Timestamp when the event was created (ISO 8601 format).
+    #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    /// Experiment assignment context.
+    #[serde(
+        rename = "exp_assignment_context",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub exp_assignment_context: Option<String>,
+    /// Feature flags enabled for this session, as a map from flag to value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub features: Option<HashMap<String, String>>,
+    /// Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).
+    pub kind: String,
+    /// Numeric metrics as a map from key to value.
+    pub metrics: HashMap<String, f64>,
+    /// Reference to the model call that produced this event.
+    #[serde(rename = "model_call_id", skip_serializing_if = "Option::is_none")]
+    pub model_call_id: Option<String>,
+    /// String-valued properties as a map from key to value.
+    pub properties: HashMap<String, String>,
+    /// Session identifier the event belongs to.
+    #[serde(rename = "session_id", skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+/// Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryNotification {
+    /// The telemetry event, in the runtime's native GitHub-shaped telemetry format.
+    pub event: GitHubTelemetryEvent,
+    /// Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only.
+    pub restricted: bool,
+    /// Session the telemetry event belongs to.
+    pub session_id: SessionId,
 }
 
 /// Pending external tool call request ID, with the tool result or an error describing why it failed.

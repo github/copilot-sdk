@@ -613,7 +613,7 @@ class _TestSessionFsProvider(SessionFsProvider):
     async def rename(self, src: str, dest: str) -> None:
         d = self._path(dest)
         d.parent.mkdir(parents=True, exist_ok=True)
-        self._path(src).rename(d)
+        self._path(src).replace(d)
 
 
 def create_test_session_fs_handler(provider_root: Path):

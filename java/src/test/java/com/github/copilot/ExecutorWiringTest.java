@@ -27,7 +27,9 @@ import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
+import com.github.copilot.rpc.PreToolUseHookOutput;
 import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.UserInputResponse;
 
@@ -258,6 +260,48 @@ public class ExecutorWiringTest {
                     "Expected the tracking executor to have been invoked for user input dispatch, "
                             + "but task count did not increase after sendAndWait. "
                             + "RpcHandlerDispatcher is not routing userInput runAsync through the provided executor.");
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that hooks dispatch routes through the provided executor.
+     *
+     * <p>
+     * When the LLM triggers a hook, the {@code RpcHandlerDispatcher} calls
+     * {@code CompletableFuture.runAsync(...)} to dispatch the hooks handler. This
+     * test asserts that dispatch goes through the caller-supplied executor.
+     * </p>
+     *
+     * @see Snapshot: hooks/invoke_pre_tool_use_hook_when_model_runs_a_tool
+     */
+    @Test
+    void testHooksDispatchUsesProvidedExecutor() throws Exception {
+        ctx.configureForTest("hooks", "invoke_pre_tool_use_hook_when_model_runs_a_tool");
+
+        TrackingExecutor trackingExecutor = new TrackingExecutor(ForkJoinPool.commonPool());
+
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setHooks(new SessionHooks().setOnPreToolUse(
+                        (input, invocation) -> CompletableFuture.completedFuture(PreToolUseHookOutput.allow())));
+
+        try (CopilotClient client = new CopilotClient(createOptionsWithExecutor(trackingExecutor))) {
+            CopilotSession session = client.createSession(config).get();
+
+            Path testFile = ctx.getWorkDir().resolve("hello.txt");
+            Files.writeString(testFile, "Hello from the test!");
+
+            int beforeSend = trackingExecutor.getTaskCount();
+
+            session.sendAndWait(
+                    new MessageOptions().setPrompt("Read the contents of hello.txt and tell me what it says"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertTrue(trackingExecutor.getTaskCount() > beforeSend,
+                    "Expected the tracking executor to have been invoked for hooks dispatch, "
+                            + "but task count did not increase after sendAndWait. "
+                            + "RpcHandlerDispatcher is not routing hooks runAsync through the provided executor.");
 
             session.close();
         }
