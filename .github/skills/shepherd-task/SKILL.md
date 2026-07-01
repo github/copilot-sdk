@@ -38,7 +38,17 @@ Invoke the skill defined in `.github/skills/shepherd-task-from-assignment-to-rea
 
 **If Phase 1 fails** (reports `SHEPHERD FAILED`), stop and propagate the failure. Do NOT proceed to Phase 2.
 
-**If Phase 1 succeeds** (reports `SHEPHERD COMPLETE`), proceed to Phase 2.
+**If Phase 1 succeeds** (reports `SHEPHERD COMPLETE`), proceed to the context compaction step below.
+
+### Context Compaction (between phases)
+
+Before starting Phase 2, compact the conversation to free context window space. Run:
+
+```
+/compact Retain only: TASK_ISSUE=$TASK_ISSUE, PR_NUMBER (from Phase 1), BASE_BRANCH=$BASE_BRANCH, REPO=$REPO, branch name for the PR, and that Phase 1 completed successfully. Discard all polling output, CI logs, and intermediate step details.
+```
+
+Once compaction is complete, proceed to Phase 2.
 
 ### Phase 2: Ready for Review to Merged
 
