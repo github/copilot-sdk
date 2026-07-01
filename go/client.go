@@ -2086,10 +2086,10 @@ type gitHubTelemetryAdapter struct {
 	callback func(notification *rpc.GitHubTelemetryNotification)
 }
 
-func (a *gitHubTelemetryAdapter) Event(request *rpc.GitHubTelemetryNotification) (*rpc.GitHubTelemetryEventResult, error) {
+func (a *gitHubTelemetryAdapter) Event(request *rpc.GitHubTelemetryNotification) error {
 	defer func() { recover() }() // Ignore handler panics
 	a.callback(request)
-	return &rpc.GitHubTelemetryEventResult{}, nil
+	return nil
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

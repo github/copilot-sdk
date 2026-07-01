@@ -18721,7 +18721,7 @@ type GitHubTelemetryHandler interface {
 	// Parameters: Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry
 	// event the runtime forwards to a host connection that opted into telemetry forwarding for
 	// the session.
-	Event(request *GitHubTelemetryNotification) (*GitHubTelemetryEventResult, error)
+	Event(request *GitHubTelemetryNotification) error
 }
 
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
@@ -18784,17 +18784,12 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		if handlers == nil || handlers.GitHubTelemetry == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: "No gitHubTelemetry client-global handler registered"}
+			return nil, nil
 		}
-		result, err := handlers.GitHubTelemetry.Event(&request)
-		if err != nil {
+		if err := handlers.GitHubTelemetry.Event(&request); err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
+		return nil, nil
 	})
 	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request LlmInferenceHTTPRequestChunkRequest

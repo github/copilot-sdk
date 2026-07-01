@@ -80,6 +80,7 @@ class JsonRpcClient:
         self.pending_requests: dict[str, asyncio.Future] = {}
         self._pending_inline_callbacks: dict[str, Callable[[Any], None]] = {}
         self.notification_handler: Callable[[str, dict], None] | None = None
+        self.notification_method_handlers: dict[str, Callable[[dict], Any]] = {}
         self.request_handlers: dict[str, RequestHandler] = {}
         self._running = False
         self._read_thread: threading.Thread | None = None
@@ -231,6 +232,19 @@ class JsonRpcClient:
     def set_notification_handler(self, handler: Callable[[str, dict], None]):
         """Set the handler for incoming notifications from the server."""
         self.notification_handler = handler
+
+    def set_notification_method_handler(self, method: str, handler: Callable[[dict], Any] | None):
+        """Register a handler for a specific server-to-client notification method.
+
+        Notifications carry no ``id`` and expect no response, so they are
+        dispatched separately from request handlers. A registered method
+        handler takes precedence over the generic notification handler. The
+        handler may be a coroutine function; its result is awaited.
+        """
+        if handler is None:
+            self.notification_method_handlers.pop(method, None)
+        else:
+            self.notification_method_handlers[method] = handler
 
     def set_request_handler(self, method: str, handler: RequestHandler):
         if handler is None:
@@ -397,9 +411,14 @@ class JsonRpcClient:
 
         # Check if it's a notification from the server
         if "method" in message and "id" not in message:
+            method = message["method"]
+            params = message.get("params", {})
+            handler = self.notification_method_handlers.get(method)
+            if handler is not None and self._loop:
+                # Method-specific notification handler takes precedence.
+                self._loop.call_soon_threadsafe(self._dispatch_notification, handler, params)
+                return
             if self.notification_handler and self._loop:
-                method = message["method"]
-                params = message.get("params", {})
                 # Schedule notification handler on the event loop for thread safety
                 self._loop.call_soon_threadsafe(self.notification_handler, method, params)
             return
@@ -426,6 +445,25 @@ class JsonRpcClient:
             self._dispatch_request(message, handler),
             self._loop,
         )
+
+    def _dispatch_notification(self, handler: Callable[[dict], Any], params: dict):
+        """Invoke a method-specific notification handler. Runs on the event loop;
+        coroutine results are scheduled and any error is logged (notifications
+        carry no response, so failures never propagate to the server)."""
+        try:
+            outcome = handler(params)
+        except Exception:  # pylint: disable=broad-except
+            logger.warning("Notification handler raised", exc_info=True)
+            return
+        if inspect.isawaitable(outcome):
+
+            async def _await_outcome():
+                try:
+                    await outcome
+                except Exception:  # pylint: disable=broad-except
+                    logger.warning("Notification handler raised", exc_info=True)
+
+            asyncio.create_task(_await_outcome())
 
     async def _dispatch_request(self, message: dict, handler: RequestHandler):
         try:

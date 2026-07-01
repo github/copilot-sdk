@@ -27096,13 +27096,13 @@ def register_client_global_api_handlers(
         result = await handler.http_request_chunk(request)
         return result.to_dict()
     client.set_request_handler("llmInference.httpRequestChunk", handle_llm_inference_http_request_chunk)
-    async def handle_git_hub_telemetry_event(params: dict) -> dict | None:
+    async def handle_git_hub_telemetry_event(params: dict) -> None:
         request = GitHubTelemetryNotification.from_dict(params)
         handler = handlers.git_hub_telemetry
-        if handler is None: raise RuntimeError("No git_hub_telemetry client-global handler registered")
+        if handler is None: return None
         await handler.event(request)
         return None
-    client.set_request_handler("gitHubTelemetry.event", handle_git_hub_telemetry_event)
+    client.set_notification_method_handler("gitHubTelemetry.event", handle_git_hub_telemetry_event)
 
 __all__ = [
     "APIKeyAuthInfo",
