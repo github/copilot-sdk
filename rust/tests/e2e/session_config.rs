@@ -9,7 +9,7 @@ use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::{
     Attachment, Client, CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext,
     CopilotRequestError, CopilotRequestHandler, MessageOptions, ProviderConfig,
-    ResumeSessionConfig, SessionLimitsConfig, Transport,
+    ResumeSessionConfig, SessionConfig, SessionLimitsConfig, Transport,
 };
 use http::{HeaderMap, HeaderValue};
 use parking_lot::Mutex;
@@ -447,7 +447,8 @@ async fn should_enable_citations_for_anthropic_file_attachments_on_create() {
             let client = ctx.start_llm_client(handler.clone(), &[]).await;
             let session = client
                 .create_session(
-                    ctx.approve_all_session_config()
+                    SessionConfig::default()
+                        .with_permission_handler(Arc::new(ApproveAllHandler))
                         .with_model("claude-sonnet-4.5")
                         .with_enable_citations(true)
                         .with_provider(anthropic_provider()),
@@ -508,7 +509,6 @@ async fn should_enable_citations_for_anthropic_file_attachments_on_resume() {
                 .resume_session(
                     ResumeSessionConfig::new(session1.id().clone())
                         .with_permission_handler(Arc::new(ApproveAllHandler))
-                        .with_github_token(DEFAULT_TEST_TOKEN)
                         .with_model("claude-sonnet-4.5")
                         .with_enable_citations(true)
                         .with_provider(anthropic_provider()),
