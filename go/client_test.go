@@ -1405,7 +1405,7 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 		assertMCPAuthInterest(t, snapshot[1])
 	})
 
-	t.Run("resume conditionally registers MCP OAuth interest before session resume", func(t *testing.T) {
+	t.Run("resume conditionally registers MCP OAuth interest after session resume", func(t *testing.T) {
 		client, requests, cleanup := newInMemoryClient(t)
 		defer cleanup()
 
@@ -1434,13 +1434,13 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 		defer withAuth.Disconnect()
 
 		snapshot := requests.snapshot()
-		if snapshot[0].Method != "session.eventLog.registerInterest" {
-			t.Fatalf("expected MCP auth interest before session.resume, got %s", snapshot[0].Method)
+		if snapshot[0].Method != "session.resume" {
+			t.Fatalf("expected session.resume before MCP auth interest, got %s", snapshot[0].Method)
 		}
-		if snapshot[1].Method != "session.resume" {
-			t.Fatalf("expected session.resume after MCP auth interest, got %s", snapshot[1].Method)
+		if snapshot[1].Method != "session.eventLog.registerInterest" {
+			t.Fatalf("expected MCP auth interest after session.resume, got %s", snapshot[1].Method)
 		}
-		assertMCPAuthInterest(t, snapshot[0])
+		assertMCPAuthInterest(t, snapshot[1])
 	})
 }
 

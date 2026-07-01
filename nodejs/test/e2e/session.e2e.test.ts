@@ -483,7 +483,9 @@ describe("Sessions", async () => {
         // "Session not found: <id>".
         const newClient = new CopilotClient({
             env,
-            gitHubToken: DEFAULT_GITHUB_TOKEN,
+            gitHubToken: isCI
+                ? DEFAULT_GITHUB_TOKEN
+                : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN),
         });
         onTestFinished(() => newClient.forceStop());
 

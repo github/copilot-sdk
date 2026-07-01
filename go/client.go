@@ -1150,17 +1150,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	c.sessionsMux.Lock()
 	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
-	if config.OnMCPAuthRequest != nil {
-		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
-			"sessionId": sessionID,
-			"eventType": "mcp.oauth_required",
-		}); err != nil {
-			c.sessionsMux.Lock()
-			delete(c.sessions, sessionID)
-			c.sessionsMux.Unlock()
-			return nil, err
-		}
-	}
 
 	if c.options.SessionFS != nil {
 		if config.CreateSessionFSProvider == nil {
@@ -1195,6 +1184,18 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		delete(c.sessions, sessionID)
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if config.OnMCPAuthRequest != nil {
+		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
+			"sessionId": sessionID,
+			"eventType": "mcp.oauth_required",
+		}); err != nil {
+			c.sessionsMux.Lock()
+			delete(c.sessions, sessionID)
+			c.sessionsMux.Unlock()
+			return nil, err
+		}
 	}
 
 	session.workspacePath = response.WorkspacePath
