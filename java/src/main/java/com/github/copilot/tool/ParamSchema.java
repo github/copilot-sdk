@@ -21,10 +21,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * {@code Map} objects.
  *
  * <p>
- * This class is the runtime counterpart to the compile-time
+ * This class is a simplified runtime counterpart to the compile-time
  * {@link SchemaGenerator}. It operates on {@code java.lang.reflect.Class}
  * values instead of {@code javax.lang.model} mirrors, and produces {@link Map}
- * instances rather than Java source-code literals.
+ * instances rather than Java source-code literals. Unlike
+ * {@code SchemaGenerator}, it does not inspect generics or object members
+ * (records/POJOs) and therefore produces flat type mappings only (no
+ * {@code items}, {@code additionalProperties}, or nested object
+ * {@code properties}).
  *
  * <p>
  * Package-private: not part of the public API.
@@ -59,7 +63,7 @@ class ParamSchema {
      *             if a null param or duplicate parameter names are found
      */
     static Map<String, Object> buildSchema(String toolName, ObjectMapper mapper, Param<?>... params) {
-        if (params.length == 0) {
+        if (params == null || params.length == 0) {
             return Map.of("type", "object", "properties", Map.of(), "required", List.of());
         }
 
@@ -96,12 +100,14 @@ class ParamSchema {
     }
 
     /**
-     * Maps a Java {@link Class} to a JSON Schema type descriptor, mirroring the
-     * compile-time {@link SchemaGenerator} output.
+     * Maps a Java {@link Class} to a flat JSON Schema type descriptor.
      *
      * <p>
-     * The type surface supported is exactly the existing Java schema/tool parameter
-     * surface: no new schema semantics are introduced.
+     * Covers primitives, boxed types, strings, UUIDs, date-time types, enums,
+     * collections, arrays, and maps. Does not resolve generic type parameters (e.g.
+     * {@code List<T>} item schemas or {@code Map<K,V>} additionalProperties) —
+     * those require the compile-time {@link SchemaGenerator} which operates on
+     * {@code TypeMirror}.
      *
      * @param type
      *            the Java type to map

@@ -112,8 +112,10 @@ class ParamCoercion {
      *
      * <p>
      * Handles primitives, boxed types, {@link String}, {@link Boolean}, and enums
-     * explicitly, mirroring the validation logic in {@link Param}. For other types,
-     * falls back to {@link ObjectMapper#readValue}.
+     * explicitly, mirroring the validation logic in {@link Param}. The
+     * {@link ObjectMapper#readValue} fallback exists as a safety net but is not
+     * expected to be reached in practice, since {@link Param} construction rejects
+     * defaults for non-primitive/boxed/String/Boolean/enum types.
      *
      * @param <T>
      *            the target Java type
