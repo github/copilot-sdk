@@ -235,6 +235,22 @@ session.on("assistant.message_delta", (event) => {
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: hidden -->
+```python
+from typing import Any
+
+from copilot.session_events import SessionEventType
+
+session: Any = None  # assume session is created elsewhere
+
+def handle(event):
+    if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA and event.agent_id is None:
+        print(event.data.delta_content, end="", flush=True)
+
+session.on(handle)
+```
+<!-- /docs-validate: hidden -->
+
 ```python
 from copilot.session_events import SessionEventType
 
