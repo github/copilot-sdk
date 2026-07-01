@@ -412,7 +412,7 @@ class _GitHubTelemetryAdapter:
         try:
             self._callback(params)
         except Exception:
-            logger.exception("Error handling gitHubTelemetry.event notification")
+            logger.warning("Error handling gitHubTelemetry.event notification", exc_info=True)
 
 
 @dataclass
