@@ -17,6 +17,8 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.AllowCopilotExperimental;
@@ -334,7 +336,8 @@ class ToolDefinitionLambdaTest {
     void requiredParam_missingFromInvocation_throwsIllegalArgumentException() {
         Param<String> p = Param.of(String.class, "word", "A required word");
         ToolDefinition tool = ToolDefinition.from("echo", "Echoes", p, w -> w);
-        assertThrows(Exception.class, () -> tool.handler().invoke(invocationOf(Map.of())).get());
+        var ex = assertThrows(IllegalArgumentException.class, () -> tool.handler().invoke(invocationOf(Map.of())));
+        assertTrue(ex.getMessage().contains("word"), "Exception message should mention the missing parameter name");
     }
 
     @Test
@@ -543,7 +546,11 @@ class ToolDefinitionLambdaTest {
         assertNotNull(result);
         assertTrue(result instanceof String, "Non-String should be JSON-serialized to String");
         String json = (String) result;
-        assertTrue(json.contains("\"key\"") || json.contains("key"), "JSON must contain the key");
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(json);
+        assertTrue(node.isObject(), "Result should be a JSON object");
+        assertEquals("x", node.get("key").asText(), "JSON must contain key field with value 'x'");
+        assertEquals(42, node.get("value").asInt(), "JSON must contain value field with value 42");
     }
 
     @Test
