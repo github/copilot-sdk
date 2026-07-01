@@ -167,9 +167,10 @@ public class SessionConfigE2ETest {
         ctx.configureForTest("session_config", "should_apply_session_limits_on_create");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setSessionLimits(new SessionLimitsConfig(30.0))
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setSessionLimits(new SessionLimitsConfig(30.0))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
 
             try {
                 Map<String, Object> exchange = sendAndGetNextExchange(session,
@@ -223,9 +224,10 @@ public class SessionConfigE2ETest {
                 baselineSession.close();
             }
 
-            CopilotSession excludedSession = client.createSession(new SessionConfig()
-                    .setExcludedBuiltInAgents(List.of(excludedAgent))
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+            CopilotSession excludedSession = client
+                    .createSession(new SessionConfig().setExcludedBuiltInAgents(List.of(excludedAgent))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
 
             try {
                 List<String> agentTypes = getTaskAgentTypes(sendAndGetNextExchange(excludedSession, prompt));
@@ -271,13 +273,11 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = newLlmClient(ctx, handler)) {
             CopilotSession session = client.createSession(new SessionConfig().setModel("claude-sonnet-4.5")
-                    .setEnableCitations(true)
-                    .setProvider(createAnthropicProvider())
+                    .setEnableCitations(true).setProvider(createAnthropicProvider())
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try {
-                session.sendAndWait(new MessageOptions()
-                        .setPrompt("Summarize the attached PDF with citations enabled.")
+                session.sendAndWait(new MessageOptions().setPrompt("Summarize the attached PDF with citations enabled.")
                         .setAttachments(List.of(createPdfAttachment()))).get(60, TimeUnit.SECONDS);
 
                 assertAnthropicDocumentCitationsEnabled(singleInferenceRequestBody(handler));
@@ -296,16 +296,16 @@ public class SessionConfigE2ETest {
             CopilotSession session1 = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             CopilotSession session2 = client.resumeSession(session1.getSessionId(),
-                    new ResumeSessionConfig().setModel("claude-sonnet-4.5")
-                            .setEnableCitations(true)
+                    new ResumeSessionConfig().setModel("claude-sonnet-4.5").setEnableCitations(true)
                             .setProvider(createAnthropicProvider())
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
             try {
-                session2.sendAndWait(new MessageOptions()
-                        .setPrompt("Summarize the attached PDF with citations enabled.")
-                        .setAttachments(List.of(createPdfAttachment()))).get(60, TimeUnit.SECONDS);
+                session2.sendAndWait(
+                        new MessageOptions().setPrompt("Summarize the attached PDF with citations enabled.")
+                                .setAttachments(List.of(createPdfAttachment())))
+                        .get(60, TimeUnit.SECONDS);
 
                 assertAnthropicDocumentCitationsEnabled(singleInferenceRequestBody(handler));
             } finally {
@@ -383,8 +383,7 @@ public class SessionConfigE2ETest {
         String pdfText = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n";
         return new BlobAttachment()
                 .setData(Base64.getEncoder().encodeToString(pdfText.getBytes(StandardCharsets.US_ASCII)))
-                .setDisplayName("citation-source.pdf")
-                .setMimeType("application/pdf");
+                .setDisplayName("citation-source.pdf").setMimeType("application/pdf");
     }
 
     private static ProviderConfig createAnthropicProvider() {

@@ -324,7 +324,9 @@ public final class ResumeSessionRequest {
         return excludedBuiltInAgents == null ? null : Collections.unmodifiableList(excludedBuiltInAgents);
     }
 
-    /** Sets excluded built-in agents. @param excludedBuiltInAgents the agent names */
+    /**
+     * Sets excluded built-in agents. @param excludedBuiltInAgents the agent names
+     */
     public void setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
         this.excludedBuiltInAgents = excludedBuiltInAgents;
     }

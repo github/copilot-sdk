@@ -172,6 +172,8 @@ pub(crate) struct SessionCreateWire {
 pub(crate) struct SessionResumeWire {
     pub session_id: SessionId,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,

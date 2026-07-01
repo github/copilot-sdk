@@ -9,7 +9,7 @@ use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::{
     Attachment, Client, CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext,
     CopilotRequestError, CopilotRequestHandler, MessageOptions, ProviderConfig,
-    ResumeSessionConfig, SessionConfig, SessionLimitsConfig, Transport,
+    ResumeSessionConfig, SessionLimitsConfig, Transport,
 };
 use http::{HeaderMap, HeaderValue};
 use parking_lot::Mutex;

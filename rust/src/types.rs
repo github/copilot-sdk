@@ -2743,6 +2743,9 @@ impl SessionConfig {
 pub struct ResumeSessionConfig {
     /// ID of the session to resume.
     pub session_id: SessionId,
+    /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
+    /// Can change the model when resuming.
+    pub model: Option<String>,
     /// Application name sent as User-Agent context.
     pub client_name: Option<String>,
     /// Desired reasoning effort to apply after resuming the session.
@@ -2949,6 +2952,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
+            .field("model", &self.model)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -3109,6 +3113,7 @@ impl ResumeSessionConfig {
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
+            model: self.model,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -3201,6 +3206,7 @@ impl ResumeSessionConfig {
     pub fn new(session_id: SessionId) -> Self {
         Self {
             session_id,
+            model: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -3366,6 +3372,12 @@ impl ResumeSessionConfig {
         F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
     {
         self.permission_policy = Some(crate::permission::Policy::Predicate(Arc::new(predicate)));
+        self
+    }
+
+    /// Set the model identifier to switch to on resume (e.g. `"claude-sonnet-4"`).
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
         self
     }
 
