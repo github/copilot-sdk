@@ -166,6 +166,20 @@ func buildInferenceResponse(url string, bodyText string) *http.Response {
 		return buildSSEResponse(sb.String())
 	}
 
+	if strings.HasSuffix(u, "/messages") {
+		raw, _ := json.Marshal(map[string]any{
+			"id":            "msg_stub_1",
+			"type":          "message",
+			"role":          "assistant",
+			"model":         "claude-sonnet-4.5",
+			"content":       []any{map[string]any{"type": "text", "text": syntheticResponseText}},
+			"stop_reason":   "end_turn",
+			"stop_sequence": nil,
+			"usage":         map[string]any{"input_tokens": 5, "output_tokens": 7},
+		})
+		return buildJSONResponse(200, string(raw))
+	}
+
 	raw, _ := json.Marshal(map[string]any{
 		"id": "chatcmpl-stub-1", "object": "chat.completion", "created": 1, "model": "claude-sonnet-4.5",
 		"choices": []any{map[string]any{"index": 0, "message": map[string]any{"role": "assistant", "content": syntheticResponseText}, "finish_reason": "stop"}},

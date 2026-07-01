@@ -6,18 +6,19 @@ package e2e
 
 import (
 	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
-	"net/http"
 )
 
 type interceptedRequest struct {
 	url       string
 	sessionID string
+	body      string
 }
 
 // recordingTransport intercepts every model-layer request, records its URL and
@@ -34,15 +35,15 @@ func (rt *recordingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	if rctx != nil {
 		sessionID = rctx.SessionID
 	}
-	rt.mu.Lock()
-	rt.records = append(rt.records, interceptedRequest{url: req.URL.String(), sessionID: sessionID})
-	rt.mu.Unlock()
-
 	bodyBytes := []byte(nil)
 	if req.Body != nil {
 		bodyBytes, _ = io.ReadAll(req.Body)
 	}
 	bodyText := string(bodyBytes)
+
+	rt.mu.Lock()
+	rt.records = append(rt.records, interceptedRequest{url: req.URL.String(), sessionID: sessionID, body: bodyText})
+	rt.mu.Unlock()
 
 	if isInferenceURL(req.URL.String()) {
 		return buildInferenceResponse(req.URL.String(), bodyText), nil

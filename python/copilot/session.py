@@ -1110,6 +1110,13 @@ class InfiniteSessionConfig(TypedDict, total=False):
     buffer_exhaustion_threshold: float
 
 
+class SessionLimitsConfig(TypedDict, total=False):
+    """Experimental limits for the session's current accounting window."""
+
+    # Maximum AI credits available to the session in the current accounting window.
+    max_ai_credits: float
+
+
 class LargeToolOutputConfig(TypedDict, total=False):
     """
     Configuration for handling large tool outputs.

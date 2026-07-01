@@ -4,6 +4,7 @@
 
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
+using System.Text;
 using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
@@ -449,6 +450,198 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Apply_Session_Limits_On_Create()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            SessionLimits = new SessionLimitsConfig
+            {
+                MaxAiCredits = 30,
+            },
+        });
+
+        try
+        {
+            var exchange = await SendAndGetNextExchangeAsync(
+                session,
+                "Acknowledge the current session limits.");
+
+            AssertSessionLimitsStatus(exchange, "30 AI credits");
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Apply_Session_Limits_On_Resume()
+    {
+        var session1 = await CreateSessionAsync();
+        var session2 = await ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        {
+            SessionLimits = new SessionLimitsConfig
+            {
+                MaxAiCredits = 30,
+            },
+        });
+
+        try
+        {
+            var exchange = await SendAndGetNextExchangeAsync(
+                session2,
+                "Acknowledge the current session limits.");
+
+            AssertSessionLimitsStatus(exchange, "30 AI credits");
+        }
+        finally
+        {
+            await session2.DisposeAsync();
+            await session1.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Apply_Excluded_Built_In_Agents_On_Create()
+    {
+        const string excludedAgent = "explore";
+        const string prompt = "What is 1+1?";
+
+        var baselineSession = await CreateSessionAsync();
+        try
+        {
+            var baselineExchange = await SendAndGetNextExchangeAsync(baselineSession, prompt);
+            Assert.Contains(excludedAgent, GetTaskAgentTypes(baselineExchange));
+        }
+        finally
+        {
+            await baselineSession.DisposeAsync();
+        }
+
+        var excludedSession = await CreateSessionAsync(new SessionConfig
+        {
+            ExcludedBuiltInAgents = [excludedAgent],
+        });
+
+        try
+        {
+            var excludedExchange = await SendAndGetNextExchangeAsync(excludedSession, prompt);
+            var agentTypes = GetTaskAgentTypes(excludedExchange);
+
+            Assert.NotEmpty(agentTypes);
+            Assert.DoesNotContain(excludedAgent, agentTypes);
+        }
+        finally
+        {
+            await excludedSession.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Apply_Excluded_Built_In_Agents_On_Resume()
+    {
+        const string excludedAgent = "explore";
+
+        var session1 = await CreateSessionAsync();
+        var session2 = await ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        {
+            ExcludedBuiltInAgents = [excludedAgent],
+        });
+
+        try
+        {
+            var exchange = await SendAndGetNextExchangeAsync(session2, "What is 1+1?");
+            var agentTypes = GetTaskAgentTypes(exchange);
+
+            Assert.NotEmpty(agentTypes);
+            Assert.DoesNotContain(excludedAgent, agentTypes);
+        }
+        finally
+        {
+            await session2.DisposeAsync();
+            await session1.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Enable_Citations_For_Anthropic_File_Attachments_On_Create()
+    {
+        var handler = new RecordingRequestHandler();
+        await using var client = CreateClientWithRequestHandler(handler);
+        await client.StartAsync();
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            Model = "claude-sonnet-4.5",
+            EnableCitations = true,
+            Provider = CreateAnthropicProvider(),
+        });
+
+        try
+        {
+            await session.SendAndWaitAsync(new MessageOptions
+            {
+                Prompt = "Summarize the attached PDF with citations enabled.",
+                Attachments = [CreatePdfAttachment()],
+            });
+
+            AssertAnthropicDocumentCitationsEnabled(Assert.Single(handler.InferenceRequests).Body);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Enable_Citations_For_Anthropic_File_Attachments_On_Resume()
+    {
+        const string connectionToken = "citation-resume-token";
+        var handler = new RecordingRequestHandler();
+        await using var client = CreateClientWithRequestHandler(
+            handler,
+            RuntimeConnection.ForTcp(connectionToken: connectionToken));
+        await client.StartAsync();
+
+        var session1 = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+        var sessionId = session1.SessionId;
+        var port = client.RuntimePort
+            ?? throw new InvalidOperationException("The handler-backed E2E client must use TCP transport to support multi-client resume.");
+        await using var resumeClient = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: connectionToken),
+        });
+
+        var session2 = await resumeClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            Model = "claude-sonnet-4.5",
+            EnableCitations = true,
+            Provider = CreateAnthropicProvider(),
+        });
+
+        try
+        {
+            await session2.SendAndWaitAsync(new MessageOptions
+            {
+                Prompt = "Summarize the attached PDF with citations enabled.",
+                Attachments = [CreatePdfAttachment()],
+            });
+
+            AssertAnthropicDocumentCitationsEnabled(Assert.Single(handler.InferenceRequests).Body);
+        }
+        finally
+        {
+            await session2.DisposeAsync();
+            await session1.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Should_Create_Session_With_Custom_Provider_Config()
     {
         // Per the TS test (session_config.e2e.test.ts), this only verifies that a
@@ -540,6 +733,95 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 part.TryGetProperty("type", out var typeProp) &&
                 typeProp.ValueKind == JsonValueKind.String &&
                 typeProp.GetString() == "image_url"));
+    }
+
+    private CopilotClient CreateClientWithRequestHandler(
+        CopilotRequestHandler handler,
+        RuntimeConnection? connection = null)
+    {
+        return Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = connection ?? RuntimeConnection.ForStdio(),
+            RequestHandler = handler,
+        });
+    }
+
+    private async Task<ParsedHttpExchange> SendAndGetNextExchangeAsync(CopilotSession session, string prompt)
+    {
+        var existingCount = (await Ctx.GetExchangesAsync()).Count;
+        var exchanges = await SendAndWaitForExchangesAsync(
+            session,
+            new MessageOptions { Prompt = prompt },
+            minimumCount: existingCount + 1);
+        return exchanges[existingCount];
+    }
+
+    private static void AssertSessionLimitsStatus(ParsedHttpExchange exchange, string expectedRemaining)
+    {
+        var message = exchange.Request.Messages.SingleOrDefault(m =>
+            m.Role == "user"
+            && m.StringContent?.Contains("<session_limits_status>", StringComparison.Ordinal) == true);
+
+        Assert.NotNull(message);
+        Assert.Contains($"Remaining session limits: {expectedRemaining}.", message!.StringContent);
+        Assert.Contains(
+            "Be frugal; avoid optional exploration and unnecessary tool calls.",
+            message.StringContent);
+    }
+
+    private static IReadOnlyList<string> GetTaskAgentTypes(ParsedHttpExchange exchange)
+    {
+        var taskTool = Assert.Single(
+            exchange.Request.Tools ?? [],
+            tool => string.Equals(tool.Function.Name, "task", StringComparison.Ordinal));
+        var parameters = taskTool.Function.Parameters;
+
+        Assert.NotNull(parameters);
+        var enumValues = parameters!.Value
+            .GetProperty("properties")
+            .GetProperty("agent_type")
+            .GetProperty("enum");
+
+        return [.. enumValues.EnumerateArray().Select(value => value.GetString()).OfType<string>()];
+    }
+
+    private static AttachmentBlob CreatePdfAttachment()
+    {
+        const string pdfText = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+        return new AttachmentBlob
+        {
+            Data = Convert.ToBase64String(Encoding.ASCII.GetBytes(pdfText)),
+            DisplayName = "citation-source.pdf",
+            MimeType = "application/pdf",
+        };
+    }
+
+    private static ProviderConfig CreateAnthropicProvider()
+    {
+        return new ProviderConfig
+        {
+            Type = "anthropic",
+            BaseUrl = "https://anthropic-citations.invalid/v1",
+            ApiKey = "test-provider-key",
+            ModelId = "claude-sonnet-4.5",
+            WireModel = "claude-sonnet-4.5",
+        };
+    }
+
+    private static void AssertAnthropicDocumentCitationsEnabled(string requestBody)
+    {
+        using var document = JsonDocument.Parse(requestBody);
+        var documentBlocks = document.RootElement
+            .GetProperty("messages")
+            .EnumerateArray()
+            .SelectMany(message => message.GetProperty("content").EnumerateArray())
+            .Where(block => block.GetProperty("type").GetString() == "document")
+            .ToList();
+
+        var documentBlock = Assert.Single(documentBlocks);
+        Assert.Equal("citation-source.pdf", documentBlock.GetProperty("title").GetString());
+        Assert.True(documentBlock.GetProperty("citations").GetProperty("enabled").GetBoolean());
     }
 
     private ProviderConfig CreateProxyProvider(string headerValue)

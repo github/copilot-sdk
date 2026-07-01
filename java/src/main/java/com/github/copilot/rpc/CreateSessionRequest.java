@@ -13,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
  * Internal request object for creating a new session.
@@ -57,6 +58,9 @@ public final class CreateSessionRequest {
     @JsonProperty("excludedTools")
     private List<String> excludedTools;
 
+    @JsonProperty("excludedBuiltinAgents")
+    private List<String> excludedBuiltInAgents;
+
     @JsonProperty("toolFilterPrecedence")
     private String toolFilterPrecedence;
 
@@ -73,6 +77,12 @@ public final class CreateSessionRequest {
 
     @JsonProperty("enableSessionTelemetry")
     private Boolean enableSessionTelemetry;
+
+    @JsonProperty("enableCitations")
+    private Boolean enableCitations;
+
+    @JsonProperty("sessionLimits")
+    private SessionLimitsConfig sessionLimits;
 
     @JsonProperty("requestPermission")
     private Boolean requestPermission;
@@ -304,6 +314,18 @@ public final class CreateSessionRequest {
         this.excludedTools = excludedTools;
     }
 
+    /** Gets excluded built-in agents. @return the built-in agent names */
+    public List<String> getExcludedBuiltInAgents() {
+        return excludedBuiltInAgents == null ? null : Collections.unmodifiableList(excludedBuiltInAgents);
+    }
+
+    /**
+     * Sets excluded built-in agents. @param excludedBuiltInAgents the agent names
+     */
+    public void setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
+        this.excludedBuiltInAgents = excludedBuiltInAgents;
+    }
+
     /** Gets the tool filter precedence. @return the precedence value */
     public String getToolFilterPrecedence() {
         return toolFilterPrecedence;
@@ -371,6 +393,26 @@ public final class CreateSessionRequest {
      */
     public void setEnableSessionTelemetry(boolean enableSessionTelemetry) {
         this.enableSessionTelemetry = enableSessionTelemetry;
+    }
+
+    /** Gets enable citations flag. @return the flag */
+    public Boolean getEnableCitations() {
+        return enableCitations;
+    }
+
+    /** Sets enable citations flag. @param enableCitations the flag */
+    public void setEnableCitations(boolean enableCitations) {
+        this.enableCitations = enableCitations;
+    }
+
+    /** Gets the session limits. @return the session limits */
+    public SessionLimitsConfig getSessionLimits() {
+        return sessionLimits;
+    }
+
+    /** Sets the session limits. @param sessionLimits the session limits */
+    public void setSessionLimits(SessionLimitsConfig sessionLimits) {
+        this.sessionLimits = sessionLimits;
     }
 
     /**

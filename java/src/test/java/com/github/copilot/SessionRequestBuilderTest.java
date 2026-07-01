@@ -13,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
@@ -158,6 +159,19 @@ public class SessionRequestBuilderTest {
         var config = new SessionConfig().setMcpOAuthTokenStorage("persistent");
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
         assertEquals("persistent", request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildCreateRequestForwardsSessionPolicyOptions() {
+        var sessionLimits = new SessionLimitsConfig(30.0);
+        var config = new SessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
+                .setSessionLimits(sessionLimits);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "session-policy");
+
+        assertEquals(List.of("explore"), request.getExcludedBuiltInAgents());
+        assertTrue(request.getEnableCitations());
+        assertSame(sessionLimits, request.getSessionLimits());
     }
 
     @Test
@@ -322,6 +336,19 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig().setMcpOAuthTokenStorage("persistent");
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-13", config);
         assertEquals("persistent", request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildResumeRequestForwardsSessionPolicyOptions() {
+        var sessionLimits = new SessionLimitsConfig(30.0);
+        var config = new ResumeSessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
+                .setSessionLimits(sessionLimits);
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-policy", config);
+
+        assertEquals(List.of("explore"), request.getExcludedBuiltInAgents());
+        assertTrue(request.getEnableCitations());
+        assertSame(sessionLimits, request.getSessionLimits());
     }
 
     @Test

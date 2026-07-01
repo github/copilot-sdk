@@ -12,6 +12,7 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // hasImageURLContent returns true if any user message in the given exchanges
@@ -34,6 +35,126 @@ func hasImageURLContent(exchanges []testharness.ParsedHttpExchange) bool {
 		}
 	}
 	return false
+}
+
+func sendAndGetNextExchange(t *testing.T, ctx *testharness.TestContext, session *copilot.Session, prompt string) testharness.ParsedHttpExchange {
+	t.Helper()
+
+	existing, err := ctx.GetExchanges()
+	if err != nil {
+		t.Fatalf("GetExchanges failed: %v", err)
+	}
+	if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: prompt}); err != nil {
+		t.Fatalf("SendAndWait failed: %v", err)
+	}
+	exchanges := ctx.WaitForExchanges(t, len(existing)+1)
+	return exchanges[len(existing)]
+}
+
+func assertSessionLimitsStatus(t *testing.T, exchange testharness.ParsedHttpExchange, expectedRemaining string) {
+	t.Helper()
+
+	for _, message := range exchange.Request.Messages {
+		if message.Role != "user" || !strings.Contains(message.Content, "<session_limits_status>") {
+			continue
+		}
+		if !strings.Contains(message.Content, "Remaining session limits: "+expectedRemaining+".") {
+			t.Fatalf("Expected session limits status to include remaining %q, got %q", expectedRemaining, message.Content)
+		}
+		if !strings.Contains(message.Content, "Be frugal; avoid optional exploration and unnecessary tool calls.") {
+			t.Fatalf("Expected frugality instruction in session limits status, got %q", message.Content)
+		}
+		return
+	}
+	t.Fatal("Expected session limits status message")
+}
+
+func getTaskAgentTypes(t *testing.T, exchange testharness.ParsedHttpExchange) []string {
+	t.Helper()
+
+	for _, tool := range exchange.Request.Tools {
+		if tool.Function.Name != "task" {
+			continue
+		}
+		var parameters struct {
+			Properties struct {
+				AgentType struct {
+					Enum []string `json:"enum"`
+				} `json:"agent_type"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(tool.Function.Parameters, &parameters); err != nil {
+			t.Fatalf("Failed to unmarshal task tool parameters: %v", err)
+		}
+		return parameters.Properties.AgentType.Enum
+	}
+	t.Fatal("Expected task tool in request")
+	return nil
+}
+
+func containsAgentType(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func createPDFAttachment() copilot.Attachment {
+	pdfText := "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
+	data := base64.StdEncoding.EncodeToString([]byte(pdfText))
+	displayName := "citation-source.pdf"
+	return copilot.AttachmentBlob{
+		Data:        &data,
+		DisplayName: &displayName,
+		MIMEType:    "application/pdf",
+	}
+}
+
+func createAnthropicProvider() *copilot.ProviderConfig {
+	return &copilot.ProviderConfig{
+		Type:      "anthropic",
+		BaseURL:   "https://anthropic-citations.invalid/v1",
+		APIKey:    "test-provider-key",
+		ModelID:   "claude-sonnet-4.5",
+		WireModel: "claude-sonnet-4.5",
+	}
+}
+
+func assertAnthropicDocumentCitationsEnabled(t *testing.T, requestBody string) {
+	t.Helper()
+
+	var body struct {
+		Messages []struct {
+			Content []map[string]any `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal([]byte(requestBody), &body); err != nil {
+		t.Fatalf("Failed to unmarshal Anthropic request body: %v", err)
+	}
+	var documents []map[string]any
+	for _, message := range body.Messages {
+		for _, block := range message.Content {
+			if block["type"] == "document" {
+				documents = append(documents, block)
+			}
+		}
+	}
+	if len(documents) != 1 {
+		t.Fatalf("Expected one Anthropic document block, got %d in body %s", len(documents), requestBody)
+	}
+	if documents[0]["title"] != "citation-source.pdf" {
+		t.Fatalf("Expected document title citation-source.pdf, got %v", documents[0]["title"])
+	}
+	citations, ok := documents[0]["citations"].(map[string]any)
+	if !ok || citations["enabled"] != true {
+		t.Fatalf("Expected document citations.enabled=true, got %#v", documents[0]["citations"])
+	}
+}
+
+func float64Ref(value float64) *float64 {
+	return &value
 }
 
 func TestSessionConfigE2E(t *testing.T) {
@@ -162,6 +283,223 @@ func TestSessionConfigE2E(t *testing.T) {
 		if hasImageURLContent(newExchanges) {
 			t.Error("Expected no image_url content parts when vision is disabled")
 		}
+	})
+}
+
+func TestSessionConfigNewOptionsE2E(t *testing.T) {
+	ctx := testharness.NewTestContext(t)
+	client := ctx.NewClient()
+	t.Cleanup(func() { client.ForceStop() })
+
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatalf("Failed to start client: %v", err)
+	}
+
+	t.Run("should apply session limits on create", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SessionLimits:       &rpc.SessionLimitsConfig{MaxAiCredits: float64Ref(30)},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		exchange := sendAndGetNextExchange(t, ctx, session, "Acknowledge the current session limits.")
+		assertSessionLimitsStatus(t, exchange, "30 AI credits")
+	})
+
+	t.Run("should apply session limits on resume", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session1.Disconnect()
+
+		session2, err := client.ResumeSessionWithOptions(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SessionLimits:       &rpc.SessionLimitsConfig{MaxAiCredits: float64Ref(30)},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+		}
+		defer session2.Disconnect()
+
+		exchange := sendAndGetNextExchange(t, ctx, session2, "Acknowledge the current session limits.")
+		assertSessionLimitsStatus(t, exchange, "30 AI credits")
+	})
+
+	t.Run("should apply excluded built in agents on create", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		const excludedAgent = "explore"
+		const prompt = "What is 1+1?"
+		baseline, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession baseline failed: %v", err)
+		}
+		baselineExchange := sendAndGetNextExchange(t, ctx, baseline, prompt)
+		if !containsAgentType(getTaskAgentTypes(t, baselineExchange), excludedAgent) {
+			t.Fatalf("Expected baseline task agents to include %q", excludedAgent)
+		}
+		_ = baseline.Disconnect()
+
+		excluded, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			ExcludedBuiltInAgents: []string{excludedAgent},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession excluded failed: %v", err)
+		}
+		defer excluded.Disconnect()
+
+		excludedExchange := sendAndGetNextExchange(t, ctx, excluded, prompt)
+		agentTypes := getTaskAgentTypes(t, excludedExchange)
+		if len(agentTypes) == 0 {
+			t.Fatal("Expected task tool agent types")
+		}
+		if containsAgentType(agentTypes, excludedAgent) {
+			t.Fatalf("Expected excluded task agents not to include %q; got %v", excludedAgent, agentTypes)
+		}
+	})
+
+	t.Run("should apply excluded built in agents on resume", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		const excludedAgent = "explore"
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session1.Disconnect()
+
+		session2, err := client.ResumeSessionWithOptions(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			ExcludedBuiltInAgents: []string{excludedAgent},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+		}
+		defer session2.Disconnect()
+
+		exchange := sendAndGetNextExchange(t, ctx, session2, "What is 1+1?")
+		agentTypes := getTaskAgentTypes(t, exchange)
+		if len(agentTypes) == 0 {
+			t.Fatal("Expected task tool agent types")
+		}
+		if containsAgentType(agentTypes, excludedAgent) {
+			t.Fatalf("Expected excluded task agents not to include %q; got %v", excludedAgent, agentTypes)
+		}
+	})
+}
+
+func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
+	t.Run("should enable citations for Anthropic file attachments on create", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		transport := &recordingTransport{}
+		handler := &copilot.CopilotRequestHandler{Transport: transport}
+		client := newCopilotRequestClient(ctx, handler)
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Failed to start client: %v", err)
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Model:               "claude-sonnet-4.5",
+			EnableCitations:     copilot.Bool(true),
+			Provider:            createAnthropicProvider(),
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt:      "Summarize the attached PDF with citations enabled.",
+			Attachments: []copilot.Attachment{createPDFAttachment()},
+		})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		inference := transport.inferenceRecords()
+		if len(inference) != 1 {
+			t.Fatalf("Expected exactly one intercepted inference request, got %d", len(inference))
+		}
+		assertAnthropicDocumentCitationsEnabled(t, inference[0].body)
+	})
+
+	t.Run("should enable citations for Anthropic file attachments on resume", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		transport := &recordingTransport{}
+		handler := &copilot.CopilotRequestHandler{Transport: transport}
+		const connectionToken = "go-citation-resume-token"
+		server := ctx.NewClient(func(o *copilot.ClientOptions) {
+			o.Connection = copilot.TCPConnection{Path: ctx.CLIPath, ConnectionToken: connectionToken}
+			o.RequestHandler = handler
+		})
+		t.Cleanup(func() { server.ForceStop() })
+
+		if err := server.Start(t.Context()); err != nil {
+			t.Fatalf("Failed to start server client: %v", err)
+		}
+
+		session1, err := server.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session1.Disconnect()
+
+		runtimePort := server.RuntimePort()
+		if runtimePort == 0 {
+			t.Fatal("Expected non-zero runtime port")
+		}
+		resumeClient := ctx.NewClient(func(o *copilot.ClientOptions) {
+			o.Connection = copilot.URIConnection{
+				URL:             fmt.Sprintf("localhost:%d", runtimePort),
+				ConnectionToken: connectionToken,
+			}
+		})
+		t.Cleanup(func() { resumeClient.ForceStop() })
+
+		session2, err := resumeClient.ResumeSessionWithOptions(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Model:               "claude-sonnet-4.5",
+			EnableCitations:     copilot.Bool(true),
+			Provider:            createAnthropicProvider(),
+		})
+		if err != nil {
+			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+		}
+		defer session2.Disconnect()
+
+		_, err = session2.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt:      "Summarize the attached PDF with citations enabled.",
+			Attachments: []copilot.Attachment{createPDFAttachment()},
+		})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		inference := transport.inferenceRecords()
+		if len(inference) != 1 {
+			t.Fatalf("Expected exactly one intercepted inference request, got %d", len(inference))
+		}
+		assertAnthropicDocumentCitationsEnabled(t, inference[0].body)
 	})
 }
 

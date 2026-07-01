@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
-import { approveAll } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import {
+    approveAll,
+    CopilotClient,
+    CopilotRequestHandler,
+    RuntimeConnection,
+    type CopilotRequestContext,
+} from "../../src/index.js";
+import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 import { retry } from "./harness/sdkTestHelper.js";
 
 describe("Session Configuration", async () => {
-    const { copilotClient: client, workDir, openAiEndpoint } = await createSdkTestContext();
+    const { copilotClient: client, workDir, openAiEndpoint, env } = await createSdkTestContext();
 
     async function waitForExchanges(minimumCount = 1) {
         await retry(
@@ -215,6 +221,340 @@ describe("Session Configuration", async () => {
     }): string[] {
         return (exchange.request.tools ?? []).map((t) => t.function.name);
     }
+
+    async function sendAndGetNextExchange(
+        session: { sendAndWait(options: { prompt: string }): Promise<unknown> },
+        prompt: string
+    ) {
+        const existingCount = (await openAiEndpoint.getExchanges()).length;
+        await session.sendAndWait({ prompt });
+        const exchanges = await waitForExchanges(existingCount + 1);
+        return exchanges[existingCount];
+    }
+
+    function assertSessionLimitsStatus(
+        exchange: { request: { messages?: Array<{ role: string; content: unknown }> } },
+        expectedRemaining: string
+    ) {
+        const message = (exchange.request.messages ?? []).find(
+            (m) =>
+                m.role === "user" &&
+                typeof m.content === "string" &&
+                m.content.includes("<session_limits_status>")
+        );
+        expect(message?.content).toContain(`Remaining session limits: ${expectedRemaining}.`);
+        expect(message?.content).toContain(
+            "Be frugal; avoid optional exploration and unnecessary tool calls."
+        );
+    }
+
+    function getTaskAgentTypes(exchange: {
+        request: {
+            tools?: Array<{
+                function: { name: string; parameters?: unknown };
+            }>;
+        };
+    }): string[] {
+        const taskTool = (exchange.request.tools ?? []).find(
+            (tool) => tool.function.name === "task"
+        );
+        expect(taskTool).toBeDefined();
+        const parameters = taskTool?.function.parameters as
+            | { properties?: { agent_type?: { enum?: string[] } } }
+            | undefined;
+        const values = parameters?.properties?.agent_type?.enum;
+        expect(values).toBeDefined();
+        return values ?? [];
+    }
+
+    interface InterceptedRequest {
+        url: string;
+        body: string;
+    }
+
+    class RecordingRequestHandler extends CopilotRequestHandler {
+        readonly records: InterceptedRequest[] = [];
+
+        protected override async sendRequest(
+            request: Request,
+            _ctx: CopilotRequestContext
+        ): Promise<Response> {
+            const body = request.body ? await request.text() : "";
+            this.records.push({ url: request.url, body });
+            return isInferenceUrl(request.url)
+                ? buildInferenceResponse(request.url, body)
+                : buildNonInferenceResponse(request.url);
+        }
+
+        inferenceRequests(): InterceptedRequest[] {
+            return this.records.filter((record) => isInferenceUrl(record.url));
+        }
+    }
+
+    function isInferenceUrl(url: string): boolean {
+        const u = url.toLowerCase();
+        return (
+            u.endsWith("/chat/completions") ||
+            u.endsWith("/responses") ||
+            u.endsWith("/v1/messages") ||
+            u.endsWith("/messages")
+        );
+    }
+
+    function json(body: unknown): Response {
+        return new Response(typeof body === "string" ? body : JSON.stringify(body), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+        });
+    }
+
+    function buildNonInferenceResponse(url: string): Response {
+        const u = url.toLowerCase();
+        if (u.endsWith("/models")) {
+            return json({
+                data: [
+                    {
+                        id: "claude-sonnet-4.5",
+                        name: "Claude Sonnet 4.5",
+                        object: "model",
+                        vendor: "Anthropic",
+                        version: "1",
+                        preview: false,
+                        model_picker_enabled: true,
+                        capabilities: {
+                            type: "chat",
+                            family: "claude-sonnet-4.5",
+                            tokenizer: "o200k_base",
+                            limits: { max_context_window_tokens: 200000, max_output_tokens: 8192 },
+                            supports: {
+                                streaming: true,
+                                tool_calls: true,
+                                parallel_tool_calls: true,
+                                vision: true,
+                            },
+                        },
+                    },
+                ],
+            });
+        }
+        if (u.includes("/models/session")) return json({});
+        if (u.includes("/policy")) return json({ state: "enabled" });
+        return json({});
+    }
+
+    function buildInferenceResponse(url: string, _body: string): Response {
+        const u = url.toLowerCase();
+        if (u.endsWith("/messages")) {
+            return json({
+                id: "msg_stub_1",
+                type: "message",
+                role: "assistant",
+                model: "claude-sonnet-4.5",
+                content: [{ type: "text", text: "OK from the synthetic stream." }],
+                stop_reason: "end_turn",
+                stop_sequence: null,
+                usage: { input_tokens: 5, output_tokens: 7 },
+            });
+        }
+        return json({
+            id: "chatcmpl-stub-1",
+            object: "chat.completion",
+            created: 1,
+            model: "claude-sonnet-4.5",
+            choices: [
+                {
+                    index: 0,
+                    message: { role: "assistant", content: "OK from the synthetic stream." },
+                    finish_reason: "stop",
+                },
+            ],
+            usage: { prompt_tokens: 5, completion_tokens: 7, total_tokens: 12 },
+        });
+    }
+
+    function createPdfAttachment() {
+        const pdfText =
+            "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n";
+        return {
+            type: "blob" as const,
+            data: Buffer.from(pdfText, "ascii").toString("base64"),
+            displayName: "citation-source.pdf",
+            mimeType: "application/pdf",
+        };
+    }
+
+    function createAnthropicProvider() {
+        return {
+            type: "anthropic" as const,
+            baseUrl: "https://anthropic-citations.invalid/v1",
+            apiKey: "test-provider-key",
+            modelId: "claude-sonnet-4.5",
+            wireModel: "claude-sonnet-4.5",
+        };
+    }
+
+    function assertAnthropicDocumentCitationsEnabled(requestBody: string) {
+        const body = JSON.parse(requestBody) as {
+            messages: Array<{ content: Array<Record<string, unknown>> }>;
+        };
+        const documentBlocks = body.messages.flatMap((message) =>
+            message.content.filter((block) => block.type === "document")
+        );
+        expect(documentBlocks).toHaveLength(1);
+        expect(documentBlocks[0].title).toBe("citation-source.pdf");
+        expect(documentBlocks[0].citations).toEqual({ enabled: true });
+    }
+
+    it("should apply session limits on create", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            sessionLimits: { maxAiCredits: 30 },
+        });
+
+        const exchange = await sendAndGetNextExchange(
+            session,
+            "Acknowledge the current session limits."
+        );
+        assertSessionLimitsStatus(exchange, "30 AI credits");
+
+        await session.disconnect();
+    });
+
+    it("should apply session limits on resume", async () => {
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const session2 = await client.resumeSession(session1.sessionId, {
+            onPermissionRequest: approveAll,
+            sessionLimits: { maxAiCredits: 30 },
+        });
+
+        const exchange = await sendAndGetNextExchange(
+            session2,
+            "Acknowledge the current session limits."
+        );
+        assertSessionLimitsStatus(exchange, "30 AI credits");
+
+        await session2.disconnect();
+        await session1.disconnect();
+    });
+
+    it("should apply excluded built-in agents on create", async () => {
+        const excludedAgent = "explore";
+        const prompt = "What is 1+1?";
+
+        const baselineSession = await client.createSession({ onPermissionRequest: approveAll });
+        const baselineExchange = await sendAndGetNextExchange(baselineSession, prompt);
+        expect(getTaskAgentTypes(baselineExchange)).toContain(excludedAgent);
+        await baselineSession.disconnect();
+
+        const excludedSession = await client.createSession({
+            onPermissionRequest: approveAll,
+            excludedBuiltinAgents: [excludedAgent],
+        });
+        const excludedExchange = await sendAndGetNextExchange(excludedSession, prompt);
+        const agentTypes = getTaskAgentTypes(excludedExchange);
+        expect(agentTypes.length).toBeGreaterThan(0);
+        expect(agentTypes).not.toContain(excludedAgent);
+
+        await excludedSession.disconnect();
+    });
+
+    it("should apply excluded built-in agents on resume", async () => {
+        const excludedAgent = "explore";
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const session2 = await client.resumeSession(session1.sessionId, {
+            onPermissionRequest: approveAll,
+            excludedBuiltinAgents: [excludedAgent],
+        });
+
+        const exchange = await sendAndGetNextExchange(session2, "What is 1+1?");
+        const agentTypes = getTaskAgentTypes(exchange);
+        expect(agentTypes.length).toBeGreaterThan(0);
+        expect(agentTypes).not.toContain(excludedAgent);
+
+        await session2.disconnect();
+        await session1.disconnect();
+    });
+
+    it("should enable citations for Anthropic file attachments on create", async () => {
+        const handler = new RecordingRequestHandler();
+        const citationClient = new CopilotClient({
+            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            workingDirectory: workDir,
+            env,
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
+            requestHandler: handler,
+        });
+
+        await citationClient.start();
+        try {
+            const session = await citationClient.createSession({
+                onPermissionRequest: approveAll,
+                model: "claude-sonnet-4.5",
+                enableCitations: true,
+                provider: createAnthropicProvider(),
+            });
+            try {
+                await session.sendAndWait({
+                    prompt: "Summarize the attached PDF with citations enabled.",
+                    attachments: [createPdfAttachment()],
+                });
+                expect(handler.inferenceRequests()).toHaveLength(1);
+                assertAnthropicDocumentCitationsEnabled(handler.inferenceRequests()[0].body);
+            } finally {
+                await session.disconnect();
+            }
+        } finally {
+            await citationClient.stop();
+        }
+    });
+
+    it("should enable citations for Anthropic file attachments on resume", async () => {
+        const handler = new RecordingRequestHandler();
+        const connectionToken = "ts-citation-resume-token";
+        const serverClient = new CopilotClient({
+            connection: RuntimeConnection.forTcp({
+                path: process.env.COPILOT_CLI_PATH,
+                connectionToken,
+            }),
+            workingDirectory: workDir,
+            env,
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
+            requestHandler: handler,
+        });
+
+        await serverClient.start();
+        try {
+            const session1 = await serverClient.createSession({ onPermissionRequest: approveAll });
+            const port = (serverClient as unknown as { runtimePort: number | null }).runtimePort;
+            expect(port).not.toBeNull();
+            const resumeClient = new CopilotClient({
+                connection: RuntimeConnection.forUri(`localhost:${port}`, { connectionToken }),
+            });
+            try {
+                const session2 = await resumeClient.resumeSession(session1.sessionId, {
+                    onPermissionRequest: approveAll,
+                    model: "claude-sonnet-4.5",
+                    enableCitations: true,
+                    provider: createAnthropicProvider(),
+                });
+                try {
+                    await session2.sendAndWait({
+                        prompt: "Summarize the attached PDF with citations enabled.",
+                        attachments: [createPdfAttachment()],
+                    });
+                    expect(handler.inferenceRequests()).toHaveLength(1);
+                    assertAnthropicDocumentCitationsEnabled(handler.inferenceRequests()[0].body);
+                } finally {
+                    await session2.disconnect();
+                }
+            } finally {
+                await resumeClient.stop();
+                await session1.disconnect();
+            }
+        } finally {
+            await serverClient.stop();
+        }
+    });
 
     it("should apply instructionDirectories on session create", async () => {
         const projectDir = join(workDir, "instruction-create-project");
