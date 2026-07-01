@@ -1744,7 +1744,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return new ClientGlobalApiHandlers
         {
             LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
-            GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry),
+            GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
         };
     }
 
@@ -2728,14 +2728,22 @@ public sealed class ToolResultAIContent(ToolResultObject toolResult) : AIContent
 /// <see cref="Rpc.GitHubTelemetryNotification"/> payload unchanged.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class GitHubTelemetryAdapter(Action<Rpc.GitHubTelemetryNotification> callback) : Rpc.IGitHubTelemetryHandler
+internal sealed class GitHubTelemetryAdapter(Action<Rpc.GitHubTelemetryNotification> callback, ILogger logger) : Rpc.IGitHubTelemetryHandler
 {
     private readonly Action<Rpc.GitHubTelemetryNotification> _callback = callback ?? throw new ArgumentNullException(nameof(callback));
+    private readonly ILogger _logger = logger ?? NullLogger.Instance;
 
     public Task EventAsync(Rpc.GitHubTelemetryNotification request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        _callback(request);
+        try
+        {
+            _callback(request);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error handling gitHubTelemetry.event notification");
+        }
         return Task.CompletedTask;
     }
 }

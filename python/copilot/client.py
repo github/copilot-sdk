@@ -409,7 +409,10 @@ class _GitHubTelemetryAdapter:
         self._callback = callback
 
     async def event(self, params: GitHubTelemetryNotification) -> None:
-        self._callback(params)
+        try:
+            self._callback(params)
+        except Exception:
+            logger.exception("Error handling gitHubTelemetry.event notification")
 
 
 @dataclass
