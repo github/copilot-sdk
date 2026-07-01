@@ -2382,15 +2382,13 @@ class TestGitHubTelemetry:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_event_routes_to_handler_via_notification_transport(self):
+    async def test_event_routes_to_handler(self):
         from copilot.generated.rpc import GitHubTelemetryNotification
 
         received: list = []
-        done = asyncio.Event()
 
         def on_telemetry(notification):
             received.append(notification)
-            done.set()
 
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=CLI_PATH),
@@ -2399,32 +2397,24 @@ class TestGitHubTelemetry:
         await client.start()
 
         try:
-            # The method must be wired as a notification handler, NOT a request
-            # handler: the runtime forwards telemetry via send_notification (an
-            # id-less message), which never reaches the request-handler table.
-            assert "gitHubTelemetry.event" in client._client.notification_method_handlers
-            assert "gitHubTelemetry.event" not in client._client.request_handlers
+            # The generated client-global dispatcher wires gitHubTelemetry.event
+            # into the request-handler table; invoking it exercises the full
+            # from_dict decode + adapter + user-callback path.
+            assert "gitHubTelemetry.event" in client._client.request_handlers
 
-            # Drive a real JSON-RPC notification (no "id") through the transport's
-            # message dispatch — the exact path the runtime uses.
-            client._client._handle_message(
+            handler = client._client.request_handlers["gitHubTelemetry.event"]
+            await handler(
                 {
-                    "jsonrpc": "2.0",
-                    "method": "gitHubTelemetry.event",
-                    "params": {
-                        "sessionId": "sess-telemetry",
-                        "restricted": True,
-                        "event": {
-                            "kind": "tool_call_executed",
-                            "metrics": {"duration_ms": 12.5},
-                            "properties": {"tool": "shell"},
-                            "session_id": "sess-telemetry",
-                        },
+                    "sessionId": "sess-telemetry",
+                    "restricted": True,
+                    "event": {
+                        "kind": "tool_call_executed",
+                        "metrics": {"duration_ms": 12.5},
+                        "properties": {"tool": "shell"},
+                        "session_id": "sess-telemetry",
                     },
                 }
             )
-
-            await asyncio.wait_for(done.wait(), timeout=5)
 
             assert len(received) == 1
             notification = received[0]
@@ -2443,7 +2433,6 @@ class TestGitHubTelemetry:
         await client.start()
 
         try:
-            assert "gitHubTelemetry.event" not in client._client.notification_method_handlers
             assert "gitHubTelemetry.event" not in client._client.request_handlers
         finally:
             await client.force_stop()

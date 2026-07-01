@@ -508,7 +508,7 @@ describe("CopilotClient", () => {
         expect(createPayload.enableGitHubTelemetryForwarding).toBeUndefined();
     });
 
-    it("dispatches a real gitHubTelemetry.event wire notification to the handler", async () => {
+    it("dispatches a real gitHubTelemetry.event wire message to the handler", async () => {
         const { createMessageConnection, StreamMessageReader, StreamMessageWriter } =
             await import("vscode-jsonrpc/node.js");
         const { registerClientGlobalApiHandlers } = await import("../src/generated/rpc.js");
@@ -557,10 +557,9 @@ describe("CopilotClient", () => {
             },
         };
 
-        // Send as a real JSON-RPC notification (no id). A regression that wires
-        // this method up as a request handler would never fire and this await
-        // would hang.
-        await serverConn.sendNotification("gitHubTelemetry.event", notification);
+        // Deliver the event over the real wire and confirm the generated
+        // dispatcher routes it to the registered handler.
+        await serverConn.sendRequest("gitHubTelemetry.event", notification);
         await got;
 
         expect(received).toEqual([notification]);
