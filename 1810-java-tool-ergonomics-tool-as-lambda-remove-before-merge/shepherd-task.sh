@@ -135,10 +135,11 @@ if [[ "$PR_STATE" != "MERGED" ]]; then
     fail "PR #$PR_NUMBER is in state '$PR_STATE', expected MERGED."
 fi
 
-# Verify merged into correct branch
+# Verify merged into correct branch (strip remote prefix for comparison)
 MERGED_BASE=$(gh pr view "$PR_NUMBER" -R "$REPO" --json baseRefName --jq '.baseRefName')
-if [[ "$MERGED_BASE" != "$BASE_BRANCH" ]]; then
-    fail "PR #$PR_NUMBER was merged into '$MERGED_BASE', expected '$BASE_BRANCH'."
+EXPECTED_BASE="${BASE_BRANCH#*/}"
+if [[ "$MERGED_BASE" != "$EXPECTED_BASE" ]]; then
+    fail "PR #$PR_NUMBER was merged into '$MERGED_BASE', expected '$EXPECTED_BASE'."
 fi
 
 # Verify issue is closed
