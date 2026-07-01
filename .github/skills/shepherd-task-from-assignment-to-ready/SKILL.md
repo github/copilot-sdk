@@ -30,11 +30,39 @@ Automate the lifecycle of a child **Task** issue from "assigned to Copilot" thro
 First, prepend an instruction to the issue body telling Copilot which base branch to use. This must happen **before** assignment to avoid a race condition where Copilot targets `main` instead.
 
 ```bash
-# Prepend base branch instruction to issue body
-CURRENT_BODY=$(gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body')
-INSTRUCTION="**Base branch:** Create your PR targeting \`$BASE_BRANCH\` (not \`main\`).\n\n\n\n\n--------\n\n"
-gh issue edit $TASK_ISSUE -R $REPO --body "${INSTRUCTION}${CURRENT_BODY}"
+# Prepend base branch instruction to issue body (use --body-file to preserve markdown formatting)
+gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' > /tmp/issue-body-$TASK_ISSUE.md
+# Create a new file with instruction prepended
+cat > /tmp/issue-body-$TASK_ISSUE-new.md <<'HEADER'
+**Base branch:** Create your PR targeting `$BASE_BRANCH` (not `main`).
+
+**Requirement:** When you open the PR, the very first thing you put in the description must be `Fixes #$TASK_ISSUE` where the issue number is this issue for which the PR aims to implement the work.
+
+--------
+
+HEADER
+cat /tmp/issue-body-$TASK_ISSUE.md >> /tmp/issue-body-$TASK_ISSUE-new.md
+gh issue edit $TASK_ISSUE -R $REPO --body-file /tmp/issue-body-$TASK_ISSUE-new.md
+rm -f /tmp/issue-body-$TASK_ISSUE.md /tmp/issue-body-$TASK_ISSUE-new.md
 ```
+
+> **PowerShell equivalent** (when running on Windows):
+> ```powershell
+> $body = gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' | Out-String
+> $instruction = @"
+> **Base branch:** Create your PR targeting ``$BASE_BRANCH`` (not ``main``).
+>
+> **Requirement:** When you open the PR, the very first thing you put in the description must be ``Fixes #$TASK_ISSUE`` where the issue number is this issue for which the PR aims to implement the work.
+>
+> --------
+>
+> "@
+> $newBody = $instruction + $body
+> $tmpFile = [System.IO.Path]::GetTempFileName()
+> Set-Content -Path $tmpFile -Value $newBody -NoNewline
+> gh issue edit $TASK_ISSUE -R $REPO --body-file $tmpFile
+> Remove-Item $tmpFile
+> ```
 
 Then assign:
 
