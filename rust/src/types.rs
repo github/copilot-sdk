@@ -20,9 +20,9 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::OpenCanvasInstance;
-/// Context window tier for models that support tiered context windows.
-pub use crate::generated::session_events::ContextTier;
 use crate::generated::session_events::ReasoningSummary;
+/// Context window tier for models that support tiered context windows.
+pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
     PermissionHandler, UserInputHandler,
@@ -1602,6 +1602,12 @@ pub struct SessionConfig {
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names the agent must not use.
     pub excluded_tools: Option<Vec<String>>,
+    /// Names of built-in agents to exclude from the session.
+    ///
+    /// Excluded built-in agents are hidden from discovery and cannot be
+    /// selected or invoked unless a custom agent with the same name is
+    /// configured.
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -1718,6 +1724,10 @@ pub struct SessionConfig {
     /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
     pub enable_session_telemetry: Option<bool>,
+    /// **Experimental.** Enables native model citations for supported providers.
+    pub enable_citations: Option<bool>,
+    /// **Experimental.** Limits applied to this session's current accounting window.
+    pub session_limits: Option<SessionLimitsConfig>,
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
@@ -1839,6 +1849,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
+            .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -1876,6 +1887,8 @@ impl std::fmt::Debug for SessionConfig {
             .field("provider", &self.provider)
             .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
+            .field("enable_citations", &self.enable_citations)
+            .field("session_limits", &self.session_limits)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
@@ -1957,6 +1970,7 @@ impl Default for SessionConfig {
             extension_info: None,
             available_tools: None,
             excluded_tools: None,
+            excluded_builtin_agents: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -1984,6 +1998,8 @@ impl Default for SessionConfig {
             providers: None,
             models: None,
             enable_session_telemetry: None,
+            enable_citations: None,
+            session_limits: None,
             model_capabilities: None,
             memory: None,
             config_directory: None,
@@ -2102,6 +2118,7 @@ impl SessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
@@ -2136,6 +2153,8 @@ impl SessionConfig {
             providers: self.providers,
             models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
+            enable_citations: self.enable_citations,
+            session_limits: self.session_limits,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
             config_dir: self.config_directory,
@@ -2390,6 +2409,16 @@ impl SessionConfig {
         self
     }
 
+    /// Set the built-in agent names to exclude from the session.
+    pub fn with_excluded_builtin_agents<I, S>(mut self, agents: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.excluded_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set MCP server configurations passed through to the CLI.
     pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
@@ -2595,6 +2624,18 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** Enable native model citations for supported providers.
+    pub fn with_enable_citations(mut self, enable: bool) -> Self {
+        self.enable_citations = Some(enable);
+        self
+    }
+
+    /// **Experimental.** Set limits for this session's current accounting window.
+    pub fn with_session_limits(mut self, limits: SessionLimitsConfig) -> Self {
+        self.session_limits = Some(limits);
+        self
+    }
+
     /// Set per-property overrides for model capabilities.
     pub fn with_model_capabilities(
         mut self,
@@ -2741,6 +2782,12 @@ pub struct ResumeSessionConfig {
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
     pub excluded_tools: Option<Vec<String>>,
+    /// Names of built-in agents to exclude from the resumed session.
+    ///
+    /// Excluded built-in agents are hidden from discovery and cannot be
+    /// selected or invoked unless a custom agent with the same name is
+    /// configured.
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -2819,6 +2866,10 @@ pub struct ResumeSessionConfig {
     /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
     pub enable_session_telemetry: Option<bool>,
+    /// **Experimental.** Enables native model citations for supported providers.
+    pub enable_citations: Option<bool>,
+    /// **Experimental.** Limits applied to this session's current accounting window.
+    pub session_limits: Option<SessionLimitsConfig>,
     /// Per-property model capability overrides on resume.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Per-session configuration for the runtime memory feature on resume.
@@ -2917,6 +2968,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
+            .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -2954,6 +3006,8 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("provider", &self.provider)
             .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
+            .field("enable_citations", &self.enable_citations)
+            .field("session_limits", &self.session_limits)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
@@ -3070,6 +3124,7 @@ impl ResumeSessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
@@ -3104,6 +3159,8 @@ impl ResumeSessionConfig {
             providers: self.providers,
             models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
+            enable_citations: self.enable_citations,
+            session_limits: self.session_limits,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
             config_dir: self.config_directory,
@@ -3160,6 +3217,7 @@ impl ResumeSessionConfig {
             extension_info: None,
             available_tools: None,
             excluded_tools: None,
+            excluded_builtin_agents: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -3187,6 +3245,8 @@ impl ResumeSessionConfig {
             providers: None,
             models: None,
             enable_session_telemetry: None,
+            enable_citations: None,
+            session_limits: None,
             model_capabilities: None,
             memory: None,
             config_directory: None,
@@ -3420,6 +3480,16 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set the built-in agent names to exclude from the resumed session.
+    pub fn with_excluded_builtin_agents<I, S>(mut self, agents: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.excluded_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Re-supply MCP server configurations on resume.
     pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
@@ -3615,6 +3685,18 @@ impl ResumeSessionConfig {
     /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
     pub fn with_enable_session_telemetry(mut self, enable: bool) -> Self {
         self.enable_session_telemetry = Some(enable);
+        self
+    }
+
+    /// **Experimental.** Enable native model citations for supported providers on resume.
+    pub fn with_enable_citations(mut self, enable: bool) -> Self {
+        self.enable_citations = Some(enable);
+        self
+    }
+
+    /// **Experimental.** Set limits for this session's current accounting window.
+    pub fn with_session_limits(mut self, limits: SessionLimitsConfig) -> Self {
+        self.session_limits = Some(limits);
         self
     }
 

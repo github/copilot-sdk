@@ -12,6 +12,7 @@ import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
     ReasoningSummary,
+    SessionLimitsConfig,
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
@@ -1876,6 +1877,13 @@ export interface SessionConfigBase {
     excludedTools?: string[] | ToolSet;
 
     /**
+     * Names of built-in agents to exclude from the session. Excluded built-in
+     * agents are hidden from discovery and cannot be selected or invoked unless
+     * a custom agent with the same name is configured.
+     */
+    excludedBuiltinAgents?: string[];
+
+    /**
      * Custom provider configuration (BYOK - Bring Your Own Key).
      * When specified, uses the provided API endpoint instead of the Copilot API.
      */
@@ -1923,6 +1931,20 @@ export interface SessionConfigBase {
      * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
      */
     enableSessionTelemetry?: boolean;
+
+    /**
+     * Enables native model citations for supported providers.
+     *
+     * @experimental
+     */
+    enableCitations?: boolean;
+
+    /**
+     * Limits applied to this session's current accounting window.
+     *
+     * @experimental
+     */
+    sessionLimits?: SessionLimitsConfig;
 
     /**
      * When true, the runtime skips loading custom-instruction sources
