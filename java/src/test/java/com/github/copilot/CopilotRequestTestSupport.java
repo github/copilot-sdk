@@ -122,6 +122,58 @@ final class CopilotRequestTestSupport {
         return sb.toString();
     }
 
+    /**
+     * Builds a complete Anthropic Messages SSE body (message_start … message_stop)
+     * for a streaming {@code /messages} response. The buffered JSON message is only
+     * valid for a non-streaming request; a streaming request expects named SSE
+     * events or the runtime fails to finalize the message.
+     */
+    static String anthropicMessageSseBody(String text) {
+        Map<String, Object> startMessage = new LinkedHashMap<>();
+        startMessage.put("id", "msg_stub_1");
+        startMessage.put("type", "message");
+        startMessage.put("role", "assistant");
+        startMessage.put("model", "claude-sonnet-4.5");
+        startMessage.put("content", List.of());
+        startMessage.put("stop_reason", null);
+        startMessage.put("stop_sequence", null);
+        startMessage.put("usage", Map.of("input_tokens", 5, "output_tokens", 1));
+        Map<String, Object> messageStart = new LinkedHashMap<>();
+        messageStart.put("type", "message_start");
+        messageStart.put("message", startMessage);
+
+        Map<String, Object> contentBlockStart = new LinkedHashMap<>();
+        contentBlockStart.put("type", "content_block_start");
+        contentBlockStart.put("index", 0);
+        contentBlockStart.put("content_block", Map.of("type", "text", "text", ""));
+
+        Map<String, Object> contentBlockDelta = new LinkedHashMap<>();
+        contentBlockDelta.put("type", "content_block_delta");
+        contentBlockDelta.put("index", 0);
+        contentBlockDelta.put("delta", Map.of("type", "text_delta", "text", text));
+
+        Map<String, Object> contentBlockStop = new LinkedHashMap<>();
+        contentBlockStop.put("type", "content_block_stop");
+        contentBlockStop.put("index", 0);
+
+        Map<String, Object> messageDeltaDelta = new LinkedHashMap<>();
+        messageDeltaDelta.put("stop_reason", "end_turn");
+        messageDeltaDelta.put("stop_sequence", null);
+        Map<String, Object> messageDelta = new LinkedHashMap<>();
+        messageDelta.put("type", "message_delta");
+        messageDelta.put("delta", messageDeltaDelta);
+        messageDelta.put("usage", Map.of("output_tokens", 7));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(sse("message_start", messageStart));
+        sb.append(sse("content_block_start", contentBlockStart));
+        sb.append(sse("content_block_delta", contentBlockDelta));
+        sb.append(sse("content_block_stop", contentBlockStop));
+        sb.append(sse("message_delta", messageDelta));
+        sb.append(sse("message_stop", Map.of("type", "message_stop")));
+        return sb.toString();
+    }
+
     // --- Synthetic response builders for the CopilotRequestHandler send override
     // ---
 
@@ -191,6 +243,9 @@ final class CopilotRequestTestSupport {
         }
 
         if (u.endsWith("/messages")) {
+            if (stream) {
+                return sseResponse(anthropicMessageSseBody(text));
+            }
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("id", "msg_stub_1");
             body.put("type", "message");
