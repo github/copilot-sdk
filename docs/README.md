@@ -46,6 +46,7 @@ Guides for building with the SDK's capabilities.
 * [MCP Servers](./features/mcp.md): integrate Model Context Protocol servers
 * [Skills](./features/skills.md): load reusable prompt modules
 * [Plugin Directories](./features/plugin-directories.md): bundle skills, hooks, MCP servers, and agents as a single loadable plugin
+* [Session limits](./features/session-limits.md): set an AI Credits budget for a session
 * [Image Input](./features/image-input.md): send images as attachments
 * [Streaming Events](./features/streaming-events.md): real-time event reference
 * [Steering & Queueing](./features/steering-and-queueing.md): message delivery modes

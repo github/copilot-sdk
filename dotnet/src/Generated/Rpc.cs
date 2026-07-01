@@ -745,6 +745,10 @@ public sealed class CopilotUserResponse
     [JsonPropertyName("restricted_telemetry")]
     public bool? RestrictedTelemetry { get; set; }
 
+    /// <summary>Gets or sets the <c>te</c> value.</summary>
+    [JsonPropertyName("te")]
+    public bool? Te { get; set; }
+
     /// <summary>Gets or sets the <c>token_based_billing</c> value.</summary>
     [JsonPropertyName("token_based_billing")]
     public bool? TokenBasedBilling { get; set; }

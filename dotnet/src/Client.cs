@@ -981,9 +981,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ReasoningSummary,
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+                config.EnableCitations,
                 wireSystemMessage,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
+                config.ExcludedBuiltInAgents,
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
@@ -1014,6 +1016,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
+                config.SessionLimits,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
@@ -1174,11 +1177,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             transformCallbacks,
             hasHooks,
             "CopilotClient.ResumeSessionAsync");
-        if (config.OnMcpAuthRequest is not null)
-        {
-            await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
-        }
-
         try
         {
             var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
@@ -1191,9 +1189,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ReasoningSummary,
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+                config.EnableCitations,
                 wireSystemMessage,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
+                config.ExcludedBuiltInAgents,
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
@@ -1225,6 +1225,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
+                config.SessionLimits,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
@@ -1261,6 +1262,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
             session.SetOpenCanvases(response.OpenCanvases);
+
+            if (config.OnMcpAuthRequest is not null)
+            {
+                await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
+            }
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
         }
@@ -2437,9 +2443,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ReasoningSummary? ReasoningSummary,
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
+        bool? EnableCitations,
         SystemMessageConfig? SystemMessage,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
+        [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
@@ -2470,6 +2478,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
+        SessionLimitsConfig? SessionLimits,
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
@@ -2532,9 +2541,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ReasoningSummary? ReasoningSummary,
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
+        bool? EnableCitations,
         SystemMessageConfig? SystemMessage,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
+        [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
@@ -2566,6 +2577,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
+        SessionLimitsConfig? SessionLimits,
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
@@ -2668,6 +2680,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(CapiSessionOptions))]
     [JsonSerializable(typeof(NamedProviderConfig))]
     [JsonSerializable(typeof(ProviderModelConfig))]
+    [JsonSerializable(typeof(SessionLimitsConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
     [JsonSerializable(typeof(SessionCapabilities))]

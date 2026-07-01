@@ -251,6 +251,49 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	assertCapiEnableWebSocketResponses(t, <-resumeParams)
 }
 
+func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		ExcludedBuiltInAgents: []string{"explore"},
+		EnableCitations:       Bool(true),
+		SessionLimits:         &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertNewSessionOptions(t, <-createParams, true, "explore", 30)
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed-options","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-options", &ResumeSessionConfig{
+		ExcludedBuiltInAgents: []string{"task"},
+		EnableCitations:       Bool(false),
+		SessionLimits:         &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
+	})
+	if err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertNewSessionOptions(t, <-resumeParams, false, "task", 15)
+}
+
 func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 	t.Helper()
 
@@ -258,6 +301,7 @@ func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 	if err := json.Unmarshal(params, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal request params: %v", err)
 	}
+
 	capi, ok := decoded["capi"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected capi object in request params, got %T", decoded["capi"])
@@ -265,6 +309,39 @@ func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 	if capi["enableWebSocketResponses"] != false {
 		t.Fatalf("expected capi.enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
 	}
+}
+
+func assertNewSessionOptions(
+	t *testing.T,
+	params json.RawMessage,
+	expectedCitations bool,
+	expectedAgent string,
+	expectedCredits float64,
+) {
+	t.Helper()
+
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if decoded["enableCitations"] != expectedCitations {
+		t.Fatalf("expected enableCitations=%v, got %v", expectedCitations, decoded["enableCitations"])
+	}
+	agents, ok := decoded["excludedBuiltinAgents"].([]any)
+	if !ok || len(agents) != 1 || agents[0] != expectedAgent {
+		t.Fatalf("expected excludedBuiltinAgents=[%q], got %#v", expectedAgent, decoded["excludedBuiltinAgents"])
+	}
+	limits, ok := decoded["sessionLimits"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sessionLimits object, got %T", decoded["sessionLimits"])
+	}
+	if limits["maxAiCredits"] != expectedCredits {
+		t.Fatalf("expected sessionLimits.maxAiCredits=%v, got %v", expectedCredits, limits["maxAiCredits"])
+	}
+}
+
+func float64Ptr(value float64) *float64 {
+	return &value
 }
 
 func sessionIDFromParams(t *testing.T, params json.RawMessage) string {
@@ -1406,7 +1483,7 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 		assertMCPAuthInterest(t, snapshot[1])
 	})
 
-	t.Run("resume conditionally registers MCP OAuth interest before session resume", func(t *testing.T) {
+	t.Run("resume conditionally registers MCP OAuth interest after session resume", func(t *testing.T) {
 		client, requests, cleanup := newInMemoryClient(t)
 		defer cleanup()
 
@@ -1435,13 +1512,13 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 		defer withAuth.Disconnect()
 
 		snapshot := requests.snapshot()
-		if snapshot[0].Method != "session.eventLog.registerInterest" {
-			t.Fatalf("expected MCP auth interest before session.resume, got %s", snapshot[0].Method)
+		if snapshot[0].Method != "session.resume" {
+			t.Fatalf("expected session.resume before MCP auth interest, got %s", snapshot[0].Method)
 		}
-		if snapshot[1].Method != "session.resume" {
-			t.Fatalf("expected session.resume after MCP auth interest, got %s", snapshot[1].Method)
+		if snapshot[1].Method != "session.eventLog.registerInterest" {
+			t.Fatalf("expected MCP auth interest after session.resume, got %s", snapshot[1].Method)
 		}
-		assertMCPAuthInterest(t, snapshot[0])
+		assertMCPAuthInterest(t, snapshot[1])
 	})
 }
 

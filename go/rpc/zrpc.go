@@ -1393,6 +1393,7 @@ type CopilotUserResponse struct {
 	// Schema for the `CopilotUserResponseQuotaSnapshots` type.
 	QuotaSnapshots      *CopilotUserResponseQuotaSnapshots `json:"quota_snapshots,omitempty"`
 	RestrictedTelemetry *bool                              `json:"restricted_telemetry,omitempty"`
+	Te                  *bool                              `json:"te,omitempty"`
 	TokenBasedBilling   *bool                              `json:"token_based_billing,omitempty"`
 }
 
@@ -2067,6 +2068,11 @@ type GitHubTelemetryEvent struct {
 	SessionID *string `json:"session_id,omitempty"`
 }
 
+// Experimental: GitHubTelemetryEventResult is part of an experimental API and may change or
+// be removed.
+type GitHubTelemetryEventResult struct {
+}
+
 // Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the
 // runtime forwards to a host connection that opted into telemetry forwarding for the
 // session.
@@ -2365,6 +2371,8 @@ type InstructionSource struct {
 type LlmInferenceHeaders map[string][]string
 
 // A request body chunk or cancellation signal.
+// Experimental: LlmInferenceHTTPRequestChunkRequest is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestChunkRequest struct {
 	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
 	Binary *bool `json:"binary,omitempty"`
@@ -2385,10 +2393,14 @@ type LlmInferenceHTTPRequestChunkRequest struct {
 
 // Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as
 // fire-and-forget.
+// Experimental: LlmInferenceHTTPRequestChunkResult is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestChunkResult struct {
 }
 
 // The head of an outbound model-layer HTTP request.
+// Experimental: LlmInferenceHTTPRequestStartRequest is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestStartRequest struct {
 	Headers map[string][]string `json:"headers"`
 	// HTTP method, e.g. GET, POST.
@@ -2415,6 +2427,8 @@ type LlmInferenceHTTPRequestStartRequest struct {
 
 // Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it
 // does not imply the request will succeed.
+// Experimental: LlmInferenceHTTPRequestStartResult is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestStartResult struct {
 }
 
@@ -10571,6 +10585,8 @@ const (
 // distinguishes text from binary frames. The SDK consumer uses this to decide whether to
 // service the request with an HTTP client or a WebSocket client. It is the one piece of
 // request metadata the consumer cannot reliably infer from the URL or headers alone.
+// Experimental: LlmInferenceHTTPRequestStartTransport is part of an experimental API and
+// may change or be removed.
 type LlmInferenceHTTPRequestStartTransport string
 
 const (
@@ -18705,7 +18721,7 @@ type GitHubTelemetryHandler interface {
 	// Parameters: Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry
 	// event the runtime forwards to a host connection that opted into telemetry forwarding for
 	// the session.
-	Event(request *GitHubTelemetryNotification) error
+	Event(request *GitHubTelemetryNotification) (*GitHubTelemetryEventResult, error)
 }
 
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
@@ -18768,12 +18784,17 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
 		if handlers == nil || handlers.GitHubTelemetry == nil {
-			return nil, nil
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No gitHubTelemetry client-global handler registered"}
 		}
-		if err := handlers.GitHubTelemetry.Event(&request); err != nil {
+		result, err := handlers.GitHubTelemetry.Event(&request)
+		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}
-		return nil, nil
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
 	})
 	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request LlmInferenceHTTPRequestChunkRequest

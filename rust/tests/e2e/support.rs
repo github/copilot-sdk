@@ -21,18 +21,8 @@ use tokio::sync::Semaphore;
 static E2E_CONCURRENCY: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(e2e_concurrency()));
 
 pub const DEFAULT_TEST_TOKEN: &str = "rust-e2e-token";
-const UNSUPPORTED_SDK_HOOKS_MESSAGE: &str = "SDK hook callbacks are no longer supported";
 
 type TestFuture<'a> = Pin<Box<dyn Future<Output = ()> + 'a>>;
-
-pub fn assert_unsupported_hooks_error(err: impl std::fmt::Display) {
-    let message = err.to_string();
-    if message.contains(UNSUPPORTED_SDK_HOOKS_MESSAGE) {
-        return;
-    }
-
-    panic!("expected unsupported hooks error, got: {message}");
-}
 
 pub async fn with_e2e_context<F>(category: &str, snapshot_name: &str, test: F)
 where

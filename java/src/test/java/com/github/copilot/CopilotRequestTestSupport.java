@@ -190,6 +190,19 @@ final class CopilotRequestTestSupport {
             return sseResponse(sb.toString());
         }
 
+        if (u.endsWith("/messages")) {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("id", "msg_stub_1");
+            body.put("type", "message");
+            body.put("role", "assistant");
+            body.put("model", "claude-sonnet-4.5");
+            body.put("content", List.of(Map.of("type", "text", "text", text)));
+            body.put("stop_reason", "end_turn");
+            body.put("stop_sequence", null);
+            body.put("usage", Map.of("input_tokens", 5, "output_tokens", 7));
+            return jsonResponse(json(body));
+        }
+
         return jsonResponse(json(chatCompletion(text)));
     }
 
@@ -405,7 +418,7 @@ final class CopilotRequestTestSupport {
     }
 
     /** A single request the handler intercepted. */
-    record InterceptedRequest(String url, String sessionId) {
+    record InterceptedRequest(String url, String sessionId, String body) {
     }
 
     /**
@@ -440,9 +453,10 @@ final class CopilotRequestTestSupport {
         protected HttpResponse<InputStream> sendRequest(HttpRequest request, CopilotRequestContext ctx)
                 throws Exception {
             String url = request.uri().toString();
-            records.add(new InterceptedRequest(url, ctx.sessionId()));
+            String body = requestBodyText(request);
+            records.add(new InterceptedRequest(url, ctx.sessionId(), body));
             if (isInferenceUrl(url)) {
-                return buildInferenceResponse(url, requestBodyText(request), text);
+                return buildInferenceResponse(url, body, text);
             }
             return buildNonInferenceResponse(url);
         }

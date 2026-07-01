@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -16,7 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
-import java.util.Optional;
+import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
  * Configuration for resuming an existing Copilot session.
@@ -46,11 +47,14 @@ public class ResumeSessionConfig {
     private SystemMessageConfig systemMessage;
     private List<String> availableTools;
     private List<String> excludedTools;
+    private List<String> excludedBuiltInAgents;
     private ProviderConfig provider;
     private CapiSessionOptions capi;
     private List<NamedProviderConfig> providers;
     private List<ProviderModelConfig> models;
     private Boolean enableSessionTelemetry;
+    private Boolean enableCitations;
+    private SessionLimitsConfig sessionLimits;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
@@ -240,6 +244,30 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the built-in agent names excluded from the resumed session.
+     *
+     * @return the list of excluded built-in agent names
+     */
+    public List<String> getExcludedBuiltInAgents() {
+        return excludedBuiltInAgents == null ? null : Collections.unmodifiableList(excludedBuiltInAgents);
+    }
+
+    /**
+     * Sets the built-in agent names to exclude from the resumed session.
+     * <p>
+     * Excluded built-in agents are hidden from discovery and cannot be selected or
+     * invoked unless a custom agent with the same name is configured.
+     *
+     * @param excludedBuiltInAgents
+     *            the built-in agent names to exclude
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
+        this.excludedBuiltInAgents = excludedBuiltInAgents != null ? new ArrayList<>(excludedBuiltInAgents) : null;
+        return this;
+    }
+
+    /**
      * Gets the custom API provider configuration.
      *
      * @return the provider configuration
@@ -380,6 +408,65 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Gets whether native model citations are enabled.
+     *
+     * @return an {@link java.util.Optional} containing whether citations are
+     *         enabled, or {@link java.util.Optional#empty()} for the default
+     */
+    @CopilotExperimental
+    @JsonIgnore
+    public Optional<Boolean> getEnableCitations() {
+        return Optional.ofNullable(enableCitations);
+    }
+
+    /**
+     * Enables or disables native model citations for supported providers.
+     *
+     * @param enableCitations
+     *            whether to enable citations
+     * @return this config instance for method chaining
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig setEnableCitations(boolean enableCitations) {
+        this.enableCitations = enableCitations;
+        return this;
+    }
+
+    /**
+     * Clears the enableCitations setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig clearEnableCitations() {
+        this.enableCitations = null;
+        return this;
+    }
+
+    /**
+     * Gets the limits for this session's current accounting window.
+     *
+     * @return the session limits, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public SessionLimitsConfig getSessionLimits() {
+        return sessionLimits;
+    }
+
+    /**
+     * Sets limits for this session's current accounting window.
+     *
+     * @param sessionLimits
+     *            the session limits
+     * @return this config instance for method chaining
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig setSessionLimits(SessionLimitsConfig sessionLimits) {
+        this.sessionLimits = sessionLimits;
         return this;
     }
 
@@ -1678,11 +1765,16 @@ public class ResumeSessionConfig {
         copy.systemMessage = this.systemMessage;
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
+        copy.excludedBuiltInAgents = this.excludedBuiltInAgents != null
+                ? new ArrayList<>(this.excludedBuiltInAgents)
+                : null;
         copy.provider = this.provider;
         copy.capi = this.capi;
         copy.providers = this.providers != null ? new ArrayList<>(this.providers) : null;
         copy.models = this.models != null ? new ArrayList<>(this.models) : null;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
+        copy.enableCitations = this.enableCitations;
+        copy.sessionLimits = this.sessionLimits;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;

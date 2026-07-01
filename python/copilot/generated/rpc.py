@@ -16928,6 +16928,7 @@ class CopilotUserResponse:
     """Schema for the `CopilotUserResponseQuotaSnapshots` type."""
 
     restricted_telemetry: bool | None = None
+    te: bool | None = None
     token_based_billing: bool | None = None
 
     @staticmethod
@@ -16957,8 +16958,9 @@ class CopilotUserResponse:
         quota_reset_date_utc = from_union([from_str, from_none], obj.get("quota_reset_date_utc"))
         quota_snapshots = from_union([lambda x: from_dict(lambda x: from_union([CopilotUserResponseQuotaSnapshots.from_dict, from_none], x), x), from_none], obj.get("quota_snapshots"))
         restricted_telemetry = from_union([from_bool, from_none], obj.get("restricted_telemetry"))
+        te = from_union([from_bool, from_none], obj.get("te"))
         token_based_billing = from_union([from_bool, from_none], obj.get("token_based_billing"))
-        return CopilotUserResponse(access_type_sku, analytics_tracking_id, assigned_date, can_signup_for_limited, can_upgrade_plan, chat_enabled, cli_remote_control_enabled, cloud_session_storage_enabled, codex_agent_enabled, copilot_plan, copilotignore_enabled, endpoints, is_mcp_enabled, is_staff, limited_user_quotas, limited_user_reset_date, login, monthly_quotas, organization_list, organization_login_list, quota_reset_date, quota_reset_date_utc, quota_snapshots, restricted_telemetry, token_based_billing)
+        return CopilotUserResponse(access_type_sku, analytics_tracking_id, assigned_date, can_signup_for_limited, can_upgrade_plan, chat_enabled, cli_remote_control_enabled, cloud_session_storage_enabled, codex_agent_enabled, copilot_plan, copilotignore_enabled, endpoints, is_mcp_enabled, is_staff, limited_user_quotas, limited_user_reset_date, login, monthly_quotas, organization_list, organization_login_list, quota_reset_date, quota_reset_date_utc, quota_snapshots, restricted_telemetry, te, token_based_billing)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -17010,6 +17012,8 @@ class CopilotUserResponse:
             result["quota_snapshots"] = from_union([lambda x: from_dict(lambda x: from_union([lambda x: to_class(CopilotUserResponseQuotaSnapshots, x), from_none], x), x), from_none], self.quota_snapshots)
         if self.restricted_telemetry is not None:
             result["restricted_telemetry"] = from_union([from_bool, from_none], self.restricted_telemetry)
+        if self.te is not None:
+            result["te"] = from_union([from_bool, from_none], self.te)
         if self.token_based_billing is not None:
             result["token_based_billing"] = from_union([from_bool, from_none], self.token_based_billing)
         return result
@@ -27092,13 +27096,13 @@ def register_client_global_api_handlers(
         result = await handler.http_request_chunk(request)
         return result.to_dict()
     client.set_request_handler("llmInference.httpRequestChunk", handle_llm_inference_http_request_chunk)
-    async def handle_git_hub_telemetry_event(params: dict) -> None:
+    async def handle_git_hub_telemetry_event(params: dict) -> dict | None:
         request = GitHubTelemetryNotification.from_dict(params)
         handler = handlers.git_hub_telemetry
-        if handler is None: return None
+        if handler is None: raise RuntimeError("No git_hub_telemetry client-global handler registered")
         await handler.event(request)
         return None
-    client.set_notification_method_handler("gitHubTelemetry.event", handle_git_hub_telemetry_event)
+    client.set_request_handler("gitHubTelemetry.event", handle_git_hub_telemetry_event)
 
 __all__ = [
     "APIKeyAuthInfo",

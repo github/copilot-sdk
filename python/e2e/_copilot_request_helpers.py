@@ -223,6 +223,24 @@ def build_inference_response(request: httpx.Request, text: str = SYNTHETIC_TEXT)
             content=stream_body.encode(),
         )
 
+    if url.endswith("/messages"):
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            content=json.dumps(
+                {
+                    "id": "msg_stub_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4.5",
+                    "content": [{"type": "text", "text": text}],
+                    "stop_reason": "end_turn",
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 5, "output_tokens": 7},
+                }
+            ).encode(),
+        )
+
     return httpx.Response(
         200,
         headers={"content-type": "application/json"},

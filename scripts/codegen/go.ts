@@ -3784,6 +3784,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         ...collectRpcMethods(schema.server || {}),
         ...collectRpcMethods(schema.session || {}),
         ...collectRpcMethods(schema.clientSession || {}),
+        ...collectRpcMethods(schema.clientGlobal || {}),
     ].sort((left, right) => left.rpcMethod.localeCompare(right.rpcMethod));
 
     // Build a combined definition map, including shared API definitions plus
@@ -3843,28 +3844,6 @@ async function generateRpc(schemaPath?: string): Promise<void> {
                     goParamsTypeName(method)
                 );
             }
-        }
-    }
-
-    // Client-global methods are intentionally excluded from `allMethods` above
-    // (which drives server/session/clientSession wrapper synthesis). A void
-    // client-global result has no named definition in the schema, so its empty
-    // `*Result` wrapper would otherwise be referenced but never emitted. Emit it
-    // here, mirroring the void handling applied to the other method groups.
-    for (const method of collectRpcMethods(schema.clientGlobal || {})) {
-        const resultSchema = getMethodResultSchema(method);
-        const resultTypeName = goResultTypeName(method);
-        if (
-            isVoidSchema(resultSchema) &&
-            !method.notification &&
-            !(resultTypeName in allDefinitions)
-        ) {
-            allDefinitions[resultTypeName] = {
-                title: resultTypeName,
-                type: "object",
-                properties: {},
-                additionalProperties: false,
-            };
         }
     }
 
@@ -4406,10 +4385,6 @@ function emitClientGlobalApiRegistration(lines: string[], clientSchema: Record<s
                 pushGoExperimentalMethodComment(lines, clientHandlerMethodName(method.rpcMethod), "\t");
             }
             const paramsType = resolveType(goParamsTypeName(method));
-            if (method.notification) {
-                lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) error`);
-                continue;
-            }
             const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
             let returnType: string;
             if (isOpaqueJson(resultSchema)) {
@@ -4455,24 +4430,6 @@ function emitClientGlobalApiRegistration(lines: string[], clientSchema: Record<s
         const handlerField = toGoFieldName(groupName);
         for (const method of methods) {
             const paramsType = resolveType(goParamsTypeName(method));
-            if (method.notification) {
-                // Notification methods carry no response: register a handler that
-                // returns nil so the transport does not emit a JSON-RPC reply.
-                lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);
-                lines.push(`\t\tvar request ${paramsType}`);
-                lines.push(`\t\tif err := json.Unmarshal(params, &request); err != nil {`);
-                lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}`);
-                lines.push(`\t\t}`);
-                lines.push(`\t\tif handlers == nil || handlers.${handlerField} == nil {`);
-                lines.push(`\t\t\treturn nil, nil`);
-                lines.push(`\t\t}`);
-                lines.push(`\t\tif err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request); err != nil {`);
-                lines.push(`\t\t\treturn nil, clientGlobalHandlerError(err)`);
-                lines.push(`\t\t}`);
-                lines.push(`\t\treturn nil, nil`);
-                lines.push(`\t})`);
-                continue;
-            }
             lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);
             lines.push(`\t\tvar request ${paramsType}`);
             lines.push(`\t\tif err := json.Unmarshal(params, &request); err != nil {`);

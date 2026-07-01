@@ -1423,11 +1423,14 @@ export class CopilotClient {
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
                 toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
+                excludedBuiltinAgents: config.excludedBuiltinAgents,
                 provider: bearerWireProvider,
                 capi: config.capi,
                 providers: bearerWireProviders,
                 models: config.models,
                 enableSessionTelemetry: config.enableSessionTelemetry,
+                enableCitations: config.enableCitations,
+                sessionLimits: config.sessionLimits,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission: !!config.onPermissionRequest,
@@ -1595,12 +1598,6 @@ export class CopilotClient {
         }
         this.sessions.set(sessionId, session);
         this.setupSessionFs(session, config);
-        if (config.onMcpAuthRequest) {
-            await this.connection!.sendRequest("session.eventLog.registerInterest", {
-                sessionId,
-                eventType: "mcp.oauth_required",
-            });
-        }
 
         const toolFilterOptions = this.resolveToolFilterOptions(config);
 
@@ -1618,6 +1615,9 @@ export class CopilotClient {
                 excludedTools: toolFilterOptions.excludedTools,
                 toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
                 enableSessionTelemetry: config.enableSessionTelemetry,
+                excludedBuiltinAgents: config.excludedBuiltinAgents,
+                enableCitations: config.enableCitations,
+                sessionLimits: config.sessionLimits,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,
@@ -1694,6 +1694,12 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
+            if (config.onMcpAuthRequest) {
+                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                    sessionId,
+                    eventType: "mcp.oauth_required",
+                });
+            }
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {

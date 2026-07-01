@@ -230,7 +230,7 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_mcp_auth_handler_registers_interest_before_resume(self):
+    async def test_mcp_auth_handler_registers_interest_after_resume(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
         try:
@@ -251,15 +251,15 @@ class TestCreateSessionConfig:
                 on_mcp_auth_request=lambda request: {"kind": "cancelled"},
             )
 
-            interest_method, interest_payload = captured[0]
-            resume_method, resume_payload = captured[1]
+            resume_method, resume_payload = captured[0]
+            interest_method, interest_payload = captured[1]
+            assert resume_method == "session.resume"
+            assert resume_payload["requestPermission"] is True
             assert interest_method == "session.eventLog.registerInterest"
             assert interest_payload == {
                 "sessionId": "session-with-auth",
                 "eventType": "mcp.oauth_required",
             }
-            assert resume_method == "session.resume"
-            assert resume_payload["requestPermission"] is True
         finally:
             await client.force_stop()
 
@@ -553,6 +553,47 @@ class TestCreateSessionConfig:
 
             assert captured["session.create"]["contextTier"] == "long_context"
             assert captured["session.resume"]["contextTier"] == "default"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_new_session_options(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                enable_citations=True,
+                excluded_builtin_agents=["explore"],
+                session_limits={"max_ai_credits": 30},
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                enable_citations=False,
+                excluded_builtin_agents=["task"],
+                session_limits={"max_ai_credits": 15},
+            )
+
+            assert captured["session.create"]["enableCitations"] is True
+            assert captured["session.create"]["excludedBuiltinAgents"] == ["explore"]
+            assert captured["session.create"]["sessionLimits"] == {"maxAiCredits": 30}
+            assert captured["session.resume"]["enableCitations"] is False
+            assert captured["session.resume"]["excludedBuiltinAgents"] == ["task"]
+            assert captured["session.resume"]["sessionLimits"] == {"maxAiCredits": 15}
         finally:
             await client.force_stop()
 
