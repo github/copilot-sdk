@@ -167,7 +167,7 @@ public class SessionRequestBuilderTest {
         var config = new SessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
                 .setSessionLimits(sessionLimits);
 
-        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "session-policy");
 
         assertEquals(List.of("explore"), request.getExcludedBuiltInAgents());
         assertTrue(request.getEnableCitations());

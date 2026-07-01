@@ -263,7 +263,7 @@ public class ResumeSessionConfig {
      * @return this config instance for method chaining
      */
     public ResumeSessionConfig setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
-        this.excludedBuiltInAgents = excludedBuiltInAgents;
+        this.excludedBuiltInAgents = excludedBuiltInAgents != null ? new ArrayList<>(excludedBuiltInAgents) : null;
         return this;
     }
 

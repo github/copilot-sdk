@@ -361,7 +361,7 @@ public class SessionConfig {
      * @return this config instance for method chaining
      */
     public SessionConfig setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
-        this.excludedBuiltInAgents = excludedBuiltInAgents;
+        this.excludedBuiltInAgents = excludedBuiltInAgents != null ? new ArrayList<>(excludedBuiltInAgents) : null;
         return this;
     }
 
