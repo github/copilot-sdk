@@ -49,14 +49,15 @@ class McpOAuthResumeE2ETest {
         String sessionId;
         try (var client = ctx.createClient();
                 var session = client
-                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                                .setOnMcpAuthRequest((request, invocation) -> CompletableFuture
-                                        .completedFuture(McpAuthResult.cancelled())))
+                        .createSession(
+                                new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                        .setOnMcpAuthRequest((request, invocation) -> CompletableFuture
+                                                .completedFuture(McpAuthResult.cancelled())))
                         .get(30, TimeUnit.SECONDS)) {
             sessionId = session.getSessionId();
 
-            AssistantMessageEvent response = session
-                    .sendAndWait(new MessageOptions().setPrompt("What is 1+1?"), 60_000).get(90, TimeUnit.SECONDS);
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?"), 60_000)
+                    .get(90, TimeUnit.SECONDS);
             assertNotNull(response);
             assertTrue(response.getData().content().contains("2"),
                     "Response should contain 2: " + response.getData().content());
