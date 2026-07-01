@@ -23,6 +23,64 @@ SessionConfig config = new SessionConfig()
 - @coleflennikenmsft made their first contribution in [#1854](https://github.com/github/copilot-sdk/pull/1854)
 - @szabta89 made their first contribution in [#1856](https://github.com/github/copilot-sdk/pull/1856)
 
+## [v1.0.5](https://github.com/github/copilot-sdk/releases/tag/v1.0.5) (2026-07-01)
+
+### Feature: MCP OAuth host token handlers
+
+SDK applications can now handle OAuth challenges from MCP servers that require host-provided authentication. Register an `onMcpAuthRequest` callback on the session config and the SDK will invoke it whenever an MCP server responds with a `401 WWW-Authenticate` challenge; return an access token (or cancel the request). Supports initial auth, refresh, reauth, and upscope flows across all SDKs. ([#1669](https://github.com/github/copilot-sdk/pull/1669))
+
+```ts
+const session = await client.createSession({
+    onMcpAuthRequest: async (request) => ({
+        accessToken: await myIdentityProvider.getToken(request.serverUrl),
+    }),
+});
+```
+
+```cs
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    OnMcpAuthRequest = async ctx =>
+        McpAuthResult.FromToken(new McpAuthToken
+        {
+            AccessToken = await myIdentityProvider.GetTokenAsync(ctx.ServerUrl)
+        }),
+});
+```
+
+### Feature: session options for citations, excluded agents, and spending limits
+
+Three additional session configuration options are now available across all SDKs. ([#1865](https://github.com/github/copilot-sdk/pull/1865))
+
+```ts
+const session = await client.createSession({
+    enableCitations: true,
+    excludedBuiltinAgents: ["github-search"],
+    sessionLimits: { maxAiCredits: 10 },
+});
+```
+
+```cs
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    EnableCitations = true,
+    ExcludedBuiltInAgents = ["github-search"],
+    SessionLimits = new SessionLimitsConfig { MaxAiCredits = 10 },
+});
+```
+
+### Other changes
+
+- improvement: **[All SDKs]** rename BYOK callback field `getBearerToken` → `bearerTokenProvider`; add `sessionId` to `ProviderTokenArgs` for per-session token scoping ([#1796](https://github.com/github/copilot-sdk/pull/1796))
+- bugfix: **[Node]** fix MCP OAuth `registerInterest` sent before `session.resume`, causing "Session not found" errors when resuming a session with `onMcpAuthRequest` ([#1861](https://github.com/github/copilot-sdk/pull/1861))
+- feature: **[Java]** `@CopilotTool` and `@CopilotToolParam` annotations with compile-time annotation processor for ergonomic tool registration via `ToolDefinition.fromObject()` ([#1792](https://github.com/github/copilot-sdk/pull/1792), [#1838](https://github.com/github/copilot-sdk/pull/1838))
+- feature: **[Java]** `ToolInvocation` parameter injection in `@CopilotTool` methods for accessing session context without exposing it to the LLM schema ([#1832](https://github.com/github/copilot-sdk/pull/1832))
+- feature: **[Rust]** add 9 GitHub-anchored variants to `Attachment` enum (`GitHubCommit`, `GitHubRelease`, `GitHubActionsJob`, `GitHubRepository`, `GitHubFileDiff`, `GitHubTreeComparison`, `GitHubUrl`, `GitHubFile`, `GitHubSnippet`) ([#1823](https://github.com/github/copilot-sdk/pull/1823))
+
+### New contributors
+
+- @pallaviraiturkar0 made their first contribution in [#1823](https://github.com/github/copilot-sdk/pull/1823)
+- @roji made their first contribution in [#1827](https://github.com/github/copilot-sdk/pull/1827)
 ## [java/v1.0.4](https://github.com/github/copilot-sdk/releases/tag/java/v1.0.4) (2026-06-25)
 
 ### Feature: HTTP request callback support
