@@ -405,12 +405,17 @@ class _GitHubTelemetryAdapter:
     ``GitHubTelemetryHandler`` protocol.
     """
 
-    def __init__(self, callback: Callable[[GitHubTelemetryNotification], None]) -> None:
+    def __init__(
+        self,
+        callback: Callable[[GitHubTelemetryNotification], None | Awaitable[None]],
+    ) -> None:
         self._callback = callback
 
     async def event(self, params: GitHubTelemetryNotification) -> None:
         try:
-            self._callback(params)
+            result = self._callback(params)
+            if inspect.isawaitable(result):
+                await result
         except Exception:
             logger.warning("Error handling gitHubTelemetry.event notification", exc_info=True)
 
@@ -436,7 +441,9 @@ class _CopilotClientOptions:
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
-    on_github_telemetry: Callable[[GitHubTelemetryNotification], None] | None = None
+    on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]] | None = (
+        None
+    )
     mode: CopilotClientMode = "copilot-cli"
 
 
@@ -1126,7 +1133,8 @@ class CopilotClient:
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
-        on_github_telemetry: Callable[[GitHubTelemetryNotification], None] | None = None,
+        on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]]
+        | None = None,
         mode: CopilotClientMode = "copilot-cli",
     ):
         """
@@ -1172,9 +1180,9 @@ class CopilotClient:
                 provided, the handler is called instead of querying the runtime
                 server.
             on_github_telemetry: Internal. Callback invoked when the runtime
-                forwards a GitHub telemetry event for a session. Registering a
-                handler opts every session opened by this client into telemetry
-                forwarding.
+                forwards a GitHub telemetry event for a session. The callback
+                may be sync or async. Registering a handler opts every session
+                opened by this client into telemetry forwarding.
 
         Example:
             >>> # Default — spawns runtime using stdio with the bundled binary

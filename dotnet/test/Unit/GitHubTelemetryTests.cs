@@ -24,7 +24,7 @@ public sealed class GitHubTelemetryTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            OnGitHubTelemetry = _ => { },
+            OnGitHubTelemetry = _ => Task.CompletedTask,
         });
         await client.StartAsync();
 
@@ -42,7 +42,7 @@ public sealed class GitHubTelemetryTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            OnGitHubTelemetry = _ => { },
+            OnGitHubTelemetry = _ => Task.CompletedTask,
         });
         await client.StartAsync();
 
@@ -80,7 +80,11 @@ public sealed class GitHubTelemetryTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            OnGitHubTelemetry = notification => received.TrySetResult(notification),
+            OnGitHubTelemetry = notification =>
+            {
+                received.TrySetResult(notification);
+                return Task.CompletedTask;
+            },
         });
         await client.StartAsync();
 
@@ -115,7 +119,11 @@ public sealed class GitHubTelemetryTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            OnGitHubTelemetry = notification => received.TrySetResult(notification),
+            OnGitHubTelemetry = notification =>
+            {
+                received.TrySetResult(notification);
+                return Task.CompletedTask;
+            },
         });
         await client.StartAsync();
 

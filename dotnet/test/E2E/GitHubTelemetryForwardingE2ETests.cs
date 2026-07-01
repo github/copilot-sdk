@@ -22,7 +22,11 @@ public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutp
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            OnGitHubTelemetry = notifications.Enqueue,
+            OnGitHubTelemetry = notification =>
+            {
+                notifications.Enqueue(notification);
+                return Task.CompletedTask;
+            },
         });
 
         CopilotSession? session = null;

@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -60,7 +60,7 @@ public class CopilotClientOptions {
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private CopilotRequestHandler requestHandler;
-    private Consumer<GitHubTelemetryNotification> onGitHubTelemetry;
+    private Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry;
     private int port;
     private TelemetryConfig telemetry;
     private Integer sessionIdleTimeoutSeconds;
@@ -494,11 +494,11 @@ public class CopilotClientOptions {
      * <p>
      * Experimental: this option may change or be removed without notice.
      *
-     * @return the telemetry handler, or {@code null} if not set
+     * @return the async telemetry handler, or {@code null} if not set
      */
     @JsonIgnore
     @CopilotExperimental
-    public Consumer<GitHubTelemetryNotification> getOnGitHubTelemetry() {
+    public Function<GitHubTelemetryNotification, CompletableFuture<Void>> getOnGitHubTelemetry() {
         return onGitHubTelemetry;
     }
 
@@ -509,16 +509,19 @@ public class CopilotClientOptions {
      * <p>
      * When provided, the client opts every session it creates or resumes into
      * telemetry forwarding, and the runtime forwards each per-session telemetry
-     * event to this handler via the {@code gitHubTelemetry.event} notification.
+     * event to this handler via the {@code gitHubTelemetry.event} notification. The
+     * handler returns a {@link CompletableFuture} that completes when asynchronous
+     * processing is finished.
      *
      * @param onGitHubTelemetry
-     *            the telemetry handler (must not be {@code null})
+     *            the async telemetry handler (must not be {@code null})
      * @return this options instance for method chaining
      * @throws IllegalArgumentException
      *             if {@code onGitHubTelemetry} is {@code null}
      */
     @CopilotExperimental
-    public CopilotClientOptions setOnGitHubTelemetry(Consumer<GitHubTelemetryNotification> onGitHubTelemetry) {
+    public CopilotClientOptions setOnGitHubTelemetry(
+            Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry) {
         this.onGitHubTelemetry = Objects.requireNonNull(onGitHubTelemetry, "onGitHubTelemetry must not be null");
         return this;
     }

@@ -382,10 +382,11 @@ public sealed class CopilotClientOptions
     /// <summary>
     /// Experimental. Receives GitHub telemetry events the runtime forwards to this
     /// connection; setting a handler opts created/resumed sessions into forwarding.
+    /// The SDK awaits the handler task so it may perform asynchronous work.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public Action<Rpc.GitHubTelemetryNotification>? OnGitHubTelemetry { get; set; }
+    public Func<Rpc.GitHubTelemetryNotification, Task>? OnGitHubTelemetry { get; set; }
 
     /// <summary>
     /// OpenTelemetry configuration for the runtime.

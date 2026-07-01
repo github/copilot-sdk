@@ -518,7 +518,7 @@ export class CopilotClient {
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
-    private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void;
+    private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
 
     /**

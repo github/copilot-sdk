@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
@@ -69,7 +69,10 @@ class GitHubTelemetryTest {
     void adapterDispatchesNotificationToHandlerWithTypedPayload() throws Exception {
         try (var pair = createSocketPair()) {
             var received = new CompletableFuture<GitHubTelemetryNotification>();
-            Consumer<GitHubTelemetryNotification> handler = received::complete;
+            Function<GitHubTelemetryNotification, CompletableFuture<Void>> handler = notification -> {
+                received.complete(notification);
+                return CompletableFuture.completedFuture(null);
+            };
             new GitHubTelemetryAdapter(handler).registerHandlers(pair.client());
 
             String notification = """
@@ -132,7 +135,10 @@ class GitHubTelemetryTest {
     @Test
     void clientOptsSessionsIntoForwardingAndReceivesEvents() throws Exception {
         var received = new CompletableFuture<GitHubTelemetryNotification>();
-        Consumer<GitHubTelemetryNotification> handler = received::complete;
+        Function<GitHubTelemetryNotification, CompletableFuture<Void>> handler = notification -> {
+            received.complete(notification);
+            return CompletableFuture.completedFuture(null);
+        };
 
         try (var server = new FakeRuntimeServer();
                 var client = new CopilotClient(
@@ -189,8 +195,8 @@ class GitHubTelemetryTest {
 
     @Test
     void optionsRetainAndCloneTelemetryHandler() {
-        Consumer<GitHubTelemetryNotification> handler = n -> {
-        };
+        Function<GitHubTelemetryNotification, CompletableFuture<Void>> handler = n -> CompletableFuture
+                .completedFuture(null);
         var options = new CopilotClientOptions().setOnGitHubTelemetry(handler);
         assertSame(handler, options.getOnGitHubTelemetry());
 

@@ -17,6 +17,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,6 +27,7 @@ import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
 import com.github.copilot.generated.rpc.ConnectParams;
+import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
 import com.github.copilot.rpc.DeleteSessionResponse;
@@ -259,7 +261,7 @@ public final class CopilotClient implements AutoCloseable {
             }
 
             // Register the GitHub telemetry forwarding handler when configured.
-            java.util.function.Consumer<com.github.copilot.generated.rpc.GitHubTelemetryNotification> onGitHubTelemetry = this.options
+            Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry = this.options
                     .getOnGitHubTelemetry();
             if (onGitHubTelemetry != null) {
                 GitHubTelemetryAdapter telemetryAdapter = new GitHubTelemetryAdapter(onGitHubTelemetry);

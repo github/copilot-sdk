@@ -35,6 +35,7 @@ class GitHubTelemetryForwardingIT {
             var options = new CopilotClientOptions().setOnGitHubTelemetry(notification -> {
                 notifications.add(notification);
                 firstNotification.complete(notification);
+                return CompletableFuture.completedFuture(null);
             });
 
             try (CopilotClient client = ctx.createClient(options);

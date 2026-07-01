@@ -2441,6 +2441,55 @@ class TestGitHubTelemetry:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_event_routes_to_async_handler(self):
+        from copilot.generated.rpc import GitHubTelemetryNotification
+
+        received: list = []
+        delivered = asyncio.Event()
+
+        async def on_telemetry(notification):
+            await asyncio.sleep(0)
+            received.append(notification)
+            delivered.set()
+
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            on_github_telemetry=on_telemetry,
+        )
+        await client.start()
+
+        try:
+            client._client._handle_message(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "gitHubTelemetry.event",
+                    "params": {
+                        "sessionId": "sess-async-telemetry",
+                        "restricted": False,
+                        "event": {
+                            "kind": "tool_call_executed",
+                            "metrics": {"duration_ms": 3.5},
+                            "properties": {"tool": "python"},
+                            "session_id": "sess-async-telemetry",
+                        },
+                    },
+                }
+            )
+
+            await asyncio.wait_for(delivered.wait(), timeout=1)
+
+            assert len(received) == 1
+            notification = received[0]
+            assert isinstance(notification, GitHubTelemetryNotification)
+            assert notification.session_id == "sess-async-telemetry"
+            assert notification.restricted is False
+            assert notification.event.kind == "tool_call_executed"
+            assert notification.event.metrics["duration_ms"] == 3.5
+            assert notification.event.properties["tool"] == "python"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_event_handler_not_registered_without_option(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
