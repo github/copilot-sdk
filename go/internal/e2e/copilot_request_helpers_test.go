@@ -128,6 +128,47 @@ func buildResponsesSSEBody(text, respID string) string {
 	return sb.String()
 }
 
+// buildAnthropicMessageSSEBody returns a complete Anthropic Messages SSE body for a
+// streaming /messages response (message_start … message_stop). The buffered JSON
+// message is only valid for a non-streaming request; a streaming request expects
+// named SSE events or the runtime fails to finalize the message.
+func buildAnthropicMessageSSEBody(text string) string {
+	events := []struct {
+		name string
+		data map[string]any
+	}{
+		{"message_start", map[string]any{
+			"type": "message_start",
+			"message": map[string]any{
+				"id": "msg_stub_1", "type": "message", "role": "assistant",
+				"model": "claude-sonnet-4.5", "content": []any{},
+				"stop_reason": nil, "stop_sequence": nil,
+				"usage": map[string]any{"input_tokens": 5, "output_tokens": 1},
+			},
+		}},
+		{"content_block_start", map[string]any{
+			"type": "content_block_start", "index": 0,
+			"content_block": map[string]any{"type": "text", "text": ""},
+		}},
+		{"content_block_delta", map[string]any{
+			"type": "content_block_delta", "index": 0,
+			"delta": map[string]any{"type": "text_delta", "text": text},
+		}},
+		{"content_block_stop", map[string]any{"type": "content_block_stop", "index": 0}},
+		{"message_delta", map[string]any{
+			"type":  "message_delta",
+			"delta": map[string]any{"stop_reason": "end_turn", "stop_sequence": nil},
+			"usage": map[string]any{"output_tokens": 7},
+		}},
+		{"message_stop", map[string]any{"type": "message_stop"}},
+	}
+	var sb strings.Builder
+	for _, event := range events {
+		sb.WriteString(sseFrame(event.name, event.data))
+	}
+	return sb.String()
+}
+
 // buildInferenceResponse synthesizes a well-formed inference HTTP response.
 func buildInferenceResponse(url string, bodyText string) *http.Response {
 	wantsStream := isStreamingRequest(bodyText)
@@ -167,6 +208,9 @@ func buildInferenceResponse(url string, bodyText string) *http.Response {
 	}
 
 	if strings.HasSuffix(u, "/messages") {
+		if wantsStream {
+			return buildSSEResponse(buildAnthropicMessageSSEBody(syntheticResponseText))
+		}
 		raw, _ := json.Marshal(map[string]any{
 			"id":            "msg_stub_1",
 			"type":          "message",

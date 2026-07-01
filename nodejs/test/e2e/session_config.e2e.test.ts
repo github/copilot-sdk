@@ -308,6 +308,59 @@ describe("Session Configuration", async () => {
         });
     }
 
+    function sse(body: string): Response {
+        return new Response(body, {
+            status: 200,
+            headers: { "content-type": "text/event-stream" },
+        });
+    }
+
+    function anthropicMessageStreamBody(text: string): string {
+        const events: Array<[string, unknown]> = [
+            [
+                "message_start",
+                {
+                    type: "message_start",
+                    message: {
+                        id: "msg_stub_1",
+                        type: "message",
+                        role: "assistant",
+                        model: "claude-sonnet-4.5",
+                        content: [],
+                        stop_reason: null,
+                        stop_sequence: null,
+                        usage: { input_tokens: 5, output_tokens: 1 },
+                    },
+                },
+            ],
+            [
+                "content_block_start",
+                {
+                    type: "content_block_start",
+                    index: 0,
+                    content_block: { type: "text", text: "" },
+                },
+            ],
+            [
+                "content_block_delta",
+                { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+            ],
+            ["content_block_stop", { type: "content_block_stop", index: 0 }],
+            [
+                "message_delta",
+                {
+                    type: "message_delta",
+                    delta: { stop_reason: "end_turn", stop_sequence: null },
+                    usage: { output_tokens: 7 },
+                },
+            ],
+            ["message_stop", { type: "message_stop" }],
+        ];
+        return events
+            .map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+            .join("");
+    }
+
     function buildNonInferenceResponse(url: string): Response {
         const u = url.toLowerCase();
         if (u.endsWith("/models")) {
@@ -342,9 +395,13 @@ describe("Session Configuration", async () => {
         return json({});
     }
 
-    function buildInferenceResponse(url: string, _body: string): Response {
+    function buildInferenceResponse(url: string, body: string): Response {
         const u = url.toLowerCase();
+        const wantsStream = /"stream"\s*:\s*true/.test(body);
         if (u.endsWith("/messages")) {
+            if (wantsStream) {
+                return sse(anthropicMessageStreamBody("OK from the synthetic stream."));
+            }
             return json({
                 id: "msg_stub_1",
                 type: "message",
