@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { approveAll, GitHubTelemetryNotification } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { waitForCondition } from "./harness/sdkTestHelper.js";
 
 // Experimental: exercises the end-to-end GitHub (hydro) telemetry forwarding
 // path. The runtime forwards per-session telemetry to opted-in connections via
@@ -34,12 +35,12 @@ describe("GitHub telemetry forwarding", async () => {
             });
 
             // The CLI forwards telemetry over the JSON-RPC connection
-            // asynchronously, so poll until at least one event arrives or we
+            // asynchronously, so wait until at least one event arrives or we
             // time out.
-            const deadline = Date.now() + 30_000;
-            while (received.length === 0 && Date.now() < deadline) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
-            }
+            await waitForCondition(() => received.length > 0, {
+                timeoutMs: 30_000,
+                timeoutMessage: "Timed out waiting for a gitHubTelemetry.event notification.",
+            });
 
             expect(received.length).toBeGreaterThan(0);
 
