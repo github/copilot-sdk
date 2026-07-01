@@ -619,6 +619,8 @@ Because wire format should match existing tool definitions, we should attempt sn
 
 Yes. start with existing tool-definition snapshot; only add a new YAML if wire traffic differs.
 
+You can use the skill `copilot-sdk/.github/skills/new-java-e2e-test-yaml-and-test/SKILL.md` to help with this task.
+
 ---
 
 ## Phase 4 — Implementation (build order)
