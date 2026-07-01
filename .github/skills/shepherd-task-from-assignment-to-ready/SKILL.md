@@ -29,27 +29,37 @@ Automate the lifecycle of a child **Task** issue from "assigned to Copilot" thro
 
 First, prepend an instruction to the issue body telling Copilot which base branch to use. This must happen **before** assignment to avoid a race condition where Copilot targets `main` instead.
 
-```bash
-# Prepend base branch instruction to issue body (use --body-file to preserve markdown formatting)
-gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' > /tmp/issue-body-$TASK_ISSUE.md
-# Create a new file with instruction prepended
-cat > /tmp/issue-body-$TASK_ISSUE-new.md <<'HEADER'
-**Base branch:** Create your PR targeting `$BASE_BRANCH` (not `main`).
+**Idempotency:** If the issue body already starts with `**Base branch:**`, skip the prepend (it was already done in a prior run).
 
-**Requirement:** When you open the PR, the very first thing you put in the description must be `Fixes #$TASK_ISSUE` where the issue number is this issue for which the PR aims to implement the work.
+```bash
+# Check if already prepended (idempotency guard)
+CURRENT_BODY=$(gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body')
+if echo "$CURRENT_BODY" | head -1 | grep -q '^\*\*Base branch:\*\*'; then
+  echo "Base branch instruction already present — skipping prepend."
+else
+  # Prepend base branch instruction (use --body-file to preserve markdown formatting)
+  gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' > /tmp/issue-body-$TASK_ISSUE.md
+  cat > /tmp/issue-body-$TASK_ISSUE-new.md <<HEADER
+**Base branch:** Create your PR targeting \`$BASE_BRANCH\` (not \`main\`).
+
+**Requirement:** When you open the PR, the very first thing you put in the description must be \`Fixes #$TASK_ISSUE\` where the issue number is this issue for which the PR aims to implement the work.
 
 --------
 
 HEADER
-cat /tmp/issue-body-$TASK_ISSUE.md >> /tmp/issue-body-$TASK_ISSUE-new.md
-gh issue edit $TASK_ISSUE -R $REPO --body-file /tmp/issue-body-$TASK_ISSUE-new.md
-rm -f /tmp/issue-body-$TASK_ISSUE.md /tmp/issue-body-$TASK_ISSUE-new.md
+  cat /tmp/issue-body-$TASK_ISSUE.md >> /tmp/issue-body-$TASK_ISSUE-new.md
+  gh issue edit $TASK_ISSUE -R $REPO --body-file /tmp/issue-body-$TASK_ISSUE-new.md
+  rm -f /tmp/issue-body-$TASK_ISSUE.md /tmp/issue-body-$TASK_ISSUE-new.md
+fi
 ```
 
 > **PowerShell equivalent** (when running on Windows):
 > ```powershell
 > $body = gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' | Out-String
-> $instruction = @"
+> if ($body.TrimStart().StartsWith("**Base branch:**")) {
+>     Write-Host "Base branch instruction already present - skipping prepend."
+> } else {
+>     $instruction = @"
 > **Base branch:** Create your PR targeting ``$BASE_BRANCH`` (not ``main``).
 >
 > **Requirement:** When you open the PR, the very first thing you put in the description must be ``Fixes #$TASK_ISSUE`` where the issue number is this issue for which the PR aims to implement the work.
@@ -57,11 +67,12 @@ rm -f /tmp/issue-body-$TASK_ISSUE.md /tmp/issue-body-$TASK_ISSUE-new.md
 > --------
 >
 > "@
-> $newBody = $instruction + $body
-> $tmpFile = [System.IO.Path]::GetTempFileName()
-> Set-Content -Path $tmpFile -Value $newBody -NoNewline
-> gh issue edit $TASK_ISSUE -R $REPO --body-file $tmpFile
-> Remove-Item $tmpFile
+>     $newBody = $instruction + $body
+>     $tmpFile = [System.IO.Path]::GetTempFileName()
+>     Set-Content -Path $tmpFile -Value $newBody -NoNewline
+>     gh issue edit $TASK_ISSUE -R $REPO --body-file $tmpFile
+>     Remove-Item $tmpFile
+> }
 > ```
 
 Then assign:
