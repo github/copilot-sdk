@@ -40,7 +40,7 @@ final class GitHubTelemetryAdapter {
                 callback.accept(notification);
             }
         } catch (Exception e) {
-            LOG.log(Level.SEVERE, "Error handling gitHubTelemetry.event notification", e);
+            LOG.log(Level.WARNING, "Error handling gitHubTelemetry.event notification", e);
         }
     }
 }
