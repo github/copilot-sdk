@@ -2974,42 +2974,6 @@ internal sealed class SessionsStopRemoteControlRequest
     public bool? Force { get; set; }
 }
 
-/// <summary>Schema for the `SessionsPollSpawnedSessionsEvent` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SessionsPollSpawnedSessionsEvent
-{
-    /// <summary>Session id of the newly-spawned session.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Batch of spawn events plus a cursor for follow-up polls.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class PollSpawnedSessionsResult
-{
-    /// <summary>Opaque cursor to pass back to receive only events after this batch.</summary>
-    [JsonPropertyName("cursor")]
-    public string Cursor { get; set; } = string.Empty;
-
-    /// <summary>Spawn events emitted since the supplied cursor.</summary>
-    [JsonPropertyName("events")]
-    public IList<SessionsPollSpawnedSessionsEvent> Events { get => field ??= []; set; }
-}
-
-/// <summary>RPC data type for SessionsPollSpawnedSessions operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class SessionsPollSpawnedSessionsRequest
-{
-    /// <summary>Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn events buffered since the runtime started.</summary>
-    [JsonPropertyName("cursor")]
-    public string? Cursor { get; set; }
-
-    /// <summary>Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default) returns immediately even if no events are buffered. Capped at 60000ms.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonPropertyName("waitMs")]
-    public TimeSpan? Wait { get; set; }
-}
-
 /// <summary>Handle for releasing the extension tool registration.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class RegisterExtensionToolsResult
@@ -7796,10 +7760,27 @@ internal sealed class UpdateSubagentSettingsRequest
     public UpdateSubagentSettingsRequestSubagents? Subagents { get; set; }
 }
 
+/// <summary>A literal choice the command input accepts, with a human-facing description.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SlashCommandInputChoice
+{
+    /// <summary>Human-readable description shown alongside the choice.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>The literal choice value (e.g. 'on', 'off', 'show').</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
 /// <summary>Optional unstructured input hint.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SlashCommandInput
 {
+    /// <summary>Optional literal choices the input accepts, each with a human-facing description; clients may render these as selectable options.</summary>
+    [JsonPropertyName("choices")]
+    public IList<SlashCommandInputChoice>? Choices { get; set; }
+
     /// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
     [JsonPropertyName("completion")]
     public SlashCommandInputCompletion? Completion { get; set; }
@@ -10083,6 +10064,123 @@ internal sealed class MetadataContextInfoRequest
     /// <summary>Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.</summary>
     [JsonPropertyName("selectedModel")]
     public string? SelectedModel { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Successful compaction history for the session.</summary>
+public sealed class MetadataContextAttributionResultContextAttributionCompactions
+{
+    /// <summary>Number of successful compactions in this session.</summary>
+    [JsonPropertyName("count")]
+    public long Count { get; set; }
+}
+
+/// <summary>RPC data type for MetadataContextAttributionResultContextAttributionEntry operations.</summary>
+public sealed class MetadataContextAttributionResultContextAttributionEntry
+{
+    /// <summary>Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.</summary>
+    [JsonPropertyName("attributes")]
+    public IDictionary<string, string>? Attributes { get; set; }
+
+    /// <summary>Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.</summary>
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.</summary>
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.</summary>
+    [JsonPropertyName("parentId")]
+    public string? ParentId { get; set; }
+
+    /// <summary>Token count currently in context attributable to this entry.</summary>
+    [JsonPropertyName("tokens")]
+    public long Tokens { get; set; }
+}
+
+/// <summary>Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.</summary>
+public sealed class MetadataContextAttributionResultContextAttribution
+{
+    /// <summary>Successful compaction history for the session.</summary>
+    [JsonPropertyName("compactions")]
+    public MetadataContextAttributionResultContextAttributionCompactions Compactions { get => field ??= new(); set; }
+
+    /// <summary>Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.</summary>
+    [JsonPropertyName("entries")]
+    public IList<MetadataContextAttributionResultContextAttributionEntry> Entries { get => field ??= []; set; }
+
+    /// <summary>Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.</summary>
+    [JsonPropertyName("totalTokens")]
+    public long TotalTokens { get; set; }
+}
+
+/// <summary>Per-source attribution breakdown for the session's current context window, or null if uninitialized.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class MetadataContextAttributionResult
+{
+    /// <summary>Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).</summary>
+    [JsonPropertyName("contextAttribution")]
+    public MetadataContextAttributionResultContextAttribution? ContextAttribution { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionMetadataGetContextAttributionRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>A single large message currently in context.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ContextHeaviestMessage
+{
+    /// <summary>Stable identifier for this message within the snapshot.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Human-readable source label, e.g. `tool: bash` or `skill: tmux`. Presentation-only.</summary>
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Role of the chat message (`user`, `assistant`, or `tool`).</summary>
+    [JsonPropertyName("role")]
+    public string Role { get; set; } = string.Empty;
+
+    /// <summary>Token count currently in context for this individual message.</summary>
+    [JsonPropertyName("tokens")]
+    public long Tokens { get; set; }
+}
+
+/// <summary>The heaviest individual messages in the session's context window, most-expensive first.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class MetadataContextHeaviestMessagesResult
+{
+    /// <summary>Heaviest messages, most-expensive first.</summary>
+    [JsonPropertyName("messages")]
+    public IList<ContextHeaviestMessage> Messages { get => field ??= []; set; }
+
+    /// <summary>Total token count of the current context window, so callers can compute each message's share without a second call.</summary>
+    [JsonPropertyName("totalTokens")]
+    public long TotalTokens { get; set; }
+}
+
+/// <summary>Parameters for the heaviest-messages query.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class MetadataContextHeaviestMessagesRequest
+{
+    /// <summary>Maximum number of messages to return, most-expensive first. Omit for the server default.</summary>
+    [JsonPropertyName("limit")]
+    public long? Limit { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -18775,17 +18873,6 @@ public sealed class ServerSessionsApi
         return await CopilotClient.InvokeRpcAsync<RemoteControlStatusResult>(_rpc, "sessions.getRemoteControlStatus", [], cancellationToken);
     }
 
-    /// <summary>Cursor-based long-poll for sessions spawned by the runtime (e.g. in response to a Mission Control `start_session` command). The cursor is an opaque token; pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit the cursor on the first call to receive any events buffered since the runtime started. Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to react to runtime-spawned sessions should subscribe to a higher-level event stream rather than driving a long-poll loop.</summary>
-    /// <param name="cursor">Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn events buffered since the runtime started.</param>
-    /// <param name="waitMs">Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default) returns immediately even if no events are buffered. Capped at 60000ms.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Batch of spawn events plus a cursor for follow-up polls.</returns>
-    internal async Task<PollSpawnedSessionsResult> PollSpawnedSessionsAsync(string? cursor = null, TimeSpan? waitMs = null, CancellationToken cancellationToken = default)
-    {
-        var request = new SessionsPollSpawnedSessionsRequest { Cursor = cursor, Wait = waitMs };
-        return await CopilotClient.InvokeRpcAsync<PollSpawnedSessionsResult>(_rpc, "sessions.pollSpawnedSessions", [request], cancellationToken);
-    }
-
     /// <summary>Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.</summary>
     /// <param name="sessionId">Session to register extension tools on.</param>
     /// <param name="loader">In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.</param>
@@ -21415,6 +21502,29 @@ public sealed class MetadataApi
         return await CopilotClient.InvokeRpcAsync<MetadataContextInfoResult>(_session.Rpc, "session.metadata.contextInfo", [request], cancellationToken);
     }
 
+    /// <summary>Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Per-source attribution breakdown for the session's current context window, or null if uninitialized.</returns>
+    public async Task<MetadataContextAttributionResult> GetContextAttributionAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMetadataGetContextAttributionRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<MetadataContextAttributionResult>(_session.Rpc, "session.metadata.getContextAttribution", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the largest individual messages currently in the session's context window, most-expensive first. Companion to `metadata.getContextAttribution`. Returns an empty list until the session has initialized.</summary>
+    /// <param name="limit">Maximum number of messages to return, most-expensive first. Omit for the server default.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The heaviest individual messages in the session's context window, most-expensive first.</returns>
+    public async Task<MetadataContextHeaviestMessagesResult> GetContextHeaviestMessagesAsync(long? limit = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new MetadataContextHeaviestMessagesRequest { SessionId = _session.SessionId, Limit = limit };
+        return await CopilotClient.InvokeRpcAsync<MetadataContextHeaviestMessagesResult>(_session.Rpc, "session.metadata.getContextHeaviestMessages", [request], cancellationToken);
+    }
+
     /// <summary>Records a working-directory/git context change and emits a `session.context_changed` event.</summary>
     /// <param name="context">Updated working directory and git context. Emitted as the new payload of `session.context_changed`.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -22500,6 +22610,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ConnectResult))]
 [JsonSerializable(typeof(ConnectedRemoteSessionMetadata))]
 [JsonSerializable(typeof(ConnectedRemoteSessionMetadataRepository))]
+[JsonSerializable(typeof(ContextHeaviestMessage))]
 [JsonSerializable(typeof(CopilotUserResponse))]
 [JsonSerializable(typeof(CopilotUserResponseEndpoints))]
 [JsonSerializable(typeof(CopilotUserResponseOrganizationListItem))]
@@ -22636,6 +22747,12 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpStopServerRequest))]
 [JsonSerializable(typeof(McpTools))]
 [JsonSerializable(typeof(McpUnregisterExternalClientRequest))]
+[JsonSerializable(typeof(MetadataContextAttributionResult))]
+[JsonSerializable(typeof(MetadataContextAttributionResultContextAttribution))]
+[JsonSerializable(typeof(MetadataContextAttributionResultContextAttributionCompactions))]
+[JsonSerializable(typeof(MetadataContextAttributionResultContextAttributionEntry))]
+[JsonSerializable(typeof(MetadataContextHeaviestMessagesRequest))]
+[JsonSerializable(typeof(MetadataContextHeaviestMessagesResult))]
 [JsonSerializable(typeof(MetadataContextInfoRequest))]
 [JsonSerializable(typeof(MetadataContextInfoResult))]
 [JsonSerializable(typeof(MetadataContextInfoResultContextInfo))]
@@ -22753,7 +22870,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PluginsReloadRequestWithSession))]
 [JsonSerializable(typeof(PluginsUninstallRequest))]
 [JsonSerializable(typeof(PluginsUpdateRequest))]
-[JsonSerializable(typeof(PollSpawnedSessionsResult))]
 [JsonSerializable(typeof(ProviderAddRequest))]
 [JsonSerializable(typeof(ProviderAddResult))]
 [JsonSerializable(typeof(ProviderConfig))]
@@ -22870,6 +22986,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
 [JsonSerializable(typeof(SessionMcpRemoveGitHubRequest))]
 [JsonSerializable(typeof(SessionMetadataActivityRequest))]
+[JsonSerializable(typeof(SessionMetadataGetContextAttributionRequest))]
 [JsonSerializable(typeof(SessionMetadataIsProcessingRequest))]
 [JsonSerializable(typeof(SessionMetadataSnapshot))]
 [JsonSerializable(typeof(SessionMetadataSnapshotRequest))]
@@ -22939,8 +23056,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsListRequest))]
 [JsonSerializable(typeof(SessionsLoadDeferredRepoHooksRequest))]
 [JsonSerializable(typeof(SessionsOpenProgress))]
-[JsonSerializable(typeof(SessionsPollSpawnedSessionsEvent))]
-[JsonSerializable(typeof(SessionsPollSpawnedSessionsRequest))]
 [JsonSerializable(typeof(SessionsPruneOldRequest))]
 [JsonSerializable(typeof(SessionsRegisterExtensionToolsOnSessionOptions))]
 [JsonSerializable(typeof(SessionsReleaseLockRequest))]
@@ -22976,6 +23091,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SkillsLoadDiagnostics))]
 [JsonSerializable(typeof(SlashCommandInfo))]
 [JsonSerializable(typeof(SlashCommandInput))]
+[JsonSerializable(typeof(SlashCommandInputChoice))]
 [JsonSerializable(typeof(SlashCommandInvocationResult))]
 [JsonSerializable(typeof(SlashCommandSelectSubcommandOption))]
 [JsonSerializable(typeof(SubagentSettingsEntry))]

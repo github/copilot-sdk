@@ -931,6 +931,7 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 		ResultType          *string                                           `json:"resultType,omitempty"`
 		SessionLog          *string                                           `json:"sessionLog,omitempty"`
 		TextResultForLlm    string                                            `json:"textResultForLlm"`
+		ToolReferences      []string                                          `json:"toolReferences,omitzero"`
 		ToolTelemetry       map[string]any                                    `json:"toolTelemetry,omitzero"`
 	}
 	var raw rawExternalToolTextResultForLlm
@@ -952,6 +953,7 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 	r.ResultType = raw.ResultType
 	r.SessionLog = raw.SessionLog
 	r.TextResultForLlm = raw.TextResultForLlm
+	r.ToolReferences = raw.ToolReferences
 	r.ToolTelemetry = raw.ToolTelemetry
 	return nil
 }

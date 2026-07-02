@@ -897,6 +897,30 @@ class CapiSessionOptions:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SlashCommandInputChoice:
+    """A literal choice the command input accepts, with a human-facing description"""
+
+    description: str
+    """Human-readable description shown alongside the choice"""
+
+    name: str
+    """The literal choice value (e.g. 'on', 'off', 'show')"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SlashCommandInputChoice':
+        assert isinstance(obj, dict)
+        description = from_str(obj.get("description"))
+        name = from_str(obj.get("name"))
+        return SlashCommandInputChoice(description, name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["description"] = from_str(self.description)
+        result["name"] = from_str(self.name)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 class SlashCommandInputCompletion(Enum):
     """Optional completion hint for the input (e.g. 'directory' for filesystem path completion)"""
 
@@ -1295,6 +1319,40 @@ class ContentFilterMode(Enum):
     HIDDEN_CHARACTERS = "hidden_characters"
     MARKDOWN = "markdown"
     NONE = "none"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class ContextHeaviestMessage:
+    """A single large message currently in context."""
+
+    id: str
+    """Stable identifier for this message within the snapshot."""
+
+    label: str
+    """Human-readable source label, e.g. `tool: bash` or `skill: tmux`. Presentation-only."""
+
+    role: str
+    """Role of the chat message (`user`, `assistant`, or `tool`)."""
+
+    tokens: int
+    """Token count currently in context for this individual message."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ContextHeaviestMessage':
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        label = from_str(obj.get("label"))
+        role = from_str(obj.get("role"))
+        tokens = from_int(obj.get("tokens"))
+        return ContextHeaviestMessage(id, label, role, tokens)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        result["label"] = from_str(self.label)
+        result["role"] = from_str(self.role)
+        result["tokens"] = from_int(self.tokens)
+        return result
 
 class Host(Enum):
     HTTPS_GITHUB_COM = "https://github.com"
@@ -2176,15 +2234,6 @@ class TentacledSource(Enum):
 
 class StickySource(Enum):
     URL = "url"
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-class InstructionDiscoveryPathKind(Enum):
-    """Whether the target is a single file or a directory of instruction files
-
-    Entry type
-    """
-    DIRECTORY = "directory"
-    FILE = "file"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class InstructionLocation(Enum):
@@ -3502,6 +3551,97 @@ class MemoryConfiguration:
     def to_dict(self) -> dict:
         result: dict = {}
         result["enabled"] = from_bool(self.enabled)
+        return result
+
+@dataclass
+class Compactions:
+    """Successful compaction history for the session."""
+
+    count: int
+    """Number of successful compactions in this session."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Compactions':
+        assert isinstance(obj, dict)
+        count = from_int(obj.get("count"))
+        return Compactions(count)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["count"] = from_int(self.count)
+        return result
+
+@dataclass
+class Entry:
+    id: str
+    """Identifier for this entry, formed by joining its `kind` and source name (e.g.
+    `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to
+    match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP
+    registries), and as the `parentId` target for nesting. Distinct from the human-facing
+    `label`.
+    """
+    kind: str
+    """Source category for this entry. Not a closed set — tolerate unknown values. Known values
+    today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+    """
+    label: str
+    """Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be
+    localized/reformatted without notice — do not key off it.
+    """
+    tokens: int
+    """Token count currently in context attributable to this entry."""
+
+    attributes: dict[str, str] | None = None
+    """Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`,
+    `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+    """
+    parent_id: str | None = None
+    """Optional `id` of the parent entry: e.g. a `plugin` entry parenting its
+    `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries.
+    Omitted for top-level entries.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Entry':
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        kind = from_str(obj.get("kind"))
+        label = from_str(obj.get("label"))
+        tokens = from_int(obj.get("tokens"))
+        attributes = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("attributes"))
+        parent_id = from_union([from_str, from_none], obj.get("parentId"))
+        return Entry(id, kind, label, tokens, attributes, parent_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        result["kind"] = from_str(self.kind)
+        result["label"] = from_str(self.label)
+        result["tokens"] = from_int(self.tokens)
+        if self.attributes is not None:
+            result["attributes"] = from_union([lambda x: from_dict(from_str, x), from_none], self.attributes)
+        if self.parent_id is not None:
+            result["parentId"] = from_union([from_str, from_none], self.parent_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MetadataContextHeaviestMessagesRequest:
+    """Parameters for the heaviest-messages query."""
+
+    limit: int | None = None
+    """Maximum number of messages to return, most-expensive first. Omit for the server default."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MetadataContextHeaviestMessagesRequest':
+        assert isinstance(obj, dict)
+        limit = from_union([from_int, from_none], obj.get("limit"))
+        return MetadataContextHeaviestMessagesRequest(limit)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.limit is not None:
+            result["limit"] = from_union([from_int, from_none], self.limit)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -5296,25 +5436,6 @@ class PluginsReloadRequest:
             result["reloadHooks"] = from_union([from_bool, from_none], self.reload_hooks)
         if self.reload_mcp is not None:
             result["reloadMcp"] = from_union([from_bool, from_none], self.reload_mcp)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SessionsPollSpawnedSessionsEvent:
-    """Schema for the `SessionsPollSpawnedSessionsEvent` type."""
-
-    session_id: str
-    """Session id of the newly-spawned session."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionsPollSpawnedSessionsEvent':
-        assert isinstance(obj, dict)
-        session_id = from_str(obj.get("sessionId"))
-        return SessionsPollSpawnedSessionsEvent(session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["sessionId"] = from_str(self.session_id)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -7618,33 +7739,6 @@ class SessionsOpenResumeLastKind(Enum):
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class SessionsPollSpawnedSessionsRequest:
-    cursor: str | None = None
-    """Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn
-    events buffered since the runtime started.
-    """
-    wait_ms: int | None = None
-    """Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default)
-    returns immediately even if no events are buffered. Capped at 60000ms.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionsPollSpawnedSessionsRequest':
-        assert isinstance(obj, dict)
-        cursor = from_union([from_str, from_none], obj.get("cursor"))
-        wait_ms = from_union([from_int, from_none], obj.get("waitMs"))
-        return SessionsPollSpawnedSessionsRequest(cursor, wait_ms)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.cursor is not None:
-            result["cursor"] = from_union([from_str, from_none], self.cursor)
-        if self.wait_ms is not None:
-            result["waitMs"] = from_union([from_int, from_none], self.wait_ms)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class SessionsPruneOldRequest:
     """Age threshold and optional flags controlling which old sessions are pruned (or simulated
     when dryRun is true).
@@ -9927,6 +10021,10 @@ class SlashCommandInput:
     hint: str
     """Hint to display when command input has not been provided"""
 
+    choices: list[SlashCommandInputChoice] | None = None
+    """Optional literal choices the input accepts, each with a human-facing description; clients
+    may render these as selectable options
+    """
     completion: SlashCommandInputCompletion | None = None
     """Optional completion hint for the input (e.g. 'directory' for filesystem path completion)"""
 
@@ -9943,14 +10041,17 @@ class SlashCommandInput:
     def from_dict(obj: Any) -> 'SlashCommandInput':
         assert isinstance(obj, dict)
         hint = from_str(obj.get("hint"))
+        choices = from_union([lambda x: from_list(SlashCommandInputChoice.from_dict, x), from_none], obj.get("choices"))
         completion = from_union([SlashCommandInputCompletion, from_none], obj.get("completion"))
         preserve_multiline_input = from_union([from_bool, from_none], obj.get("preserveMultilineInput"))
         required = from_union([from_bool, from_none], obj.get("required"))
-        return SlashCommandInput(hint, completion, preserve_multiline_input, required)
+        return SlashCommandInput(hint, choices, completion, preserve_multiline_input, required)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["hint"] = from_str(self.hint)
+        if self.choices is not None:
+            result["choices"] = from_union([lambda x: from_list(lambda x: to_class(SlashCommandInputChoice, x), x), from_none], self.choices)
         if self.completion is not None:
             result["completion"] = from_union([lambda x: to_enum(SlashCommandInputCompletion, x), from_none], self.completion)
         if self.preserve_multiline_input is not None:
@@ -10060,6 +10161,32 @@ class ConnectedRemoteSessionMetadata:
             result["state"] = from_union([from_str, from_none], self.state)
         if self.summary is not None:
             result["summary"] = from_union([from_str, from_none], self.summary)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MetadataContextHeaviestMessagesResult:
+    """The heaviest individual messages in the session's context window, most-expensive first."""
+
+    messages: list[ContextHeaviestMessage]
+    """Heaviest messages, most-expensive first."""
+
+    total_tokens: int
+    """Total token count of the current context window, so callers can compute each message's
+    share without a second call.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MetadataContextHeaviestMessagesResult':
+        assert isinstance(obj, dict)
+        messages = from_list(ContextHeaviestMessage.from_dict, obj.get("messages"))
+        total_tokens = from_int(obj.get("totalTokens"))
+        return MetadataContextHeaviestMessagesResult(messages, total_tokens)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["messages"] = from_list(lambda x: to_class(ContextHeaviestMessage, x), self.messages)
+        result["totalTokens"] = from_int(self.total_tokens)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -10853,71 +10980,6 @@ class SessionInstalledPluginSourceURL:
             result["path"] = from_union([from_str, from_none], self.path)
         if self.ref is not None:
             result["ref"] = from_union([from_str, from_none], self.ref)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SessionFSReaddirWithTypesEntry:
-    """Schema for the `SessionFsReaddirWithTypesEntry` type."""
-
-    name: str
-    """Entry name"""
-
-    type: InstructionDiscoveryPathKind
-    """Entry type"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesEntry':
-        assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        type = InstructionDiscoveryPathKind(obj.get("type"))
-        return SessionFSReaddirWithTypesEntry(name, type)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["name"] = from_str(self.name)
-        result["type"] = to_enum(InstructionDiscoveryPathKind, self.type)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class InstructionDiscoveryPath:
-    """Schema for the `InstructionDiscoveryPath` type."""
-
-    kind: InstructionDiscoveryPathKind
-    """Whether the target is a single file or a directory of instruction files"""
-
-    location: InstructionLocation
-    """Which tier this target belongs to"""
-
-    path: str
-    """Absolute path of the file or directory (may not exist on disk yet)"""
-
-    preferred_for_creation: bool
-    """Whether this is the canonical target to create new instructions in its tier. At most one
-    entry per tier is preferred.
-    """
-    project_path: str | None = None
-    """The input project path this target was derived from (only for repository targets)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'InstructionDiscoveryPath':
-        assert isinstance(obj, dict)
-        kind = InstructionDiscoveryPathKind(obj.get("kind"))
-        location = InstructionLocation(obj.get("location"))
-        path = from_str(obj.get("path"))
-        preferred_for_creation = from_bool(obj.get("preferredForCreation"))
-        project_path = from_union([from_str, from_none], obj.get("projectPath"))
-        return InstructionDiscoveryPath(kind, location, path, preferred_for_creation, project_path)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(InstructionDiscoveryPathKind, self.kind)
-        result["location"] = to_enum(InstructionLocation, self.location)
-        result["path"] = from_str(self.path)
-        result["preferredForCreation"] = from_bool(self.preferred_for_creation)
-        if self.project_path is not None:
-            result["projectPath"] = from_union([from_str, from_none], self.project_path)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -12120,6 +12182,49 @@ class MCPSetEnvValueModeResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["mode"] = to_enum(MCPSetEnvValueModeDetails, self.mode)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class InstructionDiscoveryPathKind(Enum):
+    """Whether the target is a single file or a directory of instruction files
+
+    Entry type
+    """
+    DIRECTORY = "directory"
+    FILE = "file"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionContextAttribution:
+    """Per-source token attribution snapshot for the current context window. The heaviest
+    individual messages are available separately via `metadata.getContextHeaviestMessages`.
+    """
+    compactions: Compactions
+    """Successful compaction history for the session."""
+
+    entries: list[Entry]
+    """Flat list of per-source attribution entries. Group by `kind` and render unrecognized
+    kinds generically. Nesting and rollups are expressed via `parentId`.
+    """
+    total_tokens: int
+    """Total token count of the current context window the entries are measured against (system
+    message + conversation messages + tool definitions — the same total reported by
+    /context). Divide an entry's `tokens` by this to derive its share.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionContextAttribution':
+        assert isinstance(obj, dict)
+        compactions = Compactions.from_dict(obj.get("compactions"))
+        entries = from_list(Entry.from_dict, obj.get("entries"))
+        total_tokens = from_int(obj.get("totalTokens"))
+        return SessionContextAttribution(compactions, entries, total_tokens)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["compactions"] = to_class(Compactions, self.compactions)
+        result["entries"] = from_list(lambda x: to_class(Entry, x), self.entries)
+        result["totalTokens"] = from_int(self.total_tokens)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -14040,30 +14145,6 @@ class PluginsUpdateRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["name"] = from_str(self.name)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class PollSpawnedSessionsResult:
-    """Batch of spawn events plus a cursor for follow-up polls."""
-
-    cursor: str
-    """Opaque cursor to pass back to receive only events after this batch."""
-
-    events: list[SessionsPollSpawnedSessionsEvent]
-    """Spawn events emitted since the supplied cursor."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PollSpawnedSessionsResult':
-        assert isinstance(obj, dict)
-        cursor = from_str(obj.get("cursor"))
-        events = from_list(SessionsPollSpawnedSessionsEvent.from_dict, obj.get("events"))
-        return PollSpawnedSessionsResult(cursor, events)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["cursor"] = from_str(self.cursor)
-        result["events"] = from_list(lambda x: to_class(SessionsPollSpawnedSessionsEvent, x), self.events)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -17132,6 +17213,11 @@ class ExternalToolTextResultForLlm:
     session_log: str | None = None
     """Detailed log content for timeline display"""
 
+    tool_references: list[str] | None = None
+    """Tool references returned by a tool-search override: names of deferred tools to surface to
+    the model. When set, the tool result is materialized as `tool_reference` content blocks
+    (rather than plain text) so the model knows which deferred tools are now available.
+    """
     tool_telemetry: dict[str, Any] | None = None
     """Optional tool-specific telemetry"""
 
@@ -17144,8 +17230,9 @@ class ExternalToolTextResultForLlm:
         error = from_union([from_str, from_none], obj.get("error"))
         result_type = from_union([from_str, from_none], obj.get("resultType"))
         session_log = from_union([from_str, from_none], obj.get("sessionLog"))
+        tool_references = from_union([lambda x: from_list(from_str, x), from_none], obj.get("toolReferences"))
         tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
-        return ExternalToolTextResultForLlm(text_result_for_llm, binary_results_for_llm, contents, error, result_type, session_log, tool_telemetry)
+        return ExternalToolTextResultForLlm(text_result_for_llm, binary_results_for_llm, contents, error, result_type, session_log, tool_references, tool_telemetry)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -17160,6 +17247,8 @@ class ExternalToolTextResultForLlm:
             result["resultType"] = from_union([from_str, from_none], self.result_type)
         if self.session_log is not None:
             result["sessionLog"] = from_union([from_str, from_none], self.session_log)
+        if self.tool_references is not None:
+            result["toolReferences"] = from_union([lambda x: from_list(from_str, x), from_none], self.tool_references)
         if self.tool_telemetry is not None:
             result["toolTelemetry"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.tool_telemetry)
         return result
@@ -17308,26 +17397,6 @@ class SessionInstalledPluginSource:
             result["repo"] = from_union([from_str, from_none], self.repo)
         if self.url is not None:
             result["url"] = from_union([from_str, from_none], self.url)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class InstructionDiscoveryPathList:
-    """Canonical files and directories where custom instructions can be created so the runtime
-    will recognize them.
-    """
-    paths: list[InstructionDiscoveryPath]
-    """Canonical instruction create/discovery files and directories, in priority order"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'InstructionDiscoveryPathList':
-        assert isinstance(obj, dict)
-        paths = from_list(InstructionDiscoveryPath.from_dict, obj.get("paths"))
-        return InstructionDiscoveryPathList(paths)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["paths"] = from_list(lambda x: to_class(InstructionDiscoveryPath, x), self.paths)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -17953,6 +18022,94 @@ class MCPOauthHandlePendingRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class InstructionDiscoveryPath:
+    """Schema for the `InstructionDiscoveryPath` type."""
+
+    kind: InstructionDiscoveryPathKind
+    """Whether the target is a single file or a directory of instruction files"""
+
+    location: InstructionLocation
+    """Which tier this target belongs to"""
+
+    path: str
+    """Absolute path of the file or directory (may not exist on disk yet)"""
+
+    preferred_for_creation: bool
+    """Whether this is the canonical target to create new instructions in its tier. At most one
+    entry per tier is preferred.
+    """
+    project_path: str | None = None
+    """The input project path this target was derived from (only for repository targets)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'InstructionDiscoveryPath':
+        assert isinstance(obj, dict)
+        kind = InstructionDiscoveryPathKind(obj.get("kind"))
+        location = InstructionLocation(obj.get("location"))
+        path = from_str(obj.get("path"))
+        preferred_for_creation = from_bool(obj.get("preferredForCreation"))
+        project_path = from_union([from_str, from_none], obj.get("projectPath"))
+        return InstructionDiscoveryPath(kind, location, path, preferred_for_creation, project_path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(InstructionDiscoveryPathKind, self.kind)
+        result["location"] = to_enum(InstructionLocation, self.location)
+        result["path"] = from_str(self.path)
+        result["preferredForCreation"] = from_bool(self.preferred_for_creation)
+        if self.project_path is not None:
+            result["projectPath"] = from_union([from_str, from_none], self.project_path)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionFSReaddirWithTypesEntry:
+    """Schema for the `SessionFsReaddirWithTypesEntry` type."""
+
+    name: str
+    """Entry name"""
+
+    type: InstructionDiscoveryPathKind
+    """Entry type"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesEntry':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        type = InstructionDiscoveryPathKind(obj.get("type"))
+        return SessionFSReaddirWithTypesEntry(name, type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["type"] = to_enum(InstructionDiscoveryPathKind, self.type)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MetadataContextAttributionResult:
+    """Per-source attribution breakdown for the session's current context window, or null if
+    uninitialized.
+    """
+    context_attribution: SessionContextAttribution | None = None
+    """Per-source context-window attribution, or null if the session has not yet been
+    initialized (no system prompt or tool metadata cached).
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MetadataContextAttributionResult':
+        assert isinstance(obj, dict)
+        context_attribution = from_union([SessionContextAttribution.from_dict, from_none], obj.get("contextAttribution"))
+        return MetadataContextAttributionResult(context_attribution)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.context_attribution is not None:
+            result["contextAttribution"] = from_union([lambda x: to_class(SessionContextAttribution, x), from_none], self.context_attribution)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class ModelBilling:
     """Billing information"""
 
@@ -18476,32 +18633,6 @@ class SessionFSReaddirResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["entries"] = from_list(from_str, self.entries)
-        if self.error is not None:
-            result["error"] = from_union([lambda x: to_class(SessionFSError, x), from_none], self.error)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SessionFSReaddirWithTypesResult:
-    """Entries in the requested directory paired with file/directory type information, or a
-    filesystem error if the read failed.
-    """
-    entries: list[SessionFSReaddirWithTypesEntry]
-    """Directory entries with type information"""
-
-    error: SessionFSError | None = None
-    """Describes a filesystem error."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesResult':
-        assert isinstance(obj, dict)
-        entries = from_list(SessionFSReaddirWithTypesEntry.from_dict, obj.get("entries"))
-        error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
-        return SessionFSReaddirWithTypesResult(entries, error)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["entries"] = from_list(lambda x: to_class(SessionFSReaddirWithTypesEntry, x), self.entries)
         if self.error is not None:
             result["error"] = from_union([lambda x: to_class(SessionFSError, x), from_none], self.error)
         return result
@@ -20132,6 +20263,52 @@ class SessionMetadataSnapshot:
         if self.workspace is not None:
             result["workspace"] = from_union([lambda x: to_class(WorkspaceSummary, x), from_none], self.workspace)
         result["workspacePath"] = from_union([from_none, from_str], self.workspace_path)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class InstructionDiscoveryPathList:
+    """Canonical files and directories where custom instructions can be created so the runtime
+    will recognize them.
+    """
+    paths: list[InstructionDiscoveryPath]
+    """Canonical instruction create/discovery files and directories, in priority order"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'InstructionDiscoveryPathList':
+        assert isinstance(obj, dict)
+        paths = from_list(InstructionDiscoveryPath.from_dict, obj.get("paths"))
+        return InstructionDiscoveryPathList(paths)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["paths"] = from_list(lambda x: to_class(InstructionDiscoveryPath, x), self.paths)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionFSReaddirWithTypesResult:
+    """Entries in the requested directory paired with file/directory type information, or a
+    filesystem error if the read failed.
+    """
+    entries: list[SessionFSReaddirWithTypesEntry]
+    """Directory entries with type information"""
+
+    error: SessionFSError | None = None
+    """Describes a filesystem error."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesResult':
+        assert isinstance(obj, dict)
+        entries = from_list(SessionFSReaddirWithTypesEntry.from_dict, obj.get("entries"))
+        error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
+        return SessionFSReaddirWithTypesResult(entries, error)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["entries"] = from_list(lambda x: to_class(SessionFSReaddirWithTypesEntry, x), self.entries)
+        if self.error is not None:
+            result["error"] = from_union([lambda x: to_class(SessionFSError, x), from_none], self.error)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -22440,6 +22617,7 @@ class RPC:
     connect_request: _ConnectRequest
     connect_result: _ConnectResult
     content_filter_mode: ContentFilterMode
+    context_heaviest_message: ContextHeaviestMessage
     copilot_api_token_auth_info: CopilotAPITokenAuthInfo
     copilot_user_response: CopilotUserResponse
     copilot_user_response_endpoints: CopilotUserResponseEndpoints
@@ -22631,6 +22809,9 @@ class RPC:
     mcp_tools: MCPTools
     mcp_unregister_external_client_request: MCPUnregisterExternalClientRequest
     memory_configuration: MemoryConfiguration
+    metadata_context_attribution_result: MetadataContextAttributionResult
+    metadata_context_heaviest_messages_request: MetadataContextHeaviestMessagesRequest
+    metadata_context_heaviest_messages_result: MetadataContextHeaviestMessagesResult
     metadata_context_info_request: MetadataContextInfoRequest
     metadata_context_info_result: MetadataContextInfoResult
     metadata_is_processing_result: MetadataIsProcessingResult
@@ -22802,7 +22983,6 @@ class RPC:
     plugin_update_all_entry: PluginUpdateAllEntry
     plugin_update_all_result: PluginUpdateAllResult
     plugin_update_result: PluginUpdateResult
-    poll_spawned_sessions_result: PollSpawnedSessionsResult
     provider_add_request: ProviderAddRequest
     provider_add_result: ProviderAddResult
     provider_config: ProviderConfig
@@ -22994,8 +23174,6 @@ class RPC:
     sessions_open_resume_last: SessionsOpenResumeLast
     sessions_open_status: SessionsOpenStatus
     session_source: SessionSource
-    sessions_poll_spawned_sessions_event: SessionsPollSpawnedSessionsEvent
-    sessions_poll_spawned_sessions_request: SessionsPollSpawnedSessionsRequest
     sessions_prune_old_request: SessionsPruneOldRequest
     sessions_register_extension_tools_on_session_options: SessionsRegisterExtensionToolsOnSessionOptions
     sessions_release_lock_request: SessionsReleaseLockRequest
@@ -23041,6 +23219,7 @@ class RPC:
     slash_command_completed_result: SlashCommandCompletedResult
     slash_command_info: SlashCommandInfo
     slash_command_input: SlashCommandInput
+    slash_command_input_choice: SlashCommandInputChoice
     slash_command_input_completion: SlashCommandInputCompletion
     slash_command_invocation_result: SlashCommandInvocationResult
     slash_command_kind: SlashCommandKind
@@ -23158,6 +23337,7 @@ class RPC:
     workspaces_save_large_paste_result: WorkspacesSaveLargePasteResult
     workspace_summary_host_type: HostType
     workspaces_workspace_details_host_type: HostType
+    session_context_attribution: SessionContextAttribution | None = None
     session_context_info: SessionContextInfo | None = None
     subagent_settings: SubagentSettings | None = None
     task_progress: TaskProgress | None = None
@@ -23247,6 +23427,7 @@ class RPC:
         connect_request = _ConnectRequest.from_dict(obj.get("ConnectRequest"))
         connect_result = _ConnectResult.from_dict(obj.get("ConnectResult"))
         content_filter_mode = ContentFilterMode(obj.get("ContentFilterMode"))
+        context_heaviest_message = ContextHeaviestMessage.from_dict(obj.get("ContextHeaviestMessage"))
         copilot_api_token_auth_info = CopilotAPITokenAuthInfo.from_dict(obj.get("CopilotApiTokenAuthInfo"))
         copilot_user_response = CopilotUserResponse.from_dict(obj.get("CopilotUserResponse"))
         copilot_user_response_endpoints = CopilotUserResponseEndpoints.from_dict(obj.get("CopilotUserResponseEndpoints"))
@@ -23438,6 +23619,9 @@ class RPC:
         mcp_tools = MCPTools.from_dict(obj.get("McpTools"))
         mcp_unregister_external_client_request = MCPUnregisterExternalClientRequest.from_dict(obj.get("McpUnregisterExternalClientRequest"))
         memory_configuration = MemoryConfiguration.from_dict(obj.get("MemoryConfiguration"))
+        metadata_context_attribution_result = MetadataContextAttributionResult.from_dict(obj.get("MetadataContextAttributionResult"))
+        metadata_context_heaviest_messages_request = MetadataContextHeaviestMessagesRequest.from_dict(obj.get("MetadataContextHeaviestMessagesRequest"))
+        metadata_context_heaviest_messages_result = MetadataContextHeaviestMessagesResult.from_dict(obj.get("MetadataContextHeaviestMessagesResult"))
         metadata_context_info_request = MetadataContextInfoRequest.from_dict(obj.get("MetadataContextInfoRequest"))
         metadata_context_info_result = MetadataContextInfoResult.from_dict(obj.get("MetadataContextInfoResult"))
         metadata_is_processing_result = MetadataIsProcessingResult.from_dict(obj.get("MetadataIsProcessingResult"))
@@ -23609,7 +23793,6 @@ class RPC:
         plugin_update_all_entry = PluginUpdateAllEntry.from_dict(obj.get("PluginUpdateAllEntry"))
         plugin_update_all_result = PluginUpdateAllResult.from_dict(obj.get("PluginUpdateAllResult"))
         plugin_update_result = PluginUpdateResult.from_dict(obj.get("PluginUpdateResult"))
-        poll_spawned_sessions_result = PollSpawnedSessionsResult.from_dict(obj.get("PollSpawnedSessionsResult"))
         provider_add_request = ProviderAddRequest.from_dict(obj.get("ProviderAddRequest"))
         provider_add_result = ProviderAddResult.from_dict(obj.get("ProviderAddResult"))
         provider_config = ProviderConfig.from_dict(obj.get("ProviderConfig"))
@@ -23801,8 +23984,6 @@ class RPC:
         sessions_open_resume_last = SessionsOpenResumeLast.from_dict(obj.get("SessionsOpenResumeLast"))
         sessions_open_status = SessionsOpenStatus(obj.get("SessionsOpenStatus"))
         session_source = SessionSource(obj.get("SessionSource"))
-        sessions_poll_spawned_sessions_event = SessionsPollSpawnedSessionsEvent.from_dict(obj.get("SessionsPollSpawnedSessionsEvent"))
-        sessions_poll_spawned_sessions_request = SessionsPollSpawnedSessionsRequest.from_dict(obj.get("SessionsPollSpawnedSessionsRequest"))
         sessions_prune_old_request = SessionsPruneOldRequest.from_dict(obj.get("SessionsPruneOldRequest"))
         sessions_register_extension_tools_on_session_options = SessionsRegisterExtensionToolsOnSessionOptions.from_dict(obj.get("SessionsRegisterExtensionToolsOnSessionOptions"))
         sessions_release_lock_request = SessionsReleaseLockRequest.from_dict(obj.get("SessionsReleaseLockRequest"))
@@ -23848,6 +24029,7 @@ class RPC:
         slash_command_completed_result = SlashCommandCompletedResult.from_dict(obj.get("SlashCommandCompletedResult"))
         slash_command_info = SlashCommandInfo.from_dict(obj.get("SlashCommandInfo"))
         slash_command_input = SlashCommandInput.from_dict(obj.get("SlashCommandInput"))
+        slash_command_input_choice = SlashCommandInputChoice.from_dict(obj.get("SlashCommandInputChoice"))
         slash_command_input_completion = SlashCommandInputCompletion(obj.get("SlashCommandInputCompletion"))
         slash_command_invocation_result = _load_SlashCommandInvocationResult(obj.get("SlashCommandInvocationResult"))
         slash_command_kind = SlashCommandKind(obj.get("SlashCommandKind"))
@@ -23965,11 +24147,12 @@ class RPC:
         workspaces_save_large_paste_result = WorkspacesSaveLargePasteResult.from_dict(obj.get("WorkspacesSaveLargePasteResult"))
         workspace_summary_host_type = HostType(obj.get("WorkspaceSummaryHostType"))
         workspaces_workspace_details_host_type = HostType(obj.get("WorkspacesWorkspaceDetailsHostType"))
+        session_context_attribution = from_union([SessionContextAttribution.from_dict, from_none], obj.get("SessionContextAttribution"))
         session_context_info = from_union([SessionContextInfo.from_dict, from_none], obj.get("SessionContextInfo"))
         subagent_settings = from_union([SubagentSettings.from_dict, from_none], obj.get("SubagentSettings"))
         task_progress = from_union([TaskProgress.from_dict, from_none], obj.get("TaskProgress"))
         workspace_summary = from_union([WorkspaceSummary.from_dict, from_none], obj.get("WorkspaceSummary"))
-        return RPC(abort_request, abort_result, account_all_users, account_get_all_users_result, account_get_current_auth_result, account_get_quota_request, account_get_quota_result, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_discover_request, agent_select_request, agent_select_result, agents_get_discovery_paths_request, allow_all_permission_set_result, allow_all_permission_state, api_key_auth_info, auth_info, auth_info_type, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_session_context, capi_session_options, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, discovered_canvas, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_request, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instruction_source, instruction_source_location, instruction_source_type, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, log_request, log_result, lsp_initialize_request, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_oauth_respond_request, mcp_oauth_respond_result, mcp_register_external_client_request, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_restart_server_request, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_tools, mcp_unregister_external_client_request, memory_configuration, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_list_request, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_allow_all_request, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_allow_all_request, permissions_set_allow_all_source, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_install_result, plugin_list, plugin_list_result, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, poll_spawned_sessions_result, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_transport, provider_config_type, provider_config_wire_api, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_token_acquire_request, provider_token_acquire_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, register_extension_tools_params, register_extension_tools_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, sandbox_config, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_seatbelt, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachments_to_message_params, send_mode, send_request, send_result, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_auth_status, session_bulk_delete_result, session_capability, session_completion_item, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_mcp_apps_call_tool_result, session_metadata_snapshot, session_mode, session_model_list, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_poll_spawned_sessions_event, sessions_poll_spawned_sessions_request, sessions_prune_old_request, sessions_register_extension_tools_on_session_options, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_visibility_status, session_working_directory_context, session_working_directory_context_host_type, shell_cancel_user_requested_request, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, subagent_settings_entry, subagent_settings_entry_context_tier, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, update_subagent_settings_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_get_result, user_settings_set_request, user_settings_set_result, visibility_get_result, visibility_set_request, visibility_set_result, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_checkpoints, workspaces_create_file_request, workspaces_diff_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_info, subagent_settings, task_progress, workspace_summary)
+        return RPC(abort_request, abort_result, account_all_users, account_get_all_users_result, account_get_current_auth_result, account_get_quota_request, account_get_quota_result, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_discover_request, agent_select_request, agent_select_result, agents_get_discovery_paths_request, allow_all_permission_set_result, allow_all_permission_state, api_key_auth_info, auth_info, auth_info_type, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_session_context, capi_session_options, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, discovered_canvas, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_request, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instruction_source, instruction_source_location, instruction_source_type, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, log_request, log_result, lsp_initialize_request, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_oauth_respond_request, mcp_oauth_respond_result, mcp_register_external_client_request, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_restart_server_request, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_tools, mcp_unregister_external_client_request, memory_configuration, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_list_request, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_allow_all_request, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_allow_all_request, permissions_set_allow_all_source, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_install_result, plugin_list, plugin_list_result, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_transport, provider_config_type, provider_config_wire_api, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_token_acquire_request, provider_token_acquire_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, register_extension_tools_params, register_extension_tools_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, sandbox_config, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_seatbelt, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachments_to_message_params, send_mode, send_request, send_result, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_auth_status, session_bulk_delete_result, session_capability, session_completion_item, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_mcp_apps_call_tool_result, session_metadata_snapshot, session_mode, session_model_list, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_register_extension_tools_on_session_options, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_visibility_status, session_working_directory_context, session_working_directory_context_host_type, shell_cancel_user_requested_request, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, subagent_settings_entry, subagent_settings_entry_context_tier, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, update_subagent_settings_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_get_result, user_settings_set_request, user_settings_set_result, visibility_get_result, visibility_set_request, visibility_set_result, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_checkpoints, workspaces_create_file_request, workspaces_diff_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -24054,6 +24237,7 @@ class RPC:
         result["ConnectRequest"] = to_class(_ConnectRequest, self.connect_request)
         result["ConnectResult"] = to_class(_ConnectResult, self.connect_result)
         result["ContentFilterMode"] = to_enum(ContentFilterMode, self.content_filter_mode)
+        result["ContextHeaviestMessage"] = to_class(ContextHeaviestMessage, self.context_heaviest_message)
         result["CopilotApiTokenAuthInfo"] = to_class(CopilotAPITokenAuthInfo, self.copilot_api_token_auth_info)
         result["CopilotUserResponse"] = to_class(CopilotUserResponse, self.copilot_user_response)
         result["CopilotUserResponseEndpoints"] = to_class(CopilotUserResponseEndpoints, self.copilot_user_response_endpoints)
@@ -24245,6 +24429,9 @@ class RPC:
         result["McpTools"] = to_class(MCPTools, self.mcp_tools)
         result["McpUnregisterExternalClientRequest"] = to_class(MCPUnregisterExternalClientRequest, self.mcp_unregister_external_client_request)
         result["MemoryConfiguration"] = to_class(MemoryConfiguration, self.memory_configuration)
+        result["MetadataContextAttributionResult"] = to_class(MetadataContextAttributionResult, self.metadata_context_attribution_result)
+        result["MetadataContextHeaviestMessagesRequest"] = to_class(MetadataContextHeaviestMessagesRequest, self.metadata_context_heaviest_messages_request)
+        result["MetadataContextHeaviestMessagesResult"] = to_class(MetadataContextHeaviestMessagesResult, self.metadata_context_heaviest_messages_result)
         result["MetadataContextInfoRequest"] = to_class(MetadataContextInfoRequest, self.metadata_context_info_request)
         result["MetadataContextInfoResult"] = to_class(MetadataContextInfoResult, self.metadata_context_info_result)
         result["MetadataIsProcessingResult"] = to_class(MetadataIsProcessingResult, self.metadata_is_processing_result)
@@ -24416,7 +24603,6 @@ class RPC:
         result["PluginUpdateAllEntry"] = to_class(PluginUpdateAllEntry, self.plugin_update_all_entry)
         result["PluginUpdateAllResult"] = to_class(PluginUpdateAllResult, self.plugin_update_all_result)
         result["PluginUpdateResult"] = to_class(PluginUpdateResult, self.plugin_update_result)
-        result["PollSpawnedSessionsResult"] = to_class(PollSpawnedSessionsResult, self.poll_spawned_sessions_result)
         result["ProviderAddRequest"] = to_class(ProviderAddRequest, self.provider_add_request)
         result["ProviderAddResult"] = to_class(ProviderAddResult, self.provider_add_result)
         result["ProviderConfig"] = to_class(ProviderConfig, self.provider_config)
@@ -24608,8 +24794,6 @@ class RPC:
         result["SessionsOpenResumeLast"] = to_class(SessionsOpenResumeLast, self.sessions_open_resume_last)
         result["SessionsOpenStatus"] = to_enum(SessionsOpenStatus, self.sessions_open_status)
         result["SessionSource"] = to_enum(SessionSource, self.session_source)
-        result["SessionsPollSpawnedSessionsEvent"] = to_class(SessionsPollSpawnedSessionsEvent, self.sessions_poll_spawned_sessions_event)
-        result["SessionsPollSpawnedSessionsRequest"] = to_class(SessionsPollSpawnedSessionsRequest, self.sessions_poll_spawned_sessions_request)
         result["SessionsPruneOldRequest"] = to_class(SessionsPruneOldRequest, self.sessions_prune_old_request)
         result["SessionsRegisterExtensionToolsOnSessionOptions"] = to_class(SessionsRegisterExtensionToolsOnSessionOptions, self.sessions_register_extension_tools_on_session_options)
         result["SessionsReleaseLockRequest"] = to_class(SessionsReleaseLockRequest, self.sessions_release_lock_request)
@@ -24655,6 +24839,7 @@ class RPC:
         result["SlashCommandCompletedResult"] = to_class(SlashCommandCompletedResult, self.slash_command_completed_result)
         result["SlashCommandInfo"] = to_class(SlashCommandInfo, self.slash_command_info)
         result["SlashCommandInput"] = to_class(SlashCommandInput, self.slash_command_input)
+        result["SlashCommandInputChoice"] = to_class(SlashCommandInputChoice, self.slash_command_input_choice)
         result["SlashCommandInputCompletion"] = to_enum(SlashCommandInputCompletion, self.slash_command_input_completion)
         result["SlashCommandInvocationResult"] = (self.slash_command_invocation_result).to_dict()
         result["SlashCommandKind"] = to_enum(SlashCommandKind, self.slash_command_kind)
@@ -24772,6 +24957,7 @@ class RPC:
         result["WorkspacesSaveLargePasteResult"] = to_class(WorkspacesSaveLargePasteResult, self.workspaces_save_large_paste_result)
         result["WorkspaceSummaryHostType"] = to_enum(HostType, self.workspace_summary_host_type)
         result["WorkspacesWorkspaceDetailsHostType"] = to_enum(HostType, self.workspaces_workspace_details_host_type)
+        result["SessionContextAttribution"] = from_union([lambda x: to_class(SessionContextAttribution, x), from_none], self.session_context_attribution)
         result["SessionContextInfo"] = from_union([lambda x: to_class(SessionContextInfo, x), from_none], self.session_context_info)
         result["SubagentSettings"] = from_union([lambda x: to_class(SubagentSettings, x), from_none], self.subagent_settings)
         result["TaskProgress"] = from_union([lambda x: to_class(TaskProgress, x), from_none], self.task_progress)
@@ -25568,11 +25754,6 @@ class _InternalServerSessionsApi:
         "Gets the dynamic-context board entry count associated with a session, when available. Internal: this exists solely so CLI telemetry events (`rem_spawn_gate`, `rem_consolidation_complete`) can pair START / END board counts around the detached rem-agent spawn. \"Dynamic context board\" is a runtime-internal concept that is not part of the public SDK contract; the long-term plan is to relocate the telemetry emission into the runtime so this method can be deleted entirely.\n\nArgs:\n    params: Session ID whose board entry count should be returned.\n\nReturns:\n    Dynamic-context board entry count, when available.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsGetBoardEntryCountResult.from_dict(await self._client.request("sessions.getBoardEntryCount", params_dict, **_timeout_kwargs(timeout)))
-
-    async def _poll_spawned_sessions(self, params: SessionsPollSpawnedSessionsRequest, *, timeout: float | None = None) -> PollSpawnedSessionsResult:
-        "Cursor-based long-poll for sessions spawned by the runtime (e.g. in response to a Mission Control `start_session` command). The cursor is an opaque token; pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit the cursor on the first call to receive any events buffered since the runtime started. Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to react to runtime-spawned sessions should subscribe to a higher-level event stream rather than driving a long-poll loop.\n\nArgs:\n    params: Cursor and optional long-poll wait for polling runtime-spawned sessions.\n\nReturns:\n    Batch of spawn events plus a cursor for follow-up polls.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
-        return PollSpawnedSessionsResult.from_dict(await self._client.request("sessions.pollSpawnedSessions", params_dict, **_timeout_kwargs(timeout)))
 
     async def _register_extension_tools_on_session(self, params: _RegisterExtensionToolsParams, *, timeout: float | None = None) -> _RegisterExtensionToolsResult:
         "Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.\n\nArgs:\n    params: Params to attach an extension loader's tools to a session.\n\nReturns:\n    Handle for releasing the extension tool registration.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
@@ -26541,6 +26722,16 @@ class MetadataApi:
         params_dict["sessionId"] = self._session_id
         return MetadataContextInfoResult.from_dict(await self._client.request("session.metadata.contextInfo", params_dict, **_timeout_kwargs(timeout)))
 
+    async def get_context_attribution(self, *, timeout: float | None = None) -> MetadataContextAttributionResult:
+        "Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.\n\nReturns:\n    Per-source attribution breakdown for the session's current context window, or null if uninitialized."
+        return MetadataContextAttributionResult.from_dict(await self._client.request("session.metadata.getContextAttribution", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+
+    async def get_context_heaviest_messages(self, params: MetadataContextHeaviestMessagesRequest, *, timeout: float | None = None) -> MetadataContextHeaviestMessagesResult:
+        "Returns the largest individual messages currently in the session's context window, most-expensive first. Companion to `metadata.getContextAttribution`. Returns an empty list until the session has initialized.\n\nArgs:\n    params: Parameters for the heaviest-messages query.\n\nReturns:\n    The heaviest individual messages in the session's context window, most-expensive first."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return MetadataContextHeaviestMessagesResult.from_dict(await self._client.request("session.metadata.getContextHeaviestMessages", params_dict, **_timeout_kwargs(timeout)))
+
     async def record_context_change(self, params: MetadataRecordContextChangeRequest, *, timeout: float | None = None) -> MetadataRecordContextChangeResult:
         "Records a working-directory/git context change and emits a `session.context_changed` event.\n\nArgs:\n    params: Updated working-directory/git context to record on the session.\n\nReturns:\n    Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode)."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -27190,6 +27381,7 @@ __all__ = [
     "CommandsListRequest",
     "CommandsRespondToQueuedCommandRequest",
     "CommandsRespondToQueuedCommandResult",
+    "Compactions",
     "CompletionsApi",
     "CompletionsGetTriggerCharactersResult",
     "CompletionsRequestRequest",
@@ -27199,6 +27391,7 @@ __all__ = [
     "ConnectedRemoteSessionMetadataKind",
     "ConnectedRemoteSessionMetadataRepository",
     "ContentFilterMode",
+    "ContextHeaviestMessage",
     "CopilotAPITokenAuthInfo",
     "CopilotAPITokenAuthInfoType",
     "CopilotUserResponse",
@@ -27214,6 +27407,7 @@ __all__ = [
     "DiscoveredMCPServerType",
     "EnqueueCommandParams",
     "EnqueueCommandResult",
+    "Entry",
     "EnvAuthInfo",
     "EnvAuthInfoType",
     "EventLogApi",
@@ -27425,6 +27619,9 @@ __all__ = [
     "McpServerConfigHttpOauthGrantType",
     "MemoryConfiguration",
     "MetadataApi",
+    "MetadataContextAttributionResult",
+    "MetadataContextHeaviestMessagesRequest",
+    "MetadataContextHeaviestMessagesResult",
     "MetadataContextInfoRequest",
     "MetadataContextInfoResult",
     "MetadataIsProcessingResult",
@@ -27634,7 +27831,6 @@ __all__ = [
     "PluginsReloadRequest",
     "PluginsUninstallRequest",
     "PluginsUpdateRequest",
-    "PollSpawnedSessionsResult",
     "ProviderAddRequest",
     "ProviderAddResult",
     "ProviderApi",
@@ -27783,6 +27979,7 @@ __all__ = [
     "SessionCapability",
     "SessionCompletionItem",
     "SessionContext",
+    "SessionContextAttribution",
     "SessionContextHostType",
     "SessionContextInfo",
     "SessionEnrichMetadataResult",
@@ -27891,8 +28088,6 @@ __all__ = [
     "SessionsOpenResumeLast",
     "SessionsOpenResumeLastKind",
     "SessionsOpenStatus",
-    "SessionsPollSpawnedSessionsEvent",
-    "SessionsPollSpawnedSessionsRequest",
     "SessionsPruneOldRequest",
     "SessionsRegisterExtensionToolsOnSessionOptions",
     "SessionsReleaseLockRequest",
@@ -27936,6 +28131,7 @@ __all__ = [
     "SlashCommandCompletedResultKind",
     "SlashCommandInfo",
     "SlashCommandInput",
+    "SlashCommandInputChoice",
     "SlashCommandInputCompletion",
     "SlashCommandInvocationResult",
     "SlashCommandInvocationResultKind",
