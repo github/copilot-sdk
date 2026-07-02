@@ -6,14 +6,9 @@ package com.github.copilot.rpc;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -318,7 +313,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper());
         ToolHandler toolHandler = invocation -> {
             R result = handler.get();
             return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
@@ -357,11 +352,10 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     public static <T1, R> ToolDefinition from(String name, String description, Param<T1> p1, Function<T1, R> handler) {
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
-        requireNonNullParam(p1, name, 1);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams(p1);
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
             R result = handler.apply(arg1);
             return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
         };
@@ -404,14 +398,11 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             BiFunction<T1, T2, R> handler) {
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
-        requireNonNullParam(p1, name, 1);
-        requireNonNullParam(p2, name, 2);
-        requireUniqueParamNames(name, p1, p2);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams(p1, p2);
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1, p2);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
-            T2 arg2 = coerceArg(invocation, p2, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
+            T2 arg2 = ParamCoercion.coerce(invocation.getArguments(), p2, getConfiguredMapper());
             R result = handler.apply(arg1, arg2);
             return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
         };
@@ -454,7 +445,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper());
         ToolHandler toolHandler = invocation -> {
             CompletableFuture<R> future = handler.get();
             if (future == null) {
@@ -499,11 +490,10 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             Function<T1, CompletableFuture<R>> handler) {
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
-        requireNonNullParam(p1, name, 1);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams(p1);
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
             CompletableFuture<R> future = handler.apply(arg1);
             if (future == null) {
                 return CompletableFuture.failedFuture(
@@ -543,14 +533,11 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             BiFunction<T1, T2, CompletableFuture<R>> handler) {
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
-        requireNonNullParam(p1, name, 1);
-        requireNonNullParam(p2, name, 2);
-        requireUniqueParamNames(name, p1, p2);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams(p1, p2);
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1, p2);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
-            T2 arg2 = coerceArg(invocation, p2, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
+            T2 arg2 = ParamCoercion.coerce(invocation.getArguments(), p2, getConfiguredMapper());
             CompletableFuture<R> future = handler.apply(arg1, arg2);
             if (future == null) {
                 return CompletableFuture.failedFuture(
@@ -595,7 +582,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper());
         ToolHandler toolHandler = invocation -> {
             R result = handler.apply(invocation);
             return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
@@ -638,11 +625,10 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             BiFunction<T1, ToolInvocation, R> handler) {
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
-        requireNonNullParam(p1, name, 1);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams(p1);
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
             R result = handler.apply(arg1, invocation);
             return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
         };
@@ -685,7 +671,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper());
         ToolHandler toolHandler = invocation -> {
             CompletableFuture<R> future = handler.apply(invocation);
             if (future == null) {
@@ -734,11 +720,10 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             BiFunction<T1, ToolInvocation, CompletableFuture<R>> handler) {
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
-        requireNonNullParam(p1, name, 1);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = buildSchemaFromParams(p1);
+        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = coerceArg(invocation, p1, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
             CompletableFuture<R> future = handler.apply(arg1, invocation);
             if (future == null) {
                 return CompletableFuture.failedFuture(
@@ -750,264 +735,8 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     }
 
     // ------------------------------------------------------------------
-    // Internal helpers: schema, coercion, result formatting, validation
+    // Internal helpers: result formatting, validation
     // ------------------------------------------------------------------
-
-    /**
-     * Builds a JSON Schema {@code Map} from zero or more {@link Param} descriptors.
-     */
-    private static Map<String, Object> buildSchemaFromParams(Param<?>... params) {
-        if (params.length == 0) {
-            return Map.of("type", "object", "properties", Map.of(), "required", List.of());
-        }
-
-        List<String> requiredNames = new ArrayList<>();
-        Map<String, Object> properties = new LinkedHashMap<>();
-
-        for (Param<?> param : params) {
-            Map<String, Object> propSchema = schemaForClass(param.type());
-
-            // Add description and default
-            Map<String, Object> enriched = new LinkedHashMap<>(propSchema);
-            enriched.put("description", param.description());
-            if (param.hasDefaultValue()) {
-                enriched.put("default", coerceDefaultValue(param, getConfiguredMapper()));
-            }
-
-            properties.put(param.name(), Collections.unmodifiableMap(enriched));
-
-            if (param.required()) {
-                requiredNames.add(param.name());
-            }
-        }
-
-        return Map.of("type", "object", "properties", Collections.unmodifiableMap(properties), "required",
-                Collections.unmodifiableList(requiredNames));
-    }
-
-    /**
-     * Maps a Java {@link Class} to a JSON Schema {@code Map} using the same type
-     * surface as the compile-time {@link com.github.copilot.tool.SchemaGenerator}.
-     */
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static Map<String, Object> schemaForClass(Class<?> type) {
-        // Primitives
-        if (type == int.class || type == Integer.class || type == long.class || type == Long.class || type == byte.class
-                || type == Byte.class || type == short.class || type == Short.class) {
-            return Map.of("type", "integer");
-        }
-        if (type == double.class || type == Double.class || type == float.class || type == Float.class) {
-            return Map.of("type", "number");
-        }
-        if (type == boolean.class || type == Boolean.class) {
-            return Map.of("type", "boolean");
-        }
-        if (type == char.class || type == Character.class) {
-            return Map.of("type", "string");
-        }
-        if (type == String.class) {
-            return Map.of("type", "string");
-        }
-
-        // UUID
-        if (type == java.util.UUID.class) {
-            return Map.of("type", "string", "format", "uuid");
-        }
-
-        // Optional primitive types
-        if (type == java.util.OptionalInt.class || type == java.util.OptionalLong.class) {
-            return Map.of("type", "integer");
-        }
-        if (type == java.util.OptionalDouble.class) {
-            return Map.of("type", "number");
-        }
-
-        // Date-time types
-        if (type == java.time.OffsetDateTime.class || type == java.time.LocalDateTime.class
-                || type == java.time.Instant.class || type == java.time.ZonedDateTime.class) {
-            return Map.of("type", "string", "format", "date-time");
-        }
-        if (type == java.time.LocalDate.class) {
-            return Map.of("type", "string", "format", "date");
-        }
-        if (type == java.time.LocalTime.class) {
-            return Map.of("type", "string", "format", "time");
-        }
-
-        // JsonNode (any)
-        if (type == com.fasterxml.jackson.databind.JsonNode.class || type == Object.class) {
-            return Map.of();
-        }
-
-        // Enum types
-        if (type.isEnum()) {
-            Class<? extends Enum> enumType = (Class<? extends Enum>) type;
-            List<String> constants = Arrays.stream(enumType.getEnumConstants()).map(Enum::name)
-                    .collect(Collectors.toList());
-            return Map.of("type", "string", "enum", Collections.unmodifiableList(constants));
-        }
-
-        // List / Collection / Set types — treat as array of any
-        if (java.util.List.class.isAssignableFrom(type) || java.util.Collection.class.isAssignableFrom(type)
-                || java.util.Set.class.isAssignableFrom(type)) {
-            return Map.of("type", "array");
-        }
-
-        // Array types — include items schema from component type
-        if (type.isArray()) {
-            Map<String, Object> itemsSchema = schemaForClass(type.getComponentType());
-            return Map.of("type", "array", "items", itemsSchema);
-        }
-
-        // Map types
-        if (java.util.Map.class.isAssignableFrom(type)) {
-            return Map.of("type", "object");
-        }
-
-        // POJO / record — treat as object
-        return Map.of("type", "object");
-    }
-
-    /**
-     * Coerces the named argument from a {@link ToolInvocation} to the Java type
-     * declared by {@code param}. Uses the SDK-configured {@link ObjectMapper} for
-     * conversion.
-     *
-     * @throws IllegalArgumentException
-     *             if coercion fails
-     */
-    @SuppressWarnings("unchecked")
-    private static <T> T coerceArg(ToolInvocation invocation, Param<T> param, ObjectMapper mapper) {
-        Map<String, Object> args = invocation.getArguments();
-        Object raw = (args != null) ? args.get(param.name()) : null;
-
-        if (raw == null) {
-            if (param.hasDefaultValue()) {
-                // Default is stored as a validated String; parse it to the target type
-                return coerceDefaultValue(param, mapper);
-            } else if (!param.required()) {
-                // Return empty Optional* for optional primitive types, null otherwise
-                return (T) emptyOptionalOrNull(param.type());
-            } else {
-                throw new IllegalArgumentException(
-                        "Required parameter '" + param.name() + "' is missing from tool invocation");
-            }
-        }
-
-        // Handle Optional* types explicitly
-        Class<T> type = param.type();
-        if (type == java.util.OptionalInt.class) {
-            try {
-                return (T) java.util.OptionalInt.of(((Number) raw).intValue());
-            } catch (ClassCastException ex) {
-                throw new IllegalArgumentException("Parameter '" + param.name()
-                        + "' expected a numeric value for OptionalInt, got: " + raw.getClass().getSimpleName(), ex);
-            }
-        }
-        if (type == java.util.OptionalLong.class) {
-            try {
-                return (T) java.util.OptionalLong.of(((Number) raw).longValue());
-            } catch (ClassCastException ex) {
-                throw new IllegalArgumentException("Parameter '" + param.name()
-                        + "' expected a numeric value for OptionalLong, got: " + raw.getClass().getSimpleName(), ex);
-            }
-        }
-        if (type == java.util.OptionalDouble.class) {
-            try {
-                return (T) java.util.OptionalDouble.of(((Number) raw).doubleValue());
-            } catch (ClassCastException ex) {
-                throw new IllegalArgumentException("Parameter '" + param.name()
-                        + "' expected a numeric value for OptionalDouble, got: " + raw.getClass().getSimpleName(), ex);
-            }
-        }
-
-        try {
-            return mapper.convertValue(raw, type);
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException(
-                    "Failed to coerce parameter '" + param.name() + "' to type " + type.getSimpleName(), ex);
-        }
-    }
-
-    /**
-     * Returns an empty Optional variant for Optional primitive types, or null for
-     * other types.
-     */
-    private static Object emptyOptionalOrNull(Class<?> type) {
-        if (type == java.util.OptionalInt.class) {
-            return java.util.OptionalInt.empty();
-        }
-        if (type == java.util.OptionalLong.class) {
-            return java.util.OptionalLong.empty();
-        }
-        if (type == java.util.OptionalDouble.class) {
-            return java.util.OptionalDouble.empty();
-        }
-        return null;
-    }
-
-    /**
-     * Parses a {@link Param}'s string default value into the declared Java type.
-     * Handles primitives, boxed types, {@link String}, {@link Boolean}, and enums
-     * explicitly, mirroring the validation logic in
-     * {@link com.github.copilot.tool.Param}.
-     */
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static <T> T coerceDefaultValue(Param<T> param, ObjectMapper mapper) {
-        String defaultValue = param.defaultValue();
-        Class<T> type = param.type();
-        try {
-            if (type == String.class) {
-                return type.cast(defaultValue);
-            }
-            if (type == Integer.class || type == int.class) {
-                @SuppressWarnings("unchecked")
-                T result = (T) Integer.valueOf(defaultValue);
-                return result;
-            }
-            if (type == Long.class || type == long.class) {
-                @SuppressWarnings("unchecked")
-                T result = (T) Long.valueOf(defaultValue);
-                return result;
-            }
-            if (type == Double.class || type == double.class) {
-                @SuppressWarnings("unchecked")
-                T result = (T) Double.valueOf(defaultValue);
-                return result;
-            }
-            if (type == Float.class || type == float.class) {
-                @SuppressWarnings("unchecked")
-                T result = (T) Float.valueOf(defaultValue);
-                return result;
-            }
-            if (type == Short.class || type == short.class) {
-                @SuppressWarnings("unchecked")
-                T result = (T) Short.valueOf(defaultValue);
-                return result;
-            }
-            if (type == Byte.class || type == byte.class) {
-                @SuppressWarnings("unchecked")
-                T result = (T) Byte.valueOf(defaultValue);
-                return result;
-            }
-            if (type == Boolean.class || type == boolean.class) {
-                @SuppressWarnings("unchecked")
-                T result = (T) Boolean.valueOf(defaultValue);
-                return result;
-            }
-            if (type.isEnum()) {
-                Class<? extends Enum> enumType = (Class<? extends Enum>) type;
-                return type.cast(Enum.valueOf(enumType, defaultValue));
-            }
-            // Fallback: let ObjectMapper parse the JSON-encoded default string
-            return mapper.readValue(defaultValue, type);
-        } catch (IllegalArgumentException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("Failed to apply default value '" + defaultValue + "' for parameter '"
-                    + param.name() + "' of type " + type.getSimpleName(), ex);
-        }
-    }
 
     /**
      * Formats a handler return value according to the tool result contract:
@@ -1054,23 +783,6 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     private static void requireNonNullHandler(Object handler, String toolName) {
         if (handler == null) {
             throw new IllegalArgumentException("handler must not be null for tool '" + toolName + "'");
-        }
-    }
-
-    private static void requireNonNullParam(Param<?> param, String toolName, int position) {
-        if (param == null) {
-            throw new IllegalArgumentException(
-                    "Parameter at position " + position + " must not be null for tool '" + toolName + "'");
-        }
-    }
-
-    private static void requireUniqueParamNames(String toolName, Param<?>... params) {
-        Set<String> seen = new HashSet<>();
-        for (Param<?> param : params) {
-            if (!seen.add(param.name())) {
-                throw new IllegalArgumentException(
-                        "Duplicate parameter name '" + param.name() + "' in tool '" + toolName + "'");
-            }
         }
     }
 

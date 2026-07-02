@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-package com.github.copilot.tool;
+package com.github.copilot.rpc;
 
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.tool.Param;
 
 /**
  * Internal runtime helper: coerces raw invocation arguments to the typed values

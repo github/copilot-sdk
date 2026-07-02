@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-package com.github.copilot.tool;
+package com.github.copilot.rpc;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.tool.Param;
 
 /**
  * Internal runtime helper: maps {@link Param} metadata to JSON Schema
@@ -22,7 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  * <p>
  * This class is a simplified runtime counterpart to the compile-time
- * {@link SchemaGenerator}. It operates on {@code java.lang.reflect.Class}
+ * {@code SchemaGenerator}. It operates on {@code java.lang.reflect.Class}
  * values instead of {@code javax.lang.model} mirrors, and produces {@link Map}
  * instances rather than Java source-code literals. Unlike
  * {@code SchemaGenerator}, it does not inspect generics or object members
@@ -106,7 +107,7 @@ class ParamSchema {
      * Covers primitives, boxed types, strings, UUIDs, date-time types, enums,
      * collections, arrays, and maps. Does not resolve generic type parameters (e.g.
      * {@code List<T>} item schemas or {@code Map<K,V>} additionalProperties) —
-     * those require the compile-time {@link SchemaGenerator} which operates on
+     * those require the compile-time {@code SchemaGenerator} which operates on
      * {@code TypeMirror}.
      *
      * @param type
