@@ -197,6 +197,8 @@ Param<Integer> limit = Param.of(Integer.class, "limit", "Max results", false, "1
 Use `fromAsync` for asynchronous tool handlers:
 
 ```java
+import java.util.concurrent.CompletableFuture;
+
 ToolDefinition fetchData = ToolDefinition.fromAsync(
     "fetch_data",
     "Fetches data from remote source",
@@ -225,7 +227,7 @@ For async with `ToolInvocation`, use `fromAsyncWithToolInvocation`.
 Chain fluent modifiers to set tool options:
 
 - `.skipPermission(boolean)` — bypass permission prompts
-- `.defer(ToolDefer)` — control deferred execution (`AUTO`, `ALWAYS`, `NEVER`)
+- `.defer(ToolDefer)` — control deferred execution (`AUTO`, `NEVER`)
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
