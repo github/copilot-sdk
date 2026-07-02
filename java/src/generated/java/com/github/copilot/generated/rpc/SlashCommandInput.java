@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -23,6 +24,8 @@ import javax.annotation.processing.Generated;
 public record SlashCommandInput(
     /** Hint to display when command input has not been provided */
     @JsonProperty("hint") String hint,
+    /** Optional literal choices the input accepts, each with a human-facing description; clients may render these as selectable options */
+    @JsonProperty("choices") List<SlashCommandInputChoice> choices,
     /** When true, the command requires non-empty input; clients should render the input hint as required */
     @JsonProperty("required") Boolean required,
     /** Optional completion hint for the input (e.g. 'directory' for filesystem path completion) */

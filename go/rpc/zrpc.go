@@ -1361,6 +1361,20 @@ type ConnectResult struct {
 	Version string `json:"version"`
 }
 
+// A single large message currently in context.
+// Experimental: ContextHeaviestMessage is part of an experimental API and may change or be
+// removed.
+type ContextHeaviestMessage struct {
+	// Stable identifier for this message within the snapshot.
+	ID string `json:"id"`
+	// Human-readable source label, e.g. `tool: bash` or `skill: tmux`. Presentation-only.
+	Label string `json:"label"`
+	// Role of the chat message (`user`, `assistant`, or `tool`).
+	Role string `json:"role"`
+	// Token count currently in context for this individual message.
+	Tokens int64 `json:"tokens"`
+}
+
 // Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 // GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
 // verbatim and does not re-fetch when set.
@@ -1733,6 +1747,10 @@ type ExternalToolTextResultForLlm struct {
 	SessionLog *string `json:"sessionLog,omitempty"`
 	// Text result returned to the model
 	TextResultForLlm string `json:"textResultForLlm"`
+	// Tool references returned by a tool-search override: names of deferred tools to surface to
+	// the model. When set, the tool result is materialized as `tool_reference` content blocks
+	// (rather than plain text) so the model knows which deferred tools are now available.
+	ToolReferences []string `json:"toolReferences,omitzero"`
 	// Optional tool-specific telemetry
 	ToolTelemetry map[string]any `json:"toolTelemetry,omitzero"`
 }
@@ -3564,6 +3582,35 @@ type MCPUnregisterExternalClientRequest struct {
 type MemoryConfiguration struct {
 	// Whether memory is enabled for the session.
 	Enabled bool `json:"enabled"`
+}
+
+// Per-source attribution breakdown for the session's current context window, or null if
+// uninitialized.
+// Experimental: MetadataContextAttributionResult is part of an experimental API and may
+// change or be removed.
+type MetadataContextAttributionResult struct {
+	// Per-source context-window attribution, or null if the session has not yet been
+	// initialized (no system prompt or tool metadata cached).
+	ContextAttribution *SessionContextAttribution `json:"contextAttribution,omitempty"`
+}
+
+// Parameters for the heaviest-messages query.
+// Experimental: MetadataContextHeaviestMessagesRequest is part of an experimental API and
+// may change or be removed.
+type MetadataContextHeaviestMessagesRequest struct {
+	// Maximum number of messages to return, most-expensive first. Omit for the server default.
+	Limit *int64 `json:"limit,omitempty"`
+}
+
+// The heaviest individual messages in the session's context window, most-expensive first.
+// Experimental: MetadataContextHeaviestMessagesResult is part of an experimental API and
+// may change or be removed.
+type MetadataContextHeaviestMessagesResult struct {
+	// Heaviest messages, most-expensive first.
+	Messages []ContextHeaviestMessage `json:"messages"`
+	// Total token count of the current context window, so callers can compute each message's
+	// share without a second call.
+	TotalTokens int64 `json:"totalTokens"`
 }
 
 // Model identifier and token limits used to compute the context-info breakdown.
@@ -5462,16 +5509,6 @@ type PluginUpdateResult struct {
 	SkillsInstalled int64 `json:"skillsInstalled"`
 }
 
-// Batch of spawn events plus a cursor for follow-up polls.
-// Experimental: PollSpawnedSessionsResult is part of an experimental API and may change or
-// be removed.
-type PollSpawnedSessionsResult struct {
-	// Opaque cursor to pass back to receive only events after this batch.
-	Cursor string `json:"cursor"`
-	// Spawn events emitted since the supplied cursor.
-	Events []SessionsPollSpawnedSessionsEvent `json:"events"`
-}
-
 // BYOK providers and/or models to add to the session's registry at runtime. Both fields are
 // optional; provide providers, models, or both.
 // Experimental: ProviderAddRequest is part of an experimental API and may change or be
@@ -6696,6 +6733,52 @@ type SessionContext struct {
 	HostType *SessionContextHostType `json:"hostType,omitempty"`
 	// Repository slug in `owner/name` form, when known
 	Repository *string `json:"repository,omitempty"`
+}
+
+// Per-source token attribution snapshot for the current context window. The heaviest
+// individual messages are available separately via `metadata.getContextHeaviestMessages`.
+// Experimental: SessionContextAttribution is part of an experimental API and may change or
+// be removed.
+type SessionContextAttribution struct {
+	// Successful compaction history for the session.
+	Compactions SessionContextAttributionCompactions `json:"compactions"`
+	// Flat list of per-source attribution entries. Group by `kind` and render unrecognized
+	// kinds generically. Nesting and rollups are expressed via `parentId`.
+	Entries []SessionContextAttributionEntriesItem `json:"entries"`
+	// Total token count of the current context window the entries are measured against (system
+	// message + conversation messages + tool definitions — the same total reported by
+	// /context). Divide an entry's `tokens` by this to derive its share.
+	TotalTokens int64 `json:"totalTokens"`
+}
+
+// Successful compaction history for the session.
+type SessionContextAttributionCompactions struct {
+	// Number of successful compactions in this session.
+	Count int64 `json:"count"`
+}
+
+type SessionContextAttributionEntriesItem struct {
+	// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`,
+	// `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+	Attributes map[string]string `json:"attributes,omitzero"`
+	// Identifier for this entry, formed by joining its `kind` and source name (e.g.
+	// `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to
+	// match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP
+	// registries), and as the `parentId` target for nesting. Distinct from the human-facing
+	// `label`.
+	ID string `json:"id"`
+	// Source category for this entry. Not a closed set — tolerate unknown values. Known values
+	// today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+	Kind string `json:"kind"`
+	// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be
+	// localized/reformatted without notice — do not key off it.
+	Label string `json:"label"`
+	// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its
+	// `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries.
+	// Omitted for top-level entries.
+	ParentID *string `json:"parentId,omitempty"`
+	// Token count currently in context attributable to this entry.
+	Tokens int64 `json:"tokens"`
 }
 
 // Token-usage breakdown for the session's current context window
@@ -7985,25 +8068,6 @@ type SessionsOpenProgress struct {
 	Step SessionsOpenProgressStep `json:"step"`
 }
 
-// Schema for the `SessionsPollSpawnedSessionsEvent` type.
-// Experimental: SessionsPollSpawnedSessionsEvent is part of an experimental API and may
-// change or be removed.
-type SessionsPollSpawnedSessionsEvent struct {
-	// Session id of the newly-spawned session.
-	SessionID string `json:"sessionId"`
-}
-
-// Experimental: SessionsPollSpawnedSessionsRequest is part of an experimental API and may
-// change or be removed.
-type SessionsPollSpawnedSessionsRequest struct {
-	// Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn
-	// events buffered since the runtime started.
-	Cursor *string `json:"cursor,omitempty"`
-	// Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default)
-	// returns immediately even if no events are buffered. Capped at 60000ms.
-	WaitMs *int32 `json:"waitMs,omitempty"`
-}
-
 // Age threshold and optional flags controlling which old sessions are pruned (or simulated
 // when dryRun is true).
 // Experimental: SessionsPruneOldRequest is part of an experimental API and may change or be
@@ -8565,6 +8629,9 @@ type SlashCommandInfo struct {
 // Experimental: SlashCommandInput is part of an experimental API and may change or be
 // removed.
 type SlashCommandInput struct {
+	// Optional literal choices the input accepts, each with a human-facing description; clients
+	// may render these as selectable options
+	Choices []SlashCommandInputChoice `json:"choices,omitzero"`
 	// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
 	Completion *SlashCommandInputCompletion `json:"completion,omitempty"`
 	// Hint to display when command input has not been provided
@@ -8575,6 +8642,16 @@ type SlashCommandInput struct {
 	// When true, the command requires non-empty input; clients should render the input hint as
 	// required
 	Required *bool `json:"required,omitempty"`
+}
+
+// A literal choice the command input accepts, with a human-facing description
+// Experimental: SlashCommandInputChoice is part of an experimental API and may change or be
+// removed.
+type SlashCommandInputChoice struct {
+	// Human-readable description shown alongside the choice
+	Description string `json:"description"`
+	// The literal choice value (e.g. 'on', 'off', 'show')
+	Name string `json:"name"`
 }
 
 // Result of invoking the slash command (text output, prompt to send to the agent,
@@ -13550,33 +13627,6 @@ func (a *InternalServerSessionsAPI) GetPersistedRemoteSteerable(ctx context.Cont
 	return &result, nil
 }
 
-// PollSpawnedSessions cursor-based long-poll for sessions spawned by the runtime (e.g. in
-// response to a Mission Control `start_session` command). The cursor is an opaque token;
-// pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit
-// the cursor on the first call to receive any events buffered since the runtime started.
-// Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to
-// react to runtime-spawned sessions should subscribe to a higher-level event stream rather
-// than driving a long-poll loop.
-//
-// RPC method: sessions.pollSpawnedSessions.
-//
-// Parameters: Cursor and optional long-poll wait for polling runtime-spawned sessions.
-//
-// Returns: Batch of spawn events plus a cursor for follow-up polls.
-// Internal: PollSpawnedSessions is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerSessionsAPI) PollSpawnedSessions(ctx context.Context, params *SessionsPollSpawnedSessionsRequest) (*PollSpawnedSessionsResult, error) {
-	raw, err := a.client.Request(ctx, "sessions.pollSpawnedSessions", params)
-	if err != nil {
-		return nil, err
-	}
-	var result PollSpawnedSessionsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // RegisterExtensionToolsOnSession registers extension-provided tools on the given session,
 // gated by an optional `enabled` callback. Returns an opaque unsubscribe function the
 // caller must invoke to deregister the tools when the extension is torn down. Marked
@@ -15107,6 +15157,58 @@ func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextIn
 		return nil, err
 	}
 	var result MetadataContextInfoResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetContextAttribution returns the experimental per-source attribution breakdown of the
+// session's current context window as a flat list of entries (skills, subagents, MCP
+// servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via
+// parentId), plus the successful compaction count. The heaviest individual messages are
+// available separately via `metadata.getContextHeaviestMessages`. Returns null until the
+// session has initialized its system prompt and tool metadata.
+//
+// RPC method: session.metadata.getContextAttribution.
+//
+// Returns: Per-source attribution breakdown for the session's current context window, or
+// null if uninitialized.
+func (a *MetadataAPI) GetContextAttribution(ctx context.Context) (*MetadataContextAttributionResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.metadata.getContextAttribution", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MetadataContextAttributionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetContextHeaviestMessages returns the largest individual messages currently in the
+// session's context window, most-expensive first. Companion to
+// `metadata.getContextAttribution`. Returns an empty list until the session has initialized.
+//
+// RPC method: session.metadata.getContextHeaviestMessages.
+//
+// Parameters: Parameters for the heaviest-messages query.
+//
+// Returns: The heaviest individual messages in the session's context window, most-expensive
+// first.
+func (a *MetadataAPI) GetContextHeaviestMessages(ctx context.Context, params *MetadataContextHeaviestMessagesRequest) (*MetadataContextHeaviestMessagesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Limit != nil {
+			req["limit"] = *params.Limit
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.metadata.getContextHeaviestMessages", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MetadataContextHeaviestMessagesResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

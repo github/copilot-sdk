@@ -313,17 +313,6 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Cursor and optional long-poll wait for polling runtime-spawned sessions.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionsPollSpawnedSessionsResult> pollSpawnedSessions() {
-        return caller.invoke("sessions.pollSpawnedSessions", java.util.Map.of(), SessionsPollSpawnedSessionsResult.class);
-    }
-
-    /**
      * Params to attach an extension loader's tools to a session.
      *
      * @apiNote This method is experimental and may change in a future version.

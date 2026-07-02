@@ -160,8 +160,6 @@ pub mod rpc_methods {
     pub const SESSIONS_STOPREMOTECONTROL: &str = "sessions.stopRemoteControl";
     /// `sessions.getRemoteControlStatus`
     pub const SESSIONS_GETREMOTECONTROLSTATUS: &str = "sessions.getRemoteControlStatus";
-    /// `sessions.pollSpawnedSessions`
-    pub const SESSIONS_POLLSPAWNEDSESSIONS: &str = "sessions.pollSpawnedSessions";
     /// `sessions.registerExtensionToolsOnSession`
     pub const SESSIONS_REGISTEREXTENSIONTOOLSONSESSION: &str =
         "sessions.registerExtensionToolsOnSession";
@@ -479,6 +477,12 @@ pub mod rpc_methods {
     pub const SESSION_METADATA_ACTIVITY: &str = "session.metadata.activity";
     /// `session.metadata.contextInfo`
     pub const SESSION_METADATA_CONTEXTINFO: &str = "session.metadata.contextInfo";
+    /// `session.metadata.getContextAttribution`
+    pub const SESSION_METADATA_GETCONTEXTATTRIBUTION: &str =
+        "session.metadata.getContextAttribution";
+    /// `session.metadata.getContextHeaviestMessages`
+    pub const SESSION_METADATA_GETCONTEXTHEAVIESTMESSAGES: &str =
+        "session.metadata.getContextHeaviestMessages";
     /// `session.metadata.recordContextChange`
     pub const SESSION_METADATA_RECORDCONTEXTCHANGE: &str = "session.metadata.recordContextChange";
     /// `session.metadata.setWorkingDirectory`
@@ -2369,6 +2373,23 @@ pub struct CapiSessionOptions {
     pub enable_web_socket_responses: Option<bool>,
 }
 
+/// A literal choice the command input accepts, with a human-facing description
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandInputChoice {
+    /// Human-readable description shown alongside the choice
+    pub description: String,
+    /// The literal choice value (e.g. 'on', 'off', 'show')
+    pub name: String,
+}
+
 /// Optional unstructured input hint
 ///
 /// <div class="warning">
@@ -2380,6 +2401,9 @@ pub struct CapiSessionOptions {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SlashCommandInput {
+    /// Optional literal choices the input accepts, each with a human-facing description; clients may render these as selectable options
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub choices: Option<Vec<SlashCommandInputChoice>>,
     /// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completion: Option<SlashCommandInputCompletion>,
@@ -2747,6 +2771,27 @@ pub(crate) struct ConnectResult {
     pub protocol_version: i64,
     /// Server package version
     pub version: String,
+}
+
+/// A single large message currently in context.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextHeaviestMessage {
+    /// Stable identifier for this message within the snapshot.
+    pub id: String,
+    /// Human-readable source label, e.g. `tool: bash` or `skill: tmux`. Presentation-only.
+    pub label: String,
+    /// Role of the chat message (`user`, `assistant`, or `tool`).
+    pub role: String,
+    /// Token count currently in context for this individual message.
+    pub tokens: i64,
 }
 
 /// Schema for the `CopilotApiTokenAuthInfo` type.
@@ -3161,6 +3206,9 @@ pub struct ExternalToolTextResultForLlm {
     pub session_log: Option<String>,
     /// Text result returned to the model
     pub text_result_for_llm: String,
+    /// Tool references returned by a tool-search override: names of deferred tools to surface to the model. When set, the tool result is materialized as `tool_reference` content blocks (rather than plain text) so the model knows which deferred tools are now available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_references: Option<Vec<String>>,
     /// Optional tool-specific telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_telemetry: Option<HashMap<String, serde_json::Value>>,
@@ -5681,6 +5729,93 @@ pub(crate) struct McpUnregisterExternalClientRequest {
 pub struct MemoryConfiguration {
     /// Whether memory is enabled for the session.
     pub enabled: bool,
+}
+
+/// Successful compaction history for the session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResultContextAttributionCompactions {
+    /// Number of successful compactions in this session.
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResultContextAttributionEntriesItem {
+    /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<HashMap<String, String>>,
+    /// Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
+    pub id: String,
+    /// Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+    pub kind: String,
+    /// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
+    pub label: String,
+    /// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    /// Token count currently in context attributable to this entry.
+    pub tokens: i64,
+}
+
+/// Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResultContextAttribution {
+    /// Successful compaction history for the session.
+    pub compactions: MetadataContextAttributionResultContextAttributionCompactions,
+    /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
+    pub entries: Vec<MetadataContextAttributionResultContextAttributionEntriesItem>,
+    /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
+    pub total_tokens: i64,
+}
+
+/// Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResult {
+    /// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+    pub context_attribution: Option<MetadataContextAttributionResultContextAttribution>,
+}
+
+/// Parameters for the heaviest-messages query.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextHeaviestMessagesRequest {
+    /// Maximum number of messages to return, most-expensive first. Omit for the server default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i64>,
+}
+
+/// The heaviest individual messages in the session's context window, most-expensive first.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextHeaviestMessagesResult {
+    /// Heaviest messages, most-expensive first.
+    pub messages: Vec<ContextHeaviestMessage>,
+    /// Total token count of the current context window, so callers can compute each message's share without a second call.
+    pub total_tokens: i64,
 }
 
 /// Model identifier and token limits used to compute the context-info breakdown.
@@ -8477,38 +8612,6 @@ pub struct PluginUpdateResult {
     pub skills_installed: i64,
 }
 
-/// Schema for the `SessionsPollSpawnedSessionsEvent` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionsPollSpawnedSessionsEvent {
-    /// Session id of the newly-spawned session.
-    pub session_id: SessionId,
-}
-
-/// Batch of spawn events plus a cursor for follow-up polls.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PollSpawnedSessionsResult {
-    /// Opaque cursor to pass back to receive only events after this batch.
-    pub cursor: String,
-    /// Spawn events emitted since the supplied cursor.
-    pub events: Vec<SessionsPollSpawnedSessionsEvent>,
-}
-
 /// A BYOK model definition referencing a named provider.
 ///
 /// <div class="warning">
@@ -10181,6 +10284,52 @@ pub struct SessionBulkDeleteResult {
     pub freed_bytes: HashMap<String, i64>,
 }
 
+/// Successful compaction history for the session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextAttributionCompactions {
+    /// Number of successful compactions in this session.
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextAttributionEntriesItem {
+    /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<HashMap<String, String>>,
+    /// Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
+    pub id: String,
+    /// Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+    pub kind: String,
+    /// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
+    pub label: String,
+    /// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    /// Token count currently in context attributable to this entry.
+    pub tokens: i64,
+}
+
+/// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextAttribution {
+    /// Successful compaction history for the session.
+    pub compactions: SessionContextAttributionCompactions,
+    /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
+    pub entries: Vec<SessionContextAttributionEntriesItem>,
+    /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
+    pub total_tokens: i64,
+}
+
 /// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
 ///
 /// <div class="warning">
@@ -11828,25 +11977,6 @@ pub struct SessionsListRequest {
 pub struct SessionsLoadDeferredRepoHooksRequest {
     /// Active session ID whose deferred repo-level hooks should be loaded
     pub session_id: SessionId,
-}
-
-/// Cursor and optional long-poll wait for polling runtime-spawned sessions.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionsPollSpawnedSessionsRequest {
-    /// Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn events buffered since the runtime started.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cursor: Option<String>,
-    /// Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default) returns immediately even if no events are buffered. Capped at 60000ms.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wait_ms: Option<i32>,
 }
 
 /// Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).
@@ -15176,23 +15306,6 @@ pub struct SessionsGetRemoteControlStatusResult {
     pub status: serde_json::Value,
 }
 
-/// Batch of spawn events plus a cursor for follow-up polls.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionsPollSpawnedSessionsResult {
-    /// Opaque cursor to pass back to receive only events after this batch.
-    pub cursor: String,
-    /// Spawn events emitted since the supplied cursor.
-    pub events: Vec<SessionsPollSpawnedSessionsEvent>,
-}
-
 /// Handle for releasing the extension tool registration.
 ///
 /// <div class="warning">
@@ -17825,6 +17938,92 @@ pub struct SessionMetadataContextInfoResultContextInfo {
 pub struct SessionMetadataContextInfoResult {
     /// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
     pub context_info: Option<SessionMetadataContextInfoResultContextInfo>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Successful compaction history for the session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResultContextAttributionCompactions {
+    /// Number of successful compactions in this session.
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResultContextAttributionEntriesItem {
+    /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<HashMap<String, String>>,
+    /// Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
+    pub id: String,
+    /// Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+    pub kind: String,
+    /// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
+    pub label: String,
+    /// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    /// Token count currently in context attributable to this entry.
+    pub tokens: i64,
+}
+
+/// Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResultContextAttribution {
+    /// Successful compaction history for the session.
+    pub compactions: SessionMetadataGetContextAttributionResultContextAttributionCompactions,
+    /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
+    pub entries: Vec<SessionMetadataGetContextAttributionResultContextAttributionEntriesItem>,
+    /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
+    pub total_tokens: i64,
+}
+
+/// Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResult {
+    /// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+    pub context_attribution: Option<SessionMetadataGetContextAttributionResultContextAttribution>,
+}
+
+/// The heaviest individual messages in the session's context window, most-expensive first.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextHeaviestMessagesResult {
+    /// Heaviest messages, most-expensive first.
+    pub messages: Vec<ContextHeaviestMessage>,
+    /// Total token count of the current context window, so callers can compute each message's share without a second call.
+    pub total_tokens: i64,
 }
 
 /// Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode).

@@ -13,15 +13,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SessionsPollSpawnedSessionsEvent` type.
+ * A literal choice the command input accepts, with a human-facing description
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsPollSpawnedSessionsEvent(
-    /** Session id of the newly-spawned session. */
-    @JsonProperty("sessionId") String sessionId
+public record SlashCommandInputChoice(
+    /** The literal choice value (e.g. 'on', 'off', 'show') */
+    @JsonProperty("name") String name,
+    /** Human-readable description shown alongside the choice */
+    @JsonProperty("description") String description
 ) {
 }

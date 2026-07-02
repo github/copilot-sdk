@@ -790,6 +790,59 @@ export type McpSetEnvValueModeDetails =
   /** Treat MCP server environment values as host-side references to resolve before launch. */
   | "indirect";
 /**
+ * Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionContextAttribution".
+ */
+/** @experimental */
+export type SessionContextAttribution = {
+  /**
+   * Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
+   */
+  totalTokens: number;
+  /**
+   * Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
+   */
+  entries: {
+    /**
+     * Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+     */
+    kind: string;
+    /**
+     * Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
+     */
+    id: string;
+    /**
+     * Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
+     */
+    label: string;
+    /**
+     * Token count currently in context attributable to this entry.
+     */
+    tokens: number;
+    /**
+     * Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
+     */
+    parentId?: string;
+    /**
+     * Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+     */
+    attributes?: {
+      [k: string]: string | undefined;
+    };
+  }[];
+  /**
+   * Successful compaction history for the session.
+   */
+  compactions: {
+    /**
+     * Number of successful compactions in this session.
+     */
+    count: number;
+  };
+} | null;
+/**
  * Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3303,6 +3356,10 @@ export interface SlashCommandInput {
    */
   hint: string;
   /**
+   * Optional literal choices the input accepts, each with a human-facing description; clients may render these as selectable options
+   */
+  choices?: SlashCommandInputChoice[];
+  /**
    * When true, the command requires non-empty input; clients should render the input hint as required
    */
   required?: boolean;
@@ -3311,6 +3368,23 @@ export interface SlashCommandInput {
    * When true, clients should pass the full text after the command name as a single argument rather than splitting on whitespace
    */
   preserveMultilineInput?: boolean;
+}
+/**
+ * A literal choice the command input accepts, with a human-facing description
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SlashCommandInputChoice".
+ */
+/** @experimental */
+export interface SlashCommandInputChoice {
+  /**
+   * The literal choice value (e.g. 'on', 'off', 'show')
+   */
+  name: string;
+  /**
+   * Human-readable description shown alongside the choice
+   */
+  description: string;
 }
 /**
  * Pending command request ID and an optional error if the client handler failed.
@@ -3651,6 +3725,31 @@ export interface ConnectResult {
   version: string;
 }
 /**
+ * A single large message currently in context.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ContextHeaviestMessage".
+ */
+/** @experimental */
+export interface ContextHeaviestMessage {
+  /**
+   * Stable identifier for this message within the snapshot.
+   */
+  id: string;
+  /**
+   * Human-readable source label, e.g. `tool: bash` or `skill: tmux`. Presentation-only.
+   */
+  label: string;
+  /**
+   * Role of the chat message (`user`, `assistant`, or `tool`).
+   */
+  role: string;
+  /**
+   * Token count currently in context for this individual message.
+   */
+  tokens: number;
+}
+/**
  * The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3984,6 +4083,10 @@ export interface ExternalToolTextResultForLlm {
    * Structured content blocks from the tool
    */
   contents?: ExternalToolTextResultForLlmContent[];
+  /**
+   * Tool references returned by a tool-search override: names of deferred tools to surface to the model. When set, the tool result is materialized as `tool_reference` content blocks (rather than plain text) so the model knows which deferred tools are now available.
+   */
+  toolReferences?: string[];
 }
 /**
  * Binary result returned by a tool for the model
@@ -6414,6 +6517,49 @@ export interface MemoryConfiguration {
    * Whether memory is enabled for the session.
    */
   enabled: boolean;
+}
+/**
+ * Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataContextAttributionResult".
+ */
+/** @experimental */
+export interface MetadataContextAttributionResult {
+  /**
+   * Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+   */
+  contextAttribution?: SessionContextAttribution | null;
+}
+/**
+ * Parameters for the heaviest-messages query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataContextHeaviestMessagesRequest".
+ */
+/** @experimental */
+export interface MetadataContextHeaviestMessagesRequest {
+  /**
+   * Maximum number of messages to return, most-expensive first. Omit for the server default.
+   */
+  limit?: number;
+}
+/**
+ * The heaviest individual messages in the session's context window, most-expensive first.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataContextHeaviestMessagesResult".
+ */
+/** @experimental */
+export interface MetadataContextHeaviestMessagesResult {
+  /**
+   * Total token count of the current context window, so callers can compute each message's share without a second call.
+   */
+  totalTokens: number;
+  /**
+   * Heaviest messages, most-expensive first.
+   */
+  messages: ContextHeaviestMessage[];
 }
 /**
  * Model identifier and token limits used to compute the context-info breakdown.
@@ -8884,36 +9030,6 @@ export interface PluginUpdateResult {
    * Number of skills discovered and installed after the update
    */
   skillsInstalled: number;
-}
-/**
- * Batch of spawn events plus a cursor for follow-up polls.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PollSpawnedSessionsResult".
- */
-/** @experimental */
-export interface PollSpawnedSessionsResult {
-  /**
-   * Spawn events emitted since the supplied cursor.
-   */
-  events: SessionsPollSpawnedSessionsEvent[];
-  /**
-   * Opaque cursor to pass back to receive only events after this batch.
-   */
-  cursor: string;
-}
-/**
- * Schema for the `SessionsPollSpawnedSessionsEvent` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsPollSpawnedSessionsEvent".
- */
-/** @experimental */
-export interface SessionsPollSpawnedSessionsEvent {
-  /**
-   * Session id of the newly-spawned session.
-   */
-  sessionId: string;
 }
 /**
  * BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
@@ -12018,18 +12134,6 @@ export interface SessionsLoadDeferredRepoHooksRequest {
    * Active session ID whose deferred repo-level hooks should be loaded
    */
   sessionId: string;
-}
-
-/** @experimental */
-export interface SessionsPollSpawnedSessionsRequest {
-  /**
-   * Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn events buffered since the runtime started.
-   */
-  cursor?: string;
-  /**
-   * Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default) returns immediately even if no events are buffered. Capped at 60000ms.
-   */
-  waitMs?: number;
 }
 /**
  * Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).
@@ -15297,15 +15401,6 @@ export function createInternalServerRpc(connection: MessageConnection) {
             getBoardEntryCount: async (params: SessionsGetBoardEntryCountRequest): Promise<SessionsGetBoardEntryCountResult> =>
                 connection.sendRequest("sessions.getBoardEntryCount", params),
             /**
-             * Cursor-based long-poll for sessions spawned by the runtime (e.g. in response to a Mission Control `start_session` command). The cursor is an opaque token; pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit the cursor on the first call to receive any events buffered since the runtime started. Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to react to runtime-spawned sessions should subscribe to a higher-level event stream rather than driving a long-poll loop.
-             *
-             * @param params Cursor and optional long-poll wait for polling runtime-spawned sessions.
-             *
-             * @returns Batch of spawn events plus a cursor for follow-up polls.
-             */
-            pollSpawnedSessions: async (params: SessionsPollSpawnedSessionsRequest): Promise<PollSpawnedSessionsResult> =>
-                connection.sendRequest("sessions.pollSpawnedSessions", params),
-            /**
              * Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.
              *
              * @param params Params to attach an extension loader's tools to a session.
@@ -16536,6 +16631,22 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             contextInfo: async (params: MetadataContextInfoRequest): Promise<MetadataContextInfoResult> =>
                 connection.sendRequest("session.metadata.contextInfo", { sessionId, ...params }),
+            /**
+             * Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.
+             *
+             * @returns Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+             */
+            getContextAttribution: async (): Promise<MetadataContextAttributionResult> =>
+                connection.sendRequest("session.metadata.getContextAttribution", { sessionId }),
+            /**
+             * Returns the largest individual messages currently in the session's context window, most-expensive first. Companion to `metadata.getContextAttribution`. Returns an empty list until the session has initialized.
+             *
+             * @param params Parameters for the heaviest-messages query.
+             *
+             * @returns The heaviest individual messages in the session's context window, most-expensive first.
+             */
+            getContextHeaviestMessages: async (params: MetadataContextHeaviestMessagesRequest): Promise<MetadataContextHeaviestMessagesResult> =>
+                connection.sendRequest("session.metadata.getContextHeaviestMessages", { sessionId, ...params }),
             /**
              * Records a working-directory/git context change and emits a `session.context_changed` event.
              *
