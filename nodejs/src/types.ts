@@ -2192,8 +2192,8 @@ export interface SessionConfigBase {
     /**
      * Opt-in: when true, the runtime self-fetches enterprise managed settings
      * (bypass-permissions policy) at session bootstrap using the session's
-     * `gitHubToken`. The runtime calls `/copilot_internal/managed_settings`
-     * and enforces the result fail-closed before the first turn.
+     * `gitHubToken`. Requires {@link SessionConfigBase.gitHubToken} to be set;
+     * if omitted, the runtime is expected to reject session creation (fail-closed).
      */
     selfFetchManagedSettings?: boolean;
 
