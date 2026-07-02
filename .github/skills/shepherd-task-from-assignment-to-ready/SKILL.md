@@ -25,72 +25,48 @@ Automate the lifecycle of a child **Task** issue from "assigned to Copilot" thro
 
 ## Procedure
 
-### Step 1: Assign the task to @Copilot
+### Step 1: Assign the task to @Copilot with `base_branch`
 
-First, prepend an instruction to the issue body telling Copilot which base branch to use. This must happen **before** assignment to avoid a race condition where Copilot targets `main` instead.
-
-**Idempotency:** If the issue body already starts with `**Base branch:**`, skip the prepend (it was already done in a prior run).
+Use the REST API's `agent_assignment` object to assign the issue to Copilot **and** specify the base branch in a single atomic call. This guarantees Copilot branches from `$BASE_BRANCH` (equivalent to selecting the branch in the GitHub UI).
 
 ```bash
-# Check if already prepended (idempotency guard)
-CURRENT_BODY=$(gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body')
-if echo "$CURRENT_BODY" | head -1 | grep -q '^\*\*Base branch:\*\*'; then
-  echo "Base branch instruction already present — skipping prepend."
-else
-  # Prepend base branch instruction (use --body-file to preserve markdown formatting)
-  gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' > /tmp/issue-body-$TASK_ISSUE.md
-  cat > /tmp/issue-body-$TASK_ISSUE-new.md <<HEADER
-**Base branch:** Create your PR targeting \`$BASE_BRANCH\` (not \`main\`).
-
-**Requirement:** When you open the PR, the very first thing you put in the description must be \`Fixes #$TASK_ISSUE\` where the issue number is this issue for which the PR aims to implement the work.
-
---------
-
-HEADER
-  cat /tmp/issue-body-$TASK_ISSUE.md >> /tmp/issue-body-$TASK_ISSUE-new.md
-  gh issue edit $TASK_ISSUE -R $REPO --body-file /tmp/issue-body-$TASK_ISSUE-new.md
-  rm -f /tmp/issue-body-$TASK_ISSUE.md /tmp/issue-body-$TASK_ISSUE-new.md
-fi
+gh api --method POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  /repos/$REPO/issues/$TASK_ISSUE/assignees \
+  --input - <<EOF
+{
+  "assignees": ["copilot-swe-agent[bot]"],
+  "agent_assignment": {
+    "base_branch": "$BASE_BRANCH",
+    "custom_instructions": "When you open the PR, the very first thing you put in the description must be \`Fixes #$TASK_ISSUE\`."
+  }
+}
+EOF
 ```
 
 > **PowerShell equivalent** (when running on Windows):
 > ```powershell
-> $body = gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' | Out-String
-> if ($body.TrimStart().StartsWith("**Base branch:**")) {
->     Write-Host "Base branch instruction already present - skipping prepend."
-> } else {
->     $instruction = @"
-> **Base branch:** Create your PR targeting ``$BASE_BRANCH`` (not ``main``).
->
-> **Requirement:** When you open the PR, the very first thing you put in the description must be ``Fixes #$TASK_ISSUE`` where the issue number is this issue for which the PR aims to implement the work.
->
-> --------
->
-> "@
->     $newBody = $instruction + $body
->     $tmpFile = [System.IO.Path]::GetTempFileName()
->     Set-Content -Path $tmpFile -Value $newBody -NoNewline
->     gh issue edit $TASK_ISSUE -R $REPO --body-file $tmpFile
->     Remove-Item $tmpFile
+> $json = @"
+> {
+>   "assignees": ["copilot-swe-agent[bot]"],
+>   "agent_assignment": {
+>     "base_branch": "$BASE_BRANCH",
+>     "custom_instructions": "When you open the PR, the very first thing you put in the description must be ``Fixes #$TASK_ISSUE``."
+>   }
 > }
+> "@
+> $json | gh api --method POST `
+>   -H "Accept: application/vnd.github+json" `
+>   -H "X-GitHub-Api-Version: 2022-11-28" `
+>   "/repos/$REPO/issues/$TASK_ISSUE/assignees" `
+>   --input -
 > ```
-
-Then assign:
-
-```bash
-gh issue edit $TASK_ISSUE --add-assignee "@copilot" -R $REPO
-```
 
 This triggers Copilot to:
 1. Create a topic branch from `$BASE_BRANCH`.
 2. Open a draft PR targeting `$BASE_BRANCH`.
 3. Push initial commits.
-
-**Fallback:** After the PR is created (Step 2), verify it targets `$BASE_BRANCH`. If Copilot ignored the instruction, fix the base:
-
-```bash
-gh pr edit $PR_NUMBER -R $REPO --base "$BASE_BRANCH"
-```
 
 ### Step 2: Find the corresponding PR
 
