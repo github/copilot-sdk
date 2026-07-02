@@ -313,10 +313,11 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper());
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper);
         ToolHandler toolHandler = invocation -> {
             R result = handler.get();
-            return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
+            return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -353,11 +354,12 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1);
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper, p1);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, mapper);
             R result = handler.apply(arg1);
-            return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
+            return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -399,12 +401,13 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1, p2);
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper, p1, p2);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
-            T2 arg2 = ParamCoercion.coerce(invocation.getArguments(), p2, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, mapper);
+            T2 arg2 = ParamCoercion.coerce(invocation.getArguments(), p2, mapper);
             R result = handler.apply(arg1, arg2);
-            return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
+            return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -445,14 +448,15 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper());
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper);
         ToolHandler toolHandler = invocation -> {
             CompletableFuture<R> future = handler.get();
             if (future == null) {
                 return CompletableFuture.failedFuture(
                         new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
             }
-            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
+            return future.thenApply(result -> formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -491,15 +495,16 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1);
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper, p1);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, mapper);
             CompletableFuture<R> future = handler.apply(arg1);
             if (future == null) {
                 return CompletableFuture.failedFuture(
                         new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
             }
-            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
+            return future.thenApply(result -> formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -534,16 +539,17 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1, p2);
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper, p1, p2);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
-            T2 arg2 = ParamCoercion.coerce(invocation.getArguments(), p2, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, mapper);
+            T2 arg2 = ParamCoercion.coerce(invocation.getArguments(), p2, mapper);
             CompletableFuture<R> future = handler.apply(arg1, arg2);
             if (future == null) {
                 return CompletableFuture.failedFuture(
                         new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
             }
-            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
+            return future.thenApply(result -> formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -582,10 +588,11 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper());
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper);
         ToolHandler toolHandler = invocation -> {
             R result = handler.apply(invocation);
-            return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
+            return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -626,11 +633,12 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1);
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper, p1);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, mapper);
             R result = handler.apply(arg1, invocation);
-            return CompletableFuture.completedFuture(formatResult(result, getConfiguredMapper()));
+            return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -671,14 +679,15 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper());
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper);
         ToolHandler toolHandler = invocation -> {
             CompletableFuture<R> future = handler.apply(invocation);
             if (future == null) {
                 return CompletableFuture.failedFuture(
                         new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
             }
-            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
+            return future.thenApply(result -> formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
@@ -721,15 +730,16 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         requireNonBlankToolName(name);
         requireNonBlankDescription(description);
         requireNonNullHandler(handler, name);
-        Map<String, Object> schema = ParamSchema.buildSchema(name, getConfiguredMapper(), p1);
+        final ObjectMapper mapper = getConfiguredMapper();
+        Map<String, Object> schema = ParamSchema.buildSchema(name, mapper, p1);
         ToolHandler toolHandler = invocation -> {
-            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, getConfiguredMapper());
+            T1 arg1 = ParamCoercion.coerce(invocation.getArguments(), p1, mapper);
             CompletableFuture<R> future = handler.apply(arg1, invocation);
             if (future == null) {
                 return CompletableFuture.failedFuture(
                         new NullPointerException("Async handler for tool '" + name + "' returned a null future"));
             }
-            return future.thenApply(result -> formatResult(result, getConfiguredMapper()));
+            return future.thenApply(result -> formatResult(result, mapper));
         };
         return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
     }
