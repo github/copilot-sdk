@@ -29,4 +29,15 @@ class ErgonomicTestTools {
     public String searchItems(@CopilotToolParam("Search keyword") String keyword) {
         return "Found: " + keyword + " -> item_alpha, item_beta";
     }
+
+    @CopilotTool("Returns the current status")
+    public String getStatus() {
+        return "Status: OK";
+    }
+
+    @CopilotTool("Combines two values into a single string")
+    public String combineValues(@CopilotToolParam("First value") String value1,
+            @CopilotToolParam("Second value") String value2) {
+        return "combined: " + value1 + " + " + value2;
+    }
 }

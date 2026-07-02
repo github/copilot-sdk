@@ -85,6 +85,120 @@ class ErgonomicToolDefinitionIT {
     }
 
     @Test
+    void ergonomicToolArity0() throws Exception {
+        ctx.configureForTest("tools", "ergonomic_tool_arity0");
+
+        ErgonomicTestTools tools = new ErgonomicTestTools();
+        List<ToolDefinition> toolDefs = ToolDefinition.fromObject(tools);
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setAvailableTools(new ToolSet().addCustom("*")).setTools(toolDefs))
+                    .get(30, TimeUnit.SECONDS);
+
+            try {
+                AssistantMessageEvent response = session
+                        .sendAndWait(new MessageOptions().setPrompt("Call get_status and tell me the result."), 60_000)
+                        .get(90, TimeUnit.SECONDS);
+
+                assertNotNull(response, "Expected a response from the assistant");
+                String content = response.getData().content().toLowerCase();
+                assertTrue(content.contains("ok"),
+                        "Response should mention the status: " + response.getData().content());
+            } finally {
+                session.close();
+            }
+        }
+    }
+
+    @Test
+    void ergonomicToolArity2() throws Exception {
+        ctx.configureForTest("tools", "ergonomic_tool_arity2");
+
+        ErgonomicTestTools tools = new ErgonomicTestTools();
+        List<ToolDefinition> toolDefs = ToolDefinition.fromObject(tools);
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setAvailableTools(new ToolSet().addCustom("*")).setTools(toolDefs))
+                    .get(30, TimeUnit.SECONDS);
+
+            try {
+                AssistantMessageEvent response = session.sendAndWait(
+                        new MessageOptions().setPrompt(
+                                "Call combine_values with 'alpha' and 'beta', then report the combined result."),
+                        60_000).get(90, TimeUnit.SECONDS);
+
+                assertNotNull(response, "Expected a response from the assistant");
+                String content = response.getData().content().toLowerCase();
+                assertTrue(content.contains("alpha") && content.contains("beta"),
+                        "Response should contain the combined values: " + response.getData().content());
+            } finally {
+                session.close();
+            }
+        }
+    }
+
+    @Test
+    void lambdaToolArity0() throws Exception {
+        ctx.configureForTest("tools", "ergonomic_tool_arity0");
+
+        ToolDefinition getStatus = ToolDefinition.from("get_status", "Returns the current status", () -> "Status: OK");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setAvailableTools(new ToolSet().addCustom("*")).setTools(List.of(getStatus)))
+                    .get(30, TimeUnit.SECONDS);
+
+            try {
+                AssistantMessageEvent response = session
+                        .sendAndWait(new MessageOptions().setPrompt("Call get_status and tell me the result."), 60_000)
+                        .get(90, TimeUnit.SECONDS);
+
+                assertNotNull(response, "Expected a response from the assistant");
+                String content = response.getData().content().toLowerCase();
+                assertTrue(content.contains("ok"),
+                        "Response should mention the status: " + response.getData().content());
+            } finally {
+                session.close();
+            }
+        }
+    }
+
+    @Test
+    void lambdaToolArity2() throws Exception {
+        ctx.configureForTest("tools", "ergonomic_tool_arity2");
+
+        ToolDefinition combineValues = ToolDefinition.from("combine_values", "Combines two values into a single string",
+                Param.of(String.class, "value1", "First value"), Param.of(String.class, "value2", "Second value"),
+                (v1, v2) -> "combined: " + v1 + " + " + v2);
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setAvailableTools(new ToolSet().addCustom("*")).setTools(List.of(combineValues)))
+                    .get(30, TimeUnit.SECONDS);
+
+            try {
+                AssistantMessageEvent response = session.sendAndWait(
+                        new MessageOptions().setPrompt(
+                                "Call combine_values with 'alpha' and 'beta', then report the combined result."),
+                        60_000).get(90, TimeUnit.SECONDS);
+
+                assertNotNull(response, "Expected a response from the assistant");
+                String content = response.getData().content().toLowerCase();
+                assertTrue(content.contains("alpha") && content.contains("beta"),
+                        "Response should contain the combined values: " + response.getData().content());
+            } finally {
+                session.close();
+            }
+        }
+    }
+
+    @Test
     void lambdaToolDefinition() throws Exception {
         ctx.configureForTest("tools", "ergonomic_tool_definition");
 
