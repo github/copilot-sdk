@@ -132,6 +132,43 @@ Or run it directly from the repository:
 jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
 
+## Inline lambda-defined tools (experimental)
+
+For concise, call-site tool definitions, use `ToolDefinition.from(...)` with `Param<T>` metadata.
+For design rationale and trade-offs, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
+
+```java
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.rpc.ToolDefer;
+import com.github.copilot.tool.Param;
+
+ToolDefinition search = ToolDefinition
+    .from(
+        "search_items",
+        "Searches indexed items by keyword",
+        Param.of(String.class, "keyword", "Search keyword"),
+        keyword -> "Searching for: " + keyword)
+    .skipPermission(true)
+    .defer(ToolDefer.AUTO);
+```
+
+`Param.of(type, name, description)` creates a required parameter. Use `defaultValue(...)` for optional parameters with defaults.
+
+```java
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.rpc.ToolInvocation;
+import com.github.copilot.tool.Param;
+
+Param<Integer> limit = Param.of(Integer.class, "limit", "Maximum items").defaultValue("10");
+ToolDefinition report = ToolDefinition.fromWithToolInvocation(
+    "report_limit",
+    "Reports the resolved limit and tool call id",
+    limit,
+    (resolvedLimit, invocation) -> "limit=" + resolvedLimit + ", callId=" + invocation.getToolCallId());
+```
+
+Use `fromAsync(...)` and `fromAsyncWithToolInvocation(...)` for asynchronous handlers, and `overridesBuiltInTool(...)` when overriding a built-in tool.
+
 ## Annotation-based tools and `ToolInvocation` context
 
 When you define tools with `@CopilotTool`, parameters of type `ToolInvocation` are injected as runtime context and are not exposed in the tool schema.

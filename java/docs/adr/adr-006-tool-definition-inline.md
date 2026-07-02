@@ -2,7 +2,7 @@
 
 ## Context and problem statement
 
-ADR-005 introduced an ergonomic Java tools API based on `@CopilotTool` and `ToolDefinition.fromObject(...)`. That model works well when teams define tools as methods on a class.
+ADR-005 introduced an ergonomic Java tools API based on `@CopilotTool`, `@CopilotToolParam`, and `ToolDefinition.fromObject(...)`. That model works well when teams define tools as methods on a class.
 
 The next ergonomics goal is an inline style comparable to C# `CopilotTool.DefineTool(...)`, where developers can define a tool at the call site without creating a separate tool container class.
 
@@ -45,8 +45,8 @@ Example:
 ToolDefinition setPhase = ToolDefinition.from(
         "set_current_phase",
         "Sets the current phase of the agent",
-        Params.of(ParamDef.string("phase", "The phase to transition to")),
-        (String phase) -> {
+        Param.of(String.class, "phase", "The phase to transition to"),
+        phase -> {
             currentPhase = phase;
             return "Phase set to " + phase;
         });
@@ -100,7 +100,9 @@ Non-goals for this ADR:
 
 If implemented, the SDK gains an explicit inline path for developers who prefer to keep tool declarations at session creation while preserving high-quality schema metadata.
 
-The annotation-driven API from ADR-005 remains the recommended path for larger tool surfaces where co-locating metadata with method implementations improves maintainability.
+The annotation-driven API from [ADR-005](./adr-005-tool-definition.md) remains the recommended path for larger tool surfaces where co-locating metadata with method implementations improves maintainability.
+
+The Java README now includes concise examples for `ToolDefinition.from(...)`, `fromAsync(...)`, `fromWithToolInvocation(...)`, and `fromAsyncWithToolInvocation(...)` using `Param<T>` required/default behavior and fluent option modifiers.
 
 ## Related work items
 
