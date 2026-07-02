@@ -221,6 +221,8 @@ public class HooksTest {
 
             // The response should be defined
             assertNotNull(response, "Response should not be null");
+
+            assertEquals(originalContent, Files.readString(testFile), "Denied preToolUse hook should block file edits");
         }
     }
 }

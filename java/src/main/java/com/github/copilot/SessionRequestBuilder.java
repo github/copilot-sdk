@@ -116,11 +116,14 @@ final class SessionRequestBuilder {
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
+        request.setExcludedBuiltInAgents(config.getExcludedBuiltInAgents());
         request.setProvider(config.getProvider());
         request.setCapi(config.getCapi());
         request.setProviders(config.getProviders());
         request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
+        config.getEnableCitations().ifPresent(request::setEnableCitations);
+        request.setSessionLimits(config.getSessionLimits());
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -232,11 +235,14 @@ final class SessionRequestBuilder {
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
+        request.setExcludedBuiltInAgents(config.getExcludedBuiltInAgents());
         request.setProvider(config.getProvider());
         request.setCapi(config.getCapi());
         request.setProviders(config.getProviders());
         request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
+        config.getEnableCitations().ifPresent(request::setEnableCitations);
+        request.setSessionLimits(config.getSessionLimits());
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -323,6 +329,9 @@ final class SessionRequestBuilder {
         if (config.getOnPermissionRequest() != null) {
             session.registerPermissionHandler(config.getOnPermissionRequest());
         }
+        if (config.getOnMcpAuthRequest() != null) {
+            session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
+        }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
         }
@@ -369,6 +378,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnPermissionRequest() != null) {
             session.registerPermissionHandler(config.getOnPermissionRequest());
+        }
+        if (config.getOnMcpAuthRequest() != null) {
+            session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());

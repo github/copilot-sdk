@@ -19,13 +19,14 @@ describe("Session hooks", async () => {
 
     it("should invoke preToolUse hook when model runs a tool", async () => {
         const preToolUseInputs: PreToolUseHookInput[] = [];
+        const invocationSessionIds: string[] = [];
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onPreToolUse: async (input, invocation) => {
                     preToolUseInputs.push(input);
-                    expect(invocation.sessionId).toBe(session.sessionId);
+                    invocationSessionIds.push(invocation.sessionId);
                     // Allow the tool to run
                     return { permissionDecision: "allow" } as PreToolUseHookOutput;
                 },
@@ -41,6 +42,9 @@ describe("Session hooks", async () => {
 
         // Should have received at least one preToolUse hook call
         expect(preToolUseInputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
 
         // Should have received the tool name
         expect(preToolUseInputs.some((input) => input.toolName)).toBe(true);
@@ -50,13 +54,14 @@ describe("Session hooks", async () => {
 
     it("should invoke postToolUse hook after model runs a tool", async () => {
         const postToolUseInputs: PostToolUseHookInput[] = [];
+        const invocationSessionIds: string[] = [];
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onPostToolUse: async (input, invocation) => {
                     postToolUseInputs.push(input);
-                    expect(invocation.sessionId).toBe(session.sessionId);
+                    invocationSessionIds.push(invocation.sessionId);
                     return null as PostToolUseHookOutput;
                 },
             },
@@ -71,6 +76,9 @@ describe("Session hooks", async () => {
 
         // Should have received at least one postToolUse hook call
         expect(postToolUseInputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
 
         // Should have received the tool name and result
         expect(postToolUseInputs.some((input) => input.toolName)).toBe(true);

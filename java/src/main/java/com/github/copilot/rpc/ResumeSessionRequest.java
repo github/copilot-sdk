@@ -13,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
  * Internal request object for resuming an existing session.
@@ -59,6 +60,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("excludedTools")
     private List<String> excludedTools;
 
+    @JsonProperty("excludedBuiltinAgents")
+    private List<String> excludedBuiltInAgents;
+
     @JsonProperty("toolFilterPrecedence")
     private String toolFilterPrecedence;
 
@@ -75,6 +79,12 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("enableSessionTelemetry")
     private Boolean enableSessionTelemetry;
+
+    @JsonProperty("enableCitations")
+    private Boolean enableCitations;
+
+    @JsonProperty("sessionLimits")
+    private SessionLimitsConfig sessionLimits;
 
     @JsonProperty("requestPermission")
     private Boolean requestPermission;
@@ -134,6 +144,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("includeSubAgentStreamingEvents")
     private Boolean includeSubAgentStreamingEvents;
+
+    @JsonProperty("enableGitHubTelemetryForwarding")
+    private Boolean enableGitHubTelemetryForwarding;
 
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
@@ -309,6 +322,18 @@ public final class ResumeSessionRequest {
         this.excludedTools = excludedTools;
     }
 
+    /** Gets excluded built-in agents. @return the built-in agent names */
+    public List<String> getExcludedBuiltInAgents() {
+        return excludedBuiltInAgents == null ? null : Collections.unmodifiableList(excludedBuiltInAgents);
+    }
+
+    /**
+     * Sets excluded built-in agents. @param excludedBuiltInAgents the agent names
+     */
+    public void setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
+        this.excludedBuiltInAgents = excludedBuiltInAgents;
+    }
+
     /** Gets the tool filter precedence. @return the precedence value */
     public String getToolFilterPrecedence() {
         return toolFilterPrecedence;
@@ -376,6 +401,26 @@ public final class ResumeSessionRequest {
      */
     public void setEnableSessionTelemetry(boolean enableSessionTelemetry) {
         this.enableSessionTelemetry = enableSessionTelemetry;
+    }
+
+    /** Gets enable citations flag. @return the flag */
+    public Boolean getEnableCitations() {
+        return enableCitations;
+    }
+
+    /** Sets enable citations flag. @param enableCitations the flag */
+    public void setEnableCitations(boolean enableCitations) {
+        this.enableCitations = enableCitations;
+    }
+
+    /** Gets the session limits. @return the session limits */
+    public SessionLimitsConfig getSessionLimits() {
+        return sessionLimits;
+    }
+
+    /** Sets the session limits. @param sessionLimits the session limits */
+    public void setSessionLimits(SessionLimitsConfig sessionLimits) {
+        this.sessionLimits = sessionLimits;
     }
 
     /**
@@ -661,6 +706,27 @@ public final class ResumeSessionRequest {
      */
     public void clearIncludeSubAgentStreamingEvents() {
         this.includeSubAgentStreamingEvents = null;
+    }
+
+    /** Gets the GitHub telemetry forwarding flag. @return the flag */
+    public Boolean getEnableGitHubTelemetryForwarding() {
+        return enableGitHubTelemetryForwarding;
+    }
+
+    /**
+     * Sets the GitHub telemetry forwarding flag. @param
+     * enableGitHubTelemetryForwarding the flag
+     */
+    public void setEnableGitHubTelemetryForwarding(boolean enableGitHubTelemetryForwarding) {
+        this.enableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding;
+    }
+
+    /**
+     * Clears the enableGitHubTelemetryForwarding setting, reverting to the default
+     * behavior.
+     */
+    public void clearEnableGitHubTelemetryForwarding() {
+        this.enableGitHubTelemetryForwarding = null;
     }
 
     /** Gets MCP servers. @return the servers map */

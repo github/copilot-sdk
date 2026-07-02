@@ -738,6 +738,12 @@ func unmarshalExternalToolTextResultForLlmContent(data []byte) (ExternalToolText
 			return nil, err
 		}
 		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeShellExit:
+		var d ExternalToolTextResultForLlmContentShellExit
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case ExternalToolTextResultForLlmContentTypeTerminal:
 		var d ExternalToolTextResultForLlmContentTerminal
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -884,6 +890,17 @@ func (r ExternalToolTextResultForLlmContentResourceLink) MarshalJSON() ([]byte, 
 	})
 }
 
+func (r ExternalToolTextResultForLlmContentShellExit) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentShellExit
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r ExternalToolTextResultForLlmContentTerminal) MarshalJSON() ([]byte, error) {
 	type alias ExternalToolTextResultForLlmContentTerminal
 	return json.Marshal(struct {
@@ -914,6 +931,7 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 		ResultType          *string                                           `json:"resultType,omitempty"`
 		SessionLog          *string                                           `json:"sessionLog,omitempty"`
 		TextResultForLlm    string                                            `json:"textResultForLlm"`
+		ToolReferences      []string                                          `json:"toolReferences,omitzero"`
 		ToolTelemetry       map[string]any                                    `json:"toolTelemetry,omitzero"`
 	}
 	var raw rawExternalToolTextResultForLlm
@@ -935,6 +953,7 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 	r.ResultType = raw.ResultType
 	r.SessionLog = raw.SessionLog
 	r.TextResultForLlm = raw.TextResultForLlm
+	r.ToolReferences = raw.ToolReferences
 	r.ToolTelemetry = raw.ToolTelemetry
 	return nil
 }
@@ -3230,6 +3249,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
 		EnvValueMode                           *SessionOpenOptionsEnvValueMode                      `json:"envValueMode,omitempty"`
 		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
+		ExcludedBuiltinAgents                  []string                                             `json:"excludedBuiltinAgents,omitzero"`
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
@@ -3251,11 +3271,11 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		RemoteDefaultedOn                      *bool                                                `json:"remoteDefaultedOn,omitempty"`
 		RemoteExporting                        *bool                                                `json:"remoteExporting,omitempty"`
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
-		ResponseBudget                         *ResponseBudgetConfig                                `json:"responseBudget,omitempty"`
 		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
 		SessionID                              *string                                              `json:"sessionId,omitempty"`
+		SessionLimits                          *SessionLimitsConfig                                 `json:"sessionLimits,omitempty"`
 		ShellInitProfile                       *string                                              `json:"shellInitProfile,omitempty"`
 		ShellProcessFlags                      []string                                             `json:"shellProcessFlags,omitzero"`
 		SkillDirectories                       []string                                             `json:"skillDirectories,omitzero"`
@@ -3298,6 +3318,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.EnableStreaming = raw.EnableStreaming
 	r.EnvValueMode = raw.EnvValueMode
 	r.EventsLogDirectory = raw.EventsLogDirectory
+	r.ExcludedBuiltinAgents = raw.ExcludedBuiltinAgents
 	r.ExcludedTools = raw.ExcludedTools
 	r.ExpAssignments = raw.ExpAssignments
 	r.FeatureFlags = raw.FeatureFlags
@@ -3319,11 +3340,11 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.RemoteDefaultedOn = raw.RemoteDefaultedOn
 	r.RemoteExporting = raw.RemoteExporting
 	r.RemoteSteerable = raw.RemoteSteerable
-	r.ResponseBudget = raw.ResponseBudget
 	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
 	r.SandboxConfig = raw.SandboxConfig
 	r.SessionCapabilities = raw.SessionCapabilities
 	r.SessionID = raw.SessionID
+	r.SessionLimits = raw.SessionLimits
 	r.ShellInitProfile = raw.ShellInitProfile
 	r.ShellProcessFlags = raw.ShellProcessFlags
 	r.SkillDirectories = raw.SkillDirectories

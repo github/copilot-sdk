@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -16,7 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
-import java.util.Optional;
+import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
  * Configuration for creating a new Copilot session.
@@ -50,16 +51,20 @@ public class SessionConfig {
     private SystemMessageConfig systemMessage;
     private List<String> availableTools;
     private List<String> excludedTools;
+    private List<String> excludedBuiltInAgents;
     private ProviderConfig provider;
     private CapiSessionOptions capi;
     private List<NamedProviderConfig> providers;
     private List<ProviderModelConfig> models;
     private Boolean enableSessionTelemetry;
+    private Boolean enableCitations;
+    private SessionLimitsConfig sessionLimits;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
     private Boolean manageScheduleEnabled;
     private PermissionHandler onPermissionRequest;
+    private McpAuthHandler onMcpAuthRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
@@ -337,6 +342,30 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the built-in agent names excluded from this session.
+     *
+     * @return the list of excluded built-in agent names
+     */
+    public List<String> getExcludedBuiltInAgents() {
+        return excludedBuiltInAgents == null ? null : Collections.unmodifiableList(excludedBuiltInAgents);
+    }
+
+    /**
+     * Sets the built-in agent names to exclude from this session.
+     * <p>
+     * Excluded built-in agents are hidden from discovery and cannot be selected or
+     * invoked unless a custom agent with the same name is configured.
+     *
+     * @param excludedBuiltInAgents
+     *            the built-in agent names to exclude
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
+        this.excludedBuiltInAgents = excludedBuiltInAgents != null ? new ArrayList<>(excludedBuiltInAgents) : null;
+        return this;
+    }
+
+    /**
      * Gets the custom API provider configuration.
      *
      * @return the provider configuration
@@ -481,6 +510,65 @@ public class SessionConfig {
      */
     public SessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Gets whether native model citations are enabled.
+     *
+     * @return an {@link java.util.Optional} containing whether citations are
+     *         enabled, or {@link java.util.Optional#empty()} for the default
+     */
+    @CopilotExperimental
+    @JsonIgnore
+    public Optional<Boolean> getEnableCitations() {
+        return Optional.ofNullable(enableCitations);
+    }
+
+    /**
+     * Enables or disables native model citations for supported providers.
+     *
+     * @param enableCitations
+     *            whether to enable citations
+     * @return this config instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setEnableCitations(boolean enableCitations) {
+        this.enableCitations = enableCitations;
+        return this;
+    }
+
+    /**
+     * Clears the enableCitations setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig clearEnableCitations() {
+        this.enableCitations = null;
+        return this;
+    }
+
+    /**
+     * Gets the limits for this session's current accounting window.
+     *
+     * @return the session limits, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public SessionLimitsConfig getSessionLimits() {
+        return sessionLimits;
+    }
+
+    /**
+     * Sets limits for this session's current accounting window.
+     *
+     * @param sessionLimits
+     *            the session limits
+     * @return this config instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setSessionLimits(SessionLimitsConfig sessionLimits) {
+        this.sessionLimits = sessionLimits;
         return this;
     }
 
@@ -675,6 +763,31 @@ public class SessionConfig {
      */
     public SessionConfig setOnPermissionRequest(PermissionHandler onPermissionRequest) {
         this.onPermissionRequest = onPermissionRequest;
+        return this;
+    }
+
+    /**
+     * Gets the MCP OAuth request handler.
+     *
+     * @return the handler, or {@code null} if not set
+     */
+    @JsonIgnore
+    public McpAuthHandler getOnMcpAuthRequest() {
+        return onMcpAuthRequest;
+    }
+
+    /**
+     * Sets the MCP OAuth request handler.
+     * <p>
+     * When provided, the SDK can satisfy MCP server OAuth requests with
+     * host-provided token data or cancellation.
+     *
+     * @param onMcpAuthRequest
+     *            the handler
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setOnMcpAuthRequest(McpAuthHandler onMcpAuthRequest) {
+        this.onMcpAuthRequest = onMcpAuthRequest;
         return this;
     }
 
@@ -1787,11 +1900,16 @@ public class SessionConfig {
         copy.systemMessage = this.systemMessage;
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
+        copy.excludedBuiltInAgents = this.excludedBuiltInAgents != null
+                ? new ArrayList<>(this.excludedBuiltInAgents)
+                : null;
         copy.provider = this.provider;
         copy.capi = this.capi;
         copy.providers = this.providers != null ? new ArrayList<>(this.providers) : null;
         copy.models = this.models != null ? new ArrayList<>(this.models) : null;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
+        copy.enableCitations = this.enableCitations;
+        copy.sessionLimits = this.sessionLimits;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
         copy.coauthorEnabled = this.coauthorEnabled;
@@ -1829,6 +1947,7 @@ public class SessionConfig {
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
+        copy.onMcpAuthRequest = this.onMcpAuthRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;

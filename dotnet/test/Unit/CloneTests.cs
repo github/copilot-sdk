@@ -73,8 +73,10 @@ public class CloneTests
             ConfigDirectory = "/config",
             AvailableTools = ["tool1", "tool2"],
             ExcludedTools = ["tool3"],
+            ExcludedBuiltInAgents = ["explore", "task"],
             WorkingDirectory = "/workspace",
             Streaming = true,
+            EnableCitations = true,
             EnableSessionTelemetry = false,
             EnableOnDemandInstructionDiscovery = true,
             IncludeSubAgentStreamingEvents = false,
@@ -99,6 +101,7 @@ public class CloneTests
             PluginDirectories = ["/plugins"],
             LargeOutput = new LargeToolOutputConfig { Enabled = true, MaxSizeBytes = 2048, OutputDirectory = "/tmp/out" },
             Memory = new MemoryConfiguration { Enabled = true },
+            SessionLimits = new SessionLimitsConfig { MaxAiCredits = 42.5 },
             OnExitPlanModeRequest = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
             OnAutoModeSwitchRequest = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
         };
@@ -114,8 +117,10 @@ public class CloneTests
         Assert.Equal(original.ConfigDirectory, clone.ConfigDirectory);
         Assert.Equal(original.AvailableTools, clone.AvailableTools);
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
+        Assert.Equal(original.ExcludedBuiltInAgents, clone.ExcludedBuiltInAgents);
         Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
         Assert.Equal(original.Streaming, clone.Streaming);
+        Assert.Equal(original.EnableCitations, clone.EnableCitations);
         Assert.Equal(original.EnableSessionTelemetry, clone.EnableSessionTelemetry);
         Assert.Equal(original.EnableOnDemandInstructionDiscovery, clone.EnableOnDemandInstructionDiscovery);
         Assert.Equal(original.IncludeSubAgentStreamingEvents, clone.IncludeSubAgentStreamingEvents);
@@ -133,6 +138,7 @@ public class CloneTests
         Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
         Assert.Same(original.LargeOutput, clone.LargeOutput);
         Assert.Same(original.Memory, clone.Memory);
+        Assert.Same(original.SessionLimits, clone.SessionLimits);
         Assert.Same(original.OnExitPlanModeRequest, clone.OnExitPlanModeRequest);
         Assert.Same(original.OnAutoModeSwitchRequest, clone.OnAutoModeSwitchRequest);
     }
@@ -144,6 +150,7 @@ public class CloneTests
         {
             AvailableTools = ["tool1"],
             ExcludedTools = ["tool2"],
+            ExcludedBuiltInAgents = ["explore"],
             McpServers = new Dictionary<string, McpServerConfig> { ["s1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "a1" }],
             SkillDirectories = ["/skills"],
@@ -156,6 +163,7 @@ public class CloneTests
         // Mutate clone collections
         clone.AvailableTools!.Add("tool99");
         clone.ExcludedTools!.Add("tool99");
+        clone.ExcludedBuiltInAgents!.Add("task");
         clone.McpServers!["s2"] = new McpStdioServerConfig { Command = "echo" };
         clone.CustomAgents!.Add(new CustomAgentConfig { Name = "a2" });
         clone.SkillDirectories!.Add("/more");
@@ -165,6 +173,7 @@ public class CloneTests
         // Original is unaffected
         Assert.Single(original.AvailableTools!);
         Assert.Single(original.ExcludedTools!);
+        Assert.Single(original.ExcludedBuiltInAgents!);
         Assert.Single(original.McpServers!);
         Assert.Single(original.CustomAgents!);
         Assert.Single(original.SkillDirectories!);
@@ -190,6 +199,7 @@ public class CloneTests
         {
             AvailableTools = ["tool1"],
             ExcludedTools = ["tool2"],
+            ExcludedBuiltInAgents = ["explore"],
             McpServers = new Dictionary<string, McpServerConfig> { ["s1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "a1" }],
             SkillDirectories = ["/skills"],
@@ -202,6 +212,7 @@ public class CloneTests
         // Mutate clone collections
         clone.AvailableTools!.Add("tool99");
         clone.ExcludedTools!.Add("tool99");
+        clone.ExcludedBuiltInAgents!.Add("task");
         clone.McpServers!["s2"] = new McpStdioServerConfig { Command = "echo" };
         clone.CustomAgents!.Add(new CustomAgentConfig { Name = "a2" });
         clone.SkillDirectories!.Add("/more");
@@ -211,6 +222,7 @@ public class CloneTests
         // Original is unaffected
         Assert.Single(original.AvailableTools!);
         Assert.Single(original.ExcludedTools!);
+        Assert.Single(original.ExcludedBuiltInAgents!);
         Assert.Single(original.McpServers!);
         Assert.Single(original.CustomAgents!);
         Assert.Single(original.SkillDirectories!);
@@ -270,6 +282,7 @@ public class CloneTests
 
         Assert.Null(clone.AvailableTools);
         Assert.Null(clone.ExcludedTools);
+        Assert.Null(clone.ExcludedBuiltInAgents);
         Assert.Null(clone.McpServers);
         Assert.Null(clone.CustomAgents);
         Assert.Null(clone.SkillDirectories);

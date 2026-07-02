@@ -168,6 +168,8 @@ class E2ETestContext:
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
                 "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
+                "COPILOT_MCP_APPS": "true",
+                "MCP_APPS": "true",
             }
         )
         return env

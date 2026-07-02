@@ -136,6 +136,7 @@ class SessionEventType(Enum):
     SESSION_WARNING = "session.warning"
     SESSION_MODEL_CHANGE = "session.model_change"
     SESSION_MODE_CHANGED = "session.mode_changed"
+    SESSION_SESSION_LIMITS_CHANGED = "session.session_limits_changed"
     SESSION_PERMISSIONS_CHANGED = "session.permissions_changed"
     SESSION_PLAN_CHANGED = "session.plan_changed"
     SESSION_TODOS_CHANGED = "session.todos_changed"
@@ -144,6 +145,7 @@ class SessionEventType(Enum):
     SESSION_TRUNCATION = "session.truncation"
     SESSION_SNAPSHOT_REWIND = "session.snapshot_rewind"
     SESSION_SHUTDOWN = "session.shutdown"
+    SESSION_USAGE_CHECKPOINT = "session.usage_checkpoint"
     SESSION_CONTEXT_CHANGED = "session.context_changed"
     SESSION_USAGE_INFO = "session.usage_info"
     SESSION_COMPACTION_START = "session.compaction_start"
@@ -202,6 +204,8 @@ class SessionEventType(Enum):
     COMMAND_COMPLETED = "command.completed"
     AUTO_MODE_SWITCH_REQUESTED = "auto_mode_switch.requested"
     AUTO_MODE_SWITCH_COMPLETED = "auto_mode_switch.completed"
+    SESSION_LIMITS_EXHAUSTED_REQUESTED = "session_limits_exhausted.requested"
+    SESSION_LIMITS_EXHAUSTED_COMPLETED = "session_limits_exhausted.completed"
     COMMANDS_CHANGED = "commands.changed"
     CAPABILITIES_CHANGED = "capabilities.changed"
     EXIT_PLAN_MODE_REQUESTED = "exit_plan_mode.requested"
@@ -300,6 +304,38 @@ class Data:
 
     def to_dict(self) -> dict:
         return {_compat_to_json_key(key): _compat_to_json_value(value) for key, value in self._values.items() if value is not None}
+
+
+# Deprecated: this type is deprecated and will be removed in a future version.
+@dataclass
+class ToolExecutionCompleteContentTerminal:
+    "Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead."
+    text: str
+    type: ClassVar[str] = "terminal"
+    cwd: str | None = None
+    exit_code: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteContentTerminal":
+        assert isinstance(obj, dict)
+        text = from_str(obj.get("text"))
+        cwd = from_union([from_none, from_str], obj.get("cwd"))
+        exit_code = from_union([from_none, from_int], obj.get("exitCode"))
+        return ToolExecutionCompleteContentTerminal(
+            text=text,
+            cwd=cwd,
+            exit_code=exit_code,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["text"] = from_str(self.text)
+        result["type"] = self.type
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_none, from_str], self.cwd)
+        if self.exit_code is not None:
+            result["exitCode"] = from_union([from_none, to_int], self.exit_code)
+        return result
 
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -1016,6 +1052,7 @@ class AssistantMessageData:
     phase: str | None = None
     reasoning_opaque: str | None = None
     reasoning_text: str | None = None
+    reasoning_wire_field: str | None = None
     request_id: str | None = None
     server_tools: AssistantMessageServerTools | None = None
     service_request_id: str | None = None
@@ -1037,6 +1074,7 @@ class AssistantMessageData:
         phase = from_union([from_none, from_str], obj.get("phase"))
         reasoning_opaque = from_union([from_none, from_str], obj.get("reasoningOpaque"))
         reasoning_text = from_union([from_none, from_str], obj.get("reasoningText"))
+        reasoning_wire_field = from_union([from_none, from_str], obj.get("reasoningWireField"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
         server_tools = from_union([from_none, AssistantMessageServerTools.from_dict], obj.get("serverTools"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
@@ -1055,6 +1093,7 @@ class AssistantMessageData:
             phase=phase,
             reasoning_opaque=reasoning_opaque,
             reasoning_text=reasoning_text,
+            reasoning_wire_field=reasoning_wire_field,
             request_id=request_id,
             server_tools=server_tools,
             service_request_id=service_request_id,
@@ -1086,6 +1125,8 @@ class AssistantMessageData:
             result["reasoningOpaque"] = from_union([from_none, from_str], self.reasoning_opaque)
         if self.reasoning_text is not None:
             result["reasoningText"] = from_union([from_none, from_str], self.reasoning_text)
+        if self.reasoning_wire_field is not None:
+            result["reasoningWireField"] = from_union([from_none, from_str], self.reasoning_wire_field)
         if self.request_id is not None:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
         if self.server_tools is not None:
@@ -4480,6 +4521,8 @@ class PermissionRequestRead:
     intention: str
     kind: ClassVar[str] = "read"
     path: str
+    request_sandbox_bypass: bool | None = None
+    request_sandbox_bypass_reason: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4487,10 +4530,14 @@ class PermissionRequestRead:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         path = from_str(obj.get("path"))
+        request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
+        request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestRead(
             intention=intention,
             path=path,
+            request_sandbox_bypass=request_sandbox_bypass,
+            request_sandbox_bypass_reason=request_sandbox_bypass_reason,
             tool_call_id=tool_call_id,
         )
 
@@ -4499,6 +4546,10 @@ class PermissionRequestRead:
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
         result["path"] = from_str(self.path)
+        if self.request_sandbox_bypass is not None:
+            result["requestSandboxBypass"] = from_union([from_none, from_bool], self.request_sandbox_bypass)
+        if self.request_sandbox_bypass_reason is not None:
+            result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4774,31 +4825,6 @@ class PersistedBinaryImage:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.metadata is not None:
             result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
-        return result
-
-
-@dataclass
-class ResponseBudgetConfig:
-    "Optional response budget limits."
-    max_ai_credits: float | None = None
-    max_model_iterations: int | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "ResponseBudgetConfig":
-        assert isinstance(obj, dict)
-        max_ai_credits = from_union([from_none, from_float], obj.get("maxAiCredits"))
-        max_model_iterations = from_union([from_none, from_int], obj.get("maxModelIterations"))
-        return ResponseBudgetConfig(
-            max_ai_credits=max_ai_credits,
-            max_model_iterations=max_model_iterations,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.max_ai_credits is not None:
-            result["maxAiCredits"] = from_union([from_none, to_float], self.max_ai_credits)
-        if self.max_model_iterations is not None:
-            result["maxModelIterations"] = from_union([from_none, to_int], self.max_model_iterations)
         return result
 
 
@@ -5384,6 +5410,105 @@ class SessionInfoData:
 
 
 @dataclass
+class SessionLimitsConfig:
+    "Optional session limits."
+    max_ai_credits: float | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionLimitsConfig":
+        assert isinstance(obj, dict)
+        max_ai_credits = from_union([from_none, from_float], obj.get("maxAiCredits"))
+        return SessionLimitsConfig(
+            max_ai_credits=max_ai_credits,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_ai_credits is not None:
+            result["maxAiCredits"] = from_union([from_none, to_float], self.max_ai_credits)
+        return result
+
+
+@dataclass
+class SessionLimitsExhaustedCompletedData:
+    "Session limit exhaustion prompt completion notification."
+    request_id: str
+    response: SessionLimitsExhaustedResponse
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionLimitsExhaustedCompletedData":
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        response = SessionLimitsExhaustedResponse.from_dict(obj.get("response"))
+        return SessionLimitsExhaustedCompletedData(
+            request_id=request_id,
+            response=response,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["response"] = to_class(SessionLimitsExhaustedResponse, self.response)
+        return result
+
+
+@dataclass
+class SessionLimitsExhaustedRequestedData:
+    "Session limit exhaustion notification requiring user action."
+    max_ai_credits: float
+    request_id: str
+    used_ai_credits: float
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionLimitsExhaustedRequestedData":
+        assert isinstance(obj, dict)
+        max_ai_credits = from_float(obj.get("maxAiCredits"))
+        request_id = from_str(obj.get("requestId"))
+        used_ai_credits = from_float(obj.get("usedAiCredits"))
+        return SessionLimitsExhaustedRequestedData(
+            max_ai_credits=max_ai_credits,
+            request_id=request_id,
+            used_ai_credits=used_ai_credits,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["maxAiCredits"] = to_float(self.max_ai_credits)
+        result["requestId"] = from_str(self.request_id)
+        result["usedAiCredits"] = to_float(self.used_ai_credits)
+        return result
+
+
+@dataclass
+class SessionLimitsExhaustedResponse:
+    "The user's selected action for an exhausted session limit."
+    action: SessionLimitsExhaustedResponseAction
+    additional_ai_credits: float | None = None
+    max_ai_credits: float | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionLimitsExhaustedResponse":
+        assert isinstance(obj, dict)
+        action = parse_enum(SessionLimitsExhaustedResponseAction, obj.get("action"))
+        additional_ai_credits = from_union([from_none, from_float], obj.get("additionalAiCredits"))
+        max_ai_credits = from_union([from_none, from_float], obj.get("maxAiCredits"))
+        return SessionLimitsExhaustedResponse(
+            action=action,
+            additional_ai_credits=additional_ai_credits,
+            max_ai_credits=max_ai_credits,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(SessionLimitsExhaustedResponseAction, self.action)
+        if self.additional_ai_credits is not None:
+            result["additionalAiCredits"] = from_union([from_none, to_float], self.additional_ai_credits)
+        if self.max_ai_credits is not None:
+            result["maxAiCredits"] = from_union([from_none, to_float], self.max_ai_credits)
+        return result
+
+
+@dataclass
 class SessionMcpServerStatusChangedData:
     "Schema for the `McpServerStatusChangedData` type."
     server_name: str
@@ -5581,8 +5706,8 @@ class SessionResumeData:
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
-    response_budget: ResponseBudgetConfig | None = None
     selected_model: str | None = None
+    session_limits: SessionLimitsConfig | None = None
     session_was_active: bool | None = None
 
     @staticmethod
@@ -5598,8 +5723,8 @@ class SessionResumeData:
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
-        response_budget = from_union([from_none, ResponseBudgetConfig.from_dict], obj.get("responseBudget"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
+        session_limits = from_union([from_none, SessionLimitsConfig.from_dict], obj.get("sessionLimits"))
         session_was_active = from_union([from_none, from_bool], obj.get("sessionWasActive"))
         return SessionResumeData(
             event_count=event_count,
@@ -5612,8 +5737,8 @@ class SessionResumeData:
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
-            response_budget=response_budget,
             selected_model=selected_model,
+            session_limits=session_limits,
             session_was_active=session_was_active,
         )
 
@@ -5637,10 +5762,10 @@ class SessionResumeData:
             result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
-        if self.response_budget is not None:
-            result["responseBudget"] = from_union([from_none, lambda x: to_class(ResponseBudgetConfig, x)], self.response_budget)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
+        if self.session_limits is not None:
+            result["sessionLimits"] = from_union([from_none, lambda x: to_class(SessionLimitsConfig, x)], self.session_limits)
         if self.session_was_active is not None:
             result["sessionWasActive"] = from_union([from_none, from_bool], self.session_was_active)
         return result
@@ -5743,6 +5868,25 @@ class SessionScheduleRearmedData:
         result: dict = {}
         result["id"] = to_int(self.id)
         result["nextRunAt"] = to_int(self.next_run_at)
+        return result
+
+
+@dataclass
+class SessionSessionLimitsChangedData:
+    "Session limits update details. Null clears the limits."
+    session_limits: SessionLimitsConfig | None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionSessionLimitsChangedData":
+        assert isinstance(obj, dict)
+        session_limits = from_union([from_none, SessionLimitsConfig.from_dict], obj.get("sessionLimits"))
+        return SessionSessionLimitsChangedData(
+            session_limits=session_limits,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionLimits"] = from_union([from_none, lambda x: to_class(SessionLimitsConfig, x)], self.session_limits)
         return result
 
 
@@ -5890,8 +6034,8 @@ class SessionStartData:
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
-    response_budget: ResponseBudgetConfig | None = None
     selected_model: str | None = None
+    session_limits: SessionLimitsConfig | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionStartData":
@@ -5908,8 +6052,8 @@ class SessionStartData:
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
-        response_budget = from_union([from_none, ResponseBudgetConfig.from_dict], obj.get("responseBudget"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
+        session_limits = from_union([from_none, SessionLimitsConfig.from_dict], obj.get("sessionLimits"))
         return SessionStartData(
             copilot_version=copilot_version,
             producer=producer,
@@ -5923,8 +6067,8 @@ class SessionStartData:
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
-            response_budget=response_budget,
             selected_model=selected_model,
+            session_limits=session_limits,
         )
 
     def to_dict(self) -> dict:
@@ -5948,10 +6092,10 @@ class SessionStartData:
             result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
-        if self.response_budget is not None:
-            result["responseBudget"] = from_union([from_none, lambda x: to_class(ResponseBudgetConfig, x)], self.response_budget)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
+        if self.session_limits is not None:
+            result["sessionLimits"] = from_union([from_none, lambda x: to_class(SessionLimitsConfig, x)], self.session_limits)
         return result
 
 
@@ -6074,6 +6218,31 @@ class SessionTruncationData:
         result["preTruncationTokensInMessages"] = to_int(self.pre_truncation_tokens_in_messages)
         result["tokenLimit"] = to_int(self.token_limit)
         result["tokensRemovedDuringTruncation"] = to_int(self.tokens_removed_during_truncation)
+        return result
+
+
+@dataclass
+class SessionUsageCheckpointData:
+    "Durable session usage checkpoint for reconstructing aggregate accounting on resume"
+    total_nano_aiu: float
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _total_premium_requests: float | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionUsageCheckpointData":
+        assert isinstance(obj, dict)
+        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        _total_premium_requests = from_union([from_none, from_float], obj.get("totalPremiumRequests"))
+        return SessionUsageCheckpointData(
+            total_nano_aiu=total_nano_aiu,
+            _total_premium_requests=_total_premium_requests,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        if self._total_premium_requests is not None:
+            result["totalPremiumRequests"] = from_union([from_none, to_float], self._total_premium_requests)
         return result
 
 
@@ -7042,33 +7211,42 @@ class ToolExecutionCompleteContentResourceLinkIcon:
 
 
 @dataclass
-class ToolExecutionCompleteContentTerminal:
-    "Terminal/shell output content block with optional exit code and working directory"
-    text: str
-    type: ClassVar[str] = "terminal"
+class ToolExecutionCompleteContentShellExit:
+    "Shell command exit metadata with optional output preview"
+    exit_code: int
+    shell_id: str
+    type: ClassVar[str] = "shell_exit"
     cwd: str | None = None
-    exit_code: int | None = None
+    output_preview: str | None = None
+    output_truncated: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteContentTerminal":
+    def from_dict(obj: Any) -> "ToolExecutionCompleteContentShellExit":
         assert isinstance(obj, dict)
-        text = from_str(obj.get("text"))
+        exit_code = from_int(obj.get("exitCode"))
+        shell_id = from_str(obj.get("shellId"))
         cwd = from_union([from_none, from_str], obj.get("cwd"))
-        exit_code = from_union([from_none, from_int], obj.get("exitCode"))
-        return ToolExecutionCompleteContentTerminal(
-            text=text,
-            cwd=cwd,
+        output_preview = from_union([from_none, from_str], obj.get("outputPreview"))
+        output_truncated = from_union([from_none, from_bool], obj.get("outputTruncated"))
+        return ToolExecutionCompleteContentShellExit(
             exit_code=exit_code,
+            shell_id=shell_id,
+            cwd=cwd,
+            output_preview=output_preview,
+            output_truncated=output_truncated,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["text"] = from_str(self.text)
+        result["exitCode"] = to_int(self.exit_code)
+        result["shellId"] = from_str(self.shell_id)
         result["type"] = self.type
         if self.cwd is not None:
             result["cwd"] = from_union([from_none, from_str], self.cwd)
-        if self.exit_code is not None:
-            result["exitCode"] = from_union([from_none, to_int], self.exit_code)
+        if self.output_preview is not None:
+            result["outputPreview"] = from_union([from_none, from_str], self.output_preview)
+        if self.output_truncated is not None:
+            result["outputTruncated"] = from_union([from_none, from_bool], self.output_truncated)
         return result
 
 
@@ -8220,6 +8398,7 @@ def _load_ToolExecutionCompleteContent(obj: Any) -> "ToolExecutionCompleteConten
     match kind:
         case "text": return ToolExecutionCompleteContentText.from_dict(obj)
         case "terminal": return ToolExecutionCompleteContentTerminal.from_dict(obj)
+        case "shell_exit": return ToolExecutionCompleteContentShellExit.from_dict(obj)
         case "image": return ToolExecutionCompleteContentImage.from_dict(obj)
         case "audio": return ToolExecutionCompleteContentAudio.from_dict(obj)
         case "resource_link": return ToolExecutionCompleteContentResourceLink.from_dict(obj)
@@ -8243,7 +8422,7 @@ def _load_UserToolSessionApproval(obj: Any) -> "UserToolSessionApproval":
 
 
 # A content block within a tool result, which may be text, terminal output, image, audio, or a resource
-ToolExecutionCompleteContent = ToolExecutionCompleteContentText | ToolExecutionCompleteContentTerminal | ToolExecutionCompleteContentImage | ToolExecutionCompleteContentAudio | ToolExecutionCompleteContentResourceLink | ToolExecutionCompleteContentResource
+ToolExecutionCompleteContent = ToolExecutionCompleteContentText | ToolExecutionCompleteContentTerminal | ToolExecutionCompleteContentShellExit | ToolExecutionCompleteContentImage | ToolExecutionCompleteContentAudio | ToolExecutionCompleteContentResourceLink | ToolExecutionCompleteContentResource
 
 
 # A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference
@@ -8619,6 +8798,18 @@ class ReasoningSummary(Enum):
     DETAILED = "detailed"
 
 
+class SessionLimitsExhaustedResponseAction(Enum):
+    "User action selected for an exhausted session limit."
+    # Increase the current max by an exact AI Credits amount.
+    ADD = "add"
+    # Set a new absolute max AI Credits value.
+    SET = "set"
+    # Remove the current session limit.
+    UNSET = "unset"
+    # Leave the limit unchanged and cancel the blocked model request.
+    CANCEL = "cancel"
+
+
 class SessionMode(Enum):
     "The session mode the agent is operating in"
     # The agent is responding interactively to the user.
@@ -8743,7 +8934,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -8783,6 +8974,7 @@ class SessionEvent:
             case SessionEventType.SESSION_WARNING: data = SessionWarningData.from_dict(data_obj)
             case SessionEventType.SESSION_MODEL_CHANGE: data = SessionModelChangeData.from_dict(data_obj)
             case SessionEventType.SESSION_MODE_CHANGED: data = SessionModeChangedData.from_dict(data_obj)
+            case SessionEventType.SESSION_SESSION_LIMITS_CHANGED: data = SessionSessionLimitsChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_PERMISSIONS_CHANGED: data = SessionPermissionsChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_PLAN_CHANGED: data = SessionPlanChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_TODOS_CHANGED: data = SessionTodosChangedData.from_dict(data_obj)
@@ -8791,6 +8983,7 @@ class SessionEvent:
             case SessionEventType.SESSION_TRUNCATION: data = SessionTruncationData.from_dict(data_obj)
             case SessionEventType.SESSION_SNAPSHOT_REWIND: data = SessionSnapshotRewindData.from_dict(data_obj)
             case SessionEventType.SESSION_SHUTDOWN: data = SessionShutdownData.from_dict(data_obj)
+            case SessionEventType.SESSION_USAGE_CHECKPOINT: data = SessionUsageCheckpointData.from_dict(data_obj)
             case SessionEventType.SESSION_CONTEXT_CHANGED: data = SessionContextChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_USAGE_INFO: data = SessionUsageInfoData.from_dict(data_obj)
             case SessionEventType.SESSION_COMPACTION_START: data = SessionCompactionStartData.from_dict(data_obj)
@@ -8848,6 +9041,8 @@ class SessionEvent:
             case SessionEventType.COMMAND_COMPLETED: data = CommandCompletedData.from_dict(data_obj)
             case SessionEventType.AUTO_MODE_SWITCH_REQUESTED: data = AutoModeSwitchRequestedData.from_dict(data_obj)
             case SessionEventType.AUTO_MODE_SWITCH_COMPLETED: data = AutoModeSwitchCompletedData.from_dict(data_obj)
+            case SessionEventType.SESSION_LIMITS_EXHAUSTED_REQUESTED: data = SessionLimitsExhaustedRequestedData.from_dict(data_obj)
+            case SessionEventType.SESSION_LIMITS_EXHAUSTED_COMPLETED: data = SessionLimitsExhaustedCompletedData.from_dict(data_obj)
             case SessionEventType.COMMANDS_CHANGED: data = CommandsChangedData.from_dict(data_obj)
             case SessionEventType.CAPABILITIES_CHANGED: data = CapabilitiesChangedData.from_dict(data_obj)
             case SessionEventType.EXIT_PLAN_MODE_REQUESTED: data = ExitPlanModeRequestedData.from_dict(data_obj)
@@ -9070,7 +9265,6 @@ __all__ = [
     "PlanChangedOperation",
     "RawSessionEventData",
     "ReasoningSummary",
-    "ResponseBudgetConfig",
     "SamplingCompletedData",
     "SamplingRequestedData",
     "SessionAutopilotObjectiveChangedData",
@@ -9096,6 +9290,11 @@ __all__ = [
     "SessionHandoffData",
     "SessionIdleData",
     "SessionInfoData",
+    "SessionLimitsConfig",
+    "SessionLimitsExhaustedCompletedData",
+    "SessionLimitsExhaustedRequestedData",
+    "SessionLimitsExhaustedResponse",
+    "SessionLimitsExhaustedResponseAction",
     "SessionMcpServerStatusChangedData",
     "SessionMcpServersLoadedData",
     "SessionMode",
@@ -9108,6 +9307,7 @@ __all__ = [
     "SessionScheduleCancelledData",
     "SessionScheduleCreatedData",
     "SessionScheduleRearmedData",
+    "SessionSessionLimitsChangedData",
     "SessionShutdownData",
     "SessionSkillsLoadedData",
     "SessionSnapshotRewindData",
@@ -9117,6 +9317,7 @@ __all__ = [
     "SessionTodosChangedData",
     "SessionToolsUpdatedData",
     "SessionTruncationData",
+    "SessionUsageCheckpointData",
     "SessionUsageInfoData",
     "SessionWarningData",
     "SessionWorkspaceFileChangedData",
@@ -9156,6 +9357,7 @@ __all__ = [
     "ToolExecutionCompleteContentResourceLink",
     "ToolExecutionCompleteContentResourceLinkIcon",
     "ToolExecutionCompleteContentResourceLinkIconTheme",
+    "ToolExecutionCompleteContentShellExit",
     "ToolExecutionCompleteContentTerminal",
     "ToolExecutionCompleteContentText",
     "ToolExecutionCompleteData",

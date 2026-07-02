@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Sockets;
 using System.Runtime.ExceptionServices;
@@ -630,6 +631,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             this);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
+        session.RegisterMcpAuthHandler(config.OnMcpAuthRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
         session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
@@ -979,9 +981,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ReasoningSummary,
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+                config.EnableCitations,
                 wireSystemMessage,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
+                config.ExcludedBuiltInAgents,
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
@@ -1012,6 +1016,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
+                config.SessionLimits,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
@@ -1033,7 +1038,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
-                ExpAssignments: config.ExpAssignments);
+                ExpAssignments: config.ExpAssignments,
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1078,6 +1084,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 throw new InvalidOperationException(
                     $"session.create returned sessionId {response.SessionId} but the caller requested {localSessionId}.");
+            }
+
+            if (config.OnMcpAuthRequest is not null)
+            {
+                await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
             }
 
             session.WorkspacePath = response.WorkspacePath;
@@ -1166,7 +1177,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             transformCallbacks,
             hasHooks,
             "CopilotClient.ResumeSessionAsync");
-
         try
         {
             var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
@@ -1179,9 +1189,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ReasoningSummary,
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+                config.EnableCitations,
                 wireSystemMessage,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
+                config.ExcludedBuiltInAgents,
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
@@ -1213,6 +1225,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
+                config.SessionLimits,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
@@ -1235,7 +1248,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
-                ExpAssignments: config.ExpAssignments);
+                ExpAssignments: config.ExpAssignments,
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -1248,6 +1262,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
             session.SetOpenCanvases(response.OpenCanvases);
+
+            if (config.OnMcpAuthRequest is not null)
+            {
+                await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
+            }
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
         }
@@ -1708,21 +1727,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Builds the client-global RPC handler bag at construction time. Currently
-    /// only the LLM inference provider adapter is registered; returns null when no
+    /// Builds the client-global RPC handler bag at construction time. Registers
+    /// the LLM inference provider adapter and/or the GitHub telemetry adapter
+    /// depending on which options are configured; returns null when no
     /// client-global API is configured so the registration is skipped entirely.
     /// </summary>
     private ClientGlobalApiHandlers? BuildClientGlobalApis()
     {
         var handler = _options.RequestHandler;
-        if (handler is null)
+        var onGitHubTelemetry = _options.OnGitHubTelemetry;
+        if (handler is null && onGitHubTelemetry is null)
         {
             return null;
         }
 
         return new ClientGlobalApiHandlers
         {
-            LlmInference = new LlmInferenceAdapter(handler, () => _serverRpc),
+            LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
+            GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
         };
     }
 
@@ -2421,9 +2443,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ReasoningSummary? ReasoningSummary,
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
+        bool? EnableCitations,
         SystemMessageConfig? SystemMessage,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
+        [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
@@ -2454,6 +2478,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
+        SessionLimitsConfig? SessionLimits,
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
@@ -2476,7 +2501,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2515,9 +2541,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ReasoningSummary? ReasoningSummary,
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
+        bool? EnableCitations,
         SystemMessageConfig? SystemMessage,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
+        [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
@@ -2549,6 +2577,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
+        SessionLimitsConfig? SessionLimits,
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
@@ -2572,7 +2601,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(
@@ -2650,6 +2680,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(CapiSessionOptions))]
     [JsonSerializable(typeof(NamedProviderConfig))]
     [JsonSerializable(typeof(ProviderModelConfig))]
+    [JsonSerializable(typeof(SessionLimitsConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
     [JsonSerializable(typeof(SessionCapabilities))]
@@ -2689,4 +2720,29 @@ public sealed class ToolResultAIContent(ToolResultObject toolResult) : AIContent
     /// Gets the underlying <see cref="ToolResultObject"/>.
     /// </summary>
     public ToolResultObject Result => toolResult;
+}
+
+/// <summary>
+/// Bridges the generated <see cref="Rpc.IGitHubTelemetryHandler"/> client-global handler to
+/// the public <c>OnGitHubTelemetry</c> callback, forwarding the generated
+/// <see cref="Rpc.GitHubTelemetryNotification"/> payload unchanged.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class GitHubTelemetryAdapter(Func<Rpc.GitHubTelemetryNotification, Task> callback, ILogger logger) : Rpc.IGitHubTelemetryHandler
+{
+    private readonly Func<Rpc.GitHubTelemetryNotification, Task> _callback = callback ?? throw new ArgumentNullException(nameof(callback));
+    private readonly ILogger _logger = logger ?? NullLogger.Instance;
+
+    public async Task EventAsync(Rpc.GitHubTelemetryNotification request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        try
+        {
+            await _callback(request).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error handling gitHubTelemetry.event notification");
+        }
+    }
 }

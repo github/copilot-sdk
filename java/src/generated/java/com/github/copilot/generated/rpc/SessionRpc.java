@@ -43,6 +43,8 @@ public final class SessionRpc {
     public final SessionPlanApi plan;
     /** API methods for the {@code workspaces} namespace. */
     public final SessionWorkspacesApi workspaces;
+    /** API methods for the {@code completions} namespace. */
+    public final SessionCompletionsApi completions;
     /** API methods for the {@code instructions} namespace. */
     public final SessionInstructionsApi instructions;
     /** API methods for the {@code fleet} namespace. */
@@ -89,6 +91,8 @@ public final class SessionRpc {
     public final SessionUsageApi usage;
     /** API methods for the {@code remote} namespace. */
     public final SessionRemoteApi remote;
+    /** API methods for the {@code visibility} namespace. */
+    public final SessionVisibilityApi visibility;
     /** API methods for the {@code schedule} namespace. */
     public final SessionScheduleApi schedule;
 
@@ -108,6 +112,7 @@ public final class SessionRpc {
         this.name = new SessionNameApi(caller, sessionId);
         this.plan = new SessionPlanApi(caller, sessionId);
         this.workspaces = new SessionWorkspacesApi(caller, sessionId);
+        this.completions = new SessionCompletionsApi(caller, sessionId);
         this.instructions = new SessionInstructionsApi(caller, sessionId);
         this.fleet = new SessionFleetApi(caller, sessionId);
         this.agent = new SessionAgentApi(caller, sessionId);
@@ -131,6 +136,7 @@ public final class SessionRpc {
         this.eventLog = new SessionEventLogApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
         this.remote = new SessionRemoteApi(caller, sessionId);
+        this.visibility = new SessionVisibilityApi(caller, sessionId);
         this.schedule = new SessionScheduleApi(caller, sessionId);
     }
 

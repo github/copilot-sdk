@@ -21,6 +21,7 @@ export type SessionEvent =
   | WarningEvent
   | ModelChangeEvent
   | ModeChangedEvent
+  | SessionLimitsChangedEvent
   | PermissionsChangedEvent
   | PlanChangedEvent
   | TodosChangedEvent
@@ -29,6 +30,7 @@ export type SessionEvent =
   | TruncationEvent
   | SnapshotRewindEvent
   | ShutdownEvent
+  | UsageCheckpointEvent
   | ContextChangedEvent
   | UsageInfoEvent
   | CompactionStartEvent
@@ -86,6 +88,8 @@ export type SessionEvent =
   | CommandCompletedEvent
   | AutoModeSwitchRequestedEvent
   | AutoModeSwitchCompletedEvent
+  | SessionLimitsExhaustedRequestedEvent
+  | SessionLimitsExhaustedCompletedEvent
   | CommandsChangedEvent
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
@@ -363,6 +367,7 @@ export type BinaryAssetReferenceType =
 export type ToolExecutionCompleteContent =
   | ToolExecutionCompleteContentText
   | ToolExecutionCompleteContentTerminal
+  | ToolExecutionCompleteContentShellExit
   | ToolExecutionCompleteContentImage
   | ToolExecutionCompleteContentAudio
   | ToolExecutionCompleteContentResourceLink
@@ -580,6 +585,18 @@ export type AutoModeSwitchResponse =
   /** Do not switch models. */
   | "no";
 /**
+ * User action selected for an exhausted session limit.
+ */
+export type SessionLimitsExhaustedResponseAction =
+  /** Increase the current max by an exact AI Credits amount. */
+  | "add"
+  /** Set a new absolute max AI Credits value. */
+  | "set"
+  /** Remove the current session limit. */
+  | "unset"
+  /** Leave the limit unchanged and cancel the blocked model request. */
+  | "cancel";
+/**
  * Exit plan mode action
  */
 export type ExitPlanModeAction =
@@ -738,7 +755,6 @@ export interface StartData {
    * Whether this session supports remote steering via GitHub
    */
   remoteSteerable?: boolean;
-  responseBudget?: ResponseBudgetConfig;
   /**
    * Model selected at session creation time, if any
    */
@@ -747,6 +763,7 @@ export interface StartData {
    * Unique identifier for the session
    */
   sessionId: string;
+  sessionLimits?: SessionLimitsConfig;
   /**
    * ISO 8601 timestamp when the session was created
    */
@@ -791,17 +808,13 @@ export interface WorkingDirectoryContext {
   repositoryHost?: string;
 }
 /**
- * Optional response budget limits.
+ * Optional session limits.
  */
-export interface ResponseBudgetConfig {
+export interface SessionLimitsConfig {
   /**
-   * Maximum AI Credits allowed while responding to one top-level user message.
+   * Maximum AI Credits allowed across the session's current accounting window.
    */
   maxAiCredits?: number;
-  /**
-   * Maximum model-call iterations allowed while responding to one top-level user message.
-   */
-  maxModelIterations?: number;
 }
 /**
  * Session event "session.resume". Session resume metadata including current context and event count
@@ -868,10 +881,6 @@ export interface ResumeData {
    */
   remoteSteerable?: boolean;
   /**
-   * Response budget limits currently configured at resume time; null when no budget is active
-   */
-  responseBudget?: ResponseBudgetConfig | null;
-  /**
    * ISO 8601 timestamp when the session was resumed
    */
   resumeTime: string;
@@ -879,6 +888,10 @@ export interface ResumeData {
    * Model currently selected at resume time
    */
   selectedModel?: string;
+  /**
+   * Session limits currently configured at resume time; null when no limits are active
+   */
+  sessionLimits?: SessionLimitsConfig | null;
   /**
    * True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
    */
@@ -1463,6 +1476,45 @@ export interface ModeChangedData {
   previousMode: SessionMode;
 }
 /**
+ * Session event "session.session_limits_changed". Session limits update details. Null clears the limits.
+ */
+export interface SessionLimitsChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SessionLimitsChangedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.session_limits_changed".
+   */
+  type: "session.session_limits_changed";
+}
+/**
+ * Session limits update details. Null clears the limits.
+ */
+export interface SessionLimitsChangedData {
+  /**
+   * Current session limits, or null when no limits are active
+   */
+  sessionLimits: SessionLimitsConfig | null;
+}
+/**
  * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
  */
 export interface PermissionsChangedEvent {
@@ -1991,6 +2043,51 @@ export interface ShutdownTokenDetail {
    * Accumulated token count for this token type
    */
   tokenCount: number;
+}
+/**
+ * Session event "session.usage_checkpoint". Durable session usage checkpoint for reconstructing aggregate accounting on resume
+ */
+export interface UsageCheckpointEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: UsageCheckpointData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.usage_checkpoint".
+   */
+  type: "session.usage_checkpoint";
+}
+/**
+ * Durable session usage checkpoint for reconstructing aggregate accounting on resume
+ */
+export interface UsageCheckpointData {
+  /**
+   * Session-wide accumulated nano-AI units cost at checkpoint time
+   */
+  totalNanoAiu: number;
+  /**
+   * Total number of premium API requests used at checkpoint time
+   *
+   * @internal
+   */
+  totalPremiumRequests?: number;
 }
 /**
  * Session event "session.context_changed". Updated working directory and git context after the change
@@ -3190,6 +3287,10 @@ export interface AssistantMessageData {
    * Readable reasoning text from the model's extended thinking
    */
   reasoningText?: string;
+  /**
+   * OpenAI-compatible wire field the provider used for reasoning (e.g. reasoning_content/reasoning). Populated only when non-canonical, so the dialect round-trips across turns.
+   */
+  reasoningWireField?: string;
   /**
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
@@ -4441,7 +4542,8 @@ export interface ToolExecutionCompleteContentText {
   type: "text";
 }
 /**
- * Terminal/shell output content block with optional exit code and working directory
+ * @deprecated
+ * Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.
  */
 export interface ToolExecutionCompleteContentTerminal {
   /**
@@ -4460,6 +4562,35 @@ export interface ToolExecutionCompleteContentTerminal {
    * Content block type discriminator
    */
   type: "terminal";
+}
+/**
+ * Shell command exit metadata with optional output preview
+ */
+export interface ToolExecutionCompleteContentShellExit {
+  /**
+   * Working directory where the shell command was executed
+   */
+  cwd?: string;
+  /**
+   * Exit code from the completed shell command
+   */
+  exitCode: number;
+  /**
+   * Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+   */
+  outputPreview?: string;
+  /**
+   * Whether outputPreview is known to be incomplete or truncated
+   */
+  outputTruncated?: boolean;
+  /**
+   * Shell id, as assigned by Copilot runtime
+   */
+  shellId: string;
+  /**
+   * Content block type discriminator
+   */
+  type: "shell_exit";
 }
 /**
  * Image content block with base64-encoded data
@@ -5662,6 +5793,14 @@ export interface PermissionRequestRead {
    * Path of the file or directory being read
    */
   path: string;
+  /**
+   * True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -7332,6 +7471,107 @@ export interface AutoModeSwitchCompletedData {
    */
   requestId: string;
   response: AutoModeSwitchResponse;
+}
+/**
+ * Session event "session_limits_exhausted.requested". Session limit exhaustion notification requiring user action.
+ */
+export interface SessionLimitsExhaustedRequestedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SessionLimitsExhaustedRequestedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session_limits_exhausted.requested".
+   */
+  type: "session_limits_exhausted.requested";
+}
+/**
+ * Session limit exhaustion notification requiring user action.
+ */
+export interface SessionLimitsExhaustedRequestedData {
+  /**
+   * Configured max AI Credits for the current accounting window.
+   */
+  maxAiCredits: number;
+  /**
+   * Unique identifier for this request; used to respond via session.ui.handlePendingSessionLimitsExhausted().
+   */
+  requestId: string;
+  /**
+   * AI Credits already consumed in the current accounting window.
+   */
+  usedAiCredits: number;
+}
+/**
+ * Session event "session_limits_exhausted.completed". Session limit exhaustion prompt completion notification.
+ */
+export interface SessionLimitsExhaustedCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SessionLimitsExhaustedCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session_limits_exhausted.completed".
+   */
+  type: "session_limits_exhausted.completed";
+}
+/**
+ * Session limit exhaustion prompt completion notification.
+ */
+export interface SessionLimitsExhaustedCompletedData {
+  /**
+   * Request ID of the resolved request; clients should dismiss any UI for this request.
+   */
+  requestId: string;
+  response: SessionLimitsExhaustedResponse;
+}
+/**
+ * The user's selected action for an exhausted session limit.
+ */
+export interface SessionLimitsExhaustedResponse {
+  action: SessionLimitsExhaustedResponseAction;
+  /**
+   * AI Credits to add to the current max when action is 'add'.
+   */
+  additionalAiCredits?: number;
+  /**
+   * New absolute max AI Credits when action is 'set'.
+   */
+  maxAiCredits?: number;
 }
 /**
  * Session event "commands.changed". SDK command registration change notification

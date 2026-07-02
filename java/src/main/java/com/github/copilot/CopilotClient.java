@@ -17,6 +17,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,7 +27,9 @@ import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
 import com.github.copilot.generated.rpc.ConnectParams;
+import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.generated.rpc.ServerRpc;
+import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
 import com.github.copilot.rpc.DeleteSessionResponse;
 import com.github.copilot.rpc.GetAuthStatusResponse;
 import com.github.copilot.rpc.GetLastSessionIdResponse;
@@ -255,6 +258,14 @@ public final class CopilotClient implements AutoCloseable {
                 LlmInferenceAdapter llmAdapter = new LlmInferenceAdapter(requestHandler,
                         () -> connection.serverRpc().llmInference, executor);
                 llmAdapter.registerHandlers(rpc);
+            }
+
+            // Register the GitHub telemetry forwarding handler when configured.
+            Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry = this.options
+                    .getOnGitHubTelemetry();
+            if (onGitHubTelemetry != null) {
+                GitHubTelemetryAdapter telemetryAdapter = new GitHubTelemetryAdapter(onGitHubTelemetry);
+                telemetryAdapter.registerHandlers(rpc);
             }
 
             // Verify protocol version
@@ -578,6 +589,13 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
+            // Opt this session into GitHub telemetry forwarding when a
+            // connection-level handler is registered (mirrors the runtime's
+            // hand-written capability flag, not part of the codegen'd contract).
+            if (options.getOnGitHubTelemetry() != null) {
+                request.setEnableGitHubTelemetryForwarding(true);
+            }
+
             // Empty mode: validate availableTools and set toolFilterPrecedence
             if (options.getMode() == CopilotClientMode.EMPTY) {
                 if (config.getAvailableTools() == null) {
@@ -638,20 +656,27 @@ public final class CopilotClient implements AutoCloseable {
                                 ? preRegisteredSessionHolder[0]
                                 : initializeSession.apply(returnedId);
                         registeredIdHolder[0] = returnedId;
+                        CompletableFuture<?> interest = config.getOnMcpAuthRequest() != null
+                                ? session.getRpc().eventLog.registerInterest(
+                                        new SessionEventLogRegisterInterestParams(returnedId, "mcp.oauth_required"))
+                                : CompletableFuture.completedFuture(null);
                         session.setWorkspacePath(response.workspacePath());
                         session.setCapabilities(response.capabilities());
                         session.setOpenCanvases(response.openCanvases());
 
-                        return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
-                                config.getCustomAgentsLocalOnly().orElse(null),
-                                config.getCoauthorEnabled().orElse(null),
-                                config.getManageScheduleEnabled().orElse(null)).thenApply(v -> {
-                                    LoggingHelpers.logTiming(LOG, Level.FINE,
-                                            "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
-                                                    + session.getSessionId(),
-                                            totalNanos);
-                                    return session;
-                                });
+                        return interest.thenCompose(interestResult -> {
+                            logMcpAuthInterestRegistration(interestResult);
+                            return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
+                                    config.getCustomAgentsLocalOnly().orElse(null),
+                                    config.getCoauthorEnabled().orElse(null),
+                                    config.getManageScheduleEnabled().orElse(null));
+                        }).thenApply(v -> {
+                            LoggingHelpers.logTiming(LOG, Level.FINE,
+                                    "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
+                                            + session.getSessionId(),
+                                    totalNanos);
+                            return session;
+                        });
                     }).exceptionally(ex -> {
                         if (registeredIdHolder[0] != null) {
                             sessions.remove(registeredIdHolder[0]);
@@ -663,6 +688,12 @@ public final class CopilotClient implements AutoCloseable {
                         throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
                     });
         });
+    }
+
+    private static void logMcpAuthInterestRegistration(Object interestResult) {
+        if (interestResult != null && LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("MCP OAuth event interest registered");
+        }
     }
 
     /**
@@ -714,10 +745,16 @@ public final class CopilotClient implements AutoCloseable {
             if (extracted.transformCallbacks() != null) {
                 session.registerTransformCallbacks(extracted.transformCallbacks());
             }
-
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
+            }
+
+            // Opt this session into GitHub telemetry forwarding when a
+            // connection-level handler is registered (mirrors the runtime's
+            // hand-written capability flag, not part of the codegen'd contract).
+            if (options.getOnGitHubTelemetry() != null) {
+                request.setEnableGitHubTelemetryForwarding(true);
             }
 
             // Empty mode: validate availableTools and set toolFilterPrecedence for resume
@@ -766,6 +803,17 @@ public final class CopilotClient implements AutoCloseable {
                                 "CopilotClient.resumeSession session resume request completed. Elapsed={Elapsed}, SessionId="
                                         + sessionId,
                                 rpcNanos);
+                        String returnedId = response.sessionId();
+                        String interestSessionId = returnedId != null ? returnedId : sessionId;
+                        CompletableFuture<?> interest = config.getOnMcpAuthRequest() != null
+                                ? session.getRpc().eventLog.registerInterest(new SessionEventLogRegisterInterestParams(
+                                        interestSessionId, "mcp.oauth_required"))
+                                : CompletableFuture.completedFuture(null);
+                        return interest.thenApply(interestResult -> {
+                            logMcpAuthInterestRegistration(interestResult);
+                            return response;
+                        });
+                    }).thenCompose(response -> {
                         session.setWorkspacePath(response.workspacePath());
                         session.setCapabilities(response.capabilities());
                         session.setOpenCanvases(response.openCanvases());
@@ -879,6 +927,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // workingDirectory
                 null, // availableTools
                 null, // excludedTools
+                null, // excludedBuiltinAgents
                 null, // toolFilterPrecedence
                 null, // enableScriptSafety
                 null, // shellInitProfile
@@ -916,7 +965,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // enableSessionStore
                 null, // enableSkills
                 null, // contextTier
-                null // responseBudget
+                null // sessionLimits
         );
 
         return session.getRpc().options.update(params).<Void>thenCompose(result -> {

@@ -22,7 +22,7 @@ import com.github.copilot.CopilotExperimental;
 import com.github.copilot.rpc.ToolDefer;
 
 /**
- * Unit tests for {@link CopilotTool} and {@link Param} annotations.
+ * Unit tests for {@link CopilotTool} and {@link CopilotToolParam} annotations.
  */
 public class CopilotToolAnnotationTest {
 
@@ -81,34 +81,34 @@ public class CopilotToolAnnotationTest {
         assertEquals(ToolDefer.NONE, deferMethod.getDefaultValue());
     }
 
-    // --- @Param attribute verification ---
+    // --- @CopilotToolParam attribute verification ---
 
     @Test
     void paramHasRuntimeRetention() {
-        Retention retention = Param.class.getAnnotation(Retention.class);
+        Retention retention = CopilotToolParam.class.getAnnotation(Retention.class);
         assertNotNull(retention);
         assertEquals(RetentionPolicy.RUNTIME, retention.value());
     }
 
     @Test
     void paramTargetsParameter() {
-        Target target = Param.class.getAnnotation(Target.class);
+        Target target = CopilotToolParam.class.getAnnotation(Target.class);
         assertNotNull(target);
         assertArrayEquals(new ElementType[]{ElementType.PARAMETER}, target.value());
     }
 
     @Test
     void paramDefaultValues() throws Exception {
-        Method valueMethod = Param.class.getDeclaredMethod("value");
+        Method valueMethod = CopilotToolParam.class.getDeclaredMethod("value");
         assertEquals("", valueMethod.getDefaultValue());
 
-        Method nameMethod = Param.class.getDeclaredMethod("name");
+        Method nameMethod = CopilotToolParam.class.getDeclaredMethod("name");
         assertEquals("", nameMethod.getDefaultValue());
 
-        Method requiredMethod = Param.class.getDeclaredMethod("required");
+        Method requiredMethod = CopilotToolParam.class.getDeclaredMethod("required");
         assertEquals(true, requiredMethod.getDefaultValue());
 
-        Method defaultValueMethod = Param.class.getDeclaredMethod("defaultValue");
+        Method defaultValueMethod = CopilotToolParam.class.getDeclaredMethod("defaultValue");
         assertEquals("", defaultValueMethod.getDefaultValue());
     }
 
@@ -118,8 +118,9 @@ public class CopilotToolAnnotationTest {
     static class SampleToolHolder {
 
         @CopilotTool(value = "Get weather for a location", name = "get_weather", defer = ToolDefer.AUTO)
-        public CompletableFuture<String> getWeather(@Param(value = "City name", required = true) String location,
-                @Param(value = "Temperature unit", required = false, defaultValue = "celsius") String unit) {
+        public CompletableFuture<String> getWeather(
+                @CopilotToolParam(value = "City name", required = true) String location,
+                @CopilotToolParam(value = "Temperature unit", required = false, defaultValue = "celsius") String unit) {
             return CompletableFuture.completedFuture("Sunny in " + location);
         }
     }
@@ -139,13 +140,13 @@ public class CopilotToolAnnotationTest {
         Parameter[] params = method.getParameters();
         assertEquals(2, params.length);
 
-        Param locationParam = params[0].getAnnotation(Param.class);
+        CopilotToolParam locationParam = params[0].getAnnotation(CopilotToolParam.class);
         assertNotNull(locationParam);
         assertEquals("City name", locationParam.value());
         assertTrue(locationParam.required());
         assertEquals("", locationParam.defaultValue());
 
-        Param unitParam = params[1].getAnnotation(Param.class);
+        CopilotToolParam unitParam = params[1].getAnnotation(CopilotToolParam.class);
         assertNotNull(unitParam);
         assertEquals("Temperature unit", unitParam.value());
         assertFalse(unitParam.required());

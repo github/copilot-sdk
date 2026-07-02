@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -27,10 +28,35 @@ public final class ServerUserSettingsApi {
 
     /**
      * Invokes {@code user.settings.reload}.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<Void> reload() {
         return caller.invoke("user.settings.reload", java.util.Map.of(), Void.class);
+    }
+
+    /**
+     * Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<UserSettingsGetResult> get() {
+        return caller.invoke("user.settings.get", java.util.Map.of(), UserSettingsGetResult.class);
+    }
+
+    /**
+     * Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<UserSettingsSetResult> set(UserSettingsSetParams params) {
+        return caller.invoke("user.settings.set", params, UserSettingsSetResult.class);
     }
 
 }

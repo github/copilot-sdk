@@ -423,6 +423,43 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeCitationAgentExclusionAndLimits_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var excludedAgents = new List<string> { "explore", "task" };
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("EnableCitations", true),
+            ("ExcludedBuiltInAgents", excludedAgents),
+            ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 12.5 }));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        var createRoot = createDocument.RootElement;
+        Assert.True(createRoot.GetProperty("enableCitations").GetBoolean());
+        Assert.Equal("explore", createRoot.GetProperty("excludedBuiltinAgents")[0].GetString());
+        Assert.Equal(12.5, createRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("EnableCitations", true),
+            ("ExcludedBuiltInAgents", excludedAgents),
+            ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 7.25 }));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        var resumeRoot = resumeDocument.RootElement;
+        Assert.True(resumeRoot.GetProperty("enableCitations").GetBoolean());
+        Assert.Equal("task", resumeRoot.GetProperty("excludedBuiltinAgents")[1].GetString());
+        Assert.Equal(7.25, resumeRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
+    }
+
+    [Fact]
     public void SessionRequests_OmitMemory_WhenUnset()
     {
         var options = GetSerializerOptions();

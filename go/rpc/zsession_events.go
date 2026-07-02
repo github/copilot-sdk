@@ -126,6 +126,8 @@ const (
 	SessionEventTypeSessionHandoff                     SessionEventType = "session.handoff"
 	SessionEventTypeSessionIdle                        SessionEventType = "session.idle"
 	SessionEventTypeSessionInfo                        SessionEventType = "session.info"
+	SessionEventTypeSessionLimitsExhaustedCompleted    SessionEventType = "session_limits_exhausted.completed"
+	SessionEventTypeSessionLimitsExhaustedRequested    SessionEventType = "session_limits_exhausted.requested"
 	SessionEventTypeSessionMCPServersLoaded            SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionMCPServerStatusChanged      SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged                 SessionEventType = "session.mode_changed"
@@ -137,6 +139,7 @@ const (
 	SessionEventTypeSessionScheduleCancelled           SessionEventType = "session.schedule_cancelled"
 	SessionEventTypeSessionScheduleCreated             SessionEventType = "session.schedule_created"
 	SessionEventTypeSessionScheduleRearmed             SessionEventType = "session.schedule_rearmed"
+	SessionEventTypeSessionSessionLimitsChanged        SessionEventType = "session.session_limits_changed"
 	SessionEventTypeSessionShutdown                    SessionEventType = "session.shutdown"
 	SessionEventTypeSessionSkillsLoaded                SessionEventType = "session.skills_loaded"
 	SessionEventTypeSessionSnapshotRewind              SessionEventType = "session.snapshot_rewind"
@@ -146,6 +149,7 @@ const (
 	SessionEventTypeSessionTodosChanged                SessionEventType = "session.todos_changed"
 	SessionEventTypeSessionToolsUpdated                SessionEventType = "session.tools_updated"
 	SessionEventTypeSessionTruncation                  SessionEventType = "session.truncation"
+	SessionEventTypeSessionUsageCheckpoint             SessionEventType = "session.usage_checkpoint"
 	SessionEventTypeSessionUsageInfo                   SessionEventType = "session.usage_info"
 	SessionEventTypeSessionWarning                     SessionEventType = "session.warning"
 	SessionEventTypeSessionWorkspaceFileChanged        SessionEventType = "session.workspace_file_changed"
@@ -226,6 +230,8 @@ type AssistantMessageData struct {
 	ReasoningOpaque *string `json:"reasoningOpaque,omitempty"`
 	// Readable reasoning text from the model's extended thinking
 	ReasoningText *string `json:"reasoningText,omitempty"`
+	// OpenAI-compatible wire field the provider used for reasoning (e.g. reasoning_content/reasoning). Populated only when non-canonical, so the dialect round-trips across turns.
+	ReasoningWireField *string `json:"reasoningWireField,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	RequestID *string `json:"requestId,omitempty"`
 	// Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
@@ -455,6 +461,20 @@ type SessionCanvasRemovedData struct {
 
 func (*SessionCanvasRemovedData) sessionEventData()      {}
 func (*SessionCanvasRemovedData) Type() SessionEventType { return SessionEventTypeSessionCanvasRemoved }
+
+// Durable session usage checkpoint for reconstructing aggregate accounting on resume
+type SessionUsageCheckpointData struct {
+	// Session-wide accumulated nano-AI units cost at checkpoint time
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
+	// Total number of premium API requests used at checkpoint time
+	// Internal: TotalPremiumRequests is part of the SDK's internal API surface and is not intended for external use.
+	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
+}
+
+func (*SessionUsageCheckpointData) sessionEventData() {}
+func (*SessionUsageCheckpointData) Type() SessionEventType {
+	return SessionEventTypeSessionUsageCheckpoint
+}
 
 // Dynamic headers refresh request for a remote MCP server
 type MCPHeadersRefreshRequiredData struct {
@@ -1293,12 +1313,12 @@ type SessionStartData struct {
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
-	// Response budget limits configured at session creation time, if any
-	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// Model selected at session creation time, if any
 	SelectedModel *string `json:"selectedModel,omitempty"`
 	// Unique identifier for the session
 	SessionID string `json:"sessionId"`
+	// Session limits configured at session creation time, if any
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// ISO 8601 timestamp when the session was created
 	StartTime time.Time `json:"startTime"`
 	// Schema version number for the session event format
@@ -1307,6 +1327,45 @@ type SessionStartData struct {
 
 func (*SessionStartData) sessionEventData()      {}
 func (*SessionStartData) Type() SessionEventType { return SessionEventTypeSessionStart }
+
+// Session limit exhaustion notification requiring user action.
+type SessionLimitsExhaustedRequestedData struct {
+	// Configured max AI Credits for the current accounting window.
+	MaxAiCredits float64 `json:"maxAiCredits"`
+	// Unique identifier for this request; used to respond via session.ui.handlePendingSessionLimitsExhausted().
+	RequestID string `json:"requestId"`
+	// AI Credits already consumed in the current accounting window.
+	UsedAiCredits float64 `json:"usedAiCredits"`
+}
+
+func (*SessionLimitsExhaustedRequestedData) sessionEventData() {}
+func (*SessionLimitsExhaustedRequestedData) Type() SessionEventType {
+	return SessionEventTypeSessionLimitsExhaustedRequested
+}
+
+// Session limit exhaustion prompt completion notification.
+type SessionLimitsExhaustedCompletedData struct {
+	// Request ID of the resolved request; clients should dismiss any UI for this request.
+	RequestID string `json:"requestId"`
+	// The user's selected session-limit action.
+	Response SessionLimitsExhaustedResponse `json:"response"`
+}
+
+func (*SessionLimitsExhaustedCompletedData) sessionEventData() {}
+func (*SessionLimitsExhaustedCompletedData) Type() SessionEventType {
+	return SessionEventTypeSessionLimitsExhaustedCompleted
+}
+
+// Session limits update details. Null clears the limits.
+type SessionSessionLimitsChangedData struct {
+	// Current session limits, or null when no limits are active
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits"`
+}
+
+func (*SessionSessionLimitsChangedData) sessionEventData() {}
+func (*SessionSessionLimitsChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionSessionLimitsChanged
+}
 
 // Session resume metadata including current context and event count
 type SessionResumeData struct {
@@ -1328,12 +1387,12 @@ type SessionResumeData struct {
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
-	// Response budget limits currently configured at resume time; null when no budget is active
-	ResponseBudget *ResponseBudgetConfig `json:"responseBudget,omitempty"`
 	// ISO 8601 timestamp when the session was resumed
 	ResumeTime time.Time `json:"resumeTime"`
 	// Model currently selected at resume time
 	SelectedModel *string `json:"selectedModel,omitempty"`
+	// Session limits currently configured at resume time; null when no limits are active
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
 	SessionWasActive *bool `json:"sessionWasActive,omitempty"`
 }
@@ -2590,6 +2649,10 @@ type PermissionRequestRead struct {
 	Intention string `json:"intention"`
 	// Path of the file or directory being read
 	Path string `json:"path"`
+	// True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -2883,6 +2946,16 @@ func (r PersistedBinaryImage) Type() PersistedBinaryResultType {
 	return PersistedBinaryResultType(r.Discriminator)
 }
 
+// The user's selected action for an exhausted session limit.
+type SessionLimitsExhaustedResponse struct {
+	// Action selected by the user.
+	Action SessionLimitsExhaustedResponseAction `json:"action"`
+	// AI Credits to add to the current max when action is 'add'.
+	AdditionalAiCredits *float64 `json:"additionalAiCredits,omitempty"`
+	// New absolute max AI Credits when action is 'set'.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+}
+
 // Aggregate code change metrics for the session
 type ShutdownCodeChanges struct {
 	// List of file paths that were modified during the session
@@ -3156,7 +3229,26 @@ func (ToolExecutionCompleteContentResourceLink) Type() ToolExecutionCompleteCont
 	return ToolExecutionCompleteContentTypeResourceLink
 }
 
-// Terminal/shell output content block with optional exit code and working directory
+// Shell command exit metadata with optional output preview
+type ToolExecutionCompleteContentShellExit struct {
+	// Working directory where the shell command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Exit code from the completed shell command
+	ExitCode int64 `json:"exitCode"`
+	// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+	OutputPreview *string `json:"outputPreview,omitempty"`
+	// Whether outputPreview is known to be incomplete or truncated
+	OutputTruncated *bool `json:"outputTruncated,omitempty"`
+	// Shell id, as assigned by Copilot runtime
+	ShellID string `json:"shellId"`
+}
+
+func (ToolExecutionCompleteContentShellExit) toolExecutionCompleteContent() {}
+func (ToolExecutionCompleteContentShellExit) Type() ToolExecutionCompleteContentType {
+	return ToolExecutionCompleteContentTypeShellExit
+}
+
+// Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.
 type ToolExecutionCompleteContentTerminal struct {
 	// Working directory where the command was executed
 	Cwd *string `json:"cwd,omitempty"`
@@ -3768,6 +3860,20 @@ const (
 	PlanChangedOperationUpdate PlanChangedOperation = "update"
 )
 
+// User action selected for an exhausted session limit.
+type SessionLimitsExhaustedResponseAction string
+
+const (
+	// Increase the current max by an exact AI Credits amount.
+	SessionLimitsExhaustedResponseActionAdd SessionLimitsExhaustedResponseAction = "add"
+	// Leave the limit unchanged and cancel the blocked model request.
+	SessionLimitsExhaustedResponseActionCancel SessionLimitsExhaustedResponseAction = "cancel"
+	// Set a new absolute max AI Credits value.
+	SessionLimitsExhaustedResponseActionSet SessionLimitsExhaustedResponseAction = "set"
+	// Remove the current session limit.
+	SessionLimitsExhaustedResponseActionUnset SessionLimitsExhaustedResponseAction = "unset"
+)
+
 // What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
 type SkillInvokedTrigger string
 
@@ -3830,6 +3936,7 @@ const (
 	ToolExecutionCompleteContentTypeImage        ToolExecutionCompleteContentType = "image"
 	ToolExecutionCompleteContentTypeResource     ToolExecutionCompleteContentType = "resource"
 	ToolExecutionCompleteContentTypeResourceLink ToolExecutionCompleteContentType = "resource_link"
+	ToolExecutionCompleteContentTypeShellExit    ToolExecutionCompleteContentType = "shell_exit"
 	ToolExecutionCompleteContentTypeTerminal     ToolExecutionCompleteContentType = "terminal"
 	ToolExecutionCompleteContentTypeText         ToolExecutionCompleteContentType = "text"
 )

@@ -30,7 +30,7 @@ public class HooksE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E
         });
 
         // Create a file for the model to read
-        await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "hello.txt"), "Hello from the test!");
+        await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "hello.txt"), "Hello from the test!");
 
         await session.SendAsync(new MessageOptions
         {
@@ -66,7 +66,7 @@ public class HooksE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E
         });
 
         // Create a file for the model to read
-        await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "world.txt"), "World from the test!");
+        await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "world.txt"), "World from the test!");
 
         await session.SendAsync(new MessageOptions
         {
@@ -107,7 +107,7 @@ public class HooksE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E
             }
         });
 
-        await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "both.txt"), "Testing both hooks!");
+        await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "both.txt"), "Testing both hooks!");
 
         await session.SendAsync(new MessageOptions
         {
@@ -147,7 +147,7 @@ public class HooksE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E
 
         // Create a file
         var originalContent = "Original content that should not be modified";
-        await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "protected.txt"), originalContent);
+        await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "protected.txt"), originalContent);
 
         await session.SendAsync(new MessageOptions
         {

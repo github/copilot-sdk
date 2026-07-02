@@ -31,12 +31,16 @@ mod elicitation;
 mod error_resilience;
 #[path = "e2e/event_fidelity.rs"]
 mod event_fidelity;
+#[path = "e2e/github_telemetry.rs"]
+mod github_telemetry;
 #[path = "e2e/hooks.rs"]
 mod hooks;
 #[path = "e2e/hooks_extended.rs"]
 mod hooks_extended;
 #[path = "e2e/mcp_and_agents.rs"]
 mod mcp_and_agents;
+#[path = "e2e/mcp_oauth.rs"]
+mod mcp_oauth;
 #[path = "e2e/mode_empty.rs"]
 mod mode_empty;
 #[path = "e2e/mode_handlers.rs"]

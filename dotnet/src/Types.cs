@@ -281,6 +281,7 @@ public sealed class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
+        OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
         Mode = other.Mode;
@@ -377,6 +378,15 @@ public sealed class CopilotClientOptions
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public CopilotRequestHandler? RequestHandler { get; set; }
+
+    /// <summary>
+    /// Experimental. Receives GitHub telemetry events the runtime forwards to this
+    /// connection; setting a handler opts created/resumed sessions into forwarding.
+    /// The SDK awaits the handler task so it may perform asynchronous work.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Func<Rpc.GitHubTelemetryNotification, Task>? OnGitHubTelemetry { get; set; }
 
     /// <summary>
     /// OpenTelemetry configuration for the runtime.
@@ -1126,6 +1136,72 @@ public sealed class ElicitationContext
 
     /// <summary>URL to open in the user's browser (url mode only).</summary>
     public string? Url { get; set; }
+}
+
+/// <summary>
+/// Context for an MCP OAuth request callback.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAuthContext
+{
+    /// <summary>Identifier of the session that triggered the MCP OAuth request.</summary>
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Identifier of the pending MCP OAuth request.</summary>
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Display name of the MCP server that requires OAuth.</summary>
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>URL of the MCP server that requires OAuth.</summary>
+    public string ServerUrl { get; set; } = string.Empty;
+
+    /// <summary>Why the runtime is requesting host-provided OAuth credentials.</summary>
+    public McpOauthRequestReason Reason { get; set; }
+
+    /// <summary>Parsed WWW-Authenticate parameters from the MCP server, if available.</summary>
+    public McpOauthWWWAuthenticateParams? WwwAuthenticateParams { get; set; }
+
+    /// <summary>Raw RFC 9728 protected-resource metadata JSON fetched by the runtime, if available.</summary>
+    public string? ResourceMetadata { get; set; }
+
+    /// <summary>Static OAuth client configuration, if the server specifies one.</summary>
+    public McpOauthRequiredStaticClientConfig? StaticClientConfig { get; set; }
+}
+
+/// <summary>
+/// Host-provided OAuth token data for a pending MCP OAuth request.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAuthToken
+{
+    /// <summary>Access token acquired by the SDK host.</summary>
+    public required string AccessToken { get; set; }
+
+    /// <summary>OAuth token type. Defaults to Bearer when omitted.</summary>
+    public string? TokenType { get; set; }
+
+    /// <summary>Token lifetime in seconds, if known.</summary>
+    public long? ExpiresIn { get; set; }
+}
+
+/// <summary>
+/// Result returned by an MCP auth request handler.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAuthResult
+{
+    /// <summary>Whether the request should be cancelled instead of resolved with a token.</summary>
+    public bool Cancelled { get; set; }
+
+    /// <summary>Host-provided token data. Ignored when <see cref="Cancelled"/> is true.</summary>
+    public McpAuthToken? Token { get; set; }
+
+    /// <summary>Create a token result.</summary>
+    public static McpAuthResult FromToken(McpAuthToken token) => new() { Token = token };
+
+    /// <summary>Create a cancellation result.</summary>
+    public static McpAuthResult Cancel() => new() { Cancelled = true };
 }
 
 // ============================================================================
@@ -2692,6 +2768,7 @@ public abstract class SessionConfigBase
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        EnableCitations = other.EnableCitations;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
         EmbeddingCacheStorage = other.EmbeddingCacheStorage;
@@ -2702,6 +2779,7 @@ public abstract class SessionConfigBase
         EnableSessionStore = other.EnableSessionStore;
         EnableSkills = other.EnableSkills;
         EnableMcpApps = other.EnableMcpApps;
+        ExcludedBuiltInAgents = other.ExcludedBuiltInAgents is not null ? [.. other.ExcludedBuiltInAgents] : null;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -2719,6 +2797,7 @@ public abstract class SessionConfigBase
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnExitPlanModeRequest = other.OnExitPlanModeRequest;
+        OnMcpAuthRequest = other.OnMcpAuthRequest;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
@@ -2748,6 +2827,7 @@ public abstract class SessionConfigBase
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         PluginDirectories = other.PluginDirectories is not null ? [.. other.PluginDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
+        SessionLimits = other.SessionLimits;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -2785,6 +2865,16 @@ public abstract class SessionConfigBase
 
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+
+    /// <summary>
+    /// Enables native model citations for models that support them.
+    /// </summary>
+    /// <remarks>
+    /// Citations are experimental, off by default, and currently available for Anthropic models.
+    /// This option may change or be removed while citation support is experimental.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? EnableCitations { get; set; }
 
     /// <summary>
     /// Override the default configuration directory location.
@@ -2877,6 +2967,16 @@ public abstract class SessionConfigBase
 
     /// <summary>List of tool names to exclude from the session.</summary>
     public IList<string>? ExcludedTools { get; set; }
+
+    /// <summary>
+    /// Built-in subagent names to exclude from this session.
+    /// </summary>
+    /// <remarks>
+    /// Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a
+    /// custom agent with the same name is available.
+    /// </remarks>
+    [JsonPropertyName("excludedBuiltinAgents")]
+    public IList<string>? ExcludedBuiltInAgents { get; set; }
 
     /// <summary>Custom model provider configuration for the session.</summary>
     public ProviderConfig? Provider { get; set; }
@@ -3071,6 +3171,16 @@ public abstract class SessionConfigBase
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
 
     /// <summary>
+    /// Optional limits for the session's current accounting window.
+    /// </summary>
+    /// <remarks>
+    /// These settings only model the caller's configured limits. Enforcement and
+    /// limit-exhaustion behavior are handled by the runtime.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public SessionLimitsConfig? SessionLimits { get; set; }
+
+    /// <summary>
     /// Configuration for handling large tool outputs. When a tool produces
     /// output exceeding the configured size, the output is written to a temp
     /// file and a reference is returned to the model instead of the full
@@ -3180,6 +3290,14 @@ public abstract class SessionConfigBase
     [JsonIgnore]
     public ICanvasHandler? CanvasHandler { get; set; }
 #pragma warning restore GHCP001
+
+    /// <summary>
+    /// Optional handler for MCP OAuth requests from MCP servers.
+    /// When provided, the SDK can satisfy MCP server OAuth requests with host-provided token data or cancellation.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public Func<McpAuthContext, Task<McpAuthResult?>>? OnMcpAuthRequest { get; set; }
 }
 
 /// <summary>

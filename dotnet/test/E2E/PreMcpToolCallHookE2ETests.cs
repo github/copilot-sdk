@@ -20,7 +20,7 @@ public class PreMcpToolCallHookE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)
         {
-            var candidate = Path.Combine(dir.FullName, "test", "harness", "test-mcp-meta-echo-server.mjs");
+            var candidate = Path.Join(dir.FullName, "test", "harness", "test-mcp-meta-echo-server.mjs");
             if (File.Exists(candidate))
                 return Path.GetDirectoryName(candidate)!;
             dir = dir.Parent;
@@ -33,7 +33,7 @@ public class PreMcpToolCallHookE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         ["meta-echo"] = new McpStdioServerConfig
         {
             Command = "node",
-            Args = [Path.Combine(testHarnessDir, "test-mcp-meta-echo-server.mjs")],
+            Args = [Path.Join(testHarnessDir, "test-mcp-meta-echo-server.mjs")],
             WorkingDirectory = testHarnessDir,
             Tools = ["*"]
         }
