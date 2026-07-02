@@ -15,6 +15,10 @@ pub use errors::*;
 /// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
 /// BYOK sessions.
 pub mod copilot_request_handler;
+/// GitHub telemetry forwarding callback surface (experimental). Public but
+/// `#[doc(hidden)]` — re-exports the generated telemetry payload types.
+#[doc(hidden)]
+pub mod github_telemetry;
 /// Event handler traits for session lifecycle.
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
@@ -257,6 +261,15 @@ pub struct ClientOptions {
     /// [`CopilotRequestHandler`]
     /// instead of issuing the calls itself.
     pub request_handler: Option<Arc<dyn crate::copilot_request_handler::CopilotRequestHandler>>,
+    /// Connection-level GitHub telemetry forwarding callback (experimental).
+    ///
+    /// When set, every session created or resumed on this client opts into
+    /// telemetry forwarding (`enableGitHubTelemetryForwarding`) and the
+    /// callback is invoked for each `gitHubTelemetry.event` notification the
+    /// runtime forwards. `#[doc(hidden)]`, consistent with the experimental
+    /// telemetry payload types.
+    #[doc(hidden)]
+    pub on_github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
     /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers (`traceparent` / `tracestate`) on outbound `session.create`,
     /// `session.resume`, and `session.send` requests.
@@ -335,6 +348,10 @@ impl std::fmt::Debug for ClientOptions {
             .field(
                 "request_handler",
                 &self.request_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "on_github_telemetry",
+                &self.on_github_telemetry.as_ref().map(|_| "<set>"),
             )
             .field(
                 "on_get_trace_context",
@@ -584,6 +601,7 @@ impl Default for ClientOptions {
             on_list_models: None,
             session_fs: None,
             request_handler: None,
+            on_github_telemetry: None,
             on_get_trace_context: None,
             telemetry: None,
             base_directory: None,
@@ -728,6 +746,20 @@ impl ClientOptions {
         self
     }
 
+    /// Register a connection-level GitHub telemetry forwarding callback
+    /// (internal/experimental). Registering a callback auto-enables telemetry
+    /// forwarding on every session created or resumed on this client; the
+    /// callback fires for each forwarded `gitHubTelemetry.event` notification.
+    /// The callback is wrapped in `Arc` internally.
+    #[doc(hidden)]
+    pub fn with_on_github_telemetry<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(crate::github_telemetry::GitHubTelemetryNotification) + Send + Sync + 'static,
+    {
+        self.on_github_telemetry = Some(Arc::new(callback));
+        self
+    }
+
     /// Set the [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers on outbound `session.create` / `session.resume` /
     /// `session.send` requests. The provider is wrapped in `Arc` internally.
@@ -853,6 +885,11 @@ struct ClientInner {
     /// Inbound `llmInference.*` dispatcher, installed when
     /// [`ClientOptions::request_handler`] is set.
     llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
+    /// Connection-level GitHub telemetry forwarding callback, set from
+    /// [`ClientOptions::on_github_telemetry`]. Drives the
+    /// `enableGitHubTelemetryForwarding` wire flag and the
+    /// `gitHubTelemetry.event` notification dispatch.
+    on_github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
     on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
     /// Token sent in the `connect` handshake. Auto-generated when the
     /// SDK spawns its own CLI in TCP mode and no explicit token is set;
@@ -1005,6 +1042,7 @@ impl Client {
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
+                    options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
                 )?
@@ -1032,6 +1070,7 @@ impl Client {
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
+                    options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
                 )?
@@ -1050,6 +1089,7 @@ impl Client {
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
+                    options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
                 )?
@@ -1097,6 +1137,7 @@ impl Client {
                 &client.inner.notification_tx,
                 &client.inner.request_rx,
                 Some(dispatcher.clone()),
+                client.inner.on_github_telemetry.clone(),
             );
             client.rpc().llm_inference().set_provider().await?;
             debug!(
@@ -1129,6 +1170,7 @@ impl Client {
             false,
             None,
             None,
+            None,
             ClientMode::default(),
         )
     }
@@ -1157,6 +1199,7 @@ impl Client {
             false,
             Some(provider),
             None,
+            None,
             ClientMode::default(),
         )
     }
@@ -1180,7 +1223,33 @@ impl Client {
             false,
             false,
             None,
+            None,
             token,
+            ClientMode::default(),
+        )
+    }
+
+    /// Construct a [`Client`] from raw streams with a preset GitHub telemetry
+    /// callback, for integration testing telemetry forwarding.
+    #[doc(hidden)]
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn from_streams_with_github_telemetry(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        cwd: PathBuf,
+        on_github_telemetry: crate::github_telemetry::GitHubTelemetryCallback,
+    ) -> Result<Self> {
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            cwd,
+            None,
+            false,
+            false,
+            None,
+            Some(on_github_telemetry),
+            None,
             ClientMode::default(),
         )
     }
@@ -1205,6 +1274,7 @@ impl Client {
         session_fs_configured: bool,
         session_fs_sqlite_declared: bool,
         on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
+        on_github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
         effective_connection_token: Option<String>,
         mode: ClientMode,
     ) -> Result<Self> {
@@ -1237,6 +1307,7 @@ impl Client {
                 session_fs_configured,
                 session_fs_sqlite_declared,
                 llm_inference: OnceLock::new(),
+                on_github_telemetry,
                 on_get_trace_context,
                 effective_connection_token,
                 mode,
@@ -1646,6 +1717,7 @@ impl Client {
             &self.inner.notification_tx,
             &self.inner.request_rx,
             self.inner.llm_inference.get().cloned(),
+            self.inner.on_github_telemetry.clone(),
         );
         self.inner.router.register(session_id)
     }
@@ -2732,6 +2804,7 @@ mod tests {
                 session_fs_configured: false,
                 session_fs_sqlite_declared: false,
                 llm_inference: OnceLock::new(),
+                on_github_telemetry: None,
                 on_get_trace_context: None,
                 effective_connection_token: None,
                 mode: ClientMode::default(),

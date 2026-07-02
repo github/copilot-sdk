@@ -7,10 +7,11 @@ import {
     CopilotClient,
     createCanvas,
     RuntimeConnection,
+    type GitHubTelemetryNotification,
     type ModelInfo,
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
-import { defaultJoinSessionPermissionHandler, type SessionHooks } from "../src/types.js";
+import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
@@ -220,7 +221,7 @@ describe("CopilotClient", () => {
         ]);
     });
 
-    it("registers MCP OAuth interest before resuming only when an auth handler is configured", async () => {
+    it("registers MCP OAuth interest after resuming only when an auth handler is configured", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => client.forceStop());
@@ -240,12 +241,23 @@ describe("CopilotClient", () => {
             onMcpAuthRequest: () => ({ kind: "cancelled" }),
         });
 
-        expect(spy.mock.calls[0]).toEqual([
-            "session.eventLog.registerInterest",
-            { sessionId: "session-with-auth", eventType: "mcp.oauth_required" },
-        ]);
-        expect(spy.mock.calls[1][0]).toBe("session.resume");
-        expect(spy.mock.calls[1][1]).toEqual(expect.objectContaining({ requestPermission: true }));
+        // `session.eventLog.registerInterest` is session-scoped: the runtime only
+        // registers the session id while handling `session.resume`, so resume must
+        // be sent BEFORE registering interest.
+        const resumeIndex = spy.mock.calls.findIndex(([method]) => method === "session.resume");
+        const interestIndex = spy.mock.calls.findIndex(
+            ([method]) => method === "session.eventLog.registerInterest"
+        );
+        expect(resumeIndex).toBeGreaterThanOrEqual(0);
+        expect(interestIndex).toBeGreaterThanOrEqual(0);
+        expect(resumeIndex).toBeLessThan(interestIndex);
+        expect(spy.mock.calls[resumeIndex][1]).toEqual(
+            expect.objectContaining({ sessionId: "session-with-auth", requestPermission: true })
+        );
+        expect(spy.mock.calls[interestIndex][1]).toEqual({
+            sessionId: "session-with-auth",
+            eventType: "mcp.oauth_required",
+        });
 
         spy.mockClear();
         await client.resumeSession("session-without-auth", {
@@ -408,6 +420,177 @@ describe("CopilotClient", () => {
         )![1] as any;
         expect(createPayload.contextTier).toBe("long_context");
         expect(resumePayload.contextTier).toBe("default");
+    });
+
+    it("forwards new session options in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            enableCitations: true,
+            excludedBuiltinAgents: ["explore"],
+            sessionLimits: { maxAiCredits: 30 },
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            enableCitations: false,
+            excludedBuiltinAgents: ["task"],
+            sessionLimits: { maxAiCredits: 15 },
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.enableCitations).toBe(true);
+        expect(createPayload.excludedBuiltinAgents).toEqual(["explore"]);
+        expect(createPayload.sessionLimits).toEqual({ maxAiCredits: 30 });
+        expect(resumePayload.enableCitations).toBe(false);
+        expect(resumePayload.excludedBuiltinAgents).toEqual(["task"]);
+        expect(resumePayload.sessionLimits).toEqual({ maxAiCredits: 15 });
+    });
+
+    it("opts into GitHub telemetry forwarding when onGitHubTelemetry is provided", async () => {
+        const client = new CopilotClient({ onGitHubTelemetry: () => {} });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.enableGitHubTelemetryForwarding).toBe(true);
+        expect(resumePayload.enableGitHubTelemetryForwarding).toBe(true);
+    });
+
+    it("does not opt into GitHub telemetry forwarding without a handler", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        expect(createPayload.enableGitHubTelemetryForwarding).toBeUndefined();
+    });
+
+    it("dispatches a real gitHubTelemetry.event wire message to the handler", async () => {
+        const { createMessageConnection, StreamMessageReader, StreamMessageWriter } =
+            await import("vscode-jsonrpc/node.js");
+        const { registerClientGlobalApiHandlers } = await import("../src/generated/rpc.js");
+
+        const clientToServer = new PassThrough();
+        const serverToClient = new PassThrough();
+
+        const clientConn = createMessageConnection(
+            new StreamMessageReader(serverToClient),
+            new StreamMessageWriter(clientToServer)
+        );
+        const serverConn = createMessageConnection(
+            new StreamMessageReader(clientToServer),
+            new StreamMessageWriter(serverToClient)
+        );
+        onTestFinished(() => {
+            clientConn.dispose();
+            serverConn.dispose();
+        });
+
+        const received: GitHubTelemetryNotification[] = [];
+        let resolveReceived: () => void;
+        const got = new Promise<void>((resolve) => {
+            resolveReceived = resolve;
+        });
+
+        registerClientGlobalApiHandlers(clientConn, {
+            gitHubTelemetry: {
+                event: async (notification) => {
+                    received.push(notification);
+                    resolveReceived();
+                },
+            },
+        });
+
+        clientConn.listen();
+        serverConn.listen();
+
+        const notification: GitHubTelemetryNotification = {
+            sessionId: "session-1",
+            restricted: false,
+            event: {
+                kind: "tool_call_executed",
+                properties: { tool: "shell" },
+                metrics: { duration_ms: 42 },
+            },
+        };
+
+        // Deliver the event as a real JSON-RPC *notification* (no id) and confirm
+        // the generated dispatcher routes it to the registered handler. The runtime
+        // forwards telemetry via `sendNotification`, which only fires `onNotification`
+        // handlers — an `onRequest` registration would never be invoked, so sending a
+        // notification here guards against regressing back to request-style dispatch.
+        serverConn.sendNotification("gitHubTelemetry.event", notification);
+        await got;
+
+        expect(received).toEqual([notification]);
+    });
+
+    it("registers no gitHubTelemetry handler when onGitHubTelemetry is omitted", () => {
+        const client = new CopilotClient();
+        onTestFinished(() => client.forceStop());
+
+        const handlers = (client as any).clientGlobalHandlers;
+        expect(handlers.gitHubTelemetry).toBeUndefined();
+    });
+
+    it("forwards gitHubTelemetry events to the onGitHubTelemetry handler", () => {
+        const received: GitHubTelemetryNotification[] = [];
+        const client = new CopilotClient({ onGitHubTelemetry: (n) => received.push(n) });
+        onTestFinished(() => client.forceStop());
+
+        const handlers = (client as any).clientGlobalHandlers;
+        expect(handlers.gitHubTelemetry).toBeDefined();
+
+        const notification: GitHubTelemetryNotification = {
+            sessionId: "session-1",
+            restricted: false,
+            event: { kind: "tool_call_executed", properties: {}, metrics: {} },
+        };
+        handlers.gitHubTelemetry.event(notification);
+        expect(received).toEqual([notification]);
     });
 
     it("forwards expAssignments in session.create and session.resume", async () => {
@@ -2649,18 +2832,19 @@ describe("CopilotClient", () => {
         // corresponding SessionHooks handler. These tests guard against
         // regressions like the one fixed for postToolUseFailure (issue #1220).
 
-        function createHookTestSession(hooks: SessionHooks): CopilotSession {
-            const session = new CopilotSession("session-hooks-test", {} as any);
-            session.registerHooks(hooks);
-            return session;
-        }
-
         it("dispatches postToolUseFailure to onPostToolUseFailure handler", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
             const received: { input: any; invocation: any }[] = [];
-            const session = createHookTestSession({
-                onPostToolUseFailure: async (input, invocation) => {
-                    received.push({ input, invocation });
-                    return { additionalContext: "failure observed" };
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUseFailure: async (input, invocation) => {
+                        received.push({ input, invocation });
+                        return { additionalContext: "failure observed" };
+                    },
                 },
             });
 
@@ -2690,12 +2874,19 @@ describe("CopilotClient", () => {
         });
 
         it("does not fall back to onPostToolUse for postToolUseFailure events", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
             const postUseCalls: string[] = [];
-            const session = createHookTestSession({
-                // Only onPostToolUse registered; postToolUseFailure events
-                // must not be routed here.
-                onPostToolUse: async (input) => {
-                    postUseCalls.push(input.toolName);
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    // Only onPostToolUse registered; postToolUseFailure events
+                    // must not be routed here.
+                    onPostToolUse: async (input) => {
+                        postUseCalls.push(input.toolName);
+                    },
                 },
             });
 
@@ -2712,14 +2903,21 @@ describe("CopilotClient", () => {
         });
 
         it("dispatches postToolUse and postToolUseFailure to their respective handlers", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
             const postCalls: string[] = [];
             const failureCalls: string[] = [];
-            const session = createHookTestSession({
-                onPostToolUse: async (input) => {
-                    postCalls.push(input.toolName);
-                },
-                onPostToolUseFailure: async (input) => {
-                    failureCalls.push(input.toolName);
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUse: async (input) => {
+                        postCalls.push(input.toolName);
+                    },
+                    onPostToolUseFailure: async (input) => {
+                        failureCalls.push(input.toolName);
+                    },
                 },
             });
 
@@ -2746,23 +2944,29 @@ describe("CopilotClient", () => {
         });
 
         it("routes hooks.invoke JSON-RPC requests to the SessionHooks handler", async () => {
-            // Validates the full JSON-RPC entry point used by legacy runtimes:
+            // Validates the full JSON-RPC entry point used by the CLI:
             // CopilotClient.handleHooksInvoke({sessionId, hookType, input})
             // → CopilotSession._handleHooksInvoke(hookType, input)
             // → SessionHooks.onPostToolUseFailure(normalizedInput, {sessionId})
             //
-            // This guards the wire-format contract: the hookType string "postToolUseFailure" and the
+            // This guards the wire-format contract that the bundled Copilot
+            // CLI relies on: the hookType string "postToolUseFailure" and the
             // input shape `{toolName, toolArgs, error, timestamp, cwd}`.
             // The SDK maps that to public `{..., timestamp: Date, workingDirectory}`.
-            const received: { input: any; invocation: any }[] = [];
             const client = new CopilotClient();
-            const session = createHookTestSession({
-                onPostToolUseFailure: async (input, invocation) => {
-                    received.push({ input, invocation });
-                    return { additionalContext: "context from failure hook" };
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const received: { input: any; invocation: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUseFailure: async (input, invocation) => {
+                        received.push({ input, invocation });
+                        return { additionalContext: "context from failure hook" };
+                    },
                 },
             });
-            (client as any).sessions.set(session.sessionId, session);
 
             const failureInput = {
                 toolName: "shell",

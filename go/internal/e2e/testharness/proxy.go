@@ -256,8 +256,9 @@ type ChatCompletionTool struct {
 
 // ChatCompletionToolFunction represents a function tool.
 type ChatCompletionToolFunction struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters,omitempty"`
 }
 
 // ChatCompletionResponse represents an OpenAI chat completion response.

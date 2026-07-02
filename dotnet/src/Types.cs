@@ -281,6 +281,7 @@ public sealed class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
+        OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
         Mode = other.Mode;
@@ -377,6 +378,15 @@ public sealed class CopilotClientOptions
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public CopilotRequestHandler? RequestHandler { get; set; }
+
+    /// <summary>
+    /// Experimental. Receives GitHub telemetry events the runtime forwards to this
+    /// connection; setting a handler opts created/resumed sessions into forwarding.
+    /// The SDK awaits the handler task so it may perform asynchronous work.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Func<Rpc.GitHubTelemetryNotification, Task>? OnGitHubTelemetry { get; set; }
 
     /// <summary>
     /// OpenTelemetry configuration for the runtime.
@@ -2758,6 +2768,7 @@ public abstract class SessionConfigBase
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        EnableCitations = other.EnableCitations;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
         EmbeddingCacheStorage = other.EmbeddingCacheStorage;
@@ -2768,6 +2779,7 @@ public abstract class SessionConfigBase
         EnableSessionStore = other.EnableSessionStore;
         EnableSkills = other.EnableSkills;
         EnableMcpApps = other.EnableMcpApps;
+        ExcludedBuiltInAgents = other.ExcludedBuiltInAgents is not null ? [.. other.ExcludedBuiltInAgents] : null;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -2815,6 +2827,7 @@ public abstract class SessionConfigBase
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         PluginDirectories = other.PluginDirectories is not null ? [.. other.PluginDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
+        SessionLimits = other.SessionLimits;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -2852,6 +2865,16 @@ public abstract class SessionConfigBase
 
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+
+    /// <summary>
+    /// Enables native model citations for models that support them.
+    /// </summary>
+    /// <remarks>
+    /// Citations are experimental, off by default, and currently available for Anthropic models.
+    /// This option may change or be removed while citation support is experimental.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? EnableCitations { get; set; }
 
     /// <summary>
     /// Override the default configuration directory location.
@@ -2944,6 +2967,16 @@ public abstract class SessionConfigBase
 
     /// <summary>List of tool names to exclude from the session.</summary>
     public IList<string>? ExcludedTools { get; set; }
+
+    /// <summary>
+    /// Built-in subagent names to exclude from this session.
+    /// </summary>
+    /// <remarks>
+    /// Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a
+    /// custom agent with the same name is available.
+    /// </remarks>
+    [JsonPropertyName("excludedBuiltinAgents")]
+    public IList<string>? ExcludedBuiltInAgents { get; set; }
 
     /// <summary>Custom model provider configuration for the session.</summary>
     public ProviderConfig? Provider { get; set; }
@@ -3136,6 +3169,16 @@ public abstract class SessionConfigBase
     /// When enabled (default), sessions automatically manage context limits and persist state.
     /// </summary>
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
+
+    /// <summary>
+    /// Optional limits for the session's current accounting window.
+    /// </summary>
+    /// <remarks>
+    /// These settings only model the caller's configured limits. Enforcement and
+    /// limit-exhaustion behavior are handled by the runtime.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public SessionLimitsConfig? SessionLimits { get; set; }
 
     /// <summary>
     /// Configuration for handling large tool outputs. When a tool produces

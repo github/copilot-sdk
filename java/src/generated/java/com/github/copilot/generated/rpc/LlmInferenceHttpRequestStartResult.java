@@ -11,11 +11,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Batch of spawn events plus a cursor for follow-up polls.
+ * Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -24,10 +23,5 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsPollSpawnedSessionsResult(
-    /** Spawn events emitted since the supplied cursor. */
-    @JsonProperty("events") List<SessionsPollSpawnedSessionsEvent> events,
-    /** Opaque cursor to pass back to receive only events after this batch. */
-    @JsonProperty("cursor") String cursor
-) {
+public record LlmInferenceHttpRequestStartResult() {
 }

@@ -74,6 +74,9 @@ from .copilot_request_handler import (
     LlmInferenceHeaders,
 )
 from .generated.rpc import (
+    GitHubTelemetryClientInfo,
+    GitHubTelemetryEvent,
+    GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
 )
@@ -146,6 +149,7 @@ from .session import (
     SessionFsCapabilities,
     SessionFsConfig,
     SessionHooks,
+    SessionLimitsConfig,
     SessionStartHandler,
     SessionStartHookInput,
     SessionStartHookOutput,
@@ -225,6 +229,9 @@ __all__ = [
     "GetAuthStatusResponse",
     "BearerTokenProvider",
     "GetStatusResponse",
+    "GitHubTelemetryClientInfo",
+    "GitHubTelemetryEvent",
+    "GitHubTelemetryNotification",
     "InfiniteSessionConfig",
     "InputOptions",
     "LargeToolOutputConfig",
@@ -299,6 +306,7 @@ __all__ = [
     "SessionFsSqliteProvider",
     "SessionFsSqliteQueryResult",
     "SessionHooks",
+    "SessionLimitsConfig",
     "SessionLifecycleEvent",
     "SessionLifecycleEventBase",
     "SessionLifecycleEventMetadata",

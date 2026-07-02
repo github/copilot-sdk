@@ -270,6 +270,33 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    public async Task Resumes_A_Persisted_Session_From_A_New_Client_When_An_Mcp_OAuth_Handler_Is_Configured()
+    {
+        static Task<McpAuthResult?> CancelMcpAuthAsync(McpAuthContext request)
+            => Task.FromResult<McpAuthResult?>(McpAuthResult.Cancel());
+
+        await using var session1 = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpAuthRequest = CancelMcpAuthAsync,
+        });
+        var sessionId = session1.SessionId;
+
+        var answer = await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        Assert.NotNull(answer);
+        Assert.Contains("2", answer!.Data.Content ?? string.Empty);
+
+        using var newClient = Ctx.CreateClient();
+        await using var session2 = await newClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpAuthRequest = CancelMcpAuthAsync,
+        });
+
+        Assert.Equal(sessionId, session2.SessionId);
+    }
+
+    [Fact]
     public async Task Should_Throw_Error_When_Resuming_Non_Existent_Session()
     {
         await Assert.ThrowsAsync<IOException>(() =>

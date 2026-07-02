@@ -11,7 +11,12 @@ from copilot.session import PermissionHandler
 from copilot.session_events import SessionModelChangeData
 from copilot.tools import Tool, ToolResult
 
-from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
+from .testharness import (
+    DEFAULT_GITHUB_TOKEN,
+    E2ETestContext,
+    get_final_assistant_message,
+    get_next_event_of_type,
+)
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -272,6 +277,40 @@ class TestSessions:
             answer2 = await session2.send_and_wait("Now if you double that, what do you get?")
             assert answer2 is not None
             assert "4" in answer2.data.content
+        finally:
+            await new_client.force_stop()
+
+    async def test_resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler_is_configured(  # noqa: E501
+        self, ctx: E2ETestContext
+    ):
+        def on_mcp_auth_request(_request, _invocation):
+            return {"kind": "cancelled"}
+
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            on_mcp_auth_request=on_mcp_auth_request,
+        )
+        session_id = session1.session_id
+        answer = await session1.send_and_wait("What is 1+1?")
+        assert answer is not None
+        assert "2" in answer.data.content
+
+        github_token = DEFAULT_GITHUB_TOKEN if os.environ.get("GITHUB_ACTIONS") == "true" else None
+        new_client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=github_token,
+        )
+
+        try:
+            session2 = await new_client.resume_session(
+                session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                on_mcp_auth_request=on_mcp_auth_request,
+            )
+            assert session2.session_id == session_id
+            await session2.disconnect()
         finally:
             await new_client.force_stop()
 

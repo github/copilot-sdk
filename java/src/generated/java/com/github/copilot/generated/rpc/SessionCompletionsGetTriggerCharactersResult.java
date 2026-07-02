@@ -10,18 +10,22 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional response limits.
+ * Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ResponseLimitsConfig(
-    /** Maximum AI Credits allowed while responding to one top-level user message. */
-    @JsonProperty("maxAiCredits") Double maxAiCredits
+public record SessionCompletionsGetTriggerCharactersResult(
+    /** Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session. */
+    @JsonProperty("triggerCharacters") List<String> triggerCharacters
 ) {
 }

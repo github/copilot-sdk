@@ -24,6 +24,8 @@ public record ModelCapabilitiesOverrideSupports(
     /** Whether this model supports vision/image input */
     @JsonProperty("vision") Boolean vision,
     /** Whether this model supports reasoning effort configuration */
-    @JsonProperty("reasoningEffort") Boolean reasoningEffort
+    @JsonProperty("reasoningEffort") Boolean reasoningEffort,
+    /** Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8). */
+    @JsonProperty("adaptive_thinking") AdaptiveThinkingSupport adaptiveThinking
 ) {
 }

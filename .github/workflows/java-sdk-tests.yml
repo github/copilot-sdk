@@ -31,9 +31,7 @@ on:
   merge_group:
 
 permissions:
-  contents: write
-  checks: write
-  pull-requests: write
+  contents: read
 
 jobs:
   java-sdk:
@@ -116,22 +114,6 @@ jobs:
             java/target/surefire-reports/
             java/target/surefire-reports-isolated/
           retention-days: 1
-
-      - name: Generate JaCoCo badge
-        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
-        working-directory: .
-        run: bash .github/scripts/generate-java-coverage-badge.sh java/target/site/jacoco-coverage/jacoco.csv .github/badges
-
-      - name: Create PR for JaCoCo badge update
-        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
-        with:
-          commit-message: "Update Java JaCoCo coverage badge"
-          title: "Update Java JaCoCo coverage badge"
-          body: "Automated Java JaCoCo coverage badge update from CI."
-          branch: auto/update-java-jacoco-badge
-          add-paths: .github/badges/
-          delete-branch: true
 
       - name: Generate Test Report Summary
         if: always()

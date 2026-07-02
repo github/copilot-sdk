@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, ResponseLimitsConfig, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
 
 /**
  * Initial authentication info for the session.
@@ -22,6 +22,20 @@ export type AuthInfo =
   | UserAuthInfo
   | GhCliAuthInfo
   | ApiKeyAuthInfo;
+/**
+ * Resolved Anthropic adaptive-thinking capability for a model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AdaptiveThinkingSupport".
+ */
+/** @experimental */
+export type AdaptiveThinkingSupport =
+  /** The model does not accept thinking.type='adaptive' */
+  | "unsupported"
+  /** The model accepts adaptive thinking but also accepts thinking.type='enabled' */
+  | "optional"
+  /** The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8) */
+  | "required";
 /**
  * Which tier this directory belongs to
  *
@@ -775,6 +789,59 @@ export type McpSetEnvValueModeDetails =
   | "direct"
   /** Treat MCP server environment values as host-side references to resolve before launch. */
   | "indirect";
+/**
+ * Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionContextAttribution".
+ */
+/** @experimental */
+export type SessionContextAttribution = {
+  /**
+   * Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
+   */
+  totalTokens: number;
+  /**
+   * Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
+   */
+  entries: {
+    /**
+     * Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+     */
+    kind: string;
+    /**
+     * Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
+     */
+    id: string;
+    /**
+     * Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
+     */
+    label: string;
+    /**
+     * Token count currently in context attributable to this entry.
+     */
+    tokens: number;
+    /**
+     * Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
+     */
+    parentId?: string;
+    /**
+     * Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+     */
+    attributes?: {
+      [k: string]: string | undefined;
+    };
+  }[];
+  /**
+   * Successful compaction history for the session.
+   */
+  compactions: {
+    /**
+     * Number of successful compactions in this session.
+     */
+    count: number;
+  };
+} | null;
 /**
  * Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
  *
@@ -1840,6 +1907,22 @@ export type UIExitPlanModeAction =
   /** Exit plan mode and continue in autopilot mode with parallel subagent execution. */
   | "autopilot_fleet";
 /**
+ * User action selected for an exhausted session limit.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UISessionLimitsExhaustedResponseAction".
+ */
+/** @experimental */
+export type UISessionLimitsExhaustedResponseAction =
+  /** Increase the current max by an exact AI Credits amount. */
+  | "add"
+  /** Set a new absolute max AI Credits value. */
+  | "set"
+  /** Remove the current session limit. */
+  | "unset"
+  /** Leave the limit unchanged and cancel the blocked model request. */
+  | "cancel";
+/**
  * Type of change represented by this file diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2016,6 +2099,7 @@ export interface CopilotUserResponse {
   quota_snapshots?: CopilotUserResponseQuotaSnapshots;
   restricted_telemetry?: boolean;
   is_staff?: boolean;
+  te?: boolean;
   token_based_billing?: boolean;
   can_upgrade_plan?: boolean;
   quota_reset_date_utc?: string;
@@ -3272,6 +3356,10 @@ export interface SlashCommandInput {
    */
   hint: string;
   /**
+   * Optional literal choices the input accepts, each with a human-facing description; clients may render these as selectable options
+   */
+  choices?: SlashCommandInputChoice[];
+  /**
    * When true, the command requires non-empty input; clients should render the input hint as required
    */
   required?: boolean;
@@ -3280,6 +3368,23 @@ export interface SlashCommandInput {
    * When true, clients should pass the full text after the command name as a single argument rather than splitting on whitespace
    */
   preserveMultilineInput?: boolean;
+}
+/**
+ * A literal choice the command input accepts, with a human-facing description
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SlashCommandInputChoice".
+ */
+/** @experimental */
+export interface SlashCommandInputChoice {
+  /**
+   * The literal choice value (e.g. 'on', 'off', 'show')
+   */
+  name: string;
+  /**
+   * Human-readable description shown alongside the choice
+   */
+  description: string;
 }
 /**
  * Pending command request ID and an optional error if the client handler failed.
@@ -3405,6 +3510,78 @@ export interface CommandsRespondToQueuedCommandResult {
    * Whether a pending queued command with the given request ID was found and resolved. False when the request was already resolved, cancelled, or unknown.
    */
   success: boolean;
+}
+/**
+ * Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CompletionsGetTriggerCharactersResult".
+ */
+/** @experimental */
+export interface CompletionsGetTriggerCharactersResult {
+  /**
+   * Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session.
+   */
+  triggerCharacters: string[];
+}
+/**
+ * Request host-driven completions for the current composer input.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CompletionsRequestRequest".
+ */
+/** @experimental */
+export interface CompletionsRequestRequest {
+  /**
+   * The full composed composer input.
+   */
+  text: string;
+  /**
+   * Cursor offset within `text`, in UTF-16 code units.
+   */
+  offset: number;
+}
+/**
+ * Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CompletionsRequestResult".
+ */
+/** @experimental */
+export interface CompletionsRequestResult {
+  /**
+   * Completion items in host-ranked order.
+   */
+  items: SessionCompletionItem[];
+}
+/**
+ * A single host-driven completion. Accepting an item replaces `[rangeStart, rangeEnd)` (UTF-16 code units) in the composer with `insertText`; when the range is absent, the active token around the cursor is replaced.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionCompletionItem".
+ */
+/** @experimental */
+export interface SessionCompletionItem {
+  /**
+   * Text spliced into the composer when the item is accepted.
+   */
+  insertText: string;
+  /**
+   * Start of the replacement range in `text`, in UTF-16 code units.
+   */
+  rangeStart?: number;
+  /**
+   * End (exclusive) of the replacement range in `text`, in UTF-16 code units.
+   */
+  rangeEnd?: number;
+  /**
+   * Primary display label for the picker row. Falls back to `insertText` when absent.
+   */
+  label?: string;
+  /**
+   * Render-kind hint for the picker row (e.g. `"document"`, `"directory"`), derived from the host's display kind.
+   */
+  kind?: string;
 }
 /**
  * Params to attach or detach an in-process ExtensionController delegate.
@@ -3546,6 +3723,31 @@ export interface ConnectResult {
    * Server package version
    */
   version: string;
+}
+/**
+ * A single large message currently in context.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ContextHeaviestMessage".
+ */
+/** @experimental */
+export interface ContextHeaviestMessage {
+  /**
+   * Stable identifier for this message within the snapshot.
+   */
+  id: string;
+  /**
+   * Human-readable source label, e.g. `tool: bash` or `skill: tmux`. Presentation-only.
+   */
+  label: string;
+  /**
+   * Role of the chat message (`user`, `assistant`, or `tool`).
+   */
+  role: string;
+  /**
+   * Token count currently in context for this individual message.
+   */
+  tokens: number;
 }
 /**
  * The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
@@ -3881,6 +4083,10 @@ export interface ExternalToolTextResultForLlm {
    * Structured content blocks from the tool
    */
   contents?: ExternalToolTextResultForLlmContent[];
+  /**
+   * Tool references returned by a tool-search override: names of deferred tools to surface to the model. When set, the tool result is materialized as `tool_reference` content blocks (rather than plain text) so the model knows which deferred tools are now available.
+   */
+  toolReferences?: string[];
 }
 /**
  * Binary result returned by a tool for the model
@@ -4168,6 +4374,125 @@ export interface FolderTrustCheckResult {
    * Whether the folder is trusted
    */
   trusted: boolean;
+}
+/**
+ * Client environment metadata describing the process that produced a telemetry event.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryClientInfo".
+ */
+/** @experimental */
+export interface GitHubTelemetryClientInfo {
+  /**
+   * Copilot CLI version string.
+   */
+  cli_version: string;
+  /**
+   * Operating system platform (e.g. darwin, linux, win32).
+   */
+  os_platform: string;
+  /**
+   * Operating system version string.
+   */
+  os_version: string;
+  /**
+   * Operating system architecture (e.g. arm64, x64).
+   */
+  os_arch: string;
+  /**
+   * Node.js runtime version string.
+   */
+  node_version: string;
+  /**
+   * Copilot subscription plan, when known.
+   */
+  copilot_plan?: string;
+  /**
+   * Type of client.
+   */
+  client_type?: string;
+  /**
+   * Name of the client application.
+   */
+  client_name?: string;
+  /**
+   * Whether the user is a GitHub/Microsoft staff member.
+   */
+  is_staff?: boolean;
+  /**
+   * Stable machine identifier for the device.
+   */
+  dev_device_id?: string;
+}
+/**
+ * A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryEvent".
+ */
+/** @experimental */
+export interface GitHubTelemetryEvent {
+  /**
+   * Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).
+   */
+  kind: string;
+  /**
+   * Timestamp when the event was created (ISO 8601 format).
+   */
+  created_at?: string;
+  /**
+   * Reference to the model call that produced this event.
+   */
+  model_call_id?: string;
+  /**
+   * String-valued properties as a map from key to value.
+   */
+  properties: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Numeric metrics as a map from key to value.
+   */
+  metrics: {
+    [k: string]: number | undefined;
+  };
+  /**
+   * Experiment assignment context.
+   */
+  exp_assignment_context?: string;
+  /**
+   * Feature flags enabled for this session, as a map from flag to value.
+   */
+  features?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Session identifier the event belongs to.
+   */
+  session_id?: string;
+  /**
+   * Copilot tracking ID for user-level attribution.
+   */
+  copilot_tracking_id?: string;
+  client?: GitHubTelemetryClientInfo;
+}
+/**
+ * Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTelemetryNotification".
+ */
+/** @experimental */
+export interface GitHubTelemetryNotification {
+  /**
+   * Session the telemetry event belongs to.
+   */
+  sessionId: string;
+  /**
+   * Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only.
+   */
+  restricted: boolean;
+  event: GitHubTelemetryEvent;
 }
 /**
  * Pending external tool call request ID, with the tool result or an error describing why it failed.
@@ -6194,6 +6519,49 @@ export interface MemoryConfiguration {
   enabled: boolean;
 }
 /**
+ * Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataContextAttributionResult".
+ */
+/** @experimental */
+export interface MetadataContextAttributionResult {
+  /**
+   * Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+   */
+  contextAttribution?: SessionContextAttribution | null;
+}
+/**
+ * Parameters for the heaviest-messages query.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataContextHeaviestMessagesRequest".
+ */
+/** @experimental */
+export interface MetadataContextHeaviestMessagesRequest {
+  /**
+   * Maximum number of messages to return, most-expensive first. Omit for the server default.
+   */
+  limit?: number;
+}
+/**
+ * The heaviest individual messages in the session's context window, most-expensive first.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataContextHeaviestMessagesResult".
+ */
+/** @experimental */
+export interface MetadataContextHeaviestMessagesResult {
+  /**
+   * Total token count of the current context window, so callers can compute each message's share without a second call.
+   */
+  totalTokens: number;
+  /**
+   * Heaviest messages, most-expensive first.
+   */
+  messages: ContextHeaviestMessage[];
+}
+/**
  * Model identifier and token limits used to compute the context-info breakdown.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6453,6 +6821,7 @@ export interface ModelCapabilitiesSupports {
    * Whether this model supports reasoning effort configuration
    */
   reasoningEffort?: boolean;
+  adaptive_thinking?: AdaptiveThinkingSupport;
 }
 /**
  * Token limits for prompts, outputs, and context window
@@ -6639,6 +7008,7 @@ export interface ModelCapabilitiesOverrideSupports {
    * Whether this model supports reasoning effort configuration
    */
   reasoningEffort?: boolean;
+  adaptive_thinking?: AdaptiveThinkingSupport;
 }
 /**
  * Token limits for prompts, outputs, and context window
@@ -8662,36 +9032,6 @@ export interface PluginUpdateResult {
   skillsInstalled: number;
 }
 /**
- * Batch of spawn events plus a cursor for follow-up polls.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PollSpawnedSessionsResult".
- */
-/** @experimental */
-export interface PollSpawnedSessionsResult {
-  /**
-   * Spawn events emitted since the supplied cursor.
-   */
-  events: SessionsPollSpawnedSessionsEvent[];
-  /**
-   * Opaque cursor to pass back to receive only events after this batch.
-   */
-  cursor: string;
-}
-/**
- * Schema for the `SessionsPollSpawnedSessionsEvent` type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsPollSpawnedSessionsEvent".
- */
-/** @experimental */
-export interface SessionsPollSpawnedSessionsEvent {
-  /**
-   * Session id of the newly-spawned session.
-   */
-  sessionId: string;
-}
-/**
  * BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9425,7 +9765,7 @@ export interface QueueRemoveMostRecentResult {
 /** @experimental */
 export interface RegisterEventInterestParams {
   /**
-   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
    */
   eventType: string;
 }
@@ -10934,9 +11274,9 @@ export interface SessionMetadataSnapshot {
    */
   selectedModel?: string;
   /**
-   * Current response limits for the session, or null when no limits are active
+   * Current session limits, or null when no limits are active
    */
-  responseLimits: ResponseLimitsConfig | null;
+  sessionLimits: SessionLimitsConfig | null;
   /**
    * Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
    */
@@ -11069,6 +11409,10 @@ export interface SessionOpenOptions {
    */
   excludedTools?: string[];
   /**
+   * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+   */
+  excludedBuiltinAgents?: string[];
+  /**
    * Whether shell-script safety heuristics are enabled.
    */
   enableScriptSafety?: boolean;
@@ -11157,7 +11501,7 @@ export interface SessionOpenOptions {
    */
   maxInlineBinaryBytes?: number;
   modelCapabilitiesOverrides?: ModelCapabilitiesOverride;
-  responseLimits?: ResponseLimitsConfig;
+  sessionLimits?: SessionLimitsConfig;
   /**
    * Runtime context discriminator for agent filtering.
    */
@@ -11791,18 +12135,6 @@ export interface SessionsLoadDeferredRepoHooksRequest {
    */
   sessionId: string;
 }
-
-/** @experimental */
-export interface SessionsPollSpawnedSessionsRequest {
-  /**
-   * Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn events buffered since the runtime started.
-   */
-  cursor?: string;
-  /**
-   * Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default) returns immediately even if no events are buffered. Capped at 60000ms.
-   */
-  waitMs?: number;
-}
 /**
  * Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).
  *
@@ -12039,6 +12371,10 @@ export interface SessionUpdateOptionsParams {
    * Denylist of tool names for this session.
    */
   excludedTools?: string[];
+  /**
+   * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+   */
+  excludedBuiltinAgents?: string[];
   toolFilterPrecedence?: OptionsUpdateToolFilterPrecedence;
   /**
    * Whether shell-script safety heuristics are enabled.
@@ -12178,9 +12514,9 @@ export interface SessionUpdateOptionsParams {
   enableSkills?: boolean;
   contextTier?: OptionsUpdateContextTier;
   /**
-   * Optional response limits. Pass null to clear the response limits.
+   * Optional session limits. Pass null to clear the session limits.
    */
-  responseLimits?: ResponseLimitsConfig | null;
+  sessionLimits?: SessionLimitsConfig | null;
 }
 /**
  * Indicates whether the session options patch was applied successfully.
@@ -13684,6 +14020,38 @@ export interface UIHandlePendingSamplingResponse {
   [k: string]: unknown | undefined;
 }
 /**
+ * Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UIHandlePendingSessionLimitsExhaustedRequest".
+ */
+/** @experimental */
+export interface UIHandlePendingSessionLimitsExhaustedRequest {
+  /**
+   * The unique request ID from the session_limits_exhausted.requested event
+   */
+  requestId: string;
+  response: UISessionLimitsExhaustedResponse;
+}
+/**
+ * The user's selected action for an exhausted session limit.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UISessionLimitsExhaustedResponse".
+ */
+/** @experimental */
+export interface UISessionLimitsExhaustedResponse {
+  action: UISessionLimitsExhaustedResponseAction;
+  /**
+   * AI Credits to add to the current max when action is 'add'.
+   */
+  additionalAiCredits?: number;
+  /**
+   * New absolute max AI Credits when action is 'set'.
+   */
+  maxAiCredits?: number;
+}
+/**
  * Request ID of a pending `user_input.requested` event and the user's response.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -15033,15 +15401,6 @@ export function createInternalServerRpc(connection: MessageConnection) {
             getBoardEntryCount: async (params: SessionsGetBoardEntryCountRequest): Promise<SessionsGetBoardEntryCountResult> =>
                 connection.sendRequest("sessions.getBoardEntryCount", params),
             /**
-             * Cursor-based long-poll for sessions spawned by the runtime (e.g. in response to a Mission Control `start_session` command). The cursor is an opaque token; pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit the cursor on the first call to receive any events buffered since the runtime started. Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to react to runtime-spawned sessions should subscribe to a higher-level event stream rather than driving a long-poll loop.
-             *
-             * @param params Cursor and optional long-poll wait for polling runtime-spawned sessions.
-             *
-             * @returns Batch of spawn events plus a cursor for follow-up polls.
-             */
-            pollSpawnedSessions: async (params: SessionsPollSpawnedSessionsRequest): Promise<PollSpawnedSessionsResult> =>
-                connection.sendRequest("sessions.pollSpawnedSessions", params),
-            /**
              * Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.
              *
              * @param params Params to attach an extension loader's tools to a session.
@@ -15348,6 +15707,25 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             diff: async (params: WorkspacesDiffRequest): Promise<WorkspaceDiffResult> =>
                 connection.sendRequest("session.workspaces.diff", { sessionId, ...params }),
+        },
+        /** @experimental */
+        completions: {
+            /**
+             * Gets the characters that should trigger host-driven completions for the session. Empty disables host-driven completions (e.g. local sessions, or a relay host that does not advertise them).
+             *
+             * @returns Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+             */
+            getTriggerCharacters: async (): Promise<CompletionsGetTriggerCharactersResult> =>
+                connection.sendRequest("session.completions.getTriggerCharacters", { sessionId }),
+            /**
+             * Requests host-driven completion items for the current composer input. Returns an empty list when the host has no items or does not support completions.
+             *
+             * @param params Request host-driven completions for the current composer input.
+             *
+             * @returns Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+             */
+            request: async (params: CompletionsRequestRequest): Promise<CompletionsRequestResult> =>
+                connection.sendRequest("session.completions.request", { sessionId, ...params }),
         },
         /** @experimental */
         instructions: {
@@ -15980,6 +16358,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             handlePendingAutoModeSwitch: async (params: UIHandlePendingAutoModeSwitchRequest): Promise<UIHandlePendingResult> =>
                 connection.sendRequest("session.ui.handlePendingAutoModeSwitch", { sessionId, ...params }),
             /**
+             * Resolves a pending `session_limits_exhausted.requested` event with the user's selected limit action.
+             *
+             * @param params Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+             *
+             * @returns Indicates whether the pending UI request was resolved by this call.
+             */
+            handlePendingSessionLimitsExhausted: async (params: UIHandlePendingSessionLimitsExhaustedRequest): Promise<UIHandlePendingResult> =>
+                connection.sendRequest("session.ui.handlePendingSessionLimitsExhausted", { sessionId, ...params }),
+            /**
              * Resolves a pending `exit_plan_mode.requested` event with the user's response.
              *
              * @param params Request ID of a pending `exit_plan_mode.requested` event and the user's response.
@@ -16244,6 +16631,22 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             contextInfo: async (params: MetadataContextInfoRequest): Promise<MetadataContextInfoResult> =>
                 connection.sendRequest("session.metadata.contextInfo", { sessionId, ...params }),
+            /**
+             * Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.
+             *
+             * @returns Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+             */
+            getContextAttribution: async (): Promise<MetadataContextAttributionResult> =>
+                connection.sendRequest("session.metadata.getContextAttribution", { sessionId }),
+            /**
+             * Returns the largest individual messages currently in the session's context window, most-expensive first. Companion to `metadata.getContextAttribution`. Returns an empty list until the session has initialized.
+             *
+             * @param params Parameters for the heaviest-messages query.
+             *
+             * @returns The heaviest individual messages in the session's context window, most-expensive first.
+             */
+            getContextHeaviestMessages: async (params: MetadataContextHeaviestMessagesRequest): Promise<MetadataContextHeaviestMessagesResult> =>
+                connection.sendRequest("session.metadata.getContextHeaviestMessages", { sessionId, ...params }),
             /**
              * Records a working-directory/git context change and emits a `session.context_changed` event.
              *
@@ -16821,9 +17224,21 @@ export interface LlmInferenceHandler {
     httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
 }
 
+/** Handler for `gitHubTelemetry` client global API methods. */
+/** @experimental */
+export interface GitHubTelemetryHandler {
+    /**
+     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.
+     *
+     * @param params Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+     */
+    event(params: GitHubTelemetryNotification): Promise<void>;
+}
+
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
     llmInference?: LlmInferenceHandler;
+    gitHubTelemetry?: GitHubTelemetryHandler;
 }
 
 /**
@@ -16846,5 +17261,10 @@ export function registerClientGlobalApiHandlers(
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
         return handler.httpRequestChunk(params);
+    });
+    connection.onNotification("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
+        const handler = handlers.gitHubTelemetry;
+        if (!handler) return;
+        await handler.event(params);
     });
 }

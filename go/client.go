@@ -696,11 +696,14 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.AvailableTools = availableTools
 	req.ExcludedTools = excludedTools
 	req.ToolFilterPrecedence = precedence
+	req.ExcludedBuiltInAgents = config.ExcludedBuiltInAgents
 	req.Provider = config.Provider
 	req.Capi = config.Capi
 	req.Providers = config.Providers
 	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.EnableCitations = config.EnableCitations
+	req.SessionLimits = config.SessionLimits
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
@@ -756,6 +759,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
 	} else {
 		req.IncludeSubAgentStreamingEvents = Bool(true)
+	}
+	if c.options.OnGitHubTelemetry != nil {
+		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
@@ -1024,6 +1030,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.AvailableTools = availableTools
 	req.ExcludedTools = excludedTools
 	req.ToolFilterPrecedence = precedence
+	req.ExcludedBuiltInAgents = config.ExcludedBuiltInAgents
+	req.EnableCitations = config.EnableCitations
+	req.SessionLimits = config.SessionLimits
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
 	}
@@ -1031,6 +1040,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
 	} else {
 		req.IncludeSubAgentStreamingEvents = Bool(true)
+	}
+	if c.options.OnGitHubTelemetry != nil {
+		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
@@ -1150,17 +1162,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	c.sessionsMux.Lock()
 	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
-	if config.OnMCPAuthRequest != nil {
-		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
-			"sessionId": sessionID,
-			"eventType": "mcp.oauth_required",
-		}); err != nil {
-			c.sessionsMux.Lock()
-			delete(c.sessions, sessionID)
-			c.sessionsMux.Unlock()
-			return nil, err
-		}
-	}
 
 	if c.options.SessionFS != nil {
 		if config.CreateSessionFSProvider == nil {
@@ -1195,6 +1196,18 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		delete(c.sessions, sessionID)
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if config.OnMCPAuthRequest != nil {
+		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
+			"sessionId": sessionID,
+			"eventType": "mcp.oauth_required",
+		}); err != nil {
+			c.sessionsMux.Lock()
+			delete(c.sessions, sessionID)
+			c.sessionsMux.Unlock()
+			return nil, err
+		}
 	}
 
 	session.workspacePath = response.WorkspacePath
@@ -2050,15 +2063,33 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
-	if c.options.RequestHandler != nil {
-		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
-			if c.RPC == nil {
-				return nil
-			}
-			return c.RPC.LlmInference
-		})
-		rpc.RegisterClientGlobalAPIHandlers(c.client, &rpc.ClientGlobalAPIHandlers{LlmInference: adapter})
+	if c.options.RequestHandler != nil || c.options.OnGitHubTelemetry != nil {
+		handlers := &rpc.ClientGlobalAPIHandlers{}
+		if c.options.RequestHandler != nil {
+			handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+				if c.RPC == nil {
+					return nil
+				}
+				return c.RPC.LlmInference
+			})
+		}
+		if c.options.OnGitHubTelemetry != nil {
+			handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
+		}
+		rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
 	}
+}
+
+// gitHubTelemetryAdapter adapts the OnGitHubTelemetry option to the generated
+// rpc.GitHubTelemetryHandler interface.
+type gitHubTelemetryAdapter struct {
+	callback func(notification *rpc.GitHubTelemetryNotification)
+}
+
+func (a *gitHubTelemetryAdapter) Event(request *rpc.GitHubTelemetryNotification) error {
+	defer func() { recover() }() // Ignore handler panics
+	a.callback(request)
+	return nil
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

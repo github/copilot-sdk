@@ -1247,6 +1247,36 @@ type CommandsRespondToQueuedCommandResult struct {
 	Success bool `json:"success"`
 }
 
+// Characters that, when typed in the composer, should trigger a `completions.request`.
+// Empty when the session has no host-driven completions (e.g. local sessions, or a relay
+// host that does not advertise `completionTriggerCharacters`).
+// Experimental: CompletionsGetTriggerCharactersResult is part of an experimental API and
+// may change or be removed.
+type CompletionsGetTriggerCharactersResult struct {
+	// Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven
+	// completions for the session.
+	TriggerCharacters []string `json:"triggerCharacters"`
+}
+
+// Request host-driven completions for the current composer input.
+// Experimental: CompletionsRequestRequest is part of an experimental API and may change or
+// be removed.
+type CompletionsRequestRequest struct {
+	// Cursor offset within `text`, in UTF-16 code units.
+	Offset int64 `json:"offset"`
+	// The full composed composer input.
+	Text string `json:"text"`
+}
+
+// Host-driven completion items for the current composer input. Empty when the host returns
+// no items or does not support completions.
+// Experimental: CompletionsRequestResult is part of an experimental API and may change or
+// be removed.
+type CompletionsRequestResult struct {
+	// Completion items in host-ranked order.
+	Items []SessionCompletionItem `json:"items"`
+}
+
 // Params to attach or detach an in-process ExtensionController delegate.
 // Experimental: ConfigureSessionExtensionsParams is part of an experimental API and may
 // change or be removed.
@@ -1331,6 +1361,20 @@ type ConnectResult struct {
 	Version string `json:"version"`
 }
 
+// A single large message currently in context.
+// Experimental: ContextHeaviestMessage is part of an experimental API and may change or be
+// removed.
+type ContextHeaviestMessage struct {
+	// Stable identifier for this message within the snapshot.
+	ID string `json:"id"`
+	// Human-readable source label, e.g. `tool: bash` or `skill: tmux`. Presentation-only.
+	Label string `json:"label"`
+	// Role of the chat message (`user`, `assistant`, or `tool`).
+	Role string `json:"role"`
+	// Token count currently in context for this individual message.
+	Tokens int64 `json:"tokens"`
+}
+
 // Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
 // GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
 // verbatim and does not re-fetch when set.
@@ -1363,6 +1407,7 @@ type CopilotUserResponse struct {
 	// Schema for the `CopilotUserResponseQuotaSnapshots` type.
 	QuotaSnapshots      *CopilotUserResponseQuotaSnapshots `json:"quota_snapshots,omitempty"`
 	RestrictedTelemetry *bool                              `json:"restricted_telemetry,omitempty"`
+	Te                  *bool                              `json:"te,omitempty"`
 	TokenBasedBilling   *bool                              `json:"token_based_billing,omitempty"`
 }
 
@@ -1702,6 +1747,10 @@ type ExternalToolTextResultForLlm struct {
 	SessionLog *string `json:"sessionLog,omitempty"`
 	// Text result returned to the model
 	TextResultForLlm string `json:"textResultForLlm"`
+	// Tool references returned by a tool-search override: names of deferred tools to surface to
+	// the model. When set, the tool result is materialized as `tool_reference` content blocks
+	// (rather than plain text) so the model knows which deferred tools are now available.
+	ToolReferences []string `json:"toolReferences,omitzero"`
 	// Optional tool-specific telemetry
 	ToolTelemetry map[string]any `json:"toolTelemetry,omitzero"`
 }
@@ -1980,6 +2029,81 @@ type GitHubRepoRef struct {
 	Name string `json:"name"`
 	// Repository owner login (user or organization)
 	Owner string `json:"owner"`
+}
+
+// Client environment metadata describing the process that produced a telemetry event.
+// Experimental: GitHubTelemetryClientInfo is part of an experimental API and may change or
+// be removed.
+type GitHubTelemetryClientInfo struct {
+	// Name of the client application.
+	ClientName *string `json:"client_name,omitempty"`
+	// Type of client.
+	ClientType *string `json:"client_type,omitempty"`
+	// Copilot CLI version string.
+	CLIVersion string `json:"cli_version"`
+	// Copilot subscription plan, when known.
+	CopilotPlan *string `json:"copilot_plan,omitempty"`
+	// Stable machine identifier for the device.
+	DevDeviceID *string `json:"dev_device_id,omitempty"`
+	// Whether the user is a GitHub/Microsoft staff member.
+	IsStaff *bool `json:"is_staff,omitempty"`
+	// Node.js runtime version string.
+	NodeVersion string `json:"node_version"`
+	// Operating system architecture (e.g. arm64, x64).
+	OsArch string `json:"os_arch"`
+	// Operating system platform (e.g. darwin, linux, win32).
+	OsPlatform string `json:"os_platform"`
+	// Operating system version string.
+	OsVersion string `json:"os_version"`
+}
+
+// A single telemetry event in the runtime's native GitHub-shaped telemetry format,
+// forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing
+// GitHubTelemetryNotification distinguishes standard from restricted events; the payload
+// shape is identical for both.
+// Experimental: GitHubTelemetryEvent is part of an experimental API and may change or be
+// removed.
+type GitHubTelemetryEvent struct {
+	// Client environment metadata.
+	Client *GitHubTelemetryClientInfo `json:"client,omitempty"`
+	// Copilot tracking ID for user-level attribution.
+	CopilotTrackingID *string `json:"copilot_tracking_id,omitempty"`
+	// Timestamp when the event was created (ISO 8601 format).
+	CreatedAt *string `json:"created_at,omitempty"`
+	// Experiment assignment context.
+	ExpAssignmentContext *string `json:"exp_assignment_context,omitempty"`
+	// Feature flags enabled for this session, as a map from flag to value.
+	Features map[string]string `json:"features,omitzero"`
+	// Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).
+	Kind string `json:"kind"`
+	// Numeric metrics as a map from key to value.
+	Metrics map[string]float64 `json:"metrics"`
+	// Reference to the model call that produced this event.
+	ModelCallID *string `json:"model_call_id,omitempty"`
+	// String-valued properties as a map from key to value.
+	Properties map[string]string `json:"properties"`
+	// Session identifier the event belongs to.
+	SessionID *string `json:"session_id,omitempty"`
+}
+
+// Experimental: GitHubTelemetryEventResult is part of an experimental API and may change or
+// be removed.
+type GitHubTelemetryEventResult struct {
+}
+
+// Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the
+// runtime forwards to a host connection that opted into telemetry forwarding for the
+// session.
+// Experimental: GitHubTelemetryNotification is part of an experimental API and may change
+// or be removed.
+type GitHubTelemetryNotification struct {
+	// The telemetry event, in the runtime's native GitHub-shaped telemetry format.
+	Event GitHubTelemetryEvent `json:"event"`
+	// Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route
+	// restricted events to first-party Microsoft stores only.
+	Restricted bool `json:"restricted"`
+	// Session the telemetry event belongs to.
+	SessionID string `json:"sessionId"`
 }
 
 // Pending external tool call request ID, with the tool result or an error describing why it
@@ -2265,6 +2389,8 @@ type InstructionSource struct {
 type LlmInferenceHeaders map[string][]string
 
 // A request body chunk or cancellation signal.
+// Experimental: LlmInferenceHTTPRequestChunkRequest is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestChunkRequest struct {
 	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
 	Binary *bool `json:"binary,omitempty"`
@@ -2285,10 +2411,14 @@ type LlmInferenceHTTPRequestChunkRequest struct {
 
 // Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as
 // fire-and-forget.
+// Experimental: LlmInferenceHTTPRequestChunkResult is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestChunkResult struct {
 }
 
 // The head of an outbound model-layer HTTP request.
+// Experimental: LlmInferenceHTTPRequestStartRequest is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestStartRequest struct {
 	Headers map[string][]string `json:"headers"`
 	// HTTP method, e.g. GET, POST.
@@ -2315,6 +2445,8 @@ type LlmInferenceHTTPRequestStartRequest struct {
 
 // Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it
 // does not imply the request will succeed.
+// Experimental: LlmInferenceHTTPRequestStartResult is part of an experimental API and may
+// change or be removed.
 type LlmInferenceHTTPRequestStartResult struct {
 }
 
@@ -3452,6 +3584,35 @@ type MemoryConfiguration struct {
 	Enabled bool `json:"enabled"`
 }
 
+// Per-source attribution breakdown for the session's current context window, or null if
+// uninitialized.
+// Experimental: MetadataContextAttributionResult is part of an experimental API and may
+// change or be removed.
+type MetadataContextAttributionResult struct {
+	// Per-source context-window attribution, or null if the session has not yet been
+	// initialized (no system prompt or tool metadata cached).
+	ContextAttribution *SessionContextAttribution `json:"contextAttribution,omitempty"`
+}
+
+// Parameters for the heaviest-messages query.
+// Experimental: MetadataContextHeaviestMessagesRequest is part of an experimental API and
+// may change or be removed.
+type MetadataContextHeaviestMessagesRequest struct {
+	// Maximum number of messages to return, most-expensive first. Omit for the server default.
+	Limit *int64 `json:"limit,omitempty"`
+}
+
+// The heaviest individual messages in the session's context window, most-expensive first.
+// Experimental: MetadataContextHeaviestMessagesResult is part of an experimental API and
+// may change or be removed.
+type MetadataContextHeaviestMessagesResult struct {
+	// Heaviest messages, most-expensive first.
+	Messages []ContextHeaviestMessage `json:"messages"`
+	// Total token count of the current context window, so callers can compute each message's
+	// share without a second call.
+	TotalTokens int64 `json:"totalTokens"`
+}
+
 // Model identifier and token limits used to compute the context-info breakdown.
 // Experimental: MetadataContextInfoRequest is part of an experimental API and may change or
 // be removed.
@@ -3742,6 +3903,9 @@ type ModelCapabilitiesOverrideLimitsVision struct {
 // Experimental: ModelCapabilitiesOverrideSupports is part of an experimental API and may
 // change or be removed.
 type ModelCapabilitiesOverrideSupports struct {
+	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required.
+	// 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
 	// Whether this model supports vision/image input
@@ -3752,6 +3916,9 @@ type ModelCapabilitiesOverrideSupports struct {
 // Experimental: ModelCapabilitiesSupports is part of an experimental API and may change or
 // be removed.
 type ModelCapabilitiesSupports struct {
+	// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required.
+	// 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
 	// Whether this model supports vision/image input
@@ -5342,16 +5509,6 @@ type PluginUpdateResult struct {
 	SkillsInstalled int64 `json:"skillsInstalled"`
 }
 
-// Batch of spawn events plus a cursor for follow-up polls.
-// Experimental: PollSpawnedSessionsResult is part of an experimental API and may change or
-// be removed.
-type PollSpawnedSessionsResult struct {
-	// Opaque cursor to pass back to receive only events after this batch.
-	Cursor string `json:"cursor"`
-	// Spawn events emitted since the supplied cursor.
-	Events []SessionsPollSpawnedSessionsEvent `json:"events"`
-}
-
 // BYOK providers and/or models to add to the session's registry at runtime. Both fields are
 // optional; provide providers, models, or both.
 // Experimental: ProviderAddRequest is part of an experimental API and may change or be
@@ -5969,8 +6126,8 @@ type RegisterEventInterestParams struct {
 	// count as having a consumer. Multiple registrations for the same event type from the same
 	// or different consumers are tracked independently and must each be released. See:
 	// `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`,
-	// `user_input.requested`, `elicitation.requested`, `command.queued`,
-	// `exit_plan_mode.requested`.
+	// `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`,
+	// `command.queued`, `exit_plan_mode.requested`.
 	EventType string `json:"eventType"`
 }
 
@@ -6235,14 +6392,6 @@ type RemoteSessionRepository struct {
 	Name string `json:"name"`
 	// Repository owner or organization login.
 	Owner string `json:"owner"`
-}
-
-// Optional response limits.
-// Experimental: ResponseLimitsConfig is part of an experimental API and may change or be
-// removed.
-type ResponseLimitsConfig struct {
-	// Maximum AI Credits allowed while responding to one top-level user message.
-	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
 }
 
 // Experimental: RuntimeShutdownResult is part of an experimental API and may change or be
@@ -6552,6 +6701,25 @@ type SessionBulkDeleteResult struct {
 type SessionCanvasCloseResult struct {
 }
 
+// A single host-driven completion. Accepting an item replaces `[rangeStart, rangeEnd)`
+// (UTF-16 code units) in the composer with `insertText`; when the range is absent, the
+// active token around the cursor is replaced.
+// Experimental: SessionCompletionItem is part of an experimental API and may change or be
+// removed.
+type SessionCompletionItem struct {
+	// Text spliced into the composer when the item is accepted.
+	InsertText string `json:"insertText"`
+	// Render-kind hint for the picker row (e.g. `"document"`, `"directory"`), derived from the
+	// host's display kind.
+	Kind *string `json:"kind,omitempty"`
+	// Primary display label for the picker row. Falls back to `insertText` when absent.
+	Label *string `json:"label,omitempty"`
+	// End (exclusive) of the replacement range in `text`, in UTF-16 code units.
+	RangeEnd *int64 `json:"rangeEnd,omitempty"`
+	// Start of the replacement range in `text`, in UTF-16 code units.
+	RangeStart *int64 `json:"rangeStart,omitempty"`
+}
+
 // Pre-resolved working-directory context for session startup.
 // Experimental: SessionContext is part of an experimental API and may change or be removed.
 type SessionContext struct {
@@ -6565,6 +6733,52 @@ type SessionContext struct {
 	HostType *SessionContextHostType `json:"hostType,omitempty"`
 	// Repository slug in `owner/name` form, when known
 	Repository *string `json:"repository,omitempty"`
+}
+
+// Per-source token attribution snapshot for the current context window. The heaviest
+// individual messages are available separately via `metadata.getContextHeaviestMessages`.
+// Experimental: SessionContextAttribution is part of an experimental API and may change or
+// be removed.
+type SessionContextAttribution struct {
+	// Successful compaction history for the session.
+	Compactions SessionContextAttributionCompactions `json:"compactions"`
+	// Flat list of per-source attribution entries. Group by `kind` and render unrecognized
+	// kinds generically. Nesting and rollups are expressed via `parentId`.
+	Entries []SessionContextAttributionEntriesItem `json:"entries"`
+	// Total token count of the current context window the entries are measured against (system
+	// message + conversation messages + tool definitions — the same total reported by
+	// /context). Divide an entry's `tokens` by this to derive its share.
+	TotalTokens int64 `json:"totalTokens"`
+}
+
+// Successful compaction history for the session.
+type SessionContextAttributionCompactions struct {
+	// Number of successful compactions in this session.
+	Count int64 `json:"count"`
+}
+
+type SessionContextAttributionEntriesItem struct {
+	// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`,
+	// `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+	Attributes map[string]string `json:"attributes,omitzero"`
+	// Identifier for this entry, formed by joining its `kind` and source name (e.g.
+	// `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to
+	// match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP
+	// registries), and as the `parentId` target for nesting. Distinct from the human-facing
+	// `label`.
+	ID string `json:"id"`
+	// Source category for this entry. Not a closed set — tolerate unknown values. Known values
+	// today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+	Kind string `json:"kind"`
+	// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be
+	// localized/reformatted without notice — do not key off it.
+	Label string `json:"label"`
+	// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its
+	// `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries.
+	// Omitted for top-level entries.
+	ParentID *string `json:"parentId,omitempty"`
+	// Token count currently in context attributable to this entry.
+	Tokens int64 `json:"tokens"`
 }
 
 // Token-usage breakdown for the session's current context window
@@ -6965,6 +7179,14 @@ type SessionInstalledPluginSourceURL struct {
 	URL    string                                `json:"url"`
 }
 
+// Optional session limits.
+// Experimental: SessionLimitsConfig is part of an experimental API and may change or be
+// removed.
+type SessionLimitsConfig struct {
+	// Maximum AI Credits allowed across the session's current accounting window.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+}
+
 // Sessions matching the filter, ordered most-recently-modified first.
 // Experimental: SessionList is part of an experimental API and may change or be removed.
 type SessionList struct {
@@ -7131,12 +7353,12 @@ type SessionMetadataSnapshot struct {
 	// Remote-session-specific metadata. Populated only when `isRemote` is true. Fields are
 	// immutable for the lifetime of the session.
 	RemoteMetadata *MetadataSnapshotRemoteMetadata `json:"remoteMetadata,omitempty"`
-	// Current response limits for the session, or null when no limits are active
-	ResponseLimits *ResponseLimitsConfig `json:"responseLimits"`
 	// Currently selected model identifier, if any
 	SelectedModel *string `json:"selectedModel,omitempty"`
 	// The unique identifier of the session
 	SessionID string `json:"sessionId"`
+	// Current session limits, or null when no limits are active
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits"`
 	// ISO 8601 timestamp of when the session started
 	StartTime time.Time `json:"startTime"`
 	// Short human-readable summary of the session, if known. Omitted when no summary has been
@@ -7233,6 +7455,10 @@ type SessionOpenOptions struct {
 	EnvValueMode *SessionOpenOptionsEnvValueMode `json:"envValueMode,omitempty"`
 	// Override directory for session event logs.
 	EventsLogDirectory *string `json:"eventsLogDirectory,omitempty"`
+	// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from
+	// agent discovery and cannot be dispatched unless a custom agent with the same name is
+	// available.
+	ExcludedBuiltinAgents []string `json:"excludedBuiltinAgents,omitzero"`
 	// Denylist of tool names.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the
@@ -7285,8 +7511,6 @@ type SessionOpenOptions struct {
 	RemoteExporting *bool `json:"remoteExporting,omitempty"`
 	// Whether this session supports remote steering.
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
-	// Initial response limits for the session.
-	ResponseLimits *ResponseLimitsConfig `json:"responseLimits,omitempty"`
 	// Whether the host is an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -7295,6 +7519,8 @@ type SessionOpenOptions struct {
 	SessionCapabilities []SessionCapability `json:"sessionCapabilities,omitzero"`
 	// Optional stable session identifier to use for a new session.
 	SessionID *string `json:"sessionId,omitempty"`
+	// Initial session limits.
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// Shell init profile.
 	ShellInitProfile *string `json:"shellInitProfile,omitempty"`
 	// Per-shell process flags.
@@ -7842,25 +8068,6 @@ type SessionsOpenProgress struct {
 	Step SessionsOpenProgressStep `json:"step"`
 }
 
-// Schema for the `SessionsPollSpawnedSessionsEvent` type.
-// Experimental: SessionsPollSpawnedSessionsEvent is part of an experimental API and may
-// change or be removed.
-type SessionsPollSpawnedSessionsEvent struct {
-	// Session id of the newly-spawned session.
-	SessionID string `json:"sessionId"`
-}
-
-// Experimental: SessionsPollSpawnedSessionsRequest is part of an experimental API and may
-// change or be removed.
-type SessionsPollSpawnedSessionsRequest struct {
-	// Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn
-	// events buffered since the runtime started.
-	Cursor *string `json:"cursor,omitempty"`
-	// Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default)
-	// returns immediately even if no events are buffered. Capped at 60000ms.
-	WaitMs *int32 `json:"waitMs,omitempty"`
-}
-
 // Age threshold and optional flags controlling which old sessions are pruned (or simulated
 // when dryRun is true).
 // Experimental: SessionsPruneOldRequest is part of an experimental API and may change or be
@@ -8076,6 +8283,10 @@ type SessionUpdateOptionsParams struct {
 	// Override directory for the session-events log. When unset, the runtime's default events
 	// log directory is used.
 	EventsLogDirectory *string `json:"eventsLogDirectory,omitempty"`
+	// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from
+	// agent discovery and cannot be dispatched unless a custom agent with the same name is
+	// available.
+	ExcludedBuiltinAgents []string `json:"excludedBuiltinAgents,omitzero"`
 	// Denylist of tool names for this session.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// Map of feature-flag IDs to their boolean enabled state.
@@ -8112,8 +8323,6 @@ type SessionUpdateOptionsParams struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode for supported model clients.
 	ReasoningSummary *OptionsUpdateReasoningSummary `json:"reasoningSummary,omitempty"`
-	// Optional response limits. Pass null to clear the response limits.
-	ResponseLimits *ResponseLimitsConfig `json:"responseLimits,omitempty"`
 	// Whether the session is running in an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
@@ -8122,6 +8331,8 @@ type SessionUpdateOptionsParams struct {
 	// capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the
 	// field to leave the existing capability set unchanged.
 	SessionCapabilities []SessionCapability `json:"sessionCapabilities,omitzero"`
+	// Optional session limits. Pass null to clear the session limits.
+	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// Shell init profile (`None` or `NonInteractive`).
 	ShellInitProfile *string `json:"shellInitProfile,omitempty"`
 	// Per-shell process flags (e.g., `pwsh` arguments).
@@ -8418,6 +8629,9 @@ type SlashCommandInfo struct {
 // Experimental: SlashCommandInput is part of an experimental API and may change or be
 // removed.
 type SlashCommandInput struct {
+	// Optional literal choices the input accepts, each with a human-facing description; clients
+	// may render these as selectable options
+	Choices []SlashCommandInputChoice `json:"choices,omitzero"`
 	// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
 	Completion *SlashCommandInputCompletion `json:"completion,omitempty"`
 	// Hint to display when command input has not been provided
@@ -8428,6 +8642,16 @@ type SlashCommandInput struct {
 	// When true, the command requires non-empty input; clients should render the input hint as
 	// required
 	Required *bool `json:"required,omitempty"`
+}
+
+// A literal choice the command input accepts, with a human-facing description
+// Experimental: SlashCommandInputChoice is part of an experimental API and may change or be
+// removed.
+type SlashCommandInputChoice struct {
+	// Human-readable description shown alongside the choice
+	Description string `json:"description"`
+	// The literal choice value (e.g. 'on', 'off', 'show')
+	Name string `json:"name"`
 }
 
 // Result of invoking the slash command (text output, prompt to send to the agent,
@@ -9321,6 +9545,17 @@ type UIHandlePendingSamplingRequest struct {
 type UIHandlePendingSamplingResponse struct {
 }
 
+// Request ID of a pending `session_limits_exhausted.requested` event and the user's
+// selected limit action.
+// Experimental: UIHandlePendingSessionLimitsExhaustedRequest is part of an experimental API
+// and may change or be removed.
+type UIHandlePendingSessionLimitsExhaustedRequest struct {
+	// The unique request ID from the session_limits_exhausted.requested event
+	RequestID string `json:"requestId"`
+	// The selected session-limit action.
+	Response UISessionLimitsExhaustedResponse `json:"response"`
+}
+
 // Request ID of a pending `user_input.requested` event and the user's response.
 // Experimental: UIHandlePendingUserInputRequest is part of an experimental API and may
 // change or be removed.
@@ -9343,6 +9578,18 @@ type UIRegisterDirectAutoModeSwitchHandlerResult struct {
 	// Multiple registrations are reference-counted; the server bridge will only dispatch
 	// auto-mode-switch requests when no handles are active.
 	Handle string `json:"handle"`
+}
+
+// The user's selected action for an exhausted session limit.
+// Experimental: UISessionLimitsExhaustedResponse is part of an experimental API and may
+// change or be removed.
+type UISessionLimitsExhaustedResponse struct {
+	// Action selected by the user.
+	Action UISessionLimitsExhaustedResponseAction `json:"action"`
+	// AI Credits to add to the current max when action is 'add'.
+	AdditionalAiCredits *float64 `json:"additionalAiCredits,omitempty"`
+	// New absolute max AI Credits when action is 'set'.
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
 }
 
 // Opaque handle previously returned by `registerDirectAutoModeSwitchHandler` to release.
@@ -9916,6 +10163,21 @@ const (
 	AbortReasonUserInitiated AbortReason = "user_initiated"
 )
 
+// Resolved Anthropic adaptive-thinking capability for a model.
+// Experimental: AdaptiveThinkingSupport is part of an experimental API and may change or be
+// removed.
+type AdaptiveThinkingSupport string
+
+const (
+	// The model accepts adaptive thinking but also accepts thinking.type='enabled'
+	AdaptiveThinkingSupportOptional AdaptiveThinkingSupport = "optional"
+	// The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP
+	// 400 (e.g. opus-4.7/4.8)
+	AdaptiveThinkingSupportRequired AdaptiveThinkingSupport = "required"
+	// The model does not accept thinking.type='adaptive'
+	AdaptiveThinkingSupportUnsupported AdaptiveThinkingSupport = "unsupported"
+)
+
 // Which tier this directory belongs to
 // Experimental: AgentDiscoveryPathScope is part of an experimental API and may change or be
 // removed.
@@ -10400,6 +10662,8 @@ const (
 // distinguishes text from binary frames. The SDK consumer uses this to decide whether to
 // service the request with an HTTP client or a WebSocket client. It is the one piece of
 // request metadata the consumer cannot reliably infer from the URL or headers alone.
+// Experimental: LlmInferenceHTTPRequestStartTransport is part of an experimental API and
+// may change or be removed.
 type LlmInferenceHTTPRequestStartTransport string
 
 const (
@@ -11703,6 +11967,22 @@ const (
 	UIExitPlanModeActionExitOnly UIExitPlanModeAction = "exit_only"
 	// Exit plan mode and continue interactively.
 	UIExitPlanModeActionInteractive UIExitPlanModeAction = "interactive"
+)
+
+// User action selected for an exhausted session limit.
+// Experimental: UISessionLimitsExhaustedResponseAction is part of an experimental API and
+// may change or be removed.
+type UISessionLimitsExhaustedResponseAction string
+
+const (
+	// Increase the current max by an exact AI Credits amount.
+	UISessionLimitsExhaustedResponseActionAdd UISessionLimitsExhaustedResponseAction = "add"
+	// Leave the limit unchanged and cancel the blocked model request.
+	UISessionLimitsExhaustedResponseActionCancel UISessionLimitsExhaustedResponseAction = "cancel"
+	// Set a new absolute max AI Credits value.
+	UISessionLimitsExhaustedResponseActionSet UISessionLimitsExhaustedResponseAction = "set"
+	// Remove the current session limit.
+	UISessionLimitsExhaustedResponseActionUnset UISessionLimitsExhaustedResponseAction = "unset"
 )
 
 // Kind discriminator for UserToolSessionApproval.
@@ -13347,33 +13627,6 @@ func (a *InternalServerSessionsAPI) GetPersistedRemoteSteerable(ctx context.Cont
 	return &result, nil
 }
 
-// PollSpawnedSessions cursor-based long-poll for sessions spawned by the runtime (e.g. in
-// response to a Mission Control `start_session` command). The cursor is an opaque token;
-// pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit
-// the cursor on the first call to receive any events buffered since the runtime started.
-// Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to
-// react to runtime-spawned sessions should subscribe to a higher-level event stream rather
-// than driving a long-poll loop.
-//
-// RPC method: sessions.pollSpawnedSessions.
-//
-// Parameters: Cursor and optional long-poll wait for polling runtime-spawned sessions.
-//
-// Returns: Batch of spawn events plus a cursor for follow-up polls.
-// Internal: PollSpawnedSessions is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerSessionsAPI) PollSpawnedSessions(ctx context.Context, params *SessionsPollSpawnedSessionsRequest) (*PollSpawnedSessionsResult, error) {
-	raw, err := a.client.Request(ctx, "sessions.pollSpawnedSessions", params)
-	if err != nil {
-		return nil, err
-	}
-	var result PollSpawnedSessionsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // RegisterExtensionToolsOnSession registers extension-provided tools on the given session,
 // gated by an optional `enabled` callback. Returns an opaque unsubscribe function the
 // caller must invoke to deregister the tools when the extension is torn down. Marked
@@ -13831,6 +14084,57 @@ func (a *CommandsAPI) RespondToQueuedCommand(ctx context.Context, params *Comman
 		return nil, err
 	}
 	var result CommandsRespondToQueuedCommandResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: CompletionsAPI contains experimental APIs that may change or be removed.
+type CompletionsAPI sessionAPI
+
+// GetTriggerCharacters gets the characters that should trigger host-driven completions for
+// the session. Empty disables host-driven completions (e.g. local sessions, or a relay host
+// that does not advertise them).
+//
+// RPC method: session.completions.getTriggerCharacters.
+//
+// Returns: Characters that, when typed in the composer, should trigger a
+// `completions.request`. Empty when the session has no host-driven completions (e.g. local
+// sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+func (a *CompletionsAPI) GetTriggerCharacters(ctx context.Context) (*CompletionsGetTriggerCharactersResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.completions.getTriggerCharacters", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CompletionsGetTriggerCharactersResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Requests host-driven completion items for the current composer input. Returns an empty
+// list when the host has no items or does not support completions.
+//
+// RPC method: session.completions.request.
+//
+// Parameters: Request host-driven completions for the current composer input.
+//
+// Returns: Host-driven completion items for the current composer input. Empty when the host
+// returns no items or does not support completions.
+func (a *CompletionsAPI) Request(ctx context.Context, params *CompletionsRequestRequest) (*CompletionsRequestResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["offset"] = params.Offset
+		req["text"] = params.Text
+	}
+	raw, err := a.client.Request(ctx, "session.completions.request", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CompletionsRequestResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -14859,6 +15163,58 @@ func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextIn
 	return &result, nil
 }
 
+// GetContextAttribution returns the experimental per-source attribution breakdown of the
+// session's current context window as a flat list of entries (skills, subagents, MCP
+// servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via
+// parentId), plus the successful compaction count. The heaviest individual messages are
+// available separately via `metadata.getContextHeaviestMessages`. Returns null until the
+// session has initialized its system prompt and tool metadata.
+//
+// RPC method: session.metadata.getContextAttribution.
+//
+// Returns: Per-source attribution breakdown for the session's current context window, or
+// null if uninitialized.
+func (a *MetadataAPI) GetContextAttribution(ctx context.Context) (*MetadataContextAttributionResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.metadata.getContextAttribution", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MetadataContextAttributionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetContextHeaviestMessages returns the largest individual messages currently in the
+// session's context window, most-expensive first. Companion to
+// `metadata.getContextAttribution`. Returns an empty list until the session has initialized.
+//
+// RPC method: session.metadata.getContextHeaviestMessages.
+//
+// Parameters: Parameters for the heaviest-messages query.
+//
+// Returns: The heaviest individual messages in the session's context window, most-expensive
+// first.
+func (a *MetadataAPI) GetContextHeaviestMessages(ctx context.Context, params *MetadataContextHeaviestMessagesRequest) (*MetadataContextHeaviestMessagesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Limit != nil {
+			req["limit"] = *params.Limit
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.metadata.getContextHeaviestMessages", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MetadataContextHeaviestMessagesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // IsProcessing reports whether the local session is currently processing user/agent
 // messages.
 //
@@ -15288,6 +15644,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.EventsLogDirectory != nil {
 			req["eventsLogDirectory"] = *params.EventsLogDirectory
 		}
+		if params.ExcludedBuiltinAgents != nil {
+			req["excludedBuiltinAgents"] = params.ExcludedBuiltinAgents
+		}
 		if params.ExcludedTools != nil {
 			req["excludedTools"] = params.ExcludedTools
 		}
@@ -15333,9 +15692,6 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.ReasoningSummary != nil {
 			req["reasoningSummary"] = *params.ReasoningSummary
 		}
-		if params.ResponseLimits != nil {
-			req["responseLimits"] = *params.ResponseLimits
-		}
 		if params.RunningInInteractiveMode != nil {
 			req["runningInInteractiveMode"] = *params.RunningInInteractiveMode
 		}
@@ -15344,6 +15700,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.SessionCapabilities != nil {
 			req["sessionCapabilities"] = params.SessionCapabilities
+		}
+		if params.SessionLimits != nil {
+			req["sessionLimits"] = *params.SessionLimits
 		}
 		if params.ShellInitProfile != nil {
 			req["shellInitProfile"] = *params.ShellInitProfile
@@ -17136,6 +17495,32 @@ func (a *UIAPI) HandlePendingSampling(ctx context.Context, params *UIHandlePendi
 	return &result, nil
 }
 
+// HandlePendingSessionLimitsExhausted resolves a pending
+// `session_limits_exhausted.requested` event with the user's selected limit action.
+//
+// RPC method: session.ui.handlePendingSessionLimitsExhausted.
+//
+// Parameters: Request ID of a pending `session_limits_exhausted.requested` event and the
+// user's selected limit action.
+//
+// Returns: Indicates whether the pending UI request was resolved by this call.
+func (a *UIAPI) HandlePendingSessionLimitsExhausted(ctx context.Context, params *UIHandlePendingSessionLimitsExhaustedRequest) (*UIHandlePendingResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["response"] = params.Response
+	}
+	raw, err := a.client.Request(ctx, "session.ui.handlePendingSessionLimitsExhausted", req)
+	if err != nil {
+		return nil, err
+	}
+	var result UIHandlePendingResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // HandlePendingUserInput resolves a pending `user_input.requested` event with the user's
 // response.
 //
@@ -17465,6 +17850,7 @@ type SessionRPC struct {
 	Agent        *AgentAPI
 	Canvas       *CanvasAPI
 	Commands     *CommandsAPI
+	Completions  *CompletionsAPI
 	EventLog     *EventLogAPI
 	Extensions   *ExtensionsAPI
 	Fleet        *FleetAPI
@@ -17677,6 +18063,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Agent = (*AgentAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
+	r.Completions = (*CompletionsAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)
@@ -18425,6 +18812,20 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 	})
 }
 
+// Experimental: GitHubTelemetryHandler contains experimental APIs that may change or be
+// removed.
+type GitHubTelemetryHandler interface {
+	// Event forwards a single GitHub telemetry event to a host connection that opted into
+	// telemetry forwarding for the session.
+	//
+	// RPC method: gitHubTelemetry.event.
+	//
+	// Parameters: Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry
+	// event the runtime forwards to a host connection that opted into telemetry forwarding for
+	// the session.
+	Event(request *GitHubTelemetryNotification) error
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -18461,7 +18862,8 @@ type LlmInferenceHandler interface {
 // Unlike client-session handlers these carry no implicit session id dispatch
 // key; a single set of handlers serves the entire connection.
 type ClientGlobalAPIHandlers struct {
-	LlmInference LlmInferenceHandler
+	GitHubTelemetry GitHubTelemetryHandler
+	LlmInference    LlmInferenceHandler
 }
 
 func clientGlobalHandlerError(err error) *jsonrpc2.Error {
@@ -18478,6 +18880,19 @@ func clientGlobalHandlerError(err error) *jsonrpc2.Error {
 // RegisterClientGlobalAPIHandlers registers handlers for server-to-client client-global API
 // calls.
 func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGlobalAPIHandlers) {
+	client.SetRequestHandler("gitHubTelemetry.event", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request GitHubTelemetryNotification
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.GitHubTelemetry == nil {
+			return nil, nil
+		}
+		if err := handlers.GitHubTelemetry.Event(&request); err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		return nil, nil
+	})
 	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request LlmInferenceHTTPRequestChunkRequest
 		if err := json.Unmarshal(params, &request); err != nil {

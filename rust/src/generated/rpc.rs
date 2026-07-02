@@ -2234,61 +2234,6 @@ impl<'a> ClientRpcSessions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Cursor-based long-poll for sessions spawned by the runtime (e.g. in response to a Mission Control `start_session` command). The cursor is an opaque token; pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit the cursor on the first call to receive any events buffered since the runtime started. Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to react to runtime-spawned sessions should subscribe to a higher-level event stream rather than driving a long-poll loop.
-    ///
-    /// Wire method: `sessions.pollSpawnedSessions`.
-    ///
-    /// # Returns
-    ///
-    /// Batch of spawn events plus a cursor for follow-up polls.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn poll_spawned_sessions(&self) -> Result<PollSpawnedSessionsResult, Error> {
-        let wire_params = serde_json::json!({});
-        let _value = self
-            .client
-            .call(rpc_methods::SESSIONS_POLLSPAWNEDSESSIONS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Cursor-based long-poll for sessions spawned by the runtime (e.g. in response to a Mission Control `start_session` command). The cursor is an opaque token; pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit the cursor on the first call to receive any events buffered since the runtime started. Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to react to runtime-spawned sessions should subscribe to a higher-level event stream rather than driving a long-poll loop.
-    ///
-    /// Wire method: `sessions.pollSpawnedSessions`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Cursor and optional long-poll wait for polling runtime-spawned sessions.
-    ///
-    /// # Returns
-    ///
-    /// Batch of spawn events plus a cursor for follow-up polls.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn poll_spawned_sessions_with_params(
-        &self,
-        params: SessionsPollSpawnedSessionsRequest,
-    ) -> Result<PollSpawnedSessionsResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::SESSIONS_POLLSPAWNEDSESSIONS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
     /// Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.
     ///
     /// Wire method: `sessions.registerExtensionToolsOnSession`.
@@ -2624,6 +2569,13 @@ impl<'a> SessionRpc<'a> {
     /// `session.commands.*` sub-namespace.
     pub fn commands(&self) -> SessionRpcCommands<'a> {
         SessionRpcCommands {
+            session: self.session,
+        }
+    }
+
+    /// `session.completions.*` sub-namespace.
+    pub fn completions(&self) -> SessionRpcCompletions<'a> {
+        SessionRpcCompletions {
             session: self.session,
         }
     }
@@ -3497,6 +3449,77 @@ impl<'a> SessionRpcCommands<'a> {
                 rpc_methods::SESSION_COMMANDS_RESPONDTOQUEUEDCOMMAND,
                 Some(wire_params),
             )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.completions.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcCompletions<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcCompletions<'a> {
+    /// Gets the characters that should trigger host-driven completions for the session. Empty disables host-driven completions (e.g. local sessions, or a relay host that does not advertise them).
+    ///
+    /// Wire method: `session.completions.getTriggerCharacters`.
+    ///
+    /// # Returns
+    ///
+    /// Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_trigger_characters(
+        &self,
+    ) -> Result<CompletionsGetTriggerCharactersResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_COMPLETIONS_GETTRIGGERCHARACTERS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests host-driven completion items for the current composer input. Returns an empty list when the host has no items or does not support completions.
+    ///
+    /// Wire method: `session.completions.request`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request host-driven completions for the current composer input.
+    ///
+    /// # Returns
+    ///
+    /// Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn request(
+        &self,
+        params: CompletionsRequestRequest,
+    ) -> Result<CompletionsRequestResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMPLETIONS_REQUEST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -5138,6 +5161,70 @@ impl<'a> SessionRpcMetadata<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_METADATA_CONTEXTINFO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.
+    ///
+    /// Wire method: `session.metadata.getContextAttribution`.
+    ///
+    /// # Returns
+    ///
+    /// Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_context_attribution(&self) -> Result<MetadataContextAttributionResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_METADATA_GETCONTEXTATTRIBUTION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the largest individual messages currently in the session's context window, most-expensive first. Companion to `metadata.getContextAttribution`. Returns an empty list until the session has initialized.
+    ///
+    /// Wire method: `session.metadata.getContextHeaviestMessages`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for the heaviest-messages query.
+    ///
+    /// # Returns
+    ///
+    /// The heaviest individual messages in the session's context window, most-expensive first.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_context_heaviest_messages(
+        &self,
+        params: MetadataContextHeaviestMessagesRequest,
+    ) -> Result<MetadataContextHeaviestMessagesResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_METADATA_GETCONTEXTHEAVIESTMESSAGES,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -7992,6 +8079,42 @@ impl<'a> SessionRpcUi<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_UI_HANDLEPENDINGAUTOMODESWITCH,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Resolves a pending `session_limits_exhausted.requested` event with the user's selected limit action.
+    ///
+    /// Wire method: `session.ui.handlePendingSessionLimitsExhausted`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the pending UI request was resolved by this call.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn handle_pending_session_limits_exhausted(
+        &self,
+        params: UIHandlePendingSessionLimitsExhaustedRequest,
+    ) -> Result<UIHandlePendingResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_UI_HANDLEPENDINGSESSIONLIMITSEXHAUSTED,
                 Some(wire_params),
             )
             .await?;
