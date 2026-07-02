@@ -23,6 +23,7 @@ import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolSet;
+import com.github.copilot.tool.Param;
 
 /**
  * Failsafe integration test for the ergonomic {@code @CopilotTool} +
@@ -62,6 +63,51 @@ class ErgonomicToolDefinitionIT {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setAvailableTools(new ToolSet().addCustom("*").addBuiltIn("web_fetch")).setTools(toolDefs))
+                    .get(30, TimeUnit.SECONDS);
+
+            try {
+                AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt(
+                        "First, set the current phase to 'analyzing'. Then search for items with keyword 'copilot'. Report the phase and search results."),
+                        60_000).get(90, TimeUnit.SECONDS);
+
+                assertNotNull(response, "Expected a response from the assistant");
+                String content = response.getData().content().toLowerCase();
+                assertTrue(content.contains("analyzing"),
+                        "Response should contain the updated phase: " + response.getData().content());
+                assertTrue(content.contains("item_alpha") || content.contains("item_beta"),
+                        "Response should contain search results: " + response.getData().content());
+                assertTrue("analyzing".equals(tools.currentPhase),
+                        "Expected currentPhase to be 'analyzing' but was: " + tools.currentPhase);
+            } finally {
+                session.close();
+            }
+        }
+    }
+
+    @Test
+    void lambdaToolDefinition() throws Exception {
+        ctx.configureForTest("tools", "ergonomic_tool_definition");
+
+        class LambdaTools {
+            String currentPhase;
+        }
+        LambdaTools tools = new LambdaTools();
+
+        ToolDefinition setCurrentPhase = ToolDefinition.from("set_current_phase", "Sets the current phase of the agent",
+                Param.of(String.class, "phase", "The phase to transition to"), phase -> {
+                    tools.currentPhase = phase;
+                    return "Phase set to " + phase;
+                });
+
+        ToolDefinition searchItems = ToolDefinition.from("search_items", "Search for items by keyword",
+                Param.of(String.class, "keyword", "Search keyword"),
+                keyword -> "Found: " + keyword + " -> item_alpha, item_beta");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setAvailableTools(new ToolSet().addCustom("*").addBuiltIn("web_fetch"))
+                            .setTools(List.of(setCurrentPhase, searchItems)))
                     .get(30, TimeUnit.SECONDS);
 
             try {
