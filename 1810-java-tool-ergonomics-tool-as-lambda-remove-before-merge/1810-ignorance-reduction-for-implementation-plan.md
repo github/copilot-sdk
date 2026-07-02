@@ -634,7 +634,7 @@ After Phase 3 is resolved, implement in this order.
 - [X] 4.3 — Implement schema and coercion internals ([#1841](https://github.com/github/copilot-sdk/issues/1841))
 - [X] 4.4 — Unit tests for API behavior and validation ([#1842](https://github.com/github/copilot-sdk/issues/1842))
 - [X] 4.5 — E2E integration test ([#1843](https://github.com/github/copilot-sdk/issues/1843))
-- [ ] 4.6 — Documentation updates ([#1844](https://github.com/github/copilot-sdk/issues/1844))
+- [X] 4.6 — Documentation updates ([#1844](https://github.com/github/copilot-sdk/issues/1844))
 
 ### 4.1 — Add public API types
 

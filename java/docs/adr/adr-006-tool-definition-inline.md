@@ -2,7 +2,7 @@
 
 ## Context and problem statement
 
-ADR-005 introduced an ergonomic Java tools API based on `@CopilotTool` and `ToolDefinition.fromObject(...)`. That model works well when teams define tools as methods on a class.
+[ADR-005](adr-005-tool-definition.md) introduced an ergonomic Java tools API based on `@CopilotTool` method annotations, `@CopilotToolParam` parameter annotations, and `ToolDefinition.fromObject(...)` for reflection-based tool registration. That model works well when teams define tools as methods on a class.
 
 The next ergonomics goal is an inline style comparable to C# `CopilotTool.DefineTool(...)`, where developers can define a tool at the call site without creating a separate tool container class.
 
@@ -45,14 +45,14 @@ Example:
 ToolDefinition setPhase = ToolDefinition.from(
         "set_current_phase",
         "Sets the current phase of the agent",
-        Params.of(ParamDef.string("phase", "The phase to transition to")),
+        Param.of(String.class, "phase", "The phase to transition to"),
         (String phase) -> {
             currentPhase = phase;
             return "Phase set to " + phase;
         });
 ```
 
-In this model, handler logic is inline, and metadata is provided explicitly through a small parameter-definition DSL.
+In this model, handler logic is inline, and metadata is provided explicitly through `Param.of(...)` parameter definitions.
 
 Advantages:
 
@@ -98,9 +98,18 @@ Non-goals for this ADR:
 
 ## Consequences
 
-If implemented, the SDK gains an explicit inline path for developers who prefer to keep tool declarations at session creation while preserving high-quality schema metadata.
+The SDK now provides an explicit inline path for developers who prefer to keep tool declarations at session creation while preserving high-quality schema metadata. Implemented API families include:
 
-The annotation-driven API from ADR-005 remains the recommended path for larger tool surfaces where co-locating metadata with method implementations improves maintainability.
+- `ToolDefinition.from(name, description, [params...], handler)` — sync handlers
+- `ToolDefinition.fromAsync(name, description, [params...], asyncHandler)` — async handlers returning `CompletableFuture<R>`
+- `ToolDefinition.fromWithToolInvocation(...)` — sync with `ToolInvocation` context injection
+- `ToolDefinition.fromAsyncWithToolInvocation(...)` — async with `ToolInvocation` context injection
+
+Parameter metadata is defined using `Param.of(type, name, description)` for required parameters and `Param.of(type, name, description, required, defaultValue)` for optional parameters with defaults.
+
+Fluent option modifiers (`.skipPermission(boolean)`, `.defer(ToolDefer)`, `.overridesBuiltInTool(boolean)`) allow post-construction customization.
+
+The annotation-driven API from [ADR-005](adr-005-tool-definition.md) remains the recommended path for larger tool surfaces where co-locating metadata with method implementations improves maintainability. For usage examples and complete API coverage, see the Java SDK README.
 
 ## Related work items
 
