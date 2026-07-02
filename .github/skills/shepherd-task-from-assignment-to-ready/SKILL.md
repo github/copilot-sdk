@@ -27,22 +27,29 @@ Automate the lifecycle of a child **Task** issue from "assigned to Copilot" thro
 
 ### Step 1: Assign the task to @Copilot
 
-First, prepend an instruction to the issue body telling Copilot which base branch to use. This must happen **before** assignment to avoid a race condition where Copilot targets `main` instead.
+Perform three actions **in order** to maximize the chance Copilot uses the correct base branch. This is critical because the issue description references plan files that only exist on `$BASE_BRANCH`, not on `main`.
 
-**Idempotency:** If the issue body already starts with `**Base branch:**`, skip the prepend (it was already done in a prior run).
+#### 1a. Prepend a prominent base-branch instruction to the issue body
+
+This must happen **before** assignment to avoid a race condition where Copilot targets `main` instead.
+
+**Idempotency:** If the issue body already starts with `> [!IMPORTANT]`, skip the prepend (it was already done in a prior run).
 
 ```bash
 # Check if already prepended (idempotency guard)
 CURRENT_BODY=$(gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body')
-if echo "$CURRENT_BODY" | head -1 | grep -q '^\*\*Base branch:\*\*'; then
+if echo "$CURRENT_BODY" | head -1 | grep -q '^\> \[!IMPORTANT\]'; then
   echo "Base branch instruction already present — skipping prepend."
 else
   # Prepend base branch instruction (use --body-file to preserve markdown formatting)
   gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' > /tmp/issue-body-$TASK_ISSUE.md
   cat > /tmp/issue-body-$TASK_ISSUE-new.md <<HEADER
-**Base branch:** Create your PR targeting \`$BASE_BRANCH\` (not \`main\`).
-
-**Requirement:** When you open the PR, the very first thing you put in the description must be \`Fixes #$TASK_ISSUE\` where the issue number is this issue for which the PR aims to implement the work.
+> [!IMPORTANT]
+> ## You MUST branch from \`$BASE_BRANCH\`
+> **Do NOT use \`main\` as your base branch.** The plan files and context referenced below exist ONLY on \`$BASE_BRANCH\`.
+> - Create your topic branch from: \`$BASE_BRANCH\`
+> - Your PR must target: \`$BASE_BRANCH\`
+> - The first line of your PR description must be: \`Fixes #$TASK_ISSUE\`
 
 --------
 
@@ -56,13 +63,16 @@ fi
 > **PowerShell equivalent** (when running on Windows):
 > ```powershell
 > $body = gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' | Out-String
-> if ($body.TrimStart().StartsWith("**Base branch:**")) {
+> if ($body.TrimStart().StartsWith("> [!IMPORTANT]")) {
 >     Write-Host "Base branch instruction already present - skipping prepend."
 > } else {
 >     $instruction = @"
-> **Base branch:** Create your PR targeting ``$BASE_BRANCH`` (not ``main``).
->
-> **Requirement:** When you open the PR, the very first thing you put in the description must be ``Fixes #$TASK_ISSUE`` where the issue number is this issue for which the PR aims to implement the work.
+> > [!IMPORTANT]
+> > ## You MUST branch from ``$BASE_BRANCH``
+> > **Do NOT use ``main`` as your base branch.** The plan files and context referenced below exist ONLY on ``$BASE_BRANCH``.
+> > - Create your topic branch from: ``$BASE_BRANCH``
+> > - Your PR must target: ``$BASE_BRANCH``
+> > - The first line of your PR description must be: ``Fixes #$TASK_ISSUE``
 >
 > --------
 >
@@ -75,22 +85,31 @@ fi
 > }
 > ```
 
-Then assign:
+#### 1b. Assign Copilot
 
 ```bash
 gh issue edit $TASK_ISSUE --add-assignee "@copilot" -R $REPO
 ```
+
+#### 1c. Post a reinforcing comment immediately after assignment
+
+This comment acts as a second signal. Copilot reads both the issue body and comments when starting work.
+
+```bash
+gh issue comment $TASK_ISSUE -R $REPO --body "@copilot IMPORTANT: You MUST create your branch from \`$BASE_BRANCH\` and target your PR at \`$BASE_BRANCH\`. Do NOT use \`main\`. The plan files referenced in this issue only exist on \`$BASE_BRANCH\`."
+```
+
+> **PowerShell equivalent:**
+> ```powershell
+> gh issue comment $TASK_ISSUE -R $REPO --body "@copilot IMPORTANT: You MUST create your branch from ``$BASE_BRANCH`` and target your PR at ``$BASE_BRANCH``. Do NOT use ``main``. The plan files referenced in this issue only exist on ``$BASE_BRANCH``."
+> ```
 
 This triggers Copilot to:
 1. Create a topic branch from `$BASE_BRANCH`.
 2. Open a draft PR targeting `$BASE_BRANCH`.
 3. Push initial commits.
 
-**Fallback:** After the PR is created (Step 2), verify it targets `$BASE_BRANCH`. If Copilot ignored the instruction, fix the base:
-
-```bash
-gh pr edit $PR_NUMBER -R $REPO --base "$BASE_BRANCH"
-```
+**Fallback (applied in Step 2 after PR is found):** Verify the PR targets `$BASE_BRANCH`. If Copilot ignored the instructions, fix the base and request a rebase — see Step 2.
 
 ### Step 2: Find the corresponding PR
 
@@ -160,13 +179,17 @@ done
 
 If no PR is found after timeout, report failure and stop.
 
-Once the PR is found, verify and fix the base branch if needed:
+Once the PR is found, verify and fix the base branch if needed. This is **critical** — if Copilot branched from `main`, its working tree won't contain the plan files referenced in the issue.
 
 ```bash
 # Check the PR targets the correct base branch
 ACTUAL_BASE=$(gh pr view $PR_NUMBER -R $REPO --json baseRefName --jq '.baseRefName')
 if [ "$ACTUAL_BASE" != "$BASE_BRANCH" ]; then
+  echo "WARNING: PR #$PR_NUMBER targets '$ACTUAL_BASE' instead of '$BASE_BRANCH'. Fixing..."
   gh pr edit $PR_NUMBER -R $REPO --base "$BASE_BRANCH"
+
+  # Tell Copilot to rebase onto the correct base so it picks up the plan files
+  gh pr review $PR_NUMBER -R $REPO --request-changes --body "@copilot CRITICAL: Your branch was created from the wrong base. You MUST rebase your branch onto \`$BASE_BRANCH\` immediately. The plan files and context referenced in issue #$TASK_ISSUE only exist on \`$BASE_BRANCH\`. Run: \`git rebase origin/$BASE_BRANCH\` and force-push. Do this BEFORE any other work."
 fi
 ```
 
