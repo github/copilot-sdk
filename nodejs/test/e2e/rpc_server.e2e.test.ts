@@ -187,6 +187,26 @@ describe("Server-scoped RPC", async () => {
         }
     });
 
+    it("should call rpc commands list with well-known session-start commands", async () => {
+        await client.start();
+        const result = await client.rpc.commands.list();
+        expect(result.commands).toBeDefined();
+        expect(result.commands.length).toBeGreaterThan(0);
+
+        const names = result.commands.map((command) => command.name);
+        // Well-known commands that work as the first message in a new session.
+        expect(names).toContain("plan");
+        expect(names).toContain("env");
+        // Commands that require an active session must not be listed.
+        expect(names).not.toContain("compact");
+        expect(names).not.toContain("usage");
+
+        for (const command of result.commands) {
+            expect(command.name).toBeTruthy();
+            expect(command.kind).toBe("builtin");
+        }
+    });
+
     it("should call rpc sessionFs setProvider with typed result", async () => {
         const fsClient = createClientWithEnv({});
         await fsClient.start();

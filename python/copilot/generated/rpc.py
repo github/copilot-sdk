@@ -26522,6 +26522,16 @@ class ServerInstructionsApi:
 
 
 # Experimental: this API group is experimental and may change or be removed.
+class ServerCommandsApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def list(self, *, timeout: float | None = None) -> CommandList:
+        "Lists the well-known built-in slash commands that work as the first message in a new session (e.g. /plan, /env), without requiring an active session. Commands that depend on session state, authentication, or a synced session are omitted.\n\nReturns:\n    Slash commands available in the session, after applying any include/exclude filters."
+        return CommandList.from_dict(await self._client.request("commands.list", {}, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
 class ServerUserSettingsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
@@ -26731,6 +26741,7 @@ class ServerRpc:
         self.skills = ServerSkillsApi(client)
         self.agents = ServerAgentsApi(client)
         self.instructions = ServerInstructionsApi(client)
+        self.commands = ServerCommandsApi(client)
         self.user = ServerUserApi(client)
         self.runtime = ServerRuntimeApi(client)
         self.session_fs = ServerSessionFsApi(client)
@@ -28991,6 +29002,7 @@ __all__ = [
     "ServerAgentList",
     "ServerAgentRegistryApi",
     "ServerAgentsApi",
+    "ServerCommandsApi",
     "ServerInstructionSourceList",
     "ServerInstructionsApi",
     "ServerLlmInferenceApi",

@@ -12782,6 +12782,29 @@ func (a *ServerAgentsAPI) GetDiscoveryPaths(ctx context.Context, params *AgentsG
 	return &result, nil
 }
 
+// Experimental: ServerCommandsAPI contains experimental APIs that may change or be removed.
+type ServerCommandsAPI serverAPI
+
+// Lists the well-known built-in slash commands that work as the first message in a new
+// session (e.g. /plan, /env), without requiring an active session. Commands that depend on
+// session state, authentication, or a synced session are omitted.
+//
+// RPC method: commands.list.
+//
+// Returns: Slash commands available in the session, after applying any include/exclude
+// filters.
+func (a *ServerCommandsAPI) List(ctx context.Context) (*CommandList, error) {
+	raw, err := a.client.Request(ctx, "commands.list", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result CommandList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerInstructionsAPI contains experimental APIs that may change or be
 // removed.
 type ServerInstructionsAPI serverAPI
@@ -14018,6 +14041,7 @@ type ServerRPC struct {
 	Account       *ServerAccountAPI
 	AgentRegistry *ServerAgentRegistryAPI
 	Agents        *ServerAgentsAPI
+	Commands      *ServerCommandsAPI
 	Instructions  *ServerInstructionsAPI
 	LlmInference  *ServerLlmInferenceAPI
 	MCP           *ServerMCPAPI
@@ -14059,6 +14083,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Account = (*ServerAccountAPI)(&r.common)
 	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
 	r.Agents = (*ServerAgentsAPI)(&r.common)
+	r.Commands = (*ServerCommandsAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)

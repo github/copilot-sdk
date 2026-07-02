@@ -43,6 +43,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `commands.*` sub-namespace.
+    pub fn commands(&self) -> ClientRpcCommands<'a> {
+        ClientRpcCommands {
+            client: self.client,
+        }
+    }
+
     /// `instructions.*` sub-namespace.
     pub fn instructions(&self) -> ClientRpcInstructions<'a> {
         ClientRpcInstructions {
@@ -452,6 +459,38 @@ impl<'a> ClientRpcAgents<'a> {
         let _value = self
             .client
             .call(rpc_methods::AGENTS_GETDISCOVERYPATHS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `commands.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcCommands<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcCommands<'a> {
+    /// Lists the well-known built-in slash commands that work as the first message in a new session (e.g. /plan, /env), without requiring an active session. Commands that depend on session state, authentication, or a synced session are omitted.
+    ///
+    /// Wire method: `commands.list`.
+    ///
+    /// # Returns
+    ///
+    /// Slash commands available in the session, after applying any include/exclude filters.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list(&self) -> Result<CommandList, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::COMMANDS_LIST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

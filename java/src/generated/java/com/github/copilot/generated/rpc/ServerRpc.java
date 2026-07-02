@@ -43,6 +43,8 @@ public final class ServerRpc {
     public final ServerAgentsApi agents;
     /** API methods for the {@code instructions} namespace. */
     public final ServerInstructionsApi instructions;
+    /** API methods for the {@code commands} namespace. */
+    public final ServerCommandsApi commands;
     /** API methods for the {@code user} namespace. */
     public final ServerUserApi user;
     /** API methods for the {@code runtime} namespace. */
@@ -72,6 +74,7 @@ public final class ServerRpc {
         this.skills = new ServerSkillsApi(caller);
         this.agents = new ServerAgentsApi(caller);
         this.instructions = new ServerInstructionsApi(caller);
+        this.commands = new ServerCommandsApi(caller);
         this.user = new ServerUserApi(caller);
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);

@@ -15629,6 +15629,16 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("instructions.getDiscoveryPaths", params),
         },
         /** @experimental */
+        commands: {
+            /**
+             * Lists the well-known built-in slash commands that work as the first message in a new session (e.g. /plan, /env), without requiring an active session. Commands that depend on session state, authentication, or a synced session are omitted.
+             *
+             * @returns Slash commands available in the session, after applying any include/exclude filters.
+             */
+            list: async (): Promise<CommandList> =>
+                connection.sendRequest("commands.list", {}),
+        },
+        /** @experimental */
         user: {
             /** @experimental */
             settings: {

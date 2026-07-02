@@ -92,6 +92,8 @@ pub mod rpc_methods {
     pub const INSTRUCTIONS_DISCOVER: &str = "instructions.discover";
     /// `instructions.getDiscoveryPaths`
     pub const INSTRUCTIONS_GETDISCOVERYPATHS: &str = "instructions.getDiscoveryPaths";
+    /// `commands.list`
+    pub const COMMANDS_LIST: &str = "commands.list";
     /// `user.settings.reload`
     pub const USER_SETTINGS_RELOAD: &str = "user.settings.reload";
     /// `user.settings.get`
@@ -15474,6 +15476,21 @@ pub struct InstructionsDiscoverResult {
 pub struct InstructionsGetDiscoveryPathsResult {
     /// Canonical instruction create/discovery files and directories, in priority order
     pub paths: Vec<InstructionDiscoveryPath>,
+}
+
+/// Slash commands available in the session, after applying any include/exclude filters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandsListResult {
+    /// Commands available in this session
+    pub commands: Vec<SlashCommandInfo>,
 }
 
 /// Result of opening a session.
