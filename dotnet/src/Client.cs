@@ -1802,7 +1802,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 _ => null,
             };
             var connectResponse = await InvokeRpcAsync<ConnectResult>(
-                connection.Rpc, "connect", [new ConnectRequest { Token = token }], connection.StderrBuffer, cancellationToken);
+                connection.Rpc,
+                "connect",
+                [new ConnectRequest
+                {
+                    Token = token,
+                    // Opt in to GitHub telemetry forwarding at the connection level when a
+                    // handler is registered (mirrors the runtime, which reads this flag on the
+                    // `connect` handshake so the first session's un-replayable `session.start`
+                    // event is forwarded). Also sent on session.create/resume for older CLIs.
+                    EnableGitHubTelemetryForwarding = _options.OnGitHubTelemetry != null ? true : null,
+                }],
+                connection.StderrBuffer,
+                cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))

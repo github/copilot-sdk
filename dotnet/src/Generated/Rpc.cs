@@ -65,6 +65,10 @@ internal sealed class ConnectResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ConnectRequest
 {
+    /// <summary>Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the <c>gitHubTelemetry.event</c> notification, in addition to the runtime's normal GitHub/CTS emission (dual-write). Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a <c>restricted</c> discriminator; a backstop drops restricted events when restricted telemetry is disabled.</summary>
+    [JsonPropertyName("enableGitHubTelemetryForwarding")]
+    public bool? EnableGitHubTelemetryForwarding { get; set; }
+
     /// <summary>Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</summary>
     [JsonPropertyName("token")]
     public string? Token { get; set; }

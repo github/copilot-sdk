@@ -3698,6 +3698,10 @@ export interface ConnectRemoteSessionParams {
 /** @internal */
 export interface ConnectRequest {
   /**
+   * Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification, in addition to the runtime's normal GitHub/CTS emission (dual-write). Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled.
+   */
+  enableGitHubTelemetryForwarding?: boolean;
+  /**
    * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
    */
   token?: string;

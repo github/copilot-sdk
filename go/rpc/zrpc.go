@@ -1345,6 +1345,8 @@ type ConnectRemoteSessionParams struct {
 // Experimental: ConnectRequest is part of an experimental API and may change or be removed.
 // Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
+	// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification, in addition to the runtime's normal GitHub/CTS emission (dual-write). Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled.
+	EnableGitHubTelemetryForwarding *bool `json:"enableGitHubTelemetryForwarding,omitempty"`
 	// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
 	Token *string `json:"token,omitempty"`
 }

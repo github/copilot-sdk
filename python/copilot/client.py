@@ -3304,7 +3304,16 @@ class CopilotClient:
         server_version: int | None
         try:
             connect_result = await _InternalServerRpc(self._client)._connect(
-                _ConnectRequest(token=self._effective_connection_token)
+                _ConnectRequest(
+                    token=self._effective_connection_token,
+                    # Opt in to GitHub telemetry forwarding at the connection level when a
+                    # handler is registered (mirrors the runtime, which reads this flag on the
+                    # `connect` handshake so the first session's un-replayable `session.start`
+                    # event is forwarded). Also sent on session.create/resume for older CLIs.
+                    enable_github_telemetry_forwarding=(
+                        True if self._on_github_telemetry is not None else None
+                    ),
+                )
             )
             server_version = connect_result.protocol_version
         except JsonRpcError as err:

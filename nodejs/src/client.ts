@@ -1847,7 +1847,16 @@ export class CopilotClient {
         let serverVersion: number | undefined;
         try {
             const result = await raceAgainstExit(
-                this.internalRpc.connect({ token: this.effectiveConnectionToken })
+                this.internalRpc.connect({
+                    token: this.effectiveConnectionToken,
+                    // Opt in to GitHub telemetry forwarding at the connection level when a
+                    // handler is registered (mirrors the runtime, which reads this flag on the
+                    // `connect` handshake so the first session's un-replayable `session.start`
+                    // event is forwarded). Also sent on session.create/resume for older CLIs.
+                    ...(this.onGitHubTelemetry != null
+                        ? { enableGitHubTelemetryForwarding: true }
+                        : {}),
+                })
             );
             serverVersion = result.protocolVersion;
         } catch (err) {

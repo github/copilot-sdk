@@ -2382,7 +2382,36 @@ class TestGitHubTelemetry:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_event_routes_to_handler(self):
+    async def test_connect_enables_forwarding_when_handler_registered(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            on_github_telemetry=lambda _notification: None,
+        )
+        captured = {}
+
+        class _FakeClient:
+            async def request(self, method, params, **kwargs):
+                captured[method] = params
+                return {"ok": True, "protocolVersion": 3, "version": "test"}
+
+        client._client = _FakeClient()
+        await client._verify_protocol_version()
+        assert captured["connect"]["enableGitHubTelemetryForwarding"] is True
+
+    @pytest.mark.asyncio
+    async def test_connect_omits_forwarding_without_handler(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        captured = {}
+
+        class _FakeClient:
+            async def request(self, method, params, **kwargs):
+                captured[method] = params
+                return {"ok": True, "protocolVersion": 3, "version": "test"}
+
+        client._client = _FakeClient()
+        await client._verify_protocol_version()
+        assert "enableGitHubTelemetryForwarding" not in captured["connect"]
+
         from copilot.generated.rpc import GitHubTelemetryNotification
 
         received: list = []

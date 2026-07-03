@@ -1229,17 +1229,29 @@ class ConnectRemoteSessionParams:
 class _ConnectRequest:
     """Optional connection token presented by the SDK client during the handshake."""
 
+    enable_github_telemetry_forwarding: bool | None = None
+    """Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the
+    runtime forwards every internal telemetry event it emits — across all sessions, plus
+    sessionless events — to this connection over the gitHubTelemetry.event notification, in
+    addition to the runtime's normal GitHub/CTS emission (dual-write). Intended for first-party
+    hosts that re-emit the events into their own telemetry stores. Both unrestricted and
+    restricted events are forwarded, each tagged with a restricted discriminator; a backstop
+    drops restricted events when restricted telemetry is disabled."""
+
     token: str | None = None
     """Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN"""
 
     @staticmethod
     def from_dict(obj: Any) -> '_ConnectRequest':
         assert isinstance(obj, dict)
+        enable_github_telemetry_forwarding = from_union([from_bool, from_none], obj.get("enableGitHubTelemetryForwarding"))
         token = from_union([from_str, from_none], obj.get("token"))
-        return _ConnectRequest(token)
+        return _ConnectRequest(enable_github_telemetry_forwarding, token)
 
     def to_dict(self) -> dict:
         result: dict = {}
+        if self.enable_github_telemetry_forwarding is not None:
+            result["enableGitHubTelemetryForwarding"] = from_union([from_bool, from_none], self.enable_github_telemetry_forwarding)
         if self.token is not None:
             result["token"] = from_union([from_str, from_none], self.token)
         return result
