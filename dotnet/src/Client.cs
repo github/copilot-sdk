@@ -1804,15 +1804,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var connectResponse = await InvokeRpcAsync<ConnectResult>(
                 connection.Rpc,
                 "connect",
-                [new ConnectRequest
-                {
-                    Token = token,
+                [new ConnectHandshakeRequest(
+                    token,
                     // Opt in to GitHub telemetry forwarding at the connection level when a
                     // handler is registered (mirrors the runtime, which reads this flag on the
                     // `connect` handshake so the first session's un-replayable `session.start`
                     // event is forwarded). Also sent on session.create/resume for older CLIs.
-                    EnableGitHubTelemetryForwarding = _options.OnGitHubTelemetry != null ? true : null,
-                }],
+                    _options.OnGitHubTelemetry != null ? true : null)],
                 connection.StderrBuffer,
                 cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
@@ -2651,6 +2649,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record GetSessionMetadataResponse(
         SessionMetadata? Session);
 
+    internal record ConnectHandshakeRequest(
+        string? Token,
+        [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null);
+
     internal record SetForegroundSessionRequest(
         string SessionId);
 
@@ -2685,6 +2687,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ListSessionsResponse))]
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
+    [JsonSerializable(typeof(ConnectHandshakeRequest))]
     [JsonSerializable(typeof(McpOAuthTokenStorageMode))]
     [JsonSerializable(typeof(EmbeddingCacheStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]

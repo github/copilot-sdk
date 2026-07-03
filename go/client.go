@@ -1685,7 +1685,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		t := c.effectiveConnectionToken
 		tokenPtr = &t
 	}
-	connectReq := &rpc.ConnectRequest{Token: tokenPtr}
+	connectReq := &connectHandshakeRequest{Token: tokenPtr}
 	// Opt in to GitHub telemetry forwarding at the connection level when a handler is
 	// registered (mirrors the runtime, which reads this flag on the `connect` handshake
 	// so the first session's un-replayable `session.start` event is forwarded). Also
@@ -1693,7 +1693,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	if c.options.OnGitHubTelemetry != nil {
 		connectReq.EnableGitHubTelemetryForwarding = Bool(true)
 	}
-	connectResult, err := c.internalRPC.Connect(ctx, connectReq)
+	rawConnectResult, err := c.client.Request(ctx, "connect", connectReq)
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
 		if errors.As(err, &rpcErr) && (rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code || rpcErr.Message == "Unhandled method connect") {
@@ -1708,6 +1708,10 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 			return err
 		}
 	} else {
+		var connectResult rpc.ConnectResult
+		if err := json.Unmarshal(rawConnectResult, &connectResult); err != nil {
+			return err
+		}
 		v := int(connectResult.ProtocolVersion)
 		serverVersion = &v
 	}
@@ -1722,6 +1726,11 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 
 	c.negotiatedProtocolVersion = *serverVersion
 	return nil
+}
+
+type connectHandshakeRequest struct {
+	Token                           *string `json:"token,omitempty"`
+	EnableGitHubTelemetryForwarding *bool   `json:"enableGitHubTelemetryForwarding,omitempty"`
 }
 
 // stderrBufferSize is the maximum number of bytes kept from the CLI process's
