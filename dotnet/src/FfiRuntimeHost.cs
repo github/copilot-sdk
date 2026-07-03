@@ -191,7 +191,14 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         return stream.ToArray();
     }
 
-    private bool SendFrame(byte[] frame)
+    /// <summary>
+    /// Writes one framed message to the native connection. The bytes are read
+    /// synchronously by the native side (it copies before returning), so the
+    /// span does not need to outlive the call — no allocation or copy on our side.
+    /// </summary>
+    private delegate bool FrameWriter(ReadOnlySpan<byte> frame);
+
+    private bool SendFrame(ReadOnlySpan<byte> frame)
     {
         if (_disposed || _connectionId == 0)
         {
@@ -308,7 +315,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private static bool NativeHostShutdown(uint serverId) => HostShutdown(serverId);
 
-    private static bool NativeConnectionWrite(uint connectionId, byte[] frame) => ConnectionWrite(connectionId, frame, Len(frame.Length));
+    private static bool NativeConnectionWrite(uint connectionId, ReadOnlySpan<byte> frame) => ConnectionWrite(connectionId, frame, Len(frame.Length));
 
     private static bool NativeConnectionClose(uint connectionId) => ConnectionClose(connectionId);
 
@@ -357,7 +364,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_write")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     [return: MarshalAs(UnmanagedType.U1)]
-    private static partial bool ConnectionWrite(uint connectionId, byte[] bytes, nuint bytesLen);
+    private static partial bool ConnectionWrite(uint connectionId, ReadOnlySpan<byte> bytes, nuint bytesLen);
 
     [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_close")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -390,7 +397,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.U1)]
-    private delegate bool ConnectionWriteDelegate(uint connectionId, byte[] bytes, UIntPtr bytesLen);
+    private delegate bool ConnectionWriteDelegate(uint connectionId, IntPtr bytes, UIntPtr bytesLen);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.U1)]
@@ -462,7 +469,13 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private static bool NativeHostShutdown(uint serverId) => s_hostShutdown!(serverId);
 
-    private static bool NativeConnectionWrite(uint connectionId, byte[] frame) => s_connectionWrite!(connectionId, frame, Len(frame.Length));
+    private static unsafe bool NativeConnectionWrite(uint connectionId, ReadOnlySpan<byte> frame)
+    {
+        fixed (byte* ptr = frame)
+        {
+            return s_connectionWrite!(connectionId, (IntPtr)ptr, Len(frame.Length));
+        }
+    }
 
     private static bool NativeConnectionClose(uint connectionId) => s_connectionClose!(connectionId);
 
@@ -600,26 +613,23 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     /// A write-only stream that forwards each frame to the native
     /// <c>connection_write</c> export.
     /// </summary>
-    private sealed class CallbackSendStream(Func<byte[], bool> write) : Stream
+    private sealed class CallbackSendStream(FrameWriter write) : Stream
     {
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            var frame = new byte[count];
-            Array.Copy(buffer, offset, frame, 0, count);
-            write(frame);
-        }
+        public override void Write(byte[] buffer, int offset, int count) => write(buffer.AsSpan(offset, count));
 
 #if !NETSTANDARD2_0
+        public override void Write(ReadOnlySpan<byte> buffer) => write(buffer);
+
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            write(buffer.ToArray());
+            write(buffer.Span);
             return ValueTask.CompletedTask;
         }
 #endif
 
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            Write(buffer, offset, count);
+            write(buffer.AsSpan(offset, count));
             return Task.CompletedTask;
         }
 
