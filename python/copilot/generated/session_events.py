@@ -290,16 +290,25 @@ class Data:
 
     def __init__(self, **kwargs: Any):
         self._values = {key: _compat_from_json_value(value) for key, value in kwargs.items()}
+        self._json_keys: dict[str, str] = {}
         for key, value in self._values.items():
             setattr(self, key, value)
 
     @staticmethod
     def from_dict(obj: Any) -> "Data":
         assert isinstance(obj, dict)
-        return Data(**{_compat_to_python_key(key): _compat_from_json_value(value) for key, value in obj.items()})
+        data = Data()
+        data._values = {}
+        data._json_keys = {}
+        for key, value in obj.items():
+            py_key = _compat_to_python_key(key)
+            data._values[py_key] = _compat_from_json_value(value)
+            data._json_keys[py_key] = key
+            setattr(data, py_key, data._values[py_key])
+        return data
 
     def to_dict(self) -> dict:
-        return {_compat_to_json_key(key): _compat_to_json_value(value) for key, value in self._values.items() if value is not None}
+        return {(self._json_keys.get(key) or _compat_to_json_key(key)): _compat_to_json_value(value) for key, value in self._values.items() if value is not None}
 
 
 # Experimental: this type is part of an experimental API and may change or be removed.
