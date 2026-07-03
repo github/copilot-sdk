@@ -80,9 +80,10 @@ public sealed class GitHubTelemetryTests
         await client.StartAsync();
 
         var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
-        var optedIn = connectParams.TryGetProperty("enableGitHubTelemetryForwarding", out var flag)
-            && flag.ValueKind == JsonValueKind.True;
-        Assert.False(optedIn);
+        var present = connectParams.TryGetProperty("enableGitHubTelemetryForwarding", out var flag);
+        Assert.True(
+            !present || flag.ValueKind == JsonValueKind.Null,
+            "connect request should omit enableGitHubTelemetryForwarding (or send null) when no handler is registered");
     }
 
     [Fact]

@@ -2412,6 +2412,8 @@ class TestGitHubTelemetry:
         await client._verify_protocol_version()
         assert "enableGitHubTelemetryForwarding" not in captured["connect"]
 
+    @pytest.mark.asyncio
+    async def test_event_routes_to_handler(self):
         from copilot.generated.rpc import GitHubTelemetryNotification
 
         received: list = []
