@@ -71,24 +71,44 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     /// Loads the cdylib next to the given CLI entrypoint and prepares the FFI host.
     /// The entrypoint is either the packaged single-file CLI binary (e.g.
     /// <c>runtimes/&lt;rid&gt;/native/copilot</c>) or, for dev, a <c>.js</c> file (e.g.
-    /// <c>dist-cli/index.js</c>) launched via <c>node</c>. Either way the sibling
-    /// <c>prebuilds/&lt;rid&gt;/runtime.node</c> cdylib is resolved relative to it.
+    /// <c>dist-cli/index.js</c>) launched via <c>node</c>. The cdylib is resolved
+    /// relative to the entrypoint directory, preferring the flat, natural
+    /// shared-library name the .NET build emits (e.g. <c>libcopilot_runtime.so</c>)
+    /// and falling back to the dev tarball layout
+    /// <c>prebuilds/&lt;prebuildsFolder&gt;/runtime.node</c>, where
+    /// <paramref name="prebuildsFolder"/> is the napi-rs
+    /// <c>&lt;node-platform&gt;-&lt;arch&gt;</c> folder name (e.g. <c>win32-x64</c>).
     /// </summary>
-    public static FfiRuntimeHost Create(string cliEntrypoint, string portableRid, IReadOnlyDictionary<string, string>? environment, ILogger logger)
+    public static FfiRuntimeHost Create(string cliEntrypoint, string prebuildsFolder, IReadOnlyDictionary<string, string>? environment, ILogger logger)
     {
         var fullEntrypoint = Path.GetFullPath(cliEntrypoint);
         var distDir = Path.GetDirectoryName(fullEntrypoint)
             ?? throw new InvalidOperationException($"Could not determine directory for '{cliEntrypoint}'.");
-        var prebuildsDir = Path.Combine(distDir, "prebuilds", portableRid);
-        var libraryPath = Path.Combine(prebuildsDir, "runtime.node");
 
-        if (!File.Exists(libraryPath))
-        {
-            throw new InvalidOperationException($"FFI runtime library not found at '{libraryPath}'.");
-        }
+        // Bundled .NET layout: flat, natural shared-library name next to the CLI.
+        var flatLibraryPath = Path.Combine(distDir, GetRuntimeLibraryFileName());
+        // Dev/tarball layout: dist-cli/prebuilds/<node-platform>-<arch>/runtime.node.
+        var prebuildsLibraryPath = Path.Combine(distDir, "prebuilds", prebuildsFolder, "runtime.node");
+
+        var libraryPath = File.Exists(flatLibraryPath) ? flatLibraryPath
+            : File.Exists(prebuildsLibraryPath) ? prebuildsLibraryPath
+            : throw new InvalidOperationException(
+                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
 
         PrepareNativeLibrary(libraryPath);
         return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment, logger);
+    }
+
+    /// <summary>
+    /// The natural platform shared-library file name for the runtime cdylib, as
+    /// emitted by the .NET build (the .node file renamed to what the Rust cdylib
+    /// would be called on this OS).
+    /// </summary>
+    private static string GetRuntimeLibraryFileName()
+    {
+        if (OperatingSystem.IsWindows()) return "copilot_runtime.dll";
+        if (OperatingSystem.IsMacOS()) return "libcopilot_runtime.dylib";
+        return "libcopilot_runtime.so";
     }
 
     /// <summary>

@@ -291,7 +291,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 {
                     // In-process FFI hosting: load the Rust cdylib and let it spawn
                     // the CLI worker, instead of the SDK launching a CLI child process.
-                    var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetPortableRidOrThrow(), _options.Environment, _logger);
+                    var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetNapiPrebuildsFolderOrThrow(), _options.Environment, _logger);
                     _ffiHost = ffiHost;
                     await ffiHost.StartAsync(ct);
                     connection = await ConnectToServerAsync(null, null, null, null, ct, ffiHost);
@@ -2161,9 +2161,34 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 + $"environment variable, or ensure the bundled CLI is present (looked in '{searchedPath}').");
     }
 
-    private static string GetPortableRidOrThrow() =>
-        GetPortableRid()
-        ?? throw new InvalidOperationException("Could not determine a portable runtime identifier for FFI hosting.");
+    /// <summary>
+    /// Returns the napi-rs prebuilds folder name for the current host — the
+    /// <c>&lt;node-platform&gt;-&lt;arch&gt;</c> convention (e.g. <c>win32-x64</c>,
+    /// <c>darwin-arm64</c>, <c>linux-x64</c>) under which the runtime ships
+    /// <c>prebuilds/&lt;folder&gt;/runtime.node</c>. This differs from the .NET RID
+    /// (<c>win-x64</c>/<c>osx-x64</c>) for Windows and macOS.
+    /// </summary>
+    private static string? GetNapiPrebuildsFolder()
+    {
+        string platform;
+        if (OperatingSystem.IsWindows()) platform = "win32";
+        else if (OperatingSystem.IsLinux()) platform = "linux";
+        else if (OperatingSystem.IsMacOS()) platform = "darwin";
+        else return null;
+
+        var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+        {
+            System.Runtime.InteropServices.Architecture.X64 => "x64",
+            System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+            _ => null,
+        };
+
+        return arch != null ? $"{platform}-{arch}" : null;
+    }
+
+    private static string GetNapiPrebuildsFolderOrThrow() =>
+        GetNapiPrebuildsFolder()
+        ?? throw new InvalidOperationException("Could not determine a napi-rs prebuilds folder for FFI hosting.");
 
     private static (string FileName, IEnumerable<string> Args) ResolveCliCommand(string cliPath, IEnumerable<string> args)
     {
