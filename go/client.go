@@ -1685,7 +1685,15 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		t := c.effectiveConnectionToken
 		tokenPtr = &t
 	}
-	connectResult, err := c.internalRPC.Connect(ctx, &rpc.ConnectRequest{Token: tokenPtr})
+	connectReq := &rpc.ConnectRequest{Token: tokenPtr}
+	// Opt in to GitHub telemetry forwarding at the connection level when a handler is
+	// registered (mirrors the runtime, which reads this flag on the `connect` handshake
+	// so the first session's un-replayable `session.start` event is forwarded). Also
+	// sent on session.create/resume for older CLIs.
+	if c.options.OnGitHubTelemetry != nil {
+		connectReq.EnableGitHubTelemetryForwarding = Bool(true)
+	}
+	connectResult, err := c.internalRPC.Connect(ctx, connectReq)
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
 		if errors.As(err, &rpcErr) && (rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code || rpcErr.Message == "Unhandled method connect") {

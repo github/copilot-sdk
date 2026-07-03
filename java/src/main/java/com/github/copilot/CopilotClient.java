@@ -26,7 +26,7 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
-import com.github.copilot.generated.rpc.ConnectParams;
+import com.github.copilot.generated.rpc.ConnectResult;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
@@ -306,11 +306,20 @@ public final class CopilotClient implements AutoCloseable {
         Integer serverVersion;
 
         try {
-            // Try the new 'connect' RPC which supports connection tokens
-            var connectParams = new ConnectParams(effectiveConnectionToken);
-            var connectResponse = connection.rpc
-                    .invoke("connect", connectParams, com.github.copilot.generated.rpc.ConnectResult.class)
-                    .get(30, TimeUnit.SECONDS);
+            // Try the new 'connect' RPC which supports connection tokens.
+            var connectParams = new HashMap<String, Object>();
+            if (effectiveConnectionToken != null) {
+                connectParams.put("token", effectiveConnectionToken);
+            }
+            // Opt into GitHub telemetry forwarding at the connection level when a handler
+            // is registered, so the runtime can forward the first session's un-replayable
+            // start event. Also sent on session create/resume for backward compatibility
+            // with servers that read the flag there instead.
+            if (this.options.getOnGitHubTelemetry() != null) {
+                connectParams.put("enableGitHubTelemetryForwarding", true);
+            }
+            var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
+                    TimeUnit.SECONDS);
             serverVersion = connectResponse.protocolVersion() != null
                     ? connectResponse.protocolVersion().intValue()
                     : null;

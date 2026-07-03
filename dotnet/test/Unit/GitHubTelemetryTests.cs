@@ -54,6 +54,38 @@ public sealed class GitHubTelemetryTests
     }
 
     [Fact]
+    public async Task Connect_Opts_Into_Forwarding_When_Handler_Provided()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            OnGitHubTelemetry = _ => Task.CompletedTask,
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.True(connectParams.TryGetProperty("enableGitHubTelemetryForwarding", out var flag));
+        Assert.True(flag.GetBoolean());
+    }
+
+    [Fact]
+    public async Task Connect_Does_Not_Opt_In_Without_Handler()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        var optedIn = connectParams.TryGetProperty("enableGitHubTelemetryForwarding", out var flag)
+            && flag.ValueKind == JsonValueKind.True;
+        Assert.False(optedIn);
+    }
+
+    [Fact]
     public async Task CreateSession_Does_Not_Opt_In_Without_Handler()
     {
         await using var server = await FakeTelemetryServer.StartAsync();
@@ -187,6 +219,8 @@ public sealed class GitHubTelemetryTests
 
         public JsonElement? LastResumeParams { get; private set; }
 
+        public JsonElement? LastConnectParams { get; private set; }
+
         public static Task<FakeTelemetryServer> StartAsync()
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -267,12 +301,7 @@ public sealed class GitHubTelemetryTests
 
             object? result = method switch
             {
-                "connect" => new Dictionary<string, object?>
-                {
-                    ["ok"] = true,
-                    ["protocolVersion"] = 3,
-                    ["version"] = "test",
-                },
+                "connect" => CaptureConnect(request),
                 "session.create" => CaptureCreate(request),
                 "session.resume" => CaptureResume(request),
                 "session.send" => new Dictionary<string, object?> { ["messageId"] = "message-1" },
@@ -287,6 +316,17 @@ public sealed class GitHubTelemetryTests
                 ["id"] = id,
                 ["result"] = result,
             }, cancellationToken);
+        }
+
+        private Dictionary<string, object?> CaptureConnect(JsonElement request)
+        {
+            LastConnectParams = request.TryGetProperty("params", out var p) ? p.Clone() : null;
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = true,
+                ["protocolVersion"] = 3,
+                ["version"] = "test",
+            };
         }
 
         private Dictionary<string, object?> CaptureCreate(JsonElement request)

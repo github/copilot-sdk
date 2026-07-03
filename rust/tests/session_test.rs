@@ -912,6 +912,59 @@ async fn resume_session_omits_github_telemetry_forwarding_without_callback() {
 }
 
 #[tokio::test]
+async fn connect_sends_github_telemetry_forwarding_when_callback_registered() {
+    let callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback =
+        Arc::new(|_notification| {});
+    let (client, mut server_read, mut server_write) = make_client_with_telemetry(callback);
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await.unwrap() }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "connect");
+    assert_eq!(request["params"]["enableGitHubTelemetryForwarding"], true);
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "ok": true, "protocolVersion": 3, "version": "test" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connect_omits_github_telemetry_forwarding_without_callback() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await.unwrap() }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "connect");
+    assert!(
+        request["params"]
+            .get("enableGitHubTelemetryForwarding")
+            .is_none_or(Value::is_null),
+        "forwarding flag should be omitted when no callback is registered"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "ok": true, "protocolVersion": 3, "version": "test" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn github_telemetry_event_dispatches_to_callback() {
     use github_copilot_sdk::github_telemetry::GitHubTelemetryNotification;
 
