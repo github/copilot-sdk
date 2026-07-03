@@ -1,0 +1,21 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call get_status and tell me the result.
+      - role: assistant
+        content: I'll call get_status now.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: get_status
+              arguments: '{}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "Status: OK"
+      - role: assistant
+        content: "The status is: OK"

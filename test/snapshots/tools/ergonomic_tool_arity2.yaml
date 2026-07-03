@@ -1,0 +1,21 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call combine_values with 'alpha' and 'beta', then report the combined result.
+      - role: assistant
+        content: I'll call combine_values with those arguments.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: combine_values
+              arguments: '{"value1":"alpha","value2":"beta"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "combined: alpha + beta"
+      - role: assistant
+        content: "The combined result is: alpha + beta"
