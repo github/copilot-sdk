@@ -70,8 +70,7 @@ from .generated.rpc import (
     OpenCanvasInstance,
     RemoteSessionMode,
     ServerRpc,
-    _ConnectRequest,
-    _InternalServerRpc,
+    _ConnectResult,
     from_datetime,
     register_client_global_api_handlers,
     register_client_session_api_handlers,
@@ -3303,17 +3302,17 @@ class CopilotClient:
 
         server_version: int | None
         try:
-            connect_result = await _InternalServerRpc(self._client)._connect(
-                _ConnectRequest(
-                    token=self._effective_connection_token,
-                    # Opt in to GitHub telemetry forwarding at the connection level when a
-                    # handler is registered (mirrors the runtime, which reads this flag on the
-                    # `connect` handshake so the first session's un-replayable `session.start`
-                    # event is forwarded). Also sent on session.create/resume for older CLIs.
-                    enable_github_telemetry_forwarding=(
-                        True if self._on_github_telemetry is not None else None
-                    ),
-                )
+            connect_params: dict[str, Any] = {}
+            if self._effective_connection_token is not None:
+                connect_params["token"] = self._effective_connection_token
+            # Opt in to GitHub telemetry forwarding at the connection level when a
+            # handler is registered (mirrors the runtime, which reads this flag on the
+            # `connect` handshake so the first session's un-replayable `session.start`
+            # event is forwarded). Also sent on session.create/resume for older CLIs.
+            if self._on_github_telemetry is not None:
+                connect_params["enableGitHubTelemetryForwarding"] = True
+            connect_result = _ConnectResult.from_dict(
+                await self._client.request("connect", connect_params)
             )
             server_version = connect_result.protocol_version
         except JsonRpcError as err:
