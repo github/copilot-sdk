@@ -145,6 +145,18 @@ public abstract class RuntimeConnection
     /// <param name="connectionToken">Optional shared secret to authenticate the connection.</param>
     public static UriRuntimeConnection ForUri(string url, string? connectionToken = null)
         => new() { Url = url, ConnectionToken = connectionToken };
+
+    /// <summary>
+    /// Host the runtime in-process by loading its native library and communicating
+    /// over the C ABI (FFI) — no child process is spawned by the SDK for JSON-RPC
+    /// transport. The bundled runtime is used; to point at a non-default runtime
+    /// entrypoint, set the <c>COPILOT_CLI_PATH</c> environment variable.
+    /// </summary>
+    /// <remarks>
+    /// Only supported on .NET 8.0 or later (requires <c>NativeLibrary</c>).
+    /// </remarks>
+    public static InProcessRuntimeConnection ForInProcess()
+        => new();
 }
 
 /// <summary>
@@ -168,6 +180,17 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
 public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
 {
     internal StdioRuntimeConnection() { }
+}
+
+/// <summary>
+/// Hosts the runtime in-process by loading its native library and communicating
+/// over the C ABI (FFI). Construct via <see cref="RuntimeConnection.ForInProcess()"/>.
+/// Only supported on .NET 8.0 or later. To point at a non-default runtime entrypoint,
+/// set the <c>COPILOT_CLI_PATH</c> environment variable.
+/// </summary>
+public sealed class InProcessRuntimeConnection : RuntimeConnection
+{
+    internal InProcessRuntimeConnection() { }
 }
 
 /// <summary>

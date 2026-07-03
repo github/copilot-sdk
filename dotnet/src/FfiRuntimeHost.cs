@@ -1,0 +1,626 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+using Microsoft.Extensions.Logging;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Channels;
+
+namespace GitHub.Copilot;
+
+/// <summary>
+/// Hosts the Copilot runtime in-process by loading the Rust cdylib (<c>runtime.node</c>)
+/// and speaking JSON-RPC over its C ABI (FFI) instead of spawning a CLI child process
+/// and communicating over stdio/TCP.
+/// </summary>
+/// <remarks>
+/// The Rust <c>host_start</c> export spawns the residual Node/TypeScript worker itself
+/// (identically to <c>copilot-runtime-bin</c>), so the .NET host never launches Node
+/// directly. JSON-RPC frames are pumped across the ABI: writes go to
+/// <c>connection_write</c>; inbound frames arrive on a native callback that feeds
+/// <see cref="ReceiveStream"/>.
+/// <para>
+/// The native interop layer has two implementations selected by target framework. On
+/// modern .NET it uses source-generated <c>LibraryImport</c> P/Invoke with an
+/// <c>UnmanagedCallersOnly</c> function-pointer callback, which is trim- and
+/// NativeAOT-compatible. On <c>netstandard2.0</c> (which has neither <c>LibraryImport</c>
+/// nor <c>NativeLibrary</c>) it falls back to classic delegate-based P/Invoke over a
+/// hand-rolled <c>dlopen</c>/<c>LoadLibrary</c> loader. Because the library lives at a
+/// runtime-resolved absolute path, the modern path maps the logical
+/// <see cref="LibraryName"/> via a resolver and the legacy path loads the absolute path
+/// directly.
+/// </para>
+/// </remarks>
+internal sealed partial class FfiRuntimeHost : IDisposable
+{
+    /// <summary>Logical name the native interop layer binds the cdylib to.</summary>
+    private const string LibraryName = "copilot_runtime";
+
+    private readonly ILogger _logger;
+    private readonly string _cliJsPath;
+    private readonly string _libraryPath;
+    private readonly string _providerPath;
+    private readonly IReadOnlyDictionary<string, string>? _environment;
+
+    private readonly CallbackReceiveStream _receiveStream = new();
+    private CallbackSendStream? _sendStream;
+
+    private uint _serverId;
+    private uint _connectionId;
+    private bool _disposed;
+
+    private FfiRuntimeHost(string libraryPath, string cliJsPath, string providerPath, IReadOnlyDictionary<string, string>? environment, ILogger logger)
+    {
+        _libraryPath = libraryPath;
+        _cliJsPath = cliJsPath;
+        _providerPath = providerPath;
+        _environment = environment;
+        _logger = logger;
+    }
+
+    /// <summary>The stream JSON-RPC reads server→client frames from.</summary>
+    public Stream ReceiveStream => _receiveStream;
+
+    /// <summary>The stream JSON-RPC writes client→server frames to.</summary>
+    public Stream SendStream => _sendStream
+        ?? throw new InvalidOperationException("FfiRuntimeHost has not been started.");
+
+    /// <summary>
+    /// Loads the cdylib next to the given CLI JavaScript entrypoint and prepares the
+    /// FFI host. The entrypoint must be a <c>.js</c> file (e.g. <c>dist-cli/index.js</c>)
+    /// so that the sibling <c>prebuilds/&lt;rid&gt;/runtime.node</c> and
+    /// <c>copilot-runtime-bin</c> can be resolved.
+    /// </summary>
+    public static FfiRuntimeHost Create(string cliJsPath, string portableRid, IReadOnlyDictionary<string, string>? environment, ILogger logger)
+    {
+        if (!cliJsPath.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"In-process FFI hosting requires a JavaScript entrypoint (e.g. dist-cli/index.js), but got '{cliJsPath}'.");
+        }
+
+        var distDir = Path.GetDirectoryName(Path.GetFullPath(cliJsPath))
+            ?? throw new InvalidOperationException($"Could not determine directory for '{cliJsPath}'.");
+        var prebuildsDir = Path.Combine(distDir, "prebuilds", portableRid);
+        var libraryPath = Path.Combine(prebuildsDir, "runtime.node");
+        var providerName = OperatingSystem.IsWindows() ? "copilot-runtime-bin.exe" : "copilot-runtime-bin";
+        var providerPath = Path.Combine(prebuildsDir, providerName);
+
+        if (!File.Exists(libraryPath))
+        {
+            throw new InvalidOperationException($"FFI runtime library not found at '{libraryPath}'.");
+        }
+        if (!File.Exists(providerPath))
+        {
+            throw new InvalidOperationException($"FFI runtime provider not found at '{providerPath}'.");
+        }
+
+        PrepareNativeLibrary(libraryPath);
+        return new FfiRuntimeHost(libraryPath, Path.GetFullPath(cliJsPath), providerPath, environment, logger);
+    }
+
+    /// <summary>
+    /// Starts the in-process runtime: spawns the Node worker via the Rust host,
+    /// waits for readiness, and opens the FFI JSON-RPC connection.
+    /// </summary>
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        // host_start blocks until the Node worker connects back and signals readiness
+        // (up to ~30s), and connection_open must run outside any async runtime, so
+        // perform the blocking FFI handshake on a background thread.
+        await Task.Run(() =>
+        {
+            var argvJson = BuildArgvJson(_cliJsPath);
+            var providerBytes = Encoding.UTF8.GetBytes(_providerPath);
+            var envJson = BuildEnvJson(_environment);
+
+            _serverId = NativeHostStart(argvJson, providerBytes, envJson);
+            if (_serverId == 0)
+            {
+                throw new InvalidOperationException(
+                    $"copilot_runtime_host_start failed (library '{_libraryPath}', provider '{_providerPath}').");
+            }
+
+            _connectionId = NativeOpenConnection(_serverId);
+            if (_connectionId == 0)
+            {
+                DisposeNativeCallback();
+                NativeHostShutdown(_serverId);
+                _serverId = 0;
+                throw new InvalidOperationException("copilot_runtime_connection_open failed.");
+            }
+
+            _sendStream = new CallbackSendStream(SendFrame);
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "FfiRuntimeHost started. Library={Library}, ServerId={ServerId}, ConnectionId={ConnectionId}",
+                _libraryPath, _serverId, _connectionId);
+        }
+    }
+
+    private static byte[] BuildArgvJson(string cliJsPath)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartArray();
+            writer.WriteStringValue("node");
+            writer.WriteStringValue(cliJsPath);
+            writer.WriteStringValue("--embedded-host");
+            writer.WriteEndArray();
+        }
+        return stream.ToArray();
+    }
+
+    private static byte[]? BuildEnvJson(IReadOnlyDictionary<string, string>? environment)
+    {
+        if (environment is null || environment.Count == 0)
+        {
+            return null;
+        }
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            foreach (var kvp in environment)
+            {
+                writer.WriteString(kvp.Key, kvp.Value);
+            }
+            writer.WriteEndObject();
+        }
+        return stream.ToArray();
+    }
+
+    private bool SendFrame(byte[] frame)
+    {
+        if (_disposed || _connectionId == 0)
+        {
+            return false;
+        }
+        return NativeConnectionWrite(_connectionId, frame);
+    }
+
+    private void FeedInbound(IntPtr bytesPtr, UIntPtr bytesLen)
+    {
+        var length = checked((int)bytesLen.ToUInt64());
+        var buffer = new byte[length];
+        Marshal.Copy(bytesPtr, buffer, 0, length);
+        _receiveStream.Feed(buffer);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+
+        try
+        {
+            if (_connectionId != 0)
+            {
+                NativeConnectionClose(_connectionId);
+                _connectionId = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
+        }
+
+        try
+        {
+            if (_serverId != 0)
+            {
+                NativeHostShutdown(_serverId);
+                _serverId = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
+        }
+
+        _receiveStream.Complete();
+        DisposeNativeCallback();
+    }
+
+    /// <summary>Length as the native pointer-sized unsigned integer the ABI expects.</summary>
+    private static UIntPtr Len(int value) => new((uint)value);
+
+#if NET
+    // ---- Modern interop: source-generated LibraryImport P/Invoke (trim/AOT-safe) ----
+
+    private static readonly object ResolverLock = new();
+    private static bool s_resolverRegistered;
+    private static string? s_resolvedLibraryPath;
+
+    // A normal (non-pinned) handle to this instance, passed to the native side as
+    // the callback's user_data so the static outbound callback can route back here.
+    private GCHandle _selfHandle;
+
+    /// <summary>
+    /// Registers (once) a process-wide <see cref="NativeLibrary.SetDllImportResolver"/>
+    /// that maps <see cref="LibraryName"/> to the absolute <c>runtime.node</c> path so the
+    /// <see cref="LibraryImportAttribute"/> stubs resolve. The resolved handle is cached by
+    /// the runtime after first use, so all in-process hosts share a single loaded library.
+    /// </summary>
+    private static void PrepareNativeLibrary(string libraryPath)
+    {
+        lock (ResolverLock)
+        {
+            s_resolvedLibraryPath = libraryPath;
+            if (!s_resolverRegistered)
+            {
+                NativeLibrary.SetDllImportResolver(typeof(FfiRuntimeHost).Assembly, Resolve);
+                s_resolverRegistered = true;
+            }
+        }
+    }
+
+    private static IntPtr Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+    {
+        if (libraryName == LibraryName && s_resolvedLibraryPath is not null)
+        {
+            return NativeLibrary.Load(s_resolvedLibraryPath);
+        }
+        return IntPtr.Zero;
+    }
+
+    private static uint NativeHostStart(byte[] argvJson, byte[] provider, byte[]? env) =>
+        HostStart(argvJson, Len(argvJson.Length), provider, Len(provider.Length), env, env is null ? UIntPtr.Zero : Len(env.Length));
+
+    private uint NativeOpenConnection(uint serverId)
+    {
+        _selfHandle = GCHandle.Alloc(this);
+        unsafe
+        {
+            return ConnectionOpen(
+                serverId,
+                &OnOutboundStatic,
+                GCHandle.ToIntPtr(_selfHandle),
+                null, UIntPtr.Zero,
+                null, UIntPtr.Zero,
+                null, UIntPtr.Zero);
+        }
+    }
+
+    private static bool NativeHostShutdown(uint serverId) => HostShutdown(serverId);
+
+    private static bool NativeConnectionWrite(uint connectionId, byte[] frame) => ConnectionWrite(connectionId, frame, Len(frame.Length));
+
+    private static bool NativeConnectionClose(uint connectionId) => ConnectionClose(connectionId);
+
+    private void DisposeNativeCallback()
+    {
+        if (_selfHandle.IsAllocated)
+        {
+            _selfHandle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    private static void OnOutboundStatic(IntPtr userData, IntPtr bytesPtr, nuint bytesLen)
+    {
+        if (userData == IntPtr.Zero || bytesPtr == IntPtr.Zero || bytesLen == 0)
+        {
+            return;
+        }
+        if (GCHandle.FromIntPtr(userData).Target is FfiRuntimeHost self)
+        {
+            self.FeedInbound(bytesPtr, bytesLen);
+        }
+    }
+
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_host_start")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    private static partial uint HostStart(
+        byte[] argvJson, nuint argvJsonLen,
+        byte[] provider, nuint providerLen,
+        byte[]? env, nuint envLen);
+
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_host_shutdown")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool HostShutdown(uint serverId);
+
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_open")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    private static unsafe partial uint ConnectionOpen(
+        uint serverId,
+        delegate* unmanaged[Cdecl]<IntPtr, IntPtr, nuint, void> onOutbound,
+        IntPtr userData,
+        byte[]? extSource, nuint extSourceLen,
+        byte[]? extName, nuint extNameLen,
+        byte[]? connToken, nuint connTokenLen);
+
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_write")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool ConnectionWrite(uint connectionId, byte[] bytes, nuint bytesLen);
+
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_close")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool ConnectionClose(uint connectionId);
+#else
+    // ---- Legacy interop: delegate-based P/Invoke for netstandard2.0 ----
+    // netstandard2.0 has neither LibraryImport, NativeLibrary, nor UnmanagedCallersOnly,
+    // so the cdylib is loaded through a hand-rolled dlopen/LoadLibrary shim and each
+    // export is bound to a [UnmanagedFunctionPointer] delegate. The outbound callback is
+    // an instance delegate kept alive in a field for the connection's lifetime.
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate uint HostStartDelegate(
+        byte[] argvJson, UIntPtr argvJsonLen,
+        byte[] provider, UIntPtr providerLen,
+        byte[]? env, UIntPtr envLen);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private delegate bool HostShutdownDelegate(uint serverId);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate uint ConnectionOpenDelegate(
+        uint serverId,
+        OutboundCallbackDelegate onOutbound,
+        IntPtr userData,
+        byte[]? extSource, UIntPtr extSourceLen,
+        byte[]? extName, UIntPtr extNameLen,
+        byte[]? connToken, UIntPtr connTokenLen);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private delegate bool ConnectionWriteDelegate(uint connectionId, byte[] bytes, UIntPtr bytesLen);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private delegate bool ConnectionCloseDelegate(uint connectionId);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void OutboundCallbackDelegate(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen);
+
+    private static readonly object NativeLock = new();
+    private static bool s_loaded;
+    private static HostStartDelegate? s_hostStart;
+    private static HostShutdownDelegate? s_hostShutdown;
+    private static ConnectionOpenDelegate? s_connectionOpen;
+    private static ConnectionWriteDelegate? s_connectionWrite;
+    private static ConnectionCloseDelegate? s_connectionClose;
+
+    // Held for the connection's lifetime so the marshaled function pointer handed to the
+    // native side is not collected while Rust may still invoke it.
+    private OutboundCallbackDelegate? _outboundDelegate;
+
+    private static void PrepareNativeLibrary(string libraryPath)
+    {
+        lock (NativeLock)
+        {
+            if (s_loaded)
+            {
+                return;
+            }
+
+            var handle = NativeLoader.Load(libraryPath);
+            if (handle == IntPtr.Zero)
+            {
+                throw new InvalidOperationException($"Failed to load FFI runtime library '{libraryPath}'.");
+            }
+
+            s_hostStart = Bind<HostStartDelegate>(handle, "copilot_runtime_host_start");
+            s_hostShutdown = Bind<HostShutdownDelegate>(handle, "copilot_runtime_host_shutdown");
+            s_connectionOpen = Bind<ConnectionOpenDelegate>(handle, "copilot_runtime_connection_open");
+            s_connectionWrite = Bind<ConnectionWriteDelegate>(handle, "copilot_runtime_connection_write");
+            s_connectionClose = Bind<ConnectionCloseDelegate>(handle, "copilot_runtime_connection_close");
+            s_loaded = true;
+        }
+    }
+
+    private static T Bind<T>(IntPtr handle, string export) where T : Delegate
+    {
+        var symbol = NativeLoader.GetSymbol(handle, export);
+        if (symbol == IntPtr.Zero)
+        {
+            throw new InvalidOperationException($"FFI runtime library is missing the '{export}' export.");
+        }
+        return Marshal.GetDelegateForFunctionPointer<T>(symbol);
+    }
+
+    private static uint NativeHostStart(byte[] argvJson, byte[] provider, byte[]? env) =>
+        s_hostStart!(argvJson, Len(argvJson.Length), provider, Len(provider.Length), env, env is null ? UIntPtr.Zero : Len(env.Length));
+
+    private uint NativeOpenConnection(uint serverId)
+    {
+        _outboundDelegate = OnOutbound;
+        return s_connectionOpen!(
+            serverId,
+            _outboundDelegate,
+            IntPtr.Zero,
+            null, UIntPtr.Zero,
+            null, UIntPtr.Zero,
+            null, UIntPtr.Zero);
+    }
+
+    private static bool NativeHostShutdown(uint serverId) => s_hostShutdown!(serverId);
+
+    private static bool NativeConnectionWrite(uint connectionId, byte[] frame) => s_connectionWrite!(connectionId, frame, Len(frame.Length));
+
+    private static bool NativeConnectionClose(uint connectionId) => s_connectionClose!(connectionId);
+
+    private void DisposeNativeCallback() => _outboundDelegate = null;
+
+    private void OnOutbound(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen)
+    {
+        if (bytesPtr == IntPtr.Zero || bytesLen == UIntPtr.Zero)
+        {
+            return;
+        }
+        FeedInbound(bytesPtr, bytesLen);
+    }
+
+    /// <summary>
+    /// Minimal cross-platform native library loader for <c>netstandard2.0</c>, which lacks
+    /// <c>NativeLibrary</c>. Uses <c>LoadLibrary</c>/<c>GetProcAddress</c> on Windows
+    /// and <c>dlopen</c>/<c>dlsym</c> elsewhere (trying <c>libdl.so.2</c> first, then
+    /// <c>libdl</c> for older Linux and macOS).
+    /// </summary>
+    private static class NativeLoader
+    {
+        public static IntPtr Load(string path) =>
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? Windows.LoadLibrary(path) : Unix.Open(path);
+
+        public static IntPtr GetSymbol(IntPtr handle, string name) =>
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? Windows.GetProcAddress(handle, name) : Unix.Sym(handle, name);
+
+        private static class Windows
+        {
+            [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode, BestFitMapping = false, ThrowOnUnmappableChar = true)]
+            public static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPWStr)] string path);
+
+            [DllImport("kernel32", SetLastError = true, BestFitMapping = false, ThrowOnUnmappableChar = true)]
+            public static extern IntPtr GetProcAddress(IntPtr module, [MarshalAs(UnmanagedType.LPStr)] string name);
+        }
+
+        private static class Unix
+        {
+            private const int RtldNow = 2;
+
+            public static IntPtr Open(string path)
+            {
+                try { return Libdl2.dlopen(path, RtldNow); }
+                catch (DllNotFoundException) { return Libdl1.dlopen(path, RtldNow); }
+            }
+
+            public static IntPtr Sym(IntPtr handle, string name)
+            {
+                try { return Libdl2.dlsym(handle, name); }
+                catch (DllNotFoundException) { return Libdl1.dlsym(handle, name); }
+            }
+
+            private static class Libdl2
+            {
+                [DllImport("libdl.so.2", EntryPoint = "dlopen", CharSet = CharSet.Ansi, BestFitMapping = false, ThrowOnUnmappableChar = true)]
+                public static extern IntPtr dlopen([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
+
+                [DllImport("libdl.so.2", EntryPoint = "dlsym", CharSet = CharSet.Ansi, BestFitMapping = false, ThrowOnUnmappableChar = true)]
+                public static extern IntPtr dlsym(IntPtr handle, [MarshalAs(UnmanagedType.LPStr)] string symbol);
+            }
+
+            private static class Libdl1
+            {
+                [DllImport("libdl", EntryPoint = "dlopen", CharSet = CharSet.Ansi, BestFitMapping = false, ThrowOnUnmappableChar = true)]
+                public static extern IntPtr dlopen([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
+
+                [DllImport("libdl", EntryPoint = "dlsym", CharSet = CharSet.Ansi, BestFitMapping = false, ThrowOnUnmappableChar = true)]
+                public static extern IntPtr dlsym(IntPtr handle, [MarshalAs(UnmanagedType.LPStr)] string symbol);
+            }
+        }
+    }
+#endif
+
+    /// <summary>
+    /// A read-only stream fed by the native outbound callback. Chunks are queued on
+    /// an unbounded channel and drained in order by the JSON-RPC read loop.
+    /// </summary>
+    private sealed class CallbackReceiveStream : Stream
+    {
+        private readonly Channel<byte[]> _channel = Channel.CreateUnbounded<byte[]>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        private ReadOnlyMemory<byte> _leftover;
+
+        public void Feed(byte[] data) => _channel.Writer.TryWrite(data);
+
+        public void Complete() => _channel.Writer.TryComplete();
+
+#if !NETSTANDARD2_0
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            return await ReadCoreAsync(buffer, cancellationToken).ConfigureAwait(false);
+        }
+#endif
+
+        private async ValueTask<int> ReadCoreAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+        {
+            if (_leftover.IsEmpty)
+            {
+                if (!await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    return 0; // EOF
+                }
+                if (!_channel.Reader.TryRead(out var chunk))
+                {
+                    return 0;
+                }
+                _leftover = chunk;
+            }
+
+            var n = Math.Min(buffer.Length, _leftover.Length);
+            _leftover.Span.Slice(0, n).CopyTo(buffer.Span);
+            _leftover = _leftover.Slice(n);
+            return n;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            ReadCoreAsync(buffer.AsMemory(offset, count), CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadCoreAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// A write-only stream that forwards each frame to the native
+    /// <c>connection_write</c> export.
+    /// </summary>
+    private sealed class CallbackSendStream(Func<byte[], bool> write) : Stream
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            var frame = new byte[count];
+            Array.Copy(buffer, offset, frame, 0, count);
+            write(frame);
+        }
+
+#if !NETSTANDARD2_0
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            write(buffer.ToArray());
+            return ValueTask.CompletedTask;
+        }
+#endif
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            Write(buffer, offset, count);
+            return Task.CompletedTask;
+        }
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+    }
+}
