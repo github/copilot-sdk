@@ -241,14 +241,16 @@ internal sealed partial class JsonRpc : IDisposable
         // "Content-Length: " (16) + max int digits (10) + "\r\n\r\n" (4)
         const int MaxHeaderLength = 30;
 
-        Span<byte> header = stackalloc byte[MaxHeaderLength];
-        bool wrote = Utf8.TryWrite(header, $"Content-Length: {json.Length}\r\n\r\n", out int headerLen);
+        // Over-rent by the (fixed, tiny) header bound so the header can be written
+        // straight into the frame — no scratch buffer or header copy. The JSON is
+        // already UTF-8, so the only copy is placing it after the header, which is
+        // unavoidable since Content-Length needs its length up front.
+        var frame = ArrayPool<byte>.Shared.Rent(MaxHeaderLength + json.Length);
+        bool wrote = Utf8.TryWrite(frame, $"Content-Length: {json.Length}\r\n\r\n", out int headerLen);
         Debug.Assert(wrote && headerLen > 0);
 
-        frameLen = headerLen + json.Length;
-        var frame = ArrayPool<byte>.Shared.Rent(frameLen);
-        header.Slice(0, headerLen).CopyTo(frame);
         json.CopyTo(frame.AsSpan(headerLen));
+        frameLen = headerLen + json.Length;
         return frame;
     }
 
