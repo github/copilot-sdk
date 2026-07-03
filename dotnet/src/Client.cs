@@ -290,8 +290,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 if (_connection is InProcessRuntimeConnection)
                 {
                     // In-process FFI hosting: load the Rust cdylib and let it spawn
-                    // the Node worker, instead of the SDK launching a CLI child process.
-                    var ffiHost = FfiRuntimeHost.Create(ResolveCliJsPathForFfi(), GetPortableRidOrThrow(), _options.Environment, _logger);
+                    // the CLI worker, instead of the SDK launching a CLI child process.
+                    var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetPortableRidOrThrow(), _options.Environment, _logger);
                     _ffiHost = ffiHost;
                     await ffiHost.StartAsync(ct);
                     connection = await ConnectToServerAsync(null, null, null, null, ct, ffiHost);
@@ -2141,15 +2141,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return arch != null ? $"{os}-{arch}" : null;
     }
 
-    private string ResolveCliJsPathForFfi()
+    private string ResolveCliPathForFfi()
     {
         var envCliPath = _options.Environment is not null && _options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue)
             ? envValue
             : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        return envCliPath
+        if (!string.IsNullOrEmpty(envCliPath))
+        {
+            return envCliPath;
+        }
+
+        // Fall back to the bundled single-file CLI the same way stdio discovers it.
+        // It embeds its own Node and is spawned directly as `copilot --embedded-host`,
+        // with the sibling `prebuilds/<rid>/runtime.node` cdylib loaded in-process.
+        var bundled = GetBundledCliPath(out var searchedPath);
+        return bundled
             ?? throw new InvalidOperationException(
-                "In-process FFI hosting requires a JavaScript CLI entrypoint. "
-                + "Set the COPILOT_CLI_PATH environment variable to the dist-cli/index.js path.");
+                "In-process FFI hosting requires the Copilot CLI. Set the COPILOT_CLI_PATH "
+                + $"environment variable, or ensure the bundled CLI is present (looked in '{searchedPath}').");
     }
 
     private static string GetPortableRidOrThrow() =>
