@@ -103,6 +103,39 @@ describe("Server-scoped RPC", async () => {
         expect(Date.parse(result.timestamp)).not.toBeNaN();
     });
 
+    it("should reject llm inference response frames for missing request", async () => {
+        await client.start();
+
+        const start = await client.rpc.llmInference.httpResponseStart({
+            requestId: "missing-llm-inference-request",
+            status: 200,
+            headers: {
+                "content-type": ["text/event-stream"],
+            },
+            statusText: "OK",
+        });
+        expect(start.accepted).toBe(false);
+
+        const chunk = await client.rpc.llmInference.httpResponseChunk({
+            requestId: "missing-llm-inference-request",
+            data: "data: {}\n\n",
+            binary: false,
+            end: false,
+        });
+        expect(chunk.accepted).toBe(false);
+
+        const error = await client.rpc.llmInference.httpResponseChunk({
+            requestId: "missing-llm-inference-request",
+            data: "",
+            end: true,
+            error: {
+                code: "missing_request",
+                message: "No pending LLM inference request.",
+            },
+        });
+        expect(error.accepted).toBe(false);
+    });
+
     it("should call rpc models list with typed result", async () => {
         const token = "rpc-models-token";
         await configureAuthenticatedUser(token);

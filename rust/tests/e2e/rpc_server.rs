@@ -1,18 +1,22 @@
+use std::collections::HashMap;
+
 use github_copilot_sdk::Client;
+use github_copilot_sdk::RequestId;
 use github_copilot_sdk::rpc::{
-    ConnectRemoteSessionParams, LocalSessionMetadataValue, McpDiscoverRequest, NameSetRequest,
-    PingRequest, SecretsAddFilterValuesRequest, SessionContext, SessionFsSetProviderConventions,
-    SessionFsSetProviderRequest, SessionListFilter, SessionsBulkDeleteRequest,
-    SessionsCheckInUseRequest, SessionsCloseRequest, SessionsEnrichMetadataRequest,
-    SessionsFindByPrefixRequest, SessionsFindByTaskIDRequest, SessionsGetLastForContextRequest,
-    SessionsListRequest, SessionsLoadDeferredRepoHooksRequest, SessionsPruneOldRequest,
-    SessionsReleaseLockRequest, SessionsReloadPluginHooksRequest, SessionsSaveRequest,
-    SessionsSetAdditionalPluginsRequest, SkillsConfigSetDisabledSkillsRequest,
+    ConnectRemoteSessionParams, LlmInferenceHttpResponseChunkRequest,
+    LlmInferenceHttpResponseStartRequest, LocalSessionMetadataValue, McpDiscoverRequest,
+    NameSetRequest, PingRequest, SecretsAddFilterValuesRequest, SessionContext,
+    SessionFsSetProviderConventions, SessionFsSetProviderRequest, SessionListFilter,
+    SessionsBulkDeleteRequest, SessionsCheckInUseRequest, SessionsCloseRequest,
+    SessionsEnrichMetadataRequest, SessionsFindByPrefixRequest, SessionsFindByTaskIDRequest,
+    SessionsGetLastForContextRequest, SessionsListRequest, SessionsLoadDeferredRepoHooksRequest,
+    SessionsPruneOldRequest, SessionsReleaseLockRequest, SessionsReloadPluginHooksRequest,
+    SessionsSaveRequest, SessionsSetAdditionalPluginsRequest, SkillsConfigSetDisabledSkillsRequest,
     SkillsDiscoverRequest, ToolsListRequest,
 };
 use serde_json::json;
 
-use super::support::with_e2e_context;
+use super::support::{with_e2e_context, with_e2e_context_no_snapshot};
 
 #[tokio::test]
 async fn should_call_rpc_ping_with_typed_params_and_result() {
@@ -133,6 +137,49 @@ async fn should_call_rpc_tools_list_with_typed_result() {
             })
         },
     )
+    .await;
+}
+
+#[tokio::test]
+async fn should_reject_llm_response_frames_for_unknown_request() {
+    with_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            let client = ctx.start_client().await;
+            let request_id = RequestId::from("missing-llm-response-request");
+
+            let start = client
+                .rpc()
+                .llm_inference()
+                .http_response_start(LlmInferenceHttpResponseStartRequest {
+                    headers: HashMap::from([(
+                        "content-type".to_string(),
+                        vec!["application/json".to_string()],
+                    )]),
+                    request_id: request_id.clone(),
+                    status: 200,
+                    status_text: Some("OK".to_string()),
+                })
+                .await
+                .expect("send unknown LLM response start");
+            assert!(!start.accepted);
+
+            let chunk = client
+                .rpc()
+                .llm_inference()
+                .http_response_chunk(LlmInferenceHttpResponseChunkRequest {
+                    binary: Some(false),
+                    data: "{}".to_string(),
+                    end: Some(true),
+                    error: None,
+                    request_id,
+                })
+                .await
+                .expect("send unknown LLM response chunk");
+            assert!(!chunk.accepted);
+
+            client.stop().await.expect("stop client");
+        })
+    })
     .await;
 }
 

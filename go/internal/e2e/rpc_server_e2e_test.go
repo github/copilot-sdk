@@ -196,6 +196,44 @@ func TestRPCServerE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("should return false for missing LLM response frames", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		client := ctx.NewClient()
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		start, err := client.RPC.LlmInference.HttpResponseStart(t.Context(), &rpc.LlmInferenceHTTPResponseStartRequest{
+			RequestID:  "missing-response-start-request",
+			Status:     200,
+			StatusText: rpcPtr("OK"),
+			Headers: map[string][]string{
+				"content-type": {"application/json"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("LlmInference.HttpResponseStart failed: %v", err)
+		}
+		if start.Accepted {
+			t.Fatal("Expected Accepted=false for missing LLM response start request id")
+		}
+
+		end := true
+		chunk, err := client.RPC.LlmInference.HttpResponseChunk(t.Context(), &rpc.LlmInferenceHTTPResponseChunkRequest{
+			RequestID: "missing-response-chunk-request",
+			Data:      "{}",
+			End:       &end,
+		})
+		if err != nil {
+			t.Fatalf("LlmInference.HttpResponseChunk failed: %v", err)
+		}
+		if chunk.Accepted {
+			t.Fatal("Expected Accepted=false for missing LLM response chunk request id")
+		}
+	})
+
 	t.Run("should list find and inspect persisted session state", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		token := "rpc-server-list-token-" + randomHex(t)

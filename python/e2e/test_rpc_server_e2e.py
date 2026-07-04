@@ -17,6 +17,9 @@ from copilot import CopilotClient, RuntimeConnection
 from copilot.rpc import (
     AccountGetQuotaRequest,
     ConnectRemoteSessionParams,
+    LlmInferenceHTTPResponseChunkError,
+    LlmInferenceHTTPResponseChunkRequest,
+    LlmInferenceHTTPResponseStartRequest,
     LocalSessionMetadataValue,
     MCPDiscoverRequest,
     ModelsListRequest,
@@ -122,6 +125,44 @@ class TestRpcServer:
         result = await ctx.client.rpc.ping(PingRequest(message="typed rpc test"))
         assert result.message == "pong: typed rpc test"
         assert result.timestamp is not None
+
+    async def test_should_reject_llm_inference_response_frames_for_missing_request(
+        self, ctx: E2ETestContext
+    ):
+        await ctx.client.start()
+
+        start = await ctx.client.rpc.llm_inference.http_response_start(
+            LlmInferenceHTTPResponseStartRequest(
+                request_id="missing-llm-inference-request",
+                status=200,
+                status_text="OK",
+                headers={"content-type": ["text/event-stream"]},
+            )
+        )
+        assert start.accepted is False
+
+        chunk = await ctx.client.rpc.llm_inference.http_response_chunk(
+            LlmInferenceHTTPResponseChunkRequest(
+                request_id="missing-llm-inference-request",
+                data="data: {}\n\n",
+                binary=False,
+                end=False,
+            )
+        )
+        assert chunk.accepted is False
+
+        error = await ctx.client.rpc.llm_inference.http_response_chunk(
+            LlmInferenceHTTPResponseChunkRequest(
+                request_id="missing-llm-inference-request",
+                data="",
+                end=True,
+                error=LlmInferenceHTTPResponseChunkError(
+                    message="No pending LLM inference request.",
+                    code="missing_request",
+                ),
+            )
+        )
+        assert error.accepted is False
 
     async def test_should_call_rpc_models_list_with_typed_result(self, authed_ctx: E2ETestContext):
         token = "rpc-models-token"
