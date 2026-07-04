@@ -159,24 +159,15 @@ async fn should_request_replacement_tokens_across_mcp_oauth_lifecycle() {
             );
 
             let requests = oauth_server.requests().await;
-            assert!(
-                requests
-                    .iter()
-                    .any(|request| request.authorization.as_deref()
-                        == Some(&format!("Bearer {REFRESH_TOKEN}")))
-            );
-            assert!(
-                requests
-                    .iter()
-                    .any(|request| request.authorization.as_deref()
-                        == Some(&format!("Bearer {UPSCOPE_TOKEN}")))
-            );
-            assert!(
-                requests
-                    .iter()
-                    .any(|request| request.authorization.as_deref()
-                        == Some(&format!("Bearer {REAUTH_TOKEN}")))
-            );
+            assert!(requests.iter().any(|request| {
+                request.authorization.as_deref() == Some(&format!("Bearer {REFRESH_TOKEN}"))
+            }));
+            assert!(requests.iter().any(|request| {
+                request.authorization.as_deref() == Some(&format!("Bearer {UPSCOPE_TOKEN}"))
+            }));
+            assert!(requests.iter().any(|request| {
+                request.authorization.as_deref() == Some(&format!("Bearer {REAUTH_TOKEN}"))
+            }));
 
             session.disconnect().await.expect("disconnect session");
             client.stop().await.expect("stop client");
@@ -334,8 +325,9 @@ async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
             assert!(
                 requests
                     .iter()
-                    .any(|request| request.authorization.as_deref()
-                        == Some(&format!("Bearer {EXPECTED_TOKEN}")))
+                    .any(|request| {
+                        request.authorization.as_deref() == Some(&format!("Bearer {EXPECTED_TOKEN}"))
+                    })
             );
 
             session.disconnect().await.expect("disconnect session");
