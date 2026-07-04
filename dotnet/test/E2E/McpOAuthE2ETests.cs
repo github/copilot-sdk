@@ -71,6 +71,57 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
     }
 
     [Fact]
+    public async Task Should_Resolve_Pending_MCP_OAuth_Request_With_Direct_Rpc()
+    {
+        await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken);
+        var serverName = "oauth-direct-rpc-mcp";
+        var authRequest = new TaskCompletionSource<McpAuthContext>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseHandler = new TaskCompletionSource<McpAuthResult?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnMcpAuthRequest = request =>
+            {
+                authRequest.TrySetResult(request);
+                return releaseHandler.Task;
+            },
+            McpServers = new Dictionary<string, McpServerConfig>
+            {
+                [serverName] = new McpHttpServerConfig
+                {
+                    Url = $"{oauthServer.Url}/mcp",
+                    Tools = ["*"],
+                },
+            },
+        });
+
+        var connected = WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.Connected);
+        var request = await authRequest.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.NotEmpty(request.RequestId);
+        Assert.Equal(serverName, request.ServerName);
+        Assert.Equal($"{oauthServer.Url}/mcp", request.ServerUrl);
+        Assert.Equal(McpOauthRequestReason.Initial, request.Reason);
+        Assert.NotNull(request.WwwAuthenticateParams);
+        Assert.Equal("mcp.read", request.WwwAuthenticateParams!.Scope);
+
+        var handled = await session.Rpc.Mcp.Oauth.HandlePendingRequestAsync(
+            request.RequestId,
+            new McpOauthPendingRequestResponseToken
+            {
+                AccessToken = ExpectedToken,
+                TokenType = "Bearer",
+                ExpiresIn = 3600,
+            });
+        Assert.True(handled.Success);
+
+        await connected;
+        var tools = await session.Rpc.Mcp.ListToolsAsync(serverName);
+        Assert.Contains(tools.Tools, tool => tool.Name == "whoami");
+
+        releaseHandler.SetResult(McpAuthResult.FromToken(new McpAuthToken { AccessToken = ExpectedToken }));
+    }
+
+    [Fact]
     public async Task Should_Request_Replacement_Tokens_Across_MCP_OAuth_Lifecycle()
     {
         await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken);

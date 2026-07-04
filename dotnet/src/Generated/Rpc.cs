@@ -23618,6 +23618,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HistorySummarizeForHandoffResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]
 [JsonSerializable(typeof(HistoryTruncateResult))]
+[JsonSerializable(typeof(IDictionary<string, JsonElement>))]
+[JsonSerializable(typeof(IList<AccountAllUsers>))]
 [JsonSerializable(typeof(InstalledPlugin))]
 [JsonSerializable(typeof(InstalledPluginInfo))]
 [JsonSerializable(typeof(InstructionDiscoveryPath))]
