@@ -16,7 +16,11 @@ import pytest
 from copilot import CopilotClient, RuntimeConnection
 from copilot.rpc import (
     AccountGetQuotaRequest,
+    AgentsDiscoverRequest,
+    AgentsGetDiscoveryPathsRequest,
     ConnectRemoteSessionParams,
+    InstructionsDiscoverRequest,
+    InstructionsGetDiscoveryPathsRequest,
     LlmInferenceHTTPResponseChunkError,
     LlmInferenceHTTPResponseChunkRequest,
     LlmInferenceHTTPResponseStartRequest,
@@ -46,6 +50,7 @@ from copilot.rpc import (
     SessionsSetAdditionalPluginsRequest,
     SkillsConfigSetDisabledSkillsRequest,
     SkillsDiscoverRequest,
+    SkillsGetDiscoveryPathsRequest,
     ToolsListRequest,
 )
 from copilot.session import PermissionHandler
@@ -69,6 +74,12 @@ def _create_skill_directory(work_dir: str, skill_name: str, description: str) ->
     )
     (skill_subdir / "SKILL.md").write_text(skill_md, encoding="utf-8", newline="\n")
     return str(skills_dir)
+
+
+def _paths_equal(left: str, right: str | None) -> bool:
+    if right is None:
+        return False
+    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
 
 
 @pytest.fixture(scope="module")
@@ -484,6 +495,68 @@ class TestRpcServer:
         assert discovered.description == "Skill discovered by server-scoped RPC tests."
         assert discovered.enabled is True
         assert discovered.path.endswith(os.path.join(skill_name, "SKILL.md"))
+
+        skill_paths = await ctx.client.rpc.skills.get_discovery_paths(
+            SkillsGetDiscoveryPathsRequest(
+                project_paths=[ctx.work_dir],
+                exclude_host_skills=True,
+            )
+        )
+        project_skill_path = next(
+            (
+                path
+                for path in skill_paths.paths
+                if _paths_equal(ctx.work_dir, path.project_path) and path.preferred_for_creation
+            ),
+            None,
+        )
+        assert project_skill_path is not None
+        assert project_skill_path.path.strip()
+
+        agents = await ctx.client.rpc.agents.discover(
+            AgentsDiscoverRequest(project_paths=[ctx.work_dir], exclude_host_agents=True)
+        )
+        assert all(agent.name.strip() for agent in agents.agents)
+
+        agent_paths = await ctx.client.rpc.agents.get_discovery_paths(
+            AgentsGetDiscoveryPathsRequest(
+                project_paths=[ctx.work_dir],
+                exclude_host_agents=True,
+            )
+        )
+        project_agent_path = next(
+            (
+                path
+                for path in agent_paths.paths
+                if _paths_equal(ctx.work_dir, path.project_path) and path.preferred_for_creation
+            ),
+            None,
+        )
+        assert project_agent_path is not None
+        assert project_agent_path.path.strip()
+
+        instructions = await ctx.client.rpc.instructions.discover(
+            InstructionsDiscoverRequest(
+                project_paths=[ctx.work_dir],
+                exclude_host_instructions=True,
+            )
+        )
+        assert all(
+            source.id.strip() and source.label.strip() and source.source_path.strip()
+            for source in instructions.sources
+        )
+
+        instruction_paths = await ctx.client.rpc.instructions.get_discovery_paths(
+            InstructionsGetDiscoveryPathsRequest(
+                project_paths=[ctx.work_dir],
+                exclude_host_instructions=True,
+            )
+        )
+        assert instruction_paths.paths
+        assert any(
+            _paths_equal(ctx.work_dir, path.project_path) for path in instruction_paths.paths
+        )
+        assert all(path.path.strip() for path in instruction_paths.paths)
 
         try:
             await ctx.client.rpc.skills.config.set_disabled_skills(

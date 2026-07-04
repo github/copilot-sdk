@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use github_copilot_sdk::Client;
-use github_copilot_sdk::rpc::PermissionsSetAllowAllRequest;
 use github_copilot_sdk::rpc::{
     CompletionsRequestRequest, MetadataContextHeaviestMessagesRequest, ModelSwitchToRequest,
-    NamedProviderConfig, ProviderAddRequest, ProviderConfigType, ProviderConfigWireApi,
-    ProviderModelConfig, SessionVisibilityStatus, SubagentSettingsEntry,
+    NamedProviderConfig, PermissionsSetAllowAllRequest, ProviderAddRequest, ProviderConfigType,
+    ProviderConfigWireApi, ProviderModelConfig, SessionVisibilityStatus, SubagentSettingsEntry,
     SubagentSettingsEntryContextTier, UpdateSubagentSettingsRequest,
     UpdateSubagentSettingsRequestSubagents, VisibilitySetRequest,
 };

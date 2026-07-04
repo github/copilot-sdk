@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 
 use github_copilot_sdk::rpc::{
-    CommandsHandlePendingCommandRequest, HandlePendingToolCallRequest, PermissionDecision,
+    CommandsHandlePendingCommandRequest, HandlePendingToolCallRequest,
+    McpHeadersHandlePendingHeadersRefreshRequest,
+    McpHeadersHandlePendingHeadersRefreshRequestHeaders,
+    McpHeadersHandlePendingHeadersRefreshRequestHeadersKind,
+    McpHeadersHandlePendingHeadersRefreshRequestRequest, PermissionDecision,
     PermissionDecisionApproveForLocation, PermissionDecisionApproveForLocationApproval,
     PermissionDecisionApproveForLocationApprovalCustomTool,
     PermissionDecisionApproveForLocationApprovalCustomToolKind,
@@ -21,12 +25,6 @@ use github_copilot_sdk::rpc::{
     UIHandlePendingSessionLimitsExhaustedRequest, UIHandlePendingUserInputRequest,
     UISessionLimitsExhaustedResponse, UISessionLimitsExhaustedResponseAction,
     UIUnregisterDirectAutoModeSwitchHandlerRequest, UIUserInputResponse,
-};
-use github_copilot_sdk::rpc::{
-    McpHeadersHandlePendingHeadersRefreshRequest,
-    McpHeadersHandlePendingHeadersRefreshRequestHeaders,
-    McpHeadersHandlePendingHeadersRefreshRequestHeadersKind,
-    McpHeadersHandlePendingHeadersRefreshRequestRequest,
 };
 
 use super::support::with_e2e_context;

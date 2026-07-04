@@ -1,7 +1,7 @@
 use github_copilot_sdk::Client;
-use github_copilot_sdk::rpc::{AccountLoginRequest, AccountLogoutRequest, UserSettingsSetRequest};
 use github_copilot_sdk::rpc::{
-    AgentRegistrySpawnRequest, SendAttachmentsToMessageParams, SessionsOpenStatus,
+    AccountLoginRequest, AccountLogoutRequest, AgentRegistrySpawnRequest,
+    SendAttachmentsToMessageParams, SessionsOpenStatus, UserSettingsSetRequest,
 };
 use serde_json::{Map, Value, json};
 

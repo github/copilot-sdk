@@ -434,6 +434,59 @@ describe("Server-scoped RPC", async () => {
         expect(discovered[0].enabled).toBe(true);
         expect(discovered[0].path.endsWith(path.join(skillName, "SKILL.md"))).toBe(true);
 
+        const skillPaths = await client.rpc.skills.getDiscoveryPaths({
+            projectPaths: [workDir],
+            excludeHostSkills: true,
+        });
+        const projectSkillPath = skillPaths.paths.find(
+            (p) => p.projectPath && pathsEqual(p.projectPath, workDir) && p.preferredForCreation
+        );
+        if (!projectSkillPath) {
+            throw new Error(`Expected skill discovery paths to include ${workDir}`);
+        }
+        expect(projectSkillPath.path.trim()).not.toBe("");
+
+        const agents = await client.rpc.agents.discover({
+            projectPaths: [workDir],
+            excludeHostAgents: true,
+        });
+        expect(agents.agents.every((agent) => agent.name.trim() !== "")).toBe(true);
+
+        const agentPaths = await client.rpc.agents.getDiscoveryPaths({
+            projectPaths: [workDir],
+            excludeHostAgents: true,
+        });
+        const projectAgentPath = agentPaths.paths.find(
+            (p) => p.projectPath && pathsEqual(p.projectPath, workDir) && p.preferredForCreation
+        );
+        if (!projectAgentPath) {
+            throw new Error(`Expected agent discovery paths to include ${workDir}`);
+        }
+        expect(projectAgentPath.path.trim()).not.toBe("");
+
+        const instructions = await client.rpc.instructions.discover({
+            projectPaths: [workDir],
+            excludeHostInstructions: true,
+        });
+        expect(
+            instructions.sources.every(
+                (source) =>
+                    source.id.trim() !== "" &&
+                    source.label.trim() !== "" &&
+                    source.sourcePath.trim() !== ""
+            )
+        ).toBe(true);
+
+        const instructionPaths = await client.rpc.instructions.getDiscoveryPaths({
+            projectPaths: [workDir],
+            excludeHostInstructions: true,
+        });
+        expect(instructionPaths.paths.length).toBeGreaterThan(0);
+        expect(
+            instructionPaths.paths.some((p) => p.projectPath && pathsEqual(p.projectPath, workDir))
+        ).toBe(true);
+        expect(instructionPaths.paths.every((p) => p.path.trim() !== "")).toBe(true);
+
         try {
             await client.rpc.skills.config.setDisabledSkills({ disabledSkills: [skillName] });
             const disabled = await client.rpc.skills.discover({

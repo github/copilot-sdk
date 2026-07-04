@@ -1,19 +1,20 @@
 use std::collections::HashMap;
 
-use github_copilot_sdk::Client;
-use github_copilot_sdk::RequestId;
 use github_copilot_sdk::rpc::{
-    ConnectRemoteSessionParams, LlmInferenceHttpResponseChunkRequest,
-    LlmInferenceHttpResponseStartRequest, LocalSessionMetadataValue, McpDiscoverRequest,
-    NameSetRequest, PingRequest, SecretsAddFilterValuesRequest, SessionContext,
-    SessionFsSetProviderConventions, SessionFsSetProviderRequest, SessionListFilter,
-    SessionsBulkDeleteRequest, SessionsCheckInUseRequest, SessionsCloseRequest,
-    SessionsEnrichMetadataRequest, SessionsFindByPrefixRequest, SessionsFindByTaskIDRequest,
-    SessionsGetLastForContextRequest, SessionsListRequest, SessionsLoadDeferredRepoHooksRequest,
-    SessionsPruneOldRequest, SessionsReleaseLockRequest, SessionsReloadPluginHooksRequest,
-    SessionsSaveRequest, SessionsSetAdditionalPluginsRequest, SkillsConfigSetDisabledSkillsRequest,
-    SkillsDiscoverRequest, ToolsListRequest,
+    AgentsDiscoverRequest, AgentsGetDiscoveryPathsRequest, ConnectRemoteSessionParams,
+    InstructionsDiscoverRequest, InstructionsGetDiscoveryPathsRequest,
+    LlmInferenceHttpResponseChunkRequest, LlmInferenceHttpResponseStartRequest,
+    LocalSessionMetadataValue, McpDiscoverRequest, NameSetRequest, PingRequest,
+    SecretsAddFilterValuesRequest, SessionContext, SessionFsSetProviderConventions,
+    SessionFsSetProviderRequest, SessionListFilter, SessionsBulkDeleteRequest,
+    SessionsCheckInUseRequest, SessionsCloseRequest, SessionsEnrichMetadataRequest,
+    SessionsFindByPrefixRequest, SessionsFindByTaskIDRequest, SessionsGetLastForContextRequest,
+    SessionsListRequest, SessionsLoadDeferredRepoHooksRequest, SessionsPruneOldRequest,
+    SessionsReleaseLockRequest, SessionsReloadPluginHooksRequest, SessionsSaveRequest,
+    SessionsSetAdditionalPluginsRequest, SkillsConfigSetDisabledSkillsRequest,
+    SkillsDiscoverRequest, SkillsGetDiscoveryPathsRequest, ToolsListRequest,
 };
+use github_copilot_sdk::{Client, RequestId};
 use serde_json::json;
 
 use super::support::{with_e2e_context, with_e2e_context_no_snapshot};
@@ -197,12 +198,13 @@ async fn should_discover_server_mcp_and_skills() {
                     "Skill discovered by server-scoped RPC tests.",
                 );
                 let client = ctx.start_client().await;
+                let project_path = ctx.work_dir().to_string_lossy().to_string();
 
                 let mcp = client
                     .rpc()
                     .mcp()
                     .discover(McpDiscoverRequest {
-                        working_directory: Some(ctx.work_dir().to_string_lossy().to_string()),
+                        working_directory: Some(project_path.clone()),
                     })
                     .await
                     .expect("mcp discover");
@@ -224,6 +226,101 @@ async fn should_discover_server_mcp_and_skills() {
                 assert_eq!(
                     discovered.description,
                     "Skill discovered by server-scoped RPC tests."
+                );
+
+                let skill_paths = client
+                    .rpc()
+                    .skills()
+                    .get_discovery_paths(SkillsGetDiscoveryPathsRequest {
+                        exclude_host_skills: Some(true),
+                        project_paths: Some(vec![project_path.clone()]),
+                    })
+                    .await
+                    .expect("skills discovery paths");
+                let project_skill_path = skill_paths
+                    .paths
+                    .iter()
+                    .find(|path| {
+                        path.project_path
+                            .as_deref()
+                            .is_some_and(|path| paths_equal(path, &project_path))
+                            && path.preferred_for_creation
+                    })
+                    .expect("project skill discovery path");
+                assert!(!project_skill_path.path.trim().is_empty());
+
+                let agents = client
+                    .rpc()
+                    .agents()
+                    .discover(AgentsDiscoverRequest {
+                        exclude_host_agents: Some(true),
+                        project_paths: Some(vec![project_path.clone()]),
+                    })
+                    .await
+                    .expect("agents discover");
+                assert!(
+                    agents
+                        .agents
+                        .iter()
+                        .all(|agent| !agent.name.trim().is_empty())
+                );
+
+                let agent_paths = client
+                    .rpc()
+                    .agents()
+                    .get_discovery_paths(AgentsGetDiscoveryPathsRequest {
+                        exclude_host_agents: Some(true),
+                        project_paths: Some(vec![project_path.clone()]),
+                    })
+                    .await
+                    .expect("agents discovery paths");
+                let project_agent_path = agent_paths
+                    .paths
+                    .iter()
+                    .find(|path| {
+                        path.project_path
+                            .as_deref()
+                            .is_some_and(|path| paths_equal(path, &project_path))
+                            && path.preferred_for_creation
+                    })
+                    .expect("project agent discovery path");
+                assert!(!project_agent_path.path.trim().is_empty());
+
+                let instructions = client
+                    .rpc()
+                    .instructions()
+                    .discover(InstructionsDiscoverRequest {
+                        exclude_host_instructions: Some(true),
+                        project_paths: Some(vec![project_path.clone()]),
+                    })
+                    .await
+                    .expect("instructions discover");
+                assert!(instructions.sources.iter().all(|source| {
+                    !source.id.trim().is_empty()
+                        && !source.label.trim().is_empty()
+                        && !source.source_path.trim().is_empty()
+                }));
+
+                let instruction_paths = client
+                    .rpc()
+                    .instructions()
+                    .get_discovery_paths(InstructionsGetDiscoveryPathsRequest {
+                        exclude_host_instructions: Some(true),
+                        project_paths: Some(vec![project_path.clone()]),
+                    })
+                    .await
+                    .expect("instructions discovery paths");
+                assert!(!instruction_paths.paths.is_empty());
+                assert!(instruction_paths.paths.iter().any(|path| {
+                    path.project_path
+                        .as_deref()
+                        .is_some_and(|path| paths_equal(path, &project_path))
+                }));
+                assert!(
+                    instruction_paths
+                        .paths
+                        .iter()
+                        .all(|path| !path.path.trim().is_empty())
                 );
 
                 client
@@ -747,4 +844,20 @@ fn assert_server_skill(
             .is_some_and(|path| path.contains(skill_name) && path.ends_with("SKILL.md"))
     );
     skill
+}
+
+fn paths_equal(left: &str, right: &str) -> bool {
+    fn normalize(path: &str) -> String {
+        let mut normalized = path.replace('\\', "/");
+        while normalized.ends_with('/') && normalized.len() > 1 {
+            normalized.pop();
+        }
+        if cfg!(windows) {
+            normalized.to_ascii_lowercase()
+        } else {
+            normalized
+        }
+    }
+
+    normalize(left) == normalize(right)
 }
