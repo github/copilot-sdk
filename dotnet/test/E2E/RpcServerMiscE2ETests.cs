@@ -115,7 +115,7 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         }
         finally
         {
-            try { await client.DisposeAsync(); } catch { /* best-effort */ }
+            await client.DisposeAsync();
             TryDeleteDirectory(home);
         }
     }
@@ -162,7 +162,7 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 async () =>
                 {
                     try { await client.Rpc.User.Settings.ReloadAsync(); return false; }
-                    catch { return true; }
+                    catch (Exception ex) when (IsExpectedShutdownException(ex)) { return true; }
                 },
                 timeout: TimeSpan.FromSeconds(15),
                 pollInterval: TimeSpan.FromMilliseconds(100),
@@ -170,8 +170,7 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         }
         finally
         {
-            try { await client.DisposeAsync(); }
-            catch { /* process is already gone after shutdown */ }
+            await DisposeStoppedRuntimeClientAsync(client);
         }
     }
 
@@ -191,7 +190,7 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         }
         finally
         {
-            try { await client.DisposeAsync(); } catch { /* best-effort */ }
+            await client.DisposeAsync();
             TryDeleteDirectory(home);
         }
     }
@@ -248,11 +247,29 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 Directory.Delete(path, recursive: true);
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Temp directories are reclaimed by the OS; ignore transient locks on cleanup.
         }
     }
+
+    private static async Task DisposeStoppedRuntimeClientAsync(CopilotClient client)
+    {
+        try
+        {
+            await client.DisposeAsync();
+        }
+        catch (Exception ex) when (IsExpectedShutdownException(ex))
+        {
+            // The runtime.shutdown test intentionally stops the process before disposal.
+        }
+    }
+
+    private static bool IsExpectedShutdownException(Exception ex) =>
+        ex is OperationCanceledException
+            or InvalidOperationException
+            or ObjectDisposedException
+            or IOException;
 
     private static System.Text.Json.JsonElement ParseJsonElement(string json)
     {

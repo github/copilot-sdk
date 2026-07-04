@@ -14,7 +14,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::Notify;
 
 use super::support::{wait_for_condition, with_e2e_context_no_snapshot};
 
@@ -245,10 +245,12 @@ async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
             )
             .await;
             let server_name = "oauth-direct-rpc-mcp";
-            let (request_tx, mut request_rx) = mpsc::unbounded_channel();
+            let observed_request = Arc::new(Mutex::new(None));
+            let request_observed = Arc::new(Notify::new());
             let release_handler = Arc::new(Notify::new());
             let handler = Arc::new(BlockingAuthHandler {
-                requests: request_tx,
+                request: observed_request.clone(),
+                request_observed: request_observed.clone(),
                 release: release_handler.clone(),
             });
             let client = ctx.start_client().await;
@@ -273,10 +275,14 @@ async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
             let connected =
                 wait_for_mcp_server_status(&session, server_name, McpServerStatus::Connected);
             tokio::pin!(connected);
-            let request = tokio::select! {
-                request = request_rx.recv() => request.expect("MCP auth request"),
+            tokio::select! {
+                () = request_observed.notified() => {}
                 () = &mut connected => panic!("MCP server connected before OAuth request was observed"),
-            };
+            }
+            let request = observed_request
+                .lock()
+                .clone()
+                .expect("MCP auth request");
             assert_eq!(request.server_name, server_name);
             assert_eq!(request.server_url, format!("{}/mcp", oauth_server.url));
             assert_eq!(request.reason, McpOauthRequestReason::Initial);
@@ -328,7 +334,7 @@ async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
             assert!(
                 requests
                     .iter()
-                    .any(                    |request| request.authorization.as_deref()
+                    .any(|request| request.authorization.as_deref()
                         == Some(&format!("Bearer {EXPECTED_TOKEN}")))
             );
 
@@ -444,7 +450,8 @@ impl McpAuthHandler for CancelAuthHandler {
 }
 
 struct BlockingAuthHandler {
-    requests: mpsc::UnboundedSender<McpAuthRequest>,
+    request: Arc<Mutex<Option<McpAuthRequest>>>,
+    request_observed: Arc<Notify>,
     release: Arc<Notify>,
 }
 
@@ -457,9 +464,8 @@ impl McpAuthHandler for BlockingAuthHandler {
         request: McpAuthRequest,
     ) -> McpAuthResult {
         assert_eq!(request.request_id, request_id);
-        self.requests
-            .send(request)
-            .expect("send MCP OAuth request to test");
+        *self.request.lock() = Some(request);
+        self.request_observed.notify_one();
         self.release.notified().await;
         McpAuthResult::Token {
             access_token: EXPECTED_TOKEN.to_string(),

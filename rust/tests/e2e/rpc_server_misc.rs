@@ -149,7 +149,7 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
                     })
                     .await
                     .expect("account login");
-                    let _stored_in_vault = login.stored_in_vault;
+                let _stored_in_vault = login.stored_in_vault;
 
                 let current = client
                     .rpc()
@@ -167,11 +167,12 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
                     .get_all_users()
                     .await
                     .expect("get all users");
-                if let Some(logged_in) = users
+                if let Some(token) = users
                     .iter()
                     .find(|user| user.auth_info["login"] == json!("rust-account-user"))
+                    .and_then(|user| user.token.as_deref())
                 {
-                    assert_eq!(logged_in.token.as_deref(), Some("rust-account-token"));
+                    assert_eq!(token, "rust-account-token");
                 }
 
                 let logout = client

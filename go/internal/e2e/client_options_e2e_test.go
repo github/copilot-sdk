@@ -691,8 +691,8 @@ func assertStringArray(t *testing.T, value any, expected []string) {
 	}
 }
 
-// fakeStdioCliScript is identical to the one used by the .NET / Python
-// equivalents (dotnet/test/ClientOptionsTests.cs and python/e2e/test_client_options.py).
+// fakeStdioCliScript is intentionally kept close to the fake CLIs used by the
+// other SDK client-options E2E tests, while still matching Go's request capture shape.
 const fakeStdioCliScript = `
 const fs = require("fs");
 

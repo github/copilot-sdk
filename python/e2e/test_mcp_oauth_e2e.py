@@ -215,7 +215,7 @@ class TestMcpOAuth:
                     )
                     assert handled.success is True
 
-                    await connected
+                    await asyncio.wait_for(connected, timeout=60.0)
                     tools = await session.rpc.mcp.list_tools(
                         MCPListToolsRequest(server_name=server_name)
                     )
