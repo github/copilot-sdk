@@ -59,6 +59,13 @@ class RpcTasksAndHandlersE2ETest {
                                         Map.of("kind", "headers", "headers", Map.of("x-refresh", "missing"))))
                         .get(30, TimeUnit.SECONDS);
                 assertFalse(headersRefresh.success());
+
+                var noHeadersRefresh = session.getRpc().mcp.headers
+                        .handlePendingHeadersRefreshRequest(
+                                new SessionMcpHeadersHandlePendingHeadersRefreshRequestParams(null,
+                                        "missing-headers-refresh-none-request", Map.of("kind", "none")))
+                        .get(30, TimeUnit.SECONDS);
+                assertFalse(noHeadersRefresh.success());
             }
         }
     }
