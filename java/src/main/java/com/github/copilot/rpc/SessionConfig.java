@@ -99,6 +99,9 @@ public class SessionConfig {
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
     private boolean enableMcpApps;
+    private Boolean requestExtensions;
+    private String extensionSdkPath;
+    private ExtensionInfo extensionInfo;
     private String gitHubToken;
     private String remoteSession;
     private CloudSessionOptions cloud;
@@ -1696,6 +1699,91 @@ public class SessionConfig {
     }
 
     /**
+     * Gets whether the runtime should enable extension-host callbacks for this
+     * session.
+     *
+     * @return an {@link Optional} containing {@code true} to request extensions or
+     *         {@code false} to disable them, or {@link Optional#empty()} to use the
+     *         runtime default
+     * @since 1.5.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getRequestExtensions() {
+        return Optional.ofNullable(requestExtensions);
+    }
+
+    /**
+     * Sets whether the runtime should enable extension-host callbacks for this
+     * session.
+     *
+     * @param requestExtensions
+     *            {@code true} to request extension callbacks
+     * @return this config instance for method chaining
+     * @since 1.5.0
+     */
+    public SessionConfig setRequestExtensions(boolean requestExtensions) {
+        this.requestExtensions = requestExtensions;
+        return this;
+    }
+
+    /**
+     * Clears the requestExtensions setting, reverting to the default behavior.
+     *
+     * @return this config instance for method chaining
+     * @since 1.5.0
+     */
+    public SessionConfig clearRequestExtensions() {
+        this.requestExtensions = null;
+        return this;
+    }
+
+    /**
+     * Gets the extension SDK path advertised to the runtime.
+     *
+     * @return the extension SDK path, or {@code null} if not set
+     * @since 1.5.0
+     */
+    public String getExtensionSdkPath() {
+        return extensionSdkPath;
+    }
+
+    /**
+     * Sets the extension SDK path advertised to the runtime.
+     *
+     * @param extensionSdkPath
+     *            the extension SDK path
+     * @return this config instance for method chaining
+     * @since 1.5.0
+     */
+    public SessionConfig setExtensionSdkPath(String extensionSdkPath) {
+        this.extensionSdkPath = extensionSdkPath;
+        return this;
+    }
+
+    /**
+     * Gets the stable extension identity associated with this session.
+     *
+     * @return the extension info, or {@code null} if not set
+     * @since 1.5.0
+     */
+    public ExtensionInfo getExtensionInfo() {
+        return extensionInfo;
+    }
+
+    /**
+     * Sets the stable extension identity associated with this session.
+     *
+     * @param extensionInfo
+     *            the extension info
+     * @return this config instance for method chaining
+     * @since 1.5.0
+     */
+    public SessionConfig setExtensionInfo(ExtensionInfo extensionInfo) {
+        this.extensionInfo = extensionInfo;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -1951,6 +2039,9 @@ public class SessionConfig {
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;
+        copy.requestExtensions = this.requestExtensions;
+        copy.extensionSdkPath = this.extensionSdkPath;
+        copy.extensionInfo = this.extensionInfo;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;

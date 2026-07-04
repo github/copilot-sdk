@@ -191,6 +191,15 @@ public final class CreateSessionRequest {
     @JsonProperty("requestMcpApps")
     private Boolean requestMcpApps;
 
+    @JsonProperty("requestExtensions")
+    private Boolean requestExtensions;
+
+    @JsonProperty("extensionSdkPath")
+    private String extensionSdkPath;
+
+    @JsonProperty("extensionInfo")
+    private ExtensionInfo extensionInfo;
+
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
 
@@ -884,6 +893,36 @@ public final class CreateSessionRequest {
     /** Clears the requestMcpApps setting, reverting to the default behavior. */
     public void clearRequestMcpApps() {
         this.requestMcpApps = null;
+    }
+
+    /** Gets the requestExtensions flag. @return the flag */
+    public Boolean getRequestExtensions() {
+        return requestExtensions;
+    }
+
+    /** Sets the requestExtensions flag. @param requestExtensions the flag */
+    public void setRequestExtensions(Boolean requestExtensions) {
+        this.requestExtensions = requestExtensions;
+    }
+
+    /** Gets the extension SDK path. @return the extension SDK path */
+    public String getExtensionSdkPath() {
+        return extensionSdkPath;
+    }
+
+    /** Sets the extension SDK path. @param extensionSdkPath the path */
+    public void setExtensionSdkPath(String extensionSdkPath) {
+        this.extensionSdkPath = extensionSdkPath;
+    }
+
+    /** Gets the extension info. @return the extension info */
+    public ExtensionInfo getExtensionInfo() {
+        return extensionInfo;
+    }
+
+    /** Sets the extension info. @param extensionInfo the extension info */
+    public void setExtensionInfo(ExtensionInfo extensionInfo) {
+        this.extensionInfo = extensionInfo;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */
