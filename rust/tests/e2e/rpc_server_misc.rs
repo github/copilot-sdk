@@ -167,12 +167,14 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
                     .get_all_users()
                     .await
                     .expect("get all users");
-                if let Some(token) = users
+                if let Some(user) = users
                     .iter()
                     .find(|user| user.auth_info["login"] == json!("rust-account-user"))
-                    .and_then(|user| user.token.as_deref())
                 {
-                    assert_eq!(token, "rust-account-token");
+                    match user.token.as_deref() {
+                        Some("rust-account-token") => {}
+                        other => panic!("expected stored account token, got {other:?}"),
+                    }
                 }
 
                 let logout = client
