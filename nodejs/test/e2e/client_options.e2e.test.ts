@@ -149,10 +149,7 @@ function assertArgumentValue(
     expect(args[index + 1]).toBe(expectedValue);
 }
 
-function getCapturedRequest(
-    capturePath: string,
-    method: string
-): Record<string, unknown> {
+function getCapturedRequest(capturePath: string, method: string): Record<string, unknown> {
     const raw = fs.readFileSync(capturePath, "utf8");
     const capture = JSON.parse(raw) as {
         requests: { method: string; params: Record<string, unknown> }[];

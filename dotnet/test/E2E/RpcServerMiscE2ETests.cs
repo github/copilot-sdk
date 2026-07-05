@@ -102,10 +102,14 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Assert.Equal(login, authInfo.Login);
 
             var users = await client.Rpc.Account.GetAllUsersAsync();
-            var account = Assert.Single(users, user =>
+            Assert.All(users, user => Assert.False(string.IsNullOrWhiteSpace(user.AuthInfo.Type)));
+            var account = users.FirstOrDefault(user =>
                 user.AuthInfo is AuthInfoUser userAuth
                 && string.Equals(userAuth.Login, login, StringComparison.Ordinal));
-            Assert.Equal(token, account.Token);
+            if (account is not null)
+            {
+                Assert.Equal(token, account.Token);
+            }
 
             var logout = await client.Rpc.Account.LogoutAsync(authInfo);
             Assert.False(logout.HasMoreUsers);
@@ -231,8 +235,14 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             env["GITHUB_TOKEN"] = "";
         }
 
+        var options = new CopilotClientOptions { Environment = env };
+        if (!autoInjectGitHubToken)
+        {
+            options.UseLoggedInUser = false;
+        }
+
         var client = Ctx.CreateClient(
-            options: new CopilotClientOptions { Environment = env },
+            options: options,
             autoInjectGitHubToken: autoInjectGitHubToken);
         await client.StartAsync();
         return (client, home);

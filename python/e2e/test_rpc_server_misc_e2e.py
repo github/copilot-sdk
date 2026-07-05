@@ -113,9 +113,7 @@ class TestRpcServerMisc:
         finally:
             await _dispose_isolated(client, home)
 
-    async def test_should_login_list_get_current_auth_and_logout_account(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_login_list_get_current_auth_and_logout_account(self, ctx: E2ETestContext):
         login = f"rpc-account-{uuid.uuid4().hex}"
         token = f"rpc-account-token-{uuid.uuid4().hex}"
         await ctx.set_copilot_user_by_token(
