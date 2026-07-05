@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+ * CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
  *
  * @since 1.0.0
  */

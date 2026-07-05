@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Current full allow-all permission state.
+ * Current allow-all permission mode.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionPermissionsGetAllowAllResult(
     /** Whether full allow-all permissions are currently active */
-    @JsonProperty("enabled") Boolean enabled
+    @JsonProperty("enabled") Boolean enabled,
+    /** Current allow-all mode */
+    @JsonProperty("mode") PermissionsAllowAllMode mode
 ) {
 }

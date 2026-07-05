@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+ * Marker object for clipboard-write permission on an MCP Apps UI resource.
  *
  * @since 1.0.0
  */

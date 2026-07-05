@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `UIExitPlanModeResponse` type.
+ * User response for a pending exit-plan-mode request, with approval state, selected action, auto-approve flag, and feedback.
  *
  * @since 1.0.0
  */

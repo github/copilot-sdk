@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `McpAppsResourceContent` type.
+ * MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
  *
  * @since 1.0.0
  */

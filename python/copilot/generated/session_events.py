@@ -423,7 +423,7 @@ class BinaryAssetReference:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasRegistryChangedCanvas:
-    "Schema for the `CanvasRegistryChangedCanvas` type."
+    "A single canvas declaration in `session.canvas.registry_changed`, including provider IDs, display metadata, input schema, and actions."
     canvas_id: str
     description: str
     display_name: str
@@ -470,7 +470,7 @@ class CanvasRegistryChangedCanvas:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasRegistryChangedCanvasAction:
-    "Schema for the `CanvasRegistryChangedCanvasAction` type."
+    "A single action within a canvas declaration, with its name, optional description, and optional input schema."
     name: str
     description: str | None = None
     input_schema: Any = None
@@ -784,8 +784,33 @@ class OmittedBinaryResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class PermissionAutoApproval:
+    "Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is \"auto\"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request."
+    recommendation: AutoApprovalRecommendation
+    reason: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionAutoApproval":
+        assert isinstance(obj, dict)
+        recommendation = parse_enum(AutoApprovalRecommendation, obj.get("recommendation"))
+        reason = from_union([from_none, from_str], obj.get("reason"))
+        return PermissionAutoApproval(
+            recommendation=recommendation,
+            reason=reason,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["recommendation"] = to_enum(AutoApprovalRecommendation, self.recommendation)
+        if self.reason is not None:
+            result["reason"] = from_union([from_none, from_str], self.reason)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SessionCanvasClosedData:
-    "Schema for the `CanvasClosedData` type."
+    "Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID."
     canvas_id: str
     extension_id: str
     instance_id: str
@@ -813,7 +838,7 @@ class SessionCanvasClosedData:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionCanvasOpenedData:
-    "Schema for the `CanvasOpenedData` type."
+    "Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input."
     canvas_id: str
     extension_id: str
     instance_id: str
@@ -904,7 +929,7 @@ class SessionCanvasRecordedData:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionCanvasRegistryChangedData:
-    "Schema for the `CanvasRegistryChangedData` type."
+    "Payload of `session.canvas.registry_changed` listing the canvas declarations currently available."
     canvases: list[CanvasRegistryChangedCanvas]
 
     @staticmethod
@@ -1315,18 +1340,23 @@ class AssistantStreamingDeltaData:
 class AssistantTurnEndData:
     "Turn completion metadata including the turn identifier"
     turn_id: str
+    model: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantTurnEndData":
         assert isinstance(obj, dict)
         turn_id = from_str(obj.get("turnId"))
+        model = from_union([from_none, from_str], obj.get("model"))
         return AssistantTurnEndData(
             turn_id=turn_id,
+            model=model,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["turnId"] = from_str(self.turn_id)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
         return result
 
 
@@ -1335,15 +1365,18 @@ class AssistantTurnStartData:
     "Turn initialization metadata including identifier and interaction tracking"
     turn_id: str
     interaction_id: str | None = None
+    model: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantTurnStartData":
         assert isinstance(obj, dict)
         turn_id = from_str(obj.get("turnId"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        model = from_union([from_none, from_str], obj.get("model"))
         return AssistantTurnStartData(
             turn_id=turn_id,
             interaction_id=interaction_id,
+            model=model,
         )
 
     def to_dict(self) -> dict:
@@ -1351,6 +1384,8 @@ class AssistantTurnStartData:
         result["turnId"] = from_str(self.turn_id)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
         return result
 
 
@@ -1534,7 +1569,7 @@ class AssistantUsageData:
 
 @dataclass
 class _AssistantUsageQuotaSnapshot:
-    "Schema for the `_AssistantUsageQuotaSnapshot` type."
+    "Internal per-quota snapshot for assistant usage, including entitlement, consumed requests, overage, reset date, and remaining quota."
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _entitlement_requests: int
     # Internal: this field is an internal SDK API and is not part of the public surface.
@@ -2464,7 +2499,7 @@ class CommandQueuedData:
 
 @dataclass
 class CommandsChangedCommand:
-    "Schema for the `CommandsChangedCommand` type."
+    "A single slash command available in the session, as listed by the `commands.changed` event."
     name: str
     description: str | None = None
 
@@ -2614,7 +2649,7 @@ class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
 
 @dataclass
 class CustomAgentsUpdatedAgent:
-    "Schema for the `CustomAgentsUpdatedAgent` type."
+    "A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override."
     description: str
     display_name: str
     id: str
@@ -2767,7 +2802,7 @@ class ElicitationRequestedSchema:
 
 @dataclass
 class EmbeddedBlobResourceContents:
-    "Schema for the `EmbeddedBlobResourceContents` type."
+    "Embedded binary resource contents identified by a URI, with an optional MIME type and a base64-encoded blob."
     blob: str
     uri: str
     mime_type: str | None = None
@@ -2795,7 +2830,7 @@ class EmbeddedBlobResourceContents:
 
 @dataclass
 class EmbeddedTextResourceContents:
-    "Schema for the `EmbeddedTextResourceContents` type."
+    "Embedded text resource contents identified by a URI, with an optional MIME type and a text payload."
     text: str
     uri: str
     mime_type: str | None = None
@@ -2897,7 +2932,7 @@ class ExitPlanModeRequestedData:
 
 @dataclass
 class ExtensionsLoadedExtension:
-    "Schema for the `ExtensionsLoadedExtension` type."
+    "A single extension discovered by `session.extensions_loaded`, including qualified ID, source, and current status."
     id: str
     name: str
     source: ExtensionsLoadedExtensionSource
@@ -3262,7 +3297,7 @@ class McpAppToolCallCompleteToolMeta:
 
 @dataclass
 class McpAppToolCallCompleteToolMetaUI:
-    "Schema for the `McpAppToolCallCompleteToolMetaUI` type."
+    "MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result."
     resource_uri: str | None = None
     visibility: list[str] | None = None
 
@@ -3474,7 +3509,7 @@ class McpOauthWWWAuthenticateParams:
 
 @dataclass
 class McpServersLoadedServer:
-    "Schema for the `McpServersLoadedServer` type."
+    "A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata."
     name: str
     status: McpServerStatus
     error: str | None = None
@@ -3663,7 +3698,7 @@ class PendingMessagesModifiedData:
 
 @dataclass
 class PermissionApproved:
-    "Schema for the `PermissionApproved` type."
+    "Permission response variant indicating the request was approved without persisting an approval rule."
     kind: ClassVar[str] = "approved"
 
     @staticmethod
@@ -3680,7 +3715,7 @@ class PermissionApproved:
 
 @dataclass
 class PermissionApprovedForLocation:
-    "Schema for the `PermissionApprovedForLocation` type."
+    "Permission response variant that approves a request and persists the provided approval to a project location key."
     approval: UserToolSessionApproval
     kind: ClassVar[str] = "approved-for-location"
     location_key: str
@@ -3705,7 +3740,7 @@ class PermissionApprovedForLocation:
 
 @dataclass
 class PermissionApprovedForSession:
-    "Schema for the `PermissionApprovedForSession` type."
+    "Permission response variant that approves a request and remembers the provided approval for the rest of the session."
     approval: UserToolSessionApproval
     kind: ClassVar[str] = "approved-for-session"
 
@@ -3726,7 +3761,7 @@ class PermissionApprovedForSession:
 
 @dataclass
 class PermissionCancelled:
-    "Schema for the `PermissionCancelled` type."
+    "Permission response variant indicating the request was cancelled before use, with an optional reason."
     kind: ClassVar[str] = "cancelled"
     reason: str | None = None
 
@@ -3776,7 +3811,7 @@ class PermissionCompletedData:
 
 @dataclass
 class PermissionDeniedByContentExclusionPolicy:
-    "Schema for the `PermissionDeniedByContentExclusionPolicy` type."
+    "Permission response variant denying a path under content exclusion policy, with the path and message."
     kind: ClassVar[str] = "denied-by-content-exclusion-policy"
     message: str
     path: str
@@ -3801,7 +3836,7 @@ class PermissionDeniedByContentExclusionPolicy:
 
 @dataclass
 class PermissionDeniedByPermissionRequestHook:
-    "Schema for the `PermissionDeniedByPermissionRequestHook` type."
+    "Permission response variant denied by a permission-request hook, with optional message and interrupt flag."
     kind: ClassVar[str] = "denied-by-permission-request-hook"
     interrupt: bool | None = None
     message: str | None = None
@@ -3828,7 +3863,7 @@ class PermissionDeniedByPermissionRequestHook:
 
 @dataclass
 class PermissionDeniedByRules:
-    "Schema for the `PermissionDeniedByRules` type."
+    "Permission response variant denied because matching approval rules explicitly blocked the request."
     kind: ClassVar[str] = "denied-by-rules"
     rules: list[PermissionRule]
 
@@ -3849,7 +3884,7 @@ class PermissionDeniedByRules:
 
 @dataclass
 class PermissionDeniedInteractivelyByUser:
-    "Schema for the `PermissionDeniedInteractivelyByUser` type."
+    "Permission response variant denied in an interactive user prompt, with optional feedback and force-reject flag."
     kind: ClassVar[str] = "denied-interactively-by-user"
     feedback: str | None = None
     force_reject: bool | None = None
@@ -3876,7 +3911,7 @@ class PermissionDeniedInteractivelyByUser:
 
 @dataclass
 class PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
-    "Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type."
+    "Permission response variant denied because no approval rule matched and user confirmation was unavailable."
     kind: ClassVar[str] = "denied-no-approval-rule-and-could-not-request-from-user"
 
     @staticmethod
@@ -3899,6 +3934,8 @@ class PermissionPromptRequestCommands:
     full_command_text: str
     intention: str
     kind: ClassVar[str] = "commands"
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     tool_call_id: str | None = None
     warning: str | None = None
 
@@ -3909,6 +3946,7 @@ class PermissionPromptRequestCommands:
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
         full_command_text = from_str(obj.get("fullCommandText"))
         intention = from_str(obj.get("intention"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         warning = from_union([from_none, from_str], obj.get("warning"))
         return PermissionPromptRequestCommands(
@@ -3916,6 +3954,7 @@ class PermissionPromptRequestCommands:
             command_identifiers=command_identifiers,
             full_command_text=full_command_text,
             intention=intention,
+            auto_approval=auto_approval,
             tool_call_id=tool_call_id,
             warning=warning,
         )
@@ -3927,6 +3966,8 @@ class PermissionPromptRequestCommands:
         result["fullCommandText"] = from_str(self.full_command_text)
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         if self.warning is not None:
@@ -3941,6 +3982,8 @@ class PermissionPromptRequestCustomTool:
     tool_description: str
     tool_name: str
     args: Any = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -3949,11 +3992,13 @@ class PermissionPromptRequestCustomTool:
         tool_description = from_str(obj.get("toolDescription"))
         tool_name = from_str(obj.get("toolName"))
         args = obj.get("args")
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestCustomTool(
             tool_description=tool_description,
             tool_name=tool_name,
             args=args,
+            auto_approval=auto_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -3964,6 +4009,8 @@ class PermissionPromptRequestCustomTool:
         result["toolName"] = from_str(self.tool_name)
         if self.args is not None:
             result["args"] = self.args
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -3974,6 +4021,8 @@ class PermissionPromptRequestExtensionManagement:
     "Extension management permission prompt"
     kind: ClassVar[str] = "extension-management"
     operation: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     extension_name: str | None = None
     tool_call_id: str | None = None
 
@@ -3981,10 +4030,12 @@ class PermissionPromptRequestExtensionManagement:
     def from_dict(obj: Any) -> "PermissionPromptRequestExtensionManagement":
         assert isinstance(obj, dict)
         operation = from_str(obj.get("operation"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         extension_name = from_union([from_none, from_str], obj.get("extensionName"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestExtensionManagement(
             operation=operation,
+            auto_approval=auto_approval,
             extension_name=extension_name,
             tool_call_id=tool_call_id,
         )
@@ -3993,6 +4044,8 @@ class PermissionPromptRequestExtensionManagement:
         result: dict = {}
         result["kind"] = self.kind
         result["operation"] = from_str(self.operation)
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.extension_name is not None:
             result["extensionName"] = from_union([from_none, from_str], self.extension_name)
         if self.tool_call_id is not None:
@@ -4006,6 +4059,8 @@ class PermissionPromptRequestExtensionPermissionAccess:
     capabilities: list[str]
     extension_name: str
     kind: ClassVar[str] = "extension-permission-access"
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4013,10 +4068,12 @@ class PermissionPromptRequestExtensionPermissionAccess:
         assert isinstance(obj, dict)
         capabilities = from_list(from_str, obj.get("capabilities"))
         extension_name = from_str(obj.get("extensionName"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestExtensionPermissionAccess(
             capabilities=capabilities,
             extension_name=extension_name,
+            auto_approval=auto_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -4025,6 +4082,8 @@ class PermissionPromptRequestExtensionPermissionAccess:
         result["capabilities"] = from_list(from_str, self.capabilities)
         result["extensionName"] = from_str(self.extension_name)
         result["kind"] = self.kind
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4035,6 +4094,8 @@ class PermissionPromptRequestHook:
     "Hook confirmation permission prompt"
     kind: ClassVar[str] = "hook"
     tool_name: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     hook_message: str | None = None
     tool_args: Any = None
     tool_call_id: str | None = None
@@ -4043,11 +4104,13 @@ class PermissionPromptRequestHook:
     def from_dict(obj: Any) -> "PermissionPromptRequestHook":
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
         tool_args = obj.get("toolArgs")
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestHook(
             tool_name=tool_name,
+            auto_approval=auto_approval,
             hook_message=hook_message,
             tool_args=tool_args,
             tool_call_id=tool_call_id,
@@ -4057,6 +4120,8 @@ class PermissionPromptRequestHook:
         result: dict = {}
         result["kind"] = self.kind
         result["toolName"] = from_str(self.tool_name)
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.hook_message is not None:
             result["hookMessage"] = from_union([from_none, from_str], self.hook_message)
         if self.tool_args is not None:
@@ -4074,6 +4139,8 @@ class PermissionPromptRequestMcp:
     tool_name: str
     tool_title: str
     args: Any = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4083,12 +4150,14 @@ class PermissionPromptRequestMcp:
         tool_name = from_str(obj.get("toolName"))
         tool_title = from_str(obj.get("toolTitle"))
         args = obj.get("args")
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestMcp(
             server_name=server_name,
             tool_name=tool_name,
             tool_title=tool_title,
             args=args,
+            auto_approval=auto_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -4100,6 +4169,8 @@ class PermissionPromptRequestMcp:
         result["toolTitle"] = from_str(self.tool_title)
         if self.args is not None:
             result["args"] = self.args
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4111,6 +4182,8 @@ class PermissionPromptRequestMemory:
     fact: str
     kind: ClassVar[str] = "memory"
     action: PermissionRequestMemoryAction | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     citations: str | None = None
     direction: PermissionRequestMemoryDirection | None = None
     reason: str | None = None
@@ -4122,6 +4195,7 @@ class PermissionPromptRequestMemory:
         assert isinstance(obj, dict)
         fact = from_str(obj.get("fact"))
         action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         citations = from_union([from_none, from_str], obj.get("citations"))
         direction = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryDirection, x)], obj.get("direction"))
         reason = from_union([from_none, from_str], obj.get("reason"))
@@ -4130,6 +4204,7 @@ class PermissionPromptRequestMemory:
         return PermissionPromptRequestMemory(
             fact=fact,
             action=action,
+            auto_approval=auto_approval,
             citations=citations,
             direction=direction,
             reason=reason,
@@ -4143,6 +4218,8 @@ class PermissionPromptRequestMemory:
         result["kind"] = self.kind
         if self.action is not None:
             result["action"] = from_union([from_none, lambda x: to_enum(PermissionRequestMemoryAction, x)], self.action)
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.citations is not None:
             result["citations"] = from_union([from_none, from_str], self.citations)
         if self.direction is not None:
@@ -4162,6 +4239,8 @@ class PermissionPromptRequestPath:
     access_kind: PermissionPromptRequestPathAccessKind
     kind: ClassVar[str] = "path"
     paths: list[str]
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4169,10 +4248,12 @@ class PermissionPromptRequestPath:
         assert isinstance(obj, dict)
         access_kind = parse_enum(PermissionPromptRequestPathAccessKind, obj.get("accessKind"))
         paths = from_list(from_str, obj.get("paths"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestPath(
             access_kind=access_kind,
             paths=paths,
+            auto_approval=auto_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -4181,6 +4262,8 @@ class PermissionPromptRequestPath:
         result["accessKind"] = to_enum(PermissionPromptRequestPathAccessKind, self.access_kind)
         result["kind"] = self.kind
         result["paths"] = from_list(from_str, self.paths)
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4192,6 +4275,8 @@ class PermissionPromptRequestRead:
     intention: str
     kind: ClassVar[str] = "read"
     path: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4199,10 +4284,12 @@ class PermissionPromptRequestRead:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         path = from_str(obj.get("path"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestRead(
             intention=intention,
             path=path,
+            auto_approval=auto_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -4211,6 +4298,8 @@ class PermissionPromptRequestRead:
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
         result["path"] = from_str(self.path)
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4222,6 +4311,8 @@ class PermissionPromptRequestUrl:
     intention: str
     kind: ClassVar[str] = "url"
     url: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4229,10 +4320,12 @@ class PermissionPromptRequestUrl:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         url = from_str(obj.get("url"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestUrl(
             intention=intention,
             url=url,
+            auto_approval=auto_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -4241,6 +4334,8 @@ class PermissionPromptRequestUrl:
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
         result["url"] = from_str(self.url)
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4254,6 +4349,8 @@ class PermissionPromptRequestWrite:
     file_name: str
     intention: str
     kind: ClassVar[str] = "write"
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
     new_file_contents: str | None = None
     tool_call_id: str | None = None
 
@@ -4264,6 +4361,7 @@ class PermissionPromptRequestWrite:
         diff = from_str(obj.get("diff"))
         file_name = from_str(obj.get("fileName"))
         intention = from_str(obj.get("intention"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
         new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestWrite(
@@ -4271,6 +4369,7 @@ class PermissionPromptRequestWrite:
             diff=diff,
             file_name=file_name,
             intention=intention,
+            auto_approval=auto_approval,
             new_file_contents=new_file_contents,
             tool_call_id=tool_call_id,
         )
@@ -4282,6 +4381,8 @@ class PermissionPromptRequestWrite:
         result["fileName"] = from_str(self.file_name)
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
         if self.new_file_contents is not None:
             result["newFileContents"] = from_union([from_none, from_str], self.new_file_contents)
         if self.tool_call_id is not None:
@@ -4622,7 +4723,7 @@ class PermissionRequestShell:
 
 @dataclass
 class PermissionRequestShellCommand:
-    "Schema for the `PermissionRequestShellCommand` type."
+    "A parsed command identifier in a shell permission request, including whether it is read-only."
     identifier: str
     read_only: bool
 
@@ -4645,7 +4746,7 @@ class PermissionRequestShellCommand:
 
 @dataclass
 class PermissionRequestShellPossibleUrl:
-    "Schema for the `PermissionRequestShellPossibleUrl` type."
+    "A URL that may be accessed by a command in a shell permission request."
     url: str
 
     @staticmethod
@@ -4770,7 +4871,7 @@ class PermissionRequestedData:
 
 @dataclass
 class PermissionRule:
-    "Schema for the `PermissionRule` type."
+    "A permission approval or denial rule matched against a tool request, identified by a rule kind with an optional argument value."
     argument: str | None
     kind: str
 
@@ -4905,7 +5006,7 @@ class SessionAutopilotObjectiveChangedData:
 
 @dataclass
 class SessionBackgroundTasksChangedData:
-    "Schema for the `BackgroundTasksChangedData` type."
+    "Empty payload for `session.background_tasks_changed`, indicating background task state changed."
     @staticmethod
     def from_dict(obj: Any) -> "SessionBackgroundTasksChangedData":
         assert isinstance(obj, dict)
@@ -5068,6 +5169,7 @@ class SessionCompactionCompleteData:
 class SessionCompactionStartData:
     "Context window breakdown at the start of LLM-powered conversation compaction"
     conversation_tokens: int | None = None
+    model: str | None = None
     system_tokens: int | None = None
     tool_definitions_tokens: int | None = None
 
@@ -5075,10 +5177,12 @@ class SessionCompactionStartData:
     def from_dict(obj: Any) -> "SessionCompactionStartData":
         assert isinstance(obj, dict)
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
+        model = from_union([from_none, from_str], obj.get("model"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
         tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
         return SessionCompactionStartData(
             conversation_tokens=conversation_tokens,
+            model=model,
             system_tokens=system_tokens,
             tool_definitions_tokens=tool_definitions_tokens,
         )
@@ -5087,6 +5191,8 @@ class SessionCompactionStartData:
         result: dict = {}
         if self.conversation_tokens is not None:
             result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
         if self.system_tokens is not None:
             result["systemTokens"] = from_union([from_none, to_int], self.system_tokens)
         if self.tool_definitions_tokens is not None:
@@ -5150,7 +5256,7 @@ class SessionContextChangedData:
 
 @dataclass
 class SessionCustomAgentsUpdatedData:
-    "Schema for the `CustomAgentsUpdatedData` type."
+    "Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors."
     agents: list[CustomAgentsUpdatedAgent]
     errors: list[str]
     warnings: list[str]
@@ -5272,7 +5378,7 @@ class SessionErrorData:
 
 @dataclass
 class SessionExtensionsAttachmentsPushedData:
-    "Schema for the `ExtensionsAttachmentsPushedData` type."
+    "Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send."
     attachments: list[Attachment]
 
     @staticmethod
@@ -5291,7 +5397,7 @@ class SessionExtensionsAttachmentsPushedData:
 
 @dataclass
 class SessionExtensionsLoadedData:
-    "Schema for the `ExtensionsLoadedData` type."
+    "Payload of `session.extensions_loaded` listing discovered extensions and their statuses."
     extensions: list[ExtensionsLoadedExtension]
 
     @staticmethod
@@ -5510,7 +5616,7 @@ class SessionLimitsExhaustedResponse:
 
 @dataclass
 class SessionMcpServerStatusChangedData:
-    "Schema for the `McpServerStatusChangedData` type."
+    "Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error."
     server_name: str
     status: McpServerStatus
     error: str | None = None
@@ -5538,7 +5644,7 @@ class SessionMcpServerStatusChangedData:
 
 @dataclass
 class SessionMcpServersLoadedData:
-    "Schema for the `McpServersLoadedData` type."
+    "Payload of `session.mcp_servers_loaded` listing MCP server status summaries."
     servers: list[McpServersLoadedServer]
 
     @staticmethod
@@ -5634,24 +5740,36 @@ class SessionModelChangeData:
 
 @dataclass
 class SessionPermissionsChangedData:
-    "Permissions change details carrying the aggregate allow-all boolean transition."
+    "Permissions change details carrying the aggregate allow-all transition."
     allow_all_permissions: bool
     previous_allow_all_permissions: bool
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    allow_all_permission_mode: PermissionAllowAllMode | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    previous_allow_all_permission_mode: PermissionAllowAllMode | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionPermissionsChangedData":
         assert isinstance(obj, dict)
         allow_all_permissions = from_bool(obj.get("allowAllPermissions"))
         previous_allow_all_permissions = from_bool(obj.get("previousAllowAllPermissions"))
+        allow_all_permission_mode = from_union([from_none, lambda x: parse_enum(PermissionAllowAllMode, x)], obj.get("allowAllPermissionMode"))
+        previous_allow_all_permission_mode = from_union([from_none, lambda x: parse_enum(PermissionAllowAllMode, x)], obj.get("previousAllowAllPermissionMode"))
         return SessionPermissionsChangedData(
             allow_all_permissions=allow_all_permissions,
             previous_allow_all_permissions=previous_allow_all_permissions,
+            allow_all_permission_mode=allow_all_permission_mode,
+            previous_allow_all_permission_mode=previous_allow_all_permission_mode,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["allowAllPermissions"] = from_bool(self.allow_all_permissions)
         result["previousAllowAllPermissions"] = from_bool(self.previous_allow_all_permissions)
+        if self.allow_all_permission_mode is not None:
+            result["allowAllPermissionMode"] = from_union([from_none, lambda x: to_enum(PermissionAllowAllMode, x)], self.allow_all_permission_mode)
+        if self.previous_allow_all_permission_mode is not None:
+            result["previousAllowAllPermissionMode"] = from_union([from_none, lambda x: to_enum(PermissionAllowAllMode, x)], self.previous_allow_all_permission_mode)
         return result
 
 
@@ -5979,7 +6097,7 @@ class SessionShutdownData:
 
 @dataclass
 class SessionSkillsLoadedData:
-    "Schema for the `SkillsLoadedData` type."
+    "Payload of `session.skills_loaded` listing resolved skill metadata."
     skills: list[SkillsLoadedSkill]
 
     @staticmethod
@@ -6157,7 +6275,7 @@ class SessionTodosChangedData:
 
 @dataclass
 class SessionToolsUpdatedData:
-    "Schema for the `ToolsUpdatedData` type."
+    "Payload of `session.tools_updated` identifying the model whose resolved tools were updated."
     model: str
 
     @staticmethod
@@ -6373,7 +6491,7 @@ class ShutdownCodeChanges:
 
 @dataclass
 class ShutdownModelMetric:
-    "Schema for the `ShutdownModelMetric` type."
+    "Per-model shutdown metrics with request counts, token usage, nano-AI units, and token details."
     requests: ShutdownModelMetricRequests
     usage: ShutdownModelMetricUsage
     token_details: dict[str, ShutdownModelMetricTokenDetail] | None = None
@@ -6434,7 +6552,7 @@ class ShutdownModelMetricRequests:
 
 @dataclass
 class ShutdownModelMetricTokenDetail:
-    "Schema for the `ShutdownModelMetricTokenDetail` type."
+    "A token-type entry in a shutdown model metric, storing the accumulated token count."
     token_count: int
 
     @staticmethod
@@ -6489,7 +6607,7 @@ class ShutdownModelMetricUsage:
 
 @dataclass
 class ShutdownTokenDetail:
-    "Schema for the `ShutdownTokenDetail` type."
+    "A session-wide shutdown token-type entry storing the accumulated token count."
     token_count: int
 
     @staticmethod
@@ -6514,6 +6632,7 @@ class SkillInvokedData:
     path: str
     allowed_tools: list[str] | None = None
     description: str | None = None
+    model: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
     source: str | None = None
@@ -6527,6 +6646,7 @@ class SkillInvokedData:
         path = from_str(obj.get("path"))
         allowed_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("allowedTools"))
         description = from_union([from_none, from_str], obj.get("description"))
+        model = from_union([from_none, from_str], obj.get("model"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
         source = from_union([from_none, from_str], obj.get("source"))
@@ -6537,6 +6657,7 @@ class SkillInvokedData:
             path=path,
             allowed_tools=allowed_tools,
             description=description,
+            model=model,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
             source=source,
@@ -6552,6 +6673,8 @@ class SkillInvokedData:
             result["allowedTools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.allowed_tools)
         if self.description is not None:
             result["description"] = from_union([from_none, from_str], self.description)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
         if self.plugin_name is not None:
             result["pluginName"] = from_union([from_none, from_str], self.plugin_name)
         if self.plugin_version is not None:
@@ -6565,7 +6688,7 @@ class SkillInvokedData:
 
 @dataclass
 class SkillsLoadedSkill:
-    "Schema for the `SkillsLoadedSkill` type."
+    "A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint."
     description: str
     enabled: bool
     name: str
@@ -6841,7 +6964,7 @@ class SystemMessageMetadata:
 
 @dataclass
 class SystemNotificationAgentCompleted:
-    "Schema for the `SystemNotificationAgentCompleted` type."
+    "System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt."
     agent_id: str
     agent_type: str
     status: SystemNotificationAgentCompletedStatus
@@ -6880,7 +7003,7 @@ class SystemNotificationAgentCompleted:
 
 @dataclass
 class SystemNotificationAgentIdle:
-    "Schema for the `SystemNotificationAgentIdle` type."
+    "System notification metadata for a background agent that became idle, including agent ID, type, and description."
     agent_id: str
     agent_type: str
     type: ClassVar[str] = "agent_idle"
@@ -6933,7 +7056,7 @@ class SystemNotificationData:
 
 @dataclass
 class SystemNotificationInstructionDiscovered:
-    "Schema for the `SystemNotificationInstructionDiscovered` type."
+    "System notification metadata for an instruction file discovered during tool access, including source, trigger file, and tool."
     source_path: str
     trigger_file: str
     trigger_tool: str
@@ -6967,7 +7090,7 @@ class SystemNotificationInstructionDiscovered:
 
 @dataclass
 class SystemNotificationNewInboxMessage:
-    "Schema for the `SystemNotificationNewInboxMessage` type."
+    "System notification metadata for a new inbox message, including entry ID, sender details, and summary."
     entry_id: str
     sender_name: str
     sender_type: str
@@ -7000,7 +7123,7 @@ class SystemNotificationNewInboxMessage:
 
 @dataclass
 class SystemNotificationShellCompleted:
-    "Schema for the `SystemNotificationShellCompleted` type."
+    "System notification metadata for a shell session that completed, including shell ID, optional exit code, and description."
     shell_id: str
     type: ClassVar[str] = "shell_completed"
     description: str | None = None
@@ -7031,7 +7154,7 @@ class SystemNotificationShellCompleted:
 
 @dataclass
 class SystemNotificationShellDetachedCompleted:
-    "Schema for the `SystemNotificationShellDetachedCompleted` type."
+    "System notification metadata for a detached shell session that completed, including shell ID and description."
     shell_id: str
     type: ClassVar[str] = "shell_detached_completed"
     description: str | None = None
@@ -7471,7 +7594,7 @@ class ToolExecutionCompleteToolDescriptionMeta:
 
 @dataclass
 class ToolExecutionCompleteToolDescriptionMetaUI:
-    "Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type."
+    "MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`."
     resource_uri: str | None = None
     visibility: list[ToolExecutionCompleteToolDescriptionMetaUIVisibility] | None = None
 
@@ -7554,7 +7677,7 @@ class ToolExecutionCompleteUIResourceMeta:
 
 @dataclass
 class ToolExecutionCompleteUIResourceMetaUI:
-    "Schema for the `ToolExecutionCompleteUIResourceMetaUI` type."
+    "MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference."
     csp: ToolExecutionCompleteUIResourceMetaUICsp | None = None
     domain: str | None = None
     permissions: ToolExecutionCompleteUIResourceMetaUIPermissions | None = None
@@ -7589,7 +7712,7 @@ class ToolExecutionCompleteUIResourceMetaUI:
 
 @dataclass
 class ToolExecutionCompleteUIResourceMetaUICsp:
-    "Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type."
+    "CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains."
     base_uri_domains: list[str] | None = None
     connect_domains: list[str] | None = None
     frame_domains: list[str] | None = None
@@ -7624,7 +7747,7 @@ class ToolExecutionCompleteUIResourceMetaUICsp:
 
 @dataclass
 class ToolExecutionCompleteUIResourceMetaUIPermissions:
-    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type."
+    "Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write."
     camera: ToolExecutionCompleteUIResourceMetaUIPermissionsCamera | None = None
     clipboard_write: ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite | None = None
     geolocation: ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation | None = None
@@ -7659,7 +7782,7 @@ class ToolExecutionCompleteUIResourceMetaUIPermissions:
 
 @dataclass
 class ToolExecutionCompleteUIResourceMetaUIPermissionsCamera:
-    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type."
+    "Marker object for camera permission on an MCP Apps UI resource."
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissionsCamera":
         assert isinstance(obj, dict)
@@ -7671,7 +7794,7 @@ class ToolExecutionCompleteUIResourceMetaUIPermissionsCamera:
 
 @dataclass
 class ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite:
-    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type."
+    "Marker object for clipboard-write permission on an MCP Apps UI resource."
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite":
         assert isinstance(obj, dict)
@@ -7683,7 +7806,7 @@ class ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite:
 
 @dataclass
 class ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation:
-    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type."
+    "Marker object for geolocation permission on an MCP Apps UI resource."
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation":
         assert isinstance(obj, dict)
@@ -7695,7 +7818,7 @@ class ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation:
 
 @dataclass
 class ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone:
-    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type."
+    "Marker object for microphone permission on an MCP Apps UI resource."
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone":
         assert isinstance(obj, dict)
@@ -7894,7 +8017,7 @@ class ToolExecutionStartToolDescriptionMeta:
 
 @dataclass
 class ToolExecutionStartToolDescriptionMetaUI:
-    "Schema for the `ToolExecutionStartToolDescriptionMetaUI` type."
+    "MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_start`."
     resource_uri: str | None = None
     visibility: list[ToolExecutionStartToolDescriptionMetaUIVisibility] | None = None
 
@@ -8014,7 +8137,7 @@ class UserInputRequestedData:
 
 @dataclass
 class UserMessageData:
-    "Schema for the `UserMessageData` type."
+    "Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs."
     content: str
     agent_mode: UserMessageAgentMode | None = None
     attachments: list[Attachment] | None = None
@@ -8083,7 +8206,7 @@ class UserMessageData:
 
 @dataclass
 class UserToolSessionApprovalCommands:
-    "Schema for the `UserToolSessionApprovalCommands` type."
+    "Session-scoped tool-approval rule for specific shell command identifiers."
     command_identifiers: list[str]
     kind: ClassVar[str] = "commands"
 
@@ -8104,7 +8227,7 @@ class UserToolSessionApprovalCommands:
 
 @dataclass
 class UserToolSessionApprovalCustomTool:
-    "Schema for the `UserToolSessionApprovalCustomTool` type."
+    "Session-scoped tool-approval rule for a custom tool, keyed by tool name."
     kind: ClassVar[str] = "custom-tool"
     tool_name: str
 
@@ -8125,7 +8248,7 @@ class UserToolSessionApprovalCustomTool:
 
 @dataclass
 class UserToolSessionApprovalExtensionManagement:
-    "Schema for the `UserToolSessionApprovalExtensionManagement` type."
+    "Session-scoped tool-approval rule for extension-management operations, optionally narrowed by operation."
     kind: ClassVar[str] = "extension-management"
     operation: str | None = None
 
@@ -8147,7 +8270,7 @@ class UserToolSessionApprovalExtensionManagement:
 
 @dataclass
 class UserToolSessionApprovalExtensionPermissionAccess:
-    "Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type."
+    "Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name."
     extension_name: str
     kind: ClassVar[str] = "extension-permission-access"
 
@@ -8168,7 +8291,7 @@ class UserToolSessionApprovalExtensionPermissionAccess:
 
 @dataclass
 class UserToolSessionApprovalMcp:
-    "Schema for the `UserToolSessionApprovalMcp` type."
+    "Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when `toolName` is null."
     kind: ClassVar[str] = "mcp"
     server_name: str
     tool_name: str | None
@@ -8193,7 +8316,7 @@ class UserToolSessionApprovalMcp:
 
 @dataclass
 class UserToolSessionApprovalMemory:
-    "Schema for the `UserToolSessionApprovalMemory` type."
+    "Session-scoped tool-approval rule for writes to long-term memory."
     kind: ClassVar[str] = "memory"
 
     @staticmethod
@@ -8210,7 +8333,7 @@ class UserToolSessionApprovalMemory:
 
 @dataclass
 class UserToolSessionApprovalRead:
-    "Schema for the `UserToolSessionApprovalRead` type."
+    "Session-scoped tool-approval rule for read-only filesystem operations."
     kind: ClassVar[str] = "read"
 
     @staticmethod
@@ -8227,7 +8350,7 @@ class UserToolSessionApprovalRead:
 
 @dataclass
 class UserToolSessionApprovalWrite:
-    "Schema for the `UserToolSessionApprovalWrite` type."
+    "Session-scoped tool-approval rule for filesystem write operations."
     kind: ClassVar[str] = "write"
 
     @staticmethod
@@ -8462,6 +8585,19 @@ PermissionResult = PermissionApproved | PermissionApprovedForSession | Permissio
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
+class AutoApprovalRecommendation(Enum):
+    "Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off)."
+    # The judge evaluated the request and recommends automatically approving it.
+    APPROVE = "approve"
+    # The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
+    REQUIRE_APPROVAL = "requireApproval"
+    # Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted.
+    EXCLUDED = "excluded"
+    # The judge was consulted but did not return a usable recommendation, so the request requires explicit approval.
+    ERROR = "error"
+
+
+# Experimental: this enum is part of an experimental API and may change or be removed.
 class CitationProvider(Enum):
     "The system that produced a citation."
     # Citation produced by an Anthropic (Claude) model response.
@@ -8470,6 +8606,17 @@ class CitationProvider(Enum):
     OPENAI = "openai"
     # Citation synthesized client-side by the runtime from tool output.
     CLIENT = "client"
+
+
+# Experimental: this enum is part of an experimental API and may change or be removed.
+class PermissionAllowAllMode(Enum):
+    "Allow-all mode for the session."
+    # Permission requests follow the normal approval flow.
+    OFF = "off"
+    # Tool, path, and URL permission requests are automatically approved.
+    ON = "on"
+    # Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
+    AUTO = "auto"
 
 
 class AbortReason(Enum):
@@ -9138,6 +9285,7 @@ __all__ = [
     "AttachmentSelectionDetails",
     "AttachmentSelectionDetailsEnd",
     "AttachmentSelectionDetailsStart",
+    "AutoApprovalRecommendation",
     "AutoModeSwitchCompletedData",
     "AutoModeSwitchRequestedData",
     "AutoModeSwitchResponse",
@@ -9218,9 +9366,11 @@ __all__ = [
     "OmittedBinaryResult",
     "OmittedBinaryType",
     "PendingMessagesModifiedData",
+    "PermissionAllowAllMode",
     "PermissionApproved",
     "PermissionApprovedForLocation",
     "PermissionApprovedForSession",
+    "PermissionAutoApproval",
     "PermissionCancelled",
     "PermissionCompletedData",
     "PermissionDeniedByContentExclusionPolicy",

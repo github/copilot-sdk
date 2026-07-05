@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `Plugin` type.
+ * Session plugin metadata, with name, marketplace, optional version, and enabled state.
  *
  * @since 1.0.0
  */

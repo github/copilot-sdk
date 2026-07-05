@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SlashCommandSelectSubcommandResult` type.
+ * Slash-command invocation result asking the client to present subcommand options for a parent command.
  *
  * @since 1.0.0
  */

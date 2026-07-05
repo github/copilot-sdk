@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SlashCommandTextResult` type.
+ * Slash-command invocation result containing text output plus Markdown/ANSI rendering flags.
  *
  * @since 1.0.0
  */

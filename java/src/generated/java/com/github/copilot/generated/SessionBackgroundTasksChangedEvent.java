@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.background_tasks_changed".
+ * Session event "session.background_tasks_changed". Empty payload for `session.background_tasks_changed`, indicating background task state changed.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

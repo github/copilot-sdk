@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `AssistantUsageQuotaSnapshot` type.
+ * Internal per-quota snapshot for assistant usage, including entitlement, consumed requests, overage, reset date, and remaining quota.
  *
  * @since 1.0.0
  */

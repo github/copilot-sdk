@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `PluginUpdateAllEntry` type.
+ * Per-plugin result from updating all plugins, with versions, skills installed, success flag, and optional error.
  *
  * @since 1.0.0
  */

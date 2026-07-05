@@ -315,6 +315,8 @@ func (*SessionBinaryAssetData) Type() SessionEventType { return SessionEventType
 type SessionCompactionStartData struct {
 	// Token count from non-system messages (user, assistant, tool) at compaction start
 	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
+	// Model identifier used for compaction, when known
+	Model *string `json:"model,omitempty"`
 	// Token count from system message(s) at compaction start
 	SystemTokens *int64 `json:"systemTokens,omitempty"`
 	// Token count from tool definitions at compaction start
@@ -526,6 +528,15 @@ type ElicitationRequestedData struct {
 
 func (*ElicitationRequestedData) sessionEventData()      {}
 func (*ElicitationRequestedData) Type() SessionEventType { return SessionEventTypeElicitationRequested }
+
+// Empty payload for `session.background_tasks_changed`, indicating background task state changed.
+type SessionBackgroundTasksChangedData struct {
+}
+
+func (*SessionBackgroundTasksChangedData) sessionEventData() {}
+func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionBackgroundTasksChanged
+}
 
 // Empty payload; the event signals that the custom agent was deselected, returning to the default agent
 type SubagentDeselectedData struct {
@@ -889,6 +900,166 @@ type SessionIdleData struct {
 func (*SessionIdleData) sessionEventData()      {}
 func (*SessionIdleData) Type() SessionEventType { return SessionEventTypeSessionIdle }
 
+// Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.
+// Experimental: SessionCanvasClosedData is part of an experimental API and may change or be removed.
+type SessionCanvasClosedData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Stable caller-supplied identifier of the canvas instance that was closed
+	InstanceID string `json:"instanceId"`
+}
+
+func (*SessionCanvasClosedData) sessionEventData()      {}
+func (*SessionCanvasClosedData) Type() SessionEventType { return SessionEventTypeSessionCanvasClosed }
+
+// Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
+// Experimental: SessionCanvasOpenedData is part of an experimental API and may change or be removed.
+type SessionCanvasOpenedData struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Owning extension display name, when available
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// Input supplied when the instance was opened
+	Input any `json:"input,omitempty"`
+	// Stable caller-supplied canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Provider-supplied status text
+	Status *string `json:"status,omitempty"`
+	// Rendered title
+	Title *string `json:"title,omitempty"`
+	// URL for web-rendered canvases
+	URL *string `json:"url,omitempty"`
+}
+
+func (*SessionCanvasOpenedData) sessionEventData()      {}
+func (*SessionCanvasOpenedData) Type() SessionEventType { return SessionEventTypeSessionCanvasOpened }
+
+// Payload of `session.canvas.registry_changed` listing the canvas declarations currently available.
+// Experimental: SessionCanvasRegistryChangedData is part of an experimental API and may change or be removed.
+type SessionCanvasRegistryChangedData struct {
+	// Canvas declarations currently available
+	Canvases []CanvasRegistryChangedCanvas `json:"canvases"`
+}
+
+func (*SessionCanvasRegistryChangedData) sessionEventData() {}
+func (*SessionCanvasRegistryChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasRegistryChanged
+}
+
+// Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors.
+type SessionCustomAgentsUpdatedData struct {
+	// Array of loaded custom agent metadata
+	Agents []CustomAgentsUpdatedAgent `json:"agents"`
+	// Fatal errors from agent loading
+	Errors []string `json:"errors"`
+	// Non-fatal warnings from agent loading
+	Warnings []string `json:"warnings"`
+}
+
+func (*SessionCustomAgentsUpdatedData) sessionEventData() {}
+func (*SessionCustomAgentsUpdatedData) Type() SessionEventType {
+	return SessionEventTypeSessionCustomAgentsUpdated
+}
+
+// Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send.
+type SessionExtensionsAttachmentsPushedData struct {
+	// Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.
+	Attachments []Attachment `json:"attachments"`
+}
+
+func (*SessionExtensionsAttachmentsPushedData) sessionEventData() {}
+func (*SessionExtensionsAttachmentsPushedData) Type() SessionEventType {
+	return SessionEventTypeSessionExtensionsAttachmentsPushed
+}
+
+// Payload of `session.extensions_loaded` listing discovered extensions and their statuses.
+type SessionExtensionsLoadedData struct {
+	// Array of discovered extensions and their status
+	Extensions []ExtensionsLoadedExtension `json:"extensions"`
+}
+
+func (*SessionExtensionsLoadedData) sessionEventData() {}
+func (*SessionExtensionsLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionExtensionsLoaded
+}
+
+// Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
+type SessionMCPServerStatusChangedData struct {
+	// Error message if the server entered a failed state
+	Error *string `json:"error,omitempty"`
+	// Name of the MCP server whose status changed
+	ServerName string `json:"serverName"`
+	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	Status MCPServerStatus `json:"status"`
+}
+
+func (*SessionMCPServerStatusChangedData) sessionEventData() {}
+func (*SessionMCPServerStatusChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerStatusChanged
+}
+
+// Payload of `session.mcp_servers_loaded` listing MCP server status summaries.
+type SessionMCPServersLoadedData struct {
+	// Array of MCP server status summaries
+	Servers []MCPServersLoadedServer `json:"servers"`
+}
+
+func (*SessionMCPServersLoadedData) sessionEventData() {}
+func (*SessionMCPServersLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServersLoaded
+}
+
+// Payload of `session.skills_loaded` listing resolved skill metadata.
+type SessionSkillsLoadedData struct {
+	// Array of resolved skill metadata
+	Skills []SkillsLoadedSkill `json:"skills"`
+}
+
+func (*SessionSkillsLoadedData) sessionEventData()      {}
+func (*SessionSkillsLoadedData) Type() SessionEventType { return SessionEventTypeSessionSkillsLoaded }
+
+// Payload of `session.tools_updated` identifying the model whose resolved tools were updated.
+type SessionToolsUpdatedData struct {
+	// Identifier of the model the resolved tools apply to.
+	Model string `json:"model"`
+}
+
+func (*SessionToolsUpdatedData) sessionEventData()      {}
+func (*SessionToolsUpdatedData) Type() SessionEventType { return SessionEventTypeSessionToolsUpdated }
+
+// Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
+type UserMessageData struct {
+	// The agent mode that was active when this message was sent
+	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
+	// Files, selections, or GitHub references attached to the message
+	Attachments []Attachment `json:"attachments,omitzero"`
+	// The user's message text as displayed in the timeline
+	Content string `json:"content"`
+	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
+	Delivery *UserMessageDelivery `json:"delivery,omitempty"`
+	// CAPI interaction ID for correlating this user message with its turn
+	InteractionID *string `json:"interactionId,omitempty"`
+	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
+	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
+	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
+	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
+	// Parent agent task ID for background telemetry correlated to this user turn
+	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
+	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
+	Source *string `json:"source,omitempty"`
+	// Normalized document MIME types that were sent natively instead of through tagged_files XML
+	SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitzero"`
+	// Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
+	TransformedContent *string `json:"transformedContent,omitempty"`
+}
+
+func (*UserMessageData) sessionEventData()      {}
+func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMessage }
+
 // Permission request completion notification signaling UI dismissal
 type PermissionCompletedData struct {
 	// Request ID of the resolved permission request; clients should dismiss any UI for this request
@@ -917,10 +1088,16 @@ type PermissionRequestedData struct {
 func (*PermissionRequestedData) sessionEventData()      {}
 func (*PermissionRequestedData) Type() SessionEventType { return SessionEventTypePermissionRequested }
 
-// Permissions change details carrying the aggregate allow-all boolean transition.
+// Permissions change details carrying the aggregate allow-all transition.
 type SessionPermissionsChangedData struct {
+	// Allow-all mode after the change
+	// Experimental: AllowAllPermissionMode is part of an experimental API and may change or be removed.
+	AllowAllPermissionMode *PermissionAllowAllMode `json:"allowAllPermissionMode,omitempty"`
 	// Aggregate allow-all flag after the change
 	AllowAllPermissions bool `json:"allowAllPermissions"`
+	// Allow-all mode before the change
+	// Experimental: PreviousAllowAllPermissionMode is part of an experimental API and may change or be removed.
+	PreviousAllowAllPermissionMode *PermissionAllowAllMode `json:"previousAllowAllPermissionMode,omitempty"`
 	// Aggregate allow-all flag before the change
 	PreviousAllowAllPermissions bool `json:"previousAllowAllPermissions"`
 }
@@ -1080,175 +1257,6 @@ func (*SessionScheduleCreatedData) sessionEventData() {}
 func (*SessionScheduleCreatedData) Type() SessionEventType {
 	return SessionEventTypeSessionScheduleCreated
 }
-
-// Schema for the `BackgroundTasksChangedData` type.
-type SessionBackgroundTasksChangedData struct {
-}
-
-func (*SessionBackgroundTasksChangedData) sessionEventData() {}
-func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
-	return SessionEventTypeSessionBackgroundTasksChanged
-}
-
-// Schema for the `CanvasClosedData` type.
-// Experimental: SessionCanvasClosedData is part of an experimental API and may change or be removed.
-type SessionCanvasClosedData struct {
-	// Provider-local canvas identifier
-	CanvasID string `json:"canvasId"`
-	// Owning provider identifier
-	ExtensionID string `json:"extensionId"`
-	// Stable caller-supplied identifier of the canvas instance that was closed
-	InstanceID string `json:"instanceId"`
-}
-
-func (*SessionCanvasClosedData) sessionEventData()      {}
-func (*SessionCanvasClosedData) Type() SessionEventType { return SessionEventTypeSessionCanvasClosed }
-
-// Schema for the `CanvasOpenedData` type.
-// Experimental: SessionCanvasOpenedData is part of an experimental API and may change or be removed.
-type SessionCanvasOpenedData struct {
-	// Provider-local canvas identifier
-	CanvasID string `json:"canvasId"`
-	// Owning provider identifier
-	ExtensionID string `json:"extensionId"`
-	// Owning extension display name, when available
-	ExtensionName *string `json:"extensionName,omitempty"`
-	// Input supplied when the instance was opened
-	Input any `json:"input,omitempty"`
-	// Stable caller-supplied canvas instance identifier
-	InstanceID string `json:"instanceId"`
-	// Provider-supplied status text
-	Status *string `json:"status,omitempty"`
-	// Rendered title
-	Title *string `json:"title,omitempty"`
-	// URL for web-rendered canvases
-	URL *string `json:"url,omitempty"`
-}
-
-func (*SessionCanvasOpenedData) sessionEventData()      {}
-func (*SessionCanvasOpenedData) Type() SessionEventType { return SessionEventTypeSessionCanvasOpened }
-
-// Schema for the `CanvasRegistryChangedData` type.
-// Experimental: SessionCanvasRegistryChangedData is part of an experimental API and may change or be removed.
-type SessionCanvasRegistryChangedData struct {
-	// Canvas declarations currently available
-	Canvases []CanvasRegistryChangedCanvas `json:"canvases"`
-}
-
-func (*SessionCanvasRegistryChangedData) sessionEventData() {}
-func (*SessionCanvasRegistryChangedData) Type() SessionEventType {
-	return SessionEventTypeSessionCanvasRegistryChanged
-}
-
-// Schema for the `CustomAgentsUpdatedData` type.
-type SessionCustomAgentsUpdatedData struct {
-	// Array of loaded custom agent metadata
-	Agents []CustomAgentsUpdatedAgent `json:"agents"`
-	// Fatal errors from agent loading
-	Errors []string `json:"errors"`
-	// Non-fatal warnings from agent loading
-	Warnings []string `json:"warnings"`
-}
-
-func (*SessionCustomAgentsUpdatedData) sessionEventData() {}
-func (*SessionCustomAgentsUpdatedData) Type() SessionEventType {
-	return SessionEventTypeSessionCustomAgentsUpdated
-}
-
-// Schema for the `ExtensionsAttachmentsPushedData` type.
-type SessionExtensionsAttachmentsPushedData struct {
-	// Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.
-	Attachments []Attachment `json:"attachments"`
-}
-
-func (*SessionExtensionsAttachmentsPushedData) sessionEventData() {}
-func (*SessionExtensionsAttachmentsPushedData) Type() SessionEventType {
-	return SessionEventTypeSessionExtensionsAttachmentsPushed
-}
-
-// Schema for the `ExtensionsLoadedData` type.
-type SessionExtensionsLoadedData struct {
-	// Array of discovered extensions and their status
-	Extensions []ExtensionsLoadedExtension `json:"extensions"`
-}
-
-func (*SessionExtensionsLoadedData) sessionEventData() {}
-func (*SessionExtensionsLoadedData) Type() SessionEventType {
-	return SessionEventTypeSessionExtensionsLoaded
-}
-
-// Schema for the `McpServerStatusChangedData` type.
-type SessionMCPServerStatusChangedData struct {
-	// Error message if the server entered a failed state
-	Error *string `json:"error,omitempty"`
-	// Name of the MCP server whose status changed
-	ServerName string `json:"serverName"`
-	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status MCPServerStatus `json:"status"`
-}
-
-func (*SessionMCPServerStatusChangedData) sessionEventData() {}
-func (*SessionMCPServerStatusChangedData) Type() SessionEventType {
-	return SessionEventTypeSessionMCPServerStatusChanged
-}
-
-// Schema for the `McpServersLoadedData` type.
-type SessionMCPServersLoadedData struct {
-	// Array of MCP server status summaries
-	Servers []MCPServersLoadedServer `json:"servers"`
-}
-
-func (*SessionMCPServersLoadedData) sessionEventData() {}
-func (*SessionMCPServersLoadedData) Type() SessionEventType {
-	return SessionEventTypeSessionMCPServersLoaded
-}
-
-// Schema for the `SkillsLoadedData` type.
-type SessionSkillsLoadedData struct {
-	// Array of resolved skill metadata
-	Skills []SkillsLoadedSkill `json:"skills"`
-}
-
-func (*SessionSkillsLoadedData) sessionEventData()      {}
-func (*SessionSkillsLoadedData) Type() SessionEventType { return SessionEventTypeSessionSkillsLoaded }
-
-// Schema for the `ToolsUpdatedData` type.
-type SessionToolsUpdatedData struct {
-	// Identifier of the model the resolved tools apply to.
-	Model string `json:"model"`
-}
-
-func (*SessionToolsUpdatedData) sessionEventData()      {}
-func (*SessionToolsUpdatedData) Type() SessionEventType { return SessionEventTypeSessionToolsUpdated }
-
-// Schema for the `UserMessageData` type.
-type UserMessageData struct {
-	// The agent mode that was active when this message was sent
-	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
-	// Files, selections, or GitHub references attached to the message
-	Attachments []Attachment `json:"attachments,omitzero"`
-	// The user's message text as displayed in the timeline
-	Content string `json:"content"`
-	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
-	Delivery *UserMessageDelivery `json:"delivery,omitempty"`
-	// CAPI interaction ID for correlating this user message with its turn
-	InteractionID *string `json:"interactionId,omitempty"`
-	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
-	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
-	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
-	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
-	// Parent agent task ID for background telemetry correlated to this user turn
-	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
-	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
-	Source *string `json:"source,omitempty"`
-	// Normalized document MIME types that were sent natively instead of through tagged_files XML
-	SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitzero"`
-	// Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
-	TransformedContent *string `json:"transformedContent,omitempty"`
-}
-
-func (*UserMessageData) sessionEventData()      {}
-func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMessage }
 
 // Self-paced schedule re-armed for its next run
 type SessionScheduleRearmedData struct {
@@ -1476,6 +1484,8 @@ type SkillInvokedData struct {
 	Content string `json:"content"`
 	// Description of the skill from its SKILL.md frontmatter
 	Description *string `json:"description,omitempty"`
+	// Model identifier active when the skill was invoked, when known
+	Model *string `json:"model,omitempty"`
 	// Name of the invoked skill
 	Name string `json:"name"`
 	// File path to the SKILL.md definition
@@ -1761,6 +1771,8 @@ func (*AbortData) Type() SessionEventType { return SessionEventTypeAbort }
 
 // Turn completion metadata including the turn identifier
 type AssistantTurnEndData struct {
+	// Model identifier used for this turn, when known
+	Model *string `json:"model,omitempty"`
 	// Identifier of the turn that has ended, matching the corresponding assistant.turn_start event
 	TurnID string `json:"turnId"`
 }
@@ -1772,6 +1784,8 @@ func (*AssistantTurnEndData) Type() SessionEventType { return SessionEventTypeAs
 type AssistantTurnStartData struct {
 	// CAPI interaction ID for correlating this turn with upstream telemetry
 	InteractionID *string `json:"interactionId,omitempty"`
+	// Model identifier used for this turn, when known
+	Model *string `json:"model,omitempty"`
 	// Identifier for this turn within the agentic loop, typically a stringified turn number
 	TurnID string `json:"turnId"`
 }
@@ -1924,7 +1938,7 @@ type AssistantUsageCopilotUsageTokenDetail struct {
 	TokenType string `json:"tokenType"`
 }
 
-// Schema for the `AssistantUsageQuotaSnapshot` type.
+// Internal per-quota snapshot for assistant usage, including entitlement, consumed requests, overage, reset date, and remaining quota.
 // Internal: AssistantUsageQuotaSnapshot is an internal SDK API and is not part of the public surface.
 type AssistantUsageQuotaSnapshot struct {
 	// Total requests allowed by the entitlement
@@ -1962,7 +1976,7 @@ type AssistantUsageQuotaSnapshot struct {
 	UsedRequests int64 `json:"usedRequests"`
 }
 
-// Schema for the `CanvasRegistryChangedCanvas` type.
+// A single canvas declaration in `session.canvas.registry_changed`, including provider IDs, display metadata, input schema, and actions.
 // Experimental: CanvasRegistryChangedCanvas is part of an experimental API and may change or be removed.
 type CanvasRegistryChangedCanvas struct {
 	// Actions the agent or host may invoke
@@ -1981,7 +1995,7 @@ type CanvasRegistryChangedCanvas struct {
 	InputSchema any `json:"inputSchema,omitempty"`
 }
 
-// Schema for the `CanvasRegistryChangedCanvasAction` type.
+// A single action within a canvas declaration, with its name, optional description, and optional input schema.
 // Experimental: CanvasRegistryChangedCanvasAction is part of an experimental API and may change or be removed.
 type CanvasRegistryChangedCanvasAction struct {
 	// Action description
@@ -2121,7 +2135,7 @@ type CitationSpan struct {
 	StartIndex int64 `json:"startIndex"`
 }
 
-// Schema for the `CommandsChangedCommand` type.
+// A single slash command available in the session, as listed by the `commands.changed` event.
 type CommandsChangedCommand struct {
 	// Optional human-readable command description.
 	Description *string `json:"description,omitempty"`
@@ -2170,7 +2184,7 @@ type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
 	TokenType string `json:"tokenType"`
 }
 
-// Schema for the `CustomAgentsUpdatedAgent` type.
+// A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
 type CustomAgentsUpdatedAgent struct {
 	// Description of what the agent does
 	Description string `json:"description"`
@@ -2200,7 +2214,7 @@ type ElicitationRequestedSchema struct {
 	Type ElicitationRequestedSchemaType `json:"type"`
 }
 
-// Schema for the `ExtensionsLoadedExtension` type.
+// A single extension discovered by `session.extensions_loaded`, including qualified ID, source, and current status.
 type ExtensionsLoadedExtension struct {
 	// Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper', 'plugin:my-plugin:my-ext')
 	ID string `json:"id"`
@@ -2240,11 +2254,11 @@ type MCPAppToolCallCompleteError struct {
 
 // The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.
 type MCPAppToolCallCompleteToolMeta struct {
-	// Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+	// MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result.
 	UI *MCPAppToolCallCompleteToolMetaUI `json:"ui,omitempty"`
 }
 
-// Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+// MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result.
 type MCPAppToolCallCompleteToolMetaUI struct {
 	// `ui://` URI declared by the tool's `_meta.ui.resourceUri`
 	ResourceURI *string `json:"resourceUri,omitempty"`
@@ -2274,7 +2288,7 @@ type MCPOauthWwwAuthenticateParams struct {
 	Scope *string `json:"scope,omitempty"`
 }
 
-// Schema for the `McpServersLoadedServer` type.
+// A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.
 type MCPServersLoadedServer struct {
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
@@ -2310,6 +2324,15 @@ type ModelCallFailureRequestFingerprint struct {
 	ToolResultMessageCount int64 `json:"toolResultMessageCount"`
 }
 
+// Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
+// Experimental: PermissionAutoApproval is part of an experimental API and may change or be removed.
+type PermissionAutoApproval struct {
+	// Human-readable reason for the judge's recommendation, when available.
+	Reason *string `json:"reason,omitempty"`
+	// The auto-approval safety judge's outcome for this request.
+	Recommendation AutoApprovalRecommendation `json:"recommendation"`
+}
+
 // Derived user-facing permission prompt details for UI consumers
 type PermissionPromptRequest interface {
 	permissionPromptRequest()
@@ -2328,6 +2351,9 @@ func (r RawPermissionPromptRequest) Kind() PermissionPromptRequestKind {
 
 // Shell command permission prompt
 type PermissionPromptRequestCommands struct {
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Whether the UI can offer session-wide approval for this command pattern
 	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
 	// Command identifiers covered by this approval prompt
@@ -2351,6 +2377,9 @@ func (PermissionPromptRequestCommands) Kind() PermissionPromptRequestKind {
 type PermissionPromptRequestCustomTool struct {
 	// Arguments to pass to the custom tool
 	Args any `json:"args,omitempty"`
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Description of what the custom tool does
@@ -2366,6 +2395,9 @@ func (PermissionPromptRequestCustomTool) Kind() PermissionPromptRequestKind {
 
 // Extension management permission prompt
 type PermissionPromptRequestExtensionManagement struct {
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Name of the extension being managed
 	ExtensionName *string `json:"extensionName,omitempty"`
 	// The extension management operation (scaffold, reload)
@@ -2381,6 +2413,9 @@ func (PermissionPromptRequestExtensionManagement) Kind() PermissionPromptRequest
 
 // Extension permission access prompt
 type PermissionPromptRequestExtensionPermissionAccess struct {
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Capabilities the extension is requesting
 	Capabilities []string `json:"capabilities"`
 	// Name of the extension requesting permission access
@@ -2396,6 +2431,9 @@ func (PermissionPromptRequestExtensionPermissionAccess) Kind() PermissionPromptR
 
 // Hook confirmation permission prompt
 type PermissionPromptRequestHook struct {
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Optional message from the hook explaining why confirmation is needed
 	HookMessage *string `json:"hookMessage,omitempty"`
 	// Arguments of the tool call being gated
@@ -2415,6 +2453,9 @@ func (PermissionPromptRequestHook) Kind() PermissionPromptRequestKind {
 type PermissionPromptRequestMCP struct {
 	// Arguments to pass to the MCP tool
 	Args any `json:"args,omitempty"`
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Name of the MCP server providing the tool
 	ServerName string `json:"serverName"`
 	// Tool call ID that triggered this permission request
@@ -2434,6 +2475,9 @@ func (PermissionPromptRequestMCP) Kind() PermissionPromptRequestKind {
 type PermissionPromptRequestMemory struct {
 	// Whether this is a store or vote memory operation
 	Action *PermissionRequestMemoryAction `json:"action,omitempty"`
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Source references for the stored fact (store only)
 	Citations *string `json:"citations,omitempty"`
 	// Vote direction (vote only)
@@ -2457,6 +2501,9 @@ func (PermissionPromptRequestMemory) Kind() PermissionPromptRequestKind {
 type PermissionPromptRequestPath struct {
 	// Underlying permission kind that needs path approval
 	AccessKind PermissionPromptRequestPathAccessKind `json:"accessKind"`
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// File paths that require explicit approval
 	Paths []string `json:"paths"`
 	// Tool call ID that triggered this permission request
@@ -2470,6 +2517,9 @@ func (PermissionPromptRequestPath) Kind() PermissionPromptRequestKind {
 
 // File read permission prompt
 type PermissionPromptRequestRead struct {
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Human-readable description of why the file is being read
 	Intention string `json:"intention"`
 	// Path of the file or directory being read
@@ -2485,6 +2535,9 @@ func (PermissionPromptRequestRead) Kind() PermissionPromptRequestKind {
 
 // URL access permission prompt
 type PermissionPromptRequestURL struct {
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Human-readable description of why the URL is being accessed
 	Intention string `json:"intention"`
 	// Tool call ID that triggered this permission request
@@ -2500,6 +2553,9 @@ func (PermissionPromptRequestURL) Kind() PermissionPromptRequestKind {
 
 // File write permission prompt
 type PermissionPromptRequestWrite struct {
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Whether the UI can offer session-wide approval for file write operations
 	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
 	// Unified diff showing the proposed changes
@@ -2729,7 +2785,7 @@ func (PermissionRequestWrite) Kind() PermissionRequestKind {
 	return PermissionRequestKindWrite
 }
 
-// Schema for the `PermissionRequestShellCommand` type.
+// A parsed command identifier in a shell permission request, including whether it is read-only.
 type PermissionRequestShellCommand struct {
 	// Command identifier (e.g., executable name)
 	Identifier string `json:"identifier"`
@@ -2737,7 +2793,7 @@ type PermissionRequestShellCommand struct {
 	ReadOnly bool `json:"readOnly"`
 }
 
-// Schema for the `PermissionRequestShellPossibleUrl` type.
+// A URL that may be accessed by a command in a shell permission request.
 type PermissionRequestShellPossibleURL struct {
 	// URL that may be accessed by the command
 	URL string `json:"url"`
@@ -2759,7 +2815,7 @@ func (r RawPermissionResult) Kind() PermissionResultKind {
 	return r.Discriminator
 }
 
-// Schema for the `PermissionApproved` type.
+// Permission response variant indicating the request was approved without persisting an approval rule.
 type PermissionApproved struct {
 }
 
@@ -2768,7 +2824,7 @@ func (PermissionApproved) Kind() PermissionResultKind {
 	return PermissionResultKindApproved
 }
 
-// Schema for the `PermissionApprovedForLocation` type.
+// Permission response variant that approves a request and persists the provided approval to a project location key.
 type PermissionApprovedForLocation struct {
 	// The approval to persist for this location
 	Approval UserToolSessionApproval `json:"approval"`
@@ -2781,7 +2837,7 @@ func (PermissionApprovedForLocation) Kind() PermissionResultKind {
 	return PermissionResultKindApprovedForLocation
 }
 
-// Schema for the `PermissionApprovedForSession` type.
+// Permission response variant that approves a request and remembers the provided approval for the rest of the session.
 type PermissionApprovedForSession struct {
 	// The approval to add as a session-scoped rule
 	Approval UserToolSessionApproval `json:"approval"`
@@ -2792,7 +2848,7 @@ func (PermissionApprovedForSession) Kind() PermissionResultKind {
 	return PermissionResultKindApprovedForSession
 }
 
-// Schema for the `PermissionCancelled` type.
+// Permission response variant indicating the request was cancelled before use, with an optional reason.
 type PermissionCancelled struct {
 	// Optional explanation of why the request was cancelled
 	Reason *string `json:"reason,omitempty"`
@@ -2803,7 +2859,7 @@ func (PermissionCancelled) Kind() PermissionResultKind {
 	return PermissionResultKindCancelled
 }
 
-// Schema for the `PermissionDeniedByContentExclusionPolicy` type.
+// Permission response variant denying a path under content exclusion policy, with the path and message.
 type PermissionDeniedByContentExclusionPolicy struct {
 	// Human-readable explanation of why the path was excluded
 	Message string `json:"message"`
@@ -2816,7 +2872,7 @@ func (PermissionDeniedByContentExclusionPolicy) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByContentExclusionPolicy
 }
 
-// Schema for the `PermissionDeniedByPermissionRequestHook` type.
+// Permission response variant denied by a permission-request hook, with optional message and interrupt flag.
 type PermissionDeniedByPermissionRequestHook struct {
 	// Whether to interrupt the current agent turn
 	Interrupt *bool `json:"interrupt,omitempty"`
@@ -2829,7 +2885,7 @@ func (PermissionDeniedByPermissionRequestHook) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByPermissionRequestHook
 }
 
-// Schema for the `PermissionDeniedByRules` type.
+// Permission response variant denied because matching approval rules explicitly blocked the request.
 type PermissionDeniedByRules struct {
 	// Rules that denied the request
 	Rules []PermissionRule `json:"rules"`
@@ -2840,7 +2896,7 @@ func (PermissionDeniedByRules) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByRules
 }
 
-// Schema for the `PermissionDeniedInteractivelyByUser` type.
+// Permission response variant denied in an interactive user prompt, with optional feedback and force-reject flag.
 type PermissionDeniedInteractivelyByUser struct {
 	// Optional feedback from the user explaining the denial
 	Feedback *string `json:"feedback,omitempty"`
@@ -2853,7 +2909,7 @@ func (PermissionDeniedInteractivelyByUser) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedInteractivelyByUser
 }
 
-// Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
+// Permission response variant denied because no approval rule matched and user confirmation was unavailable.
 type PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser struct {
 }
 
@@ -2966,7 +3022,7 @@ type ShutdownCodeChanges struct {
 	LinesRemoved int64 `json:"linesRemoved"`
 }
 
-// Schema for the `ShutdownModelMetric` type.
+// Per-model shutdown metrics with request counts, token usage, nano-AI units, and token details.
 type ShutdownModelMetric struct {
 	// Request count and cost metrics
 	Requests ShutdownModelMetricRequests `json:"requests"`
@@ -2989,7 +3045,7 @@ type ShutdownModelMetricRequests struct {
 	Count *int64 `json:"count,omitempty"`
 }
 
-// Schema for the `ShutdownModelMetricTokenDetail` type.
+// A token-type entry in a shutdown model metric, storing the accumulated token count.
 type ShutdownModelMetricTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount int64 `json:"tokenCount"`
@@ -3009,13 +3065,13 @@ type ShutdownModelMetricUsage struct {
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
 }
 
-// Schema for the `ShutdownTokenDetail` type.
+// A session-wide shutdown token-type entry storing the accumulated token count.
 type ShutdownTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount int64 `json:"tokenCount"`
 }
 
-// Schema for the `SkillsLoadedSkill` type.
+// A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.
 type SkillsLoadedSkill struct {
 	// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
 	ArgumentHint *string `json:"argumentHint,omitempty"`
@@ -3057,7 +3113,7 @@ func (r RawSystemNotification) Type() SystemNotificationType {
 	return r.Discriminator
 }
 
-// Schema for the `SystemNotificationAgentCompleted` type.
+// System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.
 type SystemNotificationAgentCompleted struct {
 	// Unique identifier of the background agent
 	AgentID string `json:"agentId"`
@@ -3076,7 +3132,7 @@ func (SystemNotificationAgentCompleted) Type() SystemNotificationType {
 	return SystemNotificationTypeAgentCompleted
 }
 
-// Schema for the `SystemNotificationAgentIdle` type.
+// System notification metadata for a background agent that became idle, including agent ID, type, and description.
 type SystemNotificationAgentIdle struct {
 	// Unique identifier of the background agent
 	AgentID string `json:"agentId"`
@@ -3091,7 +3147,7 @@ func (SystemNotificationAgentIdle) Type() SystemNotificationType {
 	return SystemNotificationTypeAgentIdle
 }
 
-// Schema for the `SystemNotificationInstructionDiscovered` type.
+// System notification metadata for an instruction file discovered during tool access, including source, trigger file, and tool.
 type SystemNotificationInstructionDiscovered struct {
 	// Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/')
 	Description *string `json:"description,omitempty"`
@@ -3108,7 +3164,7 @@ func (SystemNotificationInstructionDiscovered) Type() SystemNotificationType {
 	return SystemNotificationTypeInstructionDiscovered
 }
 
-// Schema for the `SystemNotificationNewInboxMessage` type.
+// System notification metadata for a new inbox message, including entry ID, sender details, and summary.
 type SystemNotificationNewInboxMessage struct {
 	// Unique identifier of the inbox entry
 	EntryID string `json:"entryId"`
@@ -3125,7 +3181,7 @@ func (SystemNotificationNewInboxMessage) Type() SystemNotificationType {
 	return SystemNotificationTypeNewInboxMessage
 }
 
-// Schema for the `SystemNotificationShellCompleted` type.
+// System notification metadata for a shell session that completed, including shell ID, optional exit code, and description.
 type SystemNotificationShellCompleted struct {
 	// Human-readable description of the command
 	Description *string `json:"description,omitempty"`
@@ -3140,7 +3196,7 @@ func (SystemNotificationShellCompleted) Type() SystemNotificationType {
 	return SystemNotificationTypeShellCompleted
 }
 
-// Schema for the `SystemNotificationShellDetachedCompleted` type.
+// System notification metadata for a detached shell session that completed, including shell ID and description.
 type SystemNotificationShellDetachedCompleted struct {
 	// Human-readable description of the command
 	Description *string `json:"description,omitempty"`
@@ -3332,11 +3388,11 @@ type ToolExecutionCompleteToolDescription struct {
 
 // MCP Apps metadata for UI resource association
 type ToolExecutionCompleteToolDescriptionMeta struct {
-	// Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+	// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.
 	UI *ToolExecutionCompleteToolDescriptionMetaUI `json:"ui,omitempty"`
 }
 
-// Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.
 type ToolExecutionCompleteToolDescriptionMetaUI struct {
 	// URI of the UI resource
 	ResourceURI *string `json:"resourceUri,omitempty"`
@@ -3360,21 +3416,21 @@ type ToolExecutionCompleteUIResource struct {
 
 // Resource-level UI metadata (CSP, permissions, visual preferences)
 type ToolExecutionCompleteUIResourceMeta struct {
-	// Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+	// MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.
 	UI *ToolExecutionCompleteUIResourceMetaUI `json:"ui,omitempty"`
 }
 
-// Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+// MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.
 type ToolExecutionCompleteUIResourceMetaUI struct {
-	// Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+	// CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
 	Csp    *ToolExecutionCompleteUIResourceMetaUICsp `json:"csp,omitempty"`
 	Domain *string                                   `json:"domain,omitempty"`
-	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+	// Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
 	Permissions   *ToolExecutionCompleteUIResourceMetaUIPermissions `json:"permissions,omitempty"`
 	PrefersBorder *bool                                             `json:"prefersBorder,omitempty"`
 }
 
-// Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+// CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
 type ToolExecutionCompleteUIResourceMetaUICsp struct {
 	BaseURIDomains  []string `json:"baseUriDomains,omitzero"`
 	ConnectDomains  []string `json:"connectDomains,omitzero"`
@@ -3382,31 +3438,31 @@ type ToolExecutionCompleteUIResourceMetaUICsp struct {
 	ResourceDomains []string `json:"resourceDomains,omitzero"`
 }
 
-// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+// Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
 type ToolExecutionCompleteUIResourceMetaUIPermissions struct {
-	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+	// Marker object for camera permission on an MCP Apps UI resource.
 	Camera *ToolExecutionCompleteUIResourceMetaUIPermissionsCamera `json:"camera,omitempty"`
-	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+	// Marker object for clipboard-write permission on an MCP Apps UI resource.
 	ClipboardWrite *ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite `json:"clipboardWrite,omitempty"`
-	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+	// Marker object for geolocation permission on an MCP Apps UI resource.
 	Geolocation *ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation `json:"geolocation,omitempty"`
-	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+	// Marker object for microphone permission on an MCP Apps UI resource.
 	Microphone *ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone `json:"microphone,omitempty"`
 }
 
-// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+// Marker object for camera permission on an MCP Apps UI resource.
 type ToolExecutionCompleteUIResourceMetaUIPermissionsCamera struct {
 }
 
-// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+// Marker object for clipboard-write permission on an MCP Apps UI resource.
 type ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite struct {
 }
 
-// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+// Marker object for geolocation permission on an MCP Apps UI resource.
 type ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation struct {
 }
 
-// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+// Marker object for microphone permission on an MCP Apps UI resource.
 type ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone struct {
 }
 
@@ -3430,11 +3486,11 @@ type ToolExecutionStartToolDescription struct {
 
 // MCP Apps metadata for UI resource association
 type ToolExecutionStartToolDescriptionMeta struct {
-	// Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.
+	// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_start`.
 	UI *ToolExecutionStartToolDescriptionMetaUI `json:"ui,omitempty"`
 }
 
-// Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.
+// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_start`.
 type ToolExecutionStartToolDescriptionMetaUI struct {
 	// URI of the UI resource
 	ResourceURI *string `json:"resourceUri,omitempty"`
@@ -3484,6 +3540,21 @@ const (
 	AssistantUsageAPIEndpointV1Messages AssistantUsageAPIEndpoint = "/v1/messages"
 	// WebSocket Responses API endpoint.
 	AssistantUsageAPIEndpointWsResponses AssistantUsageAPIEndpoint = "ws:/responses"
+)
+
+// Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).
+// Experimental: AutoApprovalRecommendation is part of an experimental API and may change or be removed.
+type AutoApprovalRecommendation string
+
+const (
+	// The judge evaluated the request and recommends automatically approving it.
+	AutoApprovalRecommendationApprove AutoApprovalRecommendation = "approve"
+	// The judge was consulted but did not return a usable recommendation, so the request requires explicit approval.
+	AutoApprovalRecommendationError AutoApprovalRecommendation = "error"
+	// Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted.
+	AutoApprovalRecommendationExcluded AutoApprovalRecommendation = "excluded"
+	// The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
+	AutoApprovalRecommendationRequireApproval AutoApprovalRecommendation = "requireApproval"
 )
 
 // The user's auto-mode-switch choice
@@ -3747,6 +3818,19 @@ const (
 	OmittedBinaryTypeImage OmittedBinaryType = "image"
 	// Other binary resource data.
 	OmittedBinaryTypeResource OmittedBinaryType = "resource"
+)
+
+// Allow-all mode for the session.
+// Experimental: PermissionAllowAllMode is part of an experimental API and may change or be removed.
+type PermissionAllowAllMode string
+
+const (
+	// Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
+	PermissionAllowAllModeAuto PermissionAllowAllMode = "auto"
+	// Permission requests follow the normal approval flow.
+	PermissionAllowAllModeOff PermissionAllowAllMode = "off"
+	// Tool, path, and URL permission requests are automatically approved.
+	PermissionAllowAllModeOn PermissionAllowAllMode = "on"
 )
 
 // Kind discriminator for PermissionPromptRequest.
